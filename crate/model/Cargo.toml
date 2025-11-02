@@ -1,0 +1,16 @@
+[package]
+name = "disposition_model"
+description = "SVG diagram generator input data model."
+documentation = "https://docs.rs/disposition_model/"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

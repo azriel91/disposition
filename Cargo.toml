@@ -1,0 +1,50 @@
+[workspace.package]
+version = "0.0.0"
+authors = ["Azriel Hoh <azriel91@gmail.com>"]
+edition = "2024"
+homepage = "https://azriel.im/disposition"
+repository = "https://github.com/azriel91/disposition"
+readme = "README.md"
+categories = ["asynchronous", "config"]
+keywords = ["automation"]
+license = "MIT OR Apache-2.0"
+
+[workspace]
+members = [
+    "crate/*",
+]
+resolver = "2"
+
+[package]
+name = "disposition"
+description = "SVG diagram generator"
+documentation = "https://docs.rs/disposition/"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+doctest = true
+test = false
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+disposition_model = { workspace = true }
+
+[workspace.dependencies]
+# disposition crates
+disposition_model = { path = "crate/model", version = "0.0.0" }
+
+# external crates
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(coverage_nightly)"] }
