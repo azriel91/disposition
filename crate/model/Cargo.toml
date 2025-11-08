@@ -14,3 +14,13 @@ license.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+id_newtype = { workspace = true, features = ["macros"] }
+indexmap = { workspace = true, features = ["serde"] }
+serde = { workspace = true, features = ["derive"] }
+utoipa = { workspace = true, optional = true }
+
+[features]
+default = ["openapi"]
+openapi = ["dep:utoipa"]
