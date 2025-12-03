@@ -26,6 +26,11 @@ impl TagNames {
     pub fn into_inner(self) -> Map<TagId, String> {
         self.0
     }
+
+    /// Returns true if the map is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 impl Deref for TagNames {

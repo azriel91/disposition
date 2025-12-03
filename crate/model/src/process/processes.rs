@@ -32,6 +32,11 @@ impl Processes {
     pub fn into_inner(self) -> Map<ProcessId, ProcessDiagram> {
         self.0
     }
+
+    /// Returns true if the map is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 impl Deref for Processes {

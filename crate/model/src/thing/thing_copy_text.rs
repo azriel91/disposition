@@ -4,30 +4,31 @@ use serde::{Deserialize, Serialize};
 
 use crate::{common::Map, thing::ThingId};
 
-/// Things in the diagram and their display labels.
+/// Text to copy to clipboard when a thing's copy button is clicked.
 ///
-/// This map defines the `ThingId`s and their display names.
+/// This allows things to have different copy text than their display label.
+/// For example, a directory thing might display as "📂 ~/work/web_app" but
+/// copy as "~/work/web_app".
 ///
-/// `ThingId`s are recommended to be namespace-aware, i.e. for things that nest,
-/// the ID of the nested `thing` should be prefixed with the ID of the parent
-/// `thing`.
+/// # Example
 ///
-/// Example:
-///
-/// * `my_repo`: Repository directory.
-/// * `my_repo_src`: `src` directory within the repo.
-/// * `my_repo_target`: `target` directory within the repo.
+/// ```yaml
+/// thing_copy_text:
+///   t_localhost_repo: "~/work/web_app"
+///   t_localhost_repo_src: "~/work/web_app/src"
+///   t_localhost_repo_target: "~/work/web_app/target"
+/// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThingNames(Map<ThingId, String>);
+pub struct ThingCopyText(Map<ThingId, String>);
 
-impl ThingNames {
-    /// Returns a new `ThingNames` map.
+impl ThingCopyText {
+    /// Returns a new `ThingCopyText` map.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Returns a new `ThingNames` map with the given preallocated
+    /// Returns a new `ThingCopyText` map with the given preallocated
     /// capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self(Map::with_capacity(capacity))
@@ -44,7 +45,7 @@ impl ThingNames {
     }
 }
 
-impl Deref for ThingNames {
+impl Deref for ThingCopyText {
     type Target = Map<ThingId, String>;
 
     fn deref(&self) -> &Self::Target {
@@ -52,19 +53,19 @@ impl Deref for ThingNames {
     }
 }
 
-impl DerefMut for ThingNames {
+impl DerefMut for ThingCopyText {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<ThingId, String>> for ThingNames {
+impl From<Map<ThingId, String>> for ThingCopyText {
     fn from(inner: Map<ThingId, String>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(ThingId, String)> for ThingNames {
+impl FromIterator<(ThingId, String)> for ThingCopyText {
     fn from_iter<I: IntoIterator<Item = (ThingId, String)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }

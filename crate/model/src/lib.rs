@@ -9,8 +9,11 @@ extern crate id_newtype;
 pub use crate::input_diagram::InputDiagram;
 
 pub mod common;
+pub mod edge;
+pub mod entity_type;
 pub mod process;
 pub mod tag;
+pub mod theme;
 pub mod thing;
 
 mod input_diagram;
