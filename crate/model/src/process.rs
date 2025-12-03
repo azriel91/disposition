@@ -1,4 +1,5 @@
-pub use self::{process_diagram_spec::ProcessDiagramSpec, process_id::ProcessId};
+pub use self::{process_diagram::ProcessDiagram, process_id::ProcessId, processes::Processes};
 
-mod process_diagram_spec;
+mod process_diagram;
 mod process_id;
+mod processes;

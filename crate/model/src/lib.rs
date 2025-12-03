@@ -6,11 +6,11 @@
 #[macro_use]
 extern crate id_newtype;
 
-pub use crate::diagram_spec::DiagramSpec;
+pub use crate::input_diagram::InputDiagram;
 
 pub mod common;
-pub mod group;
 pub mod process;
+pub mod tag;
 pub mod thing;
 
-mod diagram_spec;
+mod input_diagram;

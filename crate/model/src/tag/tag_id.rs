@@ -23,9 +23,9 @@ use crate::common::{Id, IdInvalidFmt};
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
-pub struct GroupId(Id);
+pub struct TagId(Id);
 
-impl GroupId {
+impl TagId {
     /// Creates a new [`GroupId`] from a string.
     ///
     /// # Examples
@@ -38,7 +38,7 @@ impl GroupId {
     /// assert_eq!(group_id.as_str(), "example_id");
     /// ```
     pub fn new(id: &'static str) -> Result<Self, IdInvalidFmt<'static>> {
-        Id::new(id).map(GroupId)
+        Id::new(id).map(TagId)
     }
 
     /// Returns the underlying [`Id`] value.
@@ -57,13 +57,13 @@ impl GroupId {
     }
 }
 
-impl From<Id> for GroupId {
+impl From<Id> for TagId {
     fn from(id: Id) -> Self {
-        GroupId(id)
+        TagId(id)
     }
 }
 
-impl Deref for GroupId {
+impl Deref for TagId {
     type Target = Id;
 
     fn deref(&self) -> &Self::Target {
@@ -71,7 +71,7 @@ impl Deref for GroupId {
     }
 }
 
-impl DerefMut for GroupId {
+impl DerefMut for TagId {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

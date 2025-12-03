@@ -11,6 +11,6 @@ use serde::{Deserialize, Serialize};
 /// [`ThingDiagramSpec`]: crate::thing::ThingDiagramSpec
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ProcessDiagramSpec {
+pub struct ProcessDiagram {
     //
 }

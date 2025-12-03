@@ -1,4 +1,4 @@
-pub use self::{thing_diagram_spec::ThingDiagramSpec, thing_id::ThingId};
+pub use self::{thing_id::ThingId, thing_names::ThingNames};
 
-mod thing_diagram_spec;
 mod thing_id;
+mod thing_names;
