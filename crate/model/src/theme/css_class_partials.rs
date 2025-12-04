@@ -1,11 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
-use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::theme::ThemeAttr;
+use crate::{common::Map, theme::ThemeAttr};
 
-/// Partial CSS class name for each theme attribute. `IndexMap<ThemeAttr,
+/// Partial CSS class name for each theme attribute. `Map<ThemeAttr,
 /// String>` newtype.
 ///
 /// These are *partial* CSS utility class names as an entry may be
@@ -19,8 +18,9 @@ use crate::theme::ThemeAttr;
 /// * `"focus:stroke-slate-500"`
 /// * `"hover:stroke-slate-400"`
 /// * `"focus:hover:stroke-slate-400"`
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct CssClassPartials(IndexMap<ThemeAttr, String>);
+pub struct CssClassPartials(Map<ThemeAttr, String>);
 
 impl CssClassPartials {
     /// Returns a new `CssClassPartials` map.
@@ -31,17 +31,17 @@ impl CssClassPartials {
     /// Returns a new `CssClassPartials` map with the given preallocated
     /// capacity.
     pub fn with_capacity(capacity: usize) -> Self {
-        Self(IndexMap::with_capacity(capacity))
+        Self(Map::with_capacity(capacity))
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> IndexMap<ThemeAttr, String> {
+    pub fn into_inner(self) -> Map<ThemeAttr, String> {
         self.0
     }
 }
 
 impl Deref for CssClassPartials {
-    type Target = IndexMap<ThemeAttr, String>;
+    type Target = Map<ThemeAttr, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -54,14 +54,14 @@ impl DerefMut for CssClassPartials {
     }
 }
 
-impl From<IndexMap<ThemeAttr, String>> for CssClassPartials {
-    fn from(inner: IndexMap<ThemeAttr, String>) -> Self {
+impl From<Map<ThemeAttr, String>> for CssClassPartials {
+    fn from(inner: Map<ThemeAttr, String>) -> Self {
         Self(inner)
     }
 }
 
 impl FromIterator<(ThemeAttr, String)> for CssClassPartials {
     fn from_iter<I: IntoIterator<Item = (ThemeAttr, String)>>(iter: I) -> Self {
-        Self(IndexMap::from_iter(iter))
+        Self(Map::from_iter(iter))
     }
 }

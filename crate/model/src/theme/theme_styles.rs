@@ -1,14 +1,17 @@
 use std::ops::{Deref, DerefMut};
 
-use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::theme::{CssClassPartials, IdOrDefaults};
+use crate::{
+    common::Map,
+    theme::{CssClassPartials, IdOrDefaults},
+};
 
-/// CSS utility class partials for each element. `IndexMap<IdOrDefaults,
+/// CSS utility class partials for each element. `Map<IdOrDefaults,
 /// CssClassPartials>` newtype.
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThemeStyles(IndexMap<IdOrDefaults, CssClassPartials>);
+pub struct ThemeStyles(Map<IdOrDefaults, CssClassPartials>);
 
 impl ThemeStyles {
     /// Returns a new `ThemeStyles` map.
@@ -19,17 +22,17 @@ impl ThemeStyles {
     /// Returns a new `ThemeStyles` map with the given preallocated
     /// capacity.
     pub fn with_capacity(capacity: usize) -> Self {
-        Self(IndexMap::with_capacity(capacity))
+        Self(Map::with_capacity(capacity))
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> IndexMap<IdOrDefaults, CssClassPartials> {
+    pub fn into_inner(self) -> Map<IdOrDefaults, CssClassPartials> {
         self.0
     }
 }
 
 impl Deref for ThemeStyles {
-    type Target = IndexMap<IdOrDefaults, CssClassPartials>;
+    type Target = Map<IdOrDefaults, CssClassPartials>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -42,14 +45,14 @@ impl DerefMut for ThemeStyles {
     }
 }
 
-impl From<IndexMap<IdOrDefaults, CssClassPartials>> for ThemeStyles {
-    fn from(inner: IndexMap<IdOrDefaults, CssClassPartials>) -> Self {
+impl From<Map<IdOrDefaults, CssClassPartials>> for ThemeStyles {
+    fn from(inner: Map<IdOrDefaults, CssClassPartials>) -> Self {
         Self(inner)
     }
 }
 
 impl FromIterator<(IdOrDefaults, CssClassPartials)> for ThemeStyles {
     fn from_iter<I: IntoIterator<Item = (IdOrDefaults, CssClassPartials)>>(iter: I) -> Self {
-        Self(IndexMap::from_iter(iter))
+        Self(Map::from_iter(iter))
     }
 }

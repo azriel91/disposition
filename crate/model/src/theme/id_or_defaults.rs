@@ -5,6 +5,7 @@ use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use crate::common::Id;
 
 /// Key to specify tailwind styles for all kinds of nodes and edges.
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum IdOrDefaults {
     /// Styles to apply to all nodes.

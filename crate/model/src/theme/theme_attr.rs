@@ -305,6 +305,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// [Colours]: https://tailwindcss.com/docs/customizing-colors
 /// [Tailwind CSS]: https://tailwindcss.com/
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ThemeAttr {
