@@ -4,35 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     common::{Id, Map},
-    theme::{EdgeDefaults, NodeDefaults},
+    theme::StyleSet,
 };
-
-/// Style applied to a specific entity (node or edge).
-///
-/// This allows specifying either node styles or edge styles for an entity.
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct EntityStyle {
-    /// Node style properties.
-    #[serde(default, skip_serializing_if = "NodeDefaults::is_empty")]
-    pub node_defaults: NodeDefaults,
-
-    /// Edge style properties.
-    #[serde(default, skip_serializing_if = "EdgeDefaults::is_empty")]
-    pub edge_defaults: EdgeDefaults,
-}
-
-impl EntityStyle {
-    /// Returns a new `EntityStyle` with default values.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Returns true if all fields are at their default values.
-    pub fn is_empty(&self) -> bool {
-        self.node_defaults.is_empty() && self.edge_defaults.is_empty()
-    }
-}
 
 /// Base styles when the diagram has no user interaction.
 ///
@@ -67,7 +40,7 @@ impl EntityStyle {
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct BaseStyles(Map<Id, EntityStyle>);
+pub struct BaseStyles(Map<Id, StyleSet>);
 
 impl BaseStyles {
     /// Returns a new empty `BaseStyles` map.
@@ -81,7 +54,7 @@ impl BaseStyles {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<Id, EntityStyle> {
+    pub fn into_inner(self) -> Map<Id, StyleSet> {
         self.0
     }
 
@@ -92,7 +65,7 @@ impl BaseStyles {
 }
 
 impl Deref for BaseStyles {
-    type Target = Map<Id, EntityStyle>;
+    type Target = Map<Id, StyleSet>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -105,14 +78,14 @@ impl DerefMut for BaseStyles {
     }
 }
 
-impl From<Map<Id, EntityStyle>> for BaseStyles {
-    fn from(inner: Map<Id, EntityStyle>) -> Self {
+impl From<Map<Id, StyleSet>> for BaseStyles {
+    fn from(inner: Map<Id, StyleSet>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(Id, EntityStyle)> for BaseStyles {
-    fn from_iter<I: IntoIterator<Item = (Id, EntityStyle)>>(iter: I) -> Self {
+impl FromIterator<(Id, StyleSet)> for BaseStyles {
+    fn from_iter<I: IntoIterator<Item = (Id, StyleSet)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

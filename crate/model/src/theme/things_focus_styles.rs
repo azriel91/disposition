@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::theme::{EdgeDefaults, NodeDefaults};
+use crate::theme::StyleSet;
 
 /// Styles for things that are included or excluded from focus.
 ///
@@ -25,12 +25,12 @@ use crate::theme::{EdgeDefaults, NodeDefaults};
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThingsFocusStyles {
     /// Styles applied to things that are included in the focus.
-    #[serde(default, skip_serializing_if = "FocusStyleSet::is_empty")]
-    pub things_included_styles: FocusStyleSet,
+    #[serde(default, skip_serializing_if = "StyleSet::is_empty")]
+    pub things_included_styles: StyleSet,
 
     /// Styles applied to things that are excluded from the focus.
-    #[serde(default, skip_serializing_if = "FocusStyleSet::is_empty")]
-    pub things_excluded_styles: FocusStyleSet,
+    #[serde(default, skip_serializing_if = "StyleSet::is_empty")]
+    pub things_excluded_styles: StyleSet,
 }
 
 impl ThingsFocusStyles {
@@ -42,33 +42,5 @@ impl ThingsFocusStyles {
     /// Returns true if all fields are at their default values.
     pub fn is_empty(&self) -> bool {
         self.things_included_styles.is_empty() && self.things_excluded_styles.is_empty()
-    }
-}
-
-/// A set of styles for focused/unfocused things.
-///
-/// Contains node and edge default styles that are applied when things
-/// are in or out of focus.
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct FocusStyleSet {
-    /// Node style properties.
-    #[serde(default, skip_serializing_if = "NodeDefaults::is_empty")]
-    pub node_defaults: NodeDefaults,
-
-    /// Edge style properties.
-    #[serde(default, skip_serializing_if = "EdgeDefaults::is_empty")]
-    pub edge_defaults: EdgeDefaults,
-}
-
-impl FocusStyleSet {
-    /// Returns a new `FocusStyleSet` with default values.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Returns true if all fields are at their default values.
-    pub fn is_empty(&self) -> bool {
-        self.node_defaults.is_empty() && self.edge_defaults.is_empty()
     }
 }

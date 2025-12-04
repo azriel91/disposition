@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::theme::things_focus_styles::FocusStyleSet;
+use crate::theme::StyleSet;
 
 /// Styles when a tag is focused, applied to all tags uniformly.
 ///
@@ -13,24 +13,28 @@ use crate::theme::things_focus_styles::FocusStyleSet;
 /// # Example
 ///
 /// ```yaml
-/// theme_tag_things_focus:
-///   things_included_styles:
-///     node_defaults:
-///       opacity: "0.5"
-///   things_excluded_styles:
-///     node_defaults:
-///       style_aliases_applied: [stroke_dashed_animated]
+/// things_included_styles:
+///   node_defaults:
+///     opacity: "1.0"
+///   edge_defaults:
+///     opacity: "1.0"
+///
+/// things_excluded_styles:
+///   node_defaults:
+///     opacity: "0.3"
+///   edge_defaults:
+///     opacity: "0.3"
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThemeTagThingsFocus {
     /// Styles applied to things that are associated with the focused tag.
-    #[serde(default, skip_serializing_if = "FocusStyleSet::is_empty")]
-    pub things_included_styles: FocusStyleSet,
+    #[serde(default, skip_serializing_if = "StyleSet::is_empty")]
+    pub things_included_styles: StyleSet,
 
     /// Styles applied to things that are not associated with the focused tag.
-    #[serde(default, skip_serializing_if = "FocusStyleSet::is_empty")]
-    pub things_excluded_styles: FocusStyleSet,
+    #[serde(default, skip_serializing_if = "StyleSet::is_empty")]
+    pub things_excluded_styles: StyleSet,
 }
 
 impl ThemeTagThingsFocus {

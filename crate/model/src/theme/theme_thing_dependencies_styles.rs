@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::theme::things_focus_styles::FocusStyleSet;
+use crate::theme::StyleSet;
 
 /// Styles when a `thing` is focused to show its dependencies.
 ///
@@ -13,26 +13,28 @@ use crate::theme::things_focus_styles::FocusStyleSet;
 /// # Example
 ///
 /// ```yaml
-/// theme_thing_dependencies_styles:
-///   things_excluded_styles:
-///     node_defaults:
-///       visibility: "hidden"
-///     edge_defaults:
-///       visibility: "hidden"
-///   things_included_styles:
-///     node_defaults:
-///       visibility: "visible"
+/// things_included_styles:
+///   node_defaults:
+///     opacity: "1.0"
+///   edge_defaults:
+///     opacity: "1.0"
+///
+/// things_excluded_styles:
+///   node_defaults:
+///     opacity: "0.3"
+///   edge_defaults:
+///     opacity: "0.3"
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThemeThingDependenciesStyles {
     /// Styles applied to things that are included in the dependency view.
-    #[serde(default, skip_serializing_if = "FocusStyleSet::is_empty")]
-    pub things_included_styles: FocusStyleSet,
+    #[serde(default, skip_serializing_if = "StyleSet::is_empty")]
+    pub things_included_styles: StyleSet,
 
     /// Styles applied to things that are excluded from the dependency view.
-    #[serde(default, skip_serializing_if = "FocusStyleSet::is_empty")]
-    pub things_excluded_styles: FocusStyleSet,
+    #[serde(default, skip_serializing_if = "StyleSet::is_empty")]
+    pub things_excluded_styles: StyleSet,
 }
 
 impl ThemeThingDependenciesStyles {
