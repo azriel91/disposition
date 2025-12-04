@@ -17,6 +17,11 @@ use serde::{Deserialize, Serialize};
 /// * `Padding*` keys are only applicable to nodes.
 /// * `Margin*` keys are only applicable to nodes.
 ///
+/// # Highlight states
+///
+/// Highlight states refer to whether a node is hovered, no interaction,
+/// selected, or active (pressed).
+///
 /// # Colours
 ///
 /// [Colours] are from [Tailwind CSS]. The list of names are:
@@ -336,7 +341,7 @@ pub enum ThemeAttr {
     ///   }
     /// ```
     ///
-    /// [`animate-*`] https://tailwindcss.com/docs/animation
+    /// [`animate-*`]: https://tailwindcss.com/docs/animation
     Animate,
     /// The [cursor style], e.g. `"pointer"`.
     ///
@@ -346,10 +351,8 @@ pub enum ThemeAttr {
     Extra,
     /// Colour for element background/arrow head for all states, e.g. `"slate"`.
     ///
-    /// This will be used for all [`HighlightState`]s if not overridden by one
+    /// This will be used for all highlight states if not overridden by one
     /// of the more specific variants.
-    ///
-    /// [`HighlightState`]: crate::theme::HighlightState
     FillColor,
     /// Colour for the background when an element is not focused / hovered
     /// over, e.g. `"slate"`.
@@ -364,10 +367,8 @@ pub enum ThemeAttr {
     FillColorActive,
     /// Shade for element background/arrow head for all states, e.g. `"600"`.
     ///
-    /// This will be used for all [`HighlightState`]s if not overridden by one
+    /// This will be used for all highlight states if not overridden by one
     /// of the more specific variants.
-    ///
-    /// [`HighlightState`]: crate::theme::HighlightState
     FillShade,
     /// Shade for the background when an element is not focused /
     /// hovered over, e.g. `"300"` for nodes, `"800"` for edges.
@@ -422,10 +423,8 @@ pub enum ThemeAttr {
     OutlineColorActive,
     /// Shade for lines and borders for all states, e.g. `"600"`.
     ///
-    /// This will be used for all [`HighlightState`]s if not overridden by one
+    /// This will be used for all highlight states if not overridden by one
     /// of the more specific variants.
-    ///
-    /// [`HighlightState`]: crate::theme::HighlightState
     OutlineShade,
     /// Outline shade when an element is not focused / hovered over, e.g.
     /// `"600"` for nodes, `"900"` for edges. Defaults to nothing.
@@ -474,10 +473,8 @@ pub enum ThemeAttr {
     StrokeColorActive,
     /// Shade for lines and borders for all states, e.g. `"600"`.
     ///
-    /// This will be used for all [`HighlightState`]s if not overridden by one
+    /// This will be used for all highlight states if not overridden by one
     /// of the more specific variants.
-    ///
-    /// [`HighlightState`]: crate::theme::HighlightState
     StrokeShade,
     /// Line/border shade when an element is not focused / hovered over, e.g.
     /// `"600"` for nodes, `"900"` for edges.
@@ -513,6 +510,6 @@ pub enum ThemeAttr {
     /// This sets the [`visibility`] class, valid values are `'visible'`,
     /// `'invisible'`, `'collapse'`.
     ///
-    /// [`visibility`] https://tailwindcss.com/docs/visibility
+    /// [`visibility`]: https://tailwindcss.com/docs/visibility
     Visibility,
 }
