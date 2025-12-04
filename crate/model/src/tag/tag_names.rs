@@ -6,6 +6,15 @@ use crate::{common::Map, tag::TagId};
 
 /// Tags are labels that can be associated with things, so that the things can
 /// be highlighted when the tag is focused.
+///
+/// # Example
+///
+/// ```yaml
+/// tags:
+///   tag_app_development: "Application Development"
+///   tag_deployment: "Deployment"
+///   tag_infrastructure: "Infrastructure"
+/// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct TagNames(Map<TagId, String>);

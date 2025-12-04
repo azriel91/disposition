@@ -17,6 +17,20 @@ use crate::{common::Map, thing::ThingId};
 /// * `my_repo`: Repository directory.
 /// * `my_repo_src`: `src` directory within the repo.
 /// * `my_repo_target`: `target` directory within the repo.
+///
+/// # Example
+///
+/// ```yaml
+/// things:
+///   t_aws: "☁️ Amazon Web Services"
+///   t_aws_iam: "🖊️ Identity and Access Management"
+///   t_aws_ecr: "🗄️ Elastic Container Registry"
+///   t_aws_ecr_repo: "💽 web_app repo"
+///   t_github: "🐙 GitHub"
+///   t_github_user_repo: "azriel91/web_app"
+///   t_localhost: "🧑‍💻 Localhost"
+///   t_localhost_repo: "📂 ~/work/web_app"
+/// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThingNames(Map<ThingId, String>);

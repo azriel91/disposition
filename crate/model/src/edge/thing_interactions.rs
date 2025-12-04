@@ -21,6 +21,24 @@ use crate::{
 /// process is executing, so they are rendered when the step is focused.
 ///
 /// IDs here can be the same as the ones in `thing_dependencies`.
+///
+/// # Example
+///
+/// ```yaml
+/// thing_interactions:
+///   edge_t_localhost__t_github_user_repo__pull:
+///     cyclic:
+///       - t_localhost
+///       - t_github_user_repo
+///   edge_t_localhost__t_github_user_repo__push:
+///     sequence:
+///       - t_localhost
+///       - t_github_user_repo
+///   edge_t_github_user_repo__t_aws_ecr_repo__push:
+///     sequence:
+///       - t_github_user_repo
+///       - t_aws_ecr_repo
+/// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThingInteractions(Map<EdgeId, EdgeKind>);

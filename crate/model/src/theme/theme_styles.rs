@@ -9,6 +9,29 @@ use crate::{
 
 /// CSS utility class partials for each element. `Map<IdOrDefaults,
 /// CssClassPartials>` newtype.
+///
+/// This is used throughout the theme configuration to define styles for
+/// nodes and edges. The keys can be `node_defaults`, `edge_defaults`, or
+/// specific entity IDs.
+///
+/// # Example
+///
+/// ```yaml
+/// node_defaults:
+///   style_aliases_applied: [shade_light]
+///   shape_color: "slate"
+///   stroke_style: "solid"
+///   stroke_width: "1"
+///   visibility: "visible"
+/// edge_defaults:
+///   stroke_width: "1"
+///   visibility: "visible"
+/// t_aws:
+///   shape_color: "yellow"
+/// edge_t_localhost__t_github_user_repo__pull:
+///   style_aliases_applied: [shade_light]
+///   shape_color: "blue"
+/// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThemeStyles(Map<IdOrDefaults, CssClassPartials>);

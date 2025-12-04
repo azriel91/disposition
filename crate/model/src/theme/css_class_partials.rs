@@ -18,6 +18,23 @@ use crate::{common::Map, theme::ThemeAttr};
 /// * `"focus:stroke-slate-500"`
 /// * `"hover:stroke-slate-400"`
 /// * `"focus:hover:stroke-slate-400"`
+///
+/// # Example
+///
+/// ```yaml
+/// node_defaults: # <-- this is a `CssClassPartials` map
+///   style_aliases_applied: [shade_light]
+///   shape_color: "slate"
+///   stroke_style: "solid"
+///   stroke_width: "1"
+///   visibility: "visible"
+///   fill_shade_normal: "300"
+///   fill_shade_hover: "200"
+///   fill_shade_focus: "400"
+///   fill_shade_active: "500"
+///   stroke_shade_normal: "400"
+///   text_shade: "900"
+/// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct CssClassPartials(Map<ThemeAttr, String>);
