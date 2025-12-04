@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::theme::{BaseStyles, StyleAliases};
+use crate::theme::{StyleAliases, ThemeStyles};
 
 /// Default theme styles when the diagram has no user interaction.
 ///
@@ -53,8 +53,8 @@ pub struct ThemeDefault {
     pub style_aliases: StyleAliases,
 
     /// Base styles for entities when there is no user interaction.
-    #[serde(default, skip_serializing_if = "BaseStyles::is_empty")]
-    pub base_styles: BaseStyles,
+    #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
+    pub base_styles: ThemeStyles,
 }
 
 impl ThemeDefault {
