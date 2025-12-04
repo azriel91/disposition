@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     common::{Id, Map},
-    theme::StyleSet,
+    theme::ThemeStyles,
 };
 
 /// Base styles when the diagram has no user interaction.
@@ -40,7 +40,7 @@ use crate::{
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct BaseStyles(Map<Id, StyleSet>);
+pub struct BaseStyles(Map<Id, ThemeStyles>);
 
 impl BaseStyles {
     /// Returns a new empty `BaseStyles` map.
@@ -54,7 +54,7 @@ impl BaseStyles {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<Id, StyleSet> {
+    pub fn into_inner(self) -> Map<Id, ThemeStyles> {
         self.0
     }
 
@@ -65,7 +65,7 @@ impl BaseStyles {
 }
 
 impl Deref for BaseStyles {
-    type Target = Map<Id, StyleSet>;
+    type Target = Map<Id, ThemeStyles>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -78,14 +78,14 @@ impl DerefMut for BaseStyles {
     }
 }
 
-impl From<Map<Id, StyleSet>> for BaseStyles {
-    fn from(inner: Map<Id, StyleSet>) -> Self {
+impl From<Map<Id, ThemeStyles>> for BaseStyles {
+    fn from(inner: Map<Id, ThemeStyles>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(Id, StyleSet)> for BaseStyles {
-    fn from_iter<I: IntoIterator<Item = (Id, StyleSet)>>(iter: I) -> Self {
+impl FromIterator<(Id, ThemeStyles)> for BaseStyles {
+    fn from_iter<I: IntoIterator<Item = (Id, ThemeStyles)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

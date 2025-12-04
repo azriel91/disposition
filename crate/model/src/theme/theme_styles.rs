@@ -29,6 +29,11 @@ impl ThemeStyles {
     pub fn into_inner(self) -> Map<IdOrDefaults, CssClassPartials> {
         self.0
     }
+
+    /// Returns true if the map is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 impl Deref for ThemeStyles {

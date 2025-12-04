@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::theme::StyleSet;
+use crate::theme::ThemeStyles;
 
 /// Styles when a `thing` is focused to show its dependencies.
 ///
@@ -29,12 +29,12 @@ use crate::theme::StyleSet;
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThemeThingDependenciesStyles {
     /// Styles applied to things that are included in the dependency view.
-    #[serde(default, skip_serializing_if = "StyleSet::is_empty")]
-    pub things_included_styles: StyleSet,
+    #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
+    pub things_included_styles: ThemeStyles,
 
     /// Styles applied to things that are excluded from the dependency view.
-    #[serde(default, skip_serializing_if = "StyleSet::is_empty")]
-    pub things_excluded_styles: StyleSet,
+    #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
+    pub things_excluded_styles: ThemeStyles,
 }
 
 impl ThemeThingDependenciesStyles {

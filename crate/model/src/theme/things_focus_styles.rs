@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::theme::StyleSet;
+use crate::theme::ThemeStyles;
 
 /// Styles for things that are included or excluded from focus.
 ///
@@ -25,12 +25,12 @@ use crate::theme::StyleSet;
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThingsFocusStyles {
     /// Styles applied to things that are included in the focus.
-    #[serde(default, skip_serializing_if = "StyleSet::is_empty")]
-    pub things_included_styles: StyleSet,
+    #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
+    pub things_included_styles: ThemeStyles,
 
     /// Styles applied to things that are excluded from the focus.
-    #[serde(default, skip_serializing_if = "StyleSet::is_empty")]
-    pub things_excluded_styles: StyleSet,
+    #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
+    pub things_excluded_styles: ThemeStyles,
 }
 
 impl ThingsFocusStyles {

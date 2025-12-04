@@ -9,8 +9,37 @@ use crate::common::Id;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum IdOrDefaults {
     /// Styles to apply to all nodes.
+    ///
+    /// These properties control the visual appearance of nodes (things,
+    /// processes, or process steps) in the diagram.
+    ///
+    /// # Example
+    ///
+    /// ```yaml
+    /// node_defaults:
+    ///   style_aliases_applied: [shade_light]
+    ///   shape_color: "slate"
+    ///   stroke_style: "solid"
+    ///   stroke_width: "1"
+    ///   visibility: "visible"
+    ///   opacity: "1.0"
+    /// ```
     NodeDefaults,
     /// Styles to apply to all edges.
+    ///
+    /// These properties control the visual appearance of edges (connections
+    /// between things) in the diagram.
+    ///
+    /// # Example
+    ///
+    /// ```yaml
+    /// edge_defaults:
+    ///   style_aliases_applied: [shade_dark]
+    ///   shape_color: "neutral"
+    ///   stroke_style: "solid"
+    ///   stroke_width: "1"
+    ///   visibility: "visible"
+    /// ```
     EdgeDefaults,
     /// ID of a thing, edge, tag, process, or process_step.
     Id(Id),

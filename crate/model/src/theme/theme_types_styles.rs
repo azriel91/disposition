@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{common::Map, entity_type::EntityTypeId, theme::StyleSet};
+use crate::{common::Map, entity_type::EntityTypeId, theme::ThemeStyles};
 
 /// Styles applied to things / edges of a particular `type` specified in
 /// `entity_types`.
@@ -46,7 +46,7 @@ use crate::{common::Map, entity_type::EntityTypeId, theme::StyleSet};
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThemeTypesStyles(Map<EntityTypeId, StyleSet>);
+pub struct ThemeTypesStyles(Map<EntityTypeId, ThemeStyles>);
 
 impl ThemeTypesStyles {
     /// Returns a new empty `ThemeTypesStyles` map.
@@ -61,7 +61,7 @@ impl ThemeTypesStyles {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<EntityTypeId, StyleSet> {
+    pub fn into_inner(self) -> Map<EntityTypeId, ThemeStyles> {
         self.0
     }
 
@@ -72,7 +72,7 @@ impl ThemeTypesStyles {
 }
 
 impl Deref for ThemeTypesStyles {
-    type Target = Map<EntityTypeId, StyleSet>;
+    type Target = Map<EntityTypeId, ThemeStyles>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -85,14 +85,14 @@ impl DerefMut for ThemeTypesStyles {
     }
 }
 
-impl From<Map<EntityTypeId, StyleSet>> for ThemeTypesStyles {
-    fn from(inner: Map<EntityTypeId, StyleSet>) -> Self {
+impl From<Map<EntityTypeId, ThemeStyles>> for ThemeTypesStyles {
+    fn from(inner: Map<EntityTypeId, ThemeStyles>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(EntityTypeId, StyleSet)> for ThemeTypesStyles {
-    fn from_iter<I: IntoIterator<Item = (EntityTypeId, StyleSet)>>(iter: I) -> Self {
+impl FromIterator<(EntityTypeId, ThemeStyles)> for ThemeTypesStyles {
+    fn from_iter<I: IntoIterator<Item = (EntityTypeId, ThemeStyles)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::theme::StyleSet;
+use crate::theme::ThemeStyles;
 
 /// Styles when a tag is focused, applied to all tags uniformly.
 ///
@@ -29,12 +29,12 @@ use crate::theme::StyleSet;
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThemeTagThingsFocus {
     /// Styles applied to things that are associated with the focused tag.
-    #[serde(default, skip_serializing_if = "StyleSet::is_empty")]
-    pub things_included_styles: StyleSet,
+    #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
+    pub things_included_styles: ThemeStyles,
 
     /// Styles applied to things that are not associated with the focused tag.
-    #[serde(default, skip_serializing_if = "StyleSet::is_empty")]
-    pub things_excluded_styles: StyleSet,
+    #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
+    pub things_excluded_styles: ThemeStyles,
 }
 
 impl ThemeTagThingsFocus {

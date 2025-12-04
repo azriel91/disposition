@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{common::Map, tag::TagId, theme::StyleSet};
+use crate::{common::Map, tag::TagId, theme::ThemeStyles};
 
 /// Tag-specific styles when a particular tag is focused.
 ///
@@ -25,7 +25,7 @@ use crate::{common::Map, tag::TagId, theme::StyleSet};
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThemeTagThingsFocusSpecific(Map<TagId, StyleSet>);
+pub struct ThemeTagThingsFocusSpecific(Map<TagId, ThemeStyles>);
 
 impl ThemeTagThingsFocusSpecific {
     /// Returns a new empty `ThemeTagThingsFocusSpecific` map.
@@ -40,7 +40,7 @@ impl ThemeTagThingsFocusSpecific {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<TagId, StyleSet> {
+    pub fn into_inner(self) -> Map<TagId, ThemeStyles> {
         self.0
     }
 
@@ -51,7 +51,7 @@ impl ThemeTagThingsFocusSpecific {
 }
 
 impl Deref for ThemeTagThingsFocusSpecific {
-    type Target = Map<TagId, StyleSet>;
+    type Target = Map<TagId, ThemeStyles>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -64,14 +64,14 @@ impl DerefMut for ThemeTagThingsFocusSpecific {
     }
 }
 
-impl From<Map<TagId, StyleSet>> for ThemeTagThingsFocusSpecific {
-    fn from(inner: Map<TagId, StyleSet>) -> Self {
+impl From<Map<TagId, ThemeStyles>> for ThemeTagThingsFocusSpecific {
+    fn from(inner: Map<TagId, ThemeStyles>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(TagId, StyleSet)> for ThemeTagThingsFocusSpecific {
-    fn from_iter<I: IntoIterator<Item = (TagId, StyleSet)>>(iter: I) -> Self {
+impl FromIterator<(TagId, ThemeStyles)> for ThemeTagThingsFocusSpecific {
+    fn from_iter<I: IntoIterator<Item = (TagId, ThemeStyles)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }
