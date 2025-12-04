@@ -12,17 +12,20 @@ use crate::{common::Map, process::ProcessStepId};
 /// # Example
 ///
 /// ```yaml
-/// step_descs:
-///   proc_app_dev_step_repository_clone: |-
-///     ```bash
-///     git clone https://github.com/azriel91/web_app.git
-///     ```
+/// processes:
+///   proc_app_dev:
+///     # ..
+///     step_descs: # <-- this is a `StepDescs`
+///       proc_app_dev_step_repository_clone: |-
+///         ```bash
+///         git clone https://github.com/azriel91/web_app.git
+///         ```
 ///
-///   proc_app_dev_step_project_build: |-
-///     Develop the app:
+///       proc_app_dev_step_project_build: |-
+///         Develop the app:
 ///
-///     * Always link to issue.
-///     * Open PR.
+///         * Always link to issue.
+///         * Open PR.
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

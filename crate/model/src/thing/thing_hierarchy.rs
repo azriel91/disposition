@@ -17,8 +17,8 @@ use crate::{common::Map, thing::ThingId};
 ///
 /// ```yaml
 /// thing_hierarchy:
-///   t_aws:
-///     t_aws_iam:
+///   t_aws: # <-- `ThingHierarchy` (recursive)
+///     t_aws_iam: # <-- `ThingHierarchy` (recursive)
 ///       t_aws_iam_ecs_policy: {}
 ///     t_aws_ecr:
 ///       t_aws_ecr_repo:

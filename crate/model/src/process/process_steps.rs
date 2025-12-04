@@ -12,9 +12,11 @@ use crate::{common::Map, process::ProcessStepId};
 /// # Example
 ///
 /// ```yaml
-/// steps:
-///   proc_app_dev_step_repository_clone: "Clone repository"
-///   proc_app_dev_step_project_build: "Build project"
+/// processes:
+///   proc_app_dev:
+///     steps: # <-- this is a `ProcessSteps`
+///       proc_app_dev_step_repository_clone: "Clone repository"
+///       proc_app_dev_step_project_build: "Build project"
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

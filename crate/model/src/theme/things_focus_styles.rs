@@ -10,16 +10,17 @@ use crate::theme::ThemeStyles;
 /// # Example
 ///
 /// ```yaml
-/// things_included_styles:
-///   node_defaults:
-///     visibility: "visible"
-///     opacity: "1.0"
+/// theme_thing_dependencies_styles: # <-- or `theme_tag_things_focus:`
+///   things_included_styles: # <-- this is a `ThemeStyles`
+///     node_defaults:
+///       visibility: "visible"
+///       opacity: "1.0"
 ///
-/// things_excluded_styles:
-///   node_defaults:
-///     visibility: "hidden"
-///   edge_defaults:
-///     visibility: "hidden"
+///   things_excluded_styles: # <-- this is a `ThemeStyles`
+///     node_defaults:
+///       visibility: "hidden"
+///     edge_defaults:
+///       visibility: "hidden"
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

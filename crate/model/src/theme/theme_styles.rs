@@ -16,21 +16,26 @@ use crate::{
 ///
 /// # Example
 ///
+/// A `ThemeStyles` map can appear under various parent keys. For example,
+/// under `theme_types_styles`:
+///
 /// ```yaml
-/// node_defaults:
-///   style_aliases_applied: [shade_light]
-///   shape_color: "slate"
-///   stroke_style: "solid"
-///   stroke_width: "1"
-///   visibility: "visible"
-/// edge_defaults:
-///   stroke_width: "1"
-///   visibility: "visible"
-/// t_aws:
-///   shape_color: "yellow"
-/// edge_t_localhost__t_github_user_repo__pull:
-///   style_aliases_applied: [shade_light]
-///   shape_color: "blue"
+/// theme_types_styles:
+///   type_thing_default: # <-- this is a `ThemeStyles`
+///     node_defaults:
+///       style_aliases_applied: [shade_light]
+///       shape_color: "slate"
+///       stroke_style: "solid"
+///       stroke_width: "1"
+///       visibility: "visible"
+///     edge_defaults:
+///       stroke_width: "1"
+///       visibility: "visible"
+///     t_aws:
+///       shape_color: "yellow"
+///     edge_t_localhost__t_github_user_repo__pull:
+///       style_aliases_applied: [shade_light]
+///       shape_color: "blue"
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

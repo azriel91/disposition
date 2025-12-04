@@ -24,25 +24,26 @@ use crate::{common::Map, entity_type::EntityTypeId, theme::ThemeStyles};
 /// # Example
 ///
 /// ```yaml
-/// type_organisation:
-///   node_defaults:
-///     style_aliases_applied: [shade_pale]
-///     stroke_style: "dotted"
+/// theme_types_styles:
+///   type_organisation: # <-- this is a `ThemeStyles`
+///     node_defaults:
+///       style_aliases_applied: [shade_pale]
+///       stroke_style: "dotted"
 ///
-/// type_service:
-///   node_defaults:
-///     stroke_style: "dashed"
+///   type_service:
+///     node_defaults:
+///       stroke_style: "dashed"
 ///
-/// type_docker_image:
-///   node_defaults:
-///     shape_color: "sky"
+///   type_docker_image:
+///     node_defaults:
+///       shape_color: "sky"
 ///
-/// type_edge_dependency_sequence_request_default:
-///   edge_defaults:
-///     style_aliases_applied: [shade_dark]
-///     stroke_style: solid
-///     shape_color: "neutral"
-///     stroke_width: "1"
+///   type_edge_dependency_sequence_request_default:
+///     edge_defaults:
+///       style_aliases_applied: [shade_dark]
+///       stroke_style: solid
+///       shape_color: "neutral"
+///       stroke_width: "1"
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

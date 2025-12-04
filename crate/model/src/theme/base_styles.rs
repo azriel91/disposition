@@ -20,23 +20,25 @@ use crate::{
 /// # Example
 ///
 /// ```yaml
-/// base_styles:
-///   node_defaults:
-///     style_aliases_applied: [shade_light]
-///     shape_color: "slate"
-///     stroke_style: "solid"
-///     stroke_width: "1"
-///     visibility: "visible"
-///   edge_defaults:
-///     stroke_width: "1"
-///     visibility: "visible"
-///   edge_t_localhost__t_github_user_repo__pull:
-///     style_aliases_applied: [shade_light]
-///     shape_color: "blue"
-///   t_aws:
-///     shape_color: "yellow"
-///   t_github:
-///     shape_color: "neutral"
+/// theme_default:
+///   # ..
+///   base_styles: # <-- this is a `BaseStyles`
+///     node_defaults:
+///       style_aliases_applied: [shade_light]
+///       shape_color: "slate"
+///       stroke_style: "solid"
+///       stroke_width: "1"
+///       visibility: "visible"
+///     edge_defaults:
+///       stroke_width: "1"
+///       visibility: "visible"
+///     edge_t_localhost__t_github_user_repo__pull:
+///       style_aliases_applied: [shade_light]
+///       shape_color: "blue"
+///     t_aws:
+///       shape_color: "yellow"
+///     t_github:
+///       shape_color: "neutral"
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

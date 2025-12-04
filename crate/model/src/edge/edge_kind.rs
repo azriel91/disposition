@@ -9,17 +9,18 @@ use crate::thing::ThingId;
 /// # Examples
 ///
 /// ```yaml
-/// # Cyclic edge - last thing connects back to first
-/// edge_t_localhost__t_github_user_repo__pull:
-///   cyclic:
-///     - t_localhost
-///     - t_github_user_repo
+/// thing_dependencies:
+///   # Cyclic edge - last thing connects back to first
+///   edge_t_localhost__t_github_user_repo__pull: # <-- value is an `EdgeKind::Cyclic`
+///     cyclic:
+///       - t_localhost
+///       - t_github_user_repo
 ///
-/// # Sequential edge - one-way chain from first to last
-/// edge_t_localhost__t_github_user_repo__push:
-///   sequence:
-///     - t_localhost
-///     - t_github_user_repo
+///   # Sequential edge - one-way chain from first to last
+///   edge_t_localhost__t_github_user_repo__push: # <-- value is an `EdgeKind::Sequence`
+///     sequence:
+///       - t_localhost
+///       - t_github_user_repo
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]

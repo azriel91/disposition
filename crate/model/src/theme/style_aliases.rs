@@ -17,31 +17,32 @@ use crate::{
 /// # Example
 ///
 /// ```yaml
-/// style_aliases:
-///   padding_none:
-///     padding_top: "0"
-///     padding_bottom: "0"
-///     padding_left: "0"
-///     padding_right: "0"
-///   padding_normal:
-///     padding_top: "4"
-///     padding_bottom: "4"
-///     padding_left: "4"
-///     padding_right: "4"
-///   shade_light:
-///     fill_shade_hover: "200"
-///     fill_shade_normal: "300"
-///     fill_shade_focus: "400"
-///     fill_shade_active: "500"
-///     stroke_shade_hover: "300"
-///     stroke_shade_normal: "400"
-///     stroke_shade_focus: "500"
-///     stroke_shade_active: "600"
-///     text_shade: "900"
-///   stroke_dashed_animated:
-///     stroke_style: "dashed"
-///     stroke_width: "2"
-///     animate: "[stroke-dashoffset-move_2s_linear_infinite]"
+/// theme_default:
+///   style_aliases: # <-- this is a `StyleAliases`
+///     padding_none:
+///       padding_top: "0"
+///       padding_bottom: "0"
+///       padding_left: "0"
+///       padding_right: "0"
+///     padding_normal:
+///       padding_top: "4"
+///       padding_bottom: "4"
+///       padding_left: "4"
+///       padding_right: "4"
+///     shade_light:
+///       fill_shade_hover: "200"
+///       fill_shade_normal: "300"
+///       fill_shade_focus: "400"
+///       fill_shade_active: "500"
+///       stroke_shade_hover: "300"
+///       stroke_shade_normal: "400"
+///       stroke_shade_focus: "500"
+///       stroke_shade_active: "600"
+///       text_shade: "900"
+///     stroke_dashed_animated:
+///       stroke_style: "dashed"
+///       stroke_width: "2"
+///       animate: "[stroke-dashoffset-move_2s_linear_infinite]"
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

@@ -13,9 +13,11 @@ use crate::{common::Map, edge::EdgeId, process::ProcessStepId};
 /// # Example
 ///
 /// ```yaml
-/// step_thing_interactions:
-///   proc_app_dev_step_repository_clone: [edge_t_localhost__t_github_user_repo__pull]
-///   proc_app_dev_step_project_build: [edge_t_localhost__t_localhost__within]
+/// processes:
+///   proc_app_dev: # <-- this is a `ProcessDiagram`
+///     step_thing_interactions: # <-- this is a `StepThingInteractions`
+///       proc_app_dev_step_repository_clone: [edge_t_localhost__t_github_user_repo__pull]
+///       proc_app_dev_step_project_build: [edge_t_localhost__t_localhost__within]
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

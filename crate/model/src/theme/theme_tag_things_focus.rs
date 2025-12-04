@@ -13,17 +13,18 @@ use crate::theme::ThemeStyles;
 /// # Example
 ///
 /// ```yaml
-/// things_included_styles:
-///   node_defaults:
-///     opacity: "1.0"
-///   edge_defaults:
-///     opacity: "1.0"
+/// theme_tag_things_focus:
+///   things_included_styles: # <-- this is a `ThemeStyles`
+///     node_defaults:
+///       opacity: "1.0"
+///     edge_defaults:
+///       opacity: "1.0"
 ///
-/// things_excluded_styles:
-///   node_defaults:
-///     opacity: "0.3"
-///   edge_defaults:
-///     opacity: "0.3"
+///   things_excluded_styles: # <-- this is a `ThemeStyles`
+///     node_defaults:
+///       opacity: "0.3"
+///     edge_defaults:
+///       opacity: "0.3"
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

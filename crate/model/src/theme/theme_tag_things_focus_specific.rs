@@ -15,13 +15,11 @@ use crate::{common::Map, tag::TagId, theme::ThemeStyles};
 /// # Example
 ///
 /// ```yaml
-/// tag_aws:
-///   node_defaults:
-///     shape_color: "yellow"
-///
-/// tag_github:
-///   node_defaults:
-///     shape_color: "neutral"
+/// theme_tag_things_focus_specific:
+///   tag_app_development: # <-- this is a `ThemeStyles`
+///     node_defaults:
+///       style_aliases_applied: [shade_medium]
+///       shape_color: "emerald"
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

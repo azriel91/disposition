@@ -11,28 +11,29 @@ use crate::process::{ProcessSteps, StepDescs, StepThingInteractions};
 /// # Example
 ///
 /// ```yaml
-/// proc_app_dev:
-///   name: "App Development"
-///   desc: |-
-///     Development of the web application.
+/// processes:
+///   proc_app_dev: # <-- this is a `ProcessDiagram`
+///     name: "App Development"
+///     desc: |-
+///       Development of the web application.
 ///
-///     * [🐙 Repo](https://github.com/azriel91/web_app)
-///   steps:
-///     proc_app_dev_step_repository_clone: "Clone repository"
-///     proc_app_dev_step_project_build: "Build project"
-///   step_descs:
-///     proc_app_dev_step_repository_clone: |-
-///       ```bash
-///       git clone https://github.com/azriel91/web_app.git
-///       ```
-///     proc_app_dev_step_project_build: |-
-///       Develop the app:
+///       * [🐙 Repo](https://github.com/azriel91/web_app)
+///     steps:
+///       proc_app_dev_step_repository_clone: "Clone repository"
+///       proc_app_dev_step_project_build: "Build project"
+///     step_descs:
+///       proc_app_dev_step_repository_clone: |-
+///         ```bash
+///         git clone https://github.com/azriel91/web_app.git
+///         ```
+///       proc_app_dev_step_project_build: |-
+///         Develop the app:
 ///
-///       * Always link to issue.
-///       * Open PR.
-///   step_thing_interactions:
-///     proc_app_dev_step_repository_clone: [edge_t_localhost__t_github_user_repo__pull]
-///     proc_app_dev_step_project_build: [edge_t_localhost__t_localhost__within]
+///         * Always link to issue.
+///         * Open PR.
+///     step_thing_interactions:
+///       proc_app_dev_step_repository_clone: [edge_t_localhost__t_github_user_repo__pull]
+///       proc_app_dev_step_project_build: [edge_t_localhost__t_localhost__within]
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
