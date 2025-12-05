@@ -12,6 +12,7 @@ license = "MIT OR Apache-2.0"
 [workspace]
 members = [
     "crate/*",
+    "examples/*",
 ]
 resolver = "2"
 
@@ -39,6 +40,10 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 disposition_model = { workspace = true }
+
+[features]
+default = []
+openapi = ["disposition_model/openapi"]
 
 [workspace.dependencies]
 # disposition crates

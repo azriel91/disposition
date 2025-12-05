@@ -64,6 +64,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "disposition_openapi_spec"
+version = "0.0.0"
+dependencies = [
+ "disposition",
+]
+
+[[package]]
 name = "encoding_rs"
 version = "0.8.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
