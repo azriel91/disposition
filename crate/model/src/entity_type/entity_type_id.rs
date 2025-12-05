@@ -6,8 +6,8 @@ use crate::common::{Id, IdInvalidFmt};
 
 /// Unique identifier for an entity type in the diagram, [`Id`] newtype.
 ///
-/// Entity types allow styling of things, edges, and tags in common based on
-/// their type. Unlike tags, each entity can only have one type.
+/// Entity types allow styling of things, edges, processes, process steps, and
+/// tags in common based on their type.
 ///
 /// Must begin with a letter or underscore, and contain only letters, numbers,
 /// and underscores.
