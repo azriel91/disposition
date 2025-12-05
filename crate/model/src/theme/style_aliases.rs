@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     common::Map,
-    theme::{StyleAlias, ThemeStyles},
+    theme::{CssClassPartials, StyleAlias},
 };
 
 /// A map of style aliases to their style property definitions.
@@ -46,7 +46,7 @@ use crate::{
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct StyleAliases(Map<StyleAlias, ThemeStyles>);
+pub struct StyleAliases(Map<StyleAlias, CssClassPartials>);
 
 impl StyleAliases {
     /// Returns a new empty `StyleAliases` map.
@@ -60,7 +60,7 @@ impl StyleAliases {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<StyleAlias, ThemeStyles> {
+    pub fn into_inner(self) -> Map<StyleAlias, CssClassPartials> {
         self.0
     }
 
@@ -71,7 +71,7 @@ impl StyleAliases {
 }
 
 impl Deref for StyleAliases {
-    type Target = Map<StyleAlias, ThemeStyles>;
+    type Target = Map<StyleAlias, CssClassPartials>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -84,14 +84,14 @@ impl DerefMut for StyleAliases {
     }
 }
 
-impl From<Map<StyleAlias, ThemeStyles>> for StyleAliases {
-    fn from(inner: Map<StyleAlias, ThemeStyles>) -> Self {
+impl From<Map<StyleAlias, CssClassPartials>> for StyleAliases {
+    fn from(inner: Map<StyleAlias, CssClassPartials>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(StyleAlias, ThemeStyles)> for StyleAliases {
-    fn from_iter<I: IntoIterator<Item = (StyleAlias, ThemeStyles)>>(iter: I) -> Self {
+impl FromIterator<(StyleAlias, CssClassPartials)> for StyleAliases {
+    fn from_iter<I: IntoIterator<Item = (StyleAlias, CssClassPartials)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

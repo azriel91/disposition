@@ -33,9 +33,11 @@ use crate::theme::{StyleAliases, ThemeStyles};
 ///       shape_color: "slate"
 ///       stroke_style: "solid"
 ///       stroke_width: "1"
+///       text_color: "neutral"
 ///       visibility: "visible"
 ///     edge_defaults:
 ///       stroke_width: "1"
+///       text_color: "neutral"
 ///       visibility: "visible"
 ///     t_aws:
 ///       shape_color: "yellow"

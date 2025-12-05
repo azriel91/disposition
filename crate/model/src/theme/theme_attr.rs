@@ -394,6 +394,22 @@ pub enum ThemeAttr {
     ///
     /// This key has no effect on edges.
     PaddingY,
+    /// Left padding within a node, e.g. `"1.5"` in `"pl-1.5"`.
+    ///
+    /// This key has no effect on edges.
+    PaddingLeft,
+    /// Right padding within a node, e.g. `"1.5"` in `"pr-1.5"`.
+    ///
+    /// This key has no effect on edges.
+    PaddingRight,
+    /// Top padding within a node, e.g. `"1.5"` in `"pt-1.5"`.
+    ///
+    /// This key has no effect on edges.
+    PaddingTop,
+    /// Bottom padding within a node, e.g. `"1.5"` in `"pb-1.5"`.
+    ///
+    /// This key has no effect on edges.
+    PaddingBottom,
     /// All margins around a node, e.g. `"1.5"` in `"m-1.5"`.
     ///
     /// This key has no effect on edges.
@@ -406,6 +422,24 @@ pub enum ThemeAttr {
     ///
     /// This key has no effect on edges.
     MarginY,
+    /// Left margin around a node, e.g. `"1.5"` in `"ml-1.5"`.
+    ///
+    /// This key has no effect on edges.
+    MarginLeft,
+    /// Right margin around a node, e.g. `"1.5"` in `"mr-1.5"`.
+    ///
+    /// This key has no effect on edges.
+    MarginRight,
+    /// Top margin around a node, e.g. `"1.5"` in `"mt-1.5"`.
+    ///
+    /// This key has no effect on edges.
+    MarginTop,
+    /// Bottom margin around a node, e.g. `"1.5"` in `"mb-1.5"`.
+    ///
+    /// This key has no effect on edges.
+    MarginBottom,
+    /// Opacity of a node, e.g. `"0.5"` in `"opacity-0.5"`.
+    Opacity,
     /// Outline colour for elements for all states, e.g. `"blue"`. Defaults to
     /// `"blue"`.
     OutlineColor,
@@ -505,6 +539,10 @@ pub enum ThemeAttr {
     /// Line/border style when an element is being clicked / pressed, e.g.
     /// `"none"`, `"solid"`, `"dashed"`, `"dotted"`.
     StrokeStyleActive,
+    /// Color for text within a node, e.g. `"neutral"` in `"fill-neutral-500"`.
+    TextColor,
+    /// Shade for text within a node, e.g. `"500"` in `"fill-neutral-500"`.
+    TextShade,
     /// Whether an element is visible.
     ///
     /// This sets the [`visibility`] class, valid values are `'visible'`,
