@@ -1,6 +1,6 @@
 use crate::{
     common::Id,
-    edge::{EdgeId, EdgeKind, ThingDependencies, ThingDependenciesDescs, ThingInteractions},
+    edge::{EdgeId, EdgeKind},
     entity_type::{EntityTypeId, EntityTypes},
     process::{
         ProcessDiagram, ProcessId, ProcessStepId, ProcessSteps, Processes, StepDescs,
@@ -12,7 +12,10 @@ use crate::{
         ThemeStyles, ThemeTagThingsFocus, ThemeTagThingsFocusSpecific,
         ThemeThingDependenciesStyles, ThemeTypesStyles, ThingsFocusStyles,
     },
-    thing::{ThingCopyText, ThingHierarchy, ThingId, ThingNames},
+    thing::{
+        ThingCopyText, ThingDependencies, ThingDependenciesDescs, ThingHierarchy, ThingId,
+        ThingInteractions, ThingNames,
+    },
     InputDiagram,
 };
 

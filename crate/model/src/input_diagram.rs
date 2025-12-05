@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    edge::{ThingDependencies, ThingDependenciesDescs, ThingInteractions},
     entity_type::EntityTypes,
     process::Processes,
     tag::{TagNames, TagThings},
@@ -9,7 +8,10 @@ use crate::{
         Css, ThemeDefault, ThemeTagThingsFocus, ThemeTagThingsFocusSpecific,
         ThemeThingDependenciesStyles, ThemeTypesStyles,
     },
-    thing::{ThingCopyText, ThingHierarchy, ThingNames},
+    thing::{
+        ThingCopyText, ThingDependencies, ThingDependenciesDescs, ThingHierarchy,
+        ThingInteractions, ThingNames,
+    },
 };
 
 /// The kinds of diagrams that can be generated.
