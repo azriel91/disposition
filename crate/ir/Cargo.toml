@@ -1,0 +1,31 @@
+[package]
+name = "disposition_ir"
+description = "SVG diagram generator intermediate representation."
+documentation = "https://docs.rs/disposition_ir/"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+id_newtype = { workspace = true, features = ["macros"] }
+indexmap = { workspace = true, features = ["serde"] }
+serde = { workspace = true, features = ["derive"] }
+utoipa = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde-saphyr = { workspace = true }
+
+[features]
+default = ["openapi"]
+
+# Only enable this when you need to generate OpenAPI documentation.
+openapi = ["dep:utoipa"]

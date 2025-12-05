@@ -53,6 +53,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "disposition_ir"
+version = "0.0.0"
+dependencies = [
+ "id_newtype",
+ "indexmap",
+ "serde",
+ "serde-saphyr",
+ "utoipa",
+]
+
+[[package]]
 name = "disposition_model"
 version = "0.0.0"
 dependencies = [

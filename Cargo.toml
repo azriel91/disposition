@@ -47,6 +47,7 @@ openapi = ["disposition_model/openapi"]
 
 [workspace.dependencies]
 # disposition crates
+disposition_ir = { path = "crate/ir", version = "0.0.0" }
 disposition_model = { path = "crate/model", version = "0.0.0" }
 
 # external crates
