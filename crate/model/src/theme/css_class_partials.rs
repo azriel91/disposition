@@ -2,7 +2,10 @@ use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{common::Map, theme::ThemeAttr};
+use crate::{
+    common::Map,
+    theme::{StyleAlias, ThemeAttr},
+};
 
 /// Partial CSS class name for each theme attribute. `Map<ThemeAttr,
 /// String>` newtype.
@@ -37,7 +40,14 @@ use crate::{common::Map, theme::ThemeAttr};
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct CssClassPartials(Map<ThemeAttr, String>);
+pub struct CssClassPartials {
+    /// The style aliases applied to the CSS class partials.
+    #[serde(default)]
+    style_aliases_applied: Vec<StyleAlias>,
+    /// The map of CSS class partials.
+    #[serde(default, flatten)]
+    partials: Map<ThemeAttr, String>,
+}
 
 impl CssClassPartials {
     /// Returns a new `CssClassPartials` map.
@@ -48,12 +58,31 @@ impl CssClassPartials {
     /// Returns a new `CssClassPartials` map with the given preallocated
     /// capacity.
     pub fn with_capacity(capacity: usize) -> Self {
-        Self(Map::with_capacity(capacity))
+        Self {
+            style_aliases_applied: Vec::new(),
+            partials: Map::with_capacity(capacity),
+        }
+    }
+
+    /// Returns the style aliases applied to the CSS class partials.
+    pub fn style_aliases_applied(&self) -> &[StyleAlias] {
+        &self.style_aliases_applied
+    }
+
+    /// Returns a mutable reference to the style aliases applied to the CSS
+    /// class partials.
+    pub fn style_aliases_applied_mut(&mut self) -> &mut Vec<StyleAlias> {
+        &mut self.style_aliases_applied
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<ThemeAttr, String> {
-        self.0
+    pub fn into_inner(self) -> (Vec<StyleAlias>, Map<ThemeAttr, String>) {
+        let CssClassPartials {
+            style_aliases_applied,
+            partials,
+        } = self;
+
+        (style_aliases_applied, partials)
     }
 }
 
@@ -61,24 +90,30 @@ impl Deref for CssClassPartials {
     type Target = Map<ThemeAttr, String>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.partials
     }
 }
 
 impl DerefMut for CssClassPartials {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.partials
     }
 }
 
 impl From<Map<ThemeAttr, String>> for CssClassPartials {
-    fn from(inner: Map<ThemeAttr, String>) -> Self {
-        Self(inner)
+    fn from(partials: Map<ThemeAttr, String>) -> Self {
+        Self {
+            style_aliases_applied: Vec::new(),
+            partials,
+        }
     }
 }
 
 impl FromIterator<(ThemeAttr, String)> for CssClassPartials {
     fn from_iter<I: IntoIterator<Item = (ThemeAttr, String)>>(iter: I) -> Self {
-        Self(Map::from_iter(iter))
+        Self {
+            style_aliases_applied: Vec::new(),
+            partials: Map::from_iter(iter),
+        }
     }
 }
