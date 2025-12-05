@@ -25,5 +25,7 @@ utoipa = { workspace = true, optional = true }
 serde-saphyr = { workspace = true }
 
 [features]
-default = ["openapi"]
+default = []
+
+# Only enable this when you need to generate OpenAPI documentation.
 openapi = ["dep:utoipa"]

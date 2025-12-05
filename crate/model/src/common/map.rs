@@ -7,9 +7,11 @@
 //!
 //! In general, this library should be built with the `"openapi"` feature
 //! disabled.
+//!
+//! Tests rely on indexmap as some assertions expect order to be preserved.
 
-#[cfg(feature = "openapi")]
+#[cfg(all(feature = "openapi", not(test)))]
 pub use std::collections::HashMap as Map;
 
-#[cfg(not(feature = "openapi"))]
+#[cfg(any(not(feature = "openapi"), test))]
 pub use indexmap::IndexMap as Map;
