@@ -1,0 +1,22 @@
+[package]
+name = "disposition_input_ir_rt"
+description = "Logic to map `disposition` input model to intermediate representation."
+documentation = "https://docs.rs/disposition_input_ir_rt/"
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+
+[dependencies]
+disposition_input_ir_model = { workspace = true, version = "0.0.1" }
+disposition_ir = { workspace = true, version = "0.0.1" }
+disposition_model = { workspace = true, version = "0.0.1" }
+
+[lints]
+workspace = true
