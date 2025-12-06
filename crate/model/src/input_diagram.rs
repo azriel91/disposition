@@ -1,17 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    entity_type::EntityTypes,
+    entity::{EntityDescs, EntityTypes},
     process::Processes,
     tag::{TagNames, TagThings},
     theme::{
         Css, ThemeDefault, ThemeTagThingsFocus, ThemeTagThingsFocusSpecific,
         ThemeThingDependenciesStyles, ThemeTypesStyles,
     },
-    thing::{
-        ThingCopyText, ThingDependencies, ThingDependenciesDescs, ThingHierarchy,
-        ThingInteractions, ThingNames,
-    },
+    thing::{ThingCopyText, ThingDependencies, ThingHierarchy, ThingInteractions, ThingNames},
 };
 
 /// The kinds of diagrams that can be generated.
@@ -46,10 +43,6 @@ pub struct InputDiagram {
     #[serde(default, skip_serializing_if = "ThingDependencies::is_empty")]
     pub thing_dependencies: ThingDependencies,
 
-    /// Descriptions to render next to each dependency arrow.
-    #[serde(default, skip_serializing_if = "ThingDependenciesDescs::is_empty")]
-    pub thing_dependencies_descs: ThingDependenciesDescs,
-
     /// Interactions between things (communication between applications).
     ///
     /// Has the same structure as dependencies but represents runtime
@@ -70,6 +63,10 @@ pub struct InputDiagram {
     /// Things associated with each tag.
     #[serde(default, skip_serializing_if = "TagThings::is_empty")]
     pub tag_things: TagThings,
+
+    /// Descriptions to render next to entities (things, edges, edge groups).
+    #[serde(default, skip_serializing_if = "EntityDescs::is_empty")]
+    pub entity_descs: EntityDescs,
 
     /// Additional `type`s attached to entities for common styling.
     ///

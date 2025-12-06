@@ -121,18 +121,33 @@ thing_dependencies: &thing_dependencies
       - t_aws_ecr_repo
       - t_aws_ecs_service
 
-# Descriptions to render next to each arrow.
+# Descriptions to render next to each node, edge group, or edge.
 #
 # This is intended to take markdown text.
-thing_dependencies_descs:
+#
+# # Notes
+#
+# 1. Edge group IDs are from either `thing_dependencies` or `thing_interactions`.
+# 2. Edge IDs are their edge group IDs, suffixed with "__" and the zero-based index of that edge in its group.
+# 3. Descriptions for processes are not currently supported.
+# 4. Descriptions for process steps are defined within the `process`'s `step_descs`.
+entity_descs:
+  # things
+  t_localhost: "User's computer"
+
+  # edge groups
+  #
+  # Shown when any of the edges in this group are focused.
   edge_t_localhost__t_github_user_repo__pull: |-
-    `git pull`
+    Fetch from GitHub
   edge_t_localhost__t_github_user_repo__push: |-
+    Push to GitHub
+
+  # edges
+  edge_t_localhost__t_github_user_repo__pull__0: |-
+    `git pull`
+  edge_t_localhost__t_github_user_repo__push__0: |-
     `git push`
-  # edge_t_localhost__t_localhost__within: ~
-  # edge_t_github_user_repo__t_github_user_repo__within: ~
-  # edge_t_github_user_repo__t_aws_ecr_repo__push: ~
-  # edge_t_aws_ecr_repo__t_aws_ecs_service__push: ~
 
 # Interactions between things can be one way, or cyclic.
 #

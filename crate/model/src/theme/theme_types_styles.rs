@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{common::Map, entity_type::EntityTypeId, theme::ThemeStyles};
+use crate::{common::Map, entity::EntityTypeId, theme::ThemeStyles};
 
 /// Styles applied to things / edges of a particular `type` specified in
 /// `entity_types`.

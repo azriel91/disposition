@@ -1,7 +1,7 @@
 use crate::{
     common::Id,
     edge::{EdgeId, EdgeKind},
-    entity_type::{EntityTypeId, EntityTypes},
+    entity::{EntityDescs, EntityTypeId, EntityTypes},
     process::{
         ProcessDiagram, ProcessId, ProcessStepId, ProcessSteps, Processes, StepDescs,
         StepThingInteractions,
@@ -13,8 +13,7 @@ use crate::{
         ThemeThingDependenciesStyles, ThemeTypesStyles, ThingsFocusStyles,
     },
     thing::{
-        ThingCopyText, ThingDependencies, ThingDependenciesDescs, ThingHierarchy, ThingId,
-        ThingInteractions, ThingNames,
+        ThingCopyText, ThingDependencies, ThingHierarchy, ThingId, ThingInteractions, ThingNames,
     },
     InputDiagram,
 };
@@ -26,6 +25,7 @@ use crate::{
     CssClassPartials,
     EdgeId,
     EdgeKind,
+    EntityDescs,
     EntityTypeId,
     EntityTypes,
     Id,
@@ -52,7 +52,6 @@ use crate::{
     ThemeTypesStyles,
     ThingCopyText,
     ThingDependencies,
-    ThingDependenciesDescs,
     ThingHierarchy,
     ThingId,
     ThingInteractions,

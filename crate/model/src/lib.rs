@@ -17,7 +17,7 @@ pub use crate::input_diagram::InputDiagram;
 
 pub mod common;
 pub mod edge;
-pub mod entity_type;
+pub mod entity;
 pub mod process;
 pub mod tag;
 pub mod theme;
