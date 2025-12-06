@@ -1,8 +1,7 @@
 use std::fmt;
 
+use disposition_model_common::Id;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
-
-use crate::common::Id;
 
 /// Key to specify tailwind styles for all kinds of nodes and edges.
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]

@@ -35,11 +35,8 @@ impl Edge {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir::{
-    ///     common::{id, Id},
-    ///     edge::Edge,
-    ///     node::NodeId,
-    /// };
+    /// use disposition_ir::{edge::Edge, node::NodeId};
+    /// use disposition_model_common::{id, Id};
     ///
     /// let from: NodeId = id!("node_a").into();
     /// let to: NodeId = id!("node_b").into();
@@ -58,11 +55,8 @@ impl Edge {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir::{
-    ///     common::{id, Id},
-    ///     edge::Edge,
-    ///     node::NodeId,
-    /// };
+    /// use disposition_ir::{edge::Edge, node::NodeId};
+    /// use disposition_model_common::{id, Id};
     ///
     /// let node: NodeId = id!("node_a").into();
     /// let edge = Edge::new(node.clone(), node.clone());
@@ -78,11 +72,8 @@ impl Edge {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir::{
-    ///     common::{id, Id},
-    ///     edge::Edge,
-    ///     node::NodeId,
-    /// };
+    /// use disposition_ir::{edge::Edge, node::NodeId};
+    /// use disposition_model_common::{id, Id};
     ///
     /// let from: NodeId = id!("node_a").into();
     /// let to: NodeId = id!("node_b").into();

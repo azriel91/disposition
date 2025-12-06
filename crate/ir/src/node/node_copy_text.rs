@@ -1,8 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::{common::Map, node::NodeId};
+use crate::node::NodeId;
 
 /// Text to copy to clipboard when a node's copy button is clicked.
 ///

@@ -4,9 +4,6 @@
 //! combining the layered values from the input data. It is used to generate
 //! the final SVG output.
 
-#[macro_use]
-extern crate id_newtype;
-
 // Re-exports
 // This allows consumers to not need to depend on `utoipa` manually.
 #[cfg(feature = "openapi")]
@@ -16,7 +13,6 @@ pub use utoipa;
 pub use crate::api_doc::ApiDoc;
 pub use crate::ir_diagram::IrDiagram;
 
-pub mod common;
 pub mod edge;
 pub mod entity;
 pub mod layout;

@@ -1,11 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    common::Map,
-    edge::{EdgeId, EdgeKind},
-};
+use crate::edge::{EdgeId, EdgeKind};
 
 /// Dependencies between things can be one way, or cyclic.
 ///

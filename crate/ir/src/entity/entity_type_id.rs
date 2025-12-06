@@ -1,8 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
-
-use crate::common::{Id, IdInvalidFmt};
 
 /// Unique identifier for an entity type, [`Id`] newtype.
 ///
@@ -16,10 +15,8 @@ use crate::common::{Id, IdInvalidFmt};
 /// # Examples
 ///
 /// ```rust
-/// use disposition_ir::{
-///     common::{id, Id},
-///     entity::EntityTypeId,
-/// };
+/// use disposition_ir::entity::EntityTypeId;
+/// use disposition_model_common::{id, Id};
 ///
 /// let entity_type_id: EntityTypeId = id!("type_thing_default").into();
 ///
@@ -35,7 +32,8 @@ impl EntityTypeId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir::{common::Id, entity::EntityTypeId};
+    /// use disposition_ir::entity::EntityTypeId;
+    /// use disposition_model_common::Id;
     ///
     /// let entity_type_id = EntityTypeId::new("type_thing_default").unwrap();
     ///
@@ -50,7 +48,8 @@ impl EntityTypeId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir::{common::Id, entity::EntityTypeId};
+    /// use disposition_ir::entity::EntityTypeId;
+    /// use disposition_model_common::Id;
     ///
     /// let entity_type_id = EntityTypeId::new("type_thing_default").unwrap();
     ///

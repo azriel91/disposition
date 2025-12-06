@@ -1,8 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::{Id, Map};
 use serde::{Deserialize, Serialize};
-
-use crate::common::{Id, Map};
 
 /// Descriptions for entities (nodes, edges, and edge groups).
 ///

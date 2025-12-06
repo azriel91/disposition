@@ -51,20 +51,29 @@ version = "0.0.0"
 dependencies = [
  "disposition_ir",
  "disposition_model",
+ "disposition_model_common",
 ]
 
 [[package]]
 name = "disposition_ir"
 version = "0.0.0"
 dependencies = [
- "id_newtype",
- "indexmap",
+ "disposition_model_common",
  "serde",
  "utoipa",
 ]
 
 [[package]]
 name = "disposition_model"
+version = "0.0.0"
+dependencies = [
+ "disposition_model_common",
+ "serde",
+ "utoipa",
+]
+
+[[package]]
+name = "disposition_model_common"
 version = "0.0.0"
 dependencies = [
  "id_newtype",

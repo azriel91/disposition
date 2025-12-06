@@ -1,8 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::{common::Map, entity::EntityTypeId, theme::ThemeStyles};
+use crate::{entity::EntityTypeId, theme::ThemeStyles};
 
 /// Styles applied to things / edges of a particular `type` specified in
 /// `entity_types`.

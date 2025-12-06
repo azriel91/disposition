@@ -1,11 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::{Id, Map};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    common::{Id, Map},
-    entity::EntityTypeId,
-};
+use crate::entity::EntityTypeId;
 
 /// Entity types attached to things, edges, processes, process steps and tags
 /// for common styling.

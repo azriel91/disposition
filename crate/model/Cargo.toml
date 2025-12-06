@@ -16,8 +16,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-id_newtype = { workspace = true, features = ["macros"] }
-indexmap = { workspace = true, features = ["serde"] }
+disposition_model_common = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 utoipa = { workspace = true, optional = true }
 
@@ -25,4 +24,4 @@ utoipa = { workspace = true, optional = true }
 default = []
 
 # Only enable this when you need to generate OpenAPI documentation.
-openapi = ["dep:utoipa"]
+openapi = ["dep:utoipa", "disposition_model_common/openapi"]

@@ -1,8 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
-
-use crate::common::{Id, IdInvalidFmt};
 
 /// Unique identifier for a process step in the diagram, [`Id`] newtype.
 ///
@@ -12,10 +11,8 @@ use crate::common::{Id, IdInvalidFmt};
 /// # Examples
 ///
 /// ```rust
-/// use disposition_model::{
-///     common::{id, Id},
-///     process::ProcessStepId,
-/// };
+/// use disposition_model::process::ProcessStepId;
+/// use disposition_model_common::{id, Id};
 ///
 /// let step_id: ProcessStepId = id!("step_clone_repo").into();
 ///
@@ -31,7 +28,8 @@ impl ProcessStepId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::{common::Id, process::ProcessStepId};
+    /// use disposition_model::process::ProcessStepId;
+    /// use disposition_model_common::Id;
     ///
     /// let step_id = ProcessStepId::new("step_clone_repo").unwrap();
     ///
@@ -46,7 +44,8 @@ impl ProcessStepId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::{common::Id, process::ProcessStepId};
+    /// use disposition_model::process::ProcessStepId;
+    /// use disposition_model_common::Id;
     ///
     /// let step_id = ProcessStepId::new("step_clone_repo").unwrap();
     ///

@@ -7,7 +7,7 @@ use utoipa::OpenApi;
 #[openapi(
     components(schemas(
         // Common types
-        crate::common::Id,
+        disposition_model_common::Id,
         // Entity types
         crate::entity::EntityTypeId,
         crate::entity::EntityTypes,

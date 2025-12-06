@@ -1,11 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    common::Map,
-    process::{ProcessDiagram, ProcessId},
-};
+use crate::process::{ProcessDiagram, ProcessId};
 
 /// Processes are groupings of interactions between things sequenced over time.
 ///

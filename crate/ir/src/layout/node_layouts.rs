@@ -1,8 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::{common::Map, layout::NodeLayout, node::NodeId};
+use crate::{layout::NodeLayout, node::NodeId};
 
 /// Map of node IDs to their layout configurations.
 ///

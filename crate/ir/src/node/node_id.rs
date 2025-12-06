@@ -1,8 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
-
-use crate::common::{Id, IdInvalidFmt};
 
 /// Unique identifier for a node in the diagram, [`Id`] newtype.
 ///
@@ -14,10 +13,8 @@ use crate::common::{Id, IdInvalidFmt};
 /// # Examples
 ///
 /// ```rust
-/// use disposition_ir::{
-///     common::{id, Id},
-///     node::NodeId,
-/// };
+/// use disposition_ir::node::NodeId;
+/// use disposition_model_common::{id, Id};
 ///
 /// let node_id: NodeId = id!("example_id").into();
 ///
@@ -33,7 +30,8 @@ impl NodeId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir::{common::Id, node::NodeId};
+    /// use disposition_ir::node::NodeId;
+    /// use disposition_model_common::Id;
     ///
     /// let node_id = NodeId::new("example_id").unwrap();
     ///
@@ -48,7 +46,8 @@ impl NodeId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir::{common::Id, node::NodeId};
+    /// use disposition_ir::node::NodeId;
+    /// use disposition_model_common::Id;
     ///
     /// let node_id = NodeId::new("example_id").unwrap();
     ///

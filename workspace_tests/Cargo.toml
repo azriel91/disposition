@@ -21,5 +21,5 @@ doctest = false
 test = true
 
 [dev-dependencies]
-disposition = { workspace = true }
+disposition = { workspace = true, features = ["test"] }
 serde-saphyr = { workspace = true }

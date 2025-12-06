@@ -1,8 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
-
-use crate::common::{Id, IdInvalidFmt};
 
 /// Unique identifier for an edge in the diagram, [`Id`] newtype.
 ///
@@ -12,10 +11,8 @@ use crate::common::{Id, IdInvalidFmt};
 /// # Examples
 ///
 /// ```rust
-/// use disposition_model::{
-///     common::{id, Id},
-///     edge::EdgeId,
-/// };
+/// use disposition_model::edge::EdgeId;
+/// use disposition_model_common::{id, Id};
 ///
 /// let edge_id: EdgeId = id!("edge_a_to_b").into();
 ///
@@ -31,7 +28,8 @@ impl EdgeId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::{common::Id, edge::EdgeId};
+    /// use disposition_model::edge::EdgeId;
+    /// use disposition_model_common::Id;
     ///
     /// let edge_id = EdgeId::new("edge_a_to_b").unwrap();
     ///
@@ -46,7 +44,8 @@ impl EdgeId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::{common::Id, edge::EdgeId};
+    /// use disposition_model::edge::EdgeId;
+    /// use disposition_model_common::Id;
     ///
     /// let edge_id = EdgeId::new("edge_a_to_b").unwrap();
     ///

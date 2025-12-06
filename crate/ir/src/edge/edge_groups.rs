@@ -1,11 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    common::Map,
-    edge::{EdgeGroup, EdgeGroupId},
-};
+use crate::edge::{EdgeGroup, EdgeGroupId};
 
 /// Map of edge group IDs to their edge groups.
 ///

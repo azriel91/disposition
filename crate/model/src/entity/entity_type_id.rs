@@ -1,8 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
-
-use crate::common::{Id, IdInvalidFmt};
 
 /// Unique identifier for an entity type in the diagram, [`Id`] newtype.
 ///
@@ -15,10 +14,8 @@ use crate::common::{Id, IdInvalidFmt};
 /// # Examples
 ///
 /// ```rust
-/// use disposition_model::{
-///     common::{id, Id},
-///     entity::EntityTypeId,
-/// };
+/// use disposition_model::entity::EntityTypeId;
+/// use disposition_model_common::{id, Id};
 ///
 /// let entity_type_id: EntityTypeId = id!("type_organisation").into();
 ///
@@ -34,7 +31,8 @@ impl EntityTypeId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::{common::Id, entity::EntityTypeId};
+    /// use disposition_model::entity::EntityTypeId;
+    /// use disposition_model_common::Id;
     ///
     /// let entity_type_id = EntityTypeId::new("type_organisation").unwrap();
     ///
@@ -49,7 +47,8 @@ impl EntityTypeId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::{common::Id, entity::EntityTypeId};
+    /// use disposition_model::entity::EntityTypeId;
+    /// use disposition_model_common::Id;
     ///
     /// let entity_type_id = EntityTypeId::new("type_organisation").unwrap();
     ///

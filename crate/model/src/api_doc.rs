@@ -1,5 +1,6 @@
+use disposition_model_common::Id;
+
 use crate::{
-    common::Id,
     edge::{EdgeId, EdgeKind},
     entity::{EntityDescs, EntityTypeId, EntityTypes},
     process::{
