@@ -1,8 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::{common::Map, process::ProcessStepId};
+use crate::process::ProcessStepId;
 
 /// Descriptions for each step in a process.
 ///

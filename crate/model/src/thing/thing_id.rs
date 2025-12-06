@@ -1,8 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
-
-use crate::common::{Id, IdInvalidFmt};
 
 /// Unique identifier for a thing in the diagram, [`Id`] newtype.
 ///
@@ -12,10 +11,8 @@ use crate::common::{Id, IdInvalidFmt};
 /// # Examples
 ///
 /// ```rust
-/// use disposition_model::{
-///     common::{id, Id},
-///     thing::ThingId,
-/// };
+/// use disposition_model::thing::ThingId;
+/// use disposition_model_common::{id, Id};
 ///
 /// let thing_id: ThingId = id!("example_id").into();
 ///
@@ -31,7 +28,8 @@ impl ThingId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::{common::Id, thing::ThingId};
+    /// use disposition_model::thing::ThingId;
+    /// use disposition_model_common::Id;
     ///
     /// let thing_id = ThingId::new("example_id").unwrap();
     ///
@@ -46,7 +44,8 @@ impl ThingId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::{common::Id, thing::ThingId};
+    /// use disposition_model::thing::ThingId;
+    /// use disposition_model_common::Id;
     ///
     /// let thing_id = ThingId::new("example_id").unwrap();
     ///

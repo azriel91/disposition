@@ -1,8 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::{common::Map, tag::TagId, theme::ThemeStyles};
+use crate::{tag::TagId, theme::ThemeStyles};
 
 /// Tag-specific styles when a particular tag is focused.
 ///

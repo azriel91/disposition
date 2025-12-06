@@ -17,4 +17,8 @@ publish = false
 workspace = true
 
 [dependencies]
-disposition = { path = "../..", version = "0.0.0", features = ["openapi"] }
+disposition = { workspace = true }
+
+[features]
+default = []
+openapi = ["disposition/openapi"]

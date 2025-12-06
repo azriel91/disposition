@@ -1,8 +1,7 @@
 use std::fmt;
 
+use disposition_model_common::Id;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
-
-use crate::common::Id;
 
 /// Style alias for grouping style properties under a single name.
 ///

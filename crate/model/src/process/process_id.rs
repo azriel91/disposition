@@ -1,8 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
-
-use crate::common::{Id, IdInvalidFmt};
 
 /// Unique identifier for a process in the diagram, [`Id`] newtype.
 ///
@@ -12,10 +11,8 @@ use crate::common::{Id, IdInvalidFmt};
 /// # Examples
 ///
 /// ```rust
-/// use disposition_model::{
-///     common::{id, Id},
-///     process::ProcessId,
-/// };
+/// use disposition_model::process::ProcessId;
+/// use disposition_model_common::{id, Id};
 ///
 /// let process_id: ProcessId = id!("example_id").into();
 ///
@@ -31,7 +28,8 @@ impl ProcessId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::{common::Id, process::ProcessId};
+    /// use disposition_model::process::ProcessId;
+    /// use disposition_model_common::Id;
     ///
     /// let process_id = ProcessId::new("example_id").unwrap();
     ///
@@ -46,7 +44,8 @@ impl ProcessId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::{common::Id, process::ProcessId};
+    /// use disposition_model::process::ProcessId;
+    /// use disposition_model_common::Id;
     ///
     /// let process_id = ProcessId::new("example_id").unwrap();
     ///

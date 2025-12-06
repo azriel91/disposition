@@ -1,11 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    common::Map,
-    theme::{StyleAlias, ThemeAttr},
-};
+use crate::theme::{StyleAlias, ThemeAttr};
 
 /// Partial CSS class name for each theme attribute. `Map<ThemeAttr,
 /// String>` newtype.

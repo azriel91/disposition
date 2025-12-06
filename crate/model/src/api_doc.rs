@@ -1,18 +1,21 @@
+use disposition_model_common::{theme::Css, Id};
+
 use crate::{
-    common::Id,
-    edge::{EdgeId, EdgeKind, ThingDependencies, ThingDependenciesDescs, ThingInteractions},
-    entity_type::{EntityTypeId, EntityTypes},
+    edge::{EdgeId, EdgeKind},
+    entity::{EntityDescs, EntityTypeId, EntityTypes},
     process::{
         ProcessDiagram, ProcessId, ProcessStepId, ProcessSteps, Processes, StepDescs,
         StepThingInteractions,
     },
     tag::{TagId, TagNames, TagThings},
     theme::{
-        Css, CssClassPartials, IdOrDefaults, StyleAlias, StyleAliases, ThemeAttr, ThemeDefault,
+        CssClassPartials, IdOrDefaults, StyleAlias, StyleAliases, ThemeAttr, ThemeDefault,
         ThemeStyles, ThemeTagThingsFocus, ThemeTagThingsFocusSpecific,
         ThemeThingDependenciesStyles, ThemeTypesStyles, ThingsFocusStyles,
     },
-    thing::{ThingCopyText, ThingHierarchy, ThingId, ThingNames},
+    thing::{
+        ThingCopyText, ThingDependencies, ThingHierarchy, ThingId, ThingInteractions, ThingNames,
+    },
     InputDiagram,
 };
 
@@ -23,6 +26,7 @@ use crate::{
     CssClassPartials,
     EdgeId,
     EdgeKind,
+    EntityDescs,
     EntityTypeId,
     EntityTypes,
     Id,
@@ -49,7 +53,6 @@ use crate::{
     ThemeTypesStyles,
     ThingCopyText,
     ThingDependencies,
-    ThingDependenciesDescs,
     ThingHierarchy,
     ThingId,
     ThingInteractions,

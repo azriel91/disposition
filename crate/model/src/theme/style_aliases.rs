@@ -1,11 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    common::Map,
-    theme::{CssClassPartials, StyleAlias},
-};
+use crate::theme::{CssClassPartials, StyleAlias};
 
 /// A map of style aliases to their style property definitions.
 ///

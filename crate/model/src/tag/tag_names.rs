@@ -1,8 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::{common::Map, tag::TagId};
+use crate::tag::TagId;
 
 /// Tags are labels that can be associated with things, so that the things can
 /// be highlighted when the tag is focused.

@@ -1,10 +1,5 @@
-pub use self::{
-    edge_id::EdgeId, edge_kind::EdgeKind, thing_dependencies::ThingDependencies,
-    thing_dependencies_descs::ThingDependenciesDescs, thing_interactions::ThingInteractions,
-};
+pub use disposition_model_common::edge::EdgeId;
 
-mod edge_id;
+pub use self::edge_kind::EdgeKind;
+
 mod edge_kind;
-mod thing_dependencies;
-mod thing_dependencies_descs;
-mod thing_interactions;

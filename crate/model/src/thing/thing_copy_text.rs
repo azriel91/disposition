@@ -1,8 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::{common::Map, thing::ThingId};
+use crate::thing::ThingId;
 
 /// Text to copy to clipboard when a thing's copy button is clicked.
 ///

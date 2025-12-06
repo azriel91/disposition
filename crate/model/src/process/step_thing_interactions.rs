@@ -1,8 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::{common::Map, edge::EdgeId, process::ProcessStepId};
+use crate::{edge::EdgeId, process::ProcessStepId};
 
 /// Thing interactions that should be actively highlighted when a step is
 /// focused.

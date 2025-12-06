@@ -13,6 +13,7 @@ license = "MIT OR Apache-2.0"
 members = [
     "crate/*",
     "examples/*",
+    "workspace_tests",
 ]
 resolver = "2"
 
@@ -39,15 +40,24 @@ test = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+disposition_ir = { workspace = true }
 disposition_model = { workspace = true }
+disposition_model_common = { workspace = true }
 
 [features]
 default = []
-openapi = ["disposition_model/openapi"]
+openapi = [
+    "disposition_model/openapi",
+    "disposition_ir/openapi",
+]
+test = ["disposition_model_common/test"]
 
 [workspace.dependencies]
 # disposition crates
+disposition = { path = ".", version = "0.0.0" }
+disposition_ir = { path = "crate/ir", version = "0.0.0" }
 disposition_model = { path = "crate/model", version = "0.0.0" }
+disposition_model_common = { path = "crate/model_common", version = "0.0.0" }
 
 # external crates
 id_newtype = "0.2.0"
