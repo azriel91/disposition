@@ -84,7 +84,7 @@ jobs:
           path: ~/.cargo/bin/cargo-release
           key: ${{ runner.os }}-cargo-release
 
-      - run: cargo install cargo-release
+      - run: cargo install cargo-release --locked
         if: steps.cargo_release_cache_restore.outputs.cache-hit != 'true'
 
       - name: cargo-release cache save
