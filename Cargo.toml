@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.0.0"
+version = "0.0.1"
 authors = ["Azriel Hoh <azriel91@gmail.com>"]
 edition = "2024"
 homepage = "https://azriel.im/disposition"
@@ -54,10 +54,10 @@ test = ["disposition_model_common/test"]
 
 [workspace.dependencies]
 # disposition crates
-disposition = { path = ".", version = "0.0.0" }
-disposition_ir = { path = "crate/ir", version = "0.0.0" }
-disposition_model = { path = "crate/model", version = "0.0.0" }
-disposition_model_common = { path = "crate/model_common", version = "0.0.0" }
+disposition = { path = ".", version = "0.0.1" }
+disposition_ir = { path = "crate/ir", version = "0.0.1" }
+disposition_model = { path = "crate/model", version = "0.0.1" }
+disposition_model_common = { path = "crate/model_common", version = "0.0.1" }
 
 # external crates
 id_newtype = "0.2.0"

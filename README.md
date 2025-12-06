@@ -20,7 +20,7 @@ Add the following to `Cargo.toml`:
 
 ```toml
 [dependencies]
-disposition = "0.0.0"
+disposition = "0.0.1"
 ```
 
 In code:

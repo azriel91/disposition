@@ -1,6 +1,6 @@
 # Changelog
 
-## unreleased
+## 0.0.1 (2025-12-06)
 
 * Add `disposition_model` data structures. ([#1][#1], [#2][#2])
 * Add `disposition_ir` data structures. ([#2][#2])
