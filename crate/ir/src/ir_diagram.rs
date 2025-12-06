@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    edge::{EdgeGroupDescs, EdgeGroups},
+    edge::EdgeGroups,
+    entity::{EntityDescs, EntityTypes},
     layout::{Css, NodeLayouts},
-    node::{EntityTypes, NodeCopyText, NodeDescs, NodeHierarchy, NodeNames, TailwindClasses},
+    node::{NodeCopyText, NodeHierarchy, NodeNames, TailwindClasses},
 };
 
 /// The intermediate representation of a diagram.
@@ -41,6 +42,11 @@ use crate::{
 ///     - from: t_localhost
 ///       to: t_github_user_repo
 ///
+/// entity_descs:
+///   proc_app_release_step_tag_and_push: |-
+///     When the PR is merged, tag the commit and push the tag to GitHub.
+///   edge_t_localhost__t_github_user_repo__pull: "Fetch from GitHub"
+///
 /// tailwind_classes:
 ///   t_aws: "stroke-1 visible hover:fill-yellow-50 fill-yellow-100"
 ///
@@ -70,13 +76,6 @@ pub struct IrDiagram {
     #[serde(default, skip_serializing_if = "NodeCopyText::is_empty")]
     pub node_copy_text: NodeCopyText,
 
-    /// Rich level of detail descriptions for nodes.
-    ///
-    /// Contains detailed descriptions (typically markdown) for nodes that
-    /// need them, such as process steps.
-    #[serde(default, skip_serializing_if = "NodeDescs::is_empty")]
-    pub node_descs: NodeDescs,
-
     /// Hierarchy of all nodes as a recursive tree structure.
     ///
     /// This includes tags, processes (with their steps), and things.
@@ -90,9 +89,12 @@ pub struct IrDiagram {
     #[serde(default, skip_serializing_if = "EdgeGroups::is_empty")]
     pub edge_groups: EdgeGroups,
 
-    /// Descriptions to render next to edge groups.
-    #[serde(default, skip_serializing_if = "EdgeGroupDescs::is_empty")]
-    pub edge_group_descs: EdgeGroupDescs,
+    /// Descriptions for entities (nodes, edges, and edge groups).
+    ///
+    /// Contains text (typically markdown) that provides additional context
+    /// about entities in the diagram, such as process steps or edge labels.
+    #[serde(default, skip_serializing_if = "EntityDescs::is_empty")]
+    pub entity_descs: EntityDescs,
 
     /// Entity types attached to nodes and edges for common styling.
     ///

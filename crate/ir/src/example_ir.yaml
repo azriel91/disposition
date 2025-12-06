@@ -1,10 +1,15 @@
 ---
 # Example Intermediate Representation
 #
-# This is the computed data structure from combining the layered values from
-# the input data.
+# This is the computed data from combining the layered values from
+# the example input.
 
-# All nodes in the diagram and their display labels.
+# Everything that needs to be represented as a `node` on the diagram, including:
+#
+# * `things`
+# * `tags`
+# * `processes`
+# * `process_steps`
 nodes: &nodes
   #
   # things
@@ -68,30 +73,6 @@ node_copy_text:
   t_localhost_repo_target_file_zip: "~/work/web_app/target/file.zip"
   t_localhost_repo_target_dist_dir: "~/work/web_app/target/dist"
 
-# Rich descriptions for nodes.
-node_descs:
-  proc_app_release_step_crate_version_update: |-
-    ```bash
-    sd -s 'version = "0.3.0"' 'version = "0.3.0"' $(fd -tf -F toml) README.md src/lib.rs
-    ```
-  proc_app_release_step_pull_request_open: |-
-    Create a pull request as usual.
-  proc_app_release_step_gh_actions_build: |-
-    Github Actions will build the image.
-  proc_app_release_step_tag_and_push: |-
-    When the PR is merged, tag the commit and push the tag to GitHub.
-
-    ```bash
-    git tag 0.3.0
-    git push origin 0.3.0
-    ```
-
-    The build will push the new version to ECR automatically.
-  proc_app_release_step_gh_actions_publish: |-
-    Github Actions will publish the image to AWS ECR.
-  proc_i12e_region_tier_app_deploy_step_ecs_service_update: |-
-    Deploy or update the existing ECS service with the new image.
-
 # Hierarchy of all nodes.
 node_hierarchy:
   # Tags before everything else
@@ -154,14 +135,39 @@ edge_groups:
     - from: t_aws_ecr_repo
       to: t_aws_ecs_service
 
-# Descriptions for edge groups.
-edge_group_descs:
-  edge_t_localhost__t_github_user_repo__pull: "`git pull`"
-  edge_t_localhost__t_github_user_repo__push: "`git push`"
-  # edge_t_localhost__t_localhost__within: ~
-  # edge_t_github_user_repo__t_github_user_repo__within: ~
-  # edge_t_github_user_repo__t_aws_ecr_repo__push: ~
-  # edge_t_aws_ecr_repo__t_aws_ecs_service__push: ~
+# Descriptions for entities.
+entity_descs:
+  # nodes
+  # process_steps
+  proc_app_release_step_crate_version_update: |-
+    ```bash
+    sd -s 'version = "0.3.0"' 'version = "0.3.0"' $(fd -tf -F toml) README.md src/lib.rs
+    ```
+  proc_app_release_step_pull_request_open: |-
+    Create a pull request as usual.
+  proc_app_release_step_gh_actions_build: |-
+    Github Actions will build the image.
+  proc_app_release_step_tag_and_push: |-
+    When the PR is merged, tag the commit and push the tag to GitHub.
+
+    ```bash
+    git tag 0.3.0
+    git push origin 0.3.0
+    ```
+
+    The build will push the new version to ECR automatically.
+  proc_app_release_step_gh_actions_publish: |-
+    Github Actions will publish the image to AWS ECR.
+  proc_i12e_region_tier_app_deploy_step_ecs_service_update: |-
+    Deploy or update the existing ECS service with the new image.
+
+  # edge groups
+  edge_t_localhost__t_github_user_repo__pull: "Fetch from GitHub"
+  edge_t_localhost__t_github_user_repo__push: "Push to GitHub"
+
+  # edges
+  edge_t_localhost__t_github_user_repo__pull__0: "`git pull`"
+  edge_t_localhost__t_github_user_repo__push__0: "`git push`"
 
 # Entity types for styling.
 entity_types:

@@ -18,6 +18,7 @@ pub use crate::ir_diagram::IrDiagram;
 
 pub mod common;
 pub mod edge;
+pub mod entity;
 pub mod layout;
 pub mod node;
 
@@ -58,7 +59,7 @@ mod tests {
                 .collect::<Vec<_>>()
                 .as_slice()
         );
-        assert_eq!(6, diagram.node_descs.len());
+        assert_eq!(10, diagram.entity_descs.len());
         assert_eq!(
             &[
                 "proc_app_release_step_crate_version_update",
@@ -66,10 +67,10 @@ mod tests {
                 "proc_app_release_step_gh_actions_build",
             ],
             diagram
-                .node_descs
+                .entity_descs
                 .iter()
                 .take(3)
-                .map(|(node_id, _)| node_id.as_str())
+                .map(|(id, _)| id.as_str())
                 .collect::<Vec<_>>()
                 .as_slice()
         );

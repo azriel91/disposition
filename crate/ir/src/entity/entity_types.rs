@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     common::{Id, Map},
-    node::EntityTypeId,
+    entity::EntityTypeId,
 };
 
 /// Entity types attached to things, edges, processes, process steps and tags

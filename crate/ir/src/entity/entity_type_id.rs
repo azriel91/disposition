@@ -18,7 +18,7 @@ use crate::common::{Id, IdInvalidFmt};
 /// ```rust
 /// use disposition_ir::{
 ///     common::{id, Id},
-///     node::EntityTypeId,
+///     entity::EntityTypeId,
 /// };
 ///
 /// let entity_type_id: EntityTypeId = id!("type_thing_default").into();
@@ -35,7 +35,7 @@ impl EntityTypeId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir::{common::Id, node::EntityTypeId};
+    /// use disposition_ir::{common::Id, entity::EntityTypeId};
     ///
     /// let entity_type_id = EntityTypeId::new("type_thing_default").unwrap();
     ///
@@ -50,7 +50,7 @@ impl EntityTypeId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir::{common::Id, node::EntityTypeId};
+    /// use disposition_ir::{common::Id, entity::EntityTypeId};
     ///
     /// let entity_type_id = EntityTypeId::new("type_thing_default").unwrap();
     ///

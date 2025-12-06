@@ -2,18 +2,19 @@ use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{common::Map, node::NodeId};
+use crate::common::{Id, Map};
 
-/// Rich level of detail descriptions for nodes.
+/// Descriptions for entities (nodes, edges, and edge groups).
 ///
-/// This map contains detailed descriptions (typically markdown) for nodes that
-/// need them, such as process steps. These descriptions provide additional
-/// context when a node is focused or expanded.
+/// This map contains text (typically markdown) that provides additional
+/// context about entities in the diagram. These descriptions can be displayed
+/// when an entity is focused or expanded.
 ///
 /// # Example
 ///
 /// ```yaml
-/// node_descs:
+/// entity_descs:
+///   # node descriptions
 ///   proc_app_release_step_crate_version_update: |-
 ///     ```bash
 ///     sd -s 'version = "0.3.0"' 'version = "0.3.0"' $(fd -tf -F toml) README.md src/lib.rs
@@ -28,25 +29,31 @@ use crate::{common::Map, node::NodeId};
 ///     git push origin 0.3.0
 ///     ```
 ///
-///     The build will push the new version to ECR automatically.
+///   # edge group descriptions
+///   edge_t_localhost__t_github_user_repo__pull: "Fetch from GitHub"
+///   edge_t_localhost__t_github_user_repo__push: "Push to GitHub"
+///
+///   # edge descriptions
+///   edge_t_localhost__t_github_user_repo__pull__0: "`git pull`"
+///   edge_t_localhost__t_github_user_repo__push__0: "`git push`"
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct NodeDescs(Map<NodeId, String>);
+pub struct EntityDescs(Map<Id, String>);
 
-impl NodeDescs {
-    /// Returns a new `NodeDescs` map.
+impl EntityDescs {
+    /// Returns a new `EntityDescs` map.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Returns a new `NodeDescs` map with the given preallocated capacity.
+    /// Returns a new `EntityDescs` map with the given preallocated capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self(Map::with_capacity(capacity))
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<NodeId, String> {
+    pub fn into_inner(self) -> Map<Id, String> {
         self.0
     }
 
@@ -56,28 +63,28 @@ impl NodeDescs {
     }
 }
 
-impl Deref for NodeDescs {
-    type Target = Map<NodeId, String>;
+impl Deref for EntityDescs {
+    type Target = Map<Id, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for NodeDescs {
+impl DerefMut for EntityDescs {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<NodeId, String>> for NodeDescs {
-    fn from(inner: Map<NodeId, String>) -> Self {
+impl From<Map<Id, String>> for EntityDescs {
+    fn from(inner: Map<Id, String>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(NodeId, String)> for NodeDescs {
-    fn from_iter<I: IntoIterator<Item = (NodeId, String)>>(iter: I) -> Self {
+impl FromIterator<(Id, String)> for EntityDescs {
+    fn from_iter<I: IntoIterator<Item = (Id, String)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }
