@@ -10,8 +10,8 @@
 //!
 //! Tests rely on indexmap as some assertions expect order to be preserved.
 
-#[cfg(all(feature = "openapi", not(test)))]
+#[cfg(feature = "openapi")]
 pub use std::collections::HashMap as Map;
 
-#[cfg(any(not(feature = "openapi"), test))]
+#[cfg(not(feature = "openapi"))]
 pub use indexmap::IndexMap as Map;

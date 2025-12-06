@@ -1,7 +1,7 @@
 [package]
-name = "disposition_openapi_spec"
-description = "Generates the `disposition` OpenAPI specification."
-documentation = "https://docs.rs/disposition_openapi_spec/"
+name = "workspace_tests"
+description = "Tests for the `disposition` library."
+documentation = "https://docs.rs/disposition/"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -16,9 +16,10 @@ publish = false
 [lints]
 workspace = true
 
-[dependencies]
-disposition = { workspace = true }
+[lib]
+doctest = false
+test = true
 
-[features]
-default = []
-openapi = ["disposition/openapi"]
+[dev-dependencies]
+disposition = { workspace = true }
+serde-saphyr = { workspace = true }

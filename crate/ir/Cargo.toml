@@ -21,11 +21,8 @@ indexmap = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 utoipa = { workspace = true, optional = true }
 
-[dev-dependencies]
-serde-saphyr = { workspace = true }
-
 [features]
-default = ["openapi"]
+default = []
 
 # Only enable this when you need to generate OpenAPI documentation.
 openapi = ["dep:utoipa"]

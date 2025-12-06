@@ -49,6 +49,7 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 name = "disposition"
 version = "0.0.0"
 dependencies = [
+ "disposition_ir",
  "disposition_model",
 ]
 
@@ -59,7 +60,6 @@ dependencies = [
  "id_newtype",
  "indexmap",
  "serde",
- "serde-saphyr",
  "utoipa",
 ]
 
@@ -70,7 +70,6 @@ dependencies = [
  "id_newtype",
  "indexmap",
  "serde",
- "serde-saphyr",
  "utoipa",
 ]
 
@@ -437,6 +436,14 @@ name = "wit-bindgen"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
+
+[[package]]
+name = "workspace_tests"
+version = "0.0.0"
+dependencies = [
+ "disposition",
+ "serde-saphyr",
+]
 
 [[package]]
 name = "zerocopy"
