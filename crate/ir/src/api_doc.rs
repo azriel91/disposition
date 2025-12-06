@@ -8,6 +8,7 @@ use utoipa::OpenApi;
     components(schemas(
         // Common types
         disposition_model_common::Id,
+        disposition_model_common::theme::Css,
         // Entity types
         crate::entity::EntityTypeId,
         crate::entity::EntityTypes,
@@ -25,7 +26,6 @@ use utoipa::OpenApi;
         crate::edge::EdgeGroup,
         crate::edge::EdgeGroups,
         // Layout types
-        crate::layout::Css,
         crate::layout::FlexDirection,
         crate::layout::FlexLayout,
         crate::layout::NodeLayout,

@@ -1,9 +1,10 @@
+use disposition_model_common::theme::Css;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     edge::EdgeGroups,
     entity::{EntityDescs, EntityTypes},
-    layout::{Css, NodeLayouts},
+    layout::NodeLayouts,
     node::{NodeCopyText, NodeHierarchy, NodeNames, TailwindClasses},
 };
 

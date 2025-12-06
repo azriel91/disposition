@@ -1,4 +1,5 @@
-pub use self::{edge_id::EdgeId, edge_kind::EdgeKind};
+pub use disposition_model_common::edge::EdgeId;
 
-mod edge_id;
+pub use self::edge_kind::EdgeKind;
+
 mod edge_kind;

@@ -1,3 +1,4 @@
+use disposition_model_common::theme::Css;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -5,7 +6,7 @@ use crate::{
     process::Processes,
     tag::{TagNames, TagThings},
     theme::{
-        Css, ThemeDefault, ThemeTagThingsFocus, ThemeTagThingsFocusSpecific,
+        ThemeDefault, ThemeTagThingsFocus, ThemeTagThingsFocusSpecific,
         ThemeThingDependenciesStyles, ThemeTypesStyles,
     },
     thing::{ThingCopyText, ThingDependencies, ThingHierarchy, ThingInteractions, ThingNames},

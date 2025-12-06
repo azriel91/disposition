@@ -1,4 +1,4 @@
-use disposition_model_common::Id;
+use disposition_model_common::{theme::Css, Id};
 
 use crate::{
     edge::{EdgeId, EdgeKind},
@@ -9,7 +9,7 @@ use crate::{
     },
     tag::{TagId, TagNames, TagThings},
     theme::{
-        Css, CssClassPartials, IdOrDefaults, StyleAlias, StyleAliases, ThemeAttr, ThemeDefault,
+        CssClassPartials, IdOrDefaults, StyleAlias, StyleAliases, ThemeAttr, ThemeDefault,
         ThemeStyles, ThemeTagThingsFocus, ThemeTagThingsFocusSpecific,
         ThemeThingDependenciesStyles, ThemeTypesStyles, ThingsFocusStyles,
     },

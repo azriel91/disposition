@@ -1,7 +1,5 @@
-pub use self::{
-    entity_descs::EntityDescs, entity_type_id::EntityTypeId, entity_types::EntityTypes,
-};
+pub use disposition_model_common::entity::{EntityDescs, EntityTypeId};
 
-mod entity_descs;
-mod entity_type_id;
+pub use self::entity_types::EntityTypes;
+
 mod entity_types;

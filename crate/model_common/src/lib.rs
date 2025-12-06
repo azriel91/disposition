@@ -10,5 +10,9 @@ pub use self::{
     map::Map,
 };
 
+pub mod edge;
+pub mod entity;
+pub mod theme;
+
 mod id;
 mod map;
