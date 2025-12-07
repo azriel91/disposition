@@ -4,7 +4,7 @@ const EXAMPLE_INPUT: &str = include_str!("example_input.yaml");
 
 use disposition::{
     input_model::InputDiagram,
-    ir_model::{edge::EdgeGroupId, node::NodeId},
+    ir_model::{edge::EdgeGroupId, entity::EntityType, node::NodeId},
 };
 use disposition_input_ir_rt::InputToIrDiagramMapper;
 use disposition_model_common::Id;
@@ -134,42 +134,38 @@ fn test_input_to_ir_mapping() {
     // Things should have type_thing_default
     let t_aws_id = id("t_aws");
     let t_aws_types = diagram.entity_types.get(&t_aws_id).unwrap();
-    assert!(t_aws_types
-        .iter()
-        .any(|t| t.as_str() == "type_thing_default"));
+    assert!(t_aws_types.iter().any(|t| *t == EntityType::ThingDefault));
     // And custom type if specified
     assert!(t_aws_types
         .iter()
-        .any(|t| t.as_str() == "type_organisation"));
+        .any(|t| t == &EntityType::Custom(id("type_organisation"))));
 
     // Tags should have tag_type_default
     let tag_id = id("tag_app_development");
     let tag_types = diagram.entity_types.get(&tag_id).unwrap();
-    assert!(tag_types.iter().any(|t| t.as_str() == "tag_type_default"));
+    assert!(tag_types.iter().any(|t| *t == EntityType::TagDefault));
 
     // Processes should have type_process_default
     let proc_id = id("proc_app_dev");
     let proc_types = diagram.entity_types.get(&proc_id).unwrap();
-    assert!(proc_types
-        .iter()
-        .any(|t| t.as_str() == "type_process_default"));
+    assert!(proc_types.iter().any(|t| *t == EntityType::ProcessDefault));
 
     // Process steps should have type_process_step_default
     let step_id = id("proc_app_dev_step_repository_clone");
     let step_types = diagram.entity_types.get(&step_id).unwrap();
     assert!(step_types
         .iter()
-        .any(|t| t.as_str() == "type_process_step_default"));
+        .any(|t| *t == EntityType::ProcessStepDefault));
 
     // Edges should have dependency and interaction types
     let edge_id = id("edge_t_localhost__t_github_user_repo__pull__0");
     let edge_types = diagram.entity_types.get(&edge_id).unwrap();
     assert!(edge_types
         .iter()
-        .any(|t| t.as_str() == "type_edge_dependency_cyclic_default"));
+        .any(|t| *t == EntityType::EdgeDependencyCyclicDefault));
     assert!(edge_types
         .iter()
-        .any(|t| t.as_str() == "type_edge_interaction_cyclic_default"));
+        .any(|t| *t == EntityType::EdgeInteractionCyclicDefault));
 
     // 7. Verify CSS is passed through
     assert!(!diagram.css.is_empty());

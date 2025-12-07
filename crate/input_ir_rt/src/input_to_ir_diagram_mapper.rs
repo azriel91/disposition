@@ -4,14 +4,11 @@ use disposition_input_model::{
 };
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeGroupId, EdgeGroups},
-    entity::EntityTypes as IrEntityTypes,
+    entity::{EntityType, EntityTypes as IrEntityTypes},
     node::{NodeCopyText, NodeHierarchy, NodeId, NodeNames},
     IrDiagram,
 };
-use disposition_model_common::{
-    entity::{EntityDescs, EntityTypeId},
-    Id, Map,
-};
+use disposition_model_common::{entity::EntityDescs, Id, Map};
 
 /// Maps an input diagram to an intermediate representation diagram.
 #[derive(Clone, Copy, Debug)]
@@ -86,11 +83,6 @@ impl InputToIrDiagramMapper {
         // Use TryFrom<String> to create an Id from an owned String.
         // This will validate the ID format and create a Cow::Owned internally.
         Id::try_from(s).expect("valid ID string")
-    }
-
-    /// Creates an EntityTypeId from a string.
-    fn entity_type_id_from_str(s: &str) -> EntityTypeId {
-        Self::id_from_string(s.to_string()).into()
     }
 
     /// Build NodeNames from things, tags, processes, and process steps.
@@ -284,16 +276,16 @@ impl InputToIrDiagramMapper {
         thing_dependencies: &disposition_input_model::thing::ThingDependencies,
         thing_interactions: &disposition_input_model::thing::ThingInteractions,
     ) -> IrEntityTypes {
-        let mut entity_types: Map<Id, Vec<EntityTypeId>> = Map::new();
+        let mut entity_types: Map<Id, Vec<EntityType>> = Map::new();
 
         // Add things with type_thing_default + any custom type
         for (thing_id, _) in things.iter() {
             let id: Id = thing_id.clone().into_inner();
-            let mut types = vec![Self::entity_type_id_from_str("type_thing_default")];
+            let mut types = vec![EntityType::ThingDefault];
 
             // Check if there's a custom type specified
             if let Some(custom_type) = input_entity_types.get(&id) {
-                types.push(custom_type.clone());
+                types.push(EntityType::from(custom_type.clone().into_inner()));
             }
 
             entity_types.insert(id, types);
@@ -302,10 +294,10 @@ impl InputToIrDiagramMapper {
         // Add tags with tag_type_default
         for (tag_id, _) in tags.iter() {
             let id: Id = tag_id.clone().into_inner();
-            let mut types = vec![Self::entity_type_id_from_str("tag_type_default")];
+            let mut types = vec![EntityType::TagDefault];
 
             if let Some(custom_type) = input_entity_types.get(&id) {
-                types.push(custom_type.clone());
+                types.push(EntityType::from(custom_type.clone().into_inner()));
             }
 
             entity_types.insert(id, types);
@@ -314,10 +306,10 @@ impl InputToIrDiagramMapper {
         // Add processes with type_process_default
         for (process_id, process_diagram) in processes.iter() {
             let id: Id = process_id.clone().into_inner();
-            let mut types = vec![Self::entity_type_id_from_str("type_process_default")];
+            let mut types = vec![EntityType::ProcessDefault];
 
             if let Some(custom_type) = input_entity_types.get(&id) {
-                types.push(custom_type.clone());
+                types.push(EntityType::from(custom_type.clone().into_inner()));
             }
 
             entity_types.insert(id, types);
@@ -325,10 +317,10 @@ impl InputToIrDiagramMapper {
             // Add process steps with type_process_step_default
             for (step_id, _) in process_diagram.steps.iter() {
                 let id: Id = step_id.clone().into_inner();
-                let mut types = vec![Self::entity_type_id_from_str("type_process_step_default")];
+                let mut types = vec![EntityType::ProcessStepDefault];
 
                 if let Some(custom_type) = input_entity_types.get(&id) {
-                    types.push(custom_type.clone());
+                    types.push(EntityType::from(custom_type.clone().into_inner()));
                 }
 
                 entity_types.insert(id, types);
@@ -336,12 +328,7 @@ impl InputToIrDiagramMapper {
         }
 
         // Add edge types from thing_dependencies
-        Self::add_edge_types(
-            &mut entity_types,
-            thing_dependencies,
-            input_entity_types,
-            "dependency",
-        );
+        Self::add_edge_types(&mut entity_types, thing_dependencies, input_entity_types);
 
         // Add edge types from thing_interactions (will merge with existing)
         Self::add_edge_interaction_types(&mut entity_types, thing_interactions, input_entity_types);
@@ -351,10 +338,9 @@ impl InputToIrDiagramMapper {
 
     /// Add edge types from dependencies.
     fn add_edge_types(
-        entity_types: &mut Map<Id, Vec<EntityTypeId>>,
+        entity_types: &mut Map<Id, Vec<EntityType>>,
         thing_deps: &disposition_input_model::thing::ThingDependencies,
         input_entity_types: &disposition_input_model::entity::EntityTypes,
-        kind_prefix: &str,
     ) {
         for (edge_group_id, edge_kind) in thing_deps.iter() {
             let edge_count = match edge_kind {
@@ -368,21 +354,15 @@ impl InputToIrDiagramMapper {
                 let edge_id = Self::id_from_string(edge_id_str);
 
                 let default_type = match edge_kind {
-                    EdgeKind::Cyclic(_) => Self::entity_type_id_from_str(&format!(
-                        "type_edge_{}_cyclic_default",
-                        kind_prefix
-                    )),
-                    EdgeKind::Sequence(_) => {
-                        // For sequence, all edges are "request" direction
-                        Self::entity_type_id_from_str(&format!(
-                            "type_edge_{}_sequence_request_default",
-                            kind_prefix
-                        ))
-                    }
+                    EdgeKind::Cyclic(_) => EntityType::EdgeDependencyCyclicDefault,
+                    EdgeKind::Sequence(_) => EntityType::EdgeDependencySequenceRequestDefault,
                 };
 
                 let types = if let Some(custom_type) = input_entity_types.get(&edge_id) {
-                    vec![default_type, custom_type.clone()]
+                    vec![
+                        default_type,
+                        EntityType::from(custom_type.clone().into_inner()),
+                    ]
                 } else {
                     vec![default_type]
                 };
@@ -394,7 +374,7 @@ impl InputToIrDiagramMapper {
 
     /// Add interaction types to existing edge types.
     fn add_edge_interaction_types(
-        entity_types: &mut Map<Id, Vec<EntityTypeId>>,
+        entity_types: &mut Map<Id, Vec<EntityType>>,
         thing_interactions: &disposition_input_model::thing::ThingInteractions,
         _input_entity_types: &disposition_input_model::entity::EntityTypes,
     ) {
@@ -409,12 +389,8 @@ impl InputToIrDiagramMapper {
                 let edge_id = Self::id_from_string(edge_id_str);
 
                 let interaction_type = match edge_kind {
-                    EdgeKind::Cyclic(_) => {
-                        Self::entity_type_id_from_str("type_edge_interaction_cyclic_default")
-                    }
-                    EdgeKind::Sequence(_) => Self::entity_type_id_from_str(
-                        "type_edge_interaction_sequence_request_default",
-                    ),
+                    EdgeKind::Cyclic(_) => EntityType::EdgeInteractionCyclicDefault,
+                    EdgeKind::Sequence(_) => EntityType::EdgeInteractionSequenceRequestDefault,
                 };
 
                 // Add to existing types or create new entry

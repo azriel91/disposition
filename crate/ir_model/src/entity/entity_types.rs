@@ -1,7 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
-use disposition_model_common::{entity::EntityTypeId, Id, Map};
+use disposition_model_common::{Id, Map};
 use serde::{Deserialize, Serialize};
+
+use crate::entity::EntityType;
 
 /// Entity types attached to things, edges, processes, process steps and tags
 /// for common styling.
@@ -42,7 +44,7 @@ use serde::{Deserialize, Serialize};
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct EntityTypes(Map<Id, Vec<EntityTypeId>>);
+pub struct EntityTypes(Map<Id, Vec<EntityType>>);
 
 impl EntityTypes {
     /// Returns a new `EntityTypes` map.
@@ -56,7 +58,7 @@ impl EntityTypes {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<Id, Vec<EntityTypeId>> {
+    pub fn into_inner(self) -> Map<Id, Vec<EntityType>> {
         self.0
     }
 
@@ -67,7 +69,7 @@ impl EntityTypes {
 }
 
 impl Deref for EntityTypes {
-    type Target = Map<Id, Vec<EntityTypeId>>;
+    type Target = Map<Id, Vec<EntityType>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -80,14 +82,14 @@ impl DerefMut for EntityTypes {
     }
 }
 
-impl From<Map<Id, Vec<EntityTypeId>>> for EntityTypes {
-    fn from(inner: Map<Id, Vec<EntityTypeId>>) -> Self {
+impl From<Map<Id, Vec<EntityType>>> for EntityTypes {
+    fn from(inner: Map<Id, Vec<EntityType>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(Id, Vec<EntityTypeId>)> for EntityTypes {
-    fn from_iter<I: IntoIterator<Item = (Id, Vec<EntityTypeId>)>>(iter: I) -> Self {
+impl FromIterator<(Id, Vec<EntityType>)> for EntityTypes {
+    fn from_iter<I: IntoIterator<Item = (Id, Vec<EntityType>)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }
