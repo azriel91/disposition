@@ -1,13 +1,11 @@
 use std::ops::{Deref, DerefMut};
 
-use disposition_model_common::Map;
+use disposition_model_common::{Id, Map};
 use serde::{Deserialize, Serialize};
-
-use crate::node::NodeId;
 
 /// Tailwind CSS classes for interactive visibility behaviour.
 ///
-/// This map contains computed CSS classes for each node (and edge). The classes
+/// This map contains computed CSS classes for nodes and edges. The classes
 /// control visibility, colors, animations, and interactions based on the
 /// diagram's state.
 ///
@@ -71,9 +69,9 @@ use crate::node::NodeId;
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct TailwindClasses(Map<NodeId, String>);
+pub struct EntityTailwindClasses(Map<Id, String>);
 
-impl TailwindClasses {
+impl EntityTailwindClasses {
     /// Returns a new `TailwindClasses` map.
     pub fn new() -> Self {
         Self::default()
@@ -86,7 +84,7 @@ impl TailwindClasses {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<NodeId, String> {
+    pub fn into_inner(self) -> Map<Id, String> {
         self.0
     }
 
@@ -96,28 +94,28 @@ impl TailwindClasses {
     }
 }
 
-impl Deref for TailwindClasses {
-    type Target = Map<NodeId, String>;
+impl Deref for EntityTailwindClasses {
+    type Target = Map<Id, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for TailwindClasses {
+impl DerefMut for EntityTailwindClasses {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<NodeId, String>> for TailwindClasses {
-    fn from(inner: Map<NodeId, String>) -> Self {
+impl From<Map<Id, String>> for EntityTailwindClasses {
+    fn from(inner: Map<Id, String>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(NodeId, String)> for TailwindClasses {
-    fn from_iter<I: IntoIterator<Item = (NodeId, String)>>(iter: I) -> Self {
+impl FromIterator<(Id, String)> for EntityTailwindClasses {
+    fn from_iter<I: IntoIterator<Item = (Id, String)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

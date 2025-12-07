@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     edge::EdgeGroups,
-    entity::{EntityDescs, EntityTypes},
+    entity::{EntityDescs, EntityTailwindClasses, EntityTypes},
     layout::NodeLayouts,
-    node::{NodeCopyText, NodeHierarchy, NodeNames, TailwindClasses},
+    node::{NodeCopyText, NodeHierarchy, NodeNames},
 };
 
 /// The intermediate representation of a diagram.
@@ -107,8 +107,8 @@ pub struct IrDiagram {
     ///
     /// These classes control visibility, colors, animations, and interactions
     /// based on the diagram's state.
-    #[serde(default, skip_serializing_if = "TailwindClasses::is_empty")]
-    pub tailwind_classes: TailwindClasses,
+    #[serde(default, skip_serializing_if = "EntityTailwindClasses::is_empty")]
+    pub tailwind_classes: EntityTailwindClasses,
 
     /// Layout configuration for each node.
     ///

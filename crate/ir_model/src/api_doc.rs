@@ -10,15 +10,15 @@ use utoipa::OpenApi;
         disposition_model_common::Id,
         disposition_model_common::theme::Css,
         // Entity types
+        crate::entity::EntityDescs,
+        crate::entity::EntityTailwindClasses,
         crate::entity::EntityTypeId,
         crate::entity::EntityTypes,
-        crate::entity::EntityDescs,
         // Node types
         crate::node::NodeId,
         crate::node::NodeNames,
         crate::node::NodeCopyText,
         crate::node::NodeHierarchy,
-        crate::node::TailwindClasses,
         // Edge types
         crate::edge::EdgeId,
         crate::edge::EdgeGroupId,
