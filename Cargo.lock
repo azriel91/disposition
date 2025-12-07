@@ -74,6 +74,7 @@ dependencies = [
  "disposition_input_ir_model",
  "disposition_input_model",
  "disposition_ir_model",
+ "disposition_model_common",
 ]
 
 [[package]]
@@ -521,6 +522,8 @@ name = "workspace_tests"
 version = "0.0.1"
 dependencies = [
  "disposition",
+ "disposition_input_ir_rt",
+ "disposition_model_common",
  "serde-saphyr",
 ]
 

@@ -1,0 +1,234 @@
+//! Tests for input to IR diagram mapping.
+
+const EXAMPLE_INPUT: &str = include_str!("example_input.yaml");
+
+use disposition::{
+    input_model::InputDiagram,
+    ir_model::{edge::EdgeGroupId, node::NodeId},
+};
+use disposition_input_ir_rt::InputToIrDiagramMapper;
+use disposition_model_common::Id;
+
+/// Helper to create a NodeId from a string
+fn node_id(s: &str) -> NodeId {
+    let id = Id::try_from(s.to_string()).expect("valid ID string");
+    id.into()
+}
+
+/// Helper to create an EdgeGroupId from a string
+fn edge_group_id(s: &str) -> EdgeGroupId {
+    let id = Id::try_from(s.to_string()).expect("valid ID string");
+    id.into()
+}
+
+/// Helper to create an Id from a string
+fn id(s: &str) -> Id {
+    Id::try_from(s.to_string()).expect("valid ID string")
+}
+
+#[test]
+fn test_input_to_ir_mapping() {
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+
+    let diagram = ir_and_issues.diagram;
+    let issues = ir_and_issues.issues;
+
+    // There should be no issues during mapping
+    assert!(issues.is_empty(), "Expected no issues, got: {:?}", issues);
+
+    // 1. Verify NodeNames populated from things, tags, processes, and process steps
+    // 18 things + 2 tags + 3 processes + 8 process steps = 31 nodes
+    assert_eq!(31, diagram.nodes.len());
+
+    // Check specific nodes exist
+    let t_aws = node_id("t_aws");
+    let tag_app_development = node_id("tag_app_development");
+    let proc_app_dev = node_id("proc_app_dev");
+    let proc_app_dev_step_repository_clone = node_id("proc_app_dev_step_repository_clone");
+
+    assert!(diagram.nodes.contains_key(&t_aws));
+    assert!(diagram.nodes.contains_key(&tag_app_development));
+    assert!(diagram.nodes.contains_key(&proc_app_dev));
+    assert!(diagram
+        .nodes
+        .contains_key(&proc_app_dev_step_repository_clone));
+
+    // Verify process name is used (not process id)
+    assert_eq!("App Development", diagram.nodes.get(&proc_app_dev).unwrap());
+
+    // 2. Verify NodeCopyText populated from thing_copy_text
+    // The input has 18 thing_copy_text entries (from YAML anchor merge)
+    assert_eq!(18, diagram.node_copy_text.len());
+    let t_localhost_repo = node_id("t_localhost_repo");
+    assert_eq!(
+        "~/work/web_app",
+        diagram.node_copy_text.get(&t_localhost_repo).unwrap()
+    );
+
+    // 3. Verify NodeHierarchy structure
+    // Tags should come before processes, processes before things
+    let top_level_keys: Vec<&str> = diagram
+        .node_hierarchy
+        .iter()
+        .map(|(k, _)| k.as_str())
+        .collect();
+
+    // First should be tags
+    assert!(top_level_keys[0].starts_with("tag_"));
+    assert!(top_level_keys[1].starts_with("tag_"));
+
+    // Then processes
+    assert!(top_level_keys[2].starts_with("proc_"));
+    assert!(top_level_keys[3].starts_with("proc_"));
+    assert!(top_level_keys[4].starts_with("proc_"));
+
+    // Then things
+    assert!(top_level_keys[5].starts_with("t_"));
+
+    // Verify process steps are nested under processes
+    let proc_app_dev_children = diagram.node_hierarchy.get(&proc_app_dev).unwrap();
+    assert_eq!(2, proc_app_dev_children.len());
+    assert!(proc_app_dev_children.contains_key(&proc_app_dev_step_repository_clone));
+    let proc_app_dev_step_project_build = node_id("proc_app_dev_step_project_build");
+    assert!(proc_app_dev_children.contains_key(&proc_app_dev_step_project_build));
+
+    // Verify thing hierarchy is preserved
+    let t_aws_children = diagram.node_hierarchy.get(&t_aws).unwrap();
+    let t_aws_iam = node_id("t_aws_iam");
+    let t_aws_ecr = node_id("t_aws_ecr");
+    assert!(t_aws_children.contains_key(&t_aws_iam));
+    assert!(t_aws_children.contains_key(&t_aws_ecr));
+
+    // 4. Verify EdgeGroups populated from thing_dependencies
+    assert_eq!(6, diagram.edge_groups.len());
+
+    // Check cyclic edge expansion
+    let pull_edge_group_id = edge_group_id("edge_t_localhost__t_github_user_repo__pull");
+    let pull_edges = diagram.edge_groups.get(&pull_edge_group_id).unwrap();
+    assert_eq!(2, pull_edges.len()); // cyclic with 2 things = 2 edges
+
+    // Check sequence edge expansion
+    let push_edge_group_id = edge_group_id("edge_t_localhost__t_github_user_repo__push");
+    let push_edges = diagram.edge_groups.get(&push_edge_group_id).unwrap();
+    assert_eq!(1, push_edges.len()); // sequence with 2 things = 1 edge
+
+    // Verify edge from/to
+    assert_eq!("t_localhost", push_edges[0].from.as_str());
+    assert_eq!("t_github_user_repo", push_edges[0].to.as_str());
+
+    // 5. Verify EntityDescs includes input entity_descs and process step_descs
+    // From example_input: entity_descs has 4 entries, plus step_descs from 3
+    // processes
+    assert!(diagram.entity_descs.len() >= 4);
+
+    // Check entity desc from input
+    let pull_edge_id = id("edge_t_localhost__t_github_user_repo__pull");
+    assert!(diagram.entity_descs.contains_key(&pull_edge_id));
+
+    // Check step desc merged in
+    let step_desc_id = id("proc_app_dev_step_repository_clone");
+    assert!(diagram.entity_descs.contains_key(&step_desc_id));
+
+    // 6. Verify EntityTypes with defaults
+    // Things should have type_thing_default
+    let t_aws_id = id("t_aws");
+    let t_aws_types = diagram.entity_types.get(&t_aws_id).unwrap();
+    assert!(t_aws_types
+        .iter()
+        .any(|t| t.as_str() == "type_thing_default"));
+    // And custom type if specified
+    assert!(t_aws_types
+        .iter()
+        .any(|t| t.as_str() == "type_organisation"));
+
+    // Tags should have tag_type_default
+    let tag_id = id("tag_app_development");
+    let tag_types = diagram.entity_types.get(&tag_id).unwrap();
+    assert!(tag_types.iter().any(|t| t.as_str() == "tag_type_default"));
+
+    // Processes should have type_process_default
+    let proc_id = id("proc_app_dev");
+    let proc_types = diagram.entity_types.get(&proc_id).unwrap();
+    assert!(proc_types
+        .iter()
+        .any(|t| t.as_str() == "type_process_default"));
+
+    // Process steps should have type_process_step_default
+    let step_id = id("proc_app_dev_step_repository_clone");
+    let step_types = diagram.entity_types.get(&step_id).unwrap();
+    assert!(step_types
+        .iter()
+        .any(|t| t.as_str() == "type_process_step_default"));
+
+    // Edges should have dependency and interaction types
+    let edge_id = id("edge_t_localhost__t_github_user_repo__pull__0");
+    let edge_types = diagram.entity_types.get(&edge_id).unwrap();
+    assert!(edge_types
+        .iter()
+        .any(|t| t.as_str() == "type_edge_dependency_cyclic_default"));
+    assert!(edge_types
+        .iter()
+        .any(|t| t.as_str() == "type_edge_interaction_cyclic_default"));
+
+    // 7. Verify CSS is passed through
+    assert!(!diagram.css.is_empty());
+}
+
+#[test]
+fn test_cyclic_edge_expansion() {
+    // Test that cyclic edges create a loop
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // edge_t_localhost__t_github_user_repo__pull is cyclic with [t_localhost,
+    // t_github_user_repo] Should create: t_localhost -> t_github_user_repo,
+    // t_github_user_repo -> t_localhost
+    let edge_grp_id = edge_group_id("edge_t_localhost__t_github_user_repo__pull");
+    let edges = diagram.edge_groups.get(&edge_grp_id).unwrap();
+
+    assert_eq!(2, edges.len());
+    // First edge: t_localhost -> t_github_user_repo
+    assert_eq!("t_localhost", edges[0].from.as_str());
+    assert_eq!("t_github_user_repo", edges[0].to.as_str());
+    // Second edge: t_github_user_repo -> t_localhost (cycle back)
+    assert_eq!("t_github_user_repo", edges[1].from.as_str());
+    assert_eq!("t_localhost", edges[1].to.as_str());
+}
+
+#[test]
+fn test_self_loop_edge() {
+    // Test that a cyclic edge with one thing creates a self-loop
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // edge_t_localhost__t_localhost__within is cyclic with [t_localhost]
+    // Should create: t_localhost -> t_localhost (self-loop)
+    let edge_grp_id = edge_group_id("edge_t_localhost__t_localhost__within");
+    let edges = diagram.edge_groups.get(&edge_grp_id).unwrap();
+
+    assert_eq!(1, edges.len());
+    assert_eq!("t_localhost", edges[0].from.as_str());
+    assert_eq!("t_localhost", edges[0].to.as_str());
+    assert!(edges[0].is_self_loop());
+}
+
+#[test]
+fn test_sequence_edge_expansion() {
+    // Test that sequence edges create a chain without cycling back
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // edge_t_localhost__t_github_user_repo__push is sequence with [t_localhost,
+    // t_github_user_repo] Should create: t_localhost -> t_github_user_repo (no
+    // cycle back)
+    let edge_grp_id = edge_group_id("edge_t_localhost__t_github_user_repo__push");
+    let edges = diagram.edge_groups.get(&edge_grp_id).unwrap();
+
+    assert_eq!(1, edges.len());
+    assert_eq!("t_localhost", edges[0].from.as_str());
+    assert_eq!("t_github_user_repo", edges[0].to.as_str());
+}

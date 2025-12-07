@@ -17,6 +17,7 @@ license.workspace = true
 disposition_input_ir_model = { workspace = true }
 disposition_ir_model = { workspace = true }
 disposition_input_model = { workspace = true }
+disposition_model_common = { workspace = true }
 
 [lints]
 workspace = true
