@@ -1,4 +1,4 @@
-//! OpenAPI documentation for the disposition_ir crate.
+//! OpenAPI documentation for the disposition_ir_model crate.
 
 use utoipa::OpenApi;
 

@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 /// # Examples
 ///
 /// ```rust
+/// use disposition_ir_model::node::NodeId;
 /// use disposition_model_common::{id, Id};
-/// use disposition_ir::node::NodeId;
 ///
 /// let node_id: NodeId = id!("example_id").into();
 ///
@@ -30,8 +30,8 @@ impl NodeId {
     /// # Examples
     ///
     /// ```rust
+    /// use disposition_ir_model::node::NodeId;
     /// use disposition_model_common::Id;
-    /// use disposition_ir::node::NodeId;
     ///
     /// let node_id = NodeId::new("example_id").unwrap();
     ///
@@ -46,8 +46,8 @@ impl NodeId {
     /// # Examples
     ///
     /// ```rust
+    /// use disposition_ir_model::node::NodeId;
     /// use disposition_model_common::Id;
-    /// use disposition_ir::node::NodeId;
     ///
     /// let node_id = NodeId::new("example_id").unwrap();
     ///

@@ -51,7 +51,7 @@ impl FlexLayout {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir::layout::{FlexDirection, FlexLayout};
+    /// use disposition_ir_model::layout::{FlexDirection, FlexLayout};
     ///
     /// let layout = FlexLayout::new();
     ///

@@ -1,4 +1,4 @@
-use disposition_ir::IrDiagram;
+use disposition_ir_model::IrDiagram;
 
 use crate::issue::ModelToIrIssue;
 

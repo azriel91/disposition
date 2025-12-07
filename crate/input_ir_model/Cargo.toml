@@ -16,7 +16,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-disposition_ir = { workspace = true }
+disposition_ir_model = { workspace = true }
 disposition_model_common = { workspace = true }
 miette = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

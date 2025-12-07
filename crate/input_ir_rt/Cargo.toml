@@ -15,7 +15,7 @@ license.workspace = true
 
 [dependencies]
 disposition_input_ir_model = { workspace = true }
-disposition_ir = { workspace = true }
+disposition_ir_model = { workspace = true }
 disposition_input_model = { workspace = true }
 
 [lints]
