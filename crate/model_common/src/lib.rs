@@ -1,4 +1,4 @@
-//! Common types shared between `disposition_model` and `disposition_ir`.
+//! Common types shared between `disposition_input_model` and `disposition_ir`.
 
 #[macro_use]
 extern crate id_newtype;

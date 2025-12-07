@@ -14,9 +14,9 @@ keywords.workspace = true
 license.workspace = true
 
 [dependencies]
-disposition_input_ir_model = { workspace = true, version = "0.0.1" }
-disposition_ir = { workspace = true, version = "0.0.1" }
-disposition_model = { workspace = true, version = "0.0.1" }
+disposition_input_ir_model = { workspace = true }
+disposition_ir = { workspace = true }
+disposition_input_model = { workspace = true }
 
 [lints]
 workspace = true

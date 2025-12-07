@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 /// # Examples
 ///
 /// ```rust
-/// use disposition_ir::edge::EdgeGroupId;
 /// use disposition_model_common::{id, Id};
+/// use disposition_ir::edge::EdgeGroupId;
 ///
 /// let edge_group_id: EdgeGroupId = id!("edge_t_localhost__t_github_user_repo__pull").into();
 ///
@@ -33,8 +33,8 @@ impl EdgeGroupId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir::edge::EdgeGroupId;
     /// use disposition_model_common::Id;
+    /// use disposition_ir::edge::EdgeGroupId;
     ///
     /// let edge_group_id = EdgeGroupId::new("edge_a_to_b").unwrap();
     ///
@@ -49,8 +49,8 @@ impl EdgeGroupId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir::edge::EdgeGroupId;
     /// use disposition_model_common::Id;
+    /// use disposition_ir::edge::EdgeGroupId;
     ///
     /// let edge_group_id = EdgeGroupId::new("edge_a_to_b").unwrap();
     ///

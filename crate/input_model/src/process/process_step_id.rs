@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
 
-/// Unique identifier for a thing in the diagram, [`Id`] newtype.
+/// Unique identifier for a process step in the diagram, [`Id`] newtype.
 ///
 /// Must begin with a letter or underscore, and contain only letters, numbers,
 /// and underscores.
@@ -11,32 +11,32 @@ use serde::{Deserialize, Serialize};
 /// # Examples
 ///
 /// ```rust
-/// use disposition_model::thing::ThingId;
+/// use disposition_input_model::process::ProcessStepId;
 /// use disposition_model_common::{id, Id};
 ///
-/// let thing_id: ThingId = id!("example_id").into();
+/// let step_id: ProcessStepId = id!("step_clone_repo").into();
 ///
-/// assert_eq!(thing_id.as_str(), "example_id");
+/// assert_eq!(step_id.as_str(), "step_clone_repo");
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThingId(Id);
+pub struct ProcessStepId(Id);
 
-impl ThingId {
-    /// Creates a new [`ThingId`] from a string.
+impl ProcessStepId {
+    /// Creates a new [`ProcessStepId`] from a string.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::thing::ThingId;
+    /// use disposition_input_model::process::ProcessStepId;
     /// use disposition_model_common::Id;
     ///
-    /// let thing_id = ThingId::new("example_id").unwrap();
+    /// let step_id = ProcessStepId::new("step_clone_repo").unwrap();
     ///
-    /// assert_eq!(thing_id.as_str(), "example_id");
+    /// assert_eq!(step_id.as_str(), "step_clone_repo");
     /// ```
     pub fn new(id: &'static str) -> Result<Self, IdInvalidFmt<'static>> {
-        Id::new(id).map(ThingId)
+        Id::new(id).map(ProcessStepId)
     }
 
     /// Returns the underlying [`Id`] value.
@@ -44,25 +44,25 @@ impl ThingId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::thing::ThingId;
+    /// use disposition_input_model::process::ProcessStepId;
     /// use disposition_model_common::Id;
     ///
-    /// let thing_id = ThingId::new("example_id").unwrap();
+    /// let step_id = ProcessStepId::new("step_clone_repo").unwrap();
     ///
-    /// assert_eq!(thing_id.into_inner(), Id::new("example_id").unwrap());
+    /// assert_eq!(step_id.into_inner(), Id::new("step_clone_repo").unwrap());
     /// ```
     pub fn into_inner(self) -> Id {
         self.0
     }
 }
 
-impl From<Id> for ThingId {
+impl From<Id> for ProcessStepId {
     fn from(id: Id) -> Self {
-        ThingId(id)
+        ProcessStepId(id)
     }
 }
 
-impl Deref for ThingId {
+impl Deref for ProcessStepId {
     type Target = Id;
 
     fn deref(&self) -> &Self::Target {
@@ -70,7 +70,7 @@ impl Deref for ThingId {
     }
 }
 
-impl DerefMut for ThingId {
+impl DerefMut for ProcessStepId {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

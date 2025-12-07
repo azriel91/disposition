@@ -14,7 +14,7 @@ use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 /// # Examples
 ///
 /// ```rust
-/// use disposition_model::theme::StyleAlias;
+/// use disposition_input_model::theme::StyleAlias;
 ///
 /// let style_alias = StyleAlias::PaddingNormal;
 /// assert_eq!(style_alias.as_str(), "padding_normal");
@@ -53,7 +53,7 @@ impl StyleAlias {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::theme::StyleAlias;
+    /// use disposition_input_model::theme::StyleAlias;
     ///
     /// assert_eq!(StyleAlias::PaddingNormal.as_str(), "padding_normal");
     /// assert_eq!(StyleAlias::ShadeLight.as_str(), "shade_light");
@@ -78,7 +78,7 @@ impl StyleAlias {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::theme::StyleAlias;
+    /// use disposition_input_model::theme::StyleAlias;
     ///
     /// assert_eq!(StyleAlias::PaddingNormal.custom_id(), None);
     ///

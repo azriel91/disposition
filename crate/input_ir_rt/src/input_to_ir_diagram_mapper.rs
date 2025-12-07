@@ -1,5 +1,5 @@
 use disposition_input_ir_model::IrDiagramAndIssues;
-use disposition_model::InputDiagram;
+use disposition_input_model::InputDiagram;
 
 /// Maps an input diagram to an intermediate representation diagram.
 #[derive(Clone, Copy, Debug)]

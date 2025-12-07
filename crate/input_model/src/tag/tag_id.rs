@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
 
-/// Unique identifier for a process in the diagram, [`Id`] newtype.
+/// Unique identifier for a tag in the diagram, [`Id`] newtype.
 ///
 /// Must begin with a letter or underscore, and contain only letters, numbers,
 /// and underscores.
@@ -11,32 +11,32 @@ use serde::{Deserialize, Serialize};
 /// # Examples
 ///
 /// ```rust
-/// use disposition_model::process::ProcessId;
+/// use disposition_input_model::tag::TagId;
 /// use disposition_model_common::{id, Id};
 ///
-/// let process_id: ProcessId = id!("example_id").into();
+/// let tag_id: TagId = id!("example_id").into();
 ///
-/// assert_eq!(process_id.as_str(), "example_id");
+/// assert_eq!(tag_id.as_str(), "example_id");
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ProcessId(Id);
+pub struct TagId(Id);
 
-impl ProcessId {
-    /// Creates a new [`ProcessId`] from a string.
+impl TagId {
+    /// Creates a new [`TagId`] from a string.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::process::ProcessId;
+    /// use disposition_input_model::tag::TagId;
     /// use disposition_model_common::Id;
     ///
-    /// let process_id = ProcessId::new("example_id").unwrap();
+    /// let tag_id = TagId::new("example_id").unwrap();
     ///
-    /// assert_eq!(process_id.as_str(), "example_id");
+    /// assert_eq!(tag_id.as_str(), "example_id");
     /// ```
     pub fn new(id: &'static str) -> Result<Self, IdInvalidFmt<'static>> {
-        Id::new(id).map(ProcessId)
+        Id::new(id).map(TagId)
     }
 
     /// Returns the underlying [`Id`] value.
@@ -44,25 +44,25 @@ impl ProcessId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_model::process::ProcessId;
+    /// use disposition_input_model::tag::TagId;
     /// use disposition_model_common::Id;
     ///
-    /// let process_id = ProcessId::new("example_id").unwrap();
+    /// let tag_id = TagId::new("example_id").unwrap();
     ///
-    /// assert_eq!(process_id.into_inner(), Id::new("example_id").unwrap());
+    /// assert_eq!(tag_id.into_inner(), Id::new("example_id").unwrap());
     /// ```
     pub fn into_inner(self) -> Id {
         self.0
     }
 }
 
-impl From<Id> for ProcessId {
+impl From<Id> for TagId {
     fn from(id: Id) -> Self {
-        ProcessId(id)
+        TagId(id)
     }
 }
 
-impl Deref for ProcessId {
+impl Deref for TagId {
     type Target = Id;
 
     fn deref(&self) -> &Self::Target {
@@ -70,7 +70,7 @@ impl Deref for ProcessId {
     }
 }
 
-impl DerefMut for ProcessId {
+impl DerefMut for TagId {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
