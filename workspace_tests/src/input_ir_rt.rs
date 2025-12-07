@@ -3,6 +3,7 @@
 const EXAMPLE_INPUT: &str = include_str!("example_input.yaml");
 
 use disposition::{
+    input_ir_model::IrDiagramAndIssues,
     input_model::InputDiagram,
     ir_model::{edge::EdgeGroupId, entity::EntityType, node::NodeId},
 };
@@ -14,8 +15,7 @@ fn test_input_to_ir_mapping() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
 
-    let diagram = ir_and_issues.diagram;
-    let issues = ir_and_issues.issues;
+    let IrDiagramAndIssues { diagram, issues } = ir_and_issues;
 
     // There should be no issues during mapping
     assert!(issues.is_empty(), "Expected no issues, got: {:?}", issues);
@@ -55,7 +55,7 @@ fn test_input_to_ir_mapping() {
     let top_level_keys: Vec<&str> = diagram
         .node_hierarchy
         .iter()
-        .map(|(k, _)| k.as_str())
+        .map(|(node_id, _)| node_id.as_str())
         .collect();
 
     // First should be tags
@@ -118,38 +118,44 @@ fn test_input_to_ir_mapping() {
     // Things should have type_thing_default
     let t_aws_id = id!("t_aws");
     let t_aws_types = diagram.entity_types.get(&t_aws_id).unwrap();
-    assert!(t_aws_types.iter().any(|t| *t == EntityType::ThingDefault));
+    assert!(t_aws_types
+        .iter()
+        .any(|entity_type| *entity_type == EntityType::ThingDefault));
     // And custom type if specified
     assert!(t_aws_types
         .iter()
-        .any(|t| t == &EntityType::Custom(id!("type_organisation"))));
+        .any(|entity_type| *entity_type == EntityType::Custom(id!("type_organisation"))));
 
     // Tags should have tag_type_default
     let tag_id = id!("tag_app_development");
     let tag_types = diagram.entity_types.get(&tag_id).unwrap();
-    assert!(tag_types.iter().any(|t| *t == EntityType::TagDefault));
+    assert!(tag_types
+        .iter()
+        .any(|entity_type| *entity_type == EntityType::TagDefault));
 
     // Processes should have type_process_default
     let proc_id = id!("proc_app_dev");
     let proc_types = diagram.entity_types.get(&proc_id).unwrap();
-    assert!(proc_types.iter().any(|t| *t == EntityType::ProcessDefault));
+    assert!(proc_types
+        .iter()
+        .any(|entity_type| *entity_type == EntityType::ProcessDefault));
 
     // Process steps should have type_process_step_default
     let step_id = id!("proc_app_dev_step_repository_clone");
     let step_types = diagram.entity_types.get(&step_id).unwrap();
     assert!(step_types
         .iter()
-        .any(|t| *t == EntityType::ProcessStepDefault));
+        .any(|entity_type| *entity_type == EntityType::ProcessStepDefault));
 
     // Edges should have dependency and interaction types
     let edge_id = id!("edge_t_localhost__t_github_user_repo__pull__0");
     let edge_types = diagram.entity_types.get(&edge_id).unwrap();
     assert!(edge_types
         .iter()
-        .any(|t| *t == EntityType::EdgeDependencyCyclicDefault));
+        .any(|entity_type| *entity_type == EntityType::EdgeDependencyCyclicDefault));
     assert!(edge_types
         .iter()
-        .any(|t| *t == EntityType::EdgeInteractionCyclicDefault));
+        .any(|entity_type| *entity_type == EntityType::EdgeInteractionCyclicDefault));
 
     // 7. Verify CSS is passed through
     assert!(!diagram.css.is_empty());
@@ -162,19 +168,24 @@ fn test_cyclic_edge_expansion() {
     let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
     let diagram = ir_and_issues.diagram;
 
-    // edge_t_localhost__t_github_user_repo__pull is cyclic with [t_localhost,
-    // t_github_user_repo] Should create: t_localhost -> t_github_user_repo,
-    // t_github_user_repo -> t_localhost
-    let edge_grp_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__pull"));
-    let edges = diagram.edge_groups.get(&edge_grp_id).unwrap();
+    // edge_t_localhost__t_github_user_repo__pull is cyclic with:
+    //
+    // `[t_localhost, t_github_user_repo]`
+    //
+    // Should create:
+    //
+    // * `t_localhost -> t_github_user_repo`
+    // * `t_github_user_repo -> t_localhost`
+    let edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__pull"));
+    let edges = diagram.edge_groups.get(&edge_group_id).unwrap();
 
     assert_eq!(2, edges.len());
     // First edge: t_localhost -> t_github_user_repo
-    assert_eq!("t_localhost", edges[0].from.as_str());
-    assert_eq!("t_github_user_repo", edges[0].to.as_str());
+    assert_eq!(id!("t_localhost"), *edges[0].from);
+    assert_eq!(id!("t_github_user_repo"), *edges[0].to);
     // Second edge: t_github_user_repo -> t_localhost (cycle back)
-    assert_eq!("t_github_user_repo", edges[1].from.as_str());
-    assert_eq!("t_localhost", edges[1].to.as_str());
+    assert_eq!(id!("t_github_user_repo"), *edges[1].from);
+    assert_eq!(id!("t_localhost"), *edges[1].to);
 }
 
 #[test]
@@ -184,14 +195,17 @@ fn test_self_loop_edge() {
     let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
     let diagram = ir_and_issues.diagram;
 
-    // edge_t_localhost__t_localhost__within is cyclic with [t_localhost]
-    // Should create: t_localhost -> t_localhost (self-loop)
-    let edge_grp_id = EdgeGroupId::from(id!("edge_t_localhost__t_localhost__within"));
-    let edges = diagram.edge_groups.get(&edge_grp_id).unwrap();
+    // edge_t_localhost__t_localhost__within is cyclic with `[t_localhost]`
+    //
+    // Should create:
+    //
+    // * `t_localhost -> t_localhost` (self-loop)
+    let edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_localhost__within"));
+    let edges = diagram.edge_groups.get(&edge_group_id).unwrap();
 
     assert_eq!(1, edges.len());
-    assert_eq!("t_localhost", edges[0].from.as_str());
-    assert_eq!("t_localhost", edges[0].to.as_str());
+    assert_eq!(id!("t_localhost"), *edges[0].from);
+    assert_eq!(id!("t_localhost"), *edges[0].to);
     assert!(edges[0].is_self_loop());
 }
 
@@ -202,11 +216,15 @@ fn test_sequence_edge_expansion() {
     let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
     let diagram = ir_and_issues.diagram;
 
-    // edge_t_localhost__t_github_user_repo__push is sequence with [t_localhost,
-    // t_github_user_repo] Should create: t_localhost -> t_github_user_repo (no
-    // cycle back)
-    let edge_grp_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__push"));
-    let edges = diagram.edge_groups.get(&edge_grp_id).unwrap();
+    // edge_t_localhost__t_github_user_repo__push is sequence with:
+    //
+    // `[t_localhost, t_github_user_repo]`
+    //
+    // Should create:
+    //
+    // * `t_localhost -> t_github_user_repo` (no cycle back)
+    let edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__push"));
+    let edges = diagram.edge_groups.get(&edge_group_id).unwrap();
 
     assert_eq!(1, edges.len());
     assert_eq!("t_localhost", edges[0].from.as_str());
