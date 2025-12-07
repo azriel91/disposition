@@ -435,7 +435,7 @@ theme_default:
   base_styles:
     node_defaults:
       # Vector of style aliases to apply.
-      style_aliases_applied: [shade_light]
+      style_aliases_applied: [shade_light, padding_normal]
       # Used for both fill and stroke colors.
       shape_color: "slate"
       stroke_style: "solid"
