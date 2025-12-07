@@ -1,6 +1,6 @@
 const EXAMPLE_IR: &str = include_str!("example_ir.yaml");
 
-use disposition::ir::IrDiagram;
+use disposition::ir_model::IrDiagram;
 
 #[test]
 fn test_parse_example_ir() {

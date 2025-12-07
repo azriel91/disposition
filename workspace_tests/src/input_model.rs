@@ -1,6 +1,6 @@
 const EXAMPLE_INPUT: &str = include_str!("example_input.yaml");
 
-use disposition::model::InputDiagram;
+use disposition::input_model::InputDiagram;
 
 #[test]
 fn test_parse_example_input() {
