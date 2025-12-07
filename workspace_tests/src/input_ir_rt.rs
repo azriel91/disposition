@@ -7,24 +7,7 @@ use disposition::{
     ir_model::{edge::EdgeGroupId, entity::EntityType, node::NodeId},
 };
 use disposition_input_ir_rt::InputToIrDiagramMapper;
-use disposition_model_common::Id;
-
-/// Helper to create a NodeId from a string
-fn node_id(s: &str) -> NodeId {
-    let id = Id::try_from(s.to_string()).expect("valid ID string");
-    id.into()
-}
-
-/// Helper to create an EdgeGroupId from a string
-fn edge_group_id(s: &str) -> EdgeGroupId {
-    let id = Id::try_from(s.to_string()).expect("valid ID string");
-    id.into()
-}
-
-/// Helper to create an Id from a string
-fn id(s: &str) -> Id {
-    Id::try_from(s.to_string()).expect("valid ID string")
-}
+use disposition_model_common::{id, Id};
 
 #[test]
 fn test_input_to_ir_mapping() {
@@ -42,10 +25,11 @@ fn test_input_to_ir_mapping() {
     assert_eq!(31, diagram.nodes.len());
 
     // Check specific nodes exist
-    let t_aws = node_id("t_aws");
-    let tag_app_development = node_id("tag_app_development");
-    let proc_app_dev = node_id("proc_app_dev");
-    let proc_app_dev_step_repository_clone = node_id("proc_app_dev_step_repository_clone");
+    let t_aws = NodeId::from(id!("t_aws"));
+    let tag_app_development = NodeId::from(id!("tag_app_development"));
+    let proc_app_dev = NodeId::from(id!("proc_app_dev"));
+    let proc_app_dev_step_repository_clone =
+        NodeId::from(id!("proc_app_dev_step_repository_clone"));
 
     assert!(diagram.nodes.contains_key(&t_aws));
     assert!(diagram.nodes.contains_key(&tag_app_development));
@@ -60,7 +44,7 @@ fn test_input_to_ir_mapping() {
     // 2. Verify NodeCopyText populated from thing_copy_text
     // The input has 18 thing_copy_text entries (from YAML anchor merge)
     assert_eq!(18, diagram.node_copy_text.len());
-    let t_localhost_repo = node_id("t_localhost_repo");
+    let t_localhost_repo = NodeId::from(id!("t_localhost_repo"));
     assert_eq!(
         "~/work/web_app",
         diagram.node_copy_text.get(&t_localhost_repo).unwrap()
@@ -90,13 +74,13 @@ fn test_input_to_ir_mapping() {
     let proc_app_dev_children = diagram.node_hierarchy.get(&proc_app_dev).unwrap();
     assert_eq!(2, proc_app_dev_children.len());
     assert!(proc_app_dev_children.contains_key(&proc_app_dev_step_repository_clone));
-    let proc_app_dev_step_project_build = node_id("proc_app_dev_step_project_build");
+    let proc_app_dev_step_project_build = NodeId::from(id!("proc_app_dev_step_project_build"));
     assert!(proc_app_dev_children.contains_key(&proc_app_dev_step_project_build));
 
     // Verify thing hierarchy is preserved
     let t_aws_children = diagram.node_hierarchy.get(&t_aws).unwrap();
-    let t_aws_iam = node_id("t_aws_iam");
-    let t_aws_ecr = node_id("t_aws_ecr");
+    let t_aws_iam = NodeId::from(id!("t_aws_iam"));
+    let t_aws_ecr = NodeId::from(id!("t_aws_ecr"));
     assert!(t_aws_children.contains_key(&t_aws_iam));
     assert!(t_aws_children.contains_key(&t_aws_ecr));
 
@@ -104,12 +88,12 @@ fn test_input_to_ir_mapping() {
     assert_eq!(6, diagram.edge_groups.len());
 
     // Check cyclic edge expansion
-    let pull_edge_group_id = edge_group_id("edge_t_localhost__t_github_user_repo__pull");
+    let pull_edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__pull"));
     let pull_edges = diagram.edge_groups.get(&pull_edge_group_id).unwrap();
     assert_eq!(2, pull_edges.len()); // cyclic with 2 things = 2 edges
 
     // Check sequence edge expansion
-    let push_edge_group_id = edge_group_id("edge_t_localhost__t_github_user_repo__push");
+    let push_edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__push"));
     let push_edges = diagram.edge_groups.get(&push_edge_group_id).unwrap();
     assert_eq!(1, push_edges.len()); // sequence with 2 things = 1 edge
 
@@ -123,42 +107,42 @@ fn test_input_to_ir_mapping() {
     assert!(diagram.entity_descs.len() >= 4);
 
     // Check entity desc from input
-    let pull_edge_id = id("edge_t_localhost__t_github_user_repo__pull");
+    let pull_edge_id = id!("edge_t_localhost__t_github_user_repo__pull");
     assert!(diagram.entity_descs.contains_key(&pull_edge_id));
 
     // Check step desc merged in
-    let step_desc_id = id("proc_app_dev_step_repository_clone");
+    let step_desc_id = id!("proc_app_dev_step_repository_clone");
     assert!(diagram.entity_descs.contains_key(&step_desc_id));
 
     // 6. Verify EntityTypes with defaults
     // Things should have type_thing_default
-    let t_aws_id = id("t_aws");
+    let t_aws_id = id!("t_aws");
     let t_aws_types = diagram.entity_types.get(&t_aws_id).unwrap();
     assert!(t_aws_types.iter().any(|t| *t == EntityType::ThingDefault));
     // And custom type if specified
     assert!(t_aws_types
         .iter()
-        .any(|t| t == &EntityType::Custom(id("type_organisation"))));
+        .any(|t| t == &EntityType::Custom(id!("type_organisation"))));
 
     // Tags should have tag_type_default
-    let tag_id = id("tag_app_development");
+    let tag_id = id!("tag_app_development");
     let tag_types = diagram.entity_types.get(&tag_id).unwrap();
     assert!(tag_types.iter().any(|t| *t == EntityType::TagDefault));
 
     // Processes should have type_process_default
-    let proc_id = id("proc_app_dev");
+    let proc_id = id!("proc_app_dev");
     let proc_types = diagram.entity_types.get(&proc_id).unwrap();
     assert!(proc_types.iter().any(|t| *t == EntityType::ProcessDefault));
 
     // Process steps should have type_process_step_default
-    let step_id = id("proc_app_dev_step_repository_clone");
+    let step_id = id!("proc_app_dev_step_repository_clone");
     let step_types = diagram.entity_types.get(&step_id).unwrap();
     assert!(step_types
         .iter()
         .any(|t| *t == EntityType::ProcessStepDefault));
 
     // Edges should have dependency and interaction types
-    let edge_id = id("edge_t_localhost__t_github_user_repo__pull__0");
+    let edge_id = id!("edge_t_localhost__t_github_user_repo__pull__0");
     let edge_types = diagram.entity_types.get(&edge_id).unwrap();
     assert!(edge_types
         .iter()
@@ -181,7 +165,7 @@ fn test_cyclic_edge_expansion() {
     // edge_t_localhost__t_github_user_repo__pull is cyclic with [t_localhost,
     // t_github_user_repo] Should create: t_localhost -> t_github_user_repo,
     // t_github_user_repo -> t_localhost
-    let edge_grp_id = edge_group_id("edge_t_localhost__t_github_user_repo__pull");
+    let edge_grp_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__pull"));
     let edges = diagram.edge_groups.get(&edge_grp_id).unwrap();
 
     assert_eq!(2, edges.len());
@@ -202,7 +186,7 @@ fn test_self_loop_edge() {
 
     // edge_t_localhost__t_localhost__within is cyclic with [t_localhost]
     // Should create: t_localhost -> t_localhost (self-loop)
-    let edge_grp_id = edge_group_id("edge_t_localhost__t_localhost__within");
+    let edge_grp_id = EdgeGroupId::from(id!("edge_t_localhost__t_localhost__within"));
     let edges = diagram.edge_groups.get(&edge_grp_id).unwrap();
 
     assert_eq!(1, edges.len());
@@ -221,7 +205,7 @@ fn test_sequence_edge_expansion() {
     // edge_t_localhost__t_github_user_repo__push is sequence with [t_localhost,
     // t_github_user_repo] Should create: t_localhost -> t_github_user_repo (no
     // cycle back)
-    let edge_grp_id = edge_group_id("edge_t_localhost__t_github_user_repo__push");
+    let edge_grp_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__push"));
     let edges = diagram.edge_groups.get(&edge_grp_id).unwrap();
 
     assert_eq!(1, edges.len());
