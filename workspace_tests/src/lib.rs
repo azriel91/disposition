@@ -1,5 +1,5 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![cfg(test)]
 
-mod ir;
-mod model;
+mod input_model;
+mod ir_model;
