@@ -47,6 +47,7 @@ disposition_model_common = { workspace = true }
 [features]
 default = []
 openapi = [
+    "disposition_input_ir_model/openapi",
     "disposition_input_model/openapi",
     "disposition_ir_model/openapi",
 ]
