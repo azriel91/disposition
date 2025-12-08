@@ -373,13 +373,17 @@ theme_default:
   # i.e. a `StyleAlias` enum, with a final variant of `Custom(String)`.
   style_aliases:
     padding_none:
-      padding: "0"
+      padding: "0.0"
+      gap: "0.0"
     padding_tight:
-      padding: "2"
+      padding: "2.0"
+      gap: "2.0"
     padding_normal:
-      padding: "4"
+      padding: "4.0"
+      gap: "4.0"
     padding_wide:
-      padding: "6"
+      padding: "6.0"
+      gap: "6.0"
     shade_pale:
       fill_shade_hover: "50"
       fill_shade_normal: "100"

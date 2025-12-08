@@ -15,20 +15,44 @@ use crate::layout::FlexDirection;
 ///     flex:
 ///       direction: "column_reverse"
 ///       wrap: true
-///       gap: "4"
+///       padding_top: 4.0
+///       padding_right: 4.0
+///       padding_bottom: 4.0
+///       padding_left: 4.0
+///       margin_top: 0.0
+///       margin_right: 0.0
+///       margin_bottom: 0.0
+///       margin_left: 0.0
+///       gap: 4.0
 ///   _processes_container:
 ///     flex:
 ///       direction: "row"
 ///       wrap: true
-///       gap: "4"
+///       padding_top: 4.0
+///       padding_right: 4.0
+///       padding_bottom: 4.0
+///       padding_left: 4.0
+///       margin_top: 0.0
+///       margin_right: 0.0
+///       margin_bottom: 0.0
+///       margin_left: 0.0
+///       gap: 4.0
 ///   proc_app_dev:
 ///     flex:
 ///       direction: "column"
 ///       wrap: false
-///       gap: "2"
+///       padding_top: 2.0
+///       padding_right: 2.0
+///       padding_bottom: 2.0
+///       padding_left: 2.0
+///       margin_top: 0.0
+///       margin_right: 0.0
+///       margin_bottom: 0.0
+///       margin_left: 0.0
+///       gap: 2.0
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 pub struct FlexLayout {
     /// The direction in which flex items are placed in the flex container.
     #[serde(default)]
@@ -39,10 +63,67 @@ pub struct FlexLayout {
     #[serde(default)]
     pub wrap: bool,
 
-    /// The gap between flex items, as a Tailwind spacing value (e.g., "1",
-    /// "2", "4").
+    /// The top padding within this node, which will be used for the
+    /// [`Style::padding`].
+    ///
+    /// [`Style::padding`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.padding
     #[serde(default)]
-    pub gap: String,
+    pub padding_top: f32,
+
+    /// The right padding within this node, which will be used for the
+    /// [`Style::padding`].
+    ///
+    /// [`Style::padding`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.padding
+    #[serde(default)]
+    pub padding_right: f32,
+
+    /// The bottom padding within this node, which will be used for the
+    /// [`Style::padding`].
+    ///
+    /// [`Style::padding`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.padding
+    #[serde(default)]
+    pub padding_bottom: f32,
+
+    /// The left padding within this node, which will be used for the
+    /// [`Style::padding`].
+    ///
+    /// [`Style::padding`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.padding
+    #[serde(default)]
+    pub padding_left: f32,
+
+    /// The top margin around this node, which will be used for the
+    /// [`Style::margin`].
+    ///
+    /// [`Style::margin`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.margin
+    #[serde(default)]
+    pub margin_top: f32,
+
+    /// The right margin around this node, which will be used for the
+    /// [`Style::margin`].
+    ///
+    /// [`Style::margin`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.margin
+    #[serde(default)]
+    pub margin_right: f32,
+
+    /// The bottom margin around this node, which will be used for the
+    /// [`Style::margin`].
+    ///
+    /// [`Style::margin`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.margin
+    #[serde(default)]
+    pub margin_bottom: f32,
+
+    /// The left margin around this node, which will be used for the
+    /// [`Style::margin`].
+    ///
+    /// [`Style::margin`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.margin
+    #[serde(default)]
+    pub margin_left: f32,
+
+    /// The gap between flex items, which will be used for the [`Style::gap`].
+    ///
+    /// [`Style::gap`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.gap
+    #[serde(default)]
+    pub gap: f32,
 }
 
 impl FlexLayout {
@@ -57,7 +138,6 @@ impl FlexLayout {
     ///
     /// assert_eq!(layout.direction, FlexDirection::Row);
     /// assert!(!layout.wrap);
-    /// assert!(layout.gap.is_empty());
     /// ```
     pub fn new() -> Self {
         Self::default()
@@ -73,8 +153,75 @@ impl FlexLayout {
         self.wrap
     }
 
-    /// Returns the gap between items.
-    pub fn gap(&self) -> &str {
-        &self.gap
+    /// Returns the top padding within this node, which will be used for the
+    /// [`Style::padding`].
+    ///
+    /// [`Style::padding`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.padding
+    pub fn padding_top(&self) -> f32 {
+        self.padding_top
+    }
+
+    /// Returns the right padding within this node, which will be used for the
+    /// [`Style::padding`].
+    ///
+    /// [`Style::padding`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.padding
+    pub fn padding_right(&self) -> f32 {
+        self.padding_right
+    }
+
+    /// Returns the bottom padding within this node, which will be used for the
+    /// [`Style::padding`].
+    ///
+    /// [`Style::padding`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.padding
+    pub fn padding_bottom(&self) -> f32 {
+        self.padding_bottom
+    }
+
+    /// Returns the left padding within this node, which will be used for the
+    /// [`Style::padding`].
+    ///
+    /// [`Style::padding`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.padding
+    pub fn padding_left(&self) -> f32 {
+        self.padding_left
+    }
+
+    /// Returns the top margin around this node, which will be used for the
+    /// [`Style::margin`].
+    ///
+    /// [`Style::margin`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.margin
+    pub fn margin_top(&self) -> f32 {
+        self.margin_top
+    }
+
+    /// Returns the right margin around this node, which will be used for the
+    /// [`Style::margin`].
+    ///
+    /// [`Style::margin`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.margin
+    pub fn margin_right(&self) -> f32 {
+        self.margin_right
+    }
+
+    /// Returns the bottom margin around this node, which will be used for the
+    /// [`Style::margin`].
+    ///
+    /// [`Style::margin`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.margin
+    pub fn margin_bottom(&self) -> f32 {
+        self.margin_bottom
+    }
+
+    /// Returns the left margin around this node, which will be used for the
+    /// [`Style::margin`].
+    ///
+    /// [`Style::margin`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.margin
+    pub fn margin_left(&self) -> f32 {
+        self.margin_left
+    }
+
+    /// Returns the gap between items, which will be used for the
+    /// [`Style::gap`].
+    ///
+    /// [`Style::gap`]: https://docs.rs/taffy/latest/taffy/struct.Style.html#structfield.gap
+    pub fn gap(&self) -> f32 {
+        self.gap
     }
 }

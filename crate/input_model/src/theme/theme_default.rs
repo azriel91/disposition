@@ -13,10 +13,17 @@ use crate::theme::{StyleAliases, ThemeStyles};
 /// theme_default:
 ///   style_aliases:
 ///     padding_none:
-///       padding_top: "0"
-///       padding_bottom: "0"
-///       padding_left: "0"
-///       padding_right: "0"
+///       padding: "0.0"
+///       gap: "0.0"
+///     padding_tight:
+///       padding: "2.0"
+///       gap: "2.0"
+///     padding_normal:
+///       padding: "4.0"
+///       gap: "4.0"
+///     padding_wide:
+///       padding: "6.0"
+///       gap: "6.0"
 ///     shade_light:
 ///       fill_shade_hover: "200"
 ///       fill_shade_normal: "300"

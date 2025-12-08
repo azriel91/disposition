@@ -323,7 +323,15 @@ node_layout:
     flex:
       direction: "column_reverse"
       wrap: true
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
 
   # Things and Processes container.
   #
@@ -338,7 +346,15 @@ node_layout:
     flex:
       direction: "row_reverse"
       wrap: true
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
 
   # Processes container (groups all processes horizontally)
   #
@@ -353,7 +369,15 @@ node_layout:
     flex:
       direction: "row"
       wrap: true
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
 
   # Individual processes (steps stacked vertically)
   #
@@ -370,19 +394,43 @@ node_layout:
     flex:
       direction: "column"
       wrap: false
-      gap: "2"
+      padding_top: 2.0
+      padding_right: 2.0
+      padding_bottom: 2.0
+      padding_left: 2.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 2.0
 
   proc_app_release:
     flex:
       direction: "column"
       wrap: false
-      gap: "2"
+      padding_top: 2.0
+      padding_right: 2.0
+      padding_bottom: 2.0
+      padding_left: 2.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 2.0
 
   proc_i12e_region_tier_app_deploy:
     flex:
       direction: "column"
       wrap: false
-      gap: "2"
+      padding_top: 2.0
+      padding_right: 2.0
+      padding_bottom: 2.0
+      padding_left: 2.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 2.0
 
   proc_app_dev_step_repository_clone: none
   proc_app_dev_step_project_build: none
@@ -400,7 +448,15 @@ node_layout:
     flex:
       direction: "row"
       wrap: true
-      gap: "2"
+      padding_top: 2.0
+      padding_right: 2.0
+      padding_bottom: 2.0
+      padding_left: 2.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 2.0
 
   # Tags are leaves
   tag_app_development: none
@@ -411,67 +467,155 @@ node_layout:
     flex:
       direction: "row"
       wrap: true
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
 
   # Top-level things (children alternate between columns and rows)
   t_aws:
     flex:
       direction: "column"
       wrap: false
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
   t_aws_iam:
     flex:
       direction: "row"
       wrap: false
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
   t_aws_iam_ecs_policy: none
   t_aws_ecr:
     flex:
       direction: "row"
       wrap: false
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
   t_aws_ecr_repo:
     flex:
       direction: "column"
       wrap: true
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
   t_aws_ecr_repo_image_1: none
   t_aws_ecr_repo_image_2: none
   t_aws_ecs:
     flex:
       direction: "row"
       wrap: false
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
   t_aws_ecs_cluster_app:
     flex:
       direction: "column"
       wrap: false
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
   t_aws_ecs_cluster_app_task: none
 
   t_github:
     flex:
       direction: "row"
       wrap: false
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
   t_github_user_repo: none
 
   t_localhost:
     flex:
       direction: "row"
       wrap: false
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
   t_localhost_repo:
     flex:
       direction: "column"
       wrap: false
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
   t_localhost_repo_src: none
   t_localhost_repo_target:
     flex:
       direction: "row"
       wrap: true
-      gap: "4"
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+      gap: 4.0
   t_localhost_repo_target_file_zip: none
   t_localhost_repo_target_dist_dir: none
 

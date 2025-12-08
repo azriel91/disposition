@@ -382,59 +382,63 @@ pub enum ThemeAttr {
     /// Shade for the background when an element is being clicked /
     /// pressed, e.g. `"200"` for nodes, `"700"` for edges.
     FillShadeActive,
-    /// All padding within a node, e.g. `"1.5"` in `"p-1.5"`.
+    /// Gap between items within a node, e.g. `"1.5"`.
+    ///
+    /// This key has no effect on edges.
+    Gap,
+    /// All padding within a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     Padding,
-    /// Left and right padding within a node, e.g. `"1.5"` in `"px-1.5"`.
+    /// Left and right padding within a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     PaddingX,
-    /// Top and bottom padding within a node, e.g. `"1.5"` in `"py-1.5"`.
+    /// Top and bottom padding within a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     PaddingY,
-    /// Left padding within a node, e.g. `"1.5"` in `"pl-1.5"`.
+    /// Left padding within a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     PaddingLeft,
-    /// Right padding within a node, e.g. `"1.5"` in `"pr-1.5"`.
+    /// Right padding within a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     PaddingRight,
-    /// Top padding within a node, e.g. `"1.5"` in `"pt-1.5"`.
+    /// Top padding within a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     PaddingTop,
-    /// Bottom padding within a node, e.g. `"1.5"` in `"pb-1.5"`.
+    /// Bottom padding within a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     PaddingBottom,
-    /// All margins around a node, e.g. `"1.5"` in `"m-1.5"`.
+    /// All margins around a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     Margin,
-    /// Left and right margins around a node, e.g. `"1.5"` in `"mx-1.5"`.
+    /// Left and right margins around a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     MarginX,
-    /// Top and bottom margins around a node, e.g. `"1.5"` in `"my-1.5"`.
+    /// Top and bottom margins around a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     MarginY,
-    /// Left margin around a node, e.g. `"1.5"` in `"ml-1.5"`.
+    /// Left margin around a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     MarginLeft,
-    /// Right margin around a node, e.g. `"1.5"` in `"mr-1.5"`.
+    /// Right margin around a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     MarginRight,
-    /// Top margin around a node, e.g. `"1.5"` in `"mt-1.5"`.
+    /// Top margin around a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     MarginTop,
-    /// Bottom margin around a node, e.g. `"1.5"` in `"mb-1.5"`.
+    /// Bottom margin around a node, e.g. `"1.5"`.
     ///
     /// This key has no effect on edges.
     MarginBottom,

@@ -16,12 +16,28 @@ use crate::layout::FlexLayout;
 ///     flex:
 ///       direction: "column_reverse"
 ///       wrap: true
-///       gap: "4"
+///       padding_top: 4.0
+///       padding_right: 4.0
+///       padding_bottom: 4.0
+///       padding_left: 4.0
+///       margin_top: 0.0
+///       margin_right: 0.0
+///       margin_bottom: 0.0
+///       margin_left: 0.0
+///       gap: 4.0
 ///   proc_app_dev:
 ///     flex:
 ///       direction: "column"
 ///       wrap: false
-///       gap: "2"
+///       padding_top: 2.0
+///       padding_right: 2.0
+///       padding_bottom: 2.0
+///       padding_left: 2.0
+///       margin_top: 0.0
+///       margin_right: 0.0
+///       margin_bottom: 0.0
+///       margin_left: 0.0
+///       gap: 2.0
 ///
 ///   # Leaf nodes with no children
 ///   proc_app_dev_step_repository_clone: none
@@ -31,7 +47,7 @@ use crate::layout::FlexLayout;
 ///   t_aws_iam_ecs_policy: none
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeLayout {
     /// Flex layout for container nodes with children.

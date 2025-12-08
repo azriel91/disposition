@@ -13,17 +13,41 @@ use serde::{Deserialize, Serialize};
 ///     flex:
 ///       direction: "column_reverse"
 ///       wrap: true
-///       gap: "4"
+///       padding_top: 4.0
+///       padding_right: 4.0
+///       padding_bottom: 4.0
+///       padding_left: 4.0
+///       margin_top: 0.0
+///       margin_right: 0.0
+///       margin_bottom: 0.0
+///       margin_left: 0.0
+///       gap: 4.0
 ///   _processes_container:
 ///     flex:
 ///       direction: "row"
 ///       wrap: true
-///       gap: "4"
+///       padding_top: 4.0
+///       padding_right: 4.0
+///       padding_bottom: 4.0
+///       padding_left: 4.0
+///       margin_top: 0.0
+///       margin_right: 0.0
+///       margin_bottom: 0.0
+///       margin_left: 0.0
+///       gap: 4.0
 ///   proc_app_dev:
 ///     flex:
 ///       direction: "column"
 ///       wrap: false
-///       gap: "2"
+///       padding_top: 2.0
+///       padding_right: 2.0
+///       padding_bottom: 2.0
+///       padding_left: 2.0
+///       margin_top: 0.0
+///       margin_right: 0.0
+///       margin_bottom: 0.0
+///       margin_left: 0.0
+///       gap: 2.0
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]

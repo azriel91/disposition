@@ -56,13 +56,21 @@ use crate::{
 ///     flex:
 ///       direction: "column_reverse"
 ///       wrap: true
-///       gap: "4"
+///       padding_top: 4.0
+///       padding_right: 4.0
+///       padding_bottom: 4.0
+///       padding_left: 4.0
+///       margin_top: 0.0
+///       margin_right: 0.0
+///       margin_bottom: 0.0
+///       margin_left: 0.0
+///       gap: 4.0
 ///
 /// css: >-
 ///   @keyframes stroke-dashoffset-move { ... }
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 pub struct IrDiagram {
     /// All nodes in the diagram and their display labels.
     ///
