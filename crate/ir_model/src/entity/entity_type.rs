@@ -29,7 +29,7 @@ pub enum EntityType {
     ThingDefault,
     /// Default type for tags
     TagDefault,
-    /// Default type for processs
+    /// Default type for processes
     ProcessDefault,
     /// Default type for process_steps
     ProcessStepDefault,

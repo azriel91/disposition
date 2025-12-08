@@ -358,7 +358,7 @@ node_layout:
 
   # Processes container (groups all processes horizontally)
   #
-  # This is in `row` order so processs are laid out left to right:
+  # This is in `row` order so processes are laid out left to right:
   #
   # ```text
   # .-----------------------------------------------------------------------------.
