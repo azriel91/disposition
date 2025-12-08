@@ -1,14 +1,20 @@
 use disposition_input_ir_model::IrDiagramAndIssues;
 use disposition_input_model::{
-    edge::EdgeKind, thing::ThingHierarchy as InputThingHierarchy, InputDiagram,
+    edge::EdgeKind,
+    theme::{
+        CssClassPartials, IdOrDefaults, StyleAliases, ThemeAttr, ThemeDefault, ThemeTypesStyles,
+    },
+    thing::ThingHierarchy as InputThingHierarchy,
+    InputDiagram,
 };
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeGroupId, EdgeGroups},
     entity::{EntityType, EntityTypes as IrEntityTypes},
+    layout::{FlexDirection, FlexLayout, NodeLayout, NodeLayouts},
     node::{NodeCopyText, NodeHierarchy, NodeId, NodeNames},
     IrDiagram,
 };
-use disposition_model_common::{entity::EntityDescs, Id, Map};
+use disposition_model_common::{entity::EntityDescs, id, Id, Map};
 
 /// Maps an input diagram to an intermediate representation diagram.
 #[derive(Clone, Copy, Debug)]
@@ -30,8 +36,8 @@ impl InputToIrDiagramMapper {
             tag_things: _,
             entity_descs,
             entity_types,
-            theme_default: _,
-            theme_types_styles: _,
+            theme_default,
+            theme_types_styles,
             theme_thing_dependencies_styles: _,
             theme_tag_things_focus: _,
             theme_tag_things_focus_specific: _,
@@ -63,6 +69,16 @@ impl InputToIrDiagramMapper {
             &thing_interactions,
         );
 
+        // 7. Build NodeLayouts from node_hierarchy and theme
+        let node_layout = Self::build_node_layouts(
+            &node_hierarchy,
+            &ir_entity_types,
+            &theme_default,
+            &theme_types_styles,
+            &tags,
+            &processes,
+        );
+
         let diagram = IrDiagram {
             nodes,
             node_copy_text,
@@ -71,7 +87,7 @@ impl InputToIrDiagramMapper {
             entity_descs,
             entity_types: ir_entity_types,
             tailwind_classes: Default::default(), // Done later
-            node_layout: Default::default(),      // Done later
+            node_layout,
             css,
         };
 
@@ -399,6 +415,698 @@ impl InputToIrDiagramMapper {
                 } else {
                     entity_types.insert(edge_id, vec![interaction_type]);
                 }
+            }
+        }
+    }
+
+    /// Build NodeLayouts from node_hierarchy and theme data.
+    fn build_node_layouts(
+        node_hierarchy: &NodeHierarchy,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+        tags: &disposition_input_model::tag::TagNames,
+        processes: &disposition_input_model::process::Processes,
+    ) -> NodeLayouts {
+        let mut node_layouts = NodeLayouts::new();
+
+        // Collect tag and process node IDs for special handling
+        let tag_ids: Vec<NodeId> = tags
+            .iter()
+            .map(|(tag_id, _)| NodeId::from(tag_id.clone().into_inner()))
+            .collect();
+        let process_ids: Vec<NodeId> = processes
+            .iter()
+            .map(|(proc_id, _)| NodeId::from(proc_id.clone().into_inner()))
+            .collect();
+
+        // Helper to determine if a node is a tag
+        let is_tag = |node_id: &NodeId| tag_ids.iter().any(|id| id == node_id);
+
+        // Helper to determine if a node is a process
+        let is_process = |node_id: &NodeId| process_ids.iter().any(|id| id == node_id);
+
+        // 1. Add _root container layout
+        let root_id = id!("_root");
+        let root_layout = Self::build_container_layout(
+            &root_id,
+            FlexDirection::ColumnReverse,
+            true,
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        );
+        node_layouts.insert(NodeId::from(root_id), root_layout);
+
+        // 2. Add _things_and_processes_container layout
+        let things_and_processes_id = id!("_things_and_processes_container");
+        let things_and_processes_layout = Self::build_container_layout(
+            &things_and_processes_id,
+            FlexDirection::RowReverse,
+            true,
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        );
+        node_layouts.insert(
+            NodeId::from(things_and_processes_id),
+            things_and_processes_layout,
+        );
+
+        // 3. Add _processes_container layout
+        let processes_container_id = id!("_processes_container");
+        let processes_container_layout = Self::build_container_layout(
+            &processes_container_id,
+            FlexDirection::Row,
+            true,
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        );
+        node_layouts.insert(
+            NodeId::from(processes_container_id),
+            processes_container_layout,
+        );
+
+        // 4. Build layouts for all processes
+        for (process_id, process_diagram) in processes.iter() {
+            let process_node_id = NodeId::from(process_id.clone().into_inner());
+
+            // Processes with steps get flex layout (column direction)
+            if !process_diagram.steps.is_empty() {
+                let layout = Self::build_node_flex_layout(
+                    &process_node_id,
+                    FlexDirection::Column,
+                    false,
+                    entity_types,
+                    theme_default,
+                    theme_types_styles,
+                );
+                node_layouts.insert(process_node_id.clone(), layout);
+            } else {
+                node_layouts.insert(process_node_id.clone(), NodeLayout::None);
+            }
+
+            // Process steps are always leaves (no children)
+            for (step_id, _) in process_diagram.steps.iter() {
+                let step_node_id = NodeId::from(step_id.clone().into_inner());
+                node_layouts.insert(step_node_id, NodeLayout::None);
+            }
+        }
+
+        // 5. Add _tags_container layout
+        let tags_container_id = id!("_tags_container");
+        let tags_container_layout = Self::build_container_layout(
+            &tags_container_id,
+            FlexDirection::Row,
+            true,
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        );
+        node_layouts.insert(NodeId::from(tags_container_id), tags_container_layout);
+
+        // 6. Tags are always leaves
+        for (tag_id, _) in tags.iter() {
+            let tag_node_id = NodeId::from(tag_id.clone().into_inner());
+            node_layouts.insert(tag_node_id, NodeLayout::None);
+        }
+
+        // 7. Add _things_container layout
+        let things_container_id = id!("_things_container");
+        let things_container_layout = Self::build_container_layout(
+            &things_container_id,
+            FlexDirection::Row,
+            true,
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        );
+        node_layouts.insert(NodeId::from(things_container_id), things_container_layout);
+
+        // 8. Build layouts for all things in hierarchy
+        Self::build_thing_layouts(
+            node_hierarchy,
+            0,
+            entity_types,
+            theme_default,
+            theme_types_styles,
+            &mut node_layouts,
+            &is_tag,
+            &is_process,
+        );
+
+        node_layouts
+    }
+
+    /// Build a container layout with specified direction.
+    fn build_container_layout(
+        container_id: &Id,
+        direction: FlexDirection,
+        wrap: bool,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+    ) -> NodeLayout {
+        // Containers don't have entity types, so we only resolve from NodeDefaults
+        let (padding_top, padding_right, padding_bottom, padding_left) = Self::resolve_padding(
+            Some(container_id),
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        );
+        let (margin_top, margin_right, margin_bottom, margin_left) = Self::resolve_margin(
+            Some(container_id),
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        );
+        let gap = Self::resolve_gap(
+            Some(container_id),
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        );
+
+        NodeLayout::Flex(FlexLayout {
+            direction,
+            wrap,
+            padding_top,
+            padding_right,
+            padding_bottom,
+            padding_left,
+            margin_top,
+            margin_right,
+            margin_bottom,
+            margin_left,
+            gap,
+        })
+    }
+
+    /// Build a flex layout for a specific node.
+    fn build_node_flex_layout(
+        node_id: &NodeId,
+        direction: FlexDirection,
+        wrap: bool,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+    ) -> NodeLayout {
+        let id: Id = node_id.clone().into_inner();
+        let (padding_top, padding_right, padding_bottom, padding_left) =
+            Self::resolve_padding(Some(&id), entity_types, theme_default, theme_types_styles);
+        let (margin_top, margin_right, margin_bottom, margin_left) =
+            Self::resolve_margin(Some(&id), entity_types, theme_default, theme_types_styles);
+        let gap = Self::resolve_gap(Some(&id), entity_types, theme_default, theme_types_styles);
+
+        NodeLayout::Flex(FlexLayout {
+            direction,
+            wrap,
+            padding_top,
+            padding_right,
+            padding_bottom,
+            padding_left,
+            margin_top,
+            margin_right,
+            margin_bottom,
+            margin_left,
+            gap,
+        })
+    }
+
+    /// Recursively build layouts for things in the hierarchy.
+    fn build_thing_layouts<F, G>(
+        hierarchy: &NodeHierarchy,
+        depth: usize,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+        node_layouts: &mut NodeLayouts,
+        is_tag: &F,
+        is_process: &G,
+    ) where
+        F: Fn(&NodeId) -> bool,
+        G: Fn(&NodeId) -> bool,
+    {
+        for (node_id, children) in hierarchy.iter() {
+            // Skip tags and processes (already handled)
+            if is_tag(node_id) || is_process(node_id) {
+                continue;
+            }
+
+            if children.is_empty() {
+                // Leaf node - no layout needed
+                node_layouts.insert(node_id.clone(), NodeLayout::None);
+            } else {
+                // Container node - use flex layout
+                // Direction alternates based on depth: column at even depths, row at odd depths
+                let direction = if depth % 2 == 0 {
+                    FlexDirection::Column
+                } else {
+                    FlexDirection::Row
+                };
+
+                let layout = Self::build_node_flex_layout(
+                    node_id,
+                    direction,
+                    false,
+                    entity_types,
+                    theme_default,
+                    theme_types_styles,
+                );
+                node_layouts.insert(node_id.clone(), layout);
+
+                // Recursively process children
+                Self::build_thing_layouts(
+                    children,
+                    depth + 1,
+                    entity_types,
+                    theme_default,
+                    theme_types_styles,
+                    node_layouts,
+                    is_tag,
+                    is_process,
+                );
+            }
+        }
+    }
+
+    /// Resolve padding values from theme with priority order:
+    /// 1. Node ID itself (highest)
+    /// 2. EntityTypes (reverse order)
+    /// 3. NodeDefaults (lowest)
+    /// 4. Default 0.0f32
+    fn resolve_padding(
+        node_id: Option<&Id>,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+    ) -> (f32, f32, f32, f32) {
+        let mut padding_top: Option<f32> = None;
+        let mut padding_right: Option<f32> = None;
+        let mut padding_bottom: Option<f32> = None;
+        let mut padding_left: Option<f32> = None;
+
+        // 1. Start with NodeDefaults (lowest priority)
+        if let Some(node_defaults_partials) =
+            theme_default.base_styles.get(&IdOrDefaults::NodeDefaults)
+        {
+            Self::apply_padding_from_partials(
+                node_defaults_partials,
+                &theme_default.style_aliases,
+                &mut padding_top,
+                &mut padding_right,
+                &mut padding_bottom,
+                &mut padding_left,
+            );
+        }
+
+        // 2. Apply EntityTypes in order (later types override earlier ones)
+        if let Some(id) = node_id {
+            if let Some(types) = entity_types.get(id) {
+                for entity_type in types.iter() {
+                    let type_id = disposition_model_common::entity::EntityTypeId::from(
+                        Self::id_from_string(entity_type.as_str().to_string()),
+                    );
+                    if let Some(type_styles) = theme_types_styles.get(&type_id) {
+                        if let Some(type_partials) = type_styles.get(&IdOrDefaults::NodeDefaults) {
+                            Self::apply_padding_from_partials(
+                                type_partials,
+                                &theme_default.style_aliases,
+                                &mut padding_top,
+                                &mut padding_right,
+                                &mut padding_bottom,
+                                &mut padding_left,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Apply node ID itself (highest priority)
+        if let Some(id) = node_id {
+            if let Some(node_partials) =
+                theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
+            {
+                Self::apply_padding_from_partials(
+                    node_partials,
+                    &theme_default.style_aliases,
+                    &mut padding_top,
+                    &mut padding_right,
+                    &mut padding_bottom,
+                    &mut padding_left,
+                );
+            }
+        }
+
+        (
+            padding_top.unwrap_or(0.0),
+            padding_right.unwrap_or(0.0),
+            padding_bottom.unwrap_or(0.0),
+            padding_left.unwrap_or(0.0),
+        )
+    }
+
+    /// Apply padding values from CssClassPartials, checking both direct
+    /// attributes and style aliases.
+    fn apply_padding_from_partials(
+        partials: &CssClassPartials,
+        style_aliases: &StyleAliases,
+        padding_top: &mut Option<f32>,
+        padding_right: &mut Option<f32>,
+        padding_bottom: &mut Option<f32>,
+        padding_left: &mut Option<f32>,
+    ) {
+        // First, check style_aliases_applied (lower priority within this partials)
+        for alias in partials.style_aliases_applied() {
+            if let Some(alias_partials) = style_aliases.get(alias) {
+                Self::extract_padding_from_map(
+                    alias_partials,
+                    padding_top,
+                    padding_right,
+                    padding_bottom,
+                    padding_left,
+                );
+            }
+        }
+
+        // Then, check direct attributes (higher priority within this partials)
+        Self::extract_padding_from_map(
+            partials,
+            padding_top,
+            padding_right,
+            padding_bottom,
+            padding_left,
+        );
+    }
+
+    /// Extract padding values from a map of ThemeAttr to String.
+    fn extract_padding_from_map(
+        partials: &CssClassPartials,
+        padding_top: &mut Option<f32>,
+        padding_right: &mut Option<f32>,
+        padding_bottom: &mut Option<f32>,
+        padding_left: &mut Option<f32>,
+    ) {
+        // Check compound Padding first (applies to all sides)
+        if let Some(value) = partials.get(&ThemeAttr::Padding) {
+            if let Ok(v) = value.parse::<f32>() {
+                *padding_top = Some(v);
+                *padding_right = Some(v);
+                *padding_bottom = Some(v);
+                *padding_left = Some(v);
+            }
+        }
+
+        // Check PaddingX (horizontal) - overrides Padding for left/right
+        if let Some(value) = partials.get(&ThemeAttr::PaddingX) {
+            if let Ok(v) = value.parse::<f32>() {
+                *padding_left = Some(v);
+                *padding_right = Some(v);
+            }
+        }
+
+        // Check PaddingY (vertical) - overrides Padding for top/bottom
+        if let Some(value) = partials.get(&ThemeAttr::PaddingY) {
+            if let Ok(v) = value.parse::<f32>() {
+                *padding_top = Some(v);
+                *padding_bottom = Some(v);
+            }
+        }
+
+        // Check specific padding attributes (highest specificity)
+        if let Some(value) = partials.get(&ThemeAttr::PaddingTop) {
+            if let Ok(v) = value.parse::<f32>() {
+                *padding_top = Some(v);
+            }
+        }
+        if let Some(value) = partials.get(&ThemeAttr::PaddingRight) {
+            if let Ok(v) = value.parse::<f32>() {
+                *padding_right = Some(v);
+            }
+        }
+        if let Some(value) = partials.get(&ThemeAttr::PaddingBottom) {
+            if let Ok(v) = value.parse::<f32>() {
+                *padding_bottom = Some(v);
+            }
+        }
+        if let Some(value) = partials.get(&ThemeAttr::PaddingLeft) {
+            if let Ok(v) = value.parse::<f32>() {
+                *padding_left = Some(v);
+            }
+        }
+    }
+
+    /// Resolve margin values from theme with priority order:
+    /// 1. Node ID itself (highest)
+    /// 2. EntityTypes (reverse order)
+    /// 3. NodeDefaults (lowest)
+    /// 4. Default 0.0f32
+    fn resolve_margin(
+        node_id: Option<&Id>,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+    ) -> (f32, f32, f32, f32) {
+        let mut margin_top: Option<f32> = None;
+        let mut margin_right: Option<f32> = None;
+        let mut margin_bottom: Option<f32> = None;
+        let mut margin_left: Option<f32> = None;
+
+        // 1. Start with NodeDefaults (lowest priority)
+        if let Some(node_defaults_partials) =
+            theme_default.base_styles.get(&IdOrDefaults::NodeDefaults)
+        {
+            Self::apply_margin_from_partials(
+                node_defaults_partials,
+                &theme_default.style_aliases,
+                &mut margin_top,
+                &mut margin_right,
+                &mut margin_bottom,
+                &mut margin_left,
+            );
+        }
+
+        // 2. Apply EntityTypes in order (later types override earlier ones)
+        if let Some(id) = node_id {
+            if let Some(types) = entity_types.get(id) {
+                for entity_type in types.iter() {
+                    let type_id = disposition_model_common::entity::EntityTypeId::from(
+                        Self::id_from_string(entity_type.as_str().to_string()),
+                    );
+                    if let Some(type_styles) = theme_types_styles.get(&type_id) {
+                        if let Some(type_partials) = type_styles.get(&IdOrDefaults::NodeDefaults) {
+                            Self::apply_margin_from_partials(
+                                type_partials,
+                                &theme_default.style_aliases,
+                                &mut margin_top,
+                                &mut margin_right,
+                                &mut margin_bottom,
+                                &mut margin_left,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Apply node ID itself (highest priority)
+        if let Some(id) = node_id {
+            if let Some(node_partials) =
+                theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
+            {
+                Self::apply_margin_from_partials(
+                    node_partials,
+                    &theme_default.style_aliases,
+                    &mut margin_top,
+                    &mut margin_right,
+                    &mut margin_bottom,
+                    &mut margin_left,
+                );
+            }
+        }
+
+        (
+            margin_top.unwrap_or(0.0),
+            margin_right.unwrap_or(0.0),
+            margin_bottom.unwrap_or(0.0),
+            margin_left.unwrap_or(0.0),
+        )
+    }
+
+    /// Apply margin values from CssClassPartials, checking both direct
+    /// attributes and style aliases.
+    fn apply_margin_from_partials(
+        partials: &CssClassPartials,
+        style_aliases: &StyleAliases,
+        margin_top: &mut Option<f32>,
+        margin_right: &mut Option<f32>,
+        margin_bottom: &mut Option<f32>,
+        margin_left: &mut Option<f32>,
+    ) {
+        // First, check style_aliases_applied (lower priority within this partials)
+        for alias in partials.style_aliases_applied() {
+            if let Some(alias_partials) = style_aliases.get(alias) {
+                Self::extract_margin_from_map(
+                    alias_partials,
+                    margin_top,
+                    margin_right,
+                    margin_bottom,
+                    margin_left,
+                );
+            }
+        }
+
+        // Then, check direct attributes (higher priority within this partials)
+        Self::extract_margin_from_map(
+            partials,
+            margin_top,
+            margin_right,
+            margin_bottom,
+            margin_left,
+        );
+    }
+
+    /// Extract margin values from a map of ThemeAttr to String.
+    fn extract_margin_from_map(
+        partials: &CssClassPartials,
+        margin_top: &mut Option<f32>,
+        margin_right: &mut Option<f32>,
+        margin_bottom: &mut Option<f32>,
+        margin_left: &mut Option<f32>,
+    ) {
+        // Check compound Margin first (applies to all sides)
+        if let Some(value) = partials.get(&ThemeAttr::Margin) {
+            if let Ok(v) = value.parse::<f32>() {
+                *margin_top = Some(v);
+                *margin_right = Some(v);
+                *margin_bottom = Some(v);
+                *margin_left = Some(v);
+            }
+        }
+
+        // Check MarginX (horizontal) - overrides Margin for left/right
+        if let Some(value) = partials.get(&ThemeAttr::MarginX) {
+            if let Ok(v) = value.parse::<f32>() {
+                *margin_left = Some(v);
+                *margin_right = Some(v);
+            }
+        }
+
+        // Check MarginY (vertical) - overrides Margin for top/bottom
+        if let Some(value) = partials.get(&ThemeAttr::MarginY) {
+            if let Ok(v) = value.parse::<f32>() {
+                *margin_top = Some(v);
+                *margin_bottom = Some(v);
+            }
+        }
+
+        // Check specific margin attributes (highest specificity)
+        if let Some(value) = partials.get(&ThemeAttr::MarginTop) {
+            if let Ok(v) = value.parse::<f32>() {
+                *margin_top = Some(v);
+            }
+        }
+        if let Some(value) = partials.get(&ThemeAttr::MarginRight) {
+            if let Ok(v) = value.parse::<f32>() {
+                *margin_right = Some(v);
+            }
+        }
+        if let Some(value) = partials.get(&ThemeAttr::MarginBottom) {
+            if let Ok(v) = value.parse::<f32>() {
+                *margin_bottom = Some(v);
+            }
+        }
+        if let Some(value) = partials.get(&ThemeAttr::MarginLeft) {
+            if let Ok(v) = value.parse::<f32>() {
+                *margin_left = Some(v);
+            }
+        }
+    }
+
+    /// Resolve gap value from theme with priority order:
+    /// 1. Node ID itself (highest)
+    /// 2. EntityTypes (reverse order)
+    /// 3. NodeDefaults (lowest)
+    /// 4. Default 0.0f32
+    fn resolve_gap(
+        node_id: Option<&Id>,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+    ) -> f32 {
+        let mut gap: Option<f32> = None;
+
+        // 1. Start with NodeDefaults (lowest priority)
+        if let Some(node_defaults_partials) =
+            theme_default.base_styles.get(&IdOrDefaults::NodeDefaults)
+        {
+            Self::apply_gap_from_partials(
+                node_defaults_partials,
+                &theme_default.style_aliases,
+                &mut gap,
+            );
+        }
+
+        // 2. Apply EntityTypes in order (later types override earlier ones)
+        if let Some(id) = node_id {
+            if let Some(types) = entity_types.get(id) {
+                for entity_type in types.iter() {
+                    let type_id = disposition_model_common::entity::EntityTypeId::from(
+                        Self::id_from_string(entity_type.as_str().to_string()),
+                    );
+                    if let Some(type_styles) = theme_types_styles.get(&type_id) {
+                        if let Some(type_partials) = type_styles.get(&IdOrDefaults::NodeDefaults) {
+                            Self::apply_gap_from_partials(
+                                type_partials,
+                                &theme_default.style_aliases,
+                                &mut gap,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Apply node ID itself (highest priority)
+        if let Some(id) = node_id {
+            if let Some(node_partials) =
+                theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
+            {
+                Self::apply_gap_from_partials(
+                    node_partials,
+                    &theme_default.style_aliases,
+                    &mut gap,
+                );
+            }
+        }
+
+        gap.unwrap_or(0.0)
+    }
+
+    /// Apply gap value from CssClassPartials, checking both direct attributes
+    /// and style aliases.
+    fn apply_gap_from_partials(
+        partials: &CssClassPartials,
+        style_aliases: &StyleAliases,
+        gap: &mut Option<f32>,
+    ) {
+        // First, check style_aliases_applied (lower priority within this partials)
+        for alias in partials.style_aliases_applied() {
+            if let Some(alias_partials) = style_aliases.get(alias) {
+                if let Some(value) = alias_partials.get(&ThemeAttr::Gap) {
+                    if let Ok(v) = value.parse::<f32>() {
+                        *gap = Some(v);
+                    }
+                }
+            }
+        }
+
+        // Then, check direct attribute (higher priority within this partials)
+        if let Some(value) = partials.get(&ThemeAttr::Gap) {
+            if let Ok(v) = value.parse::<f32>() {
+                *gap = Some(v);
             }
         }
     }

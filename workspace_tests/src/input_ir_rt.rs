@@ -5,7 +5,12 @@ const EXAMPLE_INPUT: &str = include_str!("example_input.yaml");
 use disposition::{
     input_ir_model::IrDiagramAndIssues,
     input_model::InputDiagram,
-    ir_model::{edge::EdgeGroupId, entity::EntityType, node::NodeId},
+    ir_model::{
+        edge::EdgeGroupId,
+        entity::EntityType,
+        layout::{FlexDirection, NodeLayout},
+        node::NodeId,
+    },
 };
 use disposition_input_ir_rt::InputToIrDiagramMapper;
 use disposition_model_common::{id, Id};
@@ -229,4 +234,192 @@ fn test_sequence_edge_expansion() {
     assert_eq!(1, edges.len());
     assert_eq!("t_localhost", edges[0].from.as_str());
     assert_eq!("t_github_user_repo", edges[0].to.as_str());
+}
+
+#[test]
+fn test_node_layout_containers() {
+    // Test that container nodes get correct flex layouts
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // _root container should have column_reverse direction
+    let root_id = NodeId::from(id!("_root"));
+    let root_layout = diagram.node_layout.get(&root_id).unwrap();
+    if let NodeLayout::Flex(flex) = root_layout {
+        assert_eq!(FlexDirection::ColumnReverse, flex.direction);
+        assert!(flex.wrap);
+        // Padding comes from node_defaults -> padding_normal -> 4.0
+        assert_eq!(4.0, flex.padding_top);
+        assert_eq!(4.0, flex.padding_right);
+        assert_eq!(4.0, flex.padding_bottom);
+        assert_eq!(4.0, flex.padding_left);
+        assert_eq!(4.0, flex.gap);
+    } else {
+        panic!("Expected Flex layout for _root");
+    }
+
+    // _things_and_processes_container should have row_reverse direction
+    let things_and_processes_container_id = NodeId::from(id!("_things_and_processes_container"));
+    let things_and_processes_layout = diagram
+        .node_layout
+        .get(&things_and_processes_container_id)
+        .unwrap();
+    if let NodeLayout::Flex(flex) = things_and_processes_layout {
+        assert_eq!(FlexDirection::RowReverse, flex.direction);
+        assert!(flex.wrap);
+    } else {
+        panic!("Expected Flex layout for _things_and_processes_container");
+    }
+
+    // _processes_container should have row direction
+    let processes_container_id = NodeId::from(id!("_processes_container"));
+    let processes_layout = diagram.node_layout.get(&processes_container_id).unwrap();
+    if let NodeLayout::Flex(flex) = processes_layout {
+        assert_eq!(FlexDirection::Row, flex.direction);
+        assert!(flex.wrap);
+    } else {
+        panic!("Expected Flex layout for _processes_container");
+    }
+
+    // _tags_container should have row direction
+    let tags_container_id = NodeId::from(id!("_tags_container"));
+    let tags_layout = diagram.node_layout.get(&tags_container_id).unwrap();
+    if let NodeLayout::Flex(flex) = tags_layout {
+        assert_eq!(FlexDirection::Row, flex.direction);
+        assert!(flex.wrap);
+    } else {
+        panic!("Expected Flex layout for _tags_container");
+    }
+
+    // _things_container should have row direction
+    let things_container_id = NodeId::from(id!("_things_container"));
+    let things_layout = diagram.node_layout.get(&things_container_id).unwrap();
+    if let NodeLayout::Flex(flex) = things_layout {
+        assert_eq!(FlexDirection::Row, flex.direction);
+        assert!(flex.wrap);
+    } else {
+        panic!("Expected Flex layout for _things_container");
+    }
+}
+
+#[test]
+fn test_node_layout_processes() {
+    // Test that processes with steps get flex layout, steps get none
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // proc_app_dev has steps, should have column flex layout
+    let proc_id = NodeId::from(id!("proc_app_dev"));
+    let proc_layout = diagram.node_layout.get(&proc_id).unwrap();
+    if let NodeLayout::Flex(flex) = proc_layout {
+        assert_eq!(FlexDirection::Column, flex.direction);
+        assert!(!flex.wrap);
+        // Padding comes from node_defaults -> padding_normal -> 4.0
+        assert_eq!(4.0, flex.padding_top);
+        assert_eq!(4.0, flex.gap);
+    } else {
+        panic!("Expected Flex layout for proc_app_dev");
+    }
+
+    // Process steps are leaves, should have None layout
+    let step_id = NodeId::from(id!("proc_app_dev_step_repository_clone"));
+    let step_layout = diagram.node_layout.get(&step_id).unwrap();
+    assert_eq!(&NodeLayout::None, step_layout);
+
+    let step2_id = NodeId::from(id!("proc_app_dev_step_project_build"));
+    let step2_layout = diagram.node_layout.get(&step2_id).unwrap();
+    assert_eq!(&NodeLayout::None, step2_layout);
+}
+
+#[test]
+fn test_node_layout_tags() {
+    // Test that tags are leaf nodes with no layout
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    let tag_0_id = NodeId::from(id!("tag_app_development"));
+    let tag_0_layout = diagram.node_layout.get(&tag_0_id).unwrap();
+    assert_eq!(&NodeLayout::None, tag_0_layout);
+
+    let tag_1_id = NodeId::from(id!("tag_deployment"));
+    let tag_1_layout = diagram.node_layout.get(&tag_1_id).unwrap();
+    assert_eq!(&NodeLayout::None, tag_1_layout);
+}
+
+#[test]
+fn test_node_layout_things_hierarchy() {
+    // Test that things with children get flex layout, leaves get none
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // t_aws has children (t_aws_iam, t_aws_ecr, t_aws_ecs), should have column flex
+    // (depth 0)
+    let t_aws_id = NodeId::from(id!("t_aws"));
+    let t_aws_layout = diagram.node_layout.get(&t_aws_id).unwrap();
+    if let NodeLayout::Flex(flex) = t_aws_layout {
+        assert_eq!(FlexDirection::Column, flex.direction);
+        // Padding from node_defaults -> padding_normal -> 4.0
+        assert_eq!(4.0, flex.padding_top);
+        assert_eq!(4.0, flex.gap);
+    } else {
+        panic!("Expected Flex layout for t_aws");
+    }
+
+    // t_aws_iam has children (t_aws_iam_ecs_policy), should have row flex (depth 1)
+    let t_aws_iam_id = NodeId::from(id!("t_aws_iam"));
+    let t_aws_iam_layout = diagram.node_layout.get(&t_aws_iam_id).unwrap();
+    if let NodeLayout::Flex(flex) = t_aws_iam_layout {
+        assert_eq!(FlexDirection::Row, flex.direction);
+    } else {
+        panic!("Expected Flex layout for t_aws_iam");
+    }
+
+    // t_aws_iam_ecs_policy is a leaf, should have None layout
+    let leaf_id = NodeId::from(id!("t_aws_iam_ecs_policy"));
+    let leaf_layout = diagram.node_layout.get(&leaf_id).unwrap();
+    assert_eq!(&NodeLayout::None, leaf_layout);
+
+    // t_aws_ecr_repo has children (images), should have column flex (depth 2)
+    let t_aws_ecr_repo_id = NodeId::from(id!("t_aws_ecr_repo"));
+    let t_aws_ecr_repo_layout = diagram.node_layout.get(&t_aws_ecr_repo_id).unwrap();
+    if let NodeLayout::Flex(flex) = t_aws_ecr_repo_layout {
+        assert_eq!(FlexDirection::Column, flex.direction);
+    } else {
+        panic!("Expected Flex layout for t_aws_ecr_repo");
+    }
+
+    // t_aws_ecr_repo_image_1 is a leaf
+    let image_id = NodeId::from(id!("t_aws_ecr_repo_image_1"));
+    let image_layout = diagram.node_layout.get(&image_id).unwrap();
+    assert_eq!(&NodeLayout::None, image_layout);
+}
+
+#[test]
+fn test_node_layout_padding_from_theme() {
+    // Test that padding values are correctly resolved from theme
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // All containers should get padding from node_defaults which uses
+    // padding_normal (4.0)
+    let t_aws_id = NodeId::from(id!("t_aws"));
+    let t_aws_layout = diagram.node_layout.get(&t_aws_id).unwrap();
+    if let NodeLayout::Flex(flex) = t_aws_layout {
+        assert_eq!(4.0, flex.padding_top);
+        assert_eq!(4.0, flex.padding_right);
+        assert_eq!(4.0, flex.padding_bottom);
+        assert_eq!(4.0, flex.padding_left);
+        assert_eq!(0.0, flex.margin_top);
+        assert_eq!(0.0, flex.margin_right);
+        assert_eq!(0.0, flex.margin_bottom);
+        assert_eq!(0.0, flex.margin_left);
+        assert_eq!(4.0, flex.gap);
+    } else {
+        panic!("Expected Flex layout for t_aws");
+    }
 }
