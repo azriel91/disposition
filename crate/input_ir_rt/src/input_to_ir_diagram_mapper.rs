@@ -635,6 +635,7 @@ impl InputToIrDiagramMapper {
     }
 
     /// Recursively build layouts for things in the hierarchy.
+    #[allow(clippy::too_many_arguments)] // we may reduce this during refactoring
     fn build_thing_layouts<F, G>(
         hierarchy: &NodeHierarchy,
         depth: usize,
@@ -660,7 +661,7 @@ impl InputToIrDiagramMapper {
             } else {
                 // Container node - use flex layout
                 // Direction alternates based on depth: column at even depths, row at odd depths
-                let direction = if depth % 2 == 0 {
+                let direction = if depth.is_multiple_of(2) {
                     FlexDirection::Column
                 } else {
                     FlexDirection::Row
@@ -722,42 +723,41 @@ impl InputToIrDiagramMapper {
         }
 
         // 2. Apply EntityTypes in order (later types override earlier ones)
-        if let Some(id) = node_id {
-            if let Some(types) = entity_types.get(id) {
-                for entity_type in types.iter() {
-                    let type_id = disposition_model_common::entity::EntityTypeId::from(
-                        Self::id_from_string(entity_type.as_str().to_string()),
+        if let Some(id) = node_id
+            && let Some(types) = entity_types.get(id)
+        {
+            for entity_type in types.iter() {
+                let type_id = disposition_model_common::entity::EntityTypeId::from(
+                    Self::id_from_string(entity_type.as_str().to_string()),
+                );
+                if let Some(type_styles) = theme_types_styles.get(&type_id)
+                    && let Some(type_partials) = type_styles.get(&IdOrDefaults::NodeDefaults)
+                {
+                    Self::apply_padding_from_partials(
+                        type_partials,
+                        &theme_default.style_aliases,
+                        &mut padding_top,
+                        &mut padding_right,
+                        &mut padding_bottom,
+                        &mut padding_left,
                     );
-                    if let Some(type_styles) = theme_types_styles.get(&type_id) {
-                        if let Some(type_partials) = type_styles.get(&IdOrDefaults::NodeDefaults) {
-                            Self::apply_padding_from_partials(
-                                type_partials,
-                                &theme_default.style_aliases,
-                                &mut padding_top,
-                                &mut padding_right,
-                                &mut padding_bottom,
-                                &mut padding_left,
-                            );
-                        }
-                    }
                 }
             }
         }
 
         // 3. Apply node ID itself (highest priority)
-        if let Some(id) = node_id {
-            if let Some(node_partials) =
+        if let Some(id) = node_id
+            && let Some(node_partials) =
                 theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
-            {
-                Self::apply_padding_from_partials(
-                    node_partials,
-                    &theme_default.style_aliases,
-                    &mut padding_top,
-                    &mut padding_right,
-                    &mut padding_bottom,
-                    &mut padding_left,
-                );
-            }
+        {
+            Self::apply_padding_from_partials(
+                node_partials,
+                &theme_default.style_aliases,
+                &mut padding_top,
+                &mut padding_right,
+                &mut padding_bottom,
+                &mut padding_left,
+            );
         }
 
         (
@@ -810,51 +810,51 @@ impl InputToIrDiagramMapper {
         padding_left: &mut Option<f32>,
     ) {
         // Check compound Padding first (applies to all sides)
-        if let Some(value) = partials.get(&ThemeAttr::Padding) {
-            if let Ok(v) = value.parse::<f32>() {
-                *padding_top = Some(v);
-                *padding_right = Some(v);
-                *padding_bottom = Some(v);
-                *padding_left = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::Padding)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *padding_top = Some(v);
+            *padding_right = Some(v);
+            *padding_bottom = Some(v);
+            *padding_left = Some(v);
         }
 
         // Check PaddingX (horizontal) - overrides Padding for left/right
-        if let Some(value) = partials.get(&ThemeAttr::PaddingX) {
-            if let Ok(v) = value.parse::<f32>() {
-                *padding_left = Some(v);
-                *padding_right = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::PaddingX)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *padding_left = Some(v);
+            *padding_right = Some(v);
         }
 
         // Check PaddingY (vertical) - overrides Padding for top/bottom
-        if let Some(value) = partials.get(&ThemeAttr::PaddingY) {
-            if let Ok(v) = value.parse::<f32>() {
-                *padding_top = Some(v);
-                *padding_bottom = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::PaddingY)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *padding_top = Some(v);
+            *padding_bottom = Some(v);
         }
 
         // Check specific padding attributes (highest specificity)
-        if let Some(value) = partials.get(&ThemeAttr::PaddingTop) {
-            if let Ok(v) = value.parse::<f32>() {
-                *padding_top = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::PaddingTop)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *padding_top = Some(v);
         }
-        if let Some(value) = partials.get(&ThemeAttr::PaddingRight) {
-            if let Ok(v) = value.parse::<f32>() {
-                *padding_right = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::PaddingRight)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *padding_right = Some(v);
         }
-        if let Some(value) = partials.get(&ThemeAttr::PaddingBottom) {
-            if let Ok(v) = value.parse::<f32>() {
-                *padding_bottom = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::PaddingBottom)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *padding_bottom = Some(v);
         }
-        if let Some(value) = partials.get(&ThemeAttr::PaddingLeft) {
-            if let Ok(v) = value.parse::<f32>() {
-                *padding_left = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::PaddingLeft)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *padding_left = Some(v);
         }
     }
 
@@ -889,42 +889,41 @@ impl InputToIrDiagramMapper {
         }
 
         // 2. Apply EntityTypes in order (later types override earlier ones)
-        if let Some(id) = node_id {
-            if let Some(types) = entity_types.get(id) {
-                for entity_type in types.iter() {
-                    let type_id = disposition_model_common::entity::EntityTypeId::from(
-                        Self::id_from_string(entity_type.as_str().to_string()),
+        if let Some(id) = node_id
+            && let Some(types) = entity_types.get(id)
+        {
+            for entity_type in types.iter() {
+                let type_id = disposition_model_common::entity::EntityTypeId::from(
+                    Self::id_from_string(entity_type.as_str().to_string()),
+                );
+                if let Some(type_styles) = theme_types_styles.get(&type_id)
+                    && let Some(type_partials) = type_styles.get(&IdOrDefaults::NodeDefaults)
+                {
+                    Self::apply_margin_from_partials(
+                        type_partials,
+                        &theme_default.style_aliases,
+                        &mut margin_top,
+                        &mut margin_right,
+                        &mut margin_bottom,
+                        &mut margin_left,
                     );
-                    if let Some(type_styles) = theme_types_styles.get(&type_id) {
-                        if let Some(type_partials) = type_styles.get(&IdOrDefaults::NodeDefaults) {
-                            Self::apply_margin_from_partials(
-                                type_partials,
-                                &theme_default.style_aliases,
-                                &mut margin_top,
-                                &mut margin_right,
-                                &mut margin_bottom,
-                                &mut margin_left,
-                            );
-                        }
-                    }
                 }
             }
         }
 
         // 3. Apply node ID itself (highest priority)
-        if let Some(id) = node_id {
-            if let Some(node_partials) =
+        if let Some(id) = node_id
+            && let Some(node_partials) =
                 theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
-            {
-                Self::apply_margin_from_partials(
-                    node_partials,
-                    &theme_default.style_aliases,
-                    &mut margin_top,
-                    &mut margin_right,
-                    &mut margin_bottom,
-                    &mut margin_left,
-                );
-            }
+        {
+            Self::apply_margin_from_partials(
+                node_partials,
+                &theme_default.style_aliases,
+                &mut margin_top,
+                &mut margin_right,
+                &mut margin_bottom,
+                &mut margin_left,
+            );
         }
 
         (
@@ -977,51 +976,51 @@ impl InputToIrDiagramMapper {
         margin_left: &mut Option<f32>,
     ) {
         // Check compound Margin first (applies to all sides)
-        if let Some(value) = partials.get(&ThemeAttr::Margin) {
-            if let Ok(v) = value.parse::<f32>() {
-                *margin_top = Some(v);
-                *margin_right = Some(v);
-                *margin_bottom = Some(v);
-                *margin_left = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::Margin)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *margin_top = Some(v);
+            *margin_right = Some(v);
+            *margin_bottom = Some(v);
+            *margin_left = Some(v);
         }
 
         // Check MarginX (horizontal) - overrides Margin for left/right
-        if let Some(value) = partials.get(&ThemeAttr::MarginX) {
-            if let Ok(v) = value.parse::<f32>() {
-                *margin_left = Some(v);
-                *margin_right = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::MarginX)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *margin_left = Some(v);
+            *margin_right = Some(v);
         }
 
         // Check MarginY (vertical) - overrides Margin for top/bottom
-        if let Some(value) = partials.get(&ThemeAttr::MarginY) {
-            if let Ok(v) = value.parse::<f32>() {
-                *margin_top = Some(v);
-                *margin_bottom = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::MarginY)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *margin_top = Some(v);
+            *margin_bottom = Some(v);
         }
 
         // Check specific margin attributes (highest specificity)
-        if let Some(value) = partials.get(&ThemeAttr::MarginTop) {
-            if let Ok(v) = value.parse::<f32>() {
-                *margin_top = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::MarginTop)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *margin_top = Some(v);
         }
-        if let Some(value) = partials.get(&ThemeAttr::MarginRight) {
-            if let Ok(v) = value.parse::<f32>() {
-                *margin_right = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::MarginRight)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *margin_right = Some(v);
         }
-        if let Some(value) = partials.get(&ThemeAttr::MarginBottom) {
-            if let Ok(v) = value.parse::<f32>() {
-                *margin_bottom = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::MarginBottom)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *margin_bottom = Some(v);
         }
-        if let Some(value) = partials.get(&ThemeAttr::MarginLeft) {
-            if let Ok(v) = value.parse::<f32>() {
-                *margin_left = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::MarginLeft)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *margin_left = Some(v);
         }
     }
 
@@ -1050,36 +1049,31 @@ impl InputToIrDiagramMapper {
         }
 
         // 2. Apply EntityTypes in order (later types override earlier ones)
-        if let Some(id) = node_id {
-            if let Some(types) = entity_types.get(id) {
-                for entity_type in types.iter() {
-                    let type_id = disposition_model_common::entity::EntityTypeId::from(
-                        Self::id_from_string(entity_type.as_str().to_string()),
+        if let Some(id) = node_id
+            && let Some(types) = entity_types.get(id)
+        {
+            for entity_type in types.iter() {
+                let type_id = disposition_model_common::entity::EntityTypeId::from(
+                    Self::id_from_string(entity_type.as_str().to_string()),
+                );
+                if let Some(type_styles) = theme_types_styles.get(&type_id)
+                    && let Some(type_partials) = type_styles.get(&IdOrDefaults::NodeDefaults)
+                {
+                    Self::apply_gap_from_partials(
+                        type_partials,
+                        &theme_default.style_aliases,
+                        &mut gap,
                     );
-                    if let Some(type_styles) = theme_types_styles.get(&type_id) {
-                        if let Some(type_partials) = type_styles.get(&IdOrDefaults::NodeDefaults) {
-                            Self::apply_gap_from_partials(
-                                type_partials,
-                                &theme_default.style_aliases,
-                                &mut gap,
-                            );
-                        }
-                    }
                 }
             }
         }
 
         // 3. Apply node ID itself (highest priority)
-        if let Some(id) = node_id {
-            if let Some(node_partials) =
+        if let Some(id) = node_id
+            && let Some(node_partials) =
                 theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
-            {
-                Self::apply_gap_from_partials(
-                    node_partials,
-                    &theme_default.style_aliases,
-                    &mut gap,
-                );
-            }
+        {
+            Self::apply_gap_from_partials(node_partials, &theme_default.style_aliases, &mut gap);
         }
 
         gap.unwrap_or(0.0)
@@ -1094,20 +1088,19 @@ impl InputToIrDiagramMapper {
     ) {
         // First, check style_aliases_applied (lower priority within this partials)
         for alias in partials.style_aliases_applied() {
-            if let Some(alias_partials) = style_aliases.get(alias) {
-                if let Some(value) = alias_partials.get(&ThemeAttr::Gap) {
-                    if let Ok(v) = value.parse::<f32>() {
-                        *gap = Some(v);
-                    }
-                }
+            if let Some(alias_partials) = style_aliases.get(alias)
+                && let Some(value) = alias_partials.get(&ThemeAttr::Gap)
+                && let Ok(v) = value.parse::<f32>()
+            {
+                *gap = Some(v);
             }
         }
 
         // Then, check direct attribute (higher priority within this partials)
-        if let Some(value) = partials.get(&ThemeAttr::Gap) {
-            if let Ok(v) = value.parse::<f32>() {
-                *gap = Some(v);
-            }
+        if let Some(value) = partials.get(&ThemeAttr::Gap)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *gap = Some(v);
         }
     }
 }
