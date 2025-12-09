@@ -697,29 +697,37 @@ impl InputToIrDiagramMapper {
     /// 2. EntityTypes (reverse order)
     /// 3. NodeDefaults (lowest)
     /// 4. Default 0.0f32
-    fn resolve_padding(
+    /// Resolves a theme attribute value by traversing theme sources in priority
+    /// order:
+    ///
+    /// 1. `NodeDefaults` from `theme_default` (lowest priority)
+    /// 2. `EntityType`s applied to the node (in order, later overrides earlier)
+    /// 3. The `NodeId` itself from `theme_default` (highest priority)
+    ///
+    /// Within each level, `StyleAlias`es are applied first, then direct
+    /// attributes.
+    ///
+    /// # Parameters
+    /// - `state`: Mutable state that accumulates resolved values
+    /// - `apply_from_partials`: Closure that extracts values from
+    ///   `CssClassPartials` and applies them to state, considering style
+    ///   aliases
+    /// - `finalize`: Closure that converts the accumulated state into the final
+    ///   result with defaults
+    fn resolve_theme_attr<State, Result>(
         node_id: Option<&Id>,
         entity_types: &IrEntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
-    ) -> (f32, f32, f32, f32) {
-        let mut padding_top: Option<f32> = None;
-        let mut padding_right: Option<f32> = None;
-        let mut padding_bottom: Option<f32> = None;
-        let mut padding_left: Option<f32> = None;
-
+        state: &mut State,
+        apply_from_partials: impl Fn(&CssClassPartials, &StyleAliases, &mut State),
+        finalize: impl FnOnce(&State) -> Result,
+    ) -> Result {
         // 1. Start with NodeDefaults (lowest priority)
         if let Some(node_defaults_partials) =
             theme_default.base_styles.get(&IdOrDefaults::NodeDefaults)
         {
-            Self::apply_padding_from_partials(
-                node_defaults_partials,
-                &theme_default.style_aliases,
-                &mut padding_top,
-                &mut padding_right,
-                &mut padding_bottom,
-                &mut padding_left,
-            );
+            apply_from_partials(node_defaults_partials, &theme_default.style_aliases, state);
         }
 
         // 2. Apply EntityTypes in order (later types override earlier ones)
@@ -733,14 +741,7 @@ impl InputToIrDiagramMapper {
                 if let Some(type_styles) = theme_types_styles.get(&type_id)
                     && let Some(type_partials) = type_styles.get(&IdOrDefaults::NodeDefaults)
                 {
-                    Self::apply_padding_from_partials(
-                        type_partials,
-                        &theme_default.style_aliases,
-                        &mut padding_top,
-                        &mut padding_right,
-                        &mut padding_bottom,
-                        &mut padding_left,
-                    );
+                    apply_from_partials(type_partials, &theme_default.style_aliases, state);
                 }
             }
         }
@@ -750,21 +751,35 @@ impl InputToIrDiagramMapper {
             && let Some(node_partials) =
                 theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
         {
-            Self::apply_padding_from_partials(
-                node_partials,
-                &theme_default.style_aliases,
-                &mut padding_top,
-                &mut padding_right,
-                &mut padding_bottom,
-                &mut padding_left,
-            );
+            apply_from_partials(node_partials, &theme_default.style_aliases, state);
         }
 
-        (
-            padding_top.unwrap_or(0.0),
-            padding_right.unwrap_or(0.0),
-            padding_bottom.unwrap_or(0.0),
-            padding_left.unwrap_or(0.0),
+        finalize(state)
+    }
+
+    fn resolve_padding(
+        node_id: Option<&Id>,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+    ) -> (f32, f32, f32, f32) {
+        let mut state = (None, None, None, None);
+
+        Self::resolve_theme_attr(
+            node_id,
+            entity_types,
+            theme_default,
+            theme_types_styles,
+            &mut state,
+            Self::apply_padding_from_partials,
+            |state| {
+                (
+                    state.0.unwrap_or(0.0),
+                    state.1.unwrap_or(0.0),
+                    state.2.unwrap_or(0.0),
+                    state.3.unwrap_or(0.0),
+                )
+            },
         )
     }
 
@@ -773,42 +788,26 @@ impl InputToIrDiagramMapper {
     fn apply_padding_from_partials(
         partials: &CssClassPartials,
         style_aliases: &StyleAliases,
-        padding_top: &mut Option<f32>,
-        padding_right: &mut Option<f32>,
-        padding_bottom: &mut Option<f32>,
-        padding_left: &mut Option<f32>,
+        state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
     ) {
         // First, check style_aliases_applied (lower priority within this partials)
         for alias in partials.style_aliases_applied() {
             if let Some(alias_partials) = style_aliases.get(alias) {
-                Self::extract_padding_from_map(
-                    alias_partials,
-                    padding_top,
-                    padding_right,
-                    padding_bottom,
-                    padding_left,
-                );
+                Self::extract_padding_from_map(alias_partials, state);
             }
         }
 
         // Then, check direct attributes (higher priority within this partials)
-        Self::extract_padding_from_map(
-            partials,
-            padding_top,
-            padding_right,
-            padding_bottom,
-            padding_left,
-        );
+        Self::extract_padding_from_map(partials, state);
     }
 
     /// Extract padding values from a map of ThemeAttr to String.
     fn extract_padding_from_map(
         partials: &CssClassPartials,
-        padding_top: &mut Option<f32>,
-        padding_right: &mut Option<f32>,
-        padding_bottom: &mut Option<f32>,
-        padding_left: &mut Option<f32>,
+        state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
     ) {
+        let (padding_top, padding_right, padding_bottom, padding_left) = state;
+
         // Check compound Padding first (applies to all sides)
         if let Some(value) = partials.get(&ThemeAttr::Padding)
             && let Ok(v) = value.parse::<f32>()
@@ -858,79 +857,29 @@ impl InputToIrDiagramMapper {
         }
     }
 
-    /// Resolve margin values from theme with priority order:
-    /// 1. Node ID itself (highest)
-    /// 2. EntityTypes (reverse order)
-    /// 3. NodeDefaults (lowest)
-    /// 4. Default 0.0f32
     fn resolve_margin(
         node_id: Option<&Id>,
         entity_types: &IrEntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
     ) -> (f32, f32, f32, f32) {
-        let mut margin_top: Option<f32> = None;
-        let mut margin_right: Option<f32> = None;
-        let mut margin_bottom: Option<f32> = None;
-        let mut margin_left: Option<f32> = None;
+        let mut state = (None, None, None, None);
 
-        // 1. Start with NodeDefaults (lowest priority)
-        if let Some(node_defaults_partials) =
-            theme_default.base_styles.get(&IdOrDefaults::NodeDefaults)
-        {
-            Self::apply_margin_from_partials(
-                node_defaults_partials,
-                &theme_default.style_aliases,
-                &mut margin_top,
-                &mut margin_right,
-                &mut margin_bottom,
-                &mut margin_left,
-            );
-        }
-
-        // 2. Apply EntityTypes in order (later types override earlier ones)
-        if let Some(id) = node_id
-            && let Some(types) = entity_types.get(id)
-        {
-            for entity_type in types.iter() {
-                let type_id = disposition_model_common::entity::EntityTypeId::from(
-                    Self::id_from_string(entity_type.as_str().to_string()),
-                );
-                if let Some(type_styles) = theme_types_styles.get(&type_id)
-                    && let Some(type_partials) = type_styles.get(&IdOrDefaults::NodeDefaults)
-                {
-                    Self::apply_margin_from_partials(
-                        type_partials,
-                        &theme_default.style_aliases,
-                        &mut margin_top,
-                        &mut margin_right,
-                        &mut margin_bottom,
-                        &mut margin_left,
-                    );
-                }
-            }
-        }
-
-        // 3. Apply node ID itself (highest priority)
-        if let Some(id) = node_id
-            && let Some(node_partials) =
-                theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
-        {
-            Self::apply_margin_from_partials(
-                node_partials,
-                &theme_default.style_aliases,
-                &mut margin_top,
-                &mut margin_right,
-                &mut margin_bottom,
-                &mut margin_left,
-            );
-        }
-
-        (
-            margin_top.unwrap_or(0.0),
-            margin_right.unwrap_or(0.0),
-            margin_bottom.unwrap_or(0.0),
-            margin_left.unwrap_or(0.0),
+        Self::resolve_theme_attr(
+            node_id,
+            entity_types,
+            theme_default,
+            theme_types_styles,
+            &mut state,
+            Self::apply_margin_from_partials,
+            |state| {
+                (
+                    state.0.unwrap_or(0.0),
+                    state.1.unwrap_or(0.0),
+                    state.2.unwrap_or(0.0),
+                    state.3.unwrap_or(0.0),
+                )
+            },
         )
     }
 
@@ -939,42 +888,26 @@ impl InputToIrDiagramMapper {
     fn apply_margin_from_partials(
         partials: &CssClassPartials,
         style_aliases: &StyleAliases,
-        margin_top: &mut Option<f32>,
-        margin_right: &mut Option<f32>,
-        margin_bottom: &mut Option<f32>,
-        margin_left: &mut Option<f32>,
+        state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
     ) {
         // First, check style_aliases_applied (lower priority within this partials)
         for alias in partials.style_aliases_applied() {
             if let Some(alias_partials) = style_aliases.get(alias) {
-                Self::extract_margin_from_map(
-                    alias_partials,
-                    margin_top,
-                    margin_right,
-                    margin_bottom,
-                    margin_left,
-                );
+                Self::extract_margin_from_map(alias_partials, state);
             }
         }
 
         // Then, check direct attributes (higher priority within this partials)
-        Self::extract_margin_from_map(
-            partials,
-            margin_top,
-            margin_right,
-            margin_bottom,
-            margin_left,
-        );
+        Self::extract_margin_from_map(partials, state);
     }
 
     /// Extract margin values from a map of ThemeAttr to String.
     fn extract_margin_from_map(
         partials: &CssClassPartials,
-        margin_top: &mut Option<f32>,
-        margin_right: &mut Option<f32>,
-        margin_bottom: &mut Option<f32>,
-        margin_left: &mut Option<f32>,
+        state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
     ) {
+        let (margin_top, margin_right, margin_bottom, margin_left) = state;
+
         // Check compound Margin first (applies to all sides)
         if let Some(value) = partials.get(&ThemeAttr::Margin)
             && let Ok(v) = value.parse::<f32>()
@@ -1024,59 +957,23 @@ impl InputToIrDiagramMapper {
         }
     }
 
-    /// Resolve gap value from theme with priority order:
-    /// 1. Node ID itself (highest)
-    /// 2. EntityTypes (reverse order)
-    /// 3. NodeDefaults (lowest)
-    /// 4. Default 0.0f32
     fn resolve_gap(
         node_id: Option<&Id>,
         entity_types: &IrEntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
     ) -> f32 {
-        let mut gap: Option<f32> = None;
+        let mut state = None;
 
-        // 1. Start with NodeDefaults (lowest priority)
-        if let Some(node_defaults_partials) =
-            theme_default.base_styles.get(&IdOrDefaults::NodeDefaults)
-        {
-            Self::apply_gap_from_partials(
-                node_defaults_partials,
-                &theme_default.style_aliases,
-                &mut gap,
-            );
-        }
-
-        // 2. Apply EntityTypes in order (later types override earlier ones)
-        if let Some(id) = node_id
-            && let Some(types) = entity_types.get(id)
-        {
-            for entity_type in types.iter() {
-                let type_id = disposition_model_common::entity::EntityTypeId::from(
-                    Self::id_from_string(entity_type.as_str().to_string()),
-                );
-                if let Some(type_styles) = theme_types_styles.get(&type_id)
-                    && let Some(type_partials) = type_styles.get(&IdOrDefaults::NodeDefaults)
-                {
-                    Self::apply_gap_from_partials(
-                        type_partials,
-                        &theme_default.style_aliases,
-                        &mut gap,
-                    );
-                }
-            }
-        }
-
-        // 3. Apply node ID itself (highest priority)
-        if let Some(id) = node_id
-            && let Some(node_partials) =
-                theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
-        {
-            Self::apply_gap_from_partials(node_partials, &theme_default.style_aliases, &mut gap);
-        }
-
-        gap.unwrap_or(0.0)
+        Self::resolve_theme_attr(
+            node_id,
+            entity_types,
+            theme_default,
+            theme_types_styles,
+            &mut state,
+            Self::apply_gap_from_partials,
+            |state| state.unwrap_or(0.0),
+        )
     }
 
     /// Apply gap value from CssClassPartials, checking both direct attributes
@@ -1084,7 +981,7 @@ impl InputToIrDiagramMapper {
     fn apply_gap_from_partials(
         partials: &CssClassPartials,
         style_aliases: &StyleAliases,
-        gap: &mut Option<f32>,
+        state: &mut Option<f32>,
     ) {
         // First, check style_aliases_applied (lower priority within this partials)
         for alias in partials.style_aliases_applied() {
@@ -1092,7 +989,7 @@ impl InputToIrDiagramMapper {
                 && let Some(value) = alias_partials.get(&ThemeAttr::Gap)
                 && let Ok(v) = value.parse::<f32>()
             {
-                *gap = Some(v);
+                *state = Some(v);
             }
         }
 
@@ -1100,7 +997,7 @@ impl InputToIrDiagramMapper {
         if let Some(value) = partials.get(&ThemeAttr::Gap)
             && let Ok(v) = value.parse::<f32>()
         {
-            *gap = Some(v);
+            *state = Some(v);
         }
     }
 }
