@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    borrow::Borrow,
+    ops::{Deref, DerefMut},
+};
 
 use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
@@ -59,6 +62,18 @@ impl TagId {
 impl From<Id> for TagId {
     fn from(id: Id) -> Self {
         TagId(id)
+    }
+}
+
+impl AsRef<Id> for TagId {
+    fn as_ref(&self) -> &Id {
+        &self.0
+    }
+}
+
+impl Borrow<Id> for TagId {
+    fn borrow(&self) -> &Id {
+        &self.0
     }
 }
 

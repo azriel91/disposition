@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use disposition_model_common::Map;
+use disposition_model_common::{Id, Map};
 use serde::{Deserialize, Serialize};
 
 use crate::{layout::NodeLayout, node::NodeId};
@@ -140,6 +140,15 @@ impl NodeLayouts {
     /// Returns true if the map is empty.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    /// Returns true if this contains layout information for a node with the
+    /// given ID.
+    pub fn contains_key<IdT>(&self, id: &IdT) -> bool
+    where
+        IdT: AsRef<Id>,
+    {
+        self.0.contains_key(id.as_ref())
     }
 }
 

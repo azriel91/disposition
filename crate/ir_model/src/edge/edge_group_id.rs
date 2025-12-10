@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    borrow::Borrow,
+    ops::{Deref, DerefMut},
+};
 
 use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
@@ -64,6 +67,18 @@ impl EdgeGroupId {
 impl From<Id> for EdgeGroupId {
     fn from(id: Id) -> Self {
         EdgeGroupId(id)
+    }
+}
+
+impl AsRef<Id> for EdgeGroupId {
+    fn as_ref(&self) -> &Id {
+        &self.0
+    }
+}
+
+impl Borrow<Id> for EdgeGroupId {
+    fn borrow(&self) -> &Id {
+        &self.0
     }
 }
 

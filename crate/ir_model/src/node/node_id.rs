@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    borrow::Borrow,
+    ops::{Deref, DerefMut},
+};
 
 use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
@@ -61,6 +64,18 @@ impl NodeId {
 impl From<Id> for NodeId {
     fn from(id: Id) -> Self {
         NodeId(id)
+    }
+}
+
+impl AsRef<Id> for NodeId {
+    fn as_ref(&self) -> &Id {
+        &self.0
+    }
+}
+
+impl Borrow<Id> for NodeId {
+    fn borrow(&self) -> &Id {
+        &self.0
     }
 }
 

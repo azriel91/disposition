@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    borrow::Borrow,
+    ops::{Deref, DerefMut},
+};
 
 use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
@@ -59,6 +62,18 @@ impl ProcessId {
 impl From<Id> for ProcessId {
     fn from(id: Id) -> Self {
         ProcessId(id)
+    }
+}
+
+impl AsRef<Id> for ProcessId {
+    fn as_ref(&self) -> &Id {
+        &self.0
+    }
+}
+
+impl Borrow<Id> for ProcessId {
+    fn borrow(&self) -> &Id {
+        &self.0
     }
 }
 

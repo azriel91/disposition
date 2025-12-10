@@ -92,6 +92,15 @@ impl EntityTailwindClasses {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    /// Returns true if this contains tailwind classes for an entity with the
+    /// given ID.
+    pub fn contains_key<IdT>(&self, id: &IdT) -> bool
+    where
+        IdT: AsRef<Id>,
+    {
+        self.0.contains_key(id.as_ref())
+    }
 }
 
 impl Deref for EntityTailwindClasses {

@@ -24,3 +24,9 @@ use serde::{Deserialize, Serialize};
 pub struct Id(Cow<'static, str>);
 
 id_newtype::id_newtype!(Id, IdInvalidFmt, id);
+
+impl AsRef<Id> for Id {
+    fn as_ref(&self) -> &Id {
+        self
+    }
+}

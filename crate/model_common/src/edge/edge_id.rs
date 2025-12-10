@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    borrow::Borrow,
+    ops::{Deref, DerefMut},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -57,6 +60,18 @@ impl EdgeId {
 impl From<Id> for EdgeId {
     fn from(id: Id) -> Self {
         EdgeId(id)
+    }
+}
+
+impl AsRef<Id> for EdgeId {
+    fn as_ref(&self) -> &Id {
+        &self.0
+    }
+}
+
+impl Borrow<Id> for EdgeId {
+    fn borrow(&self) -> &Id {
+        &self.0
     }
 }
 

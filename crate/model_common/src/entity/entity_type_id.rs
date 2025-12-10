@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    borrow::Borrow,
+    ops::{Deref, DerefMut},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -63,6 +66,18 @@ impl EntityTypeId {
 impl From<Id> for EntityTypeId {
     fn from(id: Id) -> Self {
         EntityTypeId(id)
+    }
+}
+
+impl AsRef<Id> for EntityTypeId {
+    fn as_ref(&self) -> &Id {
+        &self.0
+    }
+}
+
+impl Borrow<Id> for EntityTypeId {
+    fn borrow(&self) -> &Id {
+        &self.0
     }
 }
 
