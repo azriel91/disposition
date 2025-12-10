@@ -1103,7 +1103,7 @@ impl InputToIrDiagramMapper {
                     .map(|(p, _)| p.as_str().to_string());
 
                 Self::build_process_step_tailwind_classes(
-                    &node_id,
+                    node_id,
                     parent_process_id.as_deref(),
                     entity_types,
                     theme_default,
@@ -1112,7 +1112,7 @@ impl InputToIrDiagramMapper {
             } else {
                 // Regular thing node
                 Self::build_thing_tailwind_classes(
-                    &node_id,
+                    node_id,
                     entity_types,
                     theme_default,
                     theme_types_styles,
@@ -1350,7 +1350,7 @@ impl InputToIrDiagramMapper {
 
         // Add peer classes for tags that include this thing
         for (tag_id, thing_ids) in tag_thing_ids.iter() {
-            if thing_ids.contains(&id) {
+            if thing_ids.contains(id) {
                 // When a tag is focused, things within it get highlighted with shade_pale
                 // Start with current state's colors but use shade_pale
                 let tag_focus_state = TailwindClassState {
