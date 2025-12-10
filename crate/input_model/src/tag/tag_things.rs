@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use disposition_model_common::{Id, Map};
+use disposition_model_common::{Id, Map, Set};
 use serde::{Deserialize, Serialize};
 
 use crate::{tag::TagId, thing::ThingId};
@@ -27,7 +27,7 @@ use crate::{tag::TagId, thing::ThingId};
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct TagThings(Map<TagId, Vec<ThingId>>);
+pub struct TagThings(Map<TagId, Set<ThingId>>);
 
 impl TagThings {
     /// Returns a new `TagThings` map.
@@ -42,7 +42,7 @@ impl TagThings {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<TagId, Vec<ThingId>> {
+    pub fn into_inner(self) -> Map<TagId, Set<ThingId>> {
         self.0
     }
 
@@ -61,7 +61,7 @@ impl TagThings {
 }
 
 impl Deref for TagThings {
-    type Target = Map<TagId, Vec<ThingId>>;
+    type Target = Map<TagId, Set<ThingId>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -74,14 +74,14 @@ impl DerefMut for TagThings {
     }
 }
 
-impl From<Map<TagId, Vec<ThingId>>> for TagThings {
-    fn from(inner: Map<TagId, Vec<ThingId>>) -> Self {
+impl From<Map<TagId, Set<ThingId>>> for TagThings {
+    fn from(inner: Map<TagId, Set<ThingId>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(TagId, Vec<ThingId>)> for TagThings {
-    fn from_iter<I: IntoIterator<Item = (TagId, Vec<ThingId>)>>(iter: I) -> Self {
+impl FromIterator<(TagId, Set<ThingId>)> for TagThings {
+    fn from_iter<I: IntoIterator<Item = (TagId, Set<ThingId>)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

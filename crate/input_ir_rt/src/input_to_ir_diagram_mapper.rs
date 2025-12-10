@@ -1054,18 +1054,18 @@ impl InputToIrDiagramMapper {
 
         // Build classes for each node
         for (node_id, _name) in nodes.iter() {
-            let id: Id = node_id.clone().into_inner();
+            let node_id: &Id = node_id.as_ref();
 
             // Determine node kind
-            let is_tag = tags.iter().any(|(t, _)| t.as_str() == id.as_str());
-            let is_process = processes.iter().any(|(p, _)| p.as_str() == id.as_str());
+            let is_tag = tags.contains_key(node_id);
+            let is_process = processes.contains_key(node_id);
             let is_process_step = processes
                 .iter()
-                .any(|(_, pd)| pd.steps.iter().any(|(s, _)| s.as_str() == id.as_str()));
+                .any(|(_, process_diagram)| process_diagram.steps.contains_key(node_id));
 
             let classes = if is_tag {
                 Self::build_tag_tailwind_classes(
-                    &id,
+                    node_id,
                     entity_types,
                     theme_default,
                     theme_types_styles,
@@ -1074,9 +1074,10 @@ impl InputToIrDiagramMapper {
                 // Find the child process step IDs
                 let child_step_ids: Vec<Id> = processes
                     .iter()
-                    .find(|(p, _)| p.as_str() == id.as_str())
-                    .map(|(_, pd)| {
-                        pd.steps
+                    .find(|(process_id, _)| process_id.as_ref() == node_id)
+                    .map(|(_, process_diagram)| {
+                        process_diagram
+                            .steps
                             .iter()
                             .map(|(s, _)| s.clone().into_inner())
                             .collect()
@@ -1084,7 +1085,7 @@ impl InputToIrDiagramMapper {
                     .unwrap_or_default();
 
                 Self::build_process_tailwind_classes(
-                    &id,
+                    node_id,
                     &child_step_ids,
                     entity_types,
                     theme_default,
@@ -1094,11 +1095,11 @@ impl InputToIrDiagramMapper {
                 // Find the parent process ID
                 let parent_process_id = processes
                     .iter()
-                    .find(|(_, pd)| pd.steps.iter().any(|(s, _)| s.as_str() == id.as_str()))
+                    .find(|(_, process_diagram)| process_diagram.steps.contains_key(node_id))
                     .map(|(p, _)| p.as_str().to_string());
 
                 Self::build_process_step_tailwind_classes(
-                    &id,
+                    &node_id,
                     parent_process_id.as_deref(),
                     entity_types,
                     theme_default,
@@ -1107,7 +1108,7 @@ impl InputToIrDiagramMapper {
             } else {
                 // Regular thing node
                 Self::build_thing_tailwind_classes(
-                    &id,
+                    &node_id,
                     entity_types,
                     theme_default,
                     theme_types_styles,
@@ -1116,7 +1117,7 @@ impl InputToIrDiagramMapper {
                 )
             };
 
-            tailwind_classes.insert(id, classes);
+            tailwind_classes.insert(node_id.clone(), classes);
         }
 
         // Build classes for edge groups
@@ -1340,7 +1341,7 @@ impl InputToIrDiagramMapper {
 
         // Add peer classes for tags that include this thing
         for (tag_id, thing_ids) in tag_thing_ids.iter() {
-            if thing_ids.iter().any(|t| t.as_str() == id.as_str()) {
+            if thing_ids.contains(&id) {
                 // When a tag is focused, things within it get highlighted with shade_pale
                 // Start with current state's colors but use shade_pale
                 let tag_focus_state = TailwindClassState {
