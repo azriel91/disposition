@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use disposition_input_ir_model::IrDiagramAndIssues;
 use disposition_input_model::{
     edge::EdgeKind,
@@ -21,6 +23,8 @@ use disposition_model_common::{entity::EntityDescs, id, Id, Map};
 /// Maps an input diagram to an intermediate representation diagram.
 #[derive(Clone, Copy, Debug)]
 pub struct InputToIrDiagramMapper;
+
+const CLASSES_BUFFER_WRITE_FAIL: &str = "Failed to write string to buffer";
 
 impl InputToIrDiagramMapper {
     /// Maps an input diagram to an intermediate representation diagram.
@@ -1241,10 +1245,11 @@ impl InputToIrDiagramMapper {
             &mut state,
         );
 
-        let mut classes = state.to_classes_string(true);
+        let mut classes = String::new();
+        state.write_classes(&mut classes, true);
 
         // Tags get peer/{id} class
-        classes.push_str(&format!("\n\npeer/{}", id.as_str()));
+        write!(&mut classes, "\n\npeer/{}", id.as_str()).expect(CLASSES_BUFFER_WRITE_FAIL);
 
         classes
     }
@@ -1268,10 +1273,11 @@ impl InputToIrDiagramMapper {
             &mut state,
         );
 
-        let mut classes = state.to_classes_string(true);
+        let mut classes = String::new();
+        state.write_classes(&mut classes, true);
 
         // Processes get group/{id} class
-        classes.push_str(&format!("\n\ngroup/{}", id.as_str()));
+        write!(&mut classes, "\n\ngroup/{}", id.as_str()).expect(CLASSES_BUFFER_WRITE_FAIL);
 
         // Processes get peer/{step_id} classes for each child process step
         // This is because process nodes are sibling elements to thing/edge_group
@@ -1279,7 +1285,7 @@ impl InputToIrDiagramMapper {
         // edge_groups can only react to the process nodes' state for the
         // sibling selector to work.
         for step_id in child_step_ids {
-            classes.push_str(&format!("\npeer/{}", step_id.as_str()));
+            write!(&mut classes, "\npeer/{}", step_id.as_str()).expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
         classes
@@ -1304,14 +1310,16 @@ impl InputToIrDiagramMapper {
             &mut state,
         );
 
-        let mut classes = state.to_classes_string(true);
+        let mut classes = String::new();
+        state.write_classes(&mut classes, true);
 
         // Process steps get group-focus-within/{process_id}:visible class
         // Note: peer/{step_id} classes are placed on the parent process node instead,
         // because process nodes are sibling elements to thing/edge_group elements,
         // whereas process step nodes are not siblings.
         if let Some(process_id) = parent_process_id {
-            classes.push_str(&format!("\n\ngroup-focus-within/{}:visible", process_id));
+            write!(&mut classes, "\n\ngroup-focus-within/{process_id}:visible")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
         classes
@@ -1337,7 +1345,8 @@ impl InputToIrDiagramMapper {
             &mut state,
         );
 
-        let mut classes = state.to_classes_string(true);
+        let mut classes = String::new();
+        state.write_classes(&mut classes, true);
 
         // Add peer classes for tags that include this thing
         for (tag_id, thing_ids) in tag_thing_ids.iter() {
@@ -1360,12 +1369,16 @@ impl InputToIrDiagramMapper {
                     ..Default::default()
                 };
 
-                let peer_prefix = format!("peer-[:focus-within]/{}:", tag_id.as_str());
-                classes.push_str(&format!(
-                    "\n\n{}animate-[stroke-dashoffset-move_2s_linear_infinite]",
-                    peer_prefix
-                ));
-                classes.push_str(&tag_focus_state.to_peer_classes_string(&peer_prefix));
+                let tag_id_str = tag_id.as_str();
+                let peer_prefix = format!("peer-[:focus-within]/{tag_id_str}:");
+
+                write!(
+                    &mut classes,
+                    "\n\n{peer_prefix}animate-[stroke-dashoffset-move_2s_linear_infinite]"
+                )
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+                tag_focus_state.write_peer_classes(&mut classes, &peer_prefix);
             }
         }
 
@@ -1373,7 +1386,8 @@ impl InputToIrDiagramMapper {
         // thing
         if let Some(interacting_steps) = thing_to_interacting_steps.get(id) {
             for step_id in interacting_steps.iter() {
-                let peer_prefix = format!("peer-[:focus-within]/{}:", step_id.as_str());
+                let step_id_str = step_id.as_str();
+                let peer_prefix = format!("peer-[:focus-within]/{step_id_str}:");
 
                 // Get the thing's color for interaction highlighting
                 let color = state
@@ -1382,12 +1396,17 @@ impl InputToIrDiagramMapper {
                     .or(state.fill_color.as_deref())
                     .unwrap_or("slate");
 
-                classes.push_str(&format!(
-                    "\n\n{}animate-[stroke-dashoffset-move_2s_linear_infinite]",
-                    peer_prefix
-                ));
-                classes.push_str(&format!("\n{}stroke-{}-500", peer_prefix, color));
-                classes.push_str(&format!("\n{}fill-{}-100", peer_prefix, color));
+                write!(
+                    &mut classes,
+                    "\n\n{peer_prefix}animate-[stroke-dashoffset-move_2s_linear_infinite]"
+                )
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+                write!(&mut classes, "\n{peer_prefix}stroke-{color}-500")
+                    .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+                write!(&mut classes, "\n{peer_prefix}fill-{color}-100")
+                    .expect(CLASSES_BUFFER_WRITE_FAIL);
             }
         }
 
@@ -1412,33 +1431,55 @@ impl InputToIrDiagramMapper {
             &mut state,
         );
 
-        let mut classes = state.to_classes_string(false);
+        let mut classes = String::new();
+        state.write_classes(&mut classes, false);
 
         // Add peer classes for each process step that interacts with this edge
         for step_id in interacting_steps {
-            let peer_prefix = format!("peer-[:focus-within]/{}:", step_id.as_str());
+            let step_id_str = step_id.as_str();
+            let peer_prefix = format!("peer-[:focus-within]/{step_id_str}:");
 
             // Interaction styling for edges
-            classes.push_str(&format!(
-                "\n\n{}animate-[stroke-dashoffset-move-request_2s_linear_infinite]",
-                peer_prefix
-            ));
-            classes.push_str(&format!(
-                "\n{}stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]",
-                peer_prefix
-            ));
-            classes.push_str(&format!("\n{}stroke-[2px]", peer_prefix));
-            classes.push_str(&format!("\n{}visible", peer_prefix));
+            write!(
+                &mut classes,
+                "\n\n{peer_prefix}animate-[stroke-dashoffset-move-request_2s_linear_infinite]"
+            )
+            .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+            write!(
+                &mut classes,
+                "\n{peer_prefix}stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]"
+            )
+            .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+            write!(&mut classes, "\n{peer_prefix}stroke-[2px]").expect(CLASSES_BUFFER_WRITE_FAIL);
+
+            write!(&mut classes, "\n{peer_prefix}visible").expect(CLASSES_BUFFER_WRITE_FAIL);
 
             // Use violet for interaction colors (as shown in example)
-            classes.push_str(&format!("\n{}hover:fill-violet-600", peer_prefix));
-            classes.push_str(&format!("\n{}fill-violet-700", peer_prefix));
-            classes.push_str(&format!("\n{}focus:fill-violet-800", peer_prefix));
-            classes.push_str(&format!("\n{}active:fill-violet-900", peer_prefix));
-            classes.push_str(&format!("\n{}hover:stroke-violet-700", peer_prefix));
-            classes.push_str(&format!("\n{}stroke-violet-800", peer_prefix));
-            classes.push_str(&format!("\n{}focus:stroke-violet-900", peer_prefix));
-            classes.push_str(&format!("\n{}active:stroke-violet-950", peer_prefix));
+            write!(&mut classes, "\n{peer_prefix}hover:fill-violet-600")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+            write!(&mut classes, "\n{peer_prefix}fill-violet-700")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+            write!(&mut classes, "\n{peer_prefix}focus:fill-violet-800")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+            write!(&mut classes, "\n{peer_prefix}active:fill-violet-900")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+            write!(&mut classes, "\n{peer_prefix}hover:stroke-violet-700")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+            write!(&mut classes, "\n{peer_prefix}stroke-violet-800")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+            write!(&mut classes, "\n{peer_prefix}focus:stroke-violet-900")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+            write!(&mut classes, "\n{peer_prefix}active:stroke-violet-950")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
         classes
@@ -1846,138 +1887,155 @@ impl TailwindClassState {
         }
     }
 
-    /// Convert state to tailwind classes string.
-    fn to_classes_string(&self, is_node: bool) -> String {
-        let mut classes = Vec::new();
-
+    /// Write tailwind classes to the given string.
+    fn write_classes(&self, classes: &mut String, is_node: bool) {
         // Stroke dasharray from stroke_style
         if let Some(style) = &self.stroke_style
             && let Some(dasharray) = Self::stroke_style_to_dasharray(style)
         {
-            classes.push(format!("[stroke-dasharray:{}]", dasharray));
+            writeln!(classes, "[stroke-dasharray:{dasharray}]").expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
         // Stroke width
         if let Some(width) = &self.stroke_width {
-            classes.push(format!("stroke-{}", width));
+            writeln!(classes, "stroke-{width}").expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
         // Visibility
         if let Some(visibility) = &self.visibility {
-            classes.push(visibility.clone());
+            classes.push_str(visibility);
+            classes.push('\n');
         }
 
+        let fill_color_hover = self.get_fill_color(FillStrokeState::Hover);
+        let fill_shade_hover = self.get_fill_shade(FillStrokeState::Hover);
+        let fill_color_normal = self.get_fill_color(FillStrokeState::Normal);
+        let fill_shade_normal = self.get_fill_shade(FillStrokeState::Normal);
+        let fill_color_focus = self.get_fill_color(FillStrokeState::Focus);
+        let fill_shade_focus = self.get_fill_shade(FillStrokeState::Focus);
+        let fill_color_active = self.get_fill_color(FillStrokeState::Active);
+        let fill_shade_active = self.get_fill_shade(FillStrokeState::Active);
+
+        let stroke_color_hover = self.get_stroke_color(FillStrokeState::Hover);
+        let stroke_shade_hover = self.get_stroke_shade(FillStrokeState::Hover);
+        let stroke_color_normal = self.get_stroke_color(FillStrokeState::Normal);
+        let stroke_shade_normal = self.get_stroke_shade(FillStrokeState::Normal);
+        let stroke_color_focus = self.get_stroke_color(FillStrokeState::Focus);
+        let stroke_shade_focus = self.get_stroke_shade(FillStrokeState::Focus);
+        let stroke_color_active = self.get_stroke_color(FillStrokeState::Active);
+        let stroke_shade_active = self.get_stroke_shade(FillStrokeState::Active);
+
         // Fill classes (hover, normal, focus, active)
-        classes.push(format!(
-            "hover:fill-{}-{}",
-            self.get_fill_color(FillStrokeState::Hover),
-            self.get_fill_shade(FillStrokeState::Hover)
-        ));
-        classes.push(format!(
-            "fill-{}-{}",
-            self.get_fill_color(FillStrokeState::Normal),
-            self.get_fill_shade(FillStrokeState::Normal)
-        ));
-        classes.push(format!(
-            "focus:fill-{}-{}",
-            self.get_fill_color(FillStrokeState::Focus),
-            self.get_fill_shade(FillStrokeState::Focus)
-        ));
-        classes.push(format!(
-            "active:fill-{}-{}",
-            self.get_fill_color(FillStrokeState::Active),
-            self.get_fill_shade(FillStrokeState::Active)
-        ));
+        writeln!(classes, "hover:fill-{fill_color_hover}-{fill_shade_hover}")
+            .expect(CLASSES_BUFFER_WRITE_FAIL);
+        writeln!(classes, "fill-{fill_color_normal}-{fill_shade_normal}")
+            .expect(CLASSES_BUFFER_WRITE_FAIL);
+        writeln!(classes, "focus:fill-{fill_color_focus}-{fill_shade_focus}")
+            .expect(CLASSES_BUFFER_WRITE_FAIL);
+        writeln!(
+            classes,
+            "active:fill-{fill_color_active}-{fill_shade_active}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
 
         // Stroke classes (hover, normal, focus, active)
-        classes.push(format!(
-            "hover:stroke-{}-{}",
-            self.get_stroke_color(FillStrokeState::Hover),
-            self.get_stroke_shade(FillStrokeState::Hover)
-        ));
-        classes.push(format!(
-            "stroke-{}-{}",
-            self.get_stroke_color(FillStrokeState::Normal),
-            self.get_stroke_shade(FillStrokeState::Normal)
-        ));
-        classes.push(format!(
-            "focus:stroke-{}-{}",
-            self.get_stroke_color(FillStrokeState::Focus),
-            self.get_stroke_shade(FillStrokeState::Focus)
-        ));
-        classes.push(format!(
-            "active:stroke-{}-{}",
-            self.get_stroke_color(FillStrokeState::Active),
-            self.get_stroke_shade(FillStrokeState::Active)
-        ));
+        writeln!(
+            classes,
+            "hover:stroke-{stroke_color_hover}-{stroke_shade_hover}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+        writeln!(
+            classes,
+            "stroke-{stroke_color_normal}-{stroke_shade_normal}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+        writeln!(
+            classes,
+            "focus:stroke-{stroke_color_focus}-{stroke_shade_focus}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+        writeln!(
+            classes,
+            "active:stroke-{stroke_color_active}-{stroke_shade_active}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
 
         // Text classes (only for nodes)
         if is_node {
             let text_color = self.text_color.as_deref().unwrap_or("neutral");
             let text_shade = self.text_shade.as_deref().unwrap_or("900");
-            classes.push(format!("[&>text]:fill-{}-{}", text_color, text_shade));
+            writeln!(classes, "[&>text]:fill-{text_color}-{text_shade}")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
         }
-
-        classes.join("\n")
     }
 
-    /// Convert state to peer-prefixed classes string for tag/step highlighting.
-    fn to_peer_classes_string(&self, prefix: &str) -> String {
-        let mut classes = Vec::new();
+    /// Write peer-prefixed classes to the given string for tag/step
+    /// highlighting.
+    fn write_peer_classes(&self, classes: &mut String, prefix: &str) {
+        let fill_color_hover = self.get_fill_color(FillStrokeState::Hover);
+        let fill_shade_hover = self.get_fill_shade(FillStrokeState::Hover);
+        let fill_color_normal = self.get_fill_color(FillStrokeState::Normal);
+        let fill_shade_normal = self.get_fill_shade(FillStrokeState::Normal);
+        let fill_color_focus = self.get_fill_color(FillStrokeState::Focus);
+        let fill_shade_focus = self.get_fill_shade(FillStrokeState::Focus);
+        let fill_color_active = self.get_fill_color(FillStrokeState::Active);
+        let fill_shade_active = self.get_fill_shade(FillStrokeState::Active);
+
+        let stroke_color_hover = self.get_stroke_color(FillStrokeState::Hover);
+        let stroke_shade_hover = self.get_stroke_shade(FillStrokeState::Hover);
+        let stroke_color_normal = self.get_stroke_color(FillStrokeState::Normal);
+        let stroke_shade_normal = self.get_stroke_shade(FillStrokeState::Normal);
+        let stroke_color_focus = self.get_stroke_color(FillStrokeState::Focus);
+        let stroke_shade_focus = self.get_stroke_shade(FillStrokeState::Focus);
+        let stroke_color_active = self.get_stroke_color(FillStrokeState::Active);
+        let stroke_shade_active = self.get_stroke_shade(FillStrokeState::Active);
 
         // Fill classes with peer prefix
-        classes.push(format!(
-            "\n{}hover:fill-{}-{}",
-            prefix,
-            self.get_fill_color(FillStrokeState::Hover),
-            self.get_fill_shade(FillStrokeState::Hover)
-        ));
-        classes.push(format!(
-            "\n{}fill-{}-{}",
-            prefix,
-            self.get_fill_color(FillStrokeState::Normal),
-            self.get_fill_shade(FillStrokeState::Normal)
-        ));
-        classes.push(format!(
-            "\n{}focus:fill-{}-{}",
-            prefix,
-            self.get_fill_color(FillStrokeState::Focus),
-            self.get_fill_shade(FillStrokeState::Focus)
-        ));
-        classes.push(format!(
-            "\n{}active:fill-{}-{}",
-            prefix,
-            self.get_fill_color(FillStrokeState::Active),
-            self.get_fill_shade(FillStrokeState::Active)
-        ));
+        write!(
+            classes,
+            "\n{prefix}hover:fill-{fill_color_hover}-{fill_shade_hover}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
+        write!(
+            classes,
+            "\n{prefix}fill-{fill_color_normal}-{fill_shade_normal}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
+        write!(
+            classes,
+            "\n{prefix}focus:fill-{fill_color_focus}-{fill_shade_focus}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
+        write!(
+            classes,
+            "\n{prefix}active:fill-{fill_color_active}-{fill_shade_active}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
 
         // Stroke classes with peer prefix
-        classes.push(format!(
-            "\n{}hover:stroke-{}-{}",
-            prefix,
-            self.get_stroke_color(FillStrokeState::Hover),
-            self.get_stroke_shade(FillStrokeState::Hover)
-        ));
-        classes.push(format!(
-            "\n{}stroke-{}-{}",
-            prefix,
-            self.get_stroke_color(FillStrokeState::Normal),
-            self.get_stroke_shade(FillStrokeState::Normal)
-        ));
-        classes.push(format!(
-            "\n{}focus:stroke-{}-{}",
-            prefix,
-            self.get_stroke_color(FillStrokeState::Focus),
-            self.get_stroke_shade(FillStrokeState::Focus)
-        ));
-        classes.push(format!(
-            "\n{}active:stroke-{}-{}",
-            prefix,
-            self.get_stroke_color(FillStrokeState::Active),
-            self.get_stroke_shade(FillStrokeState::Active)
-        ));
-
-        classes.join("")
+        write!(
+            classes,
+            "\n{prefix}hover:stroke-{stroke_color_hover}-{stroke_shade_hover}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
+        write!(
+            classes,
+            "\n{prefix}stroke-{stroke_color_normal}-{stroke_shade_normal}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
+        write!(
+            classes,
+            "\n{prefix}focus:stroke-{stroke_color_focus}-{stroke_shade_focus}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
+        write!(
+            classes,
+            "\n{prefix}active:stroke-{stroke_color_active}-{stroke_shade_active}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
     }
 }
 
