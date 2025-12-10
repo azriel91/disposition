@@ -262,6 +262,11 @@ tailwind_classes:
     peer/tag_deployment
 
   # Processes - act as group containers for their steps
+  #
+  # Note: `process` nodes contain their steps' peer classes. This is because the process nodes will
+  # be sibling elements to the `thing` / `edge_group` elements, whereas the process step nodes are
+  # not sibling elements, so the `thing` and `edge_group` elements can only react to the `process`
+  # nodes' state for the sibling selector to work.
   proc_app_dev: >-
     stroke-1
     visible
@@ -275,6 +280,9 @@ tailwind_classes:
     active:stroke-blue-600
 
     group/proc_app_dev
+
+    peer/proc_app_dev_step_repository_clone
+    peer/proc_app_dev_step_project_build
   proc_app_release: >-
     stroke-1
     visible
@@ -288,6 +296,12 @@ tailwind_classes:
     active:stroke-blue-600
 
     group/proc_app_release
+
+    peer/proc_app_release_step_crate_version_update
+    peer/proc_app_release_step_pull_request_open
+    peer/proc_app_release_step_tag_and_push
+    peer/proc_app_release_step_gh_actions_build
+    peer/proc_app_release_step_gh_actions_publish
   proc_i12e_region_tier_app_deploy: >-
     stroke-1
     visible
@@ -302,6 +316,8 @@ tailwind_classes:
 
     group/proc_i12e_region_tier_app_deploy
 
+    peer/proc_i12e_region_tier_app_deploy_step_ecs_service_update
+
   # Process steps - visible when parent process has focus, act as peers for edges
   proc_app_dev_step_repository_clone: >-
     stroke-1
@@ -315,7 +331,6 @@ tailwind_classes:
     focus:stroke-sky-500
     active:stroke-sky-600
 
-    peer/proc_app_dev_step_repository_clone
     group-focus-within/proc_app_dev:visible
   proc_app_dev_step_project_build: >-
     stroke-1
@@ -329,7 +344,6 @@ tailwind_classes:
     focus:stroke-sky-500
     active:stroke-sky-600
 
-    peer/proc_app_dev_step_project_build
     group-focus-within/proc_app_dev:visible
 
   proc_app_release_step_crate_version_update: >-
@@ -344,7 +358,6 @@ tailwind_classes:
     focus:stroke-sky-500
     active:stroke-sky-600
 
-    peer/proc_app_release_step_crate_version_update
     group-focus-within/proc_app_release:visible
   proc_app_release_step_pull_request_open: >-
     stroke-1
@@ -358,7 +371,6 @@ tailwind_classes:
     focus:stroke-sky-500
     active:stroke-sky-600
 
-    peer/proc_app_release_step_pull_request_open
     group-focus-within/proc_app_release:visible
   proc_app_release_step_tag_and_push: >-
     stroke-1
@@ -372,7 +384,6 @@ tailwind_classes:
     focus:stroke-sky-500
     active:stroke-sky-600
 
-    peer/proc_app_release_step_tag_and_push
     group-focus-within/proc_app_release:visible
   proc_app_release_step_gh_actions_build: >-
     stroke-1
@@ -386,7 +397,6 @@ tailwind_classes:
     focus:stroke-sky-500
     active:stroke-sky-600
 
-    peer/proc_app_release_step_gh_actions_build
     group-focus-within/proc_app_release:visible
   proc_app_release_step_gh_actions_publish: >-
     stroke-1
@@ -400,7 +410,6 @@ tailwind_classes:
     focus:stroke-sky-500
     active:stroke-sky-600
 
-    peer/proc_app_release_step_gh_actions_publish
     group-focus-within/proc_app_release:visible
 
   proc_i12e_region_tier_app_deploy_step_ecs_service_update: >-
@@ -415,7 +424,6 @@ tailwind_classes:
     focus:stroke-sky-500
     active:stroke-sky-600
 
-    peer/proc_i12e_region_tier_app_deploy_step_ecs_service_update
     group-focus-within/proc_i12e_region_tier_app_deploy:visible
 
   # Edges - visible when their associated step has focus

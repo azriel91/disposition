@@ -1071,8 +1071,21 @@ impl InputToIrDiagramMapper {
                     theme_types_styles,
                 )
             } else if is_process {
+                // Find the child process step IDs
+                let child_step_ids: Vec<Id> = processes
+                    .iter()
+                    .find(|(p, _)| p.as_str() == id.as_str())
+                    .map(|(_, pd)| {
+                        pd.steps
+                            .iter()
+                            .map(|(s, _)| s.clone().into_inner())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
                 Self::build_process_tailwind_classes(
                     &id,
+                    &child_step_ids,
                     entity_types,
                     theme_default,
                     theme_types_styles,
@@ -1238,6 +1251,7 @@ impl InputToIrDiagramMapper {
     /// Build tailwind classes for a process node.
     fn build_process_tailwind_classes(
         id: &Id,
+        child_step_ids: &[Id],
         entity_types: &IrEntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
@@ -1257,6 +1271,15 @@ impl InputToIrDiagramMapper {
 
         // Processes get group/{id} class
         classes.push_str(&format!("\n\ngroup/{}", id.as_str()));
+
+        // Processes get peer/{step_id} classes for each child process step
+        // This is because process nodes are sibling elements to thing/edge_group
+        // elements, whereas process step nodes are not siblings, so things and
+        // edge_groups can only react to the process nodes' state for the
+        // sibling selector to work.
+        for step_id in child_step_ids {
+            classes.push_str(&format!("\npeer/{}", step_id.as_str()));
+        }
 
         classes
     }
@@ -1282,12 +1305,12 @@ impl InputToIrDiagramMapper {
 
         let mut classes = state.to_classes_string(true);
 
-        // Process steps get peer/{id} class
-        classes.push_str(&format!("\n\npeer/{}", id.as_str()));
-
         // Process steps get group-focus-within/{process_id}:visible class
+        // Note: peer/{step_id} classes are placed on the parent process node instead,
+        // because process nodes are sibling elements to thing/edge_group elements,
+        // whereas process step nodes are not siblings.
         if let Some(process_id) = parent_process_id {
-            classes.push_str(&format!("\ngroup-focus-within/{}:visible", process_id));
+            classes.push_str(&format!("\n\ngroup-focus-within/{}:visible", process_id));
         }
 
         classes
