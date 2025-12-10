@@ -423,3 +423,203 @@ fn test_node_layout_padding_from_theme() {
         panic!("Expected Flex layout for t_aws");
     }
 }
+
+#[test]
+fn test_tailwind_classes_generation() {
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // Verify tailwind classes are generated
+    assert!(!diagram.tailwind_classes.is_empty());
+
+    // Test tag tailwind classes - should have peer/{id} class
+    let tag_id = id!("tag_app_development");
+    let tag_classes = diagram.tailwind_classes.get(&tag_id).unwrap();
+    assert!(
+        tag_classes.contains("peer/tag_app_development"),
+        "Tag should have peer class. Got: {}",
+        tag_classes
+    );
+    assert!(
+        tag_classes.contains("visible"),
+        "Tag should have visibility. Got: {}",
+        tag_classes
+    );
+
+    // Test process tailwind classes - should have group/{id} class
+    let proc_id = id!("proc_app_dev");
+    let proc_classes = diagram.tailwind_classes.get(&proc_id).unwrap();
+    assert!(
+        proc_classes.contains("group/proc_app_dev"),
+        "Process should have group class. Got: {}",
+        proc_classes
+    );
+
+    // Test process step tailwind classes - should have peer/{id} and
+    // group-focus-within/{process_id}:visible
+    let step_id = id!("proc_app_dev_step_repository_clone");
+    let step_classes = diagram.tailwind_classes.get(&step_id).unwrap();
+    assert!(
+        step_classes.contains("peer/proc_app_dev_step_repository_clone"),
+        "Process step should have peer class. Got: {}",
+        step_classes
+    );
+    assert!(
+        step_classes.contains("group-focus-within/proc_app_dev:visible"),
+        "Process step should have group-focus-within class. Got: {}",
+        step_classes
+    );
+
+    // Test thing tailwind classes - t_aws should have yellow color from
+    // base_styles
+    let t_aws_id = id!("t_aws");
+    let t_aws_classes = diagram.tailwind_classes.get(&t_aws_id).unwrap();
+    assert!(
+        t_aws_classes.contains("fill-yellow"),
+        "t_aws should have yellow fill. Got: {}",
+        t_aws_classes
+    );
+    assert!(
+        t_aws_classes.contains("stroke-yellow"),
+        "t_aws should have yellow stroke. Got: {}",
+        t_aws_classes
+    );
+
+    // Test edge group tailwind classes
+    let edge_group_id = id!("edge_t_localhost__t_github_user_repo__pull");
+    let edge_classes = diagram.tailwind_classes.get(&edge_group_id).unwrap();
+    assert!(
+        edge_classes.contains("stroke-"),
+        "Edge group should have stroke class. Got: {}",
+        edge_classes
+    );
+    // Should have peer classes for interacting process steps
+    assert!(
+        edge_classes.contains("peer-[:focus-within]/proc_app_dev_step_repository_clone:"),
+        "Edge should have peer class for interacting step. Got: {}",
+        edge_classes
+    );
+}
+
+#[test]
+fn test_tailwind_classes_shade_resolution() {
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // t_aws has type_organisation which uses shade_pale
+    // shade_pale has fill_shade_normal: "100"
+    let t_aws_id = id!("t_aws");
+    let t_aws_classes = diagram.tailwind_classes.get(&t_aws_id).unwrap();
+    assert!(
+        t_aws_classes.contains("fill-yellow-100"),
+        "t_aws should have fill-yellow-100 from shade_pale. Got: {}",
+        t_aws_classes
+    );
+    assert!(
+        t_aws_classes.contains("hover:fill-yellow-50"),
+        "t_aws should have hover:fill-yellow-50 from shade_pale. Got: {}",
+        t_aws_classes
+    );
+
+    // t_aws_iam has type_thing_default (shade_light) and type_service
+    // type_service only specifies stroke_style, so color comes from
+    // type_thing_default which is slate. shade_light has fill_shade_normal: "300"
+    let t_aws_iam_id = id!("t_aws_iam");
+    let t_aws_iam_classes = diagram.tailwind_classes.get(&t_aws_iam_id).unwrap();
+    assert!(
+        t_aws_iam_classes.contains("fill-slate-300"),
+        "t_aws_iam should have fill-slate-300 from type_thing_default + shade_light. Got: {}",
+        t_aws_iam_classes
+    );
+}
+
+#[test]
+fn test_tailwind_classes_stroke_style() {
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // t_aws has type_organisation which has stroke_style: "dotted"
+    // dotted should map to stroke-dasharray:2
+    let t_aws_id = id!("t_aws");
+    let t_aws_classes = diagram.tailwind_classes.get(&t_aws_id).unwrap();
+    assert!(
+        t_aws_classes.contains("[stroke-dasharray:2]"),
+        "t_aws should have stroke-dasharray:2 from dotted stroke_style. Got: {}",
+        t_aws_classes
+    );
+
+    // t_aws_iam has type_service which has stroke_style: "dashed"
+    // dashed should map to stroke-dasharray:3
+    let t_aws_iam_id = id!("t_aws_iam");
+    let t_aws_iam_classes = diagram.tailwind_classes.get(&t_aws_iam_id).unwrap();
+    assert!(
+        t_aws_iam_classes.contains("[stroke-dasharray:3]"),
+        "t_aws_iam should have stroke-dasharray:3 from dashed stroke_style. Got: {}",
+        t_aws_iam_classes
+    );
+}
+
+#[test]
+fn test_tailwind_classes_thing_peer_classes() {
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // t_localhost should have peer classes for process steps that interact with
+    // edges involving t_localhost:
+    // - edge_t_localhost__t_github_user_repo__pull is used by:
+    //   - proc_app_dev_step_repository_clone
+    //   - proc_app_release_step_pull_request_open
+    // - edge_t_localhost__t_github_user_repo__push is used by:
+    //   - proc_app_release_step_tag_and_push
+    // - edge_t_localhost__t_localhost__within is used by:
+    //   - proc_app_dev_step_project_build
+    //   - proc_app_release_step_crate_version_update
+
+    let t_localhost_id = id!("t_localhost");
+    let t_localhost_classes = diagram.tailwind_classes.get(&t_localhost_id).unwrap();
+
+    // Should have peer class for proc_app_dev_step_repository_clone
+    assert!(
+        t_localhost_classes.contains("peer-[:focus-within]/proc_app_dev_step_repository_clone:"),
+        "t_localhost should have peer class for proc_app_dev_step_repository_clone. Got: {}",
+        t_localhost_classes
+    );
+
+    // Should have peer class for proc_app_dev_step_project_build
+    assert!(
+        t_localhost_classes.contains("peer-[:focus-within]/proc_app_dev_step_project_build:"),
+        "t_localhost should have peer class for proc_app_dev_step_project_build. Got: {}",
+        t_localhost_classes
+    );
+
+    // Should NOT have peer class for proc_app_release_step_gh_actions_build
+    // because that step interacts with
+    // edge_t_github_user_repo__t_github_user_repo__within which doesn't involve
+    // t_localhost
+    assert!(
+        !t_localhost_classes.contains("peer-[:focus-within]/proc_app_release_step_gh_actions_build:"),
+        "t_localhost should NOT have peer class for proc_app_release_step_gh_actions_build. Got: {}",
+        t_localhost_classes
+    );
+
+    // t_github_user_repo should have peer classes for process steps that interact
+    // with edges involving t_github_user_repo
+    let t_github_user_repo_id = id!("t_github_user_repo");
+    let t_github_user_repo_classes = diagram
+        .tailwind_classes
+        .get(&t_github_user_repo_id)
+        .unwrap();
+
+    // Should have peer class for proc_app_release_step_gh_actions_build
+    // because that step interacts with
+    // edge_t_github_user_repo__t_github_user_repo__within
+    assert!(
+        t_github_user_repo_classes.contains("peer-[:focus-within]/proc_app_release_step_gh_actions_build:"),
+        "t_github_user_repo should have peer class for proc_app_release_step_gh_actions_build. Got: {}",
+        t_github_user_repo_classes
+    );
+}

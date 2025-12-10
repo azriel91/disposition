@@ -1,6 +1,8 @@
 use disposition_input_ir_model::IrDiagramAndIssues;
 use disposition_input_model::{
     edge::EdgeKind,
+    process::Processes,
+    tag::{TagNames, TagThings},
     theme::{
         CssClassPartials, IdOrDefaults, StyleAliases, ThemeAttr, ThemeDefault, ThemeTypesStyles,
     },
@@ -9,7 +11,7 @@ use disposition_input_model::{
 };
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeGroupId, EdgeGroups},
-    entity::{EntityType, EntityTypes as IrEntityTypes},
+    entity::{EntityTailwindClasses, EntityType, EntityTypes as IrEntityTypes},
     layout::{FlexDirection, FlexLayout, NodeLayout, NodeLayouts},
     node::{NodeCopyText, NodeHierarchy, NodeId, NodeNames},
     IrDiagram,
@@ -33,7 +35,7 @@ impl InputToIrDiagramMapper {
             thing_interactions,
             processes,
             tags,
-            tag_things: _,
+            tag_things,
             entity_descs,
             entity_types,
             theme_default,
@@ -79,6 +81,18 @@ impl InputToIrDiagramMapper {
             &processes,
         );
 
+        // 8. Build TailwindClasses from theme
+        let tailwind_classes = Self::build_tailwind_classes(
+            &nodes,
+            &edge_groups,
+            &ir_entity_types,
+            &theme_default,
+            &theme_types_styles,
+            &tags,
+            &tag_things,
+            &processes,
+        );
+
         let diagram = IrDiagram {
             nodes,
             node_copy_text,
@@ -86,7 +100,7 @@ impl InputToIrDiagramMapper {
             edge_groups,
             entity_descs,
             entity_types: ir_entity_types,
-            tailwind_classes: Default::default(), // Done later
+            tailwind_classes,
             node_layout,
             css,
         };
@@ -692,11 +706,6 @@ impl InputToIrDiagramMapper {
         }
     }
 
-    /// Resolve padding values from theme with priority order:
-    /// 1. Node ID itself (highest)
-    /// 2. EntityTypes (reverse order)
-    /// 3. NodeDefaults (lowest)
-    /// 4. Default 0.0f32
     /// Resolves a theme attribute value by traversing theme sources in priority
     /// order:
     ///
@@ -1000,4 +1009,959 @@ impl InputToIrDiagramMapper {
             *state = Some(v);
         }
     }
+
+    // =========================================================================
+    // Tailwind Classes Building
+    // =========================================================================
+
+    /// Build tailwind classes for all entities (nodes, edge groups, edges).
+    #[allow(clippy::too_many_arguments)]
+    fn build_tailwind_classes(
+        nodes: &NodeNames,
+        edge_groups: &EdgeGroups,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+        tags: &TagNames,
+        tag_things: &TagThings,
+        processes: &Processes,
+    ) -> EntityTailwindClasses {
+        let mut tailwind_classes = EntityTailwindClasses::new();
+
+        // Build a map of process step ID to (process ID, edge IDs they interact with)
+        let step_interactions = Self::build_step_interactions_map(processes);
+
+        // Build a map of tag ID to thing IDs
+        let tag_thing_ids: Map<Id, Vec<Id>> = tag_things
+            .iter()
+            .map(|(tag_id, thing_ids)| {
+                let tag_id: Id = tag_id.clone().into_inner();
+                let thing_ids: Vec<Id> = thing_ids
+                    .iter()
+                    .map(|thing_id| thing_id.clone().into_inner())
+                    .collect();
+                (tag_id, thing_ids)
+            })
+            .collect();
+
+        // Build a map of edge group ID to process steps that interact with it
+        let edge_group_to_steps = Self::build_edge_group_to_steps_map(processes);
+
+        // Build a map of thing ID to process steps that interact with edges involving
+        // that thing
+        let thing_to_interacting_steps =
+            Self::build_thing_to_interacting_steps_map(edge_groups, &step_interactions);
+
+        // Build classes for each node
+        for (node_id, _name) in nodes.iter() {
+            let id: Id = node_id.clone().into_inner();
+
+            // Determine node kind
+            let is_tag = tags.iter().any(|(t, _)| t.as_str() == id.as_str());
+            let is_process = processes.iter().any(|(p, _)| p.as_str() == id.as_str());
+            let is_process_step = processes
+                .iter()
+                .any(|(_, pd)| pd.steps.iter().any(|(s, _)| s.as_str() == id.as_str()));
+
+            let classes = if is_tag {
+                Self::build_tag_tailwind_classes(
+                    &id,
+                    entity_types,
+                    theme_default,
+                    theme_types_styles,
+                )
+            } else if is_process {
+                Self::build_process_tailwind_classes(
+                    &id,
+                    entity_types,
+                    theme_default,
+                    theme_types_styles,
+                )
+            } else if is_process_step {
+                // Find the parent process ID
+                let parent_process_id = processes
+                    .iter()
+                    .find(|(_, pd)| pd.steps.iter().any(|(s, _)| s.as_str() == id.as_str()))
+                    .map(|(p, _)| p.as_str().to_string());
+
+                Self::build_process_step_tailwind_classes(
+                    &id,
+                    parent_process_id.as_deref(),
+                    entity_types,
+                    theme_default,
+                    theme_types_styles,
+                )
+            } else {
+                // Regular thing node
+                Self::build_thing_tailwind_classes(
+                    &id,
+                    entity_types,
+                    theme_default,
+                    theme_types_styles,
+                    &tag_thing_ids,
+                    &thing_to_interacting_steps,
+                )
+            };
+
+            tailwind_classes.insert(id, classes);
+        }
+
+        // Build classes for edge groups
+        for (edge_group_id, _edges) in edge_groups.iter() {
+            let id: Id = edge_group_id.clone().into_inner();
+
+            // Get the process steps that interact with this edge group
+            let interacting_steps = edge_group_to_steps.get(&id).cloned().unwrap_or_default();
+
+            let classes = Self::build_edge_group_tailwind_classes(
+                &id,
+                entity_types,
+                theme_default,
+                theme_types_styles,
+                &interacting_steps,
+            );
+
+            tailwind_classes.insert(id, classes);
+        }
+
+        tailwind_classes
+    }
+
+    /// Build a map of process step ID to (process ID, edge IDs they interact
+    /// with).
+    fn build_step_interactions_map(processes: &Processes) -> Map<Id, (Id, Vec<Id>)> {
+        let mut step_interactions: Map<Id, (Id, Vec<Id>)> = Map::new();
+
+        for (process_id, process_diagram) in processes.iter() {
+            let process_id: Id = process_id.clone().into_inner();
+
+            for (step_id, edge_ids) in process_diagram.step_thing_interactions.iter() {
+                let step_id: Id = step_id.clone().into_inner();
+                let edge_ids: Vec<Id> = edge_ids.iter().map(|e| e.clone().into_inner()).collect();
+                step_interactions.insert(step_id, (process_id.clone(), edge_ids));
+            }
+        }
+
+        step_interactions
+    }
+
+    /// Build a map of edge group ID to process steps that interact with it.
+    fn build_edge_group_to_steps_map(processes: &Processes) -> Map<Id, Vec<Id>> {
+        let mut edge_group_to_steps: Map<Id, Vec<Id>> = Map::new();
+
+        for (_process_id, process_diagram) in processes.iter() {
+            for (step_id, edge_ids) in process_diagram.step_thing_interactions.iter() {
+                let step_id: Id = step_id.clone().into_inner();
+
+                for edge_id in edge_ids.iter() {
+                    let edge_id: Id = edge_id.clone().into_inner();
+                    edge_group_to_steps
+                        .entry(edge_id)
+                        .or_default()
+                        .push(step_id.clone());
+                }
+            }
+        }
+
+        edge_group_to_steps
+    }
+
+    /// Build a map of thing ID to process steps that interact with edges
+    /// involving that thing.
+    fn build_thing_to_interacting_steps_map(
+        edge_groups: &EdgeGroups,
+        step_interactions: &Map<Id, (Id, Vec<Id>)>,
+    ) -> Map<Id, Vec<Id>> {
+        let mut thing_to_steps: Map<Id, Vec<Id>> = Map::new();
+
+        // For each process step and its edge interactions
+        for (step_id, (_process_id, edge_group_ids)) in step_interactions.iter() {
+            // For each edge group the step interacts with
+            for edge_group_id in edge_group_ids.iter() {
+                // Find the edge group and get its endpoints
+                let edge_group_id_typed =
+                    EdgeGroupId::from(Self::id_from_string(edge_group_id.as_str().to_string()));
+                if let Some(edges) = edge_groups.get(&edge_group_id_typed) {
+                    for edge in edges.iter() {
+                        // Add this step to both the from and to things
+                        let from_id: Id = edge.from.clone().into_inner();
+                        let to_id: Id = edge.to.clone().into_inner();
+
+                        thing_to_steps
+                            .entry(from_id)
+                            .or_default()
+                            .push(step_id.clone());
+                        thing_to_steps
+                            .entry(to_id)
+                            .or_default()
+                            .push(step_id.clone());
+                    }
+                }
+            }
+        }
+
+        // Deduplicate step IDs for each thing
+        for steps in thing_to_steps.values_mut() {
+            let mut seen = std::collections::HashSet::new();
+            steps.retain(|id| seen.insert(id.as_str().to_string()));
+        }
+
+        thing_to_steps
+    }
+
+    /// Build tailwind classes for a tag node.
+    fn build_tag_tailwind_classes(
+        id: &Id,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+    ) -> String {
+        let mut state = TailwindClassState::default();
+
+        Self::resolve_tailwind_attrs(
+            Some(id),
+            entity_types,
+            theme_default,
+            theme_types_styles,
+            true, // is_node
+            &mut state,
+        );
+
+        let mut classes = state.to_classes_string(true);
+
+        // Tags get peer/{id} class
+        classes.push_str(&format!("\n\npeer/{}", id.as_str()));
+
+        classes
+    }
+
+    /// Build tailwind classes for a process node.
+    fn build_process_tailwind_classes(
+        id: &Id,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+    ) -> String {
+        let mut state = TailwindClassState::default();
+
+        Self::resolve_tailwind_attrs(
+            Some(id),
+            entity_types,
+            theme_default,
+            theme_types_styles,
+            true, // is_node
+            &mut state,
+        );
+
+        let mut classes = state.to_classes_string(true);
+
+        // Processes get group/{id} class
+        classes.push_str(&format!("\n\ngroup/{}", id.as_str()));
+
+        classes
+    }
+
+    /// Build tailwind classes for a process step node.
+    fn build_process_step_tailwind_classes(
+        id: &Id,
+        parent_process_id: Option<&str>,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+    ) -> String {
+        let mut state = TailwindClassState::default();
+
+        Self::resolve_tailwind_attrs(
+            Some(id),
+            entity_types,
+            theme_default,
+            theme_types_styles,
+            true, // is_node
+            &mut state,
+        );
+
+        let mut classes = state.to_classes_string(true);
+
+        // Process steps get peer/{id} class
+        classes.push_str(&format!("\n\npeer/{}", id.as_str()));
+
+        // Process steps get group-focus-within/{process_id}:visible class
+        if let Some(process_id) = parent_process_id {
+            classes.push_str(&format!("\ngroup-focus-within/{}:visible", process_id));
+        }
+
+        classes
+    }
+
+    /// Build tailwind classes for a regular thing node.
+    fn build_thing_tailwind_classes(
+        id: &Id,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+        tag_thing_ids: &Map<Id, Vec<Id>>,
+        thing_to_interacting_steps: &Map<Id, Vec<Id>>,
+    ) -> String {
+        let mut state = TailwindClassState::default();
+
+        Self::resolve_tailwind_attrs(
+            Some(id),
+            entity_types,
+            theme_default,
+            theme_types_styles,
+            true, // is_node
+            &mut state,
+        );
+
+        let mut classes = state.to_classes_string(true);
+
+        // Add peer classes for tags that include this thing
+        for (tag_id, thing_ids) in tag_thing_ids.iter() {
+            if thing_ids.iter().any(|t| t.as_str() == id.as_str()) {
+                // When a tag is focused, things within it get highlighted with shade_pale
+                // Start with current state's colors but use shade_pale
+                let tag_focus_state = TailwindClassState {
+                    shape_color: state.shape_color.clone(),
+                    fill_color: state.fill_color.clone(),
+                    stroke_color: state.stroke_color.clone(),
+                    // Apply shade_pale
+                    fill_shade_hover: Some("50".to_string()),
+                    fill_shade_normal: Some("100".to_string()),
+                    fill_shade_focus: Some("200".to_string()),
+                    fill_shade_active: Some("300".to_string()),
+                    stroke_shade_hover: Some("100".to_string()),
+                    stroke_shade_normal: Some("200".to_string()),
+                    stroke_shade_focus: Some("300".to_string()),
+                    stroke_shade_active: Some("400".to_string()),
+                    ..Default::default()
+                };
+
+                let peer_prefix = format!("peer-[:focus-within]/{}:", tag_id.as_str());
+                classes.push_str(&format!(
+                    "\n\n{}animate-[stroke-dashoffset-move_2s_linear_infinite]",
+                    peer_prefix
+                ));
+                classes.push_str(&tag_focus_state.to_peer_classes_string(&peer_prefix));
+            }
+        }
+
+        // Add peer classes for process steps that interact with edges involving this
+        // thing
+        if let Some(interacting_steps) = thing_to_interacting_steps.get(id) {
+            for step_id in interacting_steps.iter() {
+                let peer_prefix = format!("peer-[:focus-within]/{}:", step_id.as_str());
+
+                // Get the thing's color for interaction highlighting
+                let color = state
+                    .shape_color
+                    .as_deref()
+                    .or(state.fill_color.as_deref())
+                    .unwrap_or("slate");
+
+                classes.push_str(&format!(
+                    "\n\n{}animate-[stroke-dashoffset-move_2s_linear_infinite]",
+                    peer_prefix
+                ));
+                classes.push_str(&format!("\n{}stroke-{}-500", peer_prefix, color));
+                classes.push_str(&format!("\n{}fill-{}-100", peer_prefix, color));
+            }
+        }
+
+        classes
+    }
+
+    /// Build tailwind classes for an edge group.
+    fn build_edge_group_tailwind_classes(
+        id: &Id,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+        interacting_steps: &[Id],
+    ) -> String {
+        let mut state = TailwindClassState::default();
+
+        Self::resolve_tailwind_attrs_for_edge(
+            Some(id),
+            entity_types,
+            theme_default,
+            theme_types_styles,
+            &mut state,
+        );
+
+        let mut classes = state.to_classes_string(false);
+
+        // Add peer classes for each process step that interacts with this edge
+        for step_id in interacting_steps {
+            let peer_prefix = format!("peer-[:focus-within]/{}:", step_id.as_str());
+
+            // Interaction styling for edges
+            classes.push_str(&format!(
+                "\n\n{}animate-[stroke-dashoffset-move-request_2s_linear_infinite]",
+                peer_prefix
+            ));
+            classes.push_str(&format!(
+                "\n{}stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]",
+                peer_prefix
+            ));
+            classes.push_str(&format!("\n{}stroke-[2px]", peer_prefix));
+            classes.push_str(&format!("\n{}visible", peer_prefix));
+
+            // Use violet for interaction colors (as shown in example)
+            classes.push_str(&format!("\n{}hover:fill-violet-600", peer_prefix));
+            classes.push_str(&format!("\n{}fill-violet-700", peer_prefix));
+            classes.push_str(&format!("\n{}focus:fill-violet-800", peer_prefix));
+            classes.push_str(&format!("\n{}active:fill-violet-900", peer_prefix));
+            classes.push_str(&format!("\n{}hover:stroke-violet-700", peer_prefix));
+            classes.push_str(&format!("\n{}stroke-violet-800", peer_prefix));
+            classes.push_str(&format!("\n{}focus:stroke-violet-900", peer_prefix));
+            classes.push_str(&format!("\n{}active:stroke-violet-950", peer_prefix));
+        }
+
+        classes
+    }
+
+    /// Resolve tailwind attributes for a node.
+    fn resolve_tailwind_attrs(
+        node_id: Option<&Id>,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+        is_node: bool,
+        state: &mut TailwindClassState,
+    ) {
+        let defaults_key = if is_node {
+            IdOrDefaults::NodeDefaults
+        } else {
+            IdOrDefaults::EdgeDefaults
+        };
+
+        // 1. Start with NodeDefaults/EdgeDefaults (lowest priority)
+        if let Some(defaults_partials) = theme_default.base_styles.get(&defaults_key) {
+            Self::apply_tailwind_from_partials(
+                defaults_partials,
+                &theme_default.style_aliases,
+                state,
+            );
+        }
+
+        // 2. Apply EntityTypes in order (later types override earlier ones)
+        if let Some(id) = node_id
+            && let Some(types) = entity_types.get(id)
+        {
+            for entity_type in types.iter() {
+                let type_id = disposition_model_common::entity::EntityTypeId::from(
+                    Self::id_from_string(entity_type.as_str().to_string()),
+                );
+                if let Some(type_styles) = theme_types_styles.get(&type_id)
+                    && let Some(type_partials) = type_styles.get(&defaults_key)
+                {
+                    Self::apply_tailwind_from_partials(
+                        type_partials,
+                        &theme_default.style_aliases,
+                        state,
+                    );
+                }
+            }
+        }
+
+        // 3. Apply node ID itself (highest priority)
+        if let Some(id) = node_id
+            && let Some(node_partials) =
+                theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
+        {
+            Self::apply_tailwind_from_partials(node_partials, &theme_default.style_aliases, state);
+        }
+    }
+
+    /// Resolve tailwind attributes for an edge.
+    fn resolve_tailwind_attrs_for_edge(
+        edge_id: Option<&Id>,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+        state: &mut TailwindClassState,
+    ) {
+        // 1. Start with EdgeDefaults (lowest priority)
+        if let Some(defaults_partials) = theme_default.base_styles.get(&IdOrDefaults::EdgeDefaults)
+        {
+            Self::apply_tailwind_from_partials(
+                defaults_partials,
+                &theme_default.style_aliases,
+                state,
+            );
+        }
+
+        // 2. Apply EntityTypes in order (later types override earlier ones)
+        if let Some(id) = edge_id
+            && let Some(types) = entity_types.get(id)
+        {
+            for entity_type in types.iter() {
+                let type_id = disposition_model_common::entity::EntityTypeId::from(
+                    Self::id_from_string(entity_type.as_str().to_string()),
+                );
+                if let Some(type_styles) = theme_types_styles.get(&type_id)
+                    && let Some(type_partials) = type_styles.get(&IdOrDefaults::EdgeDefaults)
+                {
+                    Self::apply_tailwind_from_partials(
+                        type_partials,
+                        &theme_default.style_aliases,
+                        state,
+                    );
+                }
+            }
+        }
+
+        // 3. Apply edge ID itself (highest priority)
+        if let Some(id) = edge_id
+            && let Some(edge_partials) =
+                theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
+        {
+            Self::apply_tailwind_from_partials(edge_partials, &theme_default.style_aliases, state);
+        }
+    }
+
+    /// Apply tailwind attribute values from CssClassPartials.
+    fn apply_tailwind_from_partials(
+        partials: &CssClassPartials,
+        style_aliases: &StyleAliases,
+        state: &mut TailwindClassState,
+    ) {
+        // First, check style_aliases_applied (lower priority within this partials)
+        for alias in partials.style_aliases_applied() {
+            if let Some(alias_partials) = style_aliases.get(alias) {
+                Self::extract_tailwind_from_map(alias_partials, state);
+            }
+        }
+
+        // Then, check direct attributes (higher priority within this partials)
+        Self::extract_tailwind_from_map(partials, state);
+    }
+
+    /// Extract tailwind attribute values from a CssClassPartials map.
+    fn extract_tailwind_from_map(partials: &CssClassPartials, state: &mut TailwindClassState) {
+        // Visibility
+        if let Some(value) = partials.get(&ThemeAttr::Visibility) {
+            state.visibility = Some(value.clone());
+        }
+
+        // Stroke width
+        if let Some(value) = partials.get(&ThemeAttr::StrokeWidth) {
+            state.stroke_width = Some(value.clone());
+        }
+
+        // Stroke style - converts to stroke-dasharray
+        if let Some(value) = partials.get(&ThemeAttr::StrokeStyle) {
+            state.stroke_style = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::StrokeStyleNormal) {
+            state.stroke_style_normal = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::StrokeStyleFocus) {
+            state.stroke_style_focus = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::StrokeStyleHover) {
+            state.stroke_style_hover = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::StrokeStyleActive) {
+            state.stroke_style_active = Some(value.clone());
+        }
+
+        // Shape color (base for both fill and stroke)
+        if let Some(value) = partials.get(&ThemeAttr::ShapeColor) {
+            state.shape_color = Some(value.clone());
+        }
+
+        // Fill colors
+        if let Some(value) = partials.get(&ThemeAttr::FillColor) {
+            state.fill_color = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::FillColorNormal) {
+            state.fill_color_normal = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::FillColorFocus) {
+            state.fill_color_focus = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::FillColorHover) {
+            state.fill_color_hover = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::FillColorActive) {
+            state.fill_color_active = Some(value.clone());
+        }
+
+        // Fill shades
+        if let Some(value) = partials.get(&ThemeAttr::FillShade) {
+            state.fill_shade = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::FillShadeNormal) {
+            state.fill_shade_normal = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::FillShadeFocus) {
+            state.fill_shade_focus = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::FillShadeHover) {
+            state.fill_shade_hover = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::FillShadeActive) {
+            state.fill_shade_active = Some(value.clone());
+        }
+
+        // Stroke colors
+        if let Some(value) = partials.get(&ThemeAttr::StrokeColor) {
+            state.stroke_color = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::StrokeColorNormal) {
+            state.stroke_color_normal = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::StrokeColorFocus) {
+            state.stroke_color_focus = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::StrokeColorHover) {
+            state.stroke_color_hover = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::StrokeColorActive) {
+            state.stroke_color_active = Some(value.clone());
+        }
+
+        // Stroke shades
+        if let Some(value) = partials.get(&ThemeAttr::StrokeShade) {
+            state.stroke_shade = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::StrokeShadeNormal) {
+            state.stroke_shade_normal = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::StrokeShadeFocus) {
+            state.stroke_shade_focus = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::StrokeShadeHover) {
+            state.stroke_shade_hover = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::StrokeShadeActive) {
+            state.stroke_shade_active = Some(value.clone());
+        }
+
+        // Text
+        if let Some(value) = partials.get(&ThemeAttr::TextColor) {
+            state.text_color = Some(value.clone());
+        }
+        if let Some(value) = partials.get(&ThemeAttr::TextShade) {
+            state.text_shade = Some(value.clone());
+        }
+
+        // Animation
+        if let Some(value) = partials.get(&ThemeAttr::Animate) {
+            state.animate = Some(value.clone());
+        }
+    }
+}
+
+/// State for accumulating resolved tailwind class attributes.
+#[derive(Default)]
+struct TailwindClassState {
+    // Visibility
+    visibility: Option<String>,
+    // Stroke
+    stroke_width: Option<String>,
+    stroke_style: Option<String>,
+    stroke_style_normal: Option<String>,
+    stroke_style_focus: Option<String>,
+    stroke_style_hover: Option<String>,
+    stroke_style_active: Option<String>,
+    // Colors - base
+    shape_color: Option<String>,
+    // Fill colors
+    fill_color: Option<String>,
+    fill_color_normal: Option<String>,
+    fill_color_focus: Option<String>,
+    fill_color_hover: Option<String>,
+    fill_color_active: Option<String>,
+    // Fill shades
+    fill_shade: Option<String>,
+    fill_shade_normal: Option<String>,
+    fill_shade_focus: Option<String>,
+    fill_shade_hover: Option<String>,
+    fill_shade_active: Option<String>,
+    // Stroke colors
+    stroke_color: Option<String>,
+    stroke_color_normal: Option<String>,
+    stroke_color_focus: Option<String>,
+    stroke_color_hover: Option<String>,
+    stroke_color_active: Option<String>,
+    // Stroke shades
+    stroke_shade: Option<String>,
+    stroke_shade_normal: Option<String>,
+    stroke_shade_focus: Option<String>,
+    stroke_shade_hover: Option<String>,
+    stroke_shade_active: Option<String>,
+    // Text
+    text_color: Option<String>,
+    text_shade: Option<String>,
+    // Animation
+    animate: Option<String>,
+}
+
+impl TailwindClassState {
+    /// Convert stroke style to stroke-dasharray value.
+    fn stroke_style_to_dasharray(style: &str) -> Option<&'static str> {
+        match style {
+            "solid" => Some("none"),
+            "dashed" => Some("3"),
+            "dotted" => Some("2"),
+            _ => None,
+        }
+    }
+
+    /// Get the resolved fill color for a state.
+    fn get_fill_color(&self, state: FillStrokeState) -> &str {
+        match state {
+            FillStrokeState::Normal => self
+                .fill_color_normal
+                .as_deref()
+                .or(self.fill_color.as_deref())
+                .or(self.shape_color.as_deref())
+                .unwrap_or("slate"),
+            FillStrokeState::Focus => self
+                .fill_color_focus
+                .as_deref()
+                .or(self.fill_color.as_deref())
+                .or(self.shape_color.as_deref())
+                .unwrap_or("slate"),
+            FillStrokeState::Hover => self
+                .fill_color_hover
+                .as_deref()
+                .or(self.fill_color.as_deref())
+                .or(self.shape_color.as_deref())
+                .unwrap_or("slate"),
+            FillStrokeState::Active => self
+                .fill_color_active
+                .as_deref()
+                .or(self.fill_color.as_deref())
+                .or(self.shape_color.as_deref())
+                .unwrap_or("slate"),
+        }
+    }
+
+    /// Get the resolved fill shade for a state.
+    fn get_fill_shade(&self, state: FillStrokeState) -> &str {
+        match state {
+            FillStrokeState::Normal => self
+                .fill_shade_normal
+                .as_deref()
+                .or(self.fill_shade.as_deref())
+                .unwrap_or("300"),
+            FillStrokeState::Focus => self
+                .fill_shade_focus
+                .as_deref()
+                .or(self.fill_shade.as_deref())
+                .unwrap_or("400"),
+            FillStrokeState::Hover => self
+                .fill_shade_hover
+                .as_deref()
+                .or(self.fill_shade.as_deref())
+                .unwrap_or("200"),
+            FillStrokeState::Active => self
+                .fill_shade_active
+                .as_deref()
+                .or(self.fill_shade.as_deref())
+                .unwrap_or("500"),
+        }
+    }
+
+    /// Get the resolved stroke color for a state.
+    fn get_stroke_color(&self, state: FillStrokeState) -> &str {
+        match state {
+            FillStrokeState::Normal => self
+                .stroke_color_normal
+                .as_deref()
+                .or(self.stroke_color.as_deref())
+                .or(self.shape_color.as_deref())
+                .unwrap_or("slate"),
+            FillStrokeState::Focus => self
+                .stroke_color_focus
+                .as_deref()
+                .or(self.stroke_color.as_deref())
+                .or(self.shape_color.as_deref())
+                .unwrap_or("slate"),
+            FillStrokeState::Hover => self
+                .stroke_color_hover
+                .as_deref()
+                .or(self.stroke_color.as_deref())
+                .or(self.shape_color.as_deref())
+                .unwrap_or("slate"),
+            FillStrokeState::Active => self
+                .stroke_color_active
+                .as_deref()
+                .or(self.stroke_color.as_deref())
+                .or(self.shape_color.as_deref())
+                .unwrap_or("slate"),
+        }
+    }
+
+    /// Get the resolved stroke shade for a state.
+    fn get_stroke_shade(&self, state: FillStrokeState) -> &str {
+        match state {
+            FillStrokeState::Normal => self
+                .stroke_shade_normal
+                .as_deref()
+                .or(self.stroke_shade.as_deref())
+                .unwrap_or("400"),
+            FillStrokeState::Focus => self
+                .stroke_shade_focus
+                .as_deref()
+                .or(self.stroke_shade.as_deref())
+                .unwrap_or("500"),
+            FillStrokeState::Hover => self
+                .stroke_shade_hover
+                .as_deref()
+                .or(self.stroke_shade.as_deref())
+                .unwrap_or("300"),
+            FillStrokeState::Active => self
+                .stroke_shade_active
+                .as_deref()
+                .or(self.stroke_shade.as_deref())
+                .unwrap_or("600"),
+        }
+    }
+
+    /// Convert state to tailwind classes string.
+    fn to_classes_string(&self, is_node: bool) -> String {
+        let mut classes = Vec::new();
+
+        // Stroke dasharray from stroke_style
+        if let Some(style) = &self.stroke_style
+            && let Some(dasharray) = Self::stroke_style_to_dasharray(style)
+        {
+            classes.push(format!("[stroke-dasharray:{}]", dasharray));
+        }
+
+        // Stroke width
+        if let Some(width) = &self.stroke_width {
+            classes.push(format!("stroke-{}", width));
+        }
+
+        // Visibility
+        if let Some(visibility) = &self.visibility {
+            classes.push(visibility.clone());
+        }
+
+        // Fill classes (hover, normal, focus, active)
+        classes.push(format!(
+            "hover:fill-{}-{}",
+            self.get_fill_color(FillStrokeState::Hover),
+            self.get_fill_shade(FillStrokeState::Hover)
+        ));
+        classes.push(format!(
+            "fill-{}-{}",
+            self.get_fill_color(FillStrokeState::Normal),
+            self.get_fill_shade(FillStrokeState::Normal)
+        ));
+        classes.push(format!(
+            "focus:fill-{}-{}",
+            self.get_fill_color(FillStrokeState::Focus),
+            self.get_fill_shade(FillStrokeState::Focus)
+        ));
+        classes.push(format!(
+            "active:fill-{}-{}",
+            self.get_fill_color(FillStrokeState::Active),
+            self.get_fill_shade(FillStrokeState::Active)
+        ));
+
+        // Stroke classes (hover, normal, focus, active)
+        classes.push(format!(
+            "hover:stroke-{}-{}",
+            self.get_stroke_color(FillStrokeState::Hover),
+            self.get_stroke_shade(FillStrokeState::Hover)
+        ));
+        classes.push(format!(
+            "stroke-{}-{}",
+            self.get_stroke_color(FillStrokeState::Normal),
+            self.get_stroke_shade(FillStrokeState::Normal)
+        ));
+        classes.push(format!(
+            "focus:stroke-{}-{}",
+            self.get_stroke_color(FillStrokeState::Focus),
+            self.get_stroke_shade(FillStrokeState::Focus)
+        ));
+        classes.push(format!(
+            "active:stroke-{}-{}",
+            self.get_stroke_color(FillStrokeState::Active),
+            self.get_stroke_shade(FillStrokeState::Active)
+        ));
+
+        // Text classes (only for nodes)
+        if is_node {
+            let text_color = self.text_color.as_deref().unwrap_or("neutral");
+            let text_shade = self.text_shade.as_deref().unwrap_or("900");
+            classes.push(format!("[&>text]:fill-{}-{}", text_color, text_shade));
+        }
+
+        classes.join("\n")
+    }
+
+    /// Convert state to peer-prefixed classes string for tag/step highlighting.
+    fn to_peer_classes_string(&self, prefix: &str) -> String {
+        let mut classes = Vec::new();
+
+        // Fill classes with peer prefix
+        classes.push(format!(
+            "\n{}hover:fill-{}-{}",
+            prefix,
+            self.get_fill_color(FillStrokeState::Hover),
+            self.get_fill_shade(FillStrokeState::Hover)
+        ));
+        classes.push(format!(
+            "\n{}fill-{}-{}",
+            prefix,
+            self.get_fill_color(FillStrokeState::Normal),
+            self.get_fill_shade(FillStrokeState::Normal)
+        ));
+        classes.push(format!(
+            "\n{}focus:fill-{}-{}",
+            prefix,
+            self.get_fill_color(FillStrokeState::Focus),
+            self.get_fill_shade(FillStrokeState::Focus)
+        ));
+        classes.push(format!(
+            "\n{}active:fill-{}-{}",
+            prefix,
+            self.get_fill_color(FillStrokeState::Active),
+            self.get_fill_shade(FillStrokeState::Active)
+        ));
+
+        // Stroke classes with peer prefix
+        classes.push(format!(
+            "\n{}hover:stroke-{}-{}",
+            prefix,
+            self.get_stroke_color(FillStrokeState::Hover),
+            self.get_stroke_shade(FillStrokeState::Hover)
+        ));
+        classes.push(format!(
+            "\n{}stroke-{}-{}",
+            prefix,
+            self.get_stroke_color(FillStrokeState::Normal),
+            self.get_stroke_shade(FillStrokeState::Normal)
+        ));
+        classes.push(format!(
+            "\n{}focus:stroke-{}-{}",
+            prefix,
+            self.get_stroke_color(FillStrokeState::Focus),
+            self.get_stroke_shade(FillStrokeState::Focus)
+        ));
+        classes.push(format!(
+            "\n{}active:stroke-{}-{}",
+            prefix,
+            self.get_stroke_color(FillStrokeState::Active),
+            self.get_stroke_shade(FillStrokeState::Active)
+        ));
+
+        classes.join("")
+    }
+}
+
+/// States for fill and stroke colors.
+#[derive(Clone, Copy)]
+enum FillStrokeState {
+    Normal,
+    Focus,
+    Hover,
+    Active,
 }
