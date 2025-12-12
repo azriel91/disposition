@@ -131,3 +131,30 @@ impl FromIterator<(NodeId, NodeHierarchy)> for NodeHierarchy {
         Self(Map::from_iter(iter))
     }
 }
+
+impl IntoIterator for NodeHierarchy {
+    type IntoIter = <Map<NodeId, NodeHierarchy> as IntoIterator>::IntoIter;
+    type Item = (NodeId, NodeHierarchy);
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'node_hierarchy> IntoIterator for &'node_hierarchy NodeHierarchy {
+    type IntoIter = <&'node_hierarchy Map<NodeId, NodeHierarchy> as IntoIterator>::IntoIter;
+    type Item = (&'node_hierarchy NodeId, &'node_hierarchy NodeHierarchy);
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'node_hierarchy> IntoIterator for &'node_hierarchy mut NodeHierarchy {
+    type IntoIter = <&'node_hierarchy mut Map<NodeId, NodeHierarchy> as IntoIterator>::IntoIter;
+    type Item = (&'node_hierarchy NodeId, &'node_hierarchy mut NodeHierarchy);
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter_mut()
+    }
+}
