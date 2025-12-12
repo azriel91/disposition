@@ -90,9 +90,13 @@ impl EntityType {
     ///
     /// ```rust
     /// use disposition_ir_model::entity::EntityType;
+    /// use disposition_model_common::{id, Id};
     ///
-    /// assert_eq!(EntityType::ThingDefault.into_id(), "type_thing_default");
-    /// assert_eq!(EntityType::TagDefault.into_id(), "type_tag_default");
+    /// assert_eq!(
+    ///     EntityType::ThingDefault.into_id(),
+    ///     id!("type_thing_default")
+    /// );
+    /// assert_eq!(EntityType::TagDefault.into_id(), id!("type_tag_default"));
     /// ```
     pub fn into_id(self) -> Id {
         match self {

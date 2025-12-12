@@ -3,7 +3,7 @@ use std::fmt::Write;
 use disposition_input_ir_model::IrDiagramAndIssues;
 use disposition_input_model::{
     edge::EdgeKind,
-    process::Processes,
+    process::{ProcessId, ProcessStepId, Processes},
     tag::{TagNames, TagThings},
     theme::{
         CssClassPartials, IdOrDefaults, StyleAliases, ThemeAttr, ThemeDefault, ThemeTypesStyles,
@@ -1033,31 +1033,16 @@ impl InputToIrDiagramMapper {
         // Build a map of process step ID to (process ID, edge IDs they interact with)
         let step_interactions = Self::build_step_interactions_map(processes);
 
-        // Build a map of tag ID to thing IDs
-        let tag_thing_ids: Map<Id, Vec<Id>> = tag_things
-            .iter()
-            .map(|(tag_id, thing_ids)| {
-                let tag_id: Id = tag_id.clone().into_inner();
-                let thing_ids: Vec<Id> = thing_ids
-                    .iter()
-                    .map(|thing_id| thing_id.clone().into_inner())
-                    .collect();
-                (tag_id, thing_ids)
-            })
-            .collect();
-
         // Build a map of edge group ID to process steps that interact with it
         let edge_group_to_steps = Self::build_edge_group_to_steps_map(processes);
 
         // Build a map of thing ID to process steps that interact with edges involving
         // that thing
-        let thing_to_interacting_steps =
+        let thing_to_interaction_steps =
             Self::build_thing_to_interaction_steps_map(edge_groups, &step_interactions);
 
         // Build classes for each node
         for (node_id, _name) in nodes.iter() {
-            let node_id: &Id = node_id.as_ref();
-
             // Determine node kind
             let is_tag = tags.contains_key(node_id);
             let is_process = processes.contains_key(node_id);
@@ -1076,7 +1061,7 @@ impl InputToIrDiagramMapper {
                 // Find the child process step IDs
                 let child_step_ids: Vec<Id> = processes
                     .iter()
-                    .find(|(process_id, _)| process_id.as_ref() == node_id)
+                    .find(|(process_id, _)| process_id.as_ref() == node_id.as_ref())
                     .map(|(_, process_diagram)| {
                         process_diagram
                             .steps
@@ -1114,12 +1099,12 @@ impl InputToIrDiagramMapper {
                     entity_types,
                     theme_default,
                     theme_types_styles,
-                    &tag_thing_ids,
-                    &thing_to_interacting_steps,
+                    tag_things,
+                    &thing_to_interaction_steps,
                 )
             };
 
-            tailwind_classes.insert(node_id.clone(), classes);
+            tailwind_classes.insert(node_id.clone().into_inner(), classes);
         }
 
         // Build classes for edge groups
@@ -1127,14 +1112,14 @@ impl InputToIrDiagramMapper {
             let id: Id = edge_group_id.clone().into_inner();
 
             // Get the process steps that interact with this edge group
-            let interacting_steps = edge_group_to_steps.get(&id).cloned().unwrap_or_default();
+            let interaction_steps = edge_group_to_steps.get(&id).cloned().unwrap_or_default();
 
             let classes = Self::build_edge_group_tailwind_classes(
                 &id,
                 entity_types,
                 theme_default,
                 theme_types_styles,
-                &interacting_steps,
+                &interaction_steps,
             );
 
             tailwind_classes.insert(id, classes);
@@ -1145,20 +1130,22 @@ impl InputToIrDiagramMapper {
 
     /// Build a map of process step ID to (process ID, edge IDs they interact
     /// with).
-    fn build_step_interactions_map(processes: &Processes) -> Map<Id, (Id, Vec<EdgeGroupId>)> {
-        let mut step_interactions: Map<Id, (Id, Vec<EdgeGroupId>)> = Map::new();
+    fn build_step_interactions_map(
+        processes: &Processes,
+    ) -> Map<ProcessStepId, (ProcessId, Vec<EdgeGroupId>)> {
+        let mut step_interactions: Map<ProcessStepId, (ProcessId, Vec<EdgeGroupId>)> = Map::new();
 
         for (process_id, process_diagram) in processes.iter() {
-            let process_id: Id = process_id.clone().into_inner();
+            let process_id: ProcessId = process_id.clone();
 
-            for (step_id, edge_ids) in process_diagram.step_thing_interactions.iter() {
-                let step_id: Id = step_id.clone().into_inner();
+            for (process_step_id, edge_ids) in process_diagram.step_thing_interactions.iter() {
+                let process_step_id: ProcessStepId = process_step_id.clone();
                 let edge_ids: Vec<EdgeGroupId> = edge_ids
                     .iter()
                     .map(|e| e.clone().into_inner())
                     .map(EdgeGroupId::from)
                     .collect();
-                step_interactions.insert(step_id, (process_id.clone(), edge_ids));
+                step_interactions.insert(process_step_id, (process_id.clone(), edge_ids));
             }
         }
 
@@ -1190,28 +1177,28 @@ impl InputToIrDiagramMapper {
     /// involving that thing.
     fn build_thing_to_interaction_steps_map(
         edge_groups: &EdgeGroups,
-        step_interactions: &Map<Id, (Id, Vec<EdgeGroupId>)>,
-    ) -> Map<Id, Vec<Id>> {
-        let mut thing_to_steps: Map<Id, Vec<Id>> = Map::new();
+        step_interactions: &Map<ProcessStepId, (ProcessId, Vec<EdgeGroupId>)>,
+    ) -> Map<NodeId, Vec<ProcessStepId>> {
+        let mut thing_to_steps: Map<NodeId, Vec<ProcessStepId>> = Map::new();
 
         // For each process step and its edge interactions
-        for (step_id, (_process_id, edge_group_ids)) in step_interactions.iter() {
+        for (process_step_id, (_process_id, edge_group_ids)) in step_interactions.iter() {
             // For each edge group the step interacts with
             for edge_group_id in edge_group_ids.iter() {
                 if let Some(edges) = edge_groups.get(edge_group_id) {
                     for edge in edges.iter() {
                         // Add this step to both the from and to things
-                        let from_id: Id = edge.from.clone().into_inner();
-                        let to_id: Id = edge.to.clone().into_inner();
+                        let from_id: NodeId = edge.from.clone();
+                        let to_id: NodeId = edge.to.clone();
 
                         thing_to_steps
                             .entry(from_id)
                             .or_default()
-                            .push(step_id.clone());
+                            .push(process_step_id.clone());
                         thing_to_steps
                             .entry(to_id)
                             .or_default()
-                            .push(step_id.clone());
+                            .push(process_step_id.clone());
                     }
                 }
             }
@@ -1326,17 +1313,17 @@ impl InputToIrDiagramMapper {
 
     /// Build tailwind classes for a regular thing node.
     fn build_thing_tailwind_classes(
-        id: &Id,
+        node_id: &NodeId,
         entity_types: &IrEntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
-        tag_thing_ids: &Map<Id, Vec<Id>>,
-        thing_to_interacting_steps: &Map<Id, Vec<Id>>,
+        tag_things: &TagThings,
+        thing_to_interaction_steps: &Map<NodeId, Vec<ProcessStepId>>,
     ) -> String {
         let mut state = TailwindClassState::default();
 
         Self::resolve_tailwind_attrs(
-            Some(id),
+            Some(node_id.as_ref()),
             entity_types,
             theme_default,
             theme_types_styles,
@@ -1348,8 +1335,8 @@ impl InputToIrDiagramMapper {
         state.write_classes(&mut classes, true);
 
         // Add peer classes for tags that include this thing
-        for (tag_id, thing_ids) in tag_thing_ids.iter() {
-            if thing_ids.contains(id) {
+        for (tag_id, thing_ids) in tag_things.iter() {
+            if thing_ids.contains(node_id.as_ref()) {
                 // When a tag is focused, things within it get highlighted with shade_pale
                 // Start with current state's colors but use shade_pale
                 let tag_focus_state = TailwindClassState {
@@ -1383,8 +1370,8 @@ impl InputToIrDiagramMapper {
 
         // Add peer classes for process steps that interact with edges involving this
         // thing
-        if let Some(interacting_steps) = thing_to_interacting_steps.get(id) {
-            for step_id in interacting_steps.iter() {
+        if let Some(interaction_steps) = thing_to_interaction_steps.get(node_id.as_ref()) {
+            for step_id in interaction_steps.iter() {
                 let step_id_str = step_id.as_str();
                 let peer_prefix = format!("peer-[:focus-within]/{step_id_str}:");
 
@@ -1418,7 +1405,7 @@ impl InputToIrDiagramMapper {
         entity_types: &IrEntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
-        interacting_steps: &[Id],
+        interaction_steps: &[Id],
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -1434,7 +1421,7 @@ impl InputToIrDiagramMapper {
         state.write_classes(&mut classes, false);
 
         // Add peer classes for each process step that interacts with this edge
-        for step_id in interacting_steps {
+        for step_id in interaction_steps {
             let step_id_str = step_id.as_str();
             let peer_prefix = format!("peer-[:focus-within]/{step_id_str}:");
 
