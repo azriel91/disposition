@@ -1,6 +1,6 @@
 use std::fmt;
 
-use disposition_model_common::Id;
+use disposition_model_common::{id, Id};
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
 /// Type for categorizing entities so they can all be styled consistently.
@@ -81,6 +81,40 @@ impl EntityType {
             }
             EntityType::EdgeInteractionCyclicDefault => "type_edge_interaction_cyclic_default",
             EntityType::Custom(id) => id.as_str(),
+        }
+    }
+
+    /// Returns the ID representation of the style alias.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use disposition_ir_model::entity::EntityType;
+    ///
+    /// assert_eq!(EntityType::ThingDefault.into_id(), "type_thing_default");
+    /// assert_eq!(EntityType::TagDefault.into_id(), "type_tag_default");
+    /// ```
+    pub fn into_id(self) -> Id {
+        match self {
+            EntityType::ThingDefault => id!("type_thing_default"),
+            EntityType::TagDefault => id!("type_tag_default"),
+            EntityType::ProcessDefault => id!("type_process_default"),
+            EntityType::ProcessStepDefault => id!("type_process_step_default"),
+            EntityType::EdgeDependencySequenceRequestDefault => {
+                id!("type_edge_dependency_sequence_request_default")
+            }
+            EntityType::EdgeDependencySequenceResponseDefault => {
+                id!("type_edge_dependency_sequence_response_default")
+            }
+            EntityType::EdgeDependencyCyclicDefault => id!("type_edge_dependency_cyclic_default"),
+            EntityType::EdgeInteractionSequenceRequestDefault => {
+                id!("type_edge_interaction_sequence_request_default")
+            }
+            EntityType::EdgeInteractionSequenceResponseDefault => {
+                id!("type_edge_interaction_sequence_response_default")
+            }
+            EntityType::EdgeInteractionCyclicDefault => id!("type_edge_interaction_cyclic_default"),
+            EntityType::Custom(id) => id,
         }
     }
 

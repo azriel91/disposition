@@ -13,7 +13,7 @@ use disposition_input_model::{
 };
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeGroupId, EdgeGroups},
-    entity::{EntityTailwindClasses, EntityType, EntityTypes as IrEntityTypes},
+    entity::{EntityTailwindClasses, EntityType, EntityTypeId, EntityTypes as IrEntityTypes},
     layout::{FlexDirection, FlexLayout, NodeLayout, NodeLayouts},
     node::{NodeCopyText, NodeHierarchy, NodeId, NodeNames},
     IrDiagram,
@@ -748,9 +748,7 @@ impl InputToIrDiagramMapper {
             && let Some(types) = entity_types.get(id)
         {
             for entity_type in types.iter() {
-                let type_id = disposition_model_common::entity::EntityTypeId::from(
-                    Self::id_from_string(entity_type.as_str().to_string()),
-                );
+                let type_id = EntityTypeId::from(entity_type.clone().into_id());
                 if let Some(type_styles) = theme_types_styles.get(&type_id)
                     && let Some(type_partials) = type_styles.get(&IdOrDefaults::NodeDefaults)
                 {
@@ -1054,7 +1052,7 @@ impl InputToIrDiagramMapper {
         // Build a map of thing ID to process steps that interact with edges involving
         // that thing
         let thing_to_interacting_steps =
-            Self::build_thing_to_interacting_steps_map(edge_groups, &step_interactions);
+            Self::build_thing_to_interaction_steps_map(edge_groups, &step_interactions);
 
         // Build classes for each node
         for (node_id, _name) in nodes.iter() {
@@ -1147,15 +1145,19 @@ impl InputToIrDiagramMapper {
 
     /// Build a map of process step ID to (process ID, edge IDs they interact
     /// with).
-    fn build_step_interactions_map(processes: &Processes) -> Map<Id, (Id, Vec<Id>)> {
-        let mut step_interactions: Map<Id, (Id, Vec<Id>)> = Map::new();
+    fn build_step_interactions_map(processes: &Processes) -> Map<Id, (Id, Vec<EdgeGroupId>)> {
+        let mut step_interactions: Map<Id, (Id, Vec<EdgeGroupId>)> = Map::new();
 
         for (process_id, process_diagram) in processes.iter() {
             let process_id: Id = process_id.clone().into_inner();
 
             for (step_id, edge_ids) in process_diagram.step_thing_interactions.iter() {
                 let step_id: Id = step_id.clone().into_inner();
-                let edge_ids: Vec<Id> = edge_ids.iter().map(|e| e.clone().into_inner()).collect();
+                let edge_ids: Vec<EdgeGroupId> = edge_ids
+                    .iter()
+                    .map(|e| e.clone().into_inner())
+                    .map(EdgeGroupId::from)
+                    .collect();
                 step_interactions.insert(step_id, (process_id.clone(), edge_ids));
             }
         }
@@ -1186,9 +1188,9 @@ impl InputToIrDiagramMapper {
 
     /// Build a map of thing ID to process steps that interact with edges
     /// involving that thing.
-    fn build_thing_to_interacting_steps_map(
+    fn build_thing_to_interaction_steps_map(
         edge_groups: &EdgeGroups,
-        step_interactions: &Map<Id, (Id, Vec<Id>)>,
+        step_interactions: &Map<Id, (Id, Vec<EdgeGroupId>)>,
     ) -> Map<Id, Vec<Id>> {
         let mut thing_to_steps: Map<Id, Vec<Id>> = Map::new();
 
@@ -1196,10 +1198,7 @@ impl InputToIrDiagramMapper {
         for (step_id, (_process_id, edge_group_ids)) in step_interactions.iter() {
             // For each edge group the step interacts with
             for edge_group_id in edge_group_ids.iter() {
-                // Find the edge group and get its endpoints
-                let edge_group_id_typed =
-                    EdgeGroupId::from(Self::id_from_string(edge_group_id.as_str().to_string()));
-                if let Some(edges) = edge_groups.get(&edge_group_id_typed) {
+                if let Some(edges) = edge_groups.get(edge_group_id) {
                     for edge in edges.iter() {
                         // Add this step to both the from and to things
                         let from_id: Id = edge.from.clone().into_inner();
@@ -1514,9 +1513,7 @@ impl InputToIrDiagramMapper {
             && let Some(types) = entity_types.get(id)
         {
             for entity_type in types.iter() {
-                let type_id = disposition_model_common::entity::EntityTypeId::from(
-                    Self::id_from_string(entity_type.as_str().to_string()),
-                );
+                let type_id = EntityTypeId::from(entity_type.clone().into_id());
                 if let Some(type_styles) = theme_types_styles.get(&type_id)
                     && let Some(type_partials) = type_styles.get(&defaults_key)
                 {
@@ -1561,9 +1558,7 @@ impl InputToIrDiagramMapper {
             && let Some(types) = entity_types.get(id)
         {
             for entity_type in types.iter() {
-                let type_id = disposition_model_common::entity::EntityTypeId::from(
-                    Self::id_from_string(entity_type.as_str().to_string()),
-                );
+                let type_id = EntityTypeId::from(entity_type.clone().into_id());
                 if let Some(type_styles) = theme_types_styles.get(&type_id)
                     && let Some(type_partials) = type_styles.get(&IdOrDefaults::EdgeDefaults)
                 {
