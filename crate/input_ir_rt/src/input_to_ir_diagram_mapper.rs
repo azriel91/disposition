@@ -22,7 +22,7 @@ use disposition_ir_model::{
     node::{NodeCopyText, NodeHierarchy, NodeId, NodeNames},
     IrDiagram,
 };
-use disposition_model_common::{edge::EdgeGroupId, entity::EntityDescs, id, Id, Keys, Map};
+use disposition_model_common::{edge::EdgeGroupId, entity::EntityDescs, id, Id, Keys, Map, Set};
 
 /// Maps an input diagram to an intermediate representation diagram.
 #[derive(Clone, Copy, Debug)]
@@ -1121,17 +1121,13 @@ impl InputToIrDiagramMapper {
     /// with).
     fn build_step_interactions_map(
         processes: &Processes,
-    ) -> Map<ProcessStepId, (ProcessId, Vec<EdgeGroupId>)> {
-        let mut step_interactions: Map<ProcessStepId, (ProcessId, Vec<EdgeGroupId>)> = Map::new();
+    ) -> Map<&ProcessStepId, (&ProcessId, &Vec<EdgeGroupId>)> {
+        let mut step_interactions = Map::new();
 
         for (process_id, process_diagram) in processes.iter() {
-            let process_id: ProcessId = process_id.clone();
-
             for (process_step_id, edge_group_ids) in process_diagram.step_thing_interactions.iter()
             {
-                let process_step_id: ProcessStepId = process_step_id.clone();
-                let edge_group_ids: Vec<EdgeGroupId> = edge_group_ids.to_vec();
-                step_interactions.insert(process_step_id, (process_id.clone(), edge_group_ids));
+                step_interactions.insert(process_step_id, (process_id, edge_group_ids));
             }
         }
 
@@ -1141,19 +1137,16 @@ impl InputToIrDiagramMapper {
     /// Build a map of edge group ID to process steps that interact with it.
     fn build_edge_group_to_steps_map(
         processes: &Processes,
-    ) -> Map<EdgeGroupId, Vec<ProcessStepId>> {
-        let mut edge_group_to_steps: Map<EdgeGroupId, Vec<ProcessStepId>> = Map::new();
+    ) -> Map<&EdgeGroupId, Vec<&ProcessStepId>> {
+        let mut edge_group_to_steps = Map::<&EdgeGroupId, Vec<&ProcessStepId>>::new();
 
         for process_diagram in processes.values() {
             for (step_id, edge_group_ids) in process_diagram.step_thing_interactions.iter() {
-                let step_id: ProcessStepId = step_id.clone();
-
                 for edge_group_id in edge_group_ids.iter() {
-                    let edge_group_id: EdgeGroupId = edge_group_id.clone();
                     edge_group_to_steps
                         .entry(edge_group_id)
                         .or_default()
-                        .push(step_id.clone());
+                        .push(step_id);
                 }
             }
         }
@@ -1163,11 +1156,11 @@ impl InputToIrDiagramMapper {
 
     /// Build a map of thing ID to process steps that interact with edges
     /// involving that thing.
-    fn build_thing_to_interaction_steps_map(
-        edge_groups: &EdgeGroups,
-        step_interactions: &Map<ProcessStepId, (ProcessId, Vec<EdgeGroupId>)>,
-    ) -> Map<NodeId, Vec<ProcessStepId>> {
-        let mut thing_to_steps: Map<NodeId, Vec<ProcessStepId>> = Map::new();
+    fn build_thing_to_interaction_steps_map<'f>(
+        edge_groups: &'f EdgeGroups,
+        step_interactions: &'f Map<&'f ProcessStepId, (&'f ProcessId, &'f Vec<EdgeGroupId>)>,
+    ) -> Map<&'f NodeId, Set<&'f ProcessStepId>> {
+        let mut thing_to_steps = Map::<&NodeId, Set<&ProcessStepId>>::new();
 
         // For each process step and its edge interactions
         for (process_step_id, (_process_id, edge_group_ids)) in step_interactions.iter() {
@@ -1176,26 +1169,20 @@ impl InputToIrDiagramMapper {
                 if let Some(edges) = edge_groups.get(edge_group_id) {
                     for edge in edges.iter() {
                         // Add this step to both the from and to things
-                        let from_id: NodeId = edge.from.clone();
-                        let to_id: NodeId = edge.to.clone();
+                        let from_id = &edge.from;
+                        let to_id = &edge.to;
 
                         thing_to_steps
                             .entry(from_id)
                             .or_default()
-                            .push(process_step_id.clone());
+                            .insert(process_step_id);
                         thing_to_steps
                             .entry(to_id)
                             .or_default()
-                            .push(process_step_id.clone());
+                            .insert(process_step_id);
                     }
                 }
             }
-        }
-
-        // Deduplicate step IDs for each thing
-        for steps in thing_to_steps.values_mut() {
-            let mut seen = std::collections::HashSet::new();
-            steps.retain(|id| seen.insert(id.as_str().to_string()));
         }
 
         thing_to_steps
@@ -1306,7 +1293,7 @@ impl InputToIrDiagramMapper {
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
         tag_things: &TagThings,
-        thing_to_interaction_steps: &Map<NodeId, Vec<ProcessStepId>>,
+        thing_to_interaction_steps: &Map<&NodeId, Set<&ProcessStepId>>,
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -1358,7 +1345,7 @@ impl InputToIrDiagramMapper {
 
         // Add peer classes for process steps that interact with edges involving this
         // thing
-        if let Some(interaction_steps) = thing_to_interaction_steps.get(node_id.as_ref()) {
+        if let Some(interaction_steps) = thing_to_interaction_steps.get(node_id) {
             for step_id in interaction_steps.iter() {
                 let step_id_str = step_id.as_str();
                 let peer_prefix = format!("peer-[:focus-within]/{step_id_str}:");
@@ -1388,12 +1375,21 @@ impl InputToIrDiagramMapper {
     }
 
     /// Build tailwind classes for an edge group.
+    ///
+    /// # Parameters
+    ///
+    /// * `id`: The ID of the edge group.
+    /// * `entity_types`: The entity types of the edge group.
+    /// * `theme_default`: The theme with styling information.
+    /// * `theme_types_styles`: Styles for each entity type.
+    /// * `interaction_process_step_ids`: The process step IDs that interact
+    ///   with this edge.
     fn build_edge_group_tailwind_classes(
         id: &Id,
         entity_types: &IrEntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
-        interaction_steps: &[ProcessStepId],
+        interaction_process_step_ids: &[&ProcessStepId],
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -1409,7 +1405,7 @@ impl InputToIrDiagramMapper {
         state.write_classes(&mut classes, false);
 
         // Add peer classes for each process step that interacts with this edge
-        for step_id in interaction_steps {
+        for step_id in interaction_process_step_ids {
             let step_id_str = step_id.as_str();
             let peer_prefix = format!("peer-[:focus-within]/{step_id_str}:");
 
