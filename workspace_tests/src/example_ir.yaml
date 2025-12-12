@@ -655,6 +655,9 @@ tailwind_classes:
     focus:stroke-yellow-300
     active:stroke-yellow-400
     [&>text]:fill-neutral-800
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_iam: >-
     [stroke-dasharray:3]
     stroke-1
@@ -668,6 +671,9 @@ tailwind_classes:
     focus:stroke-yellow-500
     active:stroke-yellow-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_iam_ecs_policy: >-
     stroke-1
     visible
@@ -680,6 +686,9 @@ tailwind_classes:
     focus:stroke-yellow-500
     active:stroke-yellow-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_ecr: >-
     [stroke-dasharray:3]
     stroke-1
@@ -693,6 +702,9 @@ tailwind_classes:
     focus:stroke-yellow-500
     active:stroke-yellow-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_ecr_repo: >-
     stroke-1
     visible
@@ -705,6 +717,8 @@ tailwind_classes:
     focus:stroke-yellow-500
     active:stroke-yellow-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
 
     peer-[:focus-within]/tag_deployment:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/tag_deployment:hover:fill-yellow-50
@@ -736,6 +750,9 @@ tailwind_classes:
     focus:stroke-sky-500
     active:stroke-sky-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_ecr_repo_image_2: >-
     stroke-1
     visible
@@ -748,6 +765,9 @@ tailwind_classes:
     focus:stroke-sky-500
     active:stroke-sky-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_ecs: >-
     [stroke-dasharray:3]
     stroke-1
@@ -761,6 +781,9 @@ tailwind_classes:
     focus:stroke-yellow-500
     active:stroke-yellow-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_ecs_cluster_app: >-
     stroke-1
     visible
@@ -773,6 +796,9 @@ tailwind_classes:
     focus:stroke-yellow-500
     active:stroke-yellow-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_ecs_cluster_app_task: >-
     stroke-1
     visible
@@ -785,6 +811,9 @@ tailwind_classes:
     focus:stroke-yellow-500
     active:stroke-yellow-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_github: >-
     [stroke-dasharray:3]
     stroke-1
@@ -798,6 +827,9 @@ tailwind_classes:
     focus:stroke-neutral-300
     active:stroke-neutral-400
     [&>text]:fill-neutral-800
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_github_user_repo: >-
     stroke-1
     visible
@@ -874,6 +906,8 @@ tailwind_classes:
     peer-[:focus-within]/tag_app_development:focus:stroke-slate-300
     peer-[:focus-within]/tag_app_development:active:stroke-slate-400
 
+    peer-[:focus-within]/tag_deployment:opacity-75
+
     peer-[:focus-within]/proc_app_dev_step_repository_clone:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-slate-500
     peer-[:focus-within]/proc_app_dev_step_repository_clone:fill-slate-100
@@ -906,6 +940,9 @@ tailwind_classes:
     focus:stroke-slate-500
     active:stroke-slate-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_localhost_repo_src: >-
     stroke-1
     visible
@@ -918,6 +955,9 @@ tailwind_classes:
     focus:stroke-slate-500
     active:stroke-slate-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_localhost_repo_target: >-
     stroke-1
     visible
@@ -930,6 +970,9 @@ tailwind_classes:
     focus:stroke-slate-500
     active:stroke-slate-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_localhost_repo_target_file_zip: >-
     stroke-1
     visible
@@ -942,6 +985,9 @@ tailwind_classes:
     focus:stroke-slate-500
     active:stroke-slate-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
   t_localhost_repo_target_dist_dir: >-
     stroke-1
     visible
@@ -954,6 +1000,9 @@ tailwind_classes:
     focus:stroke-slate-500
     active:stroke-slate-600
     [&>text]:fill-neutral-900
+
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
 
 # Layout configuration for nodes.
 node_layout:

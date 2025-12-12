@@ -7,7 +7,8 @@ use disposition_input_model::{
     process::{ProcessId, ProcessStepId, Processes},
     tag::{TagNames, TagThings},
     theme::{
-        CssClassPartials, IdOrDefaults, StyleAliases, ThemeAttr, ThemeDefault, ThemeTypesStyles,
+        CssClassPartials, IdOrDefaults, StyleAliases, TagIdOrDefaults, ThemeAttr, ThemeDefault,
+        ThemeTagThingsFocus, ThemeTypesStyles,
     },
     thing::{
         ThingCopyText, ThingDependencies, ThingHierarchy as InputThingHierarchy, ThingInteractions,
@@ -49,7 +50,7 @@ impl InputToIrDiagramMapper {
             theme_default,
             theme_types_styles,
             theme_thing_dependencies_styles: _,
-            theme_tag_things_focus: _,
+            theme_tag_things_focus,
             css,
         } = input_diagram;
 
@@ -95,6 +96,7 @@ impl InputToIrDiagramMapper {
             &ir_entity_types,
             &theme_default,
             &theme_types_styles,
+            &theme_tag_things_focus,
             &tags,
             &tag_things,
             &processes,
@@ -1029,6 +1031,7 @@ impl InputToIrDiagramMapper {
         entity_types: &IrEntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
+        theme_tag_things_focus: &ThemeTagThingsFocus,
         tags: &TagNames,
         tag_things: &TagThings,
         processes: &Processes,
@@ -1105,6 +1108,8 @@ impl InputToIrDiagramMapper {
                     entity_types,
                     theme_default,
                     theme_types_styles,
+                    theme_tag_things_focus,
+                    tags,
                     tag_things,
                     &thing_to_interaction_steps,
                 )
@@ -1309,11 +1314,14 @@ impl InputToIrDiagramMapper {
     }
 
     /// Build tailwind classes for a regular thing node.
+    #[allow(clippy::too_many_arguments)]
     fn build_thing_tailwind_classes(
         node_id: &NodeId,
         entity_types: &IrEntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
+        theme_tag_things_focus: &ThemeTagThingsFocus,
+        tags: &TagNames,
         tag_things: &TagThings,
         thing_to_interaction_steps: &Map<&NodeId, Set<&ProcessStepId>>,
     ) -> String {
@@ -1331,39 +1339,81 @@ impl InputToIrDiagramMapper {
         let mut classes = String::new();
         state.write_classes(&mut classes, true);
 
-        // Add peer classes for tags that include this thing
-        tag_things
-            .iter()
-            .filter(|(_, thing_ids)| thing_ids.contains(node_id.as_ref()))
-            .for_each(|(tag_id, _)| {
-                // When a tag is focused, things within it get highlighted with shade_pale
-                // Start with current state's colors but use shade_pale
-                let tag_focus_state = TailwindClassState {
-                    shape_color: state.shape_color.clone(),
-                    fill_color: state.fill_color.clone(),
-                    stroke_color: state.stroke_color.clone(),
-                    // Apply shade_pale
-                    fill_shade_hover: Some(Cow::Borrowed("50")),
-                    fill_shade_normal: Some(Cow::Borrowed("100")),
-                    fill_shade_focus: Some(Cow::Borrowed("200")),
-                    fill_shade_active: Some(Cow::Borrowed("300")),
-                    stroke_shade_hover: Some(Cow::Borrowed("100")),
-                    stroke_shade_normal: Some(Cow::Borrowed("200")),
-                    stroke_shade_focus: Some(Cow::Borrowed("300")),
-                    stroke_shade_active: Some(Cow::Borrowed("400")),
-                    ..Default::default()
-                };
+        // Add peer classes for each tag
+        tags.keys().for_each(|tag_id| {
+            let is_thing_in_tag = tag_things
+                .get(tag_id)
+                .is_some_and(|thing_ids| thing_ids.contains(node_id.as_ref()));
 
-                let peer_prefix = format!("peer-[:focus-within]/{tag_id}:");
+            // Determine which IdOrDefaults key to use for styling
+            let style_key = if is_thing_in_tag {
+                IdOrDefaults::NodeDefaults
+            } else {
+                IdOrDefaults::NodeExcludedDefaults
+            };
 
-                write!(
-                    &mut classes,
-                    "\n\n{peer_prefix}animate-[stroke-dashoffset-move_2s_linear_infinite]"
-                )
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            // Build the tag focus state by:
+            // 1. Starting with the thing's colors
+            // 2. Applying TagDefaults styles
+            // 3. Applying tag-specific styles (overrides)
+            let mut tag_focus_state = TailwindClassState {
+                shape_color: state.shape_color.clone(),
+                fill_color: state.fill_color.clone(),
+                stroke_color: state.stroke_color.clone(),
+                ..Default::default()
+            };
+
+            // Apply TagDefaults styles
+            if let Some(tag_defaults_styles) =
+                theme_tag_things_focus.get(&TagIdOrDefaults::TagDefaults)
+            {
+                if let Some(partials) = tag_defaults_styles.get(&style_key) {
+                    Self::apply_tailwind_from_partials(
+                        partials,
+                        &theme_default.style_aliases,
+                        &mut tag_focus_state,
+                    );
+                }
+            }
+
+            // Apply tag-specific styles (override TagDefaults)
+            let tag_id_key = TagIdOrDefaults::Custom(tag_id.clone());
+            if let Some(tag_specific_styles) = theme_tag_things_focus.get(&tag_id_key) {
+                if let Some(partials) = tag_specific_styles.get(&style_key) {
+                    Self::apply_tailwind_from_partials(
+                        partials,
+                        &theme_default.style_aliases,
+                        &mut tag_focus_state,
+                    );
+                }
+            }
+
+            let peer_prefix = format!("peer-[:focus-within]/{tag_id}:");
+
+            // Check if we only have opacity (for excluded nodes or simple styling)
+            let has_only_opacity = tag_focus_state.opacity.is_some()
+                && tag_focus_state.fill_shade_normal.is_none()
+                && tag_focus_state.stroke_shade_normal.is_none()
+                && tag_focus_state.animate.is_none();
+
+            if has_only_opacity {
+                // Only write opacity class
+                if let Some(opacity) = &tag_focus_state.opacity {
+                    write!(&mut classes, "\n\n{peer_prefix}opacity-{opacity}")
+                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                }
+            } else if tag_focus_state.animate.is_some()
+                || tag_focus_state.fill_shade_normal.is_some()
+            {
+                // Write full peer classes with animation
+                if let Some(animate) = &tag_focus_state.animate {
+                    write!(&mut classes, "\n\n{peer_prefix}animate-{animate}")
+                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                }
 
                 tag_focus_state.write_peer_classes(&mut classes, &peer_prefix);
-            });
+            }
+        });
 
         // Add peer classes for process steps that interact with edges involving this
         // thing
@@ -1612,6 +1662,11 @@ impl InputToIrDiagramMapper {
             state.visibility = Some(Cow::Borrowed(value));
         }
 
+        // Opacity
+        if let Some(value) = partials.get(&ThemeAttr::Opacity) {
+            state.opacity = Some(Cow::Borrowed(value));
+        }
+
         // Stroke width
         if let Some(value) = partials.get(&ThemeAttr::StrokeWidth) {
             state.stroke_width = Some(Cow::Borrowed(value));
@@ -1727,6 +1782,8 @@ impl InputToIrDiagramMapper {
 struct TailwindClassState<'tw_state> {
     // Visibility
     visibility: Option<Cow<'tw_state, str>>,
+    // Opacity
+    opacity: Option<Cow<'tw_state, str>>,
     // Stroke
     stroke_width: Option<Cow<'tw_state, str>>,
     stroke_style: Option<Cow<'tw_state, str>>,

@@ -637,3 +637,150 @@ fn test_tailwind_classes_thing_peer_classes() {
         t_github_user_repo_classes
     );
 }
+
+#[test]
+fn test_tailwind_classes_tag_peer_classes_for_included_things() {
+    // Tests that things included in a tag get proper peer classes based on
+    // theme_tag_things_focus NodeDefaults
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // t_localhost is in tag_app_development
+    // theme_tag_things_focus has:
+    //   tag_defaults.node_defaults: style_aliases_applied: [shade_pale,
+    // stroke_dashed_animated]   tag_app_development.node_defaults:
+    // style_aliases_applied: [stroke_dashed_animated]
+    //
+    // The tag_app_development overrides tag_defaults, so it should use
+    // stroke_dashed_animated but NOT shade_pale (which would give fill shades)
+    // However, stroke_dashed_animated includes animate, so it should have animation
+
+    let t_localhost_id = id!("t_localhost");
+    let t_localhost_classes = diagram.tailwind_classes.get(&t_localhost_id).unwrap();
+
+    // t_localhost is IN tag_app_development, so should have full peer classes with
+    // animation
+    assert!(
+        t_localhost_classes
+            .contains("peer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]"),
+        "t_localhost should have animation for tag_app_development focus. Got: {}",
+        t_localhost_classes
+    );
+
+    // Should have fill classes for tag_app_development
+    assert!(
+        t_localhost_classes.contains("peer-[:focus-within]/tag_app_development:fill-slate-"),
+        "t_localhost should have fill classes for tag_app_development. Got: {}",
+        t_localhost_classes
+    );
+
+    // t_localhost is NOT in tag_deployment, so should only have opacity class
+    // (from node_excluded_defaults with opacity: 75 from tag_defaults)
+    assert!(
+        t_localhost_classes.contains("peer-[:focus-within]/tag_deployment:opacity-75"),
+        "t_localhost should have opacity-75 for tag_deployment (excluded). Got: {}",
+        t_localhost_classes
+    );
+
+    // Should NOT have full fill/stroke classes for tag_deployment since it's
+    // excluded
+    assert!(
+        !t_localhost_classes.contains("peer-[:focus-within]/tag_deployment:fill-slate-"),
+        "t_localhost should NOT have fill classes for tag_deployment. Got: {}",
+        t_localhost_classes
+    );
+}
+
+#[test]
+fn test_tailwind_classes_tag_peer_classes_for_excluded_things() {
+    // Tests that things NOT included in any tag get peer classes based on
+    // theme_tag_things_focus NodeExcludedDefaults
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // t_aws is not in any tag (tag_things only has tag_app_development and
+    // tag_deployment) theme_tag_things_focus has:
+    //   tag_defaults.node_excluded_defaults: opacity: "75"
+    //   tag_app_development.node_excluded_defaults: opacity: "50"
+    //
+    // So t_aws should have:
+    //   - peer-[:focus-within]/tag_app_development:opacity-50 (specific override)
+    //   - peer-[:focus-within]/tag_deployment:opacity-75 (from tag_defaults)
+
+    let t_aws_id = id!("t_aws");
+    let t_aws_classes = diagram.tailwind_classes.get(&t_aws_id).unwrap();
+
+    // t_aws is NOT in tag_app_development, so should have opacity from
+    // tag_app_development's node_excluded_defaults (opacity: 50)
+    assert!(
+        t_aws_classes.contains("peer-[:focus-within]/tag_app_development:opacity-50"),
+        "t_aws should have opacity-50 for tag_app_development (excluded with specific override). Got: {}",
+        t_aws_classes
+    );
+
+    // t_aws is NOT in tag_deployment, so should have opacity from
+    // tag_defaults.node_excluded_defaults (opacity: 75)
+    assert!(
+        t_aws_classes.contains("peer-[:focus-within]/tag_deployment:opacity-75"),
+        "t_aws should have opacity-75 for tag_deployment (excluded, using tag_defaults). Got: {}",
+        t_aws_classes
+    );
+
+    // Should NOT have animation classes since it's excluded from both tags
+    assert!(
+        !t_aws_classes.contains("peer-[:focus-within]/tag_app_development:animate-"),
+        "t_aws should NOT have animation for tag_app_development. Got: {}",
+        t_aws_classes
+    );
+}
+
+#[test]
+fn test_tailwind_classes_tag_peer_classes_tag_specific_override() {
+    // Tests that tag-specific styles override tag_defaults
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // t_github_user_repo is in BOTH tag_app_development and tag_deployment
+    // For tag_app_development:
+    //   - tag_app_development.node_defaults overrides tag_defaults.node_defaults
+    //   - Should have stroke_dashed_animated but not shade_pale
+    // For tag_deployment:
+    //   - No tag_deployment.node_defaults, so uses tag_defaults.node_defaults
+    //   - Should have shade_pale and stroke_dashed_animated
+
+    let t_github_user_repo_id = id!("t_github_user_repo");
+    let t_github_user_repo_classes = diagram
+        .tailwind_classes
+        .get(&t_github_user_repo_id)
+        .unwrap();
+
+    // Both tags should have animation (from stroke_dashed_animated)
+    assert!(
+        t_github_user_repo_classes
+            .contains("peer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]"),
+        "t_github_user_repo should have animation for tag_app_development. Got: {}",
+        t_github_user_repo_classes
+    );
+    assert!(
+        t_github_user_repo_classes
+            .contains("peer-[:focus-within]/tag_deployment:animate-[stroke-dashoffset-move_2s_linear_infinite]"),
+        "t_github_user_repo should have animation for tag_deployment. Got: {}",
+        t_github_user_repo_classes
+    );
+
+    // Both should have fill classes since t_github_user_repo is included in both
+    // tags (uses slate as its shape_color from defaults)
+    assert!(
+        t_github_user_repo_classes.contains("peer-[:focus-within]/tag_app_development:fill-slate-"),
+        "t_github_user_repo should have fill classes for tag_app_development. Got: {}",
+        t_github_user_repo_classes
+    );
+    assert!(
+        t_github_user_repo_classes.contains("peer-[:focus-within]/tag_deployment:fill-slate-"),
+        "t_github_user_repo should have fill classes for tag_deployment. Got: {}",
+        t_github_user_repo_classes
+    );
+}
