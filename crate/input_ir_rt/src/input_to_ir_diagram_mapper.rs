@@ -1354,8 +1354,7 @@ impl InputToIrDiagramMapper {
                     ..Default::default()
                 };
 
-                let tag_id_str = tag_id.as_str();
-                let peer_prefix = format!("peer-[:focus-within]/{tag_id_str}:");
+                let peer_prefix = format!("peer-[:focus-within]/{tag_id}:");
 
                 write!(
                     &mut classes,
@@ -1377,8 +1376,7 @@ impl InputToIrDiagramMapper {
                 .unwrap_or("slate");
 
             interaction_steps.iter().for_each(|step_id| {
-                let step_id_str = step_id.as_str();
-                let peer_prefix = format!("peer-[:focus-within]/{step_id_str}:");
+                let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
 
                 write!(
                     &mut classes,
@@ -1429,8 +1427,7 @@ impl InputToIrDiagramMapper {
 
         // Add peer classes for each process step that interacts with this edge
         interaction_process_step_ids.iter().for_each(|step_id| {
-            let step_id_str = step_id.as_str();
-            let peer_prefix = format!("peer-[:focus-within]/{step_id_str}:");
+            let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
 
             // Interaction styling for edges
             write!(
