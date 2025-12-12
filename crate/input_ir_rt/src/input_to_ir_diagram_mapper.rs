@@ -1356,11 +1356,21 @@ impl InputToIrDiagramMapper {
             // 1. Starting with the thing's colors
             // 2. Applying TagDefaults styles
             // 3. Applying tag-specific styles (overrides)
-            let mut tag_focus_state = TailwindClassState {
-                shape_color: state.shape_color.clone(),
-                fill_color: state.fill_color.clone(),
-                stroke_color: state.stroke_color.clone(),
-                ..Default::default()
+            let mut tag_focus_state = TailwindClassState::default();
+            if let Some(shape_color) = state.attrs.get(&ThemeAttr::ShapeColor) {
+                tag_focus_state
+                    .attrs
+                    .insert(ThemeAttr::ShapeColor, shape_color.clone());
+            };
+            if let Some(fill_color) = state.attrs.get(&ThemeAttr::FillColor) {
+                tag_focus_state
+                    .attrs
+                    .insert(ThemeAttr::FillColor, fill_color.clone());
+            };
+            if let Some(stroke_color) = state.attrs.get(&ThemeAttr::StrokeColor) {
+                tag_focus_state
+                    .attrs
+                    .insert(ThemeAttr::StrokeColor, stroke_color.clone());
             };
 
             // Apply TagDefaults styles
@@ -1389,30 +1399,7 @@ impl InputToIrDiagramMapper {
             }
 
             let peer_prefix = format!("peer-[:focus-within]/{tag_id}:");
-
-            // Check if we only have opacity (for excluded nodes or simple styling)
-            let has_only_opacity = tag_focus_state.opacity.is_some()
-                && tag_focus_state.fill_shade_normal.is_none()
-                && tag_focus_state.stroke_shade_normal.is_none()
-                && tag_focus_state.animate.is_none();
-
-            if has_only_opacity {
-                // Only write opacity class
-                if let Some(opacity) = &tag_focus_state.opacity {
-                    write!(&mut classes, "\n\n{peer_prefix}opacity-{opacity}")
-                        .expect(CLASSES_BUFFER_WRITE_FAIL);
-                }
-            } else if tag_focus_state.animate.is_some()
-                || tag_focus_state.fill_shade_normal.is_some()
-            {
-                // Write full peer classes with animation
-                if let Some(animate) = &tag_focus_state.animate {
-                    write!(&mut classes, "\n\n{peer_prefix}animate-{animate}")
-                        .expect(CLASSES_BUFFER_WRITE_FAIL);
-                }
-
-                tag_focus_state.write_peer_classes(&mut classes, &peer_prefix);
-            }
+            tag_focus_state.write_peer_classes(&mut classes, &peer_prefix);
         });
 
         // Add peer classes for process steps that interact with edges involving this
@@ -1420,10 +1407,11 @@ impl InputToIrDiagramMapper {
         if let Some(interaction_steps) = thing_to_interaction_steps.get(node_id) {
             // Get the thing's color for interaction highlighting
             let color = state
-                .shape_color
-                .as_deref()
-                .or(state.fill_color.as_deref())
-                .unwrap_or("slate");
+                .attrs
+                .get(&ThemeAttr::ShapeColor)
+                .or_else(|| state.attrs.get(&ThemeAttr::FillColor))
+                .cloned()
+                .unwrap_or(Cow::Borrowed("slate"));
 
             interaction_steps.iter().for_each(|step_id| {
                 let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
@@ -1657,174 +1645,23 @@ impl InputToIrDiagramMapper {
     ) where
         'partials: 'tw_state,
     {
-        // Visibility
-        if let Some(value) = partials.get(&ThemeAttr::Visibility) {
-            state.visibility = Some(Cow::Borrowed(value));
-        }
-
-        // Opacity
-        if let Some(value) = partials.get(&ThemeAttr::Opacity) {
-            state.opacity = Some(Cow::Borrowed(value));
-        }
-
-        // Stroke width
-        if let Some(value) = partials.get(&ThemeAttr::StrokeWidth) {
-            state.stroke_width = Some(Cow::Borrowed(value));
-        }
-
-        // Stroke style - converts to stroke-dasharray
-        if let Some(value) = partials.get(&ThemeAttr::StrokeStyle) {
-            state.stroke_style = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::StrokeStyleNormal) {
-            state.stroke_style_normal = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::StrokeStyleFocus) {
-            state.stroke_style_focus = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::StrokeStyleHover) {
-            state.stroke_style_hover = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::StrokeStyleActive) {
-            state.stroke_style_active = Some(Cow::Borrowed(value));
-        }
-
-        // Shape color (base for both fill and stroke)
-        if let Some(value) = partials.get(&ThemeAttr::ShapeColor) {
-            state.shape_color = Some(Cow::Borrowed(value));
-        }
-
-        // Fill colors
-        if let Some(value) = partials.get(&ThemeAttr::FillColor) {
-            state.fill_color = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::FillColorNormal) {
-            state.fill_color_normal = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::FillColorFocus) {
-            state.fill_color_focus = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::FillColorHover) {
-            state.fill_color_hover = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::FillColorActive) {
-            state.fill_color_active = Some(Cow::Borrowed(value));
-        }
-
-        // Fill shades
-        if let Some(value) = partials.get(&ThemeAttr::FillShade) {
-            state.fill_shade = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::FillShadeNormal) {
-            state.fill_shade_normal = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::FillShadeFocus) {
-            state.fill_shade_focus = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::FillShadeHover) {
-            state.fill_shade_hover = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::FillShadeActive) {
-            state.fill_shade_active = Some(Cow::Borrowed(value));
-        }
-
-        // Stroke colors
-        if let Some(value) = partials.get(&ThemeAttr::StrokeColor) {
-            state.stroke_color = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::StrokeColorNormal) {
-            state.stroke_color_normal = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::StrokeColorFocus) {
-            state.stroke_color_focus = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::StrokeColorHover) {
-            state.stroke_color_hover = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::StrokeColorActive) {
-            state.stroke_color_active = Some(Cow::Borrowed(value));
-        }
-
-        // Stroke shades
-        if let Some(value) = partials.get(&ThemeAttr::StrokeShade) {
-            state.stroke_shade = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::StrokeShadeNormal) {
-            state.stroke_shade_normal = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::StrokeShadeFocus) {
-            state.stroke_shade_focus = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::StrokeShadeHover) {
-            state.stroke_shade_hover = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::StrokeShadeActive) {
-            state.stroke_shade_active = Some(Cow::Borrowed(value));
-        }
-
-        // Text
-        if let Some(value) = partials.get(&ThemeAttr::TextColor) {
-            state.text_color = Some(Cow::Borrowed(value));
-        }
-        if let Some(value) = partials.get(&ThemeAttr::TextShade) {
-            state.text_shade = Some(Cow::Borrowed(value));
-        }
-
-        // Animation
-        if let Some(value) = partials.get(&ThemeAttr::Animate) {
-            state.animate = Some(Cow::Borrowed(value));
-        }
+        partials.iter().for_each(|(theme_attr, value)| {
+            state.attrs.insert(*theme_attr, Cow::Borrowed(value));
+        });
     }
 }
 
 /// State for accumulating resolved tailwind class attributes.
+///
+/// This struct holds a map of [`ThemeAttr`] to their resolved string values,
+/// which are then used to generate the appropriate tailwind CSS classes.
 #[derive(Default)]
 struct TailwindClassState<'tw_state> {
-    // Visibility
-    visibility: Option<Cow<'tw_state, str>>,
-    // Opacity
-    opacity: Option<Cow<'tw_state, str>>,
-    // Stroke
-    stroke_width: Option<Cow<'tw_state, str>>,
-    stroke_style: Option<Cow<'tw_state, str>>,
-    stroke_style_normal: Option<Cow<'tw_state, str>>,
-    stroke_style_focus: Option<Cow<'tw_state, str>>,
-    stroke_style_hover: Option<Cow<'tw_state, str>>,
-    stroke_style_active: Option<Cow<'tw_state, str>>,
-    // Colors - base
-    shape_color: Option<Cow<'tw_state, str>>,
-    // Fill colors
-    fill_color: Option<Cow<'tw_state, str>>,
-    fill_color_normal: Option<Cow<'tw_state, str>>,
-    fill_color_focus: Option<Cow<'tw_state, str>>,
-    fill_color_hover: Option<Cow<'tw_state, str>>,
-    fill_color_active: Option<Cow<'tw_state, str>>,
-    // Fill shades
-    fill_shade: Option<Cow<'tw_state, str>>,
-    fill_shade_normal: Option<Cow<'tw_state, str>>,
-    fill_shade_focus: Option<Cow<'tw_state, str>>,
-    fill_shade_hover: Option<Cow<'tw_state, str>>,
-    fill_shade_active: Option<Cow<'tw_state, str>>,
-    // Stroke colors
-    stroke_color: Option<Cow<'tw_state, str>>,
-    stroke_color_normal: Option<Cow<'tw_state, str>>,
-    stroke_color_focus: Option<Cow<'tw_state, str>>,
-    stroke_color_hover: Option<Cow<'tw_state, str>>,
-    stroke_color_active: Option<Cow<'tw_state, str>>,
-    // Stroke shades
-    stroke_shade: Option<Cow<'tw_state, str>>,
-    stroke_shade_normal: Option<Cow<'tw_state, str>>,
-    stroke_shade_focus: Option<Cow<'tw_state, str>>,
-    stroke_shade_hover: Option<Cow<'tw_state, str>>,
-    stroke_shade_active: Option<Cow<'tw_state, str>>,
-    // Text
-    text_color: Option<Cow<'tw_state, str>>,
-    text_shade: Option<Cow<'tw_state, str>>,
-    // Animation
-    animate: Option<Cow<'tw_state, str>>,
+    /// Map of theme attributes to their resolved values.
+    attrs: Map<ThemeAttr, Cow<'tw_state, str>>,
 }
 
-impl TailwindClassState<'_> {
+impl<'tw_state> TailwindClassState<'tw_state> {
     /// Convert stroke style to stroke-dasharray value.
     fn stroke_style_to_dasharray(style: &str) -> Option<&'static str> {
         match style {
@@ -1837,132 +1674,122 @@ impl TailwindClassState<'_> {
 
     /// Get the resolved fill color for a state.
     fn get_fill_color(&self, state: FillStrokeState) -> &str {
-        match state {
-            FillStrokeState::Normal => self
-                .fill_color_normal
-                .as_deref()
-                .or(self.fill_color.as_deref())
-                .or(self.shape_color.as_deref())
-                .unwrap_or("slate"),
-            FillStrokeState::Focus => self
-                .fill_color_focus
-                .as_deref()
-                .or(self.fill_color.as_deref())
-                .or(self.shape_color.as_deref())
-                .unwrap_or("slate"),
-            FillStrokeState::Hover => self
-                .fill_color_hover
-                .as_deref()
-                .or(self.fill_color.as_deref())
-                .or(self.shape_color.as_deref())
-                .unwrap_or("slate"),
-            FillStrokeState::Active => self
-                .fill_color_active
-                .as_deref()
-                .or(self.fill_color.as_deref())
-                .or(self.shape_color.as_deref())
-                .unwrap_or("slate"),
-        }
+        let (state_specific, base, shape) = match state {
+            FillStrokeState::Normal => (
+                ThemeAttr::FillColorNormal,
+                ThemeAttr::FillColor,
+                ThemeAttr::ShapeColor,
+            ),
+            FillStrokeState::Focus => (
+                ThemeAttr::FillColorFocus,
+                ThemeAttr::FillColor,
+                ThemeAttr::ShapeColor,
+            ),
+            FillStrokeState::Hover => (
+                ThemeAttr::FillColorHover,
+                ThemeAttr::FillColor,
+                ThemeAttr::ShapeColor,
+            ),
+            FillStrokeState::Active => (
+                ThemeAttr::FillColorActive,
+                ThemeAttr::FillColor,
+                ThemeAttr::ShapeColor,
+            ),
+        };
+
+        self.attrs
+            .get(&state_specific)
+            .or_else(|| self.attrs.get(&base))
+            .or_else(|| self.attrs.get(&shape))
+            .map(|c| c.as_ref())
+            .unwrap_or("slate")
     }
 
     /// Get the resolved fill shade for a state.
     fn get_fill_shade(&self, state: FillStrokeState) -> &str {
-        match state {
-            FillStrokeState::Normal => self
-                .fill_shade_normal
-                .as_deref()
-                .or(self.fill_shade.as_deref())
-                .unwrap_or("300"),
-            FillStrokeState::Focus => self
-                .fill_shade_focus
-                .as_deref()
-                .or(self.fill_shade.as_deref())
-                .unwrap_or("400"),
-            FillStrokeState::Hover => self
-                .fill_shade_hover
-                .as_deref()
-                .or(self.fill_shade.as_deref())
-                .unwrap_or("200"),
-            FillStrokeState::Active => self
-                .fill_shade_active
-                .as_deref()
-                .or(self.fill_shade.as_deref())
-                .unwrap_or("500"),
-        }
+        let (state_specific, base, default) = match state {
+            FillStrokeState::Normal => (ThemeAttr::FillShadeNormal, ThemeAttr::FillShade, "300"),
+            FillStrokeState::Focus => (ThemeAttr::FillShadeFocus, ThemeAttr::FillShade, "400"),
+            FillStrokeState::Hover => (ThemeAttr::FillShadeHover, ThemeAttr::FillShade, "200"),
+            FillStrokeState::Active => (ThemeAttr::FillShadeActive, ThemeAttr::FillShade, "500"),
+        };
+
+        self.attrs
+            .get(&state_specific)
+            .or_else(|| self.attrs.get(&base))
+            .map(|c| c.as_ref())
+            .unwrap_or(default)
     }
 
     /// Get the resolved stroke color for a state.
     fn get_stroke_color(&self, state: FillStrokeState) -> &str {
-        match state {
-            FillStrokeState::Normal => self
-                .stroke_color_normal
-                .as_deref()
-                .or(self.stroke_color.as_deref())
-                .or(self.shape_color.as_deref())
-                .unwrap_or("slate"),
-            FillStrokeState::Focus => self
-                .stroke_color_focus
-                .as_deref()
-                .or(self.stroke_color.as_deref())
-                .or(self.shape_color.as_deref())
-                .unwrap_or("slate"),
-            FillStrokeState::Hover => self
-                .stroke_color_hover
-                .as_deref()
-                .or(self.stroke_color.as_deref())
-                .or(self.shape_color.as_deref())
-                .unwrap_or("slate"),
-            FillStrokeState::Active => self
-                .stroke_color_active
-                .as_deref()
-                .or(self.stroke_color.as_deref())
-                .or(self.shape_color.as_deref())
-                .unwrap_or("slate"),
-        }
+        let (state_specific, base, shape) = match state {
+            FillStrokeState::Normal => (
+                ThemeAttr::StrokeColorNormal,
+                ThemeAttr::StrokeColor,
+                ThemeAttr::ShapeColor,
+            ),
+            FillStrokeState::Focus => (
+                ThemeAttr::StrokeColorFocus,
+                ThemeAttr::StrokeColor,
+                ThemeAttr::ShapeColor,
+            ),
+            FillStrokeState::Hover => (
+                ThemeAttr::StrokeColorHover,
+                ThemeAttr::StrokeColor,
+                ThemeAttr::ShapeColor,
+            ),
+            FillStrokeState::Active => (
+                ThemeAttr::StrokeColorActive,
+                ThemeAttr::StrokeColor,
+                ThemeAttr::ShapeColor,
+            ),
+        };
+
+        self.attrs
+            .get(&state_specific)
+            .or_else(|| self.attrs.get(&base))
+            .or_else(|| self.attrs.get(&shape))
+            .map(|c| c.as_ref())
+            .unwrap_or("slate")
     }
 
     /// Get the resolved stroke shade for a state.
     fn get_stroke_shade(&self, state: FillStrokeState) -> &str {
-        match state {
-            FillStrokeState::Normal => self
-                .stroke_shade_normal
-                .as_deref()
-                .or(self.stroke_shade.as_deref())
-                .unwrap_or("400"),
-            FillStrokeState::Focus => self
-                .stroke_shade_focus
-                .as_deref()
-                .or(self.stroke_shade.as_deref())
-                .unwrap_or("500"),
-            FillStrokeState::Hover => self
-                .stroke_shade_hover
-                .as_deref()
-                .or(self.stroke_shade.as_deref())
-                .unwrap_or("300"),
-            FillStrokeState::Active => self
-                .stroke_shade_active
-                .as_deref()
-                .or(self.stroke_shade.as_deref())
-                .unwrap_or("600"),
-        }
+        let (state_specific, base, default) = match state {
+            FillStrokeState::Normal => {
+                (ThemeAttr::StrokeShadeNormal, ThemeAttr::StrokeShade, "400")
+            }
+            FillStrokeState::Focus => (ThemeAttr::StrokeShadeFocus, ThemeAttr::StrokeShade, "500"),
+            FillStrokeState::Hover => (ThemeAttr::StrokeShadeHover, ThemeAttr::StrokeShade, "300"),
+            FillStrokeState::Active => {
+                (ThemeAttr::StrokeShadeActive, ThemeAttr::StrokeShade, "600")
+            }
+        };
+
+        self.attrs
+            .get(&state_specific)
+            .or_else(|| self.attrs.get(&base))
+            .map(|c| c.as_ref())
+            .unwrap_or(default)
     }
 
     /// Write tailwind classes to the given string.
     fn write_classes(&self, classes: &mut String, is_node: bool) {
         // Stroke dasharray from stroke_style
-        if let Some(style) = &self.stroke_style
+        if let Some(style) = self.attrs.get(&ThemeAttr::StrokeStyle)
             && let Some(dasharray) = Self::stroke_style_to_dasharray(style)
         {
             writeln!(classes, "[stroke-dasharray:{dasharray}]").expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
         // Stroke width
-        if let Some(width) = &self.stroke_width {
+        if let Some(width) = self.attrs.get(&ThemeAttr::StrokeWidth) {
             writeln!(classes, "stroke-{width}").expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
         // Visibility
-        if let Some(visibility) = &self.visibility {
+        if let Some(visibility) = self.attrs.get(&ThemeAttr::Visibility) {
             classes.push_str(visibility);
             classes.push('\n');
         }
@@ -2025,8 +1852,16 @@ impl TailwindClassState<'_> {
 
         // Text classes (only for nodes)
         if is_node {
-            let text_color = self.text_color.as_deref().unwrap_or("neutral");
-            let text_shade = self.text_shade.as_deref().unwrap_or("900");
+            let text_color = self
+                .attrs
+                .get(&ThemeAttr::TextColor)
+                .map(|c| c.as_ref())
+                .unwrap_or("neutral");
+            let text_shade = self
+                .attrs
+                .get(&ThemeAttr::TextShade)
+                .map(|c| c.as_ref())
+                .unwrap_or("900");
             writeln!(classes, "[&>text]:fill-{text_color}-{text_shade}")
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
         }
@@ -2034,7 +1869,42 @@ impl TailwindClassState<'_> {
 
     /// Write peer-prefixed classes to the given string for tag/step
     /// highlighting.
+    ///
+    /// This method determines what classes to write based on the attributes
+    /// present in the state:
+    ///
+    /// - If only [`ThemeAttr::Opacity`] is set (no fill/stroke shade normals or
+    ///   animation), writes only the opacity class.
+    /// - If [`ThemeAttr::Animate`] or fill/stroke shade normals are set, writes
+    ///   the animation class (if present) followed by full fill/stroke peer
+    ///   classes.
     fn write_peer_classes(&self, classes: &mut String, prefix: &str) {
+        let has_opacity = self.attrs.contains_key(&ThemeAttr::Opacity);
+        let has_fill_shade_normal = self.attrs.contains_key(&ThemeAttr::FillShadeNormal);
+        let has_stroke_shade_normal = self.attrs.contains_key(&ThemeAttr::StrokeShadeNormal);
+        let has_animate = self.attrs.contains_key(&ThemeAttr::Animate);
+
+        // Check if we only have opacity (for excluded nodes or simple styling)
+        let has_only_opacity =
+            has_opacity && !has_fill_shade_normal && !has_stroke_shade_normal && !has_animate;
+
+        if has_only_opacity {
+            // Only write opacity class
+            if let Some(opacity) = self.attrs.get(&ThemeAttr::Opacity) {
+                write!(classes, "\n\n{prefix}opacity-{opacity}").expect(CLASSES_BUFFER_WRITE_FAIL);
+            }
+        } else if has_animate || has_fill_shade_normal {
+            // Write full peer classes with animation
+            if let Some(animate) = self.attrs.get(&ThemeAttr::Animate) {
+                write!(classes, "\n\n{prefix}animate-{animate}").expect(CLASSES_BUFFER_WRITE_FAIL);
+            }
+
+            self.write_fill_stroke_peer_classes(classes, prefix);
+        }
+    }
+
+    /// Write fill and stroke peer classes.
+    fn write_fill_stroke_peer_classes(&self, classes: &mut String, prefix: &str) {
         let fill_color_hover = self.get_fill_color(FillStrokeState::Hover);
         let fill_shade_hover = self.get_fill_shade(FillStrokeState::Hover);
         let fill_color_normal = self.get_fill_color(FillStrokeState::Normal);
