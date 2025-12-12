@@ -3,12 +3,16 @@ use std::fmt::Write;
 use disposition_input_ir_model::IrDiagramAndIssues;
 use disposition_input_model::{
     edge::EdgeKind,
+    entity::EntityTypes,
     process::{ProcessId, ProcessStepId, Processes},
     tag::{TagNames, TagThings},
     theme::{
         CssClassPartials, IdOrDefaults, StyleAliases, ThemeAttr, ThemeDefault, ThemeTypesStyles,
     },
-    thing::ThingHierarchy as InputThingHierarchy,
+    thing::{
+        ThingCopyText, ThingDependencies, ThingHierarchy as InputThingHierarchy, ThingInteractions,
+        ThingNames,
+    },
     InputDiagram,
 };
 use disposition_ir_model::{
@@ -120,11 +124,7 @@ impl InputToIrDiagramMapper {
     }
 
     /// Build NodeNames from things, tags, processes, and process steps.
-    fn build_node_names(
-        things: &disposition_input_model::thing::ThingNames,
-        tags: &disposition_input_model::tag::TagNames,
-        processes: &disposition_input_model::process::Processes,
-    ) -> NodeNames {
+    fn build_node_names(things: &ThingNames, tags: &TagNames, processes: &Processes) -> NodeNames {
         let mut nodes = NodeNames::new();
 
         // Add things
@@ -160,9 +160,7 @@ impl InputToIrDiagramMapper {
     }
 
     /// Build NodeCopyText from thing_copy_text.
-    fn build_node_copy_text(
-        thing_copy_text: &disposition_input_model::thing::ThingCopyText,
-    ) -> NodeCopyText {
+    fn build_node_copy_text(thing_copy_text: &ThingCopyText) -> NodeCopyText {
         let mut node_copy_text = NodeCopyText::new();
 
         for (thing_id, text) in thing_copy_text.iter() {
@@ -176,8 +174,8 @@ impl InputToIrDiagramMapper {
     /// Build NodeHierarchy from tags, processes (with steps), and
     /// thing_hierarchy.
     fn build_node_hierarchy(
-        tags: &disposition_input_model::tag::TagNames,
-        processes: &disposition_input_model::process::Processes,
+        tags: &TagNames,
+        processes: &Processes,
         thing_hierarchy: &InputThingHierarchy,
     ) -> NodeHierarchy {
         let mut hierarchy = NodeHierarchy::new();
@@ -222,8 +220,8 @@ impl InputToIrDiagramMapper {
 
     /// Build EdgeGroups from thing_dependencies and thing_interactions.
     fn build_edge_groups(
-        thing_dependencies: &disposition_input_model::thing::ThingDependencies,
-        thing_interactions: &disposition_input_model::thing::ThingInteractions,
+        thing_dependencies: &ThingDependencies,
+        thing_interactions: &ThingInteractions,
     ) -> EdgeGroups {
         let mut edge_groups = EdgeGroups::new();
 
@@ -279,10 +277,7 @@ impl InputToIrDiagramMapper {
     }
 
     /// Build EntityDescs from input entity_descs and process step_descs.
-    fn build_entity_descs(
-        input_entity_descs: &EntityDescs,
-        processes: &disposition_input_model::process::Processes,
-    ) -> EntityDescs {
+    fn build_entity_descs(input_entity_descs: &EntityDescs, processes: &Processes) -> EntityDescs {
         let mut entity_descs = EntityDescs::new();
 
         // Copy existing entity descs
@@ -303,12 +298,12 @@ impl InputToIrDiagramMapper {
 
     /// Build EntityTypes with defaults for each node type.
     fn build_entity_types(
-        things: &disposition_input_model::thing::ThingNames,
-        tags: &disposition_input_model::tag::TagNames,
-        processes: &disposition_input_model::process::Processes,
-        input_entity_types: &disposition_input_model::entity::EntityTypes,
-        thing_dependencies: &disposition_input_model::thing::ThingDependencies,
-        thing_interactions: &disposition_input_model::thing::ThingInteractions,
+        things: &ThingNames,
+        tags: &TagNames,
+        processes: &Processes,
+        input_entity_types: &EntityTypes,
+        thing_dependencies: &ThingDependencies,
+        thing_interactions: &ThingInteractions,
     ) -> IrEntityTypes {
         let mut entity_types: Map<Id, Vec<EntityType>> = Map::new();
 
@@ -373,8 +368,8 @@ impl InputToIrDiagramMapper {
     /// Add edge types from dependencies.
     fn add_edge_types(
         entity_types: &mut Map<Id, Vec<EntityType>>,
-        thing_deps: &disposition_input_model::thing::ThingDependencies,
-        input_entity_types: &disposition_input_model::entity::EntityTypes,
+        thing_deps: &ThingDependencies,
+        input_entity_types: &EntityTypes,
     ) {
         for (edge_group_id, edge_kind) in thing_deps.iter() {
             let edge_count = match edge_kind {
@@ -409,8 +404,8 @@ impl InputToIrDiagramMapper {
     /// Add interaction types to existing edge types.
     fn add_edge_interaction_types(
         entity_types: &mut Map<Id, Vec<EntityType>>,
-        thing_interactions: &disposition_input_model::thing::ThingInteractions,
-        _input_entity_types: &disposition_input_model::entity::EntityTypes,
+        thing_interactions: &ThingInteractions,
+        _input_entity_types: &EntityTypes,
     ) {
         for (edge_group_id, edge_kind) in thing_interactions.iter() {
             let edge_count = match edge_kind {
@@ -443,8 +438,8 @@ impl InputToIrDiagramMapper {
         entity_types: &IrEntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
-        tags: &disposition_input_model::tag::TagNames,
-        processes: &disposition_input_model::process::Processes,
+        tags: &TagNames,
+        processes: &Processes,
     ) -> NodeLayouts {
         let mut node_layouts = NodeLayouts::new();
 
