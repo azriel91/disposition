@@ -50,7 +50,6 @@ impl InputToIrDiagramMapper {
             theme_types_styles,
             theme_thing_dependencies_styles: _,
             theme_tag_things_focus: _,
-            theme_tag_things_focus_specific: _,
             css,
         } = input_diagram;
 

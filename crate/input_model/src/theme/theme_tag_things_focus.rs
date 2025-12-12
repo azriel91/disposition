@@ -1,51 +1,84 @@
+use std::ops::{Deref, DerefMut};
+
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::theme::ThemeStyles;
+use crate::theme::{TagIdOrDefaults, ThemeStyles};
 
-/// Styles when a tag is focused, applied to all tags uniformly.
+/// Styles when a tag is focused, applied to all tags or specific tags.
 ///
 /// When a tag is focused, things and edges associated with the tag are
-/// highlighted. This struct defines the styles applied to things that are
-/// included in or excluded from the tag.
+/// highlighted. This map defines the styles applied to things based on
+/// the focused tag.
 ///
-/// For tag-specific styling, use `ThemeTagThingsFocusSpecific`.
+/// The `tag_defaults` key applies styles to all tags uniformly.
+/// Specific tag IDs can be used to override defaults for particular tags.
 ///
 /// # Example
 ///
 /// ```yaml
 /// theme_tag_things_focus:
-///   things_included_styles: # <-- this is a `ThemeStyles`
+///   tag_defaults:
 ///     node_defaults:
-///       opacity: "1.0"
-///     edge_defaults:
-///       opacity: "1.0"
+///       style_aliases_applied: [shade_pale, stroke_dashed_animated]
+///     node_excluded_defaults:
+///       opacity: "0.5"
 ///
-///   things_excluded_styles: # <-- this is a `ThemeStyles`
+///   tag_app_development:
 ///     node_defaults:
-///       opacity: "0.3"
-///     edge_defaults:
+///       style_aliases_applied: [stroke_dashed_animated]
+///     node_excluded_defaults:
 ///       opacity: "0.3"
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThemeTagThingsFocus {
-    /// Styles applied to things that are associated with the focused tag.
-    #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
-    pub things_included_styles: ThemeStyles,
-
-    /// Styles applied to things that are not associated with the focused tag.
-    #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
-    pub things_excluded_styles: ThemeStyles,
-}
+pub struct ThemeTagThingsFocus(Map<TagIdOrDefaults, ThemeStyles>);
 
 impl ThemeTagThingsFocus {
-    /// Returns a new `ThemeTagThingsFocus` with default values.
+    /// Returns a new empty `ThemeTagThingsFocus` map.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Returns true if all fields are at their default values.
+    /// Returns a new `ThemeTagThingsFocus` map with the given
+    /// preallocated capacity.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Map::with_capacity(capacity))
+    }
+
+    /// Returns the underlying map.
+    pub fn into_inner(self) -> Map<TagIdOrDefaults, ThemeStyles> {
+        self.0
+    }
+
+    /// Returns true if the map is empty.
     pub fn is_empty(&self) -> bool {
-        self.things_included_styles.is_empty() && self.things_excluded_styles.is_empty()
+        self.0.is_empty()
+    }
+}
+
+impl Deref for ThemeTagThingsFocus {
+    type Target = Map<TagIdOrDefaults, ThemeStyles>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for ThemeTagThingsFocus {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<Map<TagIdOrDefaults, ThemeStyles>> for ThemeTagThingsFocus {
+    fn from(inner: Map<TagIdOrDefaults, ThemeStyles>) -> Self {
+        Self(inner)
+    }
+}
+
+impl FromIterator<(TagIdOrDefaults, ThemeStyles)> for ThemeTagThingsFocus {
+    fn from_iter<I: IntoIterator<Item = (TagIdOrDefaults, ThemeStyles)>>(iter: I) -> Self {
+        Self(Map::from_iter(iter))
     }
 }

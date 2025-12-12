@@ -558,19 +558,17 @@ theme_thing_dependencies_styles:
 # layer with the tag ID, and one layer of `things_included_styles` and `things_excluded_styles`
 # makes it one nesting level deeper than the other `theme_*` keys.
 #
-# So we have a `theme_tag_things_focus` map that applies to all tags' styles, and if the consumer
-# wants to style things differently per tag, they can do so in the
-# `theme_tag_things_focus_specific` map.
+# There is a `tag_defaults` key that applies to all tags' styles, and if the user wants to style things differently per tag, they can specify them per tag ID.
 theme_tag_things_focus:
-  things_included_styles:
+  tag_defaults:
     node_defaults:
       style_aliases_applied: [shade_pale, stroke_dashed_animated]
-  things_excluded_styles:
-    node_defaults:
-      opacity: "0.5"
+    node_excluded_defaults:
+      opacity: "75"
 
-theme_tag_things_focus_specific:
   tag_app_development:
+    node_excluded_defaults:
+      opacity: "50"
     node_defaults:
       style_aliases_applied: [stroke_dashed_animated]
 

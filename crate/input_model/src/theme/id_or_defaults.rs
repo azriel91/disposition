@@ -24,6 +24,19 @@ pub enum IdOrDefaults {
     ///   opacity: "1.0"
     /// ```
     NodeDefaults,
+    /// Styles to apply to all excluded nodes.
+    ///
+    /// These properties control the visual appearance of nodes that are
+    /// excluded from the current focus/view in the diagram.
+    ///
+    /// # Example
+    ///
+    /// ```yaml
+    /// node_excluded_defaults:
+    ///   opacity: "0.5"
+    ///   visibility: "hidden"
+    /// ```
+    NodeExcludedDefaults,
     /// Styles to apply to all edges.
     ///
     /// These properties control the visual appearance of edges (connections
@@ -49,6 +62,7 @@ impl IdOrDefaults {
     pub fn as_str(&self) -> &str {
         match self {
             IdOrDefaults::NodeDefaults => "node_defaults",
+            IdOrDefaults::NodeExcludedDefaults => "node_excluded_defaults",
             IdOrDefaults::EdgeDefaults => "edge_defaults",
             IdOrDefaults::Id(any_id) => any_id.as_str(),
         }
@@ -100,7 +114,7 @@ impl Visitor<'_> for IdOrDefaultsVisitor {
     type Value = IdOrDefaults;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("one of `node_defaults`, `edge_defaults`, or a node/edge/tag ID")
+        formatter.write_str("one of `node_defaults`, `node_excluded_defaults`, `edge_defaults`, or a node/edge/tag ID")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -109,6 +123,7 @@ impl Visitor<'_> for IdOrDefaultsVisitor {
     {
         let any_id_or_defaults = match value {
             "node_defaults" => IdOrDefaults::NodeDefaults,
+            "node_excluded_defaults" => IdOrDefaults::NodeExcludedDefaults,
             "edge_defaults" => IdOrDefaults::EdgeDefaults,
             _ => {
                 let any_id = Id::try_from(value.to_owned()).map_err(serde::de::Error::custom)?;

@@ -13,9 +13,9 @@ use crate::{
     },
     tag::{TagId, TagNames, TagThings},
     theme::{
-        CssClassPartials, IdOrDefaults, StyleAlias, StyleAliases, ThemeAttr, ThemeDefault,
-        ThemeStyles, ThemeTagThingsFocus, ThemeTagThingsFocusSpecific,
-        ThemeThingDependenciesStyles, ThemeTypesStyles, ThingsFocusStyles,
+        CssClassPartials, IdOrDefaults, StyleAlias, StyleAliases, TagIdOrDefaults, ThemeAttr,
+        ThemeDefault, ThemeStyles, ThemeTagThingsFocus, ThemeThingDependenciesStyles,
+        ThemeTypesStyles, ThingsFocusStyles,
     },
     thing::{
         ThingCopyText, ThingDependencies, ThingHierarchy, ThingId, ThingInteractions, ThingNames,
@@ -38,6 +38,7 @@ use crate::{
     IdOrDefaults,
     InputDiagram,
     TagId,
+    TagIdOrDefaults,
     TagNames,
     TagThings,
     ProcessDiagram,
@@ -53,7 +54,6 @@ use crate::{
     ThemeDefault,
     ThemeStyles,
     ThemeTagThingsFocus,
-    ThemeTagThingsFocusSpecific,
     ThemeThingDependenciesStyles,
     ThemeTypesStyles,
     ThingCopyText,

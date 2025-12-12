@@ -5,10 +5,7 @@ use crate::{
     entity::{EntityDescs, EntityTypes},
     process::Processes,
     tag::{TagNames, TagThings},
-    theme::{
-        ThemeDefault, ThemeTagThingsFocus, ThemeTagThingsFocusSpecific,
-        ThemeThingDependenciesStyles, ThemeTypesStyles,
-    },
+    theme::{ThemeDefault, ThemeTagThingsFocus, ThemeThingDependenciesStyles, ThemeTypesStyles},
     thing::{ThingCopyText, ThingDependencies, ThingHierarchy, ThingInteractions, ThingNames},
 };
 
@@ -90,13 +87,12 @@ pub struct InputDiagram {
     )]
     pub theme_thing_dependencies_styles: ThemeThingDependenciesStyles,
 
-    /// Styles when a tag is focused, applied to all tags uniformly.
+    /// Styles when a tag is focused.
+    ///
+    /// The `tag_defaults` key applies styles to all tags uniformly.
+    /// Specific tag IDs can be used to override defaults for particular tags.
     #[serde(default, skip_serializing_if = "ThemeTagThingsFocus::is_empty")]
     pub theme_tag_things_focus: ThemeTagThingsFocus,
-
-    /// Tag-specific styles when a particular tag is focused.
-    #[serde(default, skip_serializing_if = "ThemeTagThingsFocusSpecific::is_empty")]
-    pub theme_tag_things_focus_specific: ThemeTagThingsFocusSpecific,
 
     /// Additional CSS to place in the SVG's inline `<styles>` section.
     #[serde(default, skip_serializing_if = "Css::is_empty")]
