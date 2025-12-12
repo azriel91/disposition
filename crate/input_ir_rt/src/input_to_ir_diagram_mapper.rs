@@ -16,7 +16,7 @@ use disposition_input_model::{
     InputDiagram,
 };
 use disposition_ir_model::{
-    edge::{Edge, EdgeGroup, EdgeGroupId, EdgeGroups},
+    edge::{Edge, EdgeGroup, EdgeGroups, EdgeId},
     entity::{EntityTailwindClasses, EntityType, EntityTypeId, EntityTypes as IrEntityTypes},
     layout::{FlexDirection, FlexLayout, NodeLayout, NodeLayouts},
     node::{NodeCopyText, NodeHierarchy, NodeId, NodeNames},
@@ -227,14 +227,14 @@ impl InputToIrDiagramMapper {
 
         // Process thing_dependencies
         for (edge_id, edge_kind) in thing_dependencies.iter() {
-            let edge_group_id: EdgeGroupId = edge_id.clone().into_inner().into();
+            let edge_group_id: EdgeId = edge_id.clone().into_inner().into();
             let edges = Self::edge_kind_to_edges(edge_kind);
             edge_groups.insert(edge_group_id, edges);
         }
 
         // Process thing_interactions (merge with dependencies if same ID exists)
         for (edge_id, edge_kind) in thing_interactions.iter() {
-            let edge_group_id: EdgeGroupId = edge_id.clone().into_inner().into();
+            let edge_group_id: EdgeId = edge_id.clone().into_inner().into();
             // Only add if not already present from dependencies
             if !edge_groups.contains_key(&edge_group_id) {
                 let edges = Self::edge_kind_to_edges(edge_kind);
@@ -379,7 +379,7 @@ impl InputToIrDiagramMapper {
 
             for i in 0..edge_count {
                 // Edge ID format: edge_group_id__index
-                let edge_id_str = format!("{}__{}", edge_group_id.as_str(), i);
+                let edge_id_str = format!("{edge_group_id}__{i}");
                 let edge_id = Self::id_from_string(edge_id_str);
 
                 let default_type = match edge_kind {
@@ -414,7 +414,7 @@ impl InputToIrDiagramMapper {
             };
 
             for i in 0..edge_count {
-                let edge_id_str = format!("{}__{}", edge_group_id.as_str(), i);
+                let edge_id_str = format!("{edge_group_id}__{i}");
                 let edge_id = Self::id_from_string(edge_id_str);
 
                 let interaction_type = match edge_kind {
@@ -1127,18 +1127,18 @@ impl InputToIrDiagramMapper {
     /// with).
     fn build_step_interactions_map(
         processes: &Processes,
-    ) -> Map<ProcessStepId, (ProcessId, Vec<EdgeGroupId>)> {
-        let mut step_interactions: Map<ProcessStepId, (ProcessId, Vec<EdgeGroupId>)> = Map::new();
+    ) -> Map<ProcessStepId, (ProcessId, Vec<EdgeId>)> {
+        let mut step_interactions: Map<ProcessStepId, (ProcessId, Vec<EdgeId>)> = Map::new();
 
         for (process_id, process_diagram) in processes.iter() {
             let process_id: ProcessId = process_id.clone();
 
             for (process_step_id, edge_ids) in process_diagram.step_thing_interactions.iter() {
                 let process_step_id: ProcessStepId = process_step_id.clone();
-                let edge_ids: Vec<EdgeGroupId> = edge_ids
+                let edge_ids: Vec<EdgeId> = edge_ids
                     .iter()
                     .map(|e| e.clone().into_inner())
-                    .map(EdgeGroupId::from)
+                    .map(EdgeId::from)
                     .collect();
                 step_interactions.insert(process_step_id, (process_id.clone(), edge_ids));
             }
@@ -1172,7 +1172,7 @@ impl InputToIrDiagramMapper {
     /// involving that thing.
     fn build_thing_to_interaction_steps_map(
         edge_groups: &EdgeGroups,
-        step_interactions: &Map<ProcessStepId, (ProcessId, Vec<EdgeGroupId>)>,
+        step_interactions: &Map<ProcessStepId, (ProcessId, Vec<EdgeId>)>,
     ) -> Map<NodeId, Vec<ProcessStepId>> {
         let mut thing_to_steps: Map<NodeId, Vec<ProcessStepId>> = Map::new();
 

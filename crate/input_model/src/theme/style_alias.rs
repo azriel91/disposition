@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Display};
 
 use disposition_model_common::Id;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
@@ -108,6 +108,12 @@ impl From<Id> for StyleAlias {
             "stroke_dashed_animated" => StyleAlias::StrokeDashedAnimated,
             _ => StyleAlias::Custom(id),
         }
+    }
+}
+
+impl Display for StyleAlias {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_str().fmt(f)
     }
 }
 

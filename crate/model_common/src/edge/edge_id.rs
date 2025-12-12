@@ -1,5 +1,6 @@
 use std::{
     borrow::Borrow,
+    fmt::{self, Display},
     ops::{Deref, DerefMut},
 };
 
@@ -86,5 +87,11 @@ impl Deref for EdgeId {
 impl DerefMut for EdgeId {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl Display for EdgeId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }

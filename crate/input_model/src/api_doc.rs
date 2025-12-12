@@ -1,7 +1,11 @@
-use disposition_model_common::{theme::Css, Id};
+use disposition_model_common::{
+    edge::{EdgeGroupId, EdgeId},
+    theme::Css,
+    Id,
+};
 
 use crate::{
-    edge::{EdgeId, EdgeKind},
+    edge::EdgeKind,
     entity::{EntityDescs, EntityTypeId, EntityTypes},
     process::{
         ProcessDiagram, ProcessId, ProcessStepId, ProcessSteps, Processes, StepDescs,
@@ -24,6 +28,7 @@ use crate::{
 #[openapi(components(schemas(
     Css,
     CssClassPartials,
+    EdgeGroupId,
     EdgeId,
     EdgeKind,
     EntityDescs,

@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Display};
 
 use disposition_model_common::{id, Id};
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
@@ -166,6 +166,12 @@ impl From<Id> for EntityType {
             "type_edge_interaction_cyclic_default" => EntityType::EdgeInteractionCyclicDefault,
             _ => EntityType::Custom(id),
         }
+    }
+}
+
+impl Display for EntityType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_str().fmt(f)
     }
 }
 

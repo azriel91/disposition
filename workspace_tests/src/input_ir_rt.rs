@@ -6,7 +6,7 @@ use disposition::{
     input_ir_model::IrDiagramAndIssues,
     input_model::InputDiagram,
     ir_model::{
-        edge::EdgeGroupId,
+        edge::EdgeId,
         entity::EntityType,
         layout::{FlexDirection, NodeLayout},
         node::NodeId,
@@ -93,12 +93,12 @@ fn test_input_to_ir_mapping() {
     assert_eq!(6, diagram.edge_groups.len());
 
     // Check cyclic edge expansion
-    let pull_edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__pull"));
+    let pull_edge_group_id = EdgeId::from(id!("edge_t_localhost__t_github_user_repo__pull"));
     let pull_edges = diagram.edge_groups.get(&pull_edge_group_id).unwrap();
     assert_eq!(2, pull_edges.len()); // cyclic with 2 things = 2 edges
 
     // Check sequence edge expansion
-    let push_edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__push"));
+    let push_edge_group_id = EdgeId::from(id!("edge_t_localhost__t_github_user_repo__push"));
     let push_edges = diagram.edge_groups.get(&push_edge_group_id).unwrap();
     assert_eq!(1, push_edges.len()); // sequence with 2 things = 1 edge
 
@@ -181,7 +181,7 @@ fn test_cyclic_edge_expansion() {
     //
     // * `t_localhost -> t_github_user_repo`
     // * `t_github_user_repo -> t_localhost`
-    let edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__pull"));
+    let edge_group_id = EdgeId::from(id!("edge_t_localhost__t_github_user_repo__pull"));
     let edges = diagram.edge_groups.get(&edge_group_id).unwrap();
 
     assert_eq!(2, edges.len());
@@ -205,7 +205,7 @@ fn test_self_loop_edge() {
     // Should create:
     //
     // * `t_localhost -> t_localhost` (self-loop)
-    let edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_localhost__within"));
+    let edge_group_id = EdgeId::from(id!("edge_t_localhost__t_localhost__within"));
     let edges = diagram.edge_groups.get(&edge_group_id).unwrap();
 
     assert_eq!(1, edges.len());
@@ -228,7 +228,7 @@ fn test_sequence_edge_expansion() {
     // Should create:
     //
     // * `t_localhost -> t_github_user_repo` (no cycle back)
-    let edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__push"));
+    let edge_group_id = EdgeId::from(id!("edge_t_localhost__t_github_user_repo__push"));
     let edges = diagram.edge_groups.get(&edge_group_id).unwrap();
 
     assert_eq!(1, edges.len());

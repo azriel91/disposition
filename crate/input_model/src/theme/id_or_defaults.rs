@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Display};
 
 use disposition_model_common::Id;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
@@ -45,6 +45,15 @@ pub enum IdOrDefaults {
 }
 
 impl IdOrDefaults {
+    /// Returns the string representation of the `IdOrDefaults`.
+    pub fn as_str(&self) -> &str {
+        match self {
+            IdOrDefaults::NodeDefaults => "node_defaults",
+            IdOrDefaults::EdgeDefaults => "edge_defaults",
+            IdOrDefaults::Id(any_id) => any_id.as_str(),
+        }
+    }
+
     /// Returns the underlying `Id` if this holds an ID.
     pub fn any_id(&self) -> Option<&Id> {
         if let Self::Id(any_id) = self {
@@ -61,16 +70,18 @@ impl From<Id> for IdOrDefaults {
     }
 }
 
+impl Display for IdOrDefaults {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+
 impl Serialize for IdOrDefaults {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        match self {
-            IdOrDefaults::NodeDefaults => serializer.serialize_str("node_defaults"),
-            IdOrDefaults::EdgeDefaults => serializer.serialize_str("edge_defaults"),
-            IdOrDefaults::Id(any_id) => serializer.serialize_str(any_id),
-        }
+        serializer.serialize_str(self.as_str())
     }
 }
 

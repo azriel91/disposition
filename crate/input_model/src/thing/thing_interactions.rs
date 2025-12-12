@@ -1,9 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
-use disposition_model_common::{Id, Map};
+use disposition_model_common::{edge::EdgeGroupId, Id, Map};
 use serde::{Deserialize, Serialize};
 
-use crate::edge::{EdgeId, EdgeKind};
+use crate::edge::EdgeKind;
 
 /// Interactions between things can be one way, or cyclic.
 ///
@@ -39,7 +39,7 @@ use crate::edge::{EdgeId, EdgeKind};
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThingInteractions(Map<EdgeId, EdgeKind>);
+pub struct ThingInteractions(Map<EdgeGroupId, EdgeKind>);
 
 impl ThingInteractions {
     /// Returns a new `ThingInteractions` map.
@@ -54,7 +54,7 @@ impl ThingInteractions {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<EdgeId, EdgeKind> {
+    pub fn into_inner(self) -> Map<EdgeGroupId, EdgeKind> {
         self.0
     }
 
@@ -74,7 +74,7 @@ impl ThingInteractions {
 }
 
 impl Deref for ThingInteractions {
-    type Target = Map<EdgeId, EdgeKind>;
+    type Target = Map<EdgeGroupId, EdgeKind>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -87,14 +87,14 @@ impl DerefMut for ThingInteractions {
     }
 }
 
-impl From<Map<EdgeId, EdgeKind>> for ThingInteractions {
-    fn from(inner: Map<EdgeId, EdgeKind>) -> Self {
+impl From<Map<EdgeGroupId, EdgeKind>> for ThingInteractions {
+    fn from(inner: Map<EdgeGroupId, EdgeKind>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(EdgeId, EdgeKind)> for ThingInteractions {
-    fn from_iter<I: IntoIterator<Item = (EdgeId, EdgeKind)>>(iter: I) -> Self {
+impl FromIterator<(EdgeGroupId, EdgeKind)> for ThingInteractions {
+    fn from_iter<I: IntoIterator<Item = (EdgeGroupId, EdgeKind)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

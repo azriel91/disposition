@@ -1,10 +1,12 @@
 use std::{
     borrow::Borrow,
+    fmt::{self, Display},
     ops::{Deref, DerefMut},
 };
 
-use disposition_model_common::{Id, IdInvalidFmt};
 use serde::{Deserialize, Serialize};
+
+use crate::{Id, IdInvalidFmt};
 
 /// Unique identifier for an edge group in the diagram, [`Id`] newtype.
 ///
@@ -16,8 +18,7 @@ use serde::{Deserialize, Serialize};
 /// # Examples
 ///
 /// ```rust
-/// use disposition_ir_model::edge::EdgeGroupId;
-/// use disposition_model_common::{id, Id};
+/// use disposition_model_common::{edge::EdgeGroupId, id, Id};
 ///
 /// let edge_group_id: EdgeGroupId = id!("edge_t_localhost__t_github_user_repo__pull").into();
 ///
@@ -36,8 +37,7 @@ impl EdgeGroupId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir_model::edge::EdgeGroupId;
-    /// use disposition_model_common::Id;
+    /// use disposition_model_common::{edge::EdgeGroupId, Id};
     ///
     /// let edge_group_id = EdgeGroupId::new("edge_a_to_b").unwrap();
     ///
@@ -52,8 +52,7 @@ impl EdgeGroupId {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition_ir_model::edge::EdgeGroupId;
-    /// use disposition_model_common::Id;
+    /// use disposition_model_common::{edge::EdgeGroupId, Id};
     ///
     /// let edge_group_id = EdgeGroupId::new("edge_a_to_b").unwrap();
     ///
@@ -93,5 +92,11 @@ impl Deref for EdgeGroupId {
 impl DerefMut for EdgeGroupId {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl Display for EdgeGroupId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }

@@ -8,6 +8,8 @@ use utoipa::OpenApi;
     components(schemas(
         // Common types
         disposition_model_common::Id,
+        disposition_model_common::edge::EdgeGroupId,
+        disposition_model_common::edge::EdgeId,
         disposition_model_common::theme::Css,
         // Entity types
         crate::entity::EntityDescs,
@@ -20,8 +22,6 @@ use utoipa::OpenApi;
         crate::node::NodeCopyText,
         crate::node::NodeHierarchy,
         // Edge types
-        crate::edge::EdgeId,
-        crate::edge::EdgeGroupId,
         crate::edge::Edge,
         crate::edge::EdgeGroup,
         crate::edge::EdgeGroups,

@@ -1,9 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
-use disposition_model_common::{Id, Map};
+use disposition_model_common::{edge::EdgeGroupId, Id, Map};
 use serde::{Deserialize, Serialize};
 
-use crate::{edge::EdgeId, process::ProcessStepId};
+use crate::process::ProcessStepId;
 
 /// Thing interactions that should be actively highlighted when a step is
 /// focused.
@@ -22,7 +22,7 @@ use crate::{edge::EdgeId, process::ProcessStepId};
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct StepThingInteractions(Map<ProcessStepId, Vec<EdgeId>>);
+pub struct StepThingInteractions(Map<ProcessStepId, Vec<EdgeGroupId>>);
 
 impl StepThingInteractions {
     /// Returns a new `StepThingInteractions` map.
@@ -37,7 +37,7 @@ impl StepThingInteractions {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<ProcessStepId, Vec<EdgeId>> {
+    pub fn into_inner(self) -> Map<ProcessStepId, Vec<EdgeGroupId>> {
         self.0
     }
 
@@ -57,7 +57,7 @@ impl StepThingInteractions {
 }
 
 impl Deref for StepThingInteractions {
-    type Target = Map<ProcessStepId, Vec<EdgeId>>;
+    type Target = Map<ProcessStepId, Vec<EdgeGroupId>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -70,14 +70,14 @@ impl DerefMut for StepThingInteractions {
     }
 }
 
-impl From<Map<ProcessStepId, Vec<EdgeId>>> for StepThingInteractions {
-    fn from(inner: Map<ProcessStepId, Vec<EdgeId>>) -> Self {
+impl From<Map<ProcessStepId, Vec<EdgeGroupId>>> for StepThingInteractions {
+    fn from(inner: Map<ProcessStepId, Vec<EdgeGroupId>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(ProcessStepId, Vec<EdgeId>)> for StepThingInteractions {
-    fn from_iter<I: IntoIterator<Item = (ProcessStepId, Vec<EdgeId>)>>(iter: I) -> Self {
+impl FromIterator<(ProcessStepId, Vec<EdgeGroupId>)> for StepThingInteractions {
+    fn from_iter<I: IntoIterator<Item = (ProcessStepId, Vec<EdgeGroupId>)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

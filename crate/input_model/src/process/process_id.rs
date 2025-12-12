@@ -1,5 +1,6 @@
 use std::{
     borrow::Borrow,
+    fmt::{self, Display},
     ops::{Deref, DerefMut},
 };
 
@@ -88,5 +89,11 @@ impl Deref for ProcessId {
 impl DerefMut for ProcessId {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl Display for ProcessId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
