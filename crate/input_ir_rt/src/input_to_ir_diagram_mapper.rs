@@ -58,7 +58,7 @@ impl InputToIrDiagramMapper {
         let nodes = Self::build_node_names(&things, &tags, &processes);
 
         // 2. Build NodeCopyText from thing_copy_text
-        let node_copy_text = Self::build_node_copy_text(&thing_copy_text);
+        let node_copy_text = Self::build_node_copy_text(thing_copy_text);
 
         // 3. Build NodeHierarchy from tags, processes (with steps), and thing_hierarchy
         let node_hierarchy = Self::build_node_hierarchy(&tags, &processes, &thing_hierarchy);
@@ -159,12 +159,13 @@ impl InputToIrDiagramMapper {
     }
 
     /// Build NodeCopyText from thing_copy_text.
-    fn build_node_copy_text(thing_copy_text: &ThingCopyText) -> NodeCopyText {
+    fn build_node_copy_text(thing_copy_text: ThingCopyText) -> NodeCopyText {
         thing_copy_text
-            .iter()
+            .into_inner()
+            .into_iter()
             .map(|(thing_id, text)| {
-                let node_id = NodeId::from(thing_id.clone().into_inner());
-                (node_id, text.clone())
+                let node_id = NodeId::from(thing_id.into_inner());
+                (node_id, text)
             })
             .collect()
     }
