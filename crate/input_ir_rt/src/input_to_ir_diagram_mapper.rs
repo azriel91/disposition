@@ -127,20 +127,20 @@ impl InputToIrDiagramMapper {
     fn build_node_names(things: &ThingNames, tags: &TagNames, processes: &Processes) -> NodeNames {
         // Add things
         let thing_nodes = things.iter().map(|(thing_id, name)| {
-            let node_id: NodeId = thing_id.clone().into_inner().into();
+            let node_id = NodeId::from(thing_id.clone().into_inner());
             (node_id, name.clone())
         });
 
         // Add tags
         let tag_nodes = tags.iter().map(|(tag_id, name)| {
-            let node_id: NodeId = tag_id.clone().into_inner().into();
+            let node_id = NodeId::from(tag_id.clone().into_inner());
             (node_id, name.clone())
         });
 
         // Add processes and their steps
         let process_nodes = processes.iter().flat_map(|(process_id, process_diagram)| {
             // Add process name
-            let process_node_id: NodeId = process_id.clone().into_inner().into();
+            let process_node_id = NodeId::from(process_id.clone().into_inner());
             let process_name = process_diagram
                 .name
                 .clone()
@@ -148,7 +148,7 @@ impl InputToIrDiagramMapper {
 
             // Add process steps
             let step_nodes = process_diagram.steps.iter().map(|(step_id, step_name)| {
-                let step_node_id: NodeId = step_id.clone().into_inner().into();
+                let step_node_id = NodeId::from(step_id.clone().into_inner());
                 (step_node_id, step_name.clone())
             });
 
@@ -163,7 +163,7 @@ impl InputToIrDiagramMapper {
         thing_copy_text
             .iter()
             .map(|(thing_id, text)| {
-                let node_id: NodeId = thing_id.clone().into_inner().into();
+                let node_id = NodeId::from(thing_id.clone().into_inner());
                 (node_id, text.clone())
             })
             .collect()
@@ -178,18 +178,18 @@ impl InputToIrDiagramMapper {
     ) -> NodeHierarchy {
         // Add tags first (for CSS peer selector ordering)
         let tag_entries = tags.keys().map(|tag_id| {
-            let node_id: NodeId = tag_id.clone().into_inner().into();
+            let node_id = NodeId::from(tag_id.clone().into_inner());
             (node_id, NodeHierarchy::new())
         });
 
         // Add processes with their steps
         let process_entries = processes.iter().map(|(process_id, process_diagram)| {
-            let process_node_id: NodeId = process_id.clone().into_inner().into();
+            let process_node_id = NodeId::from(process_id.clone().into_inner());
             let process_children: NodeHierarchy = process_diagram
                 .steps
                 .keys()
                 .map(|step_id| {
-                    let step_node_id: NodeId = step_id.clone().into_inner().into();
+                    let step_node_id = NodeId::from(step_id.clone().into_inner());
                     (step_node_id, NodeHierarchy::new())
                 })
                 .collect();
@@ -213,7 +213,7 @@ impl InputToIrDiagramMapper {
         thing_hierarchy
             .iter()
             .map(|(thing_id, children)| {
-                let node_id: NodeId = thing_id.clone().into_inner().into();
+                let node_id = NodeId::from(thing_id.clone().into_inner());
                 let child_hierarchy = Self::convert_thing_hierarchy_to_node_hierarchy(children);
                 (node_id, child_hierarchy)
             })
@@ -254,9 +254,9 @@ impl InputToIrDiagramMapper {
                     .iter()
                     .enumerate()
                     .map(|(i, thing)| {
-                        let from_id: NodeId = thing.clone().into_inner().into();
+                        let from_id = NodeId::from(thing.clone().into_inner());
                         let to_idx = (i + 1) % things.len();
-                        let to_id: NodeId = things[to_idx].clone().into_inner().into();
+                        let to_id = NodeId::from(things[to_idx].clone().into_inner());
                         Edge::new(from_id, to_id)
                     })
                     .collect()
@@ -266,8 +266,8 @@ impl InputToIrDiagramMapper {
                 things
                     .windows(2)
                     .map(|pair| {
-                        let from_id: NodeId = pair[0].clone().into_inner().into();
-                        let to_id: NodeId = pair[1].clone().into_inner().into();
+                        let from_id = NodeId::from(pair[0].clone().into_inner());
+                        let to_id = NodeId::from(pair[1].clone().into_inner());
                         Edge::new(from_id, to_id)
                     })
                     .collect()
