@@ -423,7 +423,7 @@ impl InputToIrDiagramMapper {
                 // Add to existing types or create new entry
                 entity_types
                     .entry(edge_id)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(interaction_type);
             });
     }
