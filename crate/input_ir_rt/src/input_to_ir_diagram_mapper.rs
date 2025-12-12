@@ -1,4 +1,4 @@
-use std::fmt::Write;
+use std::{borrow::Cow, fmt::Write};
 
 use disposition_input_ir_model::IrDiagramAndIssues;
 use disposition_input_model::{
@@ -1343,14 +1343,14 @@ impl InputToIrDiagramMapper {
                     fill_color: state.fill_color.clone(),
                     stroke_color: state.stroke_color.clone(),
                     // Apply shade_pale
-                    fill_shade_hover: Some("50".to_string()),
-                    fill_shade_normal: Some("100".to_string()),
-                    fill_shade_focus: Some("200".to_string()),
-                    fill_shade_active: Some("300".to_string()),
-                    stroke_shade_hover: Some("100".to_string()),
-                    stroke_shade_normal: Some("200".to_string()),
-                    stroke_shade_focus: Some("300".to_string()),
-                    stroke_shade_active: Some("400".to_string()),
+                    fill_shade_hover: Some(Cow::Borrowed("50")),
+                    fill_shade_normal: Some(Cow::Borrowed("100")),
+                    fill_shade_focus: Some(Cow::Borrowed("200")),
+                    fill_shade_active: Some(Cow::Borrowed("300")),
+                    stroke_shade_hover: Some(Cow::Borrowed("100")),
+                    stroke_shade_normal: Some(Cow::Borrowed("200")),
+                    stroke_shade_focus: Some(Cow::Borrowed("300")),
+                    stroke_shade_active: Some(Cow::Borrowed("400")),
                     ..Default::default()
                 };
 
@@ -1479,14 +1479,16 @@ impl InputToIrDiagramMapper {
     }
 
     /// Resolve tailwind attributes for a node.
-    fn resolve_tailwind_attrs(
+    fn resolve_tailwind_attrs<'partials, 'tw_state>(
         node_id: Option<&Id>,
-        entity_types: &IrEntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
+        entity_types: &'partials IrEntityTypes,
+        theme_default: &'partials ThemeDefault,
+        theme_types_styles: &'partials ThemeTypesStyles,
         is_node: bool,
-        state: &mut TailwindClassState,
-    ) {
+        state: &mut TailwindClassState<'tw_state>,
+    ) where
+        'partials: 'tw_state,
+    {
         let defaults_key = if is_node {
             IdOrDefaults::NodeDefaults
         } else {
@@ -1533,13 +1535,15 @@ impl InputToIrDiagramMapper {
     }
 
     /// Resolve tailwind attributes for an edge.
-    fn resolve_tailwind_attrs_for_edge(
+    fn resolve_tailwind_attrs_for_edge<'partials, 'tw_state>(
         edge_id: Option<&Id>,
-        entity_types: &IrEntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
-        state: &mut TailwindClassState,
-    ) {
+        entity_types: &'partials IrEntityTypes,
+        theme_default: &'partials ThemeDefault,
+        theme_types_styles: &'partials ThemeTypesStyles,
+        state: &mut TailwindClassState<'tw_state>,
+    ) where
+        'partials: 'tw_state,
+    {
         // 1. Start with EdgeDefaults (lowest priority)
         if let Some(defaults_partials) = theme_default.base_styles.get(&IdOrDefaults::EdgeDefaults)
         {
@@ -1581,11 +1585,13 @@ impl InputToIrDiagramMapper {
     }
 
     /// Apply tailwind attribute values from CssClassPartials.
-    fn apply_tailwind_from_partials(
-        partials: &CssClassPartials,
-        style_aliases: &StyleAliases,
-        state: &mut TailwindClassState,
-    ) {
+    fn apply_tailwind_from_partials<'partials, 'tw_state>(
+        partials: &'partials CssClassPartials,
+        style_aliases: &'partials StyleAliases,
+        state: &mut TailwindClassState<'tw_state>,
+    ) where
+        'partials: 'tw_state,
+    {
         // First, check style_aliases_applied (lower priority within this partials)
         partials
             .style_aliases_applied()
@@ -1598,168 +1604,173 @@ impl InputToIrDiagramMapper {
     }
 
     /// Extract tailwind attribute values from a CssClassPartials map.
-    fn extract_tailwind_from_map(partials: &CssClassPartials, state: &mut TailwindClassState) {
+    fn extract_tailwind_from_map<'partials, 'tw_state>(
+        partials: &'partials CssClassPartials,
+        state: &mut TailwindClassState<'tw_state>,
+    ) where
+        'partials: 'tw_state,
+    {
         // Visibility
         if let Some(value) = partials.get(&ThemeAttr::Visibility) {
-            state.visibility = Some(value.clone());
+            state.visibility = Some(Cow::Borrowed(value));
         }
 
         // Stroke width
         if let Some(value) = partials.get(&ThemeAttr::StrokeWidth) {
-            state.stroke_width = Some(value.clone());
+            state.stroke_width = Some(Cow::Borrowed(value));
         }
 
         // Stroke style - converts to stroke-dasharray
         if let Some(value) = partials.get(&ThemeAttr::StrokeStyle) {
-            state.stroke_style = Some(value.clone());
+            state.stroke_style = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::StrokeStyleNormal) {
-            state.stroke_style_normal = Some(value.clone());
+            state.stroke_style_normal = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::StrokeStyleFocus) {
-            state.stroke_style_focus = Some(value.clone());
+            state.stroke_style_focus = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::StrokeStyleHover) {
-            state.stroke_style_hover = Some(value.clone());
+            state.stroke_style_hover = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::StrokeStyleActive) {
-            state.stroke_style_active = Some(value.clone());
+            state.stroke_style_active = Some(Cow::Borrowed(value));
         }
 
         // Shape color (base for both fill and stroke)
         if let Some(value) = partials.get(&ThemeAttr::ShapeColor) {
-            state.shape_color = Some(value.clone());
+            state.shape_color = Some(Cow::Borrowed(value));
         }
 
         // Fill colors
         if let Some(value) = partials.get(&ThemeAttr::FillColor) {
-            state.fill_color = Some(value.clone());
+            state.fill_color = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::FillColorNormal) {
-            state.fill_color_normal = Some(value.clone());
+            state.fill_color_normal = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::FillColorFocus) {
-            state.fill_color_focus = Some(value.clone());
+            state.fill_color_focus = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::FillColorHover) {
-            state.fill_color_hover = Some(value.clone());
+            state.fill_color_hover = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::FillColorActive) {
-            state.fill_color_active = Some(value.clone());
+            state.fill_color_active = Some(Cow::Borrowed(value));
         }
 
         // Fill shades
         if let Some(value) = partials.get(&ThemeAttr::FillShade) {
-            state.fill_shade = Some(value.clone());
+            state.fill_shade = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::FillShadeNormal) {
-            state.fill_shade_normal = Some(value.clone());
+            state.fill_shade_normal = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::FillShadeFocus) {
-            state.fill_shade_focus = Some(value.clone());
+            state.fill_shade_focus = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::FillShadeHover) {
-            state.fill_shade_hover = Some(value.clone());
+            state.fill_shade_hover = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::FillShadeActive) {
-            state.fill_shade_active = Some(value.clone());
+            state.fill_shade_active = Some(Cow::Borrowed(value));
         }
 
         // Stroke colors
         if let Some(value) = partials.get(&ThemeAttr::StrokeColor) {
-            state.stroke_color = Some(value.clone());
+            state.stroke_color = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::StrokeColorNormal) {
-            state.stroke_color_normal = Some(value.clone());
+            state.stroke_color_normal = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::StrokeColorFocus) {
-            state.stroke_color_focus = Some(value.clone());
+            state.stroke_color_focus = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::StrokeColorHover) {
-            state.stroke_color_hover = Some(value.clone());
+            state.stroke_color_hover = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::StrokeColorActive) {
-            state.stroke_color_active = Some(value.clone());
+            state.stroke_color_active = Some(Cow::Borrowed(value));
         }
 
         // Stroke shades
         if let Some(value) = partials.get(&ThemeAttr::StrokeShade) {
-            state.stroke_shade = Some(value.clone());
+            state.stroke_shade = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::StrokeShadeNormal) {
-            state.stroke_shade_normal = Some(value.clone());
+            state.stroke_shade_normal = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::StrokeShadeFocus) {
-            state.stroke_shade_focus = Some(value.clone());
+            state.stroke_shade_focus = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::StrokeShadeHover) {
-            state.stroke_shade_hover = Some(value.clone());
+            state.stroke_shade_hover = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::StrokeShadeActive) {
-            state.stroke_shade_active = Some(value.clone());
+            state.stroke_shade_active = Some(Cow::Borrowed(value));
         }
 
         // Text
         if let Some(value) = partials.get(&ThemeAttr::TextColor) {
-            state.text_color = Some(value.clone());
+            state.text_color = Some(Cow::Borrowed(value));
         }
         if let Some(value) = partials.get(&ThemeAttr::TextShade) {
-            state.text_shade = Some(value.clone());
+            state.text_shade = Some(Cow::Borrowed(value));
         }
 
         // Animation
         if let Some(value) = partials.get(&ThemeAttr::Animate) {
-            state.animate = Some(value.clone());
+            state.animate = Some(Cow::Borrowed(value));
         }
     }
 }
 
 /// State for accumulating resolved tailwind class attributes.
 #[derive(Default)]
-struct TailwindClassState {
+struct TailwindClassState<'tw_state> {
     // Visibility
-    visibility: Option<String>,
+    visibility: Option<Cow<'tw_state, str>>,
     // Stroke
-    stroke_width: Option<String>,
-    stroke_style: Option<String>,
-    stroke_style_normal: Option<String>,
-    stroke_style_focus: Option<String>,
-    stroke_style_hover: Option<String>,
-    stroke_style_active: Option<String>,
+    stroke_width: Option<Cow<'tw_state, str>>,
+    stroke_style: Option<Cow<'tw_state, str>>,
+    stroke_style_normal: Option<Cow<'tw_state, str>>,
+    stroke_style_focus: Option<Cow<'tw_state, str>>,
+    stroke_style_hover: Option<Cow<'tw_state, str>>,
+    stroke_style_active: Option<Cow<'tw_state, str>>,
     // Colors - base
-    shape_color: Option<String>,
+    shape_color: Option<Cow<'tw_state, str>>,
     // Fill colors
-    fill_color: Option<String>,
-    fill_color_normal: Option<String>,
-    fill_color_focus: Option<String>,
-    fill_color_hover: Option<String>,
-    fill_color_active: Option<String>,
+    fill_color: Option<Cow<'tw_state, str>>,
+    fill_color_normal: Option<Cow<'tw_state, str>>,
+    fill_color_focus: Option<Cow<'tw_state, str>>,
+    fill_color_hover: Option<Cow<'tw_state, str>>,
+    fill_color_active: Option<Cow<'tw_state, str>>,
     // Fill shades
-    fill_shade: Option<String>,
-    fill_shade_normal: Option<String>,
-    fill_shade_focus: Option<String>,
-    fill_shade_hover: Option<String>,
-    fill_shade_active: Option<String>,
+    fill_shade: Option<Cow<'tw_state, str>>,
+    fill_shade_normal: Option<Cow<'tw_state, str>>,
+    fill_shade_focus: Option<Cow<'tw_state, str>>,
+    fill_shade_hover: Option<Cow<'tw_state, str>>,
+    fill_shade_active: Option<Cow<'tw_state, str>>,
     // Stroke colors
-    stroke_color: Option<String>,
-    stroke_color_normal: Option<String>,
-    stroke_color_focus: Option<String>,
-    stroke_color_hover: Option<String>,
-    stroke_color_active: Option<String>,
+    stroke_color: Option<Cow<'tw_state, str>>,
+    stroke_color_normal: Option<Cow<'tw_state, str>>,
+    stroke_color_focus: Option<Cow<'tw_state, str>>,
+    stroke_color_hover: Option<Cow<'tw_state, str>>,
+    stroke_color_active: Option<Cow<'tw_state, str>>,
     // Stroke shades
-    stroke_shade: Option<String>,
-    stroke_shade_normal: Option<String>,
-    stroke_shade_focus: Option<String>,
-    stroke_shade_hover: Option<String>,
-    stroke_shade_active: Option<String>,
+    stroke_shade: Option<Cow<'tw_state, str>>,
+    stroke_shade_normal: Option<Cow<'tw_state, str>>,
+    stroke_shade_focus: Option<Cow<'tw_state, str>>,
+    stroke_shade_hover: Option<Cow<'tw_state, str>>,
+    stroke_shade_active: Option<Cow<'tw_state, str>>,
     // Text
-    text_color: Option<String>,
-    text_shade: Option<String>,
+    text_color: Option<Cow<'tw_state, str>>,
+    text_shade: Option<Cow<'tw_state, str>>,
     // Animation
-    animate: Option<String>,
+    animate: Option<Cow<'tw_state, str>>,
 }
 
-impl TailwindClassState {
+impl TailwindClassState<'_> {
     /// Convert stroke style to stroke-dasharray value.
     fn stroke_style_to_dasharray(style: &str) -> Option<&'static str> {
         match style {
