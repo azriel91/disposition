@@ -231,14 +231,11 @@ impl InputToIrDiagramMapper {
             (edge_group_id.clone(), Self::edge_kind_to_edges(edge_kind))
         });
 
-        // Collect dependency IDs to filter interactions
-        let dependency_ids: Set<_> = thing_dependencies.keys().collect();
-
         // Process thing_interactions (only add if not already present from
         // dependencies)
         let interaction_entries = thing_interactions
             .iter()
-            .filter(|(edge_group_id, _)| !dependency_ids.contains(edge_group_id))
+            .filter(|(edge_group_id, _)| !thing_dependencies.contains_key(edge_group_id))
             .map(|(edge_group_id, edge_kind)| {
                 (edge_group_id.clone(), Self::edge_kind_to_edges(edge_kind))
             });
