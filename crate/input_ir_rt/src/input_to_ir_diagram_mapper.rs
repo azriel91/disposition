@@ -254,9 +254,9 @@ impl InputToIrDiagramMapper {
                 things
                     .iter()
                     .enumerate()
-                    .map(|(i, thing)| {
+                    .map(|(index, thing)| {
                         let from_id = NodeId::from(thing.clone().into_inner());
-                        let to_idx = (i + 1) % things.len();
+                        let to_idx = (index + 1) % things.len();
                         let to_id = NodeId::from(things[to_idx].clone().into_inner());
                         Edge::new(from_id, to_id)
                     })
