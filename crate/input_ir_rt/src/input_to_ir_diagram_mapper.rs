@@ -138,7 +138,7 @@ impl InputToIrDiagramMapper {
         });
 
         // Add processes and their steps
-        let process_nodes = processes.iter().flat_map(|(process_id, process_diagram)| {
+        let process_and_step_nodes = processes.iter().flat_map(|(process_id, process_diagram)| {
             // Add process name
             let process_node_id = NodeId::from(process_id.clone().into_inner());
             let process_name = process_diagram
@@ -155,7 +155,10 @@ impl InputToIrDiagramMapper {
             std::iter::once((process_node_id, process_name)).chain(step_nodes)
         });
 
-        thing_nodes.chain(tag_nodes).chain(process_nodes).collect()
+        thing_nodes
+            .chain(tag_nodes)
+            .chain(process_and_step_nodes)
+            .collect()
     }
 
     /// Build NodeCopyText from thing_copy_text.
