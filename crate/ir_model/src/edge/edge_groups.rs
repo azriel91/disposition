@@ -1,9 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
-use disposition_model_common::{Id, Map};
+use disposition_model_common::{edge::EdgeGroupId, Id, Map};
 use serde::{Deserialize, Serialize};
 
-use crate::edge::{EdgeGroup, EdgeId};
+use crate::edge::EdgeGroup;
 
 /// Map of edge group IDs to their edge groups.
 ///
@@ -38,7 +38,7 @@ use crate::edge::{EdgeGroup, EdgeId};
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct EdgeGroups(Map<EdgeId, EdgeGroup>);
+pub struct EdgeGroups(Map<EdgeGroupId, EdgeGroup>);
 
 impl EdgeGroups {
     /// Returns a new `EdgeGroups` map.
@@ -52,7 +52,7 @@ impl EdgeGroups {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<EdgeId, EdgeGroup> {
+    pub fn into_inner(self) -> Map<EdgeGroupId, EdgeGroup> {
         self.0
     }
 
@@ -71,7 +71,7 @@ impl EdgeGroups {
 }
 
 impl Deref for EdgeGroups {
-    type Target = Map<EdgeId, EdgeGroup>;
+    type Target = Map<EdgeGroupId, EdgeGroup>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -84,14 +84,14 @@ impl DerefMut for EdgeGroups {
     }
 }
 
-impl From<Map<EdgeId, EdgeGroup>> for EdgeGroups {
-    fn from(inner: Map<EdgeId, EdgeGroup>) -> Self {
+impl From<Map<EdgeGroupId, EdgeGroup>> for EdgeGroups {
+    fn from(inner: Map<EdgeGroupId, EdgeGroup>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(EdgeId, EdgeGroup)> for EdgeGroups {
-    fn from_iter<I: IntoIterator<Item = (EdgeId, EdgeGroup)>>(iter: I) -> Self {
+impl FromIterator<(EdgeGroupId, EdgeGroup)> for EdgeGroups {
+    fn from_iter<I: IntoIterator<Item = (EdgeGroupId, EdgeGroup)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }
