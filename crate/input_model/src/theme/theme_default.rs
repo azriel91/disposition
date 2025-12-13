@@ -50,6 +50,11 @@ use crate::theme::{StyleAliases, ThemeStyles};
 ///       shape_color: "yellow"
 ///     t_github:
 ///       shape_color: "neutral"
+///   process_step_selected_styles:
+///     node_defaults:
+///       style_aliases_applied: [shade_pale, stroke_dashed_animated]
+///     edge_defaults:
+///       visibility: "visible"
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
@@ -64,6 +69,10 @@ pub struct ThemeDefault {
     /// Base styles for entities when there is no user interaction.
     #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
     pub base_styles: ThemeStyles,
+
+    /// Styles applied to entities when a process step is selected.
+    #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
+    pub process_step_selected_styles: ThemeStyles,
 }
 
 impl ThemeDefault {
@@ -74,6 +83,8 @@ impl ThemeDefault {
 
     /// Returns true if all fields are at their default values.
     pub fn is_empty(&self) -> bool {
-        self.style_aliases.is_empty() && self.base_styles.is_empty()
+        self.style_aliases.is_empty()
+            && self.base_styles.is_empty()
+            && self.process_step_selected_styles.is_empty()
     }
 }

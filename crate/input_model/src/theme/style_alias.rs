@@ -43,6 +43,10 @@ pub enum StyleAlias {
     ShadeDark,
     /// Dashed stroke with animation.
     StrokeDashedAnimated,
+    /// Dashed stroke with animation for request direction.
+    StrokeDashedAnimatedRequest,
+    /// Dashed stroke with animation for response direction.
+    StrokeDashedAnimatedResponse,
     /// Custom user-defined style alias.
     Custom(Id),
 }
@@ -69,6 +73,8 @@ impl StyleAlias {
             StyleAlias::ShadeMedium => "shade_medium",
             StyleAlias::ShadeDark => "shade_dark",
             StyleAlias::StrokeDashedAnimated => "stroke_dashed_animated",
+            StyleAlias::StrokeDashedAnimatedRequest => "stroke_dashed_animated_request",
+            StyleAlias::StrokeDashedAnimatedResponse => "stroke_dashed_animated_response",
             StyleAlias::Custom(id) => id.as_str(),
         }
     }
@@ -106,6 +112,8 @@ impl From<Id> for StyleAlias {
             "shade_medium" => StyleAlias::ShadeMedium,
             "shade_dark" => StyleAlias::ShadeDark,
             "stroke_dashed_animated" => StyleAlias::StrokeDashedAnimated,
+            "stroke_dashed_animated_request" => StyleAlias::StrokeDashedAnimatedRequest,
+            "stroke_dashed_animated_response" => StyleAlias::StrokeDashedAnimatedResponse,
             _ => StyleAlias::Custom(id),
         }
     }
@@ -144,7 +152,8 @@ impl Visitor<'_> for StyleAliasVisitor {
         formatter.write_str(
             "a style alias name such as `padding_none`, `padding_tight`, `padding_normal`, \
              `padding_wide`, `shade_pale`, `shade_light`, `shade_medium`, `shade_dark`, \
-             `stroke_dashed_animated`, or a custom identifier",
+             `stroke_dashed_animated`, `stroke_dashed_animated_request`, \
+             `stroke_dashed_animated_response`, or a custom identifier",
         )
     }
 
@@ -162,6 +171,8 @@ impl Visitor<'_> for StyleAliasVisitor {
             "shade_medium" => StyleAlias::ShadeMedium,
             "shade_dark" => StyleAlias::ShadeDark,
             "stroke_dashed_animated" => StyleAlias::StrokeDashedAnimated,
+            "stroke_dashed_animated_request" => StyleAlias::StrokeDashedAnimatedRequest,
+            "stroke_dashed_animated_response" => StyleAlias::StrokeDashedAnimatedResponse,
             _ => {
                 let id = Id::try_from(value.to_owned()).map_err(serde::de::Error::custom)?;
                 StyleAlias::Custom(id)
