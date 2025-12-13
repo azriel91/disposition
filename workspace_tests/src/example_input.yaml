@@ -428,6 +428,10 @@ theme_default:
       stroke_style: "dashed"
       stroke_width: "2"
       animate: "[stroke-dashoffset-move_2s_linear_infinite]"
+    stroke_dashed_animated_request:
+      animate: "[stroke-dashoffset-move-request_2s_linear_infinite]"
+    stroke_dashed_animated_response:
+      animate: "[stroke-dashoffset-move-response_2s_linear_infinite]"
 
   # The keys in this map can be:
   #
@@ -458,6 +462,12 @@ theme_default:
     t_github:
       shape_color: "neutral"
 
+  process_step_selected_styles:
+    node_defaults:
+      style_aliases_applied: [shade_pale, stroke_dashed_animated]
+    edge_defaults:
+      visibility: "visible"
+
 # Styles applied to things / edges of a particular `type` specified in `thing_types`.
 theme_types_styles:
   # These are default styles that are built into `disposition`, but may be overridden by users.
@@ -485,42 +495,52 @@ theme_types_styles:
       stroke_style: "solid"
       shape_color: "sky"
       stroke_width: "1"
+
+  # thing_dependencies
   type_edge_dependency_sequence_request_default:
     edge_defaults:
       style_aliases_applied: [shade_dark]
       stroke_style: solid
       shape_color: "neutral"
       stroke_width: "1"
+      visibility: "visible"
   type_edge_dependency_sequence_response_default:
     edge_defaults:
       style_aliases_applied: [shade_dark]
       stroke_style: solid
       shape_color: "neutral"
       stroke_width: "1"
+      visibility: "visible"
   type_edge_dependency_cyclic_default:
     edge_defaults:
       style_aliases_applied: [shade_dark]
       stroke_style: solid
       shape_color: "neutral"
       stroke_width: "1"
+      visibility: "visible"
+
+  # thing_interactions
   type_edge_interaction_sequence_request_default:
     edge_defaults:
-      style_aliases_applied: [shade_dark]
+      style_aliases_applied: [shade_dark, stroke_dashed_animated_request]
       stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
       shape_color: "violet"
       stroke_width: "2"
+      visibility: "invisible"
   type_edge_interaction_sequence_response_default:
     edge_defaults:
-      style_aliases_applied: [shade_dark]
+      style_aliases_applied: [shade_dark, stroke_dashed_animated_response]
       stroke_style: "dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80"
       shape_color: "violet"
       stroke_width: "2"
+      visibility: "invisible"
   type_edge_interaction_cyclic_default:
     edge_defaults:
-      style_aliases_applied: [shade_dark]
+      style_aliases_applied: [shade_dark, stroke_dashed_animated_request]
       stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
       shape_color: "violet"
       stroke_width: "2"
+      visibility: "invisible"
 
   # custom styles that users can provide
   type_organisation:
@@ -581,4 +601,8 @@ css: |-
   @keyframes stroke-dashoffset-move-request {
     0%   { stroke-dashoffset: 0; }
     100% { stroke-dashoffset: 228; }
+  }
+  @keyframes stroke-dashoffset-move-response {
+    0%   { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -248; }
   }
