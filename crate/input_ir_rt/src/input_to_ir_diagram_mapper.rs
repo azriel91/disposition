@@ -1403,6 +1403,7 @@ impl InputToIrDiagramMapper {
 
         // Add peer classes for process steps that interact with edges involving this
         // thing
+        // TODO: read this from `theme_default.process_step_selected_styles`
         if let Some(interaction_steps) = thing_to_interaction_steps.get(node_id) {
             // Get the thing's color for interaction highlighting
             let color = state
@@ -1464,6 +1465,8 @@ impl InputToIrDiagramMapper {
         state.write_classes(&mut classes);
 
         // Add peer classes for each process step that interacts with this edge
+        // TODO: styles should come from `theme_default.process_step_selected_styles`
+        // and `theme_types_styles.type_edge_interaction_*`.
         interaction_process_step_ids.iter().for_each(|step_id| {
             let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
 
@@ -1473,7 +1476,6 @@ impl InputToIrDiagramMapper {
                 "\n\n{peer_prefix}animate-[stroke-dashoffset-move-request_2s_linear_infinite]"
             )
             .expect(CLASSES_BUFFER_WRITE_FAIL);
-
             write!(
                 &mut classes,
                 "\n{peer_prefix}stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]"
