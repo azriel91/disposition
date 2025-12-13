@@ -14,13 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: "Generate Cargo.lock"
         run: cargo generate-lockfile
 
       - name: cargo-audit cache restore
         id: cargo-audit_cache_restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cargo/bin/cargo-audit
           key: ${{ runner.os }}-cargo-audit
@@ -30,7 +30,7 @@ jobs:
 
       - name: cargo-audit cache save
         id: cargo-audit_cache_save
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: always() && steps.cargo-audit_cache_restore.outputs.cache-hit != 'true'
         with:
           path: ~/.cargo/bin/cargo-audit
@@ -44,12 +44,12 @@ jobs:
     name: Licenses
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: EmbarkStudios/cargo-deny-action@v2
 
       - name: cargo-about cache restore
         id: cargo_about_cache_restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.cargo/bin/cargo-about
           key: ${{ runner.os }}-cargo-about
@@ -59,7 +59,7 @@ jobs:
 
       - name: cargo-about cache save
         id: cargo_about_cache_save
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: always() && steps.cargo_about_cache_restore.outputs.cache-hit != 'true'
         with:
           path: ~/.cargo/bin/cargo-about
@@ -73,7 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
@@ -89,7 +89,7 @@ jobs:
       RUSTDOCFLAGS: "-Dwarnings"
     steps:
       - name: Checkout Actions Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Check spelling
@@ -102,7 +102,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
@@ -117,7 +117,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: taiki-e/install-action@nextest
@@ -132,7 +132,7 @@ jobs:
       - name: Prepare symlink configuration
         run: git config --global core.symlinks true
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: taiki-e/install-action@nextest
@@ -144,7 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: "Doc tests"
         run: cargo test --doc --workspace --all-features

@@ -1,5 +1,5 @@
 #[cfg(feature = "openapi")]
-use disposition::model::{utoipa::OpenApi, ApiDoc};
+use disposition::input_model::{utoipa::OpenApi, ApiDoc};
 
 fn main() {
     // Unfortunately doesn't work yet.
