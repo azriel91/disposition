@@ -436,12 +436,12 @@ fn test_tailwind_classes_generation() {
     let tag_id = id!("tag_app_development");
     let tag_classes = diagram.tailwind_classes.get(&tag_id).unwrap();
     assert!(
-        tag_classes.contains("peer/tag_app_development"),
+        tag_classes.contains("\npeer/tag_app_development"),
         "Tag should have peer class. Got: {}",
         tag_classes
     );
     assert!(
-        tag_classes.contains("visible"),
+        tag_classes.contains("\nvisible"),
         "Tag should have visibility. Got: {}",
         tag_classes
     );
@@ -450,7 +450,7 @@ fn test_tailwind_classes_generation() {
     let proc_id = id!("proc_app_dev");
     let proc_classes = diagram.tailwind_classes.get(&proc_id).unwrap();
     assert!(
-        proc_classes.contains("group/proc_app_dev"),
+        proc_classes.contains("\ngroup/proc_app_dev"),
         "Process should have group class. Got: {}",
         proc_classes
     );
@@ -459,12 +459,12 @@ fn test_tailwind_classes_generation() {
     // This is because process nodes are sibling elements to thing/edge_group
     // elements, whereas process step nodes are not siblings.
     assert!(
-        proc_classes.contains("peer/proc_app_dev_step_repository_clone"),
+        proc_classes.contains("\npeer/proc_app_dev_step_repository_clone"),
         "Process should have peer class for child step. Got: {}",
         proc_classes
     );
     assert!(
-        proc_classes.contains("peer/proc_app_dev_step_project_build"),
+        proc_classes.contains("\npeer/proc_app_dev_step_project_build"),
         "Process should have peer class for child step. Got: {}",
         proc_classes
     );
@@ -475,12 +475,12 @@ fn test_tailwind_classes_generation() {
     let step_id = id!("proc_app_dev_step_repository_clone");
     let step_classes = diagram.tailwind_classes.get(&step_id).unwrap();
     assert!(
-        !step_classes.contains("peer/proc_app_dev_step_repository_clone"),
+        !step_classes.contains("\npeer/proc_app_dev_step_repository_clone"),
         "Process step should NOT have peer class (it's on the parent process now). Got: {}",
         step_classes
     );
     assert!(
-        step_classes.contains("group-focus-within/proc_app_dev:visible"),
+        step_classes.contains("\ngroup-focus-within/proc_app_dev:visible"),
         "Process step should have group-focus-within class. Got: {}",
         step_classes
     );
@@ -490,12 +490,12 @@ fn test_tailwind_classes_generation() {
     let t_aws_id = id!("t_aws");
     let t_aws_classes = diagram.tailwind_classes.get(&t_aws_id).unwrap();
     assert!(
-        t_aws_classes.contains("fill-yellow"),
+        t_aws_classes.contains("\nfill-yellow"),
         "t_aws should have yellow fill. Got: {}",
         t_aws_classes
     );
     assert!(
-        t_aws_classes.contains("stroke-yellow"),
+        t_aws_classes.contains("\nstroke-yellow"),
         "t_aws should have yellow stroke. Got: {}",
         t_aws_classes
     );
@@ -504,13 +504,13 @@ fn test_tailwind_classes_generation() {
     let edge_group_id = id!("edge_t_localhost__t_github_user_repo__pull");
     let edge_classes = diagram.tailwind_classes.get(&edge_group_id).unwrap();
     assert!(
-        edge_classes.contains("stroke-"),
+        edge_classes.contains("\nstroke-"),
         "Edge group should have stroke class. Got: {}",
         edge_classes
     );
     // Should have peer classes for interacting process steps
     assert!(
-        edge_classes.contains("peer-[:focus-within]/proc_app_dev_step_repository_clone:"),
+        edge_classes.contains("\npeer-[:focus-within]/proc_app_dev_step_repository_clone:"),
         "Edge should have peer class for interacting step. Got: {}",
         edge_classes
     );
@@ -527,12 +527,12 @@ fn test_tailwind_classes_shade_resolution() {
     let t_aws_id = id!("t_aws");
     let t_aws_classes = diagram.tailwind_classes.get(&t_aws_id).unwrap();
     assert!(
-        t_aws_classes.contains("fill-yellow-100"),
+        t_aws_classes.contains("\nfill-yellow-100"),
         "t_aws should have fill-yellow-100 from shade_pale. Got: {}",
         t_aws_classes
     );
     assert!(
-        t_aws_classes.contains("hover:fill-yellow-50"),
+        t_aws_classes.contains("\nhover:fill-yellow-50"),
         "t_aws should have hover:fill-yellow-50 from shade_pale. Got: {}",
         t_aws_classes
     );
@@ -543,7 +543,7 @@ fn test_tailwind_classes_shade_resolution() {
     let t_aws_iam_id = id!("t_aws_iam");
     let t_aws_iam_classes = diagram.tailwind_classes.get(&t_aws_iam_id).unwrap();
     assert!(
-        t_aws_iam_classes.contains("fill-slate-300"),
+        t_aws_iam_classes.contains("\nfill-slate-300"),
         "t_aws_iam should have fill-slate-300 from type_thing_default + shade_light. Got: {}",
         t_aws_iam_classes
     );
@@ -560,7 +560,7 @@ fn test_tailwind_classes_stroke_style() {
     let t_aws_id = id!("t_aws");
     let t_aws_classes = diagram.tailwind_classes.get(&t_aws_id).unwrap();
     assert!(
-        t_aws_classes.contains("[stroke-dasharray:2]"),
+        t_aws_classes.contains("\n[stroke-dasharray:2]"),
         "t_aws should have stroke-dasharray:2 from dotted stroke_style. Got: {}",
         t_aws_classes
     );
@@ -570,7 +570,7 @@ fn test_tailwind_classes_stroke_style() {
     let t_aws_iam_id = id!("t_aws_iam");
     let t_aws_iam_classes = diagram.tailwind_classes.get(&t_aws_iam_id).unwrap();
     assert!(
-        t_aws_iam_classes.contains("[stroke-dasharray:3]"),
+        t_aws_iam_classes.contains("\n[stroke-dasharray:3]"),
         "t_aws_iam should have stroke-dasharray:3 from dashed stroke_style. Got: {}",
         t_aws_iam_classes
     );
@@ -598,14 +598,14 @@ fn test_tailwind_classes_thing_peer_classes() {
 
     // Should have peer class for proc_app_dev_step_repository_clone
     assert!(
-        t_localhost_classes.contains("peer-[:focus-within]/proc_app_dev_step_repository_clone:"),
+        t_localhost_classes.contains("\npeer-[:focus-within]/proc_app_dev_step_repository_clone:"),
         "t_localhost should have peer class for proc_app_dev_step_repository_clone. Got: {}",
         t_localhost_classes
     );
 
     // Should have peer class for proc_app_dev_step_project_build
     assert!(
-        t_localhost_classes.contains("peer-[:focus-within]/proc_app_dev_step_project_build:"),
+        t_localhost_classes.contains("\npeer-[:focus-within]/proc_app_dev_step_project_build:"),
         "t_localhost should have peer class for proc_app_dev_step_project_build. Got: {}",
         t_localhost_classes
     );
@@ -615,7 +615,7 @@ fn test_tailwind_classes_thing_peer_classes() {
     // edge_t_github_user_repo__t_github_user_repo__within which doesn't involve
     // t_localhost
     assert!(
-        !t_localhost_classes.contains("peer-[:focus-within]/proc_app_release_step_gh_actions_build:"),
+        !t_localhost_classes.contains("\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:"),
         "t_localhost should NOT have peer class for proc_app_release_step_gh_actions_build. Got: {}",
         t_localhost_classes
     );
@@ -632,7 +632,7 @@ fn test_tailwind_classes_thing_peer_classes() {
     // because that step interacts with
     // edge_t_github_user_repo__t_github_user_repo__within
     assert!(
-        t_github_user_repo_classes.contains("peer-[:focus-within]/proc_app_release_step_gh_actions_build:"),
+        t_github_user_repo_classes.contains("\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:"),
         "t_github_user_repo should have peer class for proc_app_release_step_gh_actions_build. Got: {}",
         t_github_user_repo_classes
     );
@@ -670,7 +670,7 @@ fn test_tailwind_classes_tag_peer_classes_for_included_things() {
 
     // Should have fill classes for tag_app_development
     assert!(
-        t_localhost_classes.contains("peer-[:focus-within]/tag_app_development:fill-slate-"),
+        t_localhost_classes.contains("\npeer-[:focus-within]/tag_app_development:fill-slate-"),
         "t_localhost should have fill classes for tag_app_development. Got: {}",
         t_localhost_classes
     );
@@ -678,7 +678,7 @@ fn test_tailwind_classes_tag_peer_classes_for_included_things() {
     // t_localhost is NOT in tag_deployment, so should only have opacity class
     // (from node_excluded_defaults with opacity: 75 from tag_defaults)
     assert!(
-        t_localhost_classes.contains("peer-[:focus-within]/tag_deployment:opacity-75"),
+        t_localhost_classes.contains("\npeer-[:focus-within]/tag_deployment:opacity-75"),
         "t_localhost should have opacity-75 for tag_deployment (excluded). Got: {}",
         t_localhost_classes
     );
@@ -686,7 +686,7 @@ fn test_tailwind_classes_tag_peer_classes_for_included_things() {
     // Should NOT have full fill/stroke classes for tag_deployment since it's
     // excluded
     assert!(
-        !t_localhost_classes.contains("peer-[:focus-within]/tag_deployment:fill-slate-"),
+        !t_localhost_classes.contains("\npeer-[:focus-within]/tag_deployment:fill-slate-"),
         "t_localhost should NOT have fill classes for tag_deployment. Got: {}",
         t_localhost_classes
     );
@@ -715,7 +715,7 @@ fn test_tailwind_classes_tag_peer_classes_for_excluded_things() {
     // t_aws is NOT in tag_app_development, so should have opacity from
     // tag_app_development's node_excluded_defaults (opacity: 50)
     assert!(
-        t_aws_classes.contains("peer-[:focus-within]/tag_app_development:opacity-50"),
+        t_aws_classes.contains("\npeer-[:focus-within]/tag_app_development:opacity-50"),
         "t_aws should have opacity-50 for tag_app_development (excluded with specific override). Got: {}",
         t_aws_classes
     );
@@ -723,14 +723,14 @@ fn test_tailwind_classes_tag_peer_classes_for_excluded_things() {
     // t_aws is NOT in tag_deployment, so should have opacity from
     // tag_defaults.node_excluded_defaults (opacity: 75)
     assert!(
-        t_aws_classes.contains("peer-[:focus-within]/tag_deployment:opacity-75"),
+        t_aws_classes.contains("\npeer-[:focus-within]/tag_deployment:opacity-75"),
         "t_aws should have opacity-75 for tag_deployment (excluded, using tag_defaults). Got: {}",
         t_aws_classes
     );
 
     // Should NOT have animation classes since it's excluded from both tags
     assert!(
-        !t_aws_classes.contains("peer-[:focus-within]/tag_app_development:animate-"),
+        !t_aws_classes.contains("\npeer-[:focus-within]/tag_app_development:animate-"),
         "t_aws should NOT have animation for tag_app_development. Got: {}",
         t_aws_classes
     );
@@ -774,12 +774,13 @@ fn test_tailwind_classes_tag_peer_classes_tag_specific_override() {
     // Both should have fill classes since t_github_user_repo is included in both
     // tags (uses slate as its shape_color from defaults)
     assert!(
-        t_github_user_repo_classes.contains("peer-[:focus-within]/tag_app_development:fill-slate-"),
+        t_github_user_repo_classes
+            .contains("\npeer-[:focus-within]/tag_app_development:fill-slate-"),
         "t_github_user_repo should have fill classes for tag_app_development. Got: {}",
         t_github_user_repo_classes
     );
     assert!(
-        t_github_user_repo_classes.contains("peer-[:focus-within]/tag_deployment:fill-slate-"),
+        t_github_user_repo_classes.contains("\npeer-[:focus-within]/tag_deployment:fill-slate-"),
         "t_github_user_repo should have fill classes for tag_deployment. Got: {}",
         t_github_user_repo_classes
     );

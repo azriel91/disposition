@@ -1783,6 +1783,10 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     ///   the animation class (if present) followed by full fill/stroke peer
     ///   classes.
     fn write_peer_classes(&self, classes: &mut String, prefix: &str) {
+        // Makes it easier for tests to assert on classes and ensuring there is no peer
+        // prefix.
+        classes.push('\n');
+
         // Stroke dasharray from stroke_style
         if let Some(style) = self.attrs.get(&ThemeAttr::StrokeStyle)
             && let Some(dasharray) = Self::stroke_style_to_dasharray(style)
