@@ -1376,26 +1376,25 @@ impl InputToIrDiagramMapper {
             // Apply TagDefaults styles
             if let Some(tag_defaults_styles) =
                 theme_tag_things_focus.get(&TagIdOrDefaults::TagDefaults)
+                && let Some(partials) = tag_defaults_styles.get(&style_key)
             {
-                if let Some(partials) = tag_defaults_styles.get(&style_key) {
-                    Self::apply_tailwind_from_partials(
-                        partials,
-                        &theme_default.style_aliases,
-                        &mut tag_focus_state,
-                    );
-                }
+                Self::apply_tailwind_from_partials(
+                    partials,
+                    &theme_default.style_aliases,
+                    &mut tag_focus_state,
+                );
             }
 
             // Apply tag-specific styles (override TagDefaults)
             let tag_id_key = TagIdOrDefaults::Custom(tag_id.clone());
-            if let Some(tag_specific_styles) = theme_tag_things_focus.get(&tag_id_key) {
-                if let Some(partials) = tag_specific_styles.get(&style_key) {
-                    Self::apply_tailwind_from_partials(
-                        partials,
-                        &theme_default.style_aliases,
-                        &mut tag_focus_state,
-                    );
-                }
+            if let Some(tag_specific_styles) = theme_tag_things_focus.get(&tag_id_key)
+                && let Some(partials) = tag_specific_styles.get(&style_key)
+            {
+                Self::apply_tailwind_from_partials(
+                    partials,
+                    &theme_default.style_aliases,
+                    &mut tag_focus_state,
+                );
             }
 
             let peer_prefix = format!("peer-[:focus-within]/{tag_id}:");
