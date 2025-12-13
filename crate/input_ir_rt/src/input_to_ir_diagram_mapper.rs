@@ -1410,8 +1410,7 @@ impl InputToIrDiagramMapper {
                 .attrs
                 .get(&ThemeAttr::ShapeColor)
                 .or_else(|| state.attrs.get(&ThemeAttr::FillColor))
-                .cloned()
-                .unwrap_or(Cow::Borrowed("slate"));
+                .cloned();
 
             interaction_steps.iter().for_each(|step_id| {
                 let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
@@ -1422,11 +1421,13 @@ impl InputToIrDiagramMapper {
                 )
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
 
-                write!(&mut classes, "\n{peer_prefix}stroke-{color}-500")
-                    .expect(CLASSES_BUFFER_WRITE_FAIL);
+                if let Some(color) = color.as_ref() {
+                    write!(&mut classes, "\n{peer_prefix}stroke-{color}-500")
+                        .expect(CLASSES_BUFFER_WRITE_FAIL);
 
-                write!(&mut classes, "\n{peer_prefix}fill-{color}-100")
-                    .expect(CLASSES_BUFFER_WRITE_FAIL);
+                    write!(&mut classes, "\n{peer_prefix}fill-{color}-100")
+                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                }
             });
         }
 
