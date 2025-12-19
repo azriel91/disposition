@@ -33,18 +33,20 @@ pub enum EntityType {
     ProcessDefault,
     /// Default type for process_steps
     ProcessStepDefault,
-    /// Default type for edge dependency sequence requests
-    EdgeDependencySequenceRequestDefault,
-    /// Default type for edge dependency sequence responses
-    EdgeDependencySequenceResponseDefault,
+    /// Default type for edge dependency sequence
+    EdgeDependencySequenceDefault,
     /// Default type for edge dependency cyclics
     EdgeDependencyCyclicDefault,
+    /// Default type for edge dependency symmetric
+    EdgeDependencySymmetricDefault,
     /// Default type for edge interaction sequence requests
     EdgeInteractionSequenceRequestDefault,
     /// Default type for edge interaction sequence responses
     EdgeInteractionSequenceResponseDefault,
     /// Default type for edge interaction cyclics
     EdgeInteractionCyclicDefault,
+    /// Default type for edge interaction symmetric
+    EdgeInteractionSymmetricDefault,
     /// Custom user-defined type.
     Custom(Id),
 }
@@ -66,13 +68,9 @@ impl EntityType {
             EntityType::TagDefault => "type_tag_default",
             EntityType::ProcessDefault => "type_process_default",
             EntityType::ProcessStepDefault => "type_process_step_default",
-            EntityType::EdgeDependencySequenceRequestDefault => {
-                "type_edge_dependency_sequence_request_default"
-            }
-            EntityType::EdgeDependencySequenceResponseDefault => {
-                "type_edge_dependency_sequence_response_default"
-            }
+            EntityType::EdgeDependencySequenceDefault => "type_edge_dependency_sequence_default",
             EntityType::EdgeDependencyCyclicDefault => "type_edge_dependency_cyclic_default",
+            EntityType::EdgeDependencySymmetricDefault => "type_edge_dependency_symmetric_default",
             EntityType::EdgeInteractionSequenceRequestDefault => {
                 "type_edge_interaction_sequence_request_default"
             }
@@ -80,6 +78,9 @@ impl EntityType {
                 "type_edge_interaction_sequence_response_default"
             }
             EntityType::EdgeInteractionCyclicDefault => "type_edge_interaction_cyclic_default",
+            EntityType::EdgeInteractionSymmetricDefault => {
+                "type_edge_interaction_symmetric_default"
+            }
             EntityType::Custom(id) => id.as_str(),
         }
     }
@@ -104,13 +105,13 @@ impl EntityType {
             EntityType::TagDefault => id!("type_tag_default"),
             EntityType::ProcessDefault => id!("type_process_default"),
             EntityType::ProcessStepDefault => id!("type_process_step_default"),
-            EntityType::EdgeDependencySequenceRequestDefault => {
-                id!("type_edge_dependency_sequence_request_default")
-            }
-            EntityType::EdgeDependencySequenceResponseDefault => {
-                id!("type_edge_dependency_sequence_response_default")
+            EntityType::EdgeDependencySequenceDefault => {
+                id!("type_edge_dependency_sequence_default")
             }
             EntityType::EdgeDependencyCyclicDefault => id!("type_edge_dependency_cyclic_default"),
+            EntityType::EdgeDependencySymmetricDefault => {
+                id!("type_edge_dependency_symmetric_default")
+            }
             EntityType::EdgeInteractionSequenceRequestDefault => {
                 id!("type_edge_interaction_sequence_request_default")
             }
@@ -118,6 +119,9 @@ impl EntityType {
                 id!("type_edge_interaction_sequence_response_default")
             }
             EntityType::EdgeInteractionCyclicDefault => id!("type_edge_interaction_cyclic_default"),
+            EntityType::EdgeInteractionSymmetricDefault => {
+                id!("type_edge_interaction_symmetric_default")
+            }
             EntityType::Custom(id) => id,
         }
     }
@@ -150,13 +154,9 @@ impl From<Id> for EntityType {
             "type_tag_default" => EntityType::TagDefault,
             "type_process_default" => EntityType::ProcessDefault,
             "type_process_step_default" => EntityType::ProcessStepDefault,
-            "type_edge_dependency_sequence_request_default" => {
-                EntityType::EdgeDependencySequenceRequestDefault
-            }
-            "type_edge_dependency_sequence_response_default" => {
-                EntityType::EdgeDependencySequenceResponseDefault
-            }
+            "type_edge_dependency_sequence_default" => EntityType::EdgeDependencySequenceDefault,
             "type_edge_dependency_cyclic_default" => EntityType::EdgeDependencyCyclicDefault,
+            "type_edge_dependency_symmetric_default" => EntityType::EdgeDependencySymmetricDefault,
             "type_edge_interaction_sequence_request_default" => {
                 EntityType::EdgeInteractionSequenceRequestDefault
             }
@@ -164,6 +164,9 @@ impl From<Id> for EntityType {
                 EntityType::EdgeInteractionSequenceResponseDefault
             }
             "type_edge_interaction_cyclic_default" => EntityType::EdgeInteractionCyclicDefault,
+            "type_edge_interaction_symmetric_default" => {
+                EntityType::EdgeInteractionSymmetricDefault
+            }
             _ => EntityType::Custom(id),
         }
     }
@@ -215,13 +218,9 @@ impl Visitor<'_> for EntityTypeVisitor {
             "type_tag_default" => EntityType::TagDefault,
             "type_process_default" => EntityType::ProcessDefault,
             "type_process_step_default" => EntityType::ProcessStepDefault,
-            "type_edge_dependency_sequence_request_default" => {
-                EntityType::EdgeDependencySequenceRequestDefault
-            }
-            "type_edge_dependency_sequence_response_default" => {
-                EntityType::EdgeDependencySequenceResponseDefault
-            }
+            "type_edge_dependency_sequence_default" => EntityType::EdgeDependencySequenceDefault,
             "type_edge_dependency_cyclic_default" => EntityType::EdgeDependencyCyclicDefault,
+            "type_edge_dependency_symmetric_default" => EntityType::EdgeDependencySymmetricDefault,
             "type_edge_interaction_sequence_request_default" => {
                 EntityType::EdgeInteractionSequenceRequestDefault
             }
@@ -229,6 +228,9 @@ impl Visitor<'_> for EntityTypeVisitor {
                 EntityType::EdgeInteractionSequenceResponseDefault
             }
             "type_edge_interaction_cyclic_default" => EntityType::EdgeInteractionCyclicDefault,
+            "type_edge_interaction_symmetric_default" => {
+                EntityType::EdgeInteractionSymmetricDefault
+            }
             _ => {
                 let id = Id::try_from(value.to_owned()).map_err(serde::de::Error::custom)?;
                 EntityType::Custom(id)

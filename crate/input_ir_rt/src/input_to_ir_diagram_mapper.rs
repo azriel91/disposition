@@ -274,6 +274,30 @@ impl InputToIrDiagramMapper {
                     })
                     .collect()
             }
+            EdgeKind::Symmetric(things) => {
+                // Create edges from each thing to the next, then back from last to first
+                // For [A, B, C]: A -> B -> C -> B -> A
+                let forward: Vec<Edge> = things
+                    .windows(2)
+                    .map(|pair| {
+                        let from_id = NodeId::from(pair[0].clone().into_inner());
+                        let to_id = NodeId::from(pair[1].clone().into_inner());
+                        Edge::new(from_id, to_id)
+                    })
+                    .collect();
+
+                let reverse: Vec<Edge> = things
+                    .windows(2)
+                    .rev()
+                    .map(|pair| {
+                        let from_id = NodeId::from(pair[1].clone().into_inner());
+                        let to_id = NodeId::from(pair[0].clone().into_inner());
+                        Edge::new(from_id, to_id)
+                    })
+                    .collect();
+
+                forward.into_iter().chain(reverse).collect()
+            }
         };
 
         EdgeGroup::from(edges)
@@ -368,11 +392,16 @@ impl InputToIrDiagramMapper {
             let edge_count = match edge_kind {
                 EdgeKind::Cyclic(things) => things.len(),
                 EdgeKind::Sequence(things) => things.len().saturating_sub(1),
+                EdgeKind::Symmetric(things) => {
+                    // Forward edges + reverse edges
+                    things.len().saturating_sub(1) * 2
+                }
             };
 
             let default_type = match edge_kind {
                 EdgeKind::Cyclic(_) => EntityType::EdgeDependencyCyclicDefault,
-                EdgeKind::Sequence(_) => EntityType::EdgeDependencySequenceRequestDefault,
+                EdgeKind::Sequence(_) => EntityType::EdgeDependencySequenceDefault,
+                EdgeKind::Symmetric(_) => EntityType::EdgeDependencySymmetricDefault,
             };
 
             (0..edge_count).map(move |i| {
@@ -408,11 +437,16 @@ impl InputToIrDiagramMapper {
                 let edge_count = match edge_kind {
                     EdgeKind::Cyclic(things) => things.len(),
                     EdgeKind::Sequence(things) => things.len().saturating_sub(1),
+                    EdgeKind::Symmetric(things) => {
+                        // Forward edges + reverse edges
+                        things.len().saturating_sub(1) * 2
+                    }
                 };
 
                 let interaction_type = match edge_kind {
                     EdgeKind::Cyclic(_) => EntityType::EdgeInteractionCyclicDefault,
                     EdgeKind::Sequence(_) => EntityType::EdgeInteractionSequenceRequestDefault,
+                    EdgeKind::Symmetric(_) => EntityType::EdgeInteractionSymmetricDefault,
                 };
 
                 (0..edge_count).map(move |i| {
