@@ -63,9 +63,9 @@ fn test_parse_example_ir() {
             .collect::<Vec<_>>()
             .as_slice()
     );
-    assert_eq!(6, diagram.edge_groups.len());
-    assert_eq!(38, diagram.entity_types.len());
-    assert_eq!(38, diagram.tailwind_classes.len());
+    assert_eq!(12, diagram.edge_groups.len());
+    assert_eq!(47, diagram.entity_types.len());
+    assert_eq!(53, diagram.tailwind_classes.len());
     assert_eq!(30, diagram.node_layout.len());
     assert!(!diagram.css.is_empty());
 }

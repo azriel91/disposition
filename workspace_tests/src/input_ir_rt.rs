@@ -88,16 +88,19 @@ fn test_input_to_ir_mapping() {
     assert!(t_aws_children.contains_key(&t_aws_iam));
     assert!(t_aws_children.contains_key(&t_aws_ecr));
 
-    // 4. Verify EdgeGroups populated from thing_dependencies
-    assert_eq!(6, diagram.edge_groups.len());
+    // 4. Verify EdgeGroups populated from thing_dependencies and thing_interactions
+    // 6 dependency edge groups + 6 interaction edge groups = 12
+    assert_eq!(12, diagram.edge_groups.len());
 
-    // Check cyclic edge expansion
-    let pull_edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__pull"));
+    // Check cyclic edge expansion (from thing_dependencies)
+    let pull_edge_group_id =
+        EdgeGroupId::from(id!("edge_dep_t_localhost__t_github_user_repo__pull"));
     let pull_edges = diagram.edge_groups.get(&pull_edge_group_id).unwrap();
     assert_eq!(2, pull_edges.len()); // cyclic with 2 things = 2 edges
 
-    // Check sequence edge expansion
-    let push_edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__push"));
+    // Check sequence edge expansion (from thing_dependencies)
+    let push_edge_group_id =
+        EdgeGroupId::from(id!("edge_dep_t_localhost__t_github_user_repo__push"));
     let push_edges = diagram.edge_groups.get(&push_edge_group_id).unwrap();
     assert_eq!(1, push_edges.len()); // sequence with 2 things = 1 edge
 
@@ -111,7 +114,7 @@ fn test_input_to_ir_mapping() {
     assert!(diagram.entity_descs.len() >= 4);
 
     // Check entity desc from input
-    let pull_edge_id = id!("edge_t_localhost__t_github_user_repo__pull");
+    let pull_edge_id = id!("edge_ix_t_localhost__t_github_user_repo__pull");
     assert!(diagram.entity_descs.contains_key(&pull_edge_id));
 
     // Check step desc merged in
@@ -151,15 +154,19 @@ fn test_input_to_ir_mapping() {
         .iter()
         .any(|entity_type| *entity_type == EntityType::ProcessStepDefault));
 
-    // Edges should have dependency and interaction types
-    let edge_id = id!("edge_t_localhost__t_github_user_repo__pull__0");
-    let edge_types = diagram.entity_types.get(&edge_id).unwrap();
-    assert!(edge_types
+    // Edges should have dependency types
+    let dep_edge_id = id!("edge_dep_t_localhost__t_github_user_repo__pull__0");
+    let dep_edge_types = diagram.entity_types.get(&dep_edge_id).unwrap();
+    assert!(dep_edge_types
         .iter()
         .any(|entity_type| *entity_type == EntityType::EdgeDependencyCyclicDefault));
-    assert!(edge_types
+
+    // Edges should have interaction types (symmetric uses request/response types)
+    let ix_edge_id = id!("edge_ix_t_localhost__t_github_user_repo__pull__0");
+    let ix_edge_types = diagram.entity_types.get(&ix_edge_id).unwrap();
+    assert!(ix_edge_types
         .iter()
-        .any(|entity_type| *entity_type == EntityType::EdgeInteractionCyclicDefault));
+        .any(|entity_type| *entity_type == EntityType::EdgeInteractionSymmetricRequestDefault));
 
     // 7. Verify CSS is passed through
     assert!(!diagram.css.is_empty());
@@ -172,7 +179,7 @@ fn test_cyclic_edge_expansion() {
     let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
     let diagram = ir_and_issues.diagram;
 
-    // edge_t_localhost__t_github_user_repo__pull is cyclic with:
+    // edge_dep_t_localhost__t_github_user_repo__pull is cyclic with:
     //
     // `[t_localhost, t_github_user_repo]`
     //
@@ -180,7 +187,7 @@ fn test_cyclic_edge_expansion() {
     //
     // * `t_localhost -> t_github_user_repo`
     // * `t_github_user_repo -> t_localhost`
-    let edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__pull"));
+    let edge_group_id = EdgeGroupId::from(id!("edge_dep_t_localhost__t_github_user_repo__pull"));
     let edges = diagram.edge_groups.get(&edge_group_id).unwrap();
 
     assert_eq!(2, edges.len());
@@ -199,12 +206,12 @@ fn test_self_loop_edge() {
     let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
     let diagram = ir_and_issues.diagram;
 
-    // edge_t_localhost__t_localhost__within is cyclic with `[t_localhost]`
+    // edge_dep_t_localhost__t_localhost__within is cyclic with `[t_localhost]`
     //
     // Should create:
     //
     // * `t_localhost -> t_localhost` (self-loop)
-    let edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_localhost__within"));
+    let edge_group_id = EdgeGroupId::from(id!("edge_dep_t_localhost__t_localhost__within"));
     let edges = diagram.edge_groups.get(&edge_group_id).unwrap();
 
     assert_eq!(1, edges.len());
@@ -220,14 +227,14 @@ fn test_sequence_edge_expansion() {
     let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
     let diagram = ir_and_issues.diagram;
 
-    // edge_t_localhost__t_github_user_repo__push is sequence with:
+    // edge_dep_t_localhost__t_github_user_repo__push is sequence with:
     //
     // `[t_localhost, t_github_user_repo]`
     //
     // Should create:
     //
     // * `t_localhost -> t_github_user_repo` (no cycle back)
-    let edge_group_id = EdgeGroupId::from(id!("edge_t_localhost__t_github_user_repo__push"));
+    let edge_group_id = EdgeGroupId::from(id!("edge_dep_t_localhost__t_github_user_repo__push"));
     let edges = diagram.edge_groups.get(&edge_group_id).unwrap();
 
     assert_eq!(1, edges.len());
@@ -500,8 +507,8 @@ fn test_tailwind_classes_generation() {
         t_aws_classes
     );
 
-    // Test edge group tailwind classes
-    let edge_group_id = id!("edge_t_localhost__t_github_user_repo__pull");
+    // Test edge group tailwind classes (using interaction edge groups)
+    let edge_group_id = id!("edge_ix_t_localhost__t_github_user_repo__pull");
     let edge_classes = diagram.tailwind_classes.get(&edge_group_id).unwrap();
     assert!(
         edge_classes.contains("\nstroke-"),

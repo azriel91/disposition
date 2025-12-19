@@ -277,26 +277,36 @@ impl InputToIrDiagramMapper {
             EdgeKind::Symmetric(things) => {
                 // Create edges from each thing to the next, then back from last to first
                 // For [A, B, C]: A -> B -> C -> B -> A
-                let forward: Vec<Edge> = things
-                    .windows(2)
-                    .map(|pair| {
-                        let from_id = NodeId::from(pair[0].clone().into_inner());
-                        let to_id = NodeId::from(pair[1].clone().into_inner());
-                        Edge::new(from_id, to_id)
-                    })
-                    .collect();
+                // For [A] (1 thing): A -> A (request), A -> A (response)
+                if things.len() == 1 {
+                    // Special case: 1 thing creates 2 self-loop edges (request and response)
+                    let node_id = NodeId::from(things[0].clone().into_inner());
+                    vec![
+                        Edge::new(node_id.clone(), node_id.clone()),
+                        Edge::new(node_id.clone(), node_id),
+                    ]
+                } else {
+                    let forward: Vec<Edge> = things
+                        .windows(2)
+                        .map(|pair| {
+                            let from_id = NodeId::from(pair[0].clone().into_inner());
+                            let to_id = NodeId::from(pair[1].clone().into_inner());
+                            Edge::new(from_id, to_id)
+                        })
+                        .collect();
 
-                let reverse: Vec<Edge> = things
-                    .windows(2)
-                    .rev()
-                    .map(|pair| {
-                        let from_id = NodeId::from(pair[1].clone().into_inner());
-                        let to_id = NodeId::from(pair[0].clone().into_inner());
-                        Edge::new(from_id, to_id)
-                    })
-                    .collect();
+                    let reverse: Vec<Edge> = things
+                        .windows(2)
+                        .rev()
+                        .map(|pair| {
+                            let from_id = NodeId::from(pair[1].clone().into_inner());
+                            let to_id = NodeId::from(pair[0].clone().into_inner());
+                            Edge::new(from_id, to_id)
+                        })
+                        .collect();
 
-                forward.into_iter().chain(reverse).collect()
+                    forward.into_iter().chain(reverse).collect()
+                }
             }
         };
 
@@ -389,19 +399,20 @@ impl InputToIrDiagramMapper {
         input_entity_types: &EntityTypes,
     ) {
         let edge_entries = thing_deps.iter().flat_map(|(edge_group_id, edge_kind)| {
-            let edge_count = match edge_kind {
-                EdgeKind::Cyclic(things) => things.len(),
-                EdgeKind::Sequence(things) => things.len().saturating_sub(1),
+            let (edge_count, forward_count) = match edge_kind {
+                EdgeKind::Cyclic(things) => (things.len(), things.len()),
+                EdgeKind::Sequence(things) => {
+                    let count = things.len().saturating_sub(1);
+                    (count, count)
+                }
                 EdgeKind::Symmetric(things) => {
                     // Forward edges + reverse edges
-                    things.len().saturating_sub(1) * 2
+                    // For 1 thing: 2 edges (1 request, 1 response)
+                    // For n things: (n-1) forward + (n-1) reverse
+                    let forward = things.len().max(1).saturating_sub(1).max(1);
+                    let total = if things.len() <= 1 { 2 } else { forward * 2 };
+                    (total, forward)
                 }
-            };
-
-            let default_type = match edge_kind {
-                EdgeKind::Cyclic(_) => EntityType::EdgeDependencyCyclicDefault,
-                EdgeKind::Sequence(_) => EntityType::EdgeDependencySequenceDefault,
-                EdgeKind::Symmetric(_) => EntityType::EdgeDependencySymmetricDefault,
             };
 
             (0..edge_count).map(move |i| {
@@ -409,13 +420,26 @@ impl InputToIrDiagramMapper {
                 let edge_id_str = format!("{edge_group_id}__{i}");
                 let edge_id = Self::id_from_string(edge_id_str);
 
+                let default_type = match edge_kind {
+                    EdgeKind::Cyclic(_) => EntityType::EdgeDependencyCyclicDefault,
+                    EdgeKind::Sequence(_) => EntityType::EdgeDependencySequenceDefault,
+                    EdgeKind::Symmetric(_) => {
+                        // First half are forward (request), second half are reverse (response)
+                        if i < forward_count {
+                            EntityType::EdgeDependencySymmetricRequestDefault
+                        } else {
+                            EntityType::EdgeDependencySymmetricResponseDefault
+                        }
+                    }
+                };
+
                 let types = if let Some(custom_type) = input_entity_types.get(&edge_id) {
                     vec![
-                        default_type.clone(),
+                        default_type,
                         EntityType::from(custom_type.clone().into_inner()),
                     ]
                 } else {
-                    vec![default_type.clone()]
+                    vec![default_type]
                 };
 
                 (edge_id, types)
@@ -434,25 +458,40 @@ impl InputToIrDiagramMapper {
         thing_interactions
             .iter()
             .flat_map(|(edge_group_id, edge_kind)| {
-                let edge_count = match edge_kind {
-                    EdgeKind::Cyclic(things) => things.len(),
-                    EdgeKind::Sequence(things) => things.len().saturating_sub(1),
+                let (edge_count, forward_count) = match edge_kind {
+                    EdgeKind::Cyclic(things) => (things.len(), things.len()),
+                    EdgeKind::Sequence(things) => {
+                        let count = things.len().saturating_sub(1);
+                        (count, count)
+                    }
                     EdgeKind::Symmetric(things) => {
                         // Forward edges + reverse edges
-                        things.len().saturating_sub(1) * 2
+                        // For 1 thing: 2 edges (1 request, 1 response)
+                        // For n things: (n-1) forward + (n-1) reverse
+                        let forward = things.len().max(1).saturating_sub(1).max(1);
+                        let total = if things.len() <= 1 { 2 } else { forward * 2 };
+                        (total, forward)
                     }
-                };
-
-                let interaction_type = match edge_kind {
-                    EdgeKind::Cyclic(_) => EntityType::EdgeInteractionCyclicDefault,
-                    EdgeKind::Sequence(_) => EntityType::EdgeInteractionSequenceRequestDefault,
-                    EdgeKind::Symmetric(_) => EntityType::EdgeInteractionSymmetricDefault,
                 };
 
                 (0..edge_count).map(move |i| {
                     let edge_id_str = format!("{edge_group_id}__{i}");
                     let edge_id = Self::id_from_string(edge_id_str);
-                    (edge_id, interaction_type.clone())
+
+                    let interaction_type = match edge_kind {
+                        EdgeKind::Cyclic(_) => EntityType::EdgeInteractionCyclicDefault,
+                        EdgeKind::Sequence(_) => EntityType::EdgeInteractionSequenceDefault,
+                        EdgeKind::Symmetric(_) => {
+                            // First half are forward (request), second half are reverse (response)
+                            if i < forward_count {
+                                EntityType::EdgeInteractionSymmetricRequestDefault
+                            } else {
+                                EntityType::EdgeInteractionSymmetricResponseDefault
+                            }
+                        }
+                    };
+
+                    (edge_id, interaction_type)
                 })
             })
             .for_each(|(edge_id, interaction_type)| {
@@ -1171,7 +1210,42 @@ impl InputToIrDiagramMapper {
             (edge_group_id.clone().into_inner(), classes)
         });
 
-        node_classes.chain(edge_group_classes).collect()
+        // Build classes for individual edges within edge groups (symmetric edges)
+        let edge_classes = edge_groups.iter().flat_map(|(edge_group_id, edges)| {
+            edges.iter().enumerate().filter_map(move |(index, _edge)| {
+                let edge_id_str = format!("{edge_group_id}__{index}");
+                let edge_id = Self::id_from_string(edge_id_str);
+
+                // Check if this edge has a symmetric type (request or response)
+                let edge_types = entity_types.get(&edge_id)?;
+                let is_symmetric = edge_types.iter().any(|entity_type| {
+                    matches!(
+                        entity_type,
+                        EntityType::EdgeDependencySymmetricRequestDefault
+                            | EntityType::EdgeDependencySymmetricResponseDefault
+                            | EntityType::EdgeInteractionSymmetricRequestDefault
+                            | EntityType::EdgeInteractionSymmetricResponseDefault
+                    )
+                });
+
+                if is_symmetric {
+                    let classes = Self::build_symmetric_edge_tailwind_classes(
+                        &edge_id,
+                        entity_types,
+                        theme_default,
+                        theme_types_styles,
+                    );
+                    Some((edge_id, classes))
+                } else {
+                    None
+                }
+            })
+        });
+
+        node_classes
+            .chain(edge_group_classes)
+            .chain(edge_classes)
+            .collect()
     }
 
     /// Build a map of process step ID to (process ID, edge IDs they interact
@@ -1436,32 +1510,43 @@ impl InputToIrDiagramMapper {
         });
 
         // Add peer classes for process steps that interact with edges involving this
-        // thing
-        // TODO: read this from `theme_default.process_step_selected_styles`
+        // thing using styles from `theme_default.process_step_selected_styles`
         if let Some(interaction_steps) = thing_to_interaction_steps.get(node_id) {
-            // Get the thing's color for interaction highlighting
-            let color = state
-                .attrs
-                .get(&ThemeAttr::ShapeColor)
-                .or_else(|| state.attrs.get(&ThemeAttr::FillColor))
-                .cloned();
-
             interaction_steps.iter().for_each(|step_id| {
-                let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
+                // Build a state from the thing's current colors + process_step_selected_styles
+                let mut step_selected_state = TailwindClassState::default();
 
-                write!(
-                    &mut classes,
-                    "\n\n{peer_prefix}animate-[stroke-dashoffset-move_2s_linear_infinite]"
-                )
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
+                // Copy the thing's colors
+                if let Some(shape_color) = state.attrs.get(&ThemeAttr::ShapeColor) {
+                    step_selected_state
+                        .attrs
+                        .insert(ThemeAttr::ShapeColor, shape_color.clone());
+                };
+                if let Some(fill_color) = state.attrs.get(&ThemeAttr::FillColor) {
+                    step_selected_state
+                        .attrs
+                        .insert(ThemeAttr::FillColor, fill_color.clone());
+                };
+                if let Some(stroke_color) = state.attrs.get(&ThemeAttr::StrokeColor) {
+                    step_selected_state
+                        .attrs
+                        .insert(ThemeAttr::StrokeColor, stroke_color.clone());
+                };
 
-                if let Some(color) = color.as_ref() {
-                    write!(&mut classes, "\n{peer_prefix}stroke-{color}-500")
-                        .expect(CLASSES_BUFFER_WRITE_FAIL);
-
-                    write!(&mut classes, "\n{peer_prefix}fill-{color}-100")
-                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                // Apply process_step_selected_styles.node_defaults
+                if let Some(node_selected_styles) = theme_default
+                    .process_step_selected_styles
+                    .get(&IdOrDefaults::NodeDefaults)
+                {
+                    Self::apply_tailwind_from_partials(
+                        node_selected_styles,
+                        &theme_default.style_aliases,
+                        &mut step_selected_state,
+                    );
                 }
+
+                let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
+                step_selected_state.write_peer_classes(&mut classes, &peer_prefix);
             });
         }
 
@@ -1499,53 +1584,46 @@ impl InputToIrDiagramMapper {
         state.write_classes(&mut classes);
 
         // Add peer classes for each process step that interacts with this edge
-        // TODO: styles should come from `theme_default.process_step_selected_styles`
-        // and `theme_types_styles.type_edge_interaction_*`.
+        // using styles from `theme_default.process_step_selected_styles.edge_defaults`
         interaction_process_step_ids.iter().for_each(|step_id| {
             let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
 
-            // Interaction styling for edges
-            write!(
-                &mut classes,
-                "\n\n{peer_prefix}animate-[stroke-dashoffset-move-request_2s_linear_infinite]"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-            write!(
-                &mut classes,
-                "\n{peer_prefix}stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-
-            write!(&mut classes, "\n{peer_prefix}stroke-[2px]").expect(CLASSES_BUFFER_WRITE_FAIL);
-
-            write!(&mut classes, "\n{peer_prefix}visible").expect(CLASSES_BUFFER_WRITE_FAIL);
-
-            // Use violet for interaction colors (as shown in example)
-            write!(&mut classes, "\n{peer_prefix}hover:fill-violet-600")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-
-            write!(&mut classes, "\n{peer_prefix}fill-violet-700")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-
-            write!(&mut classes, "\n{peer_prefix}focus:fill-violet-800")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-
-            write!(&mut classes, "\n{peer_prefix}active:fill-violet-900")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-
-            write!(&mut classes, "\n{peer_prefix}hover:stroke-violet-700")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-
-            write!(&mut classes, "\n{peer_prefix}stroke-violet-800")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-
-            write!(&mut classes, "\n{peer_prefix}focus:stroke-violet-900")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-
-            write!(&mut classes, "\n{peer_prefix}active:stroke-violet-950")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            // Apply process_step_selected_styles.edge_defaults if available
+            if let Some(edge_selected_styles) = theme_default
+                .process_step_selected_styles
+                .get(&IdOrDefaults::EdgeDefaults)
+            {
+                // Check for visibility
+                if let Some(visibility) = edge_selected_styles.get(&ThemeAttr::Visibility) {
+                    write!(&mut classes, "\n{peer_prefix}{visibility}")
+                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                }
+            }
         });
 
+        classes
+    }
+
+    /// Build tailwind classes for individual symmetric edges within an edge
+    /// group.
+    fn build_symmetric_edge_tailwind_classes(
+        edge_id: &Id,
+        entity_types: &IrEntityTypes,
+        theme_default: &ThemeDefault,
+        theme_types_styles: &ThemeTypesStyles,
+    ) -> String {
+        let mut state = TailwindClassState::default();
+
+        Self::resolve_tailwind_attrs_for_edge(
+            Some(edge_id),
+            entity_types,
+            theme_default,
+            theme_types_styles,
+            &mut state,
+        );
+
+        let mut classes = String::new();
+        state.write_classes(&mut classes);
         classes
     }
 
