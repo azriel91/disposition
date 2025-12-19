@@ -114,24 +114,63 @@ node_hierarchy:
 
 # Edge groups with explicit from/to edges.
 edge_groups:
-  edge_t_localhost__t_github_user_repo:
+  # Dependency edge groups
+  edge_dep_t_localhost__t_github_user_repo__pull:
+    # cyclic: [t_localhost, t_github_user_repo]: A -> B -> A
+    - from: t_localhost
+      to: t_github_user_repo
     - from: t_github_user_repo
       to: t_localhost
+  edge_dep_t_localhost__t_github_user_repo__push:
+    # sequence: [t_localhost, t_github_user_repo]: A -> B
     - from: t_localhost
       to: t_github_user_repo
-  edge_t_localhost__t_github_user_repo__push:
-    - from: t_localhost
-      to: t_github_user_repo
-  edge_t_localhost__t_localhost__within:
+  edge_dep_t_localhost__t_localhost__within:
+    # cyclic: [t_localhost]: A -> A
     - from: t_localhost
       to: t_localhost
-  edge_t_github_user_repo__t_github_user_repo__within:
+  edge_dep_t_github_user_repo__t_github_user_repo__within:
+    # symmetric: [t_github_user_repo] (1 thing special case): A -> A (request), A -> A (response)
     - from: t_github_user_repo
       to: t_github_user_repo
-  edge_t_github_user_repo__t_aws_ecr_repo__push:
+    - from: t_github_user_repo
+      to: t_github_user_repo
+  edge_dep_t_github_user_repo__t_aws_ecr_repo__push:
+    # sequence: [t_github_user_repo, t_aws_ecr_repo]: A -> B
     - from: t_github_user_repo
       to: t_aws_ecr_repo
-  edge_t_aws_ecr_repo__t_aws_ecs_service__push:
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push:
+    # sequence: [t_aws_ecr_repo, t_aws_ecs_service]: A -> B
+    - from: t_aws_ecr_repo
+      to: t_aws_ecs_service
+
+  # Interaction edge groups
+  edge_ix_t_localhost__t_github_user_repo__pull:
+    # symmetric: [t_localhost, t_github_user_repo]: A -> B -> B -> A
+    - from: t_localhost
+      to: t_github_user_repo
+    - from: t_github_user_repo
+      to: t_localhost
+  edge_ix_t_localhost__t_github_user_repo__push:
+    # sequence: [t_localhost, t_github_user_repo]: A -> B
+    - from: t_localhost
+      to: t_github_user_repo
+  edge_ix_t_localhost__t_localhost__within:
+    # cyclic: [t_localhost]: A -> A
+    - from: t_localhost
+      to: t_localhost
+  edge_ix_t_github_user_repo__t_github_user_repo__within:
+    # symmetric: [t_github_user_repo] (1 thing special case): A -> A (request), A -> A (response)
+    - from: t_github_user_repo
+      to: t_github_user_repo
+    - from: t_github_user_repo
+      to: t_github_user_repo
+  edge_ix_t_github_user_repo__t_aws_ecr_repo__push:
+    # sequence: [t_github_user_repo, t_aws_ecr_repo]: A -> B
+    - from: t_github_user_repo
+      to: t_aws_ecr_repo
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push:
+    # sequence: [t_aws_ecr_repo, t_aws_ecs_service]: A -> B
     - from: t_aws_ecr_repo
       to: t_aws_ecs_service
 
@@ -162,12 +201,12 @@ entity_descs:
     Deploy or update the existing ECS service with the new image.
 
   # edge groups
-  edge_t_localhost__t_github_user_repo__pull: "Fetch from GitHub"
-  edge_t_localhost__t_github_user_repo__push: "Push to GitHub"
+  edge_ix_t_localhost__t_github_user_repo__pull: "Fetch from GitHub"
+  edge_ix_t_localhost__t_github_user_repo__push: "Push to GitHub"
 
   # edges
-  edge_t_localhost__t_github_user_repo__pull__0: "`git pull`"
-  edge_t_localhost__t_github_user_repo__push__0: "`git push`"
+  edge_ix_t_localhost__t_github_user_repo__pull__0: "`git pull`"
+  edge_ix_t_localhost__t_github_user_repo__push__0: "`git push`"
 
 # Entity types for styling.
 entity_types:
@@ -213,20 +252,72 @@ entity_types:
   # edges
   #
   # These IDs are the `edge_group` IDs suffixed with "__" and the edge's index within the group.
-  edge_t_localhost__t_github_user_repo__pull__0:
-    [type_edge_interaction_cyclic_default, type_edge_dependency_cyclic_default]
-  edge_t_localhost__t_github_user_repo__pull__1:
-    [type_edge_interaction_cyclic_default, type_edge_dependency_cyclic_default]
-  edge_t_localhost__t_github_user_repo__push__0:
-    [type_edge_interaction_sequence_request_default, type_edge_dependency_sequence_request_default]
-  edge_t_localhost__t_localhost__within__0:
-    [type_edge_interaction_cyclic_default, type_edge_dependency_cyclic_default]
-  edge_t_github_user_repo__t_github_user_repo__within:
-    [type_edge_interaction_cyclic_default, type_edge_dependency_cyclic_default]
-  edge_t_github_user_repo__t_aws_ecr_repo__push__0:
-    [type_edge_interaction_sequence_request_default, type_edge_dependency_sequence_request_default]
-  edge_t_aws_ecr_repo__t_aws_ecs_service__push__0:
-    [type_edge_interaction_sequence_request_default, type_edge_dependency_sequence_request_default]
+
+  # dependency edges
+  # edge_dep_t_localhost__t_github_user_repo__pull: cyclic [t_localhost, t_github_user_repo]
+  #   edges:
+  #     - 0: t_localhost -> t_github_user_repo
+  #     - 1: t_github_user_repo -> t_localhost
+  edge_dep_t_localhost__t_github_user_repo__pull__0: [type_edge_dependency_cyclic_default]
+  edge_dep_t_localhost__t_github_user_repo__pull__1: [type_edge_dependency_cyclic_default]
+  # edge_dep_t_localhost__t_github_user_repo__push: sequence [t_localhost, t_github_user_repo]
+  #   edges:
+  #     - 0: t_localhost -> t_github_user_repo
+  edge_dep_t_localhost__t_github_user_repo__push__0: [type_edge_dependency_sequence_default]
+  # edge_dep_t_localhost__t_localhost__within: cyclic [t_localhost]
+  #   edges:
+  #     - 0: t_localhost -> t_localhost
+  edge_dep_t_localhost__t_localhost__within__0: [type_edge_dependency_cyclic_default]
+  # edge_dep_t_github_user_repo__t_github_user_repo__within: symmetric [t_github_user_repo] (1 thing special case)
+  #   edges:
+  #     - 0: request
+  #     - 1: response
+  edge_dep_t_github_user_repo__t_github_user_repo__within__0:
+    [type_edge_dependency_symmetric_request_default]
+  edge_dep_t_github_user_repo__t_github_user_repo__within__1:
+    [type_edge_dependency_symmetric_response_default]
+  # edge_dep_t_github_user_repo__t_aws_ecr_repo__push: sequence [t_github_user_repo, t_aws_ecr_repo]
+  #   edges:
+  #     - 0: t_github_user_repo -> t_aws_ecr_repo
+  edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0: [type_edge_dependency_sequence_default]
+  # edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push: sequence [t_aws_ecr_repo, t_aws_ecs_service]
+  #   edges:
+  #     - 0: t_aws_ecr_repo -> t_aws_ecs_service
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push__0: [type_edge_dependency_sequence_default]
+
+  # interaction edges
+  # edge_ix_t_localhost__t_github_user_repo__pull: symmetric [t_localhost, t_github_user_repo]
+  #   edges:
+  #     - 0: t_localhost -> t_github_user_repo (request)
+  #     - 1: t_github_user_repo -> t_localhost (response)
+  edge_ix_t_localhost__t_github_user_repo__pull__0:
+    [type_edge_interaction_symmetric_request_default]
+  edge_ix_t_localhost__t_github_user_repo__pull__1:
+    [type_edge_interaction_symmetric_response_default]
+  # edge_ix_t_localhost__t_github_user_repo__push: sequence [t_localhost, t_github_user_repo]
+  #   edges:
+  #     - 0: t_localhost -> t_github_user_repo
+  edge_ix_t_localhost__t_github_user_repo__push__0: [type_edge_interaction_sequence_default]
+  # edge_ix_t_localhost__t_localhost__within: cyclic [t_localhost]
+  #   edges:
+  #     - 0: t_localhost -> t_localhost
+  edge_ix_t_localhost__t_localhost__within__0: [type_edge_interaction_cyclic_default]
+  # edge_ix_t_github_user_repo__t_github_user_repo__within: symmetric [t_github_user_repo] (1 thing special case)
+  #   edges:
+  #     - 0: request
+  #     - 1: response
+  edge_ix_t_github_user_repo__t_github_user_repo__within__0:
+    [type_edge_interaction_symmetric_request_default]
+  edge_ix_t_github_user_repo__t_github_user_repo__within__1:
+    [type_edge_interaction_symmetric_response_default]
+  # edge_ix_t_github_user_repo__t_aws_ecr_repo__push: sequence [t_github_user_repo, t_aws_ecr_repo]
+  #   edges:
+  #     - 0: t_github_user_repo -> t_aws_ecr_repo
+  edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: [type_edge_interaction_sequence_default]
+  # edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push: sequence [t_aws_ecr_repo, t_aws_ecs_service]
+  #   edges:
+  #     - 0: t_aws_ecr_repo -> t_aws_ecs_service
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push__0: [type_edge_interaction_sequence_default]
 
 # Computed Tailwind CSS classes.
 tailwind_classes:
@@ -436,10 +527,12 @@ tailwind_classes:
   # If an edge is only used as an interaction, then the `interaction` set of tailwind classes are
   # generated as regular tailwind classes, and the edge is `invisible` by default.
   # The only peer class needed then is making the edge `visible` when the peer has focus.
-  edge_t_localhost__t_github_user_repo__pull__0: >-
+
+  # dependency edges
+  edge_dep_t_localhost__t_github_user_repo__pull: >-
+    visible
     stroke-1
     [stroke-dasharray:none]
-    visible
     hover:fill-neutral-600
     fill-neutral-700
     focus:fill-neutral-800
@@ -449,207 +542,182 @@ tailwind_classes:
     focus:stroke-neutral-900
     active:stroke-neutral-950
 
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-[2px]
+  edge_dep_t_localhost__t_github_user_repo__push: >-
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+    hover:fill-neutral-600
+    fill-neutral-700
+    focus:fill-neutral-800
+    active:fill-neutral-900
+    hover:stroke-neutral-700
+    stroke-neutral-800
+    focus:stroke-neutral-900
+    active:stroke-neutral-950
+
+  edge_dep_t_localhost__t_localhost__within: >-
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+    hover:fill-neutral-600
+    fill-neutral-700
+    focus:fill-neutral-800
+    active:fill-neutral-900
+    hover:stroke-neutral-700
+    stroke-neutral-800
+    focus:stroke-neutral-900
+    active:stroke-neutral-950
+
+  edge_dep_t_github_user_repo__t_github_user_repo__within: >-
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+    hover:fill-neutral-600
+    fill-neutral-700
+    focus:fill-neutral-800
+    active:fill-neutral-900
+    hover:stroke-neutral-700
+    stroke-neutral-800
+    focus:stroke-neutral-900
+    active:stroke-neutral-950
+  edge_dep_t_github_user_repo__t_github_user_repo__within__0: >-
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+  edge_dep_t_github_user_repo__t_github_user_repo__within__1: >-
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+
+  edge_dep_t_github_user_repo__t_aws_ecr_repo__push: >-
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+    hover:fill-neutral-600
+    fill-neutral-700
+    focus:fill-neutral-800
+    active:fill-neutral-900
+    hover:stroke-neutral-700
+    stroke-neutral-800
+    focus:stroke-neutral-900
+    active:stroke-neutral-950
+
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push: >-
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+    hover:fill-neutral-600
+    fill-neutral-700
+    focus:fill-neutral-800
+    active:fill-neutral-900
+    hover:stroke-neutral-700
+    stroke-neutral-800
+    focus:stroke-neutral-900
+    active:stroke-neutral-950
+
+  # interaction edges
+  edge_ix_t_localhost__t_github_user_repo__pull: >-
+    invisible
+    stroke-[2px]
+    hover:fill-violet-600
+    fill-violet-700
+    focus:fill-violet-800
+    active:fill-violet-900
+    hover:stroke-violet-700
+    stroke-violet-800
+    focus:stroke-violet-900
+    active:stroke-violet-950
     peer-[:focus-within]/proc_app_dev_step_repository_clone:visible
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:fill-violet-600
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:fill-violet-700
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:fill-violet-800
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:active:fill-violet-900
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:stroke-violet-700
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-violet-800
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:stroke-violet-900
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:active:stroke-violet-950
-
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-[2px]
     peer-[:focus-within]/proc_app_release_step_pull_request_open:visible
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:fill-violet-600
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:fill-violet-700
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:fill-violet-800
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:active:fill-violet-900
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:stroke-violet-700
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-violet-800
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:stroke-violet-900
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:active:stroke-violet-950
-  edge_t_localhost__t_github_user_repo__pull__1: >-
-    stroke-1
-    [stroke-dasharray:none]
-    visible
-    hover:fill-neutral-600
-    fill-neutral-700
-    focus:fill-neutral-800
-    active:fill-neutral-900
-    hover:stroke-neutral-700
-    stroke-neutral-800
-    focus:stroke-neutral-900
-    active:stroke-neutral-950
+  edge_ix_t_localhost__t_github_user_repo__pull__0: >-
+    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
+    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
+  edge_ix_t_localhost__t_github_user_repo__pull__1: >-
+    animate-[stroke-dashoffset-move-response_2s_linear_infinite]
+    stroke-[dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80]
 
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:animate-[stroke-dashoffset-move-response_2s_linear_infinite]
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-[dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80]
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-[2px]
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:visible
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:fill-violet-600
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:fill-violet-700
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:fill-violet-800
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:active:fill-violet-900
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:stroke-violet-700
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-violet-800
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:stroke-violet-900
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:active:stroke-violet-950
-
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:animate-[stroke-dashoffset-move-response_2s_linear_infinite]
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-[dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80]
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-[2px]
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:visible
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:fill-violet-600
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:fill-violet-700
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:fill-violet-800
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:active:fill-violet-900
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:stroke-violet-700
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-violet-800
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:stroke-violet-900
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:active:stroke-violet-950
-  edge_t_localhost__t_github_user_repo__push__0: >-
-    stroke-1
-    [stroke-dasharray:none]
-    visible
-    hover:fill-neutral-600
-    fill-neutral-700
-    focus:fill-neutral-800
-    active:fill-neutral-900
-    hover:stroke-neutral-700
-    stroke-neutral-800
-    focus:stroke-neutral-900
-    active:stroke-neutral-950
-
-    peer-[:focus-within]/proc_app_release_step_tag_and_push:animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    peer-[:focus-within]/proc_app_release_step_tag_and_push:stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-    peer-[:focus-within]/proc_app_release_step_tag_and_push:stroke-[2px]
+  edge_ix_t_localhost__t_github_user_repo__push: >-
+    invisible
+    stroke-[2px]
+    hover:fill-violet-600
+    fill-violet-700
+    focus:fill-violet-800
+    active:fill-violet-900
+    hover:stroke-violet-700
+    stroke-violet-800
+    focus:stroke-violet-900
+    active:stroke-violet-950
     peer-[:focus-within]/proc_app_release_step_tag_and_push:visible
-    peer-[:focus-within]/proc_app_release_step_tag_and_push:hover:fill-violet-600
-    peer-[:focus-within]/proc_app_release_step_tag_and_push:fill-violet-700
-    peer-[:focus-within]/proc_app_release_step_tag_and_push:focus:fill-violet-800
-    peer-[:focus-within]/proc_app_release_step_tag_and_push:active:fill-violet-900
-    peer-[:focus-within]/proc_app_release_step_tag_and_push:hover:stroke-violet-700
-    peer-[:focus-within]/proc_app_release_step_tag_and_push:stroke-violet-800
-    peer-[:focus-within]/proc_app_release_step_tag_and_push:focus:stroke-violet-900
-    peer-[:focus-within]/proc_app_release_step_tag_and_push:active:stroke-violet-950
-  edge_t_localhost__t_localhost__within__0: >-
-    stroke-1
-    [stroke-dasharray:none]
-    visible
-    hover:fill-neutral-600
-    fill-neutral-700
-    focus:fill-neutral-800
-    active:fill-neutral-900
-    hover:stroke-neutral-700
-    stroke-neutral-800
-    focus:stroke-neutral-900
-    active:stroke-neutral-950
+  edge_ix_t_localhost__t_github_user_repo__push__0: >-
+    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
+    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
 
-    peer-[:focus-within]/proc_app_dev_step_project_build:animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    peer-[:focus-within]/proc_app_dev_step_project_build:stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-    peer-[:focus-within]/proc_app_dev_step_project_build:stroke-[2px]
+  edge_ix_t_localhost__t_localhost__within: >-
+    invisible
+    stroke-[2px]
+    hover:fill-violet-600
+    fill-violet-700
+    focus:fill-violet-800
+    active:fill-violet-900
+    hover:stroke-violet-700
+    stroke-violet-800
+    focus:stroke-violet-900
+    active:stroke-violet-950
     peer-[:focus-within]/proc_app_dev_step_project_build:visible
-    peer-[:focus-within]/proc_app_dev_step_project_build:hover:fill-violet-600
-    peer-[:focus-within]/proc_app_dev_step_project_build:fill-violet-700
-    peer-[:focus-within]/proc_app_dev_step_project_build:focus:fill-violet-800
-    peer-[:focus-within]/proc_app_dev_step_project_build:active:fill-violet-900
-    peer-[:focus-within]/proc_app_dev_step_project_build:hover:stroke-violet-700
-    peer-[:focus-within]/proc_app_dev_step_project_build:stroke-violet-800
-    peer-[:focus-within]/proc_app_dev_step_project_build:focus:stroke-violet-900
-    peer-[:focus-within]/proc_app_dev_step_project_build:active:stroke-violet-950
-
-    peer-[:focus-within]/proc_app_release_step_crate_version_update:animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    peer-[:focus-within]/proc_app_release_step_crate_version_update:stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-    peer-[:focus-within]/proc_app_release_step_crate_version_update:stroke-[2px]
     peer-[:focus-within]/proc_app_release_step_crate_version_update:visible
-    peer-[:focus-within]/proc_app_release_step_crate_version_update:hover:fill-violet-600
-    peer-[:focus-within]/proc_app_release_step_crate_version_update:fill-violet-700
-    peer-[:focus-within]/proc_app_release_step_crate_version_update:focus:fill-violet-800
-    peer-[:focus-within]/proc_app_release_step_crate_version_update:active:fill-violet-900
-    peer-[:focus-within]/proc_app_release_step_crate_version_update:hover:stroke-violet-700
-    peer-[:focus-within]/proc_app_release_step_crate_version_update:stroke-violet-800
-    peer-[:focus-within]/proc_app_release_step_crate_version_update:focus:stroke-violet-900
-    peer-[:focus-within]/proc_app_release_step_crate_version_update:active:stroke-violet-950
-  edge_t_github_user_repo__t_github_user_repo__within__0: >-
-    stroke-1
-    [stroke-dasharray:none]
-    visible
-    hover:fill-neutral-600
-    fill-neutral-700
-    focus:fill-neutral-800
-    active:fill-neutral-900
-    hover:stroke-neutral-700
-    stroke-neutral-800
-    focus:stroke-neutral-900
-    active:stroke-neutral-950
 
-    peer-[:focus-within]/proc_app_release_step_gh_actions_build:animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    peer-[:focus-within]/proc_app_release_step_gh_actions_build:stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-    peer-[:focus-within]/proc_app_release_step_gh_actions_build:stroke-[2px]
+  edge_ix_t_localhost__t_localhost__within__0: >-
+    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
+    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
+
+  edge_ix_t_github_user_repo__t_github_user_repo__within: >-
+    invisible
+    stroke-[2px]
+    hover:fill-violet-600
+    fill-violet-700
+    focus:fill-violet-800
+    active:fill-violet-900
+    hover:stroke-violet-700
+    stroke-violet-800
+    focus:stroke-violet-900
+    active:stroke-violet-950
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:visible
-    peer-[:focus-within]/proc_app_release_step_gh_actions_build:hover:fill-violet-600
-    peer-[:focus-within]/proc_app_release_step_gh_actions_build:fill-violet-700
-    peer-[:focus-within]/proc_app_release_step_gh_actions_build:focus:fill-violet-800
-    peer-[:focus-within]/proc_app_release_step_gh_actions_build:active:fill-violet-900
-    peer-[:focus-within]/proc_app_release_step_gh_actions_build:hover:stroke-violet-700
-    peer-[:focus-within]/proc_app_release_step_gh_actions_build:stroke-violet-800
-    peer-[:focus-within]/proc_app_release_step_gh_actions_build:focus:stroke-violet-900
-    peer-[:focus-within]/proc_app_release_step_gh_actions_build:active:stroke-violet-950
-  edge_t_github_user_repo__t_aws_ecr_repo__push__0: >-
-    stroke-1
-    [stroke-dasharray:none]
-    visible
-    hover:fill-neutral-600
-    fill-neutral-700
-    focus:fill-neutral-800
-    active:fill-neutral-900
-    hover:stroke-neutral-700
-    stroke-neutral-800
-    focus:stroke-neutral-900
-    active:stroke-neutral-950
+  edge_ix_t_github_user_repo__t_github_user_repo__within__0: >-
+    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
+    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
+  edge_ix_t_github_user_repo__t_github_user_repo__within__1: >-
+    animate-[stroke-dashoffset-move-response_2s_linear_infinite]
+    stroke-[dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80]
 
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:stroke-[2px]
+  edge_ix_t_github_user_repo__t_aws_ecr_repo__push: >-
+    stroke-[2px]
+    hover:fill-violet-600
+    fill-violet-700
+    focus:fill-violet-800
+    active:fill-violet-900
+    hover:stroke-violet-700
+    stroke-violet-800
+    focus:stroke-violet-900
+    active:stroke-violet-950
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:visible
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:fill-violet-600
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:fill-violet-700
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:fill-violet-800
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:fill-violet-900
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:stroke-violet-700
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:stroke-violet-800
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:stroke-violet-900
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:stroke-violet-950
-  edge_t_aws_ecr_repo__t_aws_ecs_service__push__0: >-
-    stroke-1
-    [stroke-dasharray:none]
-    visible
-    hover:fill-neutral-600
-    fill-neutral-700
-    focus:fill-neutral-800
-    active:fill-neutral-900
-    hover:stroke-neutral-700
-    stroke-neutral-800
-    focus:stroke-neutral-900
-    active:stroke-neutral-950
+  edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: >-
+    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
+    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
 
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:stroke-[2px]
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push: >-
+    stroke-[2px]
+    hover:fill-violet-600
+    fill-violet-700
+    focus:fill-violet-800
+    active:fill-violet-900
+    hover:stroke-violet-700
+    stroke-violet-800
+    focus:stroke-violet-900
+    active:stroke-violet-950
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:visible
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:hover:fill-violet-600
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:fill-violet-700
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:focus:fill-violet-800
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:active:fill-violet-900
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:hover:stroke-violet-700
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:stroke-violet-800
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:focus:stroke-violet-900
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:active:stroke-violet-950
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push__0: >-
+    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
+    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
 
   # Styles for things are as follows:
   #
