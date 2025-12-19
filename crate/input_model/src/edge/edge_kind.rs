@@ -11,15 +11,20 @@ use crate::thing::ThingId;
 /// ```yaml
 /// thing_dependencies:
 ///   # Cyclic edge - last thing connects back to first
-///   edge_t_localhost__t_github_user_repo__pull: # <-- value is an `EdgeKind::Cyclic`
+///   edge_dep_t_localhost__t_github_user_repo__pull: # <-- value is an `EdgeKind::Cyclic`
 ///     cyclic:
 ///       - t_localhost
 ///       - t_github_user_repo
 ///
 ///   # Sequential edge - one-way chain from first to last
-///   edge_t_localhost__t_github_user_repo__push: # <-- value is an `EdgeKind::Sequence`
+///   edge_dep_t_localhost__t_github_user_repo__push: # <-- value is an `EdgeKind::Sequence`
 ///     sequence:
 ///       - t_localhost
+///       - t_github_user_repo
+///
+///   # Symmetric edge - forward chain then reverse chain back to first
+///   edge_dep_t_github_user_repo__t_github_user_repo__within: # <-- value is an `EdgeKind::Symmetric`
+///     symmetric:
 ///       - t_github_user_repo
 /// ```
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
@@ -36,6 +41,13 @@ pub enum EdgeKind {
     ///
     /// The edge goes from the first thing to the second, second to third, etc.
     Sequence(Vec<ThingId>),
+
+    /// A symmetric edge where things connect forward then back.
+    ///
+    /// For a list of things A, B, C, the edges are: A -> B -> C -> B -> A.
+    /// Should have at least one `thing`. When there is only one thing,
+    /// it represents a request and response to itself.
+    Symmetric(Vec<ThingId>),
 }
 
 impl EdgeKind {
@@ -44,6 +56,7 @@ impl EdgeKind {
         match self {
             EdgeKind::Cyclic(things) => things,
             EdgeKind::Sequence(things) => things,
+            EdgeKind::Symmetric(things) => things,
         }
     }
 
@@ -55,5 +68,10 @@ impl EdgeKind {
     /// Returns true if this is a sequential edge.
     pub fn is_sequence(&self) -> bool {
         matches!(self, EdgeKind::Sequence(_))
+    }
+
+    /// Returns true if this is a symmetric edge.
+    pub fn is_symmetric(&self) -> bool {
+        matches!(self, EdgeKind::Symmetric(_))
     }
 }
