@@ -1337,7 +1337,7 @@ impl InputToIrDiagramMapper {
             entity_types,
             theme_default,
             theme_types_styles,
-            true, // is_node
+            IdOrDefaults::NodeDefaults,
             &mut state,
         );
 
@@ -1365,7 +1365,7 @@ impl InputToIrDiagramMapper {
             entity_types,
             theme_default,
             theme_types_styles,
-            true, // is_node
+            IdOrDefaults::NodeDefaults,
             &mut state,
         );
 
@@ -1402,7 +1402,7 @@ impl InputToIrDiagramMapper {
             entity_types,
             theme_default,
             theme_types_styles,
-            true, // is_node
+            IdOrDefaults::NodeDefaults,
             &mut state,
         );
 
@@ -1440,7 +1440,7 @@ impl InputToIrDiagramMapper {
             entity_types,
             theme_default,
             theme_types_styles,
-            true, // is_node
+            IdOrDefaults::NodeDefaults,
             &mut state,
         );
 
@@ -1533,17 +1533,25 @@ impl InputToIrDiagramMapper {
                         .insert(ThemeAttr::StrokeColor, stroke_color.clone());
                 };
 
-                // Apply process_step_selected_styles.node_defaults
-                if let Some(node_selected_styles) = theme_default
-                    .process_step_selected_styles
-                    .get(&IdOrDefaults::NodeDefaults)
-                {
+                [
+                    // lowest priority
+                    IdOrDefaults::NodeDefaults,
+                    IdOrDefaults::Id(node_id.clone().into_inner()),
+                    // highest priority
+                ]
+                .iter()
+                .filter_map(|id_or_defaults| {
+                    theme_default
+                        .process_step_selected_styles
+                        .get(id_or_defaults)
+                })
+                .for_each(|css_class_partials| {
                     Self::apply_tailwind_from_partials(
-                        node_selected_styles,
+                        css_class_partials,
                         &theme_default.style_aliases,
                         &mut step_selected_state,
                     );
-                }
+                });
 
                 let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
                 step_selected_state.write_peer_classes(&mut classes, &peer_prefix);
@@ -1557,14 +1565,14 @@ impl InputToIrDiagramMapper {
     ///
     /// # Parameters
     ///
-    /// * `id`: The ID of the edge group.
+    /// * `edge_group_id`: The ID of the edge group.
     /// * `entity_types`: The entity types of the edge group.
     /// * `theme_default`: The theme with styling information.
     /// * `theme_types_styles`: Styles for each entity type.
     /// * `interaction_process_step_ids`: The process step IDs that interact
     ///   with this edge.
     fn build_edge_group_tailwind_classes(
-        id: &Id,
+        edge_group_id: &EdgeGroupId,
         entity_types: &IrEntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
@@ -1572,11 +1580,12 @@ impl InputToIrDiagramMapper {
     ) -> String {
         let mut state = TailwindClassState::default();
 
-        Self::resolve_tailwind_attrs_for_edge(
-            Some(id),
+        Self::resolve_tailwind_attrs(
+            Some(edge_group_id),
             entity_types,
             theme_default,
             theme_types_styles,
+            IdOrDefaults::EdgeDefaults,
             &mut state,
         );
 
@@ -1586,19 +1595,31 @@ impl InputToIrDiagramMapper {
         // Add peer classes for each process step that interacts with this edge
         // using styles from `theme_default.process_step_selected_styles.edge_defaults`
         interaction_process_step_ids.iter().for_each(|step_id| {
-            let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
+            // Build a state from the thing's current colors + process_step_selected_styles
+            let mut step_selected_state = TailwindClassState::default();
 
-            // Apply process_step_selected_styles.edge_defaults if available
-            if let Some(edge_selected_styles) = theme_default
-                .process_step_selected_styles
-                .get(&IdOrDefaults::EdgeDefaults)
-            {
-                // Check for visibility
-                if let Some(visibility) = edge_selected_styles.get(&ThemeAttr::Visibility) {
-                    write!(&mut classes, "\n{peer_prefix}{visibility}")
-                        .expect(CLASSES_BUFFER_WRITE_FAIL);
-                }
-            }
+            [
+                // lowest priority
+                IdOrDefaults::EdgeDefaults,
+                IdOrDefaults::Id(edge_group_id.clone().into_inner()),
+                // highest priority
+            ]
+            .iter()
+            .filter_map(|id_or_defaults| {
+                theme_default
+                    .process_step_selected_styles
+                    .get(id_or_defaults)
+            })
+            .for_each(|css_class_partials| {
+                Self::apply_tailwind_from_partials(
+                    css_class_partials,
+                    &theme_default.style_aliases,
+                    &mut step_selected_state,
+                );
+            });
+
+            let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
+            step_selected_state.write_peer_classes(&mut classes, &peer_prefix);
         });
 
         classes
@@ -1614,11 +1635,12 @@ impl InputToIrDiagramMapper {
     ) -> String {
         let mut state = TailwindClassState::default();
 
-        Self::resolve_tailwind_attrs_for_edge(
+        Self::resolve_tailwind_attrs(
             Some(edge_id),
             entity_types,
             theme_default,
             theme_types_styles,
+            IdOrDefaults::EdgeDefaults,
             &mut state,
         );
 
@@ -1628,24 +1650,28 @@ impl InputToIrDiagramMapper {
     }
 
     /// Resolve tailwind attributes for a node.
+    ///
+    /// # Parameters
+    ///
+    /// * `entity_id`: Thing, process, process step, tag, or edge ID.
+    /// * `entity_types`: The entity types of the entity.
+    /// * `theme_default`: The theme defined for the diagram.
+    /// * `theme_types_styles`: The styles defined for entity types.
+    /// * `id_or_defaults_key`: `IdOrDefaults::NodeDefaults` or
+    ///   `IdOrDefaults::EdgeDefaults`.
+    /// * `state`: Tailwind class state to write the resolved classes to.
     fn resolve_tailwind_attrs<'partials, 'tw_state>(
-        node_id: Option<&Id>,
+        entity_id: Option<&Id>,
         entity_types: &'partials IrEntityTypes,
         theme_default: &'partials ThemeDefault,
         theme_types_styles: &'partials ThemeTypesStyles,
-        is_node: bool,
+        id_or_defaults_key: IdOrDefaults,
         state: &mut TailwindClassState<'tw_state>,
     ) where
         'partials: 'tw_state,
     {
-        let defaults_key = if is_node {
-            IdOrDefaults::NodeDefaults
-        } else {
-            IdOrDefaults::EdgeDefaults
-        };
-
         // 1. Start with NodeDefaults/EdgeDefaults (lowest priority)
-        if let Some(defaults_partials) = theme_default.base_styles.get(&defaults_key) {
+        if let Some(defaults_partials) = theme_default.base_styles.get(&id_or_defaults_key) {
             Self::apply_tailwind_from_partials(
                 defaults_partials,
                 &theme_default.style_aliases,
@@ -1654,7 +1680,7 @@ impl InputToIrDiagramMapper {
         }
 
         // 2. Apply EntityTypes in order (later types override earlier ones)
-        if let Some(id) = node_id
+        if let Some(id) = entity_id
             && let Some(types) = entity_types.get(id)
         {
             types
@@ -1663,7 +1689,7 @@ impl InputToIrDiagramMapper {
                     let type_id = EntityTypeId::from(entity_type.clone().into_id());
                     theme_types_styles
                         .get(&type_id)
-                        .and_then(|type_styles| type_styles.get(&defaults_key))
+                        .and_then(|type_styles| type_styles.get(&id_or_defaults_key))
                 })
                 .for_each(|type_partials| {
                     Self::apply_tailwind_from_partials(
@@ -1675,61 +1701,11 @@ impl InputToIrDiagramMapper {
         }
 
         // 3. Apply node ID itself (highest priority)
-        if let Some(id) = node_id
+        if let Some(id) = entity_id
             && let Some(node_partials) =
                 theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
         {
             Self::apply_tailwind_from_partials(node_partials, &theme_default.style_aliases, state);
-        }
-    }
-
-    /// Resolve tailwind attributes for an edge.
-    fn resolve_tailwind_attrs_for_edge<'partials, 'tw_state>(
-        edge_id: Option<&Id>,
-        entity_types: &'partials IrEntityTypes,
-        theme_default: &'partials ThemeDefault,
-        theme_types_styles: &'partials ThemeTypesStyles,
-        state: &mut TailwindClassState<'tw_state>,
-    ) where
-        'partials: 'tw_state,
-    {
-        // 1. Start with EdgeDefaults (lowest priority)
-        if let Some(defaults_partials) = theme_default.base_styles.get(&IdOrDefaults::EdgeDefaults)
-        {
-            Self::apply_tailwind_from_partials(
-                defaults_partials,
-                &theme_default.style_aliases,
-                state,
-            );
-        }
-
-        // 2. Apply EntityTypes in order (later types override earlier ones)
-        if let Some(id) = edge_id
-            && let Some(types) = entity_types.get(id)
-        {
-            types
-                .iter()
-                .filter_map(|entity_type| {
-                    let type_id = EntityTypeId::from(entity_type.clone().into_id());
-                    theme_types_styles
-                        .get(&type_id)
-                        .and_then(|type_styles| type_styles.get(&IdOrDefaults::EdgeDefaults))
-                })
-                .for_each(|type_partials| {
-                    Self::apply_tailwind_from_partials(
-                        type_partials,
-                        &theme_default.style_aliases,
-                        state,
-                    );
-                });
-        }
-
-        // 3. Apply edge ID itself (highest priority)
-        if let Some(id) = edge_id
-            && let Some(edge_partials) =
-                theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
-        {
-            Self::apply_tailwind_from_partials(edge_partials, &theme_default.style_aliases, state);
         }
     }
 
