@@ -1873,10 +1873,6 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     ///   the animation class (if present) followed by full fill/stroke peer
     ///   classes.
     fn write_peer_classes(&self, classes: &mut String, prefix: &str) {
-        // Makes it easier for tests to assert on classes and ensuring there is no peer
-        // prefix.
-        classes.push('\n');
-
         // Stroke dasharray from stroke_style
         if let Some(style) = self.attrs.get(&ThemeAttr::StrokeStyle)
             && let Some(dasharray) = Self::stroke_style_to_dasharray(style)
@@ -1896,10 +1892,10 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         }
 
         if let Some(opacity) = self.attrs.get(&ThemeAttr::Opacity) {
-            writeln!(classes, "\n{prefix}opacity-{opacity}").expect(CLASSES_BUFFER_WRITE_FAIL);
+            writeln!(classes, "{prefix}opacity-{opacity}").expect(CLASSES_BUFFER_WRITE_FAIL);
         }
         if let Some(animate) = self.attrs.get(&ThemeAttr::Animate) {
-            writeln!(classes, "\n{prefix}animate-{animate}").expect(CLASSES_BUFFER_WRITE_FAIL);
+            writeln!(classes, "{prefix}animate-{animate}").expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
         let fill_color_hover = self.get_fill_color(HighlightState::Hover);

@@ -36,19 +36,19 @@ nodes: &nodes
   tag_app_development: "Application Development"
   tag_deployment: "Deployment"
 
-  # processes
+  # processes and process steps
   proc_app_dev: "App Development"
-  proc_app_release: "App Release"
-  proc_i12e_region_tier_app_deploy: "Prod App Deploy"
-
-  # steps
   proc_app_dev_step_repository_clone: "Clone repository"
   proc_app_dev_step_project_build: "Build project"
+
+  proc_app_release: "App Release"
   proc_app_release_step_crate_version_update: "Update crate versions"
   proc_app_release_step_pull_request_open: "Open PR"
   proc_app_release_step_tag_and_push: "Tag and push"
   proc_app_release_step_gh_actions_build: "Github Actions build"
   proc_app_release_step_gh_actions_publish: "Github Actions publish"
+
+  proc_i12e_region_tier_app_deploy: "Prod App Deploy"
   proc_i12e_region_tier_app_deploy_step_ecs_service_update: "Update ECS service"
 
 # Text to copy to clipboard when a node's copy button is clicked.
@@ -177,7 +177,27 @@ edge_groups:
 # Descriptions for entities.
 entity_descs:
   # nodes
+  t_localhost: "User's computer"
+
+  # edge groups
+  edge_ix_t_localhost__t_github_user_repo__pull: "Fetch from GitHub"
+  edge_ix_t_localhost__t_github_user_repo__push: "Push to GitHub"
+
+  # edges
+  edge_ix_t_localhost__t_github_user_repo__pull__0: "`git pull`"
+  edge_ix_t_localhost__t_github_user_repo__push__0: "`git push`"
+
   # process_steps
+  proc_app_dev_step_repository_clone: |-
+    ```bash
+    git clone https://github.com/azriel91/web_app.git
+    ```
+  proc_app_dev_step_project_build: |-
+    Develop the app:
+
+    * Always link to issue.
+    * Open PR.
+
   proc_app_release_step_crate_version_update: |-
     ```bash
     sd -s 'version = "0.3.0"' 'version = "0.3.0"' $(fd -tf -F toml) README.md src/lib.rs
@@ -199,14 +219,6 @@ entity_descs:
     Github Actions will publish the image to AWS ECR.
   proc_i12e_region_tier_app_deploy_step_ecs_service_update: |-
     Deploy or update the existing ECS service with the new image.
-
-  # edge groups
-  edge_ix_t_localhost__t_github_user_repo__pull: "Fetch from GitHub"
-  edge_ix_t_localhost__t_github_user_repo__push: "Push to GitHub"
-
-  # edges
-  edge_ix_t_localhost__t_github_user_repo__pull__0: "`git pull`"
-  edge_ix_t_localhost__t_github_user_repo__push__0: "`git push`"
 
 # Entity types for styling.
 entity_types:
@@ -231,22 +243,22 @@ entity_types:
   t_localhost_repo_target_dist_dir: [type_thing_default]
 
   # tags
-  tag_app_development: [tag_type_default]
-  tag_deployment: [tag_type_default]
+  tag_app_development: [type_tag_default]
+  tag_deployment: [type_tag_default]
 
-  # processes
+  # processes and process steps
   proc_app_dev: [type_process_default]
-  proc_app_release: [type_process_default]
-  proc_i12e_region_tier_app_deploy: [type_process_default]
-
-  # process steps
   proc_app_dev_step_repository_clone: [type_process_step_default]
   proc_app_dev_step_project_build: [type_process_step_default]
+
+  proc_app_release: [type_process_default]
   proc_app_release_step_crate_version_update: [type_process_step_default]
   proc_app_release_step_pull_request_open: [type_process_step_default]
   proc_app_release_step_tag_and_push: [type_process_step_default]
   proc_app_release_step_gh_actions_build: [type_process_step_default]
   proc_app_release_step_gh_actions_publish: [type_process_step_default]
+
+  proc_i12e_region_tier_app_deploy: [type_process_default]
   proc_i12e_region_tier_app_deploy_step_ecs_service_update: [type_process_step_default]
 
   # edges
@@ -321,404 +333,6 @@ entity_types:
 
 # Computed Tailwind CSS classes.
 tailwind_classes:
-  # Tags - act as group containers for highlighting associated things
-  tag_app_development: >-
-    stroke-1
-    visible
-    hover:fill-emerald-400
-    fill-emerald-500
-    focus:fill-emerald-600
-    active:fill-emerald-700
-    hover:stroke-emerald-500
-    stroke-emerald-600
-    focus:stroke-emerald-700
-    active:stroke-emerald-800
-    [&>text]:fill-neutral-950
-
-    peer/tag_app_development
-
-  tag_deployment: >-
-    stroke-1
-    visible
-    hover:fill-emerald-400
-    fill-emerald-500
-    focus:fill-emerald-600
-    active:fill-emerald-700
-    hover:stroke-emerald-500
-    stroke-emerald-600
-    focus:stroke-emerald-700
-    active:stroke-emerald-800
-    [&>text]:fill-neutral-950
-
-    peer/tag_deployment
-
-  # Processes - act as group containers for their steps
-  #
-  # Note: `process` nodes contain their steps' peer classes. This is because the process nodes will
-  # be sibling elements to the `thing` / `edge_group` elements, whereas the process step nodes are
-  # not sibling elements, so the `thing` and `edge_group` elements can only react to the `process`
-  # nodes' state for the sibling selector to work.
-  proc_app_dev: >-
-    stroke-1
-    visible
-    hover:fill-blue-200
-    fill-blue-300
-    focus:fill-blue-400
-    active:fill-blue-500
-    hover:stroke-blue-300
-    stroke-blue-400
-    focus:stroke-blue-500
-    active:stroke-blue-600
-
-    group/proc_app_dev
-
-    peer/proc_app_dev_step_repository_clone
-    peer/proc_app_dev_step_project_build
-  proc_app_release: >-
-    stroke-1
-    visible
-    hover:fill-blue-200
-    fill-blue-300
-    focus:fill-blue-400
-    active:fill-blue-500
-    hover:stroke-blue-300
-    stroke-blue-400
-    focus:stroke-blue-500
-    active:stroke-blue-600
-
-    group/proc_app_release
-
-    peer/proc_app_release_step_crate_version_update
-    peer/proc_app_release_step_pull_request_open
-    peer/proc_app_release_step_tag_and_push
-    peer/proc_app_release_step_gh_actions_build
-    peer/proc_app_release_step_gh_actions_publish
-  proc_i12e_region_tier_app_deploy: >-
-    stroke-1
-    visible
-    hover:fill-blue-200
-    fill-blue-300
-    focus:fill-blue-400
-    active:fill-blue-500
-    hover:stroke-blue-300
-    stroke-blue-400
-    focus:stroke-blue-500
-    active:stroke-blue-600
-
-    group/proc_i12e_region_tier_app_deploy
-
-    peer/proc_i12e_region_tier_app_deploy_step_ecs_service_update
-
-  # Process steps - visible when parent process has focus, act as peers for edges
-  proc_app_dev_step_repository_clone: >-
-    stroke-1
-    invisible
-    hover:fill-sky-200
-    fill-sky-300
-    focus:fill-sky-400
-    active:fill-sky-500
-    hover:stroke-sky-300
-    stroke-sky-400
-    focus:stroke-sky-500
-    active:stroke-sky-600
-
-    group-focus-within/proc_app_dev:visible
-  proc_app_dev_step_project_build: >-
-    stroke-1
-    invisible
-    hover:fill-sky-200
-    fill-sky-300
-    focus:fill-sky-400
-    active:fill-sky-500
-    hover:stroke-sky-300
-    stroke-sky-400
-    focus:stroke-sky-500
-    active:stroke-sky-600
-
-    group-focus-within/proc_app_dev:visible
-
-  proc_app_release_step_crate_version_update: >-
-    stroke-1
-    invisible
-    hover:fill-sky-200
-    fill-sky-300
-    focus:fill-sky-400
-    active:fill-sky-500
-    hover:stroke-sky-300
-    stroke-sky-400
-    focus:stroke-sky-500
-    active:stroke-sky-600
-
-    group-focus-within/proc_app_release:visible
-  proc_app_release_step_pull_request_open: >-
-    stroke-1
-    invisible
-    hover:fill-sky-200
-    fill-sky-300
-    focus:fill-sky-400
-    active:fill-sky-500
-    hover:stroke-sky-300
-    stroke-sky-400
-    focus:stroke-sky-500
-    active:stroke-sky-600
-
-    group-focus-within/proc_app_release:visible
-  proc_app_release_step_tag_and_push: >-
-    stroke-1
-    invisible
-    hover:fill-sky-200
-    fill-sky-300
-    focus:fill-sky-400
-    active:fill-sky-500
-    hover:stroke-sky-300
-    stroke-sky-400
-    focus:stroke-sky-500
-    active:stroke-sky-600
-
-    group-focus-within/proc_app_release:visible
-  proc_app_release_step_gh_actions_build: >-
-    stroke-1
-    invisible
-    hover:fill-sky-200
-    fill-sky-300
-    focus:fill-sky-400
-    active:fill-sky-500
-    hover:stroke-sky-300
-    stroke-sky-400
-    focus:stroke-sky-500
-    active:stroke-sky-600
-
-    group-focus-within/proc_app_release:visible
-  proc_app_release_step_gh_actions_publish: >-
-    stroke-1
-    invisible
-    hover:fill-sky-200
-    fill-sky-300
-    focus:fill-sky-400
-    active:fill-sky-500
-    hover:stroke-sky-300
-    stroke-sky-400
-    focus:stroke-sky-500
-    active:stroke-sky-600
-
-    group-focus-within/proc_app_release:visible
-
-  proc_i12e_region_tier_app_deploy_step_ecs_service_update: >-
-    stroke-1
-    invisible
-    hover:fill-sky-200
-    fill-sky-300
-    focus:fill-sky-400
-    active:fill-sky-500
-    hover:stroke-sky-300
-    stroke-sky-400
-    focus:stroke-sky-500
-    active:stroke-sky-600
-
-    group-focus-within/proc_i12e_region_tier_app_deploy:visible
-
-  # Edges - visible when their associated step has focus
-  #
-  # If an edge is used as a dependency, then the `dependency` set of tailwind classes are applied,
-  # and the edge is `visible` by default.
-  # If it is also used as an interaction, then the `interaction` set of tailwind classes are
-  # generated as peer classes to override the first set.
-  #
-  # If an edge is only used as an interaction, then the `interaction` set of tailwind classes are
-  # generated as regular tailwind classes, and the edge is `invisible` by default.
-  # The only peer class needed then is making the edge `visible` when the peer has focus.
-
-  # dependency edges
-  edge_dep_t_localhost__t_github_user_repo__pull: >-
-    visible
-    stroke-1
-    [stroke-dasharray:none]
-    hover:fill-neutral-600
-    fill-neutral-700
-    focus:fill-neutral-800
-    active:fill-neutral-900
-    hover:stroke-neutral-700
-    stroke-neutral-800
-    focus:stroke-neutral-900
-    active:stroke-neutral-950
-
-  edge_dep_t_localhost__t_github_user_repo__push: >-
-    visible
-    stroke-1
-    [stroke-dasharray:none]
-    hover:fill-neutral-600
-    fill-neutral-700
-    focus:fill-neutral-800
-    active:fill-neutral-900
-    hover:stroke-neutral-700
-    stroke-neutral-800
-    focus:stroke-neutral-900
-    active:stroke-neutral-950
-
-  edge_dep_t_localhost__t_localhost__within: >-
-    visible
-    stroke-1
-    [stroke-dasharray:none]
-    hover:fill-neutral-600
-    fill-neutral-700
-    focus:fill-neutral-800
-    active:fill-neutral-900
-    hover:stroke-neutral-700
-    stroke-neutral-800
-    focus:stroke-neutral-900
-    active:stroke-neutral-950
-
-  edge_dep_t_github_user_repo__t_github_user_repo__within: >-
-    visible
-    stroke-1
-    [stroke-dasharray:none]
-    hover:fill-neutral-600
-    fill-neutral-700
-    focus:fill-neutral-800
-    active:fill-neutral-900
-    hover:stroke-neutral-700
-    stroke-neutral-800
-    focus:stroke-neutral-900
-    active:stroke-neutral-950
-  edge_dep_t_github_user_repo__t_github_user_repo__within__0: >-
-    visible
-    stroke-1
-    [stroke-dasharray:none]
-  edge_dep_t_github_user_repo__t_github_user_repo__within__1: >-
-    visible
-    stroke-1
-    [stroke-dasharray:none]
-
-  edge_dep_t_github_user_repo__t_aws_ecr_repo__push: >-
-    visible
-    stroke-1
-    [stroke-dasharray:none]
-    hover:fill-neutral-600
-    fill-neutral-700
-    focus:fill-neutral-800
-    active:fill-neutral-900
-    hover:stroke-neutral-700
-    stroke-neutral-800
-    focus:stroke-neutral-900
-    active:stroke-neutral-950
-
-  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push: >-
-    visible
-    stroke-1
-    [stroke-dasharray:none]
-    hover:fill-neutral-600
-    fill-neutral-700
-    focus:fill-neutral-800
-    active:fill-neutral-900
-    hover:stroke-neutral-700
-    stroke-neutral-800
-    focus:stroke-neutral-900
-    active:stroke-neutral-950
-
-  # interaction edges
-  edge_ix_t_localhost__t_github_user_repo__pull: >-
-    invisible
-    stroke-[2px]
-    hover:fill-violet-600
-    fill-violet-700
-    focus:fill-violet-800
-    active:fill-violet-900
-    hover:stroke-violet-700
-    stroke-violet-800
-    focus:stroke-violet-900
-    active:stroke-violet-950
-    peer-[:focus-within]/proc_app_dev_step_repository_clone:visible
-    peer-[:focus-within]/proc_app_release_step_pull_request_open:visible
-  edge_ix_t_localhost__t_github_user_repo__pull__0: >-
-    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-  edge_ix_t_localhost__t_github_user_repo__pull__1: >-
-    animate-[stroke-dashoffset-move-response_2s_linear_infinite]
-    stroke-[dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80]
-
-  edge_ix_t_localhost__t_github_user_repo__push: >-
-    invisible
-    stroke-[2px]
-    hover:fill-violet-600
-    fill-violet-700
-    focus:fill-violet-800
-    active:fill-violet-900
-    hover:stroke-violet-700
-    stroke-violet-800
-    focus:stroke-violet-900
-    active:stroke-violet-950
-    peer-[:focus-within]/proc_app_release_step_tag_and_push:visible
-  edge_ix_t_localhost__t_github_user_repo__push__0: >-
-    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-
-  edge_ix_t_localhost__t_localhost__within: >-
-    invisible
-    stroke-[2px]
-    hover:fill-violet-600
-    fill-violet-700
-    focus:fill-violet-800
-    active:fill-violet-900
-    hover:stroke-violet-700
-    stroke-violet-800
-    focus:stroke-violet-900
-    active:stroke-violet-950
-    peer-[:focus-within]/proc_app_dev_step_project_build:visible
-    peer-[:focus-within]/proc_app_release_step_crate_version_update:visible
-
-  edge_ix_t_localhost__t_localhost__within__0: >-
-    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-
-  edge_ix_t_github_user_repo__t_github_user_repo__within: >-
-    invisible
-    stroke-[2px]
-    hover:fill-violet-600
-    fill-violet-700
-    focus:fill-violet-800
-    active:fill-violet-900
-    hover:stroke-violet-700
-    stroke-violet-800
-    focus:stroke-violet-900
-    active:stroke-violet-950
-    peer-[:focus-within]/proc_app_release_step_gh_actions_build:visible
-  edge_ix_t_github_user_repo__t_github_user_repo__within__0: >-
-    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-  edge_ix_t_github_user_repo__t_github_user_repo__within__1: >-
-    animate-[stroke-dashoffset-move-response_2s_linear_infinite]
-    stroke-[dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80]
-
-  edge_ix_t_github_user_repo__t_aws_ecr_repo__push: >-
-    stroke-[2px]
-    hover:fill-violet-600
-    fill-violet-700
-    focus:fill-violet-800
-    active:fill-violet-900
-    hover:stroke-violet-700
-    stroke-violet-800
-    focus:stroke-violet-900
-    active:stroke-violet-950
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:visible
-  edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: >-
-    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-
-  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push: >-
-    stroke-[2px]
-    hover:fill-violet-600
-    fill-violet-700
-    focus:fill-violet-800
-    active:fill-violet-900
-    hover:stroke-violet-700
-    stroke-violet-800
-    focus:stroke-violet-900
-    active:stroke-violet-950
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:visible
-  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push__0: >-
-    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-
   # Styles for things are as follows:
   #
   # For the inner `<path>` element:
@@ -748,7 +362,7 @@ tailwind_classes:
   # We could collapse the `stroke-dashoffset` into the animation, but we can't collapse the `shade`
   # because they are part of the stroke and fill colors -- we have to choose between duplication
   # either here, or in animations.
-  t_aws: >-
+  t_aws: |
     [stroke-dasharray:2]
     stroke-1
     visible
@@ -761,102 +375,102 @@ tailwind_classes:
     focus:stroke-yellow-300
     active:stroke-yellow-400
     [&>text]:fill-neutral-800
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_aws_iam: >-
+  t_aws_iam: |
     [stroke-dasharray:3]
     stroke-1
     visible
-    hover:fill-yellow-200
-    fill-yellow-300
-    focus:fill-yellow-400
-    active:fill-yellow-500
-    hover:stroke-yellow-300
-    stroke-yellow-400
-    focus:stroke-yellow-500
-    active:stroke-yellow-600
+    hover:fill-slate-200
+    fill-slate-300
+    focus:fill-slate-400
+    active:fill-slate-500
+    hover:stroke-slate-300
+    stroke-slate-400
+    focus:stroke-slate-500
+    active:stroke-slate-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_aws_iam_ecs_policy: >-
+  t_aws_iam_ecs_policy: |
+    [stroke-dasharray:none]
     stroke-1
     visible
-    hover:fill-yellow-200
-    fill-yellow-300
-    focus:fill-yellow-400
-    active:fill-yellow-500
-    hover:stroke-yellow-300
-    stroke-yellow-400
-    focus:stroke-yellow-500
-    active:stroke-yellow-600
+    hover:fill-slate-200
+    fill-slate-300
+    focus:fill-slate-400
+    active:fill-slate-500
+    hover:stroke-slate-300
+    stroke-slate-400
+    focus:stroke-slate-500
+    active:stroke-slate-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_aws_ecr: >-
+  t_aws_ecr: |
     [stroke-dasharray:3]
     stroke-1
     visible
-    hover:fill-yellow-200
-    fill-yellow-300
-    focus:fill-yellow-400
-    active:fill-yellow-500
-    hover:stroke-yellow-300
-    stroke-yellow-400
-    focus:stroke-yellow-500
-    active:stroke-yellow-600
+    hover:fill-slate-200
+    fill-slate-300
+    focus:fill-slate-400
+    active:fill-slate-500
+    hover:stroke-slate-300
+    stroke-slate-400
+    focus:stroke-slate-500
+    active:stroke-slate-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_aws_ecr_repo: >-
+  t_aws_ecr_repo: |
+    [stroke-dasharray:none]
     stroke-1
     visible
-    hover:fill-yellow-200
-    fill-yellow-300
-    focus:fill-yellow-400
-    active:fill-yellow-500
-    hover:stroke-yellow-300
-    stroke-yellow-400
-    focus:stroke-yellow-500
-    active:stroke-yellow-600
+    hover:fill-slate-200
+    fill-slate-300
+    focus:fill-slate-400
+    active:fill-slate-500
+    hover:stroke-slate-300
+    stroke-slate-400
+    focus:stroke-slate-500
+    active:stroke-slate-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
-
+    peer-[:focus-within]/tag_deployment:[stroke-dasharray:3]
+    peer-[:focus-within]/tag_deployment:stroke-2
     peer-[:focus-within]/tag_deployment:animate-[stroke-dashoffset-move_2s_linear_infinite]
-    peer-[:focus-within]/tag_deployment:hover:fill-yellow-50
-    peer-[:focus-within]/tag_deployment:fill-yellow-100
-    peer-[:focus-within]/tag_deployment:focus:fill-yellow-200
-    peer-[:focus-within]/tag_deployment:active:fill-yellow-300
-    peer-[:focus-within]/tag_deployment:hover:stroke-yellow-100
-    peer-[:focus-within]/tag_deployment:stroke-yellow-200
-    peer-[:focus-within]/tag_deployment:focus:stroke-yellow-300
-    peer-[:focus-within]/tag_deployment:active:stroke-yellow-400
-
+    peer-[:focus-within]/tag_deployment:hover:fill-slate-50
+    peer-[:focus-within]/tag_deployment:fill-slate-100
+    peer-[:focus-within]/tag_deployment:focus:fill-slate-200
+    peer-[:focus-within]/tag_deployment:active:fill-slate-300
+    peer-[:focus-within]/tag_deployment:hover:stroke-slate-100
+    peer-[:focus-within]/tag_deployment:stroke-slate-200
+    peer-[:focus-within]/tag_deployment:focus:stroke-slate-300
+    peer-[:focus-within]/tag_deployment:active:stroke-slate-400
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:[stroke-dasharray:3]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:stroke-2
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:animate-[stroke-dashoffset-move_2s_linear_infinite]
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:fill-yellow-50
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:fill-yellow-100
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:fill-yellow-200
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:fill-yellow-300
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:stroke-yellow-100
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:stroke-yellow-200
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:stroke-yellow-300
-    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:stroke-yellow-400
-
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:fill-slate-50
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:fill-slate-100
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:fill-slate-200
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:fill-slate-300
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:stroke-slate-100
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:stroke-slate-200
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:stroke-slate-300
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:stroke-slate-400
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:[stroke-dasharray:3]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:stroke-2
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:animate-[stroke-dashoffset-move_2s_linear_infinite]
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:hover:fill-yellow-50
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:fill-yellow-100
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:focus:fill-yellow-200
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:active:fill-yellow-300
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:hover:stroke-yellow-100
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:stroke-yellow-200
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:focus:stroke-yellow-300
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:active:stroke-yellow-400
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:hover:fill-slate-50
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:fill-slate-100
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:focus:fill-slate-200
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:active:fill-slate-300
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:hover:stroke-slate-100
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:stroke-slate-200
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:focus:stroke-slate-300
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:active:stroke-slate-400
 
-  t_aws_ecr_repo_image_1: >-
+  t_aws_ecr_repo_image_1: |
     stroke-1
     visible
     hover:fill-sky-200
@@ -868,10 +482,10 @@ tailwind_classes:
     focus:stroke-sky-500
     active:stroke-sky-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_aws_ecr_repo_image_2: >-
+  t_aws_ecr_repo_image_2: |
+    [stroke-dasharray:none]
     stroke-1
     visible
     hover:fill-sky-200
@@ -883,56 +497,55 @@ tailwind_classes:
     focus:stroke-sky-500
     active:stroke-sky-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_aws_ecs: >-
+  t_aws_ecs: |
     [stroke-dasharray:3]
+    [stroke-dasharray:none]
     stroke-1
     visible
-    hover:fill-yellow-200
-    fill-yellow-300
-    focus:fill-yellow-400
-    active:fill-yellow-500
-    hover:stroke-yellow-300
-    stroke-yellow-400
-    focus:stroke-yellow-500
-    active:stroke-yellow-600
+    hover:fill-slate-200
+    fill-slate-300
+    focus:fill-slate-400
+    active:fill-slate-500
+    hover:stroke-slate-300
+    stroke-slate-400
+    focus:stroke-slate-500
+    active:stroke-slate-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_aws_ecs_cluster_app: >-
+  t_aws_ecs_cluster_app: |
+    [stroke-dasharray:none]
     stroke-1
     visible
-    hover:fill-yellow-200
-    fill-yellow-300
-    focus:fill-yellow-400
-    active:fill-yellow-500
-    hover:stroke-yellow-300
-    stroke-yellow-400
-    focus:stroke-yellow-500
-    active:stroke-yellow-600
+    hover:fill-slate-200
+    fill-slate-300
+    focus:fill-slate-400
+    active:fill-slate-500
+    hover:stroke-slate-300
+    stroke-slate-400
+    focus:stroke-slate-500
+    active:stroke-slate-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_aws_ecs_cluster_app_task: >-
+  t_aws_ecs_cluster_app_task: |
+    [stroke-dasharray:none]
     stroke-1
     visible
-    hover:fill-yellow-200
-    fill-yellow-300
-    focus:fill-yellow-400
-    active:fill-yellow-500
-    hover:stroke-yellow-300
-    stroke-yellow-400
-    focus:stroke-yellow-500
-    active:stroke-yellow-600
+    hover:fill-slate-200
+    fill-slate-300
+    focus:fill-slate-400
+    active:fill-slate-500
+    hover:stroke-slate-300
+    stroke-slate-400
+    focus:stroke-slate-500
+    active:stroke-slate-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_github: >-
+  t_github: |
     [stroke-dasharray:3]
     stroke-1
     visible
@@ -945,10 +558,9 @@ tailwind_classes:
     focus:stroke-neutral-300
     active:stroke-neutral-400
     [&>text]:fill-neutral-800
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_github_user_repo: >-
+  t_github_user_repo: |
     stroke-1
     visible
     hover:fill-neutral-200
@@ -960,7 +572,6 @@ tailwind_classes:
     focus:stroke-neutral-500
     active:stroke-neutral-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/tag_app_development:hover:fill-neutral-50
     peer-[:focus-within]/tag_app_development:fill-neutral-100
@@ -970,7 +581,6 @@ tailwind_classes:
     peer-[:focus-within]/tag_app_development:stroke-neutral-200
     peer-[:focus-within]/tag_app_development:focus:stroke-neutral-300
     peer-[:focus-within]/tag_app_development:active:stroke-neutral-400
-
     peer-[:focus-within]/tag_deployment:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/tag_deployment:hover:fill-neutral-50
     peer-[:focus-within]/tag_deployment:fill-neutral-100
@@ -980,7 +590,6 @@ tailwind_classes:
     peer-[:focus-within]/tag_deployment:stroke-neutral-200
     peer-[:focus-within]/tag_deployment:focus:stroke-neutral-300
     peer-[:focus-within]/tag_deployment:active:stroke-neutral-400
-
     peer-[:focus-within]/proc_app_dev_step_repository_clone:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:fill-neutral-50
     peer-[:focus-within]/proc_app_dev_step_repository_clone:fill-neutral-100
@@ -990,7 +599,6 @@ tailwind_classes:
     peer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-neutral-200
     peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:stroke-neutral-300
     peer-[:focus-within]/proc_app_dev_step_repository_clone:active:stroke-neutral-400
-
     peer-[:focus-within]/proc_app_release_step_pull_request_open:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:fill-neutral-50
     peer-[:focus-within]/proc_app_release_step_pull_request_open:fill-neutral-100
@@ -1000,7 +608,6 @@ tailwind_classes:
     peer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-neutral-200
     peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:stroke-neutral-300
     peer-[:focus-within]/proc_app_release_step_pull_request_open:active:stroke-neutral-400
-
     peer-[:focus-within]/proc_app_release_step_tag_and_push:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_tag_and_push:hover:fill-neutral-50
     peer-[:focus-within]/proc_app_release_step_tag_and_push:fill-neutral-100
@@ -1010,7 +617,6 @@ tailwind_classes:
     peer-[:focus-within]/proc_app_release_step_tag_and_push:stroke-neutral-200
     peer-[:focus-within]/proc_app_release_step_tag_and_push:focus:stroke-neutral-300
     peer-[:focus-within]/proc_app_release_step_tag_and_push:active:stroke-neutral-400
-
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:hover:fill-neutral-50
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:fill-neutral-100
@@ -1020,7 +626,6 @@ tailwind_classes:
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:stroke-neutral-200
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:focus:stroke-neutral-300
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:active:stroke-neutral-400
-
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:fill-neutral-50
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:fill-neutral-100
@@ -1031,7 +636,7 @@ tailwind_classes:
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:stroke-neutral-300
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:stroke-neutral-400
 
-  t_localhost: >-
+  t_localhost: |
     stroke-1
     visible
     hover:fill-slate-200
@@ -1043,7 +648,6 @@ tailwind_classes:
     focus:stroke-slate-500
     active:stroke-slate-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/tag_app_development:hover:fill-slate-50
     peer-[:focus-within]/tag_app_development:fill-slate-100
@@ -1053,9 +657,7 @@ tailwind_classes:
     peer-[:focus-within]/tag_app_development:stroke-slate-200
     peer-[:focus-within]/tag_app_development:focus:stroke-slate-300
     peer-[:focus-within]/tag_app_development:active:stroke-slate-400
-
     peer-[:focus-within]/tag_deployment:opacity-75
-
     peer-[:focus-within]/proc_app_dev_step_repository_clone:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:fill-slate-50
     peer-[:focus-within]/proc_app_dev_step_repository_clone:fill-slate-100
@@ -1065,7 +667,6 @@ tailwind_classes:
     peer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-slate-200
     peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:stroke-slate-300
     peer-[:focus-within]/proc_app_dev_step_repository_clone:active:stroke-slate-400
-
     peer-[:focus-within]/proc_app_release_step_pull_request_open:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:fill-slate-50
     peer-[:focus-within]/proc_app_release_step_pull_request_open:fill-slate-100
@@ -1075,7 +676,6 @@ tailwind_classes:
     peer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-slate-200
     peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:stroke-slate-300
     peer-[:focus-within]/proc_app_release_step_pull_request_open:active:stroke-slate-400
-
     peer-[:focus-within]/proc_app_release_step_tag_and_push:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_tag_and_push:hover:fill-slate-50
     peer-[:focus-within]/proc_app_release_step_tag_and_push:fill-slate-100
@@ -1085,7 +685,6 @@ tailwind_classes:
     peer-[:focus-within]/proc_app_release_step_tag_and_push:stroke-slate-200
     peer-[:focus-within]/proc_app_release_step_tag_and_push:focus:stroke-slate-300
     peer-[:focus-within]/proc_app_release_step_tag_and_push:active:stroke-slate-400
-
     peer-[:focus-within]/proc_app_dev_step_project_build:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_dev_step_project_build:hover:fill-slate-50
     peer-[:focus-within]/proc_app_dev_step_project_build:fill-slate-100
@@ -1095,7 +694,6 @@ tailwind_classes:
     peer-[:focus-within]/proc_app_dev_step_project_build:stroke-slate-200
     peer-[:focus-within]/proc_app_dev_step_project_build:focus:stroke-slate-300
     peer-[:focus-within]/proc_app_dev_step_project_build:active:stroke-slate-400
-
     peer-[:focus-within]/proc_app_release_step_crate_version_update:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_crate_version_update:hover:fill-slate-50
     peer-[:focus-within]/proc_app_release_step_crate_version_update:fill-slate-100
@@ -1106,7 +704,7 @@ tailwind_classes:
     peer-[:focus-within]/proc_app_release_step_crate_version_update:focus:stroke-slate-300
     peer-[:focus-within]/proc_app_release_step_crate_version_update:active:stroke-slate-400
 
-  t_localhost_repo: >-
+  t_localhost_repo: |
     stroke-1
     visible
     hover:fill-slate-200
@@ -1118,10 +716,9 @@ tailwind_classes:
     focus:stroke-slate-500
     active:stroke-slate-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_localhost_repo_src: >-
+  t_localhost_repo_src: |
     stroke-1
     visible
     hover:fill-slate-200
@@ -1133,10 +730,9 @@ tailwind_classes:
     focus:stroke-slate-500
     active:stroke-slate-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_localhost_repo_target: >-
+  t_localhost_repo_target: |
     stroke-1
     visible
     hover:fill-slate-200
@@ -1148,10 +744,9 @@ tailwind_classes:
     focus:stroke-slate-500
     active:stroke-slate-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_localhost_repo_target_file_zip: >-
+  t_localhost_repo_target_file_zip: |
     stroke-1
     visible
     hover:fill-slate-200
@@ -1163,10 +758,9 @@ tailwind_classes:
     focus:stroke-slate-500
     active:stroke-slate-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_localhost_repo_target_dist_dir: >-
+  t_localhost_repo_target_dist_dir: |
     stroke-1
     visible
     hover:fill-slate-200
@@ -1178,9 +772,406 @@ tailwind_classes:
     focus:stroke-slate-500
     active:stroke-slate-600
     [&>text]:fill-neutral-900
-
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
+
+  # Tags - act as group containers for highlighting associated things
+  tag_app_development: |
+    stroke-1
+    visible
+    hover:fill-emerald-400
+    fill-emerald-500
+    focus:fill-emerald-600
+    active:fill-emerald-700
+    hover:stroke-emerald-500
+    stroke-emerald-600
+    focus:stroke-emerald-700
+    active:stroke-emerald-800
+    [&>text]:fill-neutral-950
+
+    peer/tag_app_development
+
+  tag_deployment: |
+    stroke-1
+    visible
+    hover:fill-emerald-400
+    fill-emerald-500
+    focus:fill-emerald-600
+    active:fill-emerald-700
+    hover:stroke-emerald-500
+    stroke-emerald-600
+    focus:stroke-emerald-700
+    active:stroke-emerald-800
+    [&>text]:fill-neutral-950
+
+    peer/tag_deployment
+
+  # Processes - act as group containers for their steps
+  #
+  # Note: `process` nodes contain their steps' peer classes. This is because the process nodes will
+  # be sibling elements to the `thing` / `edge_group` elements, whereas the process step nodes are
+  # not sibling elements, so the `thing` and `edge_group` elements can only react to the `process`
+  # nodes' state for the sibling selector to work.
+  proc_app_dev: |
+    stroke-1
+    visible
+    hover:fill-blue-200
+    fill-blue-300
+    focus:fill-blue-400
+    active:fill-blue-500
+    hover:stroke-blue-300
+    stroke-blue-400
+    focus:stroke-blue-500
+    active:stroke-blue-600
+
+    group/proc_app_dev
+
+    peer/proc_app_dev_step_repository_clone
+    peer/proc_app_dev_step_project_build
+  proc_app_release: |
+    stroke-1
+    visible
+    hover:fill-blue-200
+    fill-blue-300
+    focus:fill-blue-400
+    active:fill-blue-500
+    hover:stroke-blue-300
+    stroke-blue-400
+    focus:stroke-blue-500
+    active:stroke-blue-600
+
+    group/proc_app_release
+
+    peer/proc_app_release_step_crate_version_update
+    peer/proc_app_release_step_pull_request_open
+    peer/proc_app_release_step_tag_and_push
+    peer/proc_app_release_step_gh_actions_build
+    peer/proc_app_release_step_gh_actions_publish
+  proc_i12e_region_tier_app_deploy: |
+    stroke-1
+    visible
+    hover:fill-blue-200
+    fill-blue-300
+    focus:fill-blue-400
+    active:fill-blue-500
+    hover:stroke-blue-300
+    stroke-blue-400
+    focus:stroke-blue-500
+    active:stroke-blue-600
+
+    group/proc_i12e_region_tier_app_deploy
+
+    peer/proc_i12e_region_tier_app_deploy_step_ecs_service_update
+
+  # Process steps - visible when parent process has focus, act as peers for edges
+  proc_app_dev_step_repository_clone: |
+    stroke-1
+    invisible
+    hover:fill-sky-200
+    fill-sky-300
+    focus:fill-sky-400
+    active:fill-sky-500
+    hover:stroke-sky-300
+    stroke-sky-400
+    focus:stroke-sky-500
+    active:stroke-sky-600
+
+    group-focus-within/proc_app_dev:visible
+  proc_app_dev_step_project_build: |
+    stroke-1
+    invisible
+    hover:fill-sky-200
+    fill-sky-300
+    focus:fill-sky-400
+    active:fill-sky-500
+    hover:stroke-sky-300
+    stroke-sky-400
+    focus:stroke-sky-500
+    active:stroke-sky-600
+
+    group-focus-within/proc_app_dev:visible
+
+  proc_app_release_step_crate_version_update: |
+    stroke-1
+    invisible
+    hover:fill-sky-200
+    fill-sky-300
+    focus:fill-sky-400
+    active:fill-sky-500
+    hover:stroke-sky-300
+    stroke-sky-400
+    focus:stroke-sky-500
+    active:stroke-sky-600
+
+    group-focus-within/proc_app_release:visible
+  proc_app_release_step_pull_request_open: |
+    stroke-1
+    invisible
+    hover:fill-sky-200
+    fill-sky-300
+    focus:fill-sky-400
+    active:fill-sky-500
+    hover:stroke-sky-300
+    stroke-sky-400
+    focus:stroke-sky-500
+    active:stroke-sky-600
+
+    group-focus-within/proc_app_release:visible
+  proc_app_release_step_tag_and_push: |
+    stroke-1
+    invisible
+    hover:fill-sky-200
+    fill-sky-300
+    focus:fill-sky-400
+    active:fill-sky-500
+    hover:stroke-sky-300
+    stroke-sky-400
+    focus:stroke-sky-500
+    active:stroke-sky-600
+
+    group-focus-within/proc_app_release:visible
+  proc_app_release_step_gh_actions_build: |
+    stroke-1
+    invisible
+    hover:fill-sky-200
+    fill-sky-300
+    focus:fill-sky-400
+    active:fill-sky-500
+    hover:stroke-sky-300
+    stroke-sky-400
+    focus:stroke-sky-500
+    active:stroke-sky-600
+
+    group-focus-within/proc_app_release:visible
+  proc_app_release_step_gh_actions_publish: |
+    stroke-1
+    invisible
+    hover:fill-sky-200
+    fill-sky-300
+    focus:fill-sky-400
+    active:fill-sky-500
+    hover:stroke-sky-300
+    stroke-sky-400
+    focus:stroke-sky-500
+    active:stroke-sky-600
+
+    group-focus-within/proc_app_release:visible
+
+  proc_i12e_region_tier_app_deploy_step_ecs_service_update: |
+    stroke-1
+    invisible
+    hover:fill-sky-200
+    fill-sky-300
+    focus:fill-sky-400
+    active:fill-sky-500
+    hover:stroke-sky-300
+    stroke-sky-400
+    focus:stroke-sky-500
+    active:stroke-sky-600
+
+    group-focus-within/proc_i12e_region_tier_app_deploy:visible
+
+  # Edges - visible when their associated step has focus
+  #
+  # If an edge is used as a dependency, then the `dependency` set of tailwind classes are applied,
+  # and the edge is `visible` by default.
+  # If it is also used as an interaction, then the `interaction` set of tailwind classes are
+  # generated as peer classes to override the first set.
+  #
+  # If an edge is only used as an interaction, then the `interaction` set of tailwind classes are
+  # generated as regular tailwind classes, and the edge is `invisible` by default.
+  # The only peer class needed then is making the edge `visible` when the peer has focus.
+
+  # dependency edges
+  edge_dep_t_localhost__t_github_user_repo__pull: |
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+    hover:fill-neutral-600
+    fill-neutral-700
+    focus:fill-neutral-800
+    active:fill-neutral-900
+    hover:stroke-neutral-700
+    stroke-neutral-800
+    focus:stroke-neutral-900
+    active:stroke-neutral-950
+
+  edge_dep_t_localhost__t_github_user_repo__push: |
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+    hover:fill-neutral-600
+    fill-neutral-700
+    focus:fill-neutral-800
+    active:fill-neutral-900
+    hover:stroke-neutral-700
+    stroke-neutral-800
+    focus:stroke-neutral-900
+    active:stroke-neutral-950
+
+  edge_dep_t_localhost__t_localhost__within: |
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+    hover:fill-neutral-600
+    fill-neutral-700
+    focus:fill-neutral-800
+    active:fill-neutral-900
+    hover:stroke-neutral-700
+    stroke-neutral-800
+    focus:stroke-neutral-900
+    active:stroke-neutral-950
+
+  edge_dep_t_github_user_repo__t_github_user_repo__within: |
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+    hover:fill-neutral-600
+    fill-neutral-700
+    focus:fill-neutral-800
+    active:fill-neutral-900
+    hover:stroke-neutral-700
+    stroke-neutral-800
+    focus:stroke-neutral-900
+    active:stroke-neutral-950
+  edge_dep_t_github_user_repo__t_github_user_repo__within__0: |
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+  edge_dep_t_github_user_repo__t_github_user_repo__within__1: |
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+
+  edge_dep_t_github_user_repo__t_aws_ecr_repo__push: |
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+    hover:fill-neutral-600
+    fill-neutral-700
+    focus:fill-neutral-800
+    active:fill-neutral-900
+    hover:stroke-neutral-700
+    stroke-neutral-800
+    focus:stroke-neutral-900
+    active:stroke-neutral-950
+
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push: |
+    visible
+    stroke-1
+    [stroke-dasharray:none]
+    hover:fill-neutral-600
+    fill-neutral-700
+    focus:fill-neutral-800
+    active:fill-neutral-900
+    hover:stroke-neutral-700
+    stroke-neutral-800
+    focus:stroke-neutral-900
+    active:stroke-neutral-950
+
+  # interaction edges
+  edge_ix_t_localhost__t_github_user_repo__pull: |
+    invisible
+    stroke-[2px]
+    hover:fill-violet-600
+    fill-violet-700
+    focus:fill-violet-800
+    active:fill-violet-900
+    hover:stroke-violet-700
+    stroke-violet-800
+    focus:stroke-violet-900
+    active:stroke-violet-950
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:visible
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:visible
+  edge_ix_t_localhost__t_github_user_repo__pull__0: |
+    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
+    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
+  edge_ix_t_localhost__t_github_user_repo__pull__1: |
+    animate-[stroke-dashoffset-move-response_2s_linear_infinite]
+    stroke-[dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80]
+
+  edge_ix_t_localhost__t_github_user_repo__push: |
+    invisible
+    stroke-[2px]
+    hover:fill-violet-600
+    fill-violet-700
+    focus:fill-violet-800
+    active:fill-violet-900
+    hover:stroke-violet-700
+    stroke-violet-800
+    focus:stroke-violet-900
+    active:stroke-violet-950
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:visible
+  edge_ix_t_localhost__t_github_user_repo__push__0: |
+    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
+    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
+
+  edge_ix_t_localhost__t_localhost__within: |
+    invisible
+    stroke-[2px]
+    hover:fill-violet-600
+    fill-violet-700
+    focus:fill-violet-800
+    active:fill-violet-900
+    hover:stroke-violet-700
+    stroke-violet-800
+    focus:stroke-violet-900
+    active:stroke-violet-950
+    peer-[:focus-within]/proc_app_dev_step_project_build:visible
+    peer-[:focus-within]/proc_app_release_step_crate_version_update:visible
+
+  edge_ix_t_localhost__t_localhost__within__0: |
+    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
+    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
+
+  edge_ix_t_github_user_repo__t_github_user_repo__within: |
+    invisible
+    stroke-[2px]
+    hover:fill-violet-600
+    fill-violet-700
+    focus:fill-violet-800
+    active:fill-violet-900
+    hover:stroke-violet-700
+    stroke-violet-800
+    focus:stroke-violet-900
+    active:stroke-violet-950
+    peer-[:focus-within]/proc_app_release_step_gh_actions_build:visible
+  edge_ix_t_github_user_repo__t_github_user_repo__within__0: |
+    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
+    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
+  edge_ix_t_github_user_repo__t_github_user_repo__within__1: |
+    animate-[stroke-dashoffset-move-response_2s_linear_infinite]
+    stroke-[dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80]
+
+  edge_ix_t_github_user_repo__t_aws_ecr_repo__push: |
+    stroke-[2px]
+    hover:fill-violet-600
+    fill-violet-700
+    focus:fill-violet-800
+    active:fill-violet-900
+    hover:stroke-violet-700
+    stroke-violet-800
+    focus:stroke-violet-900
+    active:stroke-violet-950
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:visible
+  edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: |
+    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
+    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
+
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push: |
+    stroke-[2px]
+    hover:fill-violet-600
+    fill-violet-700
+    focus:fill-violet-800
+    active:fill-violet-900
+    hover:stroke-violet-700
+    stroke-violet-800
+    focus:stroke-violet-900
+    active:stroke-violet-950
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:visible
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push__0: |
+    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
+    stroke-[dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
 
 # Layout configuration for nodes.
 node_layout:

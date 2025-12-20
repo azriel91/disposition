@@ -1,7 +1,5 @@
 //! Tests for input to IR diagram mapping.
 
-const EXAMPLE_INPUT: &str = include_str!("example_input.yaml");
-
 use disposition::{
     input_ir_model::IrDiagramAndIssues,
     input_model::InputDiagram,
@@ -9,10 +7,15 @@ use disposition::{
         entity::EntityType,
         layout::{FlexDirection, NodeLayout},
         node::NodeId,
+        IrDiagram,
     },
 };
 use disposition_input_ir_rt::InputToIrDiagramMapper;
 use disposition_model_common::{edge::EdgeGroupId, id, Id};
+use pretty_assertions::assert_eq;
+
+const EXAMPLE_INPUT: &str = include_str!("example_input.yaml");
+const EXAMPLE_IR: &str = include_str!("example_ir.yaml");
 
 #[test]
 fn test_input_to_ir_mapping() {
@@ -441,7 +444,7 @@ fn test_tailwind_classes_generation() {
 
     // Test tag tailwind classes - should have peer/{id} class
     let tag_id = id!("tag_app_development");
-    let tag_classes = diagram.tailwind_classes.get(&tag_id).unwrap();
+    let tag_classes = String::from("\n") + diagram.tailwind_classes.get(&tag_id).unwrap();
     assert!(
         tag_classes.contains("\npeer/tag_app_development"),
         "Tag should have peer class. Got: {}",
@@ -455,7 +458,7 @@ fn test_tailwind_classes_generation() {
 
     // Test process tailwind classes - should have group/{id} class
     let proc_id = id!("proc_app_dev");
-    let proc_classes = diagram.tailwind_classes.get(&proc_id).unwrap();
+    let proc_classes = String::from("\n") + diagram.tailwind_classes.get(&proc_id).unwrap();
     assert!(
         proc_classes.contains("\ngroup/proc_app_dev"),
         "Process should have group class. Got: {}",
@@ -480,7 +483,7 @@ fn test_tailwind_classes_generation() {
     // group-focus-within/{process_id}:visible but NOT peer/{id} (that's on the
     // parent process now)
     let step_id = id!("proc_app_dev_step_repository_clone");
-    let step_classes = diagram.tailwind_classes.get(&step_id).unwrap();
+    let step_classes = String::from("\n") + diagram.tailwind_classes.get(&step_id).unwrap();
     assert!(
         !step_classes.contains("\npeer/proc_app_dev_step_repository_clone"),
         "Process step should NOT have peer class (it's on the parent process now). Got: {}",
@@ -495,7 +498,7 @@ fn test_tailwind_classes_generation() {
     // Test thing tailwind classes - t_aws should have yellow color from
     // base_styles
     let t_aws_id = id!("t_aws");
-    let t_aws_classes = diagram.tailwind_classes.get(&t_aws_id).unwrap();
+    let t_aws_classes = String::from("\n") + diagram.tailwind_classes.get(&t_aws_id).unwrap();
     assert!(
         t_aws_classes.contains("\nfill-yellow"),
         "t_aws should have yellow fill. Got: {}",
@@ -509,7 +512,7 @@ fn test_tailwind_classes_generation() {
 
     // Test edge group tailwind classes (using interaction edge groups)
     let edge_group_id = id!("edge_ix_t_localhost__t_github_user_repo__pull");
-    let edge_classes = diagram.tailwind_classes.get(&edge_group_id).unwrap();
+    let edge_classes = String::from("\n") + diagram.tailwind_classes.get(&edge_group_id).unwrap();
     assert!(
         edge_classes.contains("\nstroke-"),
         "Edge group should have stroke class. Got: {}",
@@ -532,7 +535,7 @@ fn test_tailwind_classes_shade_resolution() {
     // t_aws has type_organisation which uses shade_pale
     // shade_pale has fill_shade_normal: "100"
     let t_aws_id = id!("t_aws");
-    let t_aws_classes = diagram.tailwind_classes.get(&t_aws_id).unwrap();
+    let t_aws_classes = String::from("\n") + diagram.tailwind_classes.get(&t_aws_id).unwrap();
     assert!(
         t_aws_classes.contains("\nfill-yellow-100"),
         "t_aws should have fill-yellow-100 from shade_pale. Got: {}",
@@ -548,7 +551,8 @@ fn test_tailwind_classes_shade_resolution() {
     // type_service only specifies stroke_style, so color comes from
     // type_thing_default which is slate. shade_light has fill_shade_normal: "300"
     let t_aws_iam_id = id!("t_aws_iam");
-    let t_aws_iam_classes = diagram.tailwind_classes.get(&t_aws_iam_id).unwrap();
+    let t_aws_iam_classes =
+        String::from("\n") + diagram.tailwind_classes.get(&t_aws_iam_id).unwrap();
     assert!(
         t_aws_iam_classes.contains("\nfill-slate-300"),
         "t_aws_iam should have fill-slate-300 from type_thing_default + shade_light. Got: {}",
@@ -565,7 +569,7 @@ fn test_tailwind_classes_stroke_style() {
     // t_aws has type_organisation which has stroke_style: "dotted"
     // dotted should map to stroke-dasharray:2
     let t_aws_id = id!("t_aws");
-    let t_aws_classes = diagram.tailwind_classes.get(&t_aws_id).unwrap();
+    let t_aws_classes = String::from("\n") + diagram.tailwind_classes.get(&t_aws_id).unwrap();
     assert!(
         t_aws_classes.contains("\n[stroke-dasharray:2]"),
         "t_aws should have stroke-dasharray:2 from dotted stroke_style. Got: {}",
@@ -575,7 +579,8 @@ fn test_tailwind_classes_stroke_style() {
     // t_aws_iam has type_service which has stroke_style: "dashed"
     // dashed should map to stroke-dasharray:3
     let t_aws_iam_id = id!("t_aws_iam");
-    let t_aws_iam_classes = diagram.tailwind_classes.get(&t_aws_iam_id).unwrap();
+    let t_aws_iam_classes =
+        String::from("\n") + diagram.tailwind_classes.get(&t_aws_iam_id).unwrap();
     assert!(
         t_aws_iam_classes.contains("\n[stroke-dasharray:3]"),
         "t_aws_iam should have stroke-dasharray:3 from dashed stroke_style. Got: {}",
@@ -601,7 +606,8 @@ fn test_tailwind_classes_thing_peer_classes() {
     //   - proc_app_release_step_crate_version_update
 
     let t_localhost_id = id!("t_localhost");
-    let t_localhost_classes = diagram.tailwind_classes.get(&t_localhost_id).unwrap();
+    let t_localhost_classes =
+        String::from("\n") + diagram.tailwind_classes.get(&t_localhost_id).unwrap();
 
     // Should have peer class for proc_app_dev_step_repository_clone
     assert!(
@@ -630,10 +636,11 @@ fn test_tailwind_classes_thing_peer_classes() {
     // t_github_user_repo should have peer classes for process steps that interact
     // with edges involving t_github_user_repo
     let t_github_user_repo_id = id!("t_github_user_repo");
-    let t_github_user_repo_classes = diagram
-        .tailwind_classes
-        .get(&t_github_user_repo_id)
-        .unwrap();
+    let t_github_user_repo_classes = String::from("\n")
+        + diagram
+            .tailwind_classes
+            .get(&t_github_user_repo_id)
+            .unwrap();
 
     // Should have peer class for proc_app_release_step_gh_actions_build
     // because that step interacts with
@@ -664,13 +671,14 @@ fn test_tailwind_classes_tag_peer_classes_for_included_things() {
     // However, stroke_dashed_animated includes animate, so it should have animation
 
     let t_localhost_id = id!("t_localhost");
-    let t_localhost_classes = diagram.tailwind_classes.get(&t_localhost_id).unwrap();
+    let t_localhost_classes =
+        String::from("\n") + diagram.tailwind_classes.get(&t_localhost_id).unwrap();
 
     // t_localhost is IN tag_app_development, so should have full peer classes with
     // animation
     assert!(
         t_localhost_classes
-            .contains("peer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]"),
+            .contains("\npeer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]"),
         "t_localhost should have animation for tag_app_development focus. Got: {}",
         t_localhost_classes
     );
@@ -717,7 +725,7 @@ fn test_tailwind_classes_tag_peer_classes_for_excluded_things() {
     //   - peer-[:focus-within]/tag_deployment:opacity-75 (from tag_defaults)
 
     let t_aws_id = id!("t_aws");
-    let t_aws_classes = diagram.tailwind_classes.get(&t_aws_id).unwrap();
+    let t_aws_classes = String::from("\n") + diagram.tailwind_classes.get(&t_aws_id).unwrap();
 
     // t_aws is NOT in tag_app_development, so should have opacity from
     // tag_app_development's node_excluded_defaults (opacity: 50)
@@ -759,21 +767,22 @@ fn test_tailwind_classes_tag_peer_classes_tag_specific_override() {
     //   - Should have shade_pale and stroke_dashed_animated
 
     let t_github_user_repo_id = id!("t_github_user_repo");
-    let t_github_user_repo_classes = diagram
-        .tailwind_classes
-        .get(&t_github_user_repo_id)
-        .unwrap();
+    let t_github_user_repo_classes = String::from("\n")
+        + diagram
+            .tailwind_classes
+            .get(&t_github_user_repo_id)
+            .unwrap();
 
     // Both tags should have animation (from stroke_dashed_animated)
     assert!(
         t_github_user_repo_classes
-            .contains("peer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]"),
+            .contains("\npeer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]"),
         "t_github_user_repo should have animation for tag_app_development. Got: {}",
         t_github_user_repo_classes
     );
     assert!(
         t_github_user_repo_classes
-            .contains("peer-[:focus-within]/tag_deployment:animate-[stroke-dashoffset-move_2s_linear_infinite]"),
+            .contains("\npeer-[:focus-within]/tag_deployment:animate-[stroke-dashoffset-move_2s_linear_infinite]"),
         "t_github_user_repo should have animation for tag_deployment. Got: {}",
         t_github_user_repo_classes
     );
@@ -791,4 +800,13 @@ fn test_tailwind_classes_tag_peer_classes_tag_specific_override() {
         "t_github_user_repo should have fill classes for tag_deployment. Got: {}",
         t_github_user_repo_classes
     );
+}
+
+#[test]
+fn test_example_input_maps_to_example_ir() {
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_example = serde_saphyr::from_str::<IrDiagram>(EXAMPLE_IR).unwrap();
+
+    assert_eq!(ir_example, ir_and_issues.diagram);
 }

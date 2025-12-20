@@ -272,6 +272,13 @@ impl Visitor<'_> for EntityTypeVisitor {
             "type_edge_dependency_sequence_default" => EntityType::EdgeDependencySequenceDefault,
             "type_edge_dependency_cyclic_default" => EntityType::EdgeDependencyCyclicDefault,
             "type_edge_dependency_symmetric_default" => EntityType::EdgeDependencySymmetricDefault,
+            "type_edge_dependency_symmetric_request_default" => {
+                EntityType::EdgeDependencySymmetricRequestDefault
+            }
+            "type_edge_dependency_symmetric_response_default" => {
+                EntityType::EdgeDependencySymmetricResponseDefault
+            }
+            "type_edge_interaction_sequence_default" => EntityType::EdgeInteractionSequenceDefault,
             "type_edge_interaction_sequence_request_default" => {
                 EntityType::EdgeInteractionSequenceRequestDefault
             }
@@ -281,6 +288,12 @@ impl Visitor<'_> for EntityTypeVisitor {
             "type_edge_interaction_cyclic_default" => EntityType::EdgeInteractionCyclicDefault,
             "type_edge_interaction_symmetric_default" => {
                 EntityType::EdgeInteractionSymmetricDefault
+            }
+            "type_edge_interaction_symmetric_request_default" => {
+                EntityType::EdgeInteractionSymmetricRequestDefault
+            }
+            "type_edge_interaction_symmetric_response_default" => {
+                EntityType::EdgeInteractionSymmetricResponseDefault
             }
             _ => {
                 let id = Id::try_from(value.to_owned()).map_err(serde::de::Error::custom)?;

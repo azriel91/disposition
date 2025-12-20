@@ -67,6 +67,7 @@ disposition_model_common = { path = "crate/model_common", version = "0.0.1" }
 id_newtype = "0.2.0"
 indexmap = "2.12.0"
 miette = "7.6.0"
+pretty_assertions = "1.4.1"
 serde = "1.0"
 serde-saphyr = "0.0.10"
 thiserror = "2.0.17"
