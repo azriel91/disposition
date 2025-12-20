@@ -20,12 +20,20 @@ use serde::{Deserialize, Serialize};
 /// For edges, multiple edges are generated for each dependency / interaction,
 /// and each edge is assigned a type from the following:
 ///
-/// * `type_edge_dependency_sequence_request_default`
-/// * `type_edge_dependency_sequence_response_default`
-/// * `type_edge_dependency_cyclic_default`
-/// * `type_edge_interaction_sequence_request_default`
-/// * `type_edge_interaction_sequence_response_default`
-/// * `type_edge_interaction_cyclic_default`
+/// * `type_dependency_edge_sequence_default`
+/// * `type_dependency_edge_cyclic_default`
+/// * `type_dependency_edge_symmetric_default`
+/// * `type_dependency_edge_sequence_forward_default`
+/// * `type_dependency_edge_cyclic_forward_default`
+/// * `type_dependency_edge_symmetric_forward_default`
+/// * `type_dependency_edge_symmetric_reverse_default`
+/// * `type_interaction_edge_sequence_default`
+/// * `type_interaction_edge_cyclic_default`
+/// * `type_interaction_edge_symmetric_default`
+/// * `type_interaction_edge_sequence_forward_default`
+/// * `type_interaction_edge_cyclic_forward_default`
+/// * `type_interaction_edge_symmetric_forward_default`
+/// * `type_interaction_edge_symmetric_reverse_default`
 ///
 /// The edge ID will be the edge group ID specified in `thing_dependencies` /
 /// `thing_interactions`, suffixed with the zero-based index of the edge like
@@ -47,9 +55,9 @@ use serde::{Deserialize, Serialize};
 ///   t_github: "type_organisation"
 ///   tag_app_development: tag_type_default
 ///   edge_t_localhost__t_github_user_repo__pull__0: >-
-///     "type_edge_dependency_sequence_request_default"
+///     "type_dependency_edge_cyclic_forward_default"
 ///   edge_t_localhost__t_github_user_repo__pull__1: >-
-///     "type_edge_dependency_sequence_response_default"
+///     "type_dependency_edge_cyclic_forward_default"
 /// ```
 #[cfg_attr(
     all(feature = "openapi", not(feature = "test")),

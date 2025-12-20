@@ -261,6 +261,26 @@ entity_types:
   proc_i12e_region_tier_app_deploy: [type_process_default]
   proc_i12e_region_tier_app_deploy_step_ecs_service_update: [type_process_step_default]
 
+  # edge groups
+  #
+  # These are the edge group IDs with their corresponding edge group types.
+
+  # dependency edge groups
+  edge_dep_t_localhost__t_github_user_repo__pull: [type_dependency_edge_cyclic_default]
+  edge_dep_t_localhost__t_github_user_repo__push: [type_dependency_edge_sequence_default]
+  edge_dep_t_localhost__t_localhost__within: [type_dependency_edge_cyclic_default]
+  edge_dep_t_github_user_repo__t_github_user_repo__within: [type_dependency_edge_symmetric_default]
+  edge_dep_t_github_user_repo__t_aws_ecr_repo__push: [type_dependency_edge_sequence_default]
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push: [type_dependency_edge_sequence_default]
+
+  # interaction edge groups
+  edge_ix_t_localhost__t_github_user_repo__pull: [type_interaction_edge_symmetric_default]
+  edge_ix_t_localhost__t_github_user_repo__push: [type_interaction_edge_sequence_default]
+  edge_ix_t_localhost__t_localhost__within: [type_interaction_edge_cyclic_default]
+  edge_ix_t_github_user_repo__t_github_user_repo__within: [type_interaction_edge_symmetric_default]
+  edge_ix_t_github_user_repo__t_aws_ecr_repo__push: [type_interaction_edge_sequence_default]
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push: [type_interaction_edge_sequence_default]
+
   # edges
   #
   # These IDs are the `edge_group` IDs suffixed with "__" and the edge's index within the group.
@@ -270,32 +290,34 @@ entity_types:
   #   edges:
   #     - 0: t_localhost -> t_github_user_repo
   #     - 1: t_github_user_repo -> t_localhost
-  edge_dep_t_localhost__t_github_user_repo__pull__0: [type_edge_dependency_cyclic_default]
-  edge_dep_t_localhost__t_github_user_repo__pull__1: [type_edge_dependency_cyclic_default]
+  edge_dep_t_localhost__t_github_user_repo__pull__0: [type_dependency_edge_cyclic_forward_default]
+  edge_dep_t_localhost__t_github_user_repo__pull__1: [type_dependency_edge_cyclic_forward_default]
   # edge_dep_t_localhost__t_github_user_repo__push: sequence [t_localhost, t_github_user_repo]
   #   edges:
   #     - 0: t_localhost -> t_github_user_repo
-  edge_dep_t_localhost__t_github_user_repo__push__0: [type_edge_dependency_sequence_default]
+  edge_dep_t_localhost__t_github_user_repo__push__0: [type_dependency_edge_sequence_forward_default]
   # edge_dep_t_localhost__t_localhost__within: cyclic [t_localhost]
   #   edges:
   #     - 0: t_localhost -> t_localhost
-  edge_dep_t_localhost__t_localhost__within__0: [type_edge_dependency_cyclic_default]
+  edge_dep_t_localhost__t_localhost__within__0: [type_dependency_edge_cyclic_forward_default]
   # edge_dep_t_github_user_repo__t_github_user_repo__within: symmetric [t_github_user_repo] (1 thing special case)
   #   edges:
   #     - 0: request
   #     - 1: response
   edge_dep_t_github_user_repo__t_github_user_repo__within__0:
-    [type_edge_dependency_symmetric_request_default]
+    [type_dependency_edge_symmetric_forward_default]
   edge_dep_t_github_user_repo__t_github_user_repo__within__1:
-    [type_edge_dependency_symmetric_response_default]
+    [type_dependency_edge_symmetric_reverse_default]
   # edge_dep_t_github_user_repo__t_aws_ecr_repo__push: sequence [t_github_user_repo, t_aws_ecr_repo]
   #   edges:
   #     - 0: t_github_user_repo -> t_aws_ecr_repo
-  edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0: [type_edge_dependency_sequence_default]
+  edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0:
+    [type_dependency_edge_sequence_forward_default]
   # edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push: sequence [t_aws_ecr_repo, t_aws_ecs_service]
   #   edges:
   #     - 0: t_aws_ecr_repo -> t_aws_ecs_service
-  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push__0: [type_edge_dependency_sequence_default]
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push__0:
+    [type_dependency_edge_sequence_forward_default]
 
   # interaction edges
   # edge_ix_t_localhost__t_github_user_repo__pull: symmetric [t_localhost, t_github_user_repo]
@@ -303,33 +325,35 @@ entity_types:
   #     - 0: t_localhost -> t_github_user_repo (request)
   #     - 1: t_github_user_repo -> t_localhost (response)
   edge_ix_t_localhost__t_github_user_repo__pull__0:
-    [type_edge_interaction_symmetric_request_default]
+    [type_interaction_edge_symmetric_forward_default]
   edge_ix_t_localhost__t_github_user_repo__pull__1:
-    [type_edge_interaction_symmetric_response_default]
+    [type_interaction_edge_symmetric_reverse_default]
   # edge_ix_t_localhost__t_github_user_repo__push: sequence [t_localhost, t_github_user_repo]
   #   edges:
   #     - 0: t_localhost -> t_github_user_repo
-  edge_ix_t_localhost__t_github_user_repo__push__0: [type_edge_interaction_sequence_default]
+  edge_ix_t_localhost__t_github_user_repo__push__0: [type_interaction_edge_sequence_forward_default]
   # edge_ix_t_localhost__t_localhost__within: cyclic [t_localhost]
   #   edges:
   #     - 0: t_localhost -> t_localhost
-  edge_ix_t_localhost__t_localhost__within__0: [type_edge_interaction_cyclic_default]
+  edge_ix_t_localhost__t_localhost__within__0: [type_interaction_edge_cyclic_forward_default]
   # edge_ix_t_github_user_repo__t_github_user_repo__within: symmetric [t_github_user_repo] (1 thing special case)
   #   edges:
   #     - 0: request
   #     - 1: response
   edge_ix_t_github_user_repo__t_github_user_repo__within__0:
-    [type_edge_interaction_symmetric_request_default]
+    [type_interaction_edge_symmetric_forward_default]
   edge_ix_t_github_user_repo__t_github_user_repo__within__1:
-    [type_edge_interaction_symmetric_response_default]
+    [type_interaction_edge_symmetric_reverse_default]
   # edge_ix_t_github_user_repo__t_aws_ecr_repo__push: sequence [t_github_user_repo, t_aws_ecr_repo]
   #   edges:
   #     - 0: t_github_user_repo -> t_aws_ecr_repo
-  edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: [type_edge_interaction_sequence_default]
+  edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0:
+    [type_interaction_edge_sequence_forward_default]
   # edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push: sequence [t_aws_ecr_repo, t_aws_ecs_service]
   #   edges:
   #     - 0: t_aws_ecr_repo -> t_aws_ecs_service
-  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push__0: [type_edge_interaction_sequence_default]
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push__0:
+    [type_interaction_edge_sequence_forward_default]
 
 # Computed Tailwind CSS classes.
 tailwind_classes:

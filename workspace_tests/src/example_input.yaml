@@ -345,15 +345,20 @@ tag_things:
 #   - type_tag_default
 #   - type_process_default
 #   - type_process_step_default
-#   - type_edge_dependency_cyclic_default
-#   - type_edge_dependency_sequence_default
-#   - type_edge_dependency_symmetric_default
-#   - type_edge_dependency_symmetric_request_default
-#   - type_edge_dependency_symmetric_response_default
-#   - type_edge_interaction_cyclic_default
-#   - type_edge_interaction_sequence_default
-#   - type_edge_interaction_symmetric_request_default
-#   - type_edge_interaction_symmetric_response_default
+#   - type_dependency_edge_cyclic_default
+#   - type_dependency_edge_cyclic_forward_default
+#   - type_dependency_edge_sequence_default
+#   - type_dependency_edge_sequence_forward_default
+#   - type_dependency_edge_symmetric_default
+#   - type_dependency_edge_symmetric_forward_default
+#   - type_dependency_edge_symmetric_reverse_default
+#   - type_interaction_edge_cyclic_default
+#   - type_interaction_edge_cyclic_forward_default
+#   - type_interaction_edge_sequence_default
+#   - type_interaction_edge_sequence_forward_default
+#   - type_interaction_edge_symmetric_default
+#   - type_interaction_edge_symmetric_forward_default
+#   - type_interaction_edge_symmetric_reverse_default
 # ```
 #
 # Additional `type`s we attach to `things` / `thing_dependencies` / `tags`, so they can be styled
@@ -369,17 +374,22 @@ tag_things:
 # * `type_process_step_default`
 #
 # For edges, multiple edges are generated for each dependency / interaction,
-# and each edge is assigned a type from the following:
+# and each edge group and edge is assigned a type from the following:
 #
-# * `type_edge_dependency_cyclic_default`
-# * `type_edge_dependency_sequence_default`
-# * `type_edge_dependency_symmetric_default`
-# * `type_edge_dependency_symmetric_request_default`
-# * `type_edge_dependency_symmetric_response_default`
-# * `type_edge_interaction_cyclic_default`
-# * `type_edge_interaction_sequence_default`
-# * `type_edge_interaction_symmetric_request_default`
-# * `type_edge_interaction_symmetric_response_default`
+# * `type_dependency_edge_cyclic_default`
+# * `type_dependency_edge_cyclic_forward_default`
+# * `type_dependency_edge_sequence_default`
+# * `type_dependency_edge_sequence_forward_default`
+# * `type_dependency_edge_symmetric_default`
+# * `type_dependency_edge_symmetric_forward_default`
+# * `type_dependency_edge_symmetric_reverse_default`
+# * `type_interaction_edge_cyclic_default`
+# * `type_interaction_edge_cyclic_forward_default`
+# * `type_interaction_edge_sequence_default`
+# * `type_interaction_edge_sequence_forward_default`
+# * `type_interaction_edge_symmetric_default`
+# * `type_interaction_edge_symmetric_forward_default`
+# * `type_interaction_edge_symmetric_reverse_default`
 #
 # The edge ID will be the edge group ID specified in `thing_dependencies` /
 # `thing_interactions`, suffixed with the zero-based index of the edge like
@@ -408,8 +418,8 @@ entity_types:
   # t_localhost_repo_target_file_zip: ~
   # t_localhost_repo_target_dist_dir: ~
 
-  # edge_ix_t_localhost__t_github_user_repo__pull__0: "type_edge_interaction_symmetric_request_default"
-  # edge_ix_t_localhost__t_github_user_repo__pull__1: "type_edge_interaction_symmetric_response_default"
+  # edge_ix_t_localhost__t_github_user_repo__pull__0: "type_interaction_edge_symmetric_forward_default"
+  # edge_ix_t_localhost__t_github_user_repo__pull__1: "type_interaction_edge_symmetric_reverse_default"
   # edge_ix_t_localhost__t_github_user_repo__push: ~
   # edge_ix_t_localhost__t_localhost__within: ~
   # edge_ix_t_github_user_repo__t_github_user_repo__within: ~
@@ -555,45 +565,105 @@ theme_types_styles:
       stroke_width: "1"
       visibility: "invisible"
 
-  # thing_dependencies
-  type_edge_dependency_sequence_request_default:
+  # thing_dependencies - edge groups
+  type_dependency_edge_sequence_default:
     edge_defaults:
       style_aliases_applied: [shade_dark]
       stroke_style: solid
       shape_color: "neutral"
       stroke_width: "1"
-  type_edge_dependency_sequence_response_default:
+  type_dependency_edge_cyclic_default:
     edge_defaults:
       style_aliases_applied: [shade_dark]
       stroke_style: solid
       shape_color: "neutral"
       stroke_width: "1"
-  type_edge_dependency_symmetric_default:
+  type_dependency_edge_symmetric_default:
     edge_defaults:
       style_aliases_applied: [shade_dark]
       stroke_style: solid
       shape_color: "neutral"
       stroke_width: "1"
 
-  # thing_interactions
-  type_edge_interaction_sequence_default:
+  # thing_dependencies - edges
+  type_dependency_edge_sequence_forward_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      stroke_style: solid
+      shape_color: "neutral"
+      stroke_width: "1"
+  type_dependency_edge_cyclic_forward_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      stroke_style: solid
+      shape_color: "neutral"
+      stroke_width: "1"
+  type_dependency_edge_symmetric_forward_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      stroke_style: solid
+      shape_color: "neutral"
+      stroke_width: "1"
+  type_dependency_edge_symmetric_reverse_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      stroke_style: solid
+      shape_color: "neutral"
+      stroke_width: "1"
+
+  # thing_interactions - edge groups
+  type_interaction_edge_sequence_default:
     edge_defaults:
       style_aliases_applied: [shade_dark]
       shape_color: "violet"
       stroke_width: "2"
       visibility: "invisible"
-  type_edge_interaction_sequence_request_default:
+  type_interaction_edge_cyclic_default:
     edge_defaults:
-      style_aliases_applied: [stroke_dashed_animated_request]
-      stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
-  type_edge_interaction_sequence_response_default:
-    edge_defaults:
-      style_aliases_applied: [stroke_dashed_animated_response]
-      stroke_style: "dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80"
-  type_edge_interaction_symmetric_default:
+      style_aliases_applied: [shade_dark]
+      shape_color: "violet"
+      stroke_width: "2"
+      visibility: "invisible"
+  type_interaction_edge_symmetric_default:
     edge_defaults:
       style_aliases_applied: [shade_dark, stroke_dashed_animated_request]
       stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
+      shape_color: "violet"
+      stroke_width: "2"
+      visibility: "invisible"
+
+  # thing_interactions - edges
+  type_interaction_edge_sequence_forward_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      shape_color: "violet"
+      stroke_width: "2"
+      visibility: "invisible"
+  type_interaction_edge_sequence_request_default:
+    edge_defaults:
+      style_aliases_applied: [stroke_dashed_animated_request]
+      stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
+  type_interaction_edge_sequence_response_default:
+    edge_defaults:
+      style_aliases_applied: [stroke_dashed_animated_response]
+      stroke_style: "dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80"
+  type_interaction_edge_cyclic_forward_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      shape_color: "violet"
+      stroke_width: "2"
+      visibility: "invisible"
+  type_interaction_edge_symmetric_forward_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark, stroke_dashed_animated_request]
+      stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
+      shape_color: "violet"
+      stroke_width: "2"
+      visibility: "invisible"
+  type_interaction_edge_symmetric_reverse_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark, stroke_dashed_animated_response]
+      stroke_style: "dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80"
       shape_color: "violet"
       stroke_width: "2"
       visibility: "invisible"

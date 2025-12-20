@@ -36,11 +36,17 @@ use crate::entity::EntityType;
 ///   proc_app_dev_step_repository_clone: [type_process_step_default]
 ///   proc_app_dev_step_project_build: [type_process_step_default]
 ///
+///   # edge groups
+///   edge_t_localhost__t_github_user_repo__pull:
+///     [type_dependency_edge_cyclic_default, type_interaction_edge_cyclic_default]
+///   edge_t_localhost__t_github_user_repo__push:
+///     [type_dependency_edge_sequence_default, type_interaction_edge_sequence_default]
+///
 ///   # edges
 ///   edge_t_localhost__t_github_user_repo__pull__0:
-///     [type_edge_dependency_cyclic_default, type_edge_interaction_cyclic_default]
+///     [type_dependency_edge_cyclic_forward_default, type_interaction_edge_cyclic_forward_default]
 ///   edge_t_localhost__t_github_user_repo__push__0:
-///     [type_edge_dependency_sequence_request_default, type_edge_interaction_sequence_request_default]
+///     [type_dependency_edge_sequence_forward_default, type_interaction_edge_sequence_forward_default]
 /// ```
 #[cfg_attr(
     all(feature = "openapi", not(feature = "test")),

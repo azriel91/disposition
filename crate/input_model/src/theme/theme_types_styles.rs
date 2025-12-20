@@ -15,8 +15,8 @@ use crate::{entity::EntityTypeId, theme::ThemeStyles};
 /// * `type_organisation`: Parent container for services
 /// * `type_service`: A deployable service
 /// * `type_docker_image`: Docker container image
-/// * `type_edge_dependency_sequence_request_default`: Default edge style for
-///   request sequences
+/// * `type_dependency_edge_sequence_forward_default`: Default edge style for
+///   dependency sequence edges
 ///
 /// ## Custom Types
 ///
@@ -39,7 +39,7 @@ use crate::{entity::EntityTypeId, theme::ThemeStyles};
 ///     node_defaults:
 ///       shape_color: "sky"
 ///
-///   type_edge_dependency_sequence_request_default:
+///   type_dependency_edge_sequence_forward_default:
 ///     edge_defaults:
 ///       style_aliases_applied: [shade_dark]
 ///       stroke_style: solid

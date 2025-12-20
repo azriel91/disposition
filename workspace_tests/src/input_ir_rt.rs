@@ -162,14 +162,14 @@ fn test_input_to_ir_mapping() {
     let dep_edge_types = diagram.entity_types.get(&dep_edge_id).unwrap();
     assert!(dep_edge_types
         .iter()
-        .any(|entity_type| *entity_type == EntityType::EdgeDependencyCyclicDefault));
+        .any(|entity_type| *entity_type == EntityType::DependencyEdgeCyclicForwardDefault));
 
     // Edges should have interaction types (symmetric uses request/response types)
     let ix_edge_id = id!("edge_ix_t_localhost__t_github_user_repo__pull__0");
     let ix_edge_types = diagram.entity_types.get(&ix_edge_id).unwrap();
     assert!(ix_edge_types
         .iter()
-        .any(|entity_type| *entity_type == EntityType::EdgeInteractionSymmetricRequestDefault));
+        .any(|entity_type| *entity_type == EntityType::InteractionEdgeSymmetricForwardDefault));
 
     // 7. Verify CSS is passed through
     assert!(!diagram.css.is_empty());
