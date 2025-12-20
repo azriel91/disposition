@@ -385,16 +385,24 @@ impl InputToIrDiagramMapper {
             .collect();
 
         // Add edge types from thing_dependencies
-        Self::add_edge_types(&mut entity_types, thing_dependencies, input_entity_types);
+        Self::build_entity_types_add_thing_dependency_edges(
+            &mut entity_types,
+            thing_dependencies,
+            input_entity_types,
+        );
 
         // Add edge types from thing_interactions (will merge with existing)
-        Self::add_edge_interaction_types(&mut entity_types, thing_interactions, input_entity_types);
+        Self::build_entity_types_add_thing_interactions_edges(
+            &mut entity_types,
+            thing_interactions,
+            input_entity_types,
+        );
 
         IrEntityTypes::from(entity_types)
     }
 
     /// Add edge types from dependencies.
-    fn add_edge_types(
+    fn build_entity_types_add_thing_dependency_edges(
         entity_types: &mut Map<Id, Set<EntityType>>,
         thing_deps: &ThingDependencies,
         input_entity_types: &EntityTypes,
@@ -449,7 +457,7 @@ impl InputToIrDiagramMapper {
     }
 
     /// Add interaction types to existing edge types.
-    fn add_edge_interaction_types(
+    fn build_entity_types_add_thing_interactions_edges(
         entity_types: &mut Map<Id, Set<EntityType>>,
         thing_interactions: &ThingInteractions,
         _input_entity_types: &EntityTypes,
