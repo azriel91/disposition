@@ -37,7 +37,10 @@ use crate::edge::EdgeKind;
 ///       - t_github_user_repo
 ///       - t_aws_ecr_repo
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThingInteractions(Map<EdgeGroupId, EdgeKind>);
 

@@ -51,7 +51,10 @@ use crate::layout::FlexDirection;
 ///       margin_left: 0.0
 ///       gap: 2.0
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 pub struct FlexLayout {
     /// The direction in which flex items are placed in the flex container.

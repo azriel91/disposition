@@ -32,7 +32,10 @@ use crate::thing::ThingId;
 ///   t_localhost: "🧑‍💻 Localhost"
 ///   t_localhost_repo: "📂 ~/work/web_app"
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThingNames(Map<ThingId, String>);
 

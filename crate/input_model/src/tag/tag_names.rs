@@ -16,7 +16,10 @@ use crate::tag::TagId;
 ///   tag_deployment: "Deployment"
 ///   tag_infrastructure: "Infrastructure"
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct TagNames(Map<TagId, String>);
 

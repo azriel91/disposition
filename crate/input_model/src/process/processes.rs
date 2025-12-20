@@ -36,7 +36,10 @@ use crate::process::{ProcessDiagram, ProcessId};
 ///     steps:
 ///       proc_app_release_step_tag_and_push: "Tag and push"
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Processes(Map<ProcessId, ProcessDiagram>);
 

@@ -6,7 +6,10 @@ use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use crate::tag::TagId;
 
 /// Key to specify styles for tag focus, either defaults or a specific tag.
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TagIdOrDefaults {
     /// Styles to apply to all tags by default.

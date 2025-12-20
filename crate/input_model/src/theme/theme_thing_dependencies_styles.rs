@@ -26,7 +26,10 @@ use crate::theme::ThemeStyles;
 ///     edge_defaults:
 ///       visibility: "hidden"
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThemeThingDependenciesStyles {
     /// Styles applied to things that are included in the dependency view.

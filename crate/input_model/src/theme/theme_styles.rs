@@ -35,7 +35,10 @@ use crate::theme::{CssClassPartials, IdOrDefaults};
 ///       style_aliases_applied: [shade_light]
 ///       shape_color: "blue"
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThemeStyles(Map<IdOrDefaults, CssClassPartials>);
 

@@ -24,7 +24,10 @@ use crate::edge::Edge;
 ///     - from: t_localhost
 ///       to: t_github_user_repo
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct EdgeGroup(Vec<Edge>);
 

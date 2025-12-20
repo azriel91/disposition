@@ -35,7 +35,10 @@ use crate::node::NodeId;
 ///   proc_app_dev_step_repository_clone: "Clone repository"
 ///   proc_app_dev_step_project_build: "Build project"
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct NodeNames(Map<NodeId, String>);
 

@@ -28,7 +28,10 @@ use crate::process::ProcessStepId;
 ///         * Always link to issue.
 ///         * Open PR.
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct StepDescs(Map<ProcessStepId, String>);
 

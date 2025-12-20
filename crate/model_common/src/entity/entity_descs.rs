@@ -27,7 +27,10 @@ use crate::{Id, Map};
 ///   edge_t_localhost__t_github_user_repo__pull__0: |-
 ///     `git pull`
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct EntityDescs(Map<Id, String>);
 

@@ -35,7 +35,10 @@ use crate::process::{ProcessSteps, StepDescs, StepThingInteractions};
 ///       proc_app_dev_step_repository_clone: [edge_t_localhost__t_github_user_repo__pull]
 ///       proc_app_dev_step_project_build: [edge_t_localhost__t_localhost__within]
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ProcessDiagram {
     /// Display name of the process.

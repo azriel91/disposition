@@ -539,7 +539,6 @@ version = "0.0.1"
 dependencies = [
  "disposition",
  "disposition_input_ir_rt",
- "disposition_model_common",
  "pretty_assertions",
  "serde-saphyr",
 ]

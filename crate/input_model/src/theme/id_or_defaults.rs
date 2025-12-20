@@ -4,7 +4,10 @@ use disposition_model_common::Id;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
 /// Key to specify tailwind styles for all kinds of nodes and edges.
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum IdOrDefaults {
     /// Styles to apply to all nodes.

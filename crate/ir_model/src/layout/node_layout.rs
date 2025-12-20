@@ -46,7 +46,10 @@ use crate::layout::FlexLayout;
 ///   tag_deployment: none
 ///   t_aws_iam_ecs_policy: none
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeLayout {

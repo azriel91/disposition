@@ -5,10 +5,10 @@
 
 // Re-exports
 // This allows consumers to not need to depend on `utoipa` manually.
-#[cfg(feature = "openapi")]
+#[cfg(all(feature = "openapi", not(feature = "test")))]
 pub use utoipa;
 
-#[cfg(feature = "openapi")]
+#[cfg(all(feature = "openapi", not(feature = "test")))]
 pub use crate::api_doc::ApiDoc;
 pub use crate::input_diagram::InputDiagram;
 
@@ -19,6 +19,6 @@ pub mod tag;
 pub mod theme;
 pub mod thing;
 
-#[cfg(feature = "openapi")]
+#[cfg(all(feature = "openapi", not(feature = "test")))]
 mod api_doc;
 mod input_diagram;

@@ -36,7 +36,10 @@ use crate::theme::{StyleAlias, ThemeAttr};
 ///   stroke_shade_normal: "400"
 ///   text_shade: "900"
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct CssClassPartials {
     /// The style aliases applied to the CSS class partials.

@@ -22,7 +22,10 @@ use serde::{Deserialize, Serialize};
 ///
 /// assert_eq!(process_id.as_str(), "example_id");
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ProcessId(Id);
 

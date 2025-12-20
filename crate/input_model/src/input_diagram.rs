@@ -14,7 +14,10 @@ use crate::{
 /// This is the root data structure for diagram input, containing all
 /// configuration for things, their relationships, processes, tags, styling,
 /// and themes.
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct InputDiagram {
     /// Things in the diagram and their display labels.

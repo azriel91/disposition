@@ -51,7 +51,10 @@ use serde::{Deserialize, Serialize};
 ///   edge_t_localhost__t_github_user_repo__pull__1: >-
 ///     "type_edge_dependency_sequence_response_default"
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct EntityTypes(Map<Id, EntityTypeId>);
 

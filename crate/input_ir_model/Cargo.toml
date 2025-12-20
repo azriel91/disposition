@@ -28,3 +28,5 @@ default = []
 
 # Only enable this when you need to generate OpenAPI documentation.
 openapi = ["dep:utoipa", "disposition_model_common/openapi"]
+
+test = []

@@ -22,7 +22,10 @@ use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 /// let custom_alias = EntityType::Custom("type_server".parse().unwrap());
 /// assert_eq!(custom_alias.as_str(), "type_server");
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum EntityType {
     /// Default type for things

@@ -19,7 +19,10 @@ use crate::thing::ThingId;
 ///   t_localhost_repo_src: "~/work/web_app/src"
 ///   t_localhost_repo_target: "~/work/web_app/target"
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThingCopyText(Map<ThingId, String>);
 

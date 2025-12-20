@@ -67,7 +67,10 @@ use serde::{Deserialize, Serialize};
 ///     hover:fill-yellow-50
 ///     fill-yellow-100
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct EntityTailwindClasses(Map<Id, String>);
 

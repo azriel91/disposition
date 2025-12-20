@@ -44,7 +44,10 @@ use crate::theme::{CssClassPartials, StyleAlias};
 ///       stroke_width: "2"
 ///       animate: "[stroke-dashoffset-move_2s_linear_infinite]"
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct StyleAliases(Map<StyleAlias, CssClassPartials>);
 

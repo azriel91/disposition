@@ -52,7 +52,12 @@ openapi = [
     "disposition_input_model/openapi",
     "disposition_ir_model/openapi",
 ]
-test = ["disposition_model_common/test"]
+test = [
+    "disposition_input_model/test",
+    "disposition_input_ir_model/test",
+    "disposition_ir_model/test",
+    "disposition_model_common/test",
+]
 
 [workspace.dependencies]
 # disposition crates

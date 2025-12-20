@@ -30,7 +30,10 @@ use crate::theme::{TagIdOrDefaults, ThemeStyles};
 ///     node_excluded_defaults:
 ///       opacity: "0.3"
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThemeTagThingsFocus(Map<TagIdOrDefaults, ThemeStyles>);
 

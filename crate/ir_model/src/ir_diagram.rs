@@ -69,7 +69,10 @@ use crate::{
 /// css: >-
 ///   @keyframes stroke-dashoffset-move { ... }
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 pub struct IrDiagram {
     /// All nodes in the diagram and their display labels.

@@ -9,9 +9,9 @@ use disposition::{
         node::NodeId,
         IrDiagram,
     },
+    model_common::{edge::EdgeGroupId, id, Id},
 };
 use disposition_input_ir_rt::InputToIrDiagramMapper;
-use disposition_model_common::{edge::EdgeGroupId, id, Id};
 use pretty_assertions::assert_eq;
 
 const EXAMPLE_INPUT: &str = include_str!("example_input.yaml");

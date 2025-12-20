@@ -42,7 +42,10 @@ use crate::entity::EntityType;
 ///   edge_t_localhost__t_github_user_repo__push__0:
 ///     [type_edge_dependency_sequence_request_default, type_edge_interaction_sequence_request_default]
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct EntityTypes(Map<Id, Vec<EntityType>>);
 

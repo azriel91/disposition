@@ -22,7 +22,10 @@ use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 /// let custom_alias = StyleAlias::Custom("my_custom_style".parse().unwrap());
 /// assert_eq!(custom_alias.as_str(), "my_custom_style");
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum StyleAlias {
     /// No padding.
