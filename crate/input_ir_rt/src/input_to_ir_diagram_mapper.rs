@@ -1263,33 +1263,18 @@ impl InputToIrDiagramMapper {
 
         // Build classes for individual edges within edge groups (symmetric edges)
         let edge_classes = edge_groups.iter().flat_map(|(edge_group_id, edges)| {
-            edges.iter().enumerate().filter_map(move |(index, _edge)| {
+            edges.iter().enumerate().map(move |(index, _edge)| {
                 let edge_id_str = format!("{edge_group_id}__{index}");
                 let edge_id = Self::id_from_string(edge_id_str);
 
                 // Check if this edge has a symmetric type (request or response)
-                let edge_types = entity_types.get(&edge_id)?;
-                let is_symmetric = edge_types.iter().any(|entity_type| {
-                    matches!(
-                        entity_type,
-                        EntityType::DependencyEdgeSymmetricForwardDefault
-                            | EntityType::DependencyEdgeSymmetricReverseDefault
-                            | EntityType::InteractionEdgeSymmetricForwardDefault
-                            | EntityType::InteractionEdgeSymmetricReverseDefault
-                    )
-                });
-
-                if is_symmetric {
-                    let classes = Self::build_symmetric_edge_tailwind_classes(
-                        &edge_id,
-                        entity_types,
-                        theme_default,
-                        theme_types_styles,
-                    );
-                    Some((edge_id, classes))
-                } else {
-                    None
-                }
+                let classes = Self::build_edge_tailwind_classes(
+                    &edge_id,
+                    entity_types,
+                    theme_default,
+                    theme_types_styles,
+                );
+                (edge_id, classes)
             })
         });
 
@@ -1678,7 +1663,7 @@ impl InputToIrDiagramMapper {
 
     /// Build tailwind classes for individual symmetric edges within an edge
     /// group.
-    fn build_symmetric_edge_tailwind_classes(
+    fn build_edge_tailwind_classes(
         edge_id: &Id,
         entity_types: &IrEntityTypes,
         theme_default: &ThemeDefault,
@@ -1922,6 +1907,11 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     ///   the animation class (if present) followed by full fill/stroke peer
     ///   classes.
     fn write_peer_classes(&self, classes: &mut String, prefix: &str) {
+        // Visibility
+        if let Some(visibility) = self.attrs.get(&ThemeAttr::Visibility) {
+            writeln!(classes, "{prefix}{visibility}").expect(CLASSES_BUFFER_WRITE_FAIL);
+        }
+
         // Stroke dasharray from stroke_style
         if let Some(style) = self.attrs.get(&ThemeAttr::StrokeStyle)
             && let Some(dasharray) = Self::stroke_style_to_dasharray(style)
@@ -1933,11 +1923,6 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         // Stroke width
         if let Some(width) = self.attrs.get(&ThemeAttr::StrokeWidth) {
             writeln!(classes, "{prefix}stroke-{width}").expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-
-        // Visibility
-        if let Some(visibility) = self.attrs.get(&ThemeAttr::Visibility) {
-            writeln!(classes, "{prefix}{visibility}").expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
         if let Some(opacity) = self.attrs.get(&ThemeAttr::Opacity) {

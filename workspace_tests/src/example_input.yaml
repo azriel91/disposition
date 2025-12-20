@@ -491,7 +491,7 @@ theme_default:
       stroke_shade_normal: "800"
       stroke_shade_focus: "900"
       stroke_shade_active: "950"
-      text_shade: "50"
+      text_shade: "950"
     stroke_dashed_animated:
       stroke_style: "dashed"
       stroke_width: "2"
@@ -617,6 +617,7 @@ theme_types_styles:
       style_aliases_applied: [shade_dark]
       shape_color: "violet"
       stroke_width: "2"
+      stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
       visibility: "invisible"
   type_interaction_edge_cyclic_default:
     edge_defaults:
@@ -626,8 +627,7 @@ theme_types_styles:
       visibility: "invisible"
   type_interaction_edge_symmetric_default:
     edge_defaults:
-      style_aliases_applied: [shade_dark, stroke_dashed_animated_request]
-      stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
+      style_aliases_applied: [shade_dark]
       shape_color: "violet"
       stroke_width: "2"
       visibility: "invisible"
@@ -635,38 +635,18 @@ theme_types_styles:
   # thing_interactions - edges
   type_interaction_edge_sequence_forward_default:
     edge_defaults:
-      style_aliases_applied: [shade_dark]
-      shape_color: "violet"
-      stroke_width: "2"
-      visibility: "invisible"
-  type_interaction_edge_sequence_request_default:
+      style_aliases_applied: [stroke_dashed_animated_request]
+  type_interaction_edge_cyclic_forward_default:
+    edge_defaults:
+      style_aliases_applied: [stroke_dashed_animated_request]
+  type_interaction_edge_symmetric_forward_default:
     edge_defaults:
       style_aliases_applied: [stroke_dashed_animated_request]
       stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
-  type_interaction_edge_sequence_response_default:
+  type_interaction_edge_symmetric_reverse_default:
     edge_defaults:
       style_aliases_applied: [stroke_dashed_animated_response]
       stroke_style: "dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80"
-  type_interaction_edge_cyclic_forward_default:
-    edge_defaults:
-      style_aliases_applied: [shade_dark]
-      shape_color: "violet"
-      stroke_width: "2"
-      visibility: "invisible"
-  type_interaction_edge_symmetric_forward_default:
-    edge_defaults:
-      style_aliases_applied: [shade_dark, stroke_dashed_animated_request]
-      stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
-      shape_color: "violet"
-      stroke_width: "2"
-      visibility: "invisible"
-  type_interaction_edge_symmetric_reverse_default:
-    edge_defaults:
-      style_aliases_applied: [shade_dark, stroke_dashed_animated_response]
-      stroke_style: "dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80"
-      shape_color: "violet"
-      stroke_width: "2"
-      visibility: "invisible"
 
   # custom styles that users can provide
   type_organisation:
