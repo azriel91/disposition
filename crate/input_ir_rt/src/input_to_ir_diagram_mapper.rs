@@ -1333,7 +1333,7 @@ impl InputToIrDiagramMapper {
         let mut state = TailwindClassState::default();
 
         Self::resolve_tailwind_attrs(
-            Some(id),
+            id,
             entity_types,
             theme_default,
             theme_types_styles,
@@ -1345,7 +1345,7 @@ impl InputToIrDiagramMapper {
         state.write_classes(&mut classes);
 
         // Tags get peer/{id} class
-        write!(&mut classes, "\n\npeer/{}", id.as_str()).expect(CLASSES_BUFFER_WRITE_FAIL);
+        writeln!(&mut classes, "peer/{}", id.as_str()).expect(CLASSES_BUFFER_WRITE_FAIL);
 
         classes
     }
@@ -1361,7 +1361,7 @@ impl InputToIrDiagramMapper {
         let mut state = TailwindClassState::default();
 
         Self::resolve_tailwind_attrs(
-            Some(id),
+            id,
             entity_types,
             theme_default,
             theme_types_styles,
@@ -1373,7 +1373,7 @@ impl InputToIrDiagramMapper {
         state.write_classes(&mut classes);
 
         // Processes get group/{id} class
-        write!(&mut classes, "\n\ngroup/{}", id.as_str()).expect(CLASSES_BUFFER_WRITE_FAIL);
+        writeln!(&mut classes, "group/{}", id.as_str()).expect(CLASSES_BUFFER_WRITE_FAIL);
 
         // Processes get peer/{step_id} classes for each child process step
         // This is because process nodes are sibling elements to thing/edge_group
@@ -1381,7 +1381,7 @@ impl InputToIrDiagramMapper {
         // edge_groups can only react to the process nodes' state for the
         // sibling selector to work.
         child_step_ids.for_each(|step_id| {
-            write!(&mut classes, "\npeer/{}", step_id.as_str()).expect(CLASSES_BUFFER_WRITE_FAIL);
+            writeln!(&mut classes, "peer/{}", step_id.as_str()).expect(CLASSES_BUFFER_WRITE_FAIL);
         });
 
         classes
@@ -1398,7 +1398,7 @@ impl InputToIrDiagramMapper {
         let mut state = TailwindClassState::default();
 
         Self::resolve_tailwind_attrs(
-            Some(id),
+            id,
             entity_types,
             theme_default,
             theme_types_styles,
@@ -1414,7 +1414,7 @@ impl InputToIrDiagramMapper {
         // because process nodes are sibling elements to thing/edge_group elements,
         // whereas process step nodes are not siblings.
         if let Some(process_id) = parent_process_id {
-            write!(&mut classes, "\n\ngroup-focus-within/{process_id}:visible")
+            writeln!(&mut classes, "group-focus-within/{process_id}:visible")
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
@@ -1436,7 +1436,7 @@ impl InputToIrDiagramMapper {
         let mut state = TailwindClassState::default();
 
         Self::resolve_tailwind_attrs(
-            Some(node_id.as_ref()),
+            node_id.as_ref(),
             entity_types,
             theme_default,
             theme_types_styles,
@@ -1581,7 +1581,7 @@ impl InputToIrDiagramMapper {
         let mut state = TailwindClassState::default();
 
         Self::resolve_tailwind_attrs(
-            Some(edge_group_id),
+            edge_group_id,
             entity_types,
             theme_default,
             theme_types_styles,
@@ -1636,7 +1636,7 @@ impl InputToIrDiagramMapper {
         let mut state = TailwindClassState::default();
 
         Self::resolve_tailwind_attrs(
-            Some(edge_id),
+            edge_id,
             entity_types,
             theme_default,
             theme_types_styles,
@@ -1661,7 +1661,7 @@ impl InputToIrDiagramMapper {
     ///   `IdOrDefaults::EdgeDefaults`.
     /// * `state`: Tailwind class state to write the resolved classes to.
     fn resolve_tailwind_attrs<'partials, 'tw_state>(
-        entity_id: Option<&Id>,
+        entity_id: &Id,
         entity_types: &'partials IrEntityTypes,
         theme_default: &'partials ThemeDefault,
         theme_types_styles: &'partials ThemeTypesStyles,
@@ -1680,9 +1680,7 @@ impl InputToIrDiagramMapper {
         }
 
         // 2. Apply EntityTypes in order (later types override earlier ones)
-        if let Some(id) = entity_id
-            && let Some(types) = entity_types.get(id)
-        {
+        if let Some(types) = entity_types.get(entity_id) {
             types
                 .iter()
                 .filter_map(|entity_type| {
@@ -1701,9 +1699,9 @@ impl InputToIrDiagramMapper {
         }
 
         // 3. Apply node ID itself (highest priority)
-        if let Some(id) = entity_id
-            && let Some(node_partials) =
-                theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
+        if let Some(node_partials) = theme_default
+            .base_styles
+            .get(&IdOrDefaults::Id(entity_id.clone()))
         {
             Self::apply_tailwind_from_partials(node_partials, &theme_default.style_aliases, state);
         }

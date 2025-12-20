@@ -15,7 +15,7 @@ things: &things
   t_aws_ecs_cluster_app_task: "🖨️ web_app task version 1"
   t_github: "🐙 GitHub"
   t_github_user_repo: "azriel91/web_app"
-  t_localhost: "🧑‍💻 Localhost"
+  t_localhost: "🧑‍💻 localhost"
   t_localhost_repo: "📂 ~/work/web_app"
   t_localhost_repo_src: "📝 src"
   t_localhost_repo_target: "📂 target"
@@ -25,6 +25,7 @@ things: &things
 # Render a copy text button, and, when clicked, what text to place on the clipboard.
 thing_copy_text:
   <<: *things
+  t_localhost: "localhost"
   t_localhost_repo: "~/work/web_app"
   t_localhost_repo_src: "~/work/web_app/src"
   t_localhost_repo_target: "~/work/web_app/target"
@@ -552,6 +553,7 @@ theme_types_styles:
       stroke_style: "solid"
       shape_color: "sky"
       stroke_width: "1"
+      visibility: "invisible"
 
   # thing_dependencies
   type_edge_dependency_sequence_request_default:

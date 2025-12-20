@@ -16,7 +16,7 @@ fn test_parse_example_ir() {
             .collect::<Vec<_>>()
             .as_slice()
     );
-    assert_eq!(31, diagram.node_copy_text.len());
+    assert_eq!(18, diagram.node_copy_text.len());
     // Verifies that order is maintained from the merge key, even when we override
     // values.
     assert_eq!(
@@ -29,7 +29,7 @@ fn test_parse_example_ir() {
             .collect::<Vec<_>>()
             .as_slice()
     );
-    assert_eq!(10, diagram.entity_descs.len());
+    assert_eq!(13, diagram.entity_descs.len());
     assert_eq!(
         &[
             "proc_app_release_step_crate_version_update",
