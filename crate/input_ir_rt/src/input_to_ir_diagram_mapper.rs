@@ -342,9 +342,10 @@ impl InputToIrDiagramMapper {
     ) -> IrEntityTypes {
         // Helper to build types vector with default and optional custom type
         let build_types = |id: &Id, default_type: EntityType| {
-            let mut types = vec![default_type];
+            let mut types = Set::new();
+            types.insert(default_type);
             if let Some(custom_type) = input_entity_types.get(id) {
-                types.push(EntityType::from(custom_type.clone().into_inner()));
+                types.insert(EntityType::from(custom_type.clone().into_inner()));
             }
             types
         };
@@ -378,7 +379,7 @@ impl InputToIrDiagramMapper {
             std::iter::once((process_id_inner, process_types)).chain(step_entries)
         });
 
-        let mut entity_types: Map<Id, Vec<EntityType>> = thing_entries
+        let mut entity_types: Map<Id, Set<EntityType>> = thing_entries
             .chain(tag_entries)
             .chain(process_entries)
             .collect();
@@ -394,7 +395,7 @@ impl InputToIrDiagramMapper {
 
     /// Add edge types from dependencies.
     fn add_edge_types(
-        entity_types: &mut Map<Id, Vec<EntityType>>,
+        entity_types: &mut Map<Id, Set<EntityType>>,
         thing_deps: &ThingDependencies,
         input_entity_types: &EntityTypes,
     ) {
@@ -433,14 +434,12 @@ impl InputToIrDiagramMapper {
                     }
                 };
 
-                let types = if let Some(custom_type) = input_entity_types.get(&edge_id) {
-                    vec![
-                        default_type,
-                        EntityType::from(custom_type.clone().into_inner()),
-                    ]
-                } else {
-                    vec![default_type]
-                };
+                let mut types = Set::new();
+                types.insert(default_type);
+
+                if let Some(custom_type) = input_entity_types.get(&edge_id) {
+                    types.insert(EntityType::from(custom_type.clone().into_inner()));
+                }
 
                 (edge_id, types)
             })
@@ -451,7 +450,7 @@ impl InputToIrDiagramMapper {
 
     /// Add interaction types to existing edge types.
     fn add_edge_interaction_types(
-        entity_types: &mut Map<Id, Vec<EntityType>>,
+        entity_types: &mut Map<Id, Set<EntityType>>,
         thing_interactions: &ThingInteractions,
         _input_entity_types: &EntityTypes,
     ) {
@@ -499,7 +498,7 @@ impl InputToIrDiagramMapper {
                 entity_types
                     .entry(edge_id)
                     .or_default()
-                    .push(interaction_type);
+                    .insert(interaction_type);
             });
     }
 
