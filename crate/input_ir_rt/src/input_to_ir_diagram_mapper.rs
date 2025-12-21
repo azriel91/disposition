@@ -385,14 +385,14 @@ impl InputToIrDiagramMapper {
             .collect();
 
         // Add edge types from thing_dependencies
-        Self::build_entity_types_add_thing_dependency_edges(
+        Self::build_entity_types_dependencies(
             &mut entity_types,
             thing_dependencies,
             input_entity_types,
         );
 
         // Add edge types from thing_interactions (will merge with existing)
-        Self::build_entity_types_add_thing_interactions_edges(
+        Self::build_entity_types_interactions(
             &mut entity_types,
             thing_interactions,
             input_entity_types,
@@ -402,156 +402,176 @@ impl InputToIrDiagramMapper {
     }
 
     /// Add edge types from dependencies.
-    fn build_entity_types_add_thing_dependency_edges(
+    fn build_entity_types_dependencies(
         entity_types: &mut Map<Id, Set<EntityType>>,
         thing_deps: &ThingDependencies,
         input_entity_types: &EntityTypes,
     ) {
-        // Add edge group entity types
-        let edge_group_entries = thing_deps.iter().map(|(edge_group_id, edge_kind)| {
-            let id: Id = edge_group_id.clone().into_inner();
+        let edge_group_entries = thing_deps.iter().flat_map(|(edge_group_id, edge_kind)| {
+            // edge group entity types
+            let edge_group_entity_types = Self::build_entity_types_for_edge_groups(
+                input_entity_types,
+                edge_group_id,
+                edge_kind,
+                Self::edge_group_default_type_dependency,
+            );
 
-            let default_type = match edge_kind {
-                EdgeKind::Cyclic(_) => EntityType::DependencyEdgeCyclicDefault,
-                EdgeKind::Sequence(_) => EntityType::DependencyEdgeSequenceDefault,
-                EdgeKind::Symmetric(_) => EntityType::DependencyEdgeSymmetricDefault,
-            };
-
-            let mut types = Set::new();
-            types.insert(default_type);
-
-            if let Some(custom_type) = input_entity_types.get(&id) {
-                types.insert(EntityType::from(custom_type.clone().into_inner()));
-            }
-
-            (id, types)
+            // edge entity types
+            let edge_entity_types = Self::build_entity_types_for_edges(
+                input_entity_types,
+                edge_group_id,
+                edge_kind,
+                Self::edge_default_type_dependency,
+            );
+            std::iter::once(edge_group_entity_types).chain(edge_entity_types)
         });
 
         entity_types.extend(edge_group_entries);
-
-        // Add edge entity types
-        let edge_entries = thing_deps.iter().flat_map(|(edge_group_id, edge_kind)| {
-            let (edge_count, forward_count) = match edge_kind {
-                EdgeKind::Cyclic(things) => (things.len(), things.len()),
-                EdgeKind::Sequence(things) => {
-                    let count = things.len().saturating_sub(1);
-                    (count, count)
-                }
-                EdgeKind::Symmetric(things) => {
-                    // Forward edges + reverse edges
-                    // For 1 thing: 2 edges (1 request, 1 response)
-                    // For n things: (n-1) forward + (n-1) reverse
-                    let forward = things.len().max(1).saturating_sub(1).max(1);
-                    let total = if things.len() <= 1 { 2 } else { forward * 2 };
-                    (total, forward)
-                }
-            };
-
-            (0..edge_count).map(move |i| {
-                // Edge ID format: edge_group_id__index
-                let edge_id_str = format!("{edge_group_id}__{i}");
-                let edge_id = Self::id_from_string(edge_id_str);
-
-                let default_type = match edge_kind {
-                    EdgeKind::Cyclic(_) => EntityType::DependencyEdgeCyclicForwardDefault,
-                    EdgeKind::Sequence(_) => EntityType::DependencyEdgeSequenceForwardDefault,
-                    EdgeKind::Symmetric(_) => {
-                        // First half are forward, second half are reverse
-                        if i < forward_count {
-                            EntityType::DependencyEdgeSymmetricForwardDefault
-                        } else {
-                            EntityType::DependencyEdgeSymmetricReverseDefault
-                        }
-                    }
-                };
-
-                let mut types = Set::new();
-                types.insert(default_type);
-
-                if let Some(custom_type) = input_entity_types.get(&edge_id) {
-                    types.insert(EntityType::from(custom_type.clone().into_inner()));
-                }
-
-                (edge_id, types)
-            })
-        });
-
-        entity_types.extend(edge_entries);
     }
 
     /// Add interaction types to existing edge types.
-    fn build_entity_types_add_thing_interactions_edges(
+    fn build_entity_types_interactions(
         entity_types: &mut Map<Id, Set<EntityType>>,
         thing_interactions: &ThingInteractions,
         input_entity_types: &EntityTypes,
     ) {
-        // Add edge group entity types
-        thing_interactions
-            .iter()
-            .for_each(|(edge_group_id, edge_kind)| {
-                let id: Id = edge_group_id.clone().into_inner();
+        let edge_group_entries =
+            thing_interactions
+                .iter()
+                .flat_map(|(edge_group_id, edge_kind)| {
+                    // edge group entity types
+                    let edge_group_entity_types = Self::build_entity_types_for_edge_groups(
+                        input_entity_types,
+                        edge_group_id,
+                        edge_kind,
+                        Self::edge_group_default_type_interaction,
+                    );
 
-                let default_type = match edge_kind {
-                    EdgeKind::Cyclic(_) => EntityType::InteractionEdgeCyclicDefault,
-                    EdgeKind::Sequence(_) => EntityType::InteractionEdgeSequenceDefault,
-                    EdgeKind::Symmetric(_) => EntityType::InteractionEdgeSymmetricDefault,
-                };
+                    // edge entity types
+                    let edge_entity_types = Self::build_entity_types_for_edges(
+                        input_entity_types,
+                        edge_group_id,
+                        edge_kind,
+                        Self::edge_default_type_interaction,
+                    );
+                    std::iter::once(edge_group_entity_types).chain(edge_entity_types)
+                });
 
-                let entry = entity_types.entry(id.clone()).or_default();
-                entry.insert(default_type);
+        entity_types.extend(edge_group_entries);
+    }
 
-                if let Some(custom_type) = input_entity_types.get(&id) {
-                    entry.insert(EntityType::from(custom_type.clone().into_inner()));
+    fn build_entity_types_for_edge_groups(
+        input_entity_types: &EntityTypes,
+        edge_group_id: &EdgeGroupId,
+        edge_kind: &EdgeKind,
+        edge_group_default_type_fn: fn(&EdgeKind) -> EntityType,
+    ) -> (Id, Set<EntityType>) {
+        let edge_group_id: Id = edge_group_id.clone().into_inner();
+
+        let edge_group_default_type = edge_group_default_type_fn(edge_kind);
+
+        let mut types = Set::new();
+        types.insert(edge_group_default_type);
+
+        if let Some(custom_type) = input_entity_types.get(&edge_group_id) {
+            types.insert(EntityType::from(custom_type.clone().into_inner()));
+        }
+
+        (edge_group_id, types)
+    }
+
+    fn edge_group_default_type_dependency(edge_kind: &EdgeKind) -> EntityType {
+        match edge_kind {
+            EdgeKind::Cyclic(_) => EntityType::DependencyEdgeCyclicDefault,
+            EdgeKind::Sequence(_) => EntityType::DependencyEdgeSequenceDefault,
+            EdgeKind::Symmetric(_) => EntityType::DependencyEdgeSymmetricDefault,
+        }
+    }
+
+    fn edge_default_type_dependency(
+        edge_kind: &EdgeKind,
+        forward_count: usize,
+        i: usize,
+    ) -> EntityType {
+        match edge_kind {
+            EdgeKind::Cyclic(_) => EntityType::DependencyEdgeCyclicForwardDefault,
+            EdgeKind::Sequence(_) => EntityType::DependencyEdgeSequenceForwardDefault,
+            EdgeKind::Symmetric(_) => {
+                // First half are forward, second half are reverse
+                if i < forward_count {
+                    EntityType::DependencyEdgeSymmetricForwardDefault
+                } else {
+                    EntityType::DependencyEdgeSymmetricReverseDefault
                 }
-            });
+            }
+        }
+    }
 
-        // Add edge entity types
-        thing_interactions
-            .iter()
-            .flat_map(|(edge_group_id, edge_kind)| {
-                let (edge_count, forward_count) = match edge_kind {
-                    EdgeKind::Cyclic(things) => (things.len(), things.len()),
-                    EdgeKind::Sequence(things) => {
-                        let count = things.len().saturating_sub(1);
-                        (count, count)
-                    }
-                    EdgeKind::Symmetric(things) => {
-                        // Forward edges + reverse edges
-                        // For 1 thing: 2 edges (1 request, 1 response)
-                        // For n things: (n-1) forward + (n-1) reverse
-                        let forward = things.len().max(1).saturating_sub(1).max(1);
-                        let total = if things.len() <= 1 { 2 } else { forward * 2 };
-                        (total, forward)
-                    }
-                };
+    fn edge_group_default_type_interaction(edge_kind: &EdgeKind) -> EntityType {
+        match edge_kind {
+            EdgeKind::Cyclic(_) => EntityType::InteractionEdgeCyclicDefault,
+            EdgeKind::Sequence(_) => EntityType::InteractionEdgeSequenceDefault,
+            EdgeKind::Symmetric(_) => EntityType::InteractionEdgeSymmetricDefault,
+        }
+    }
 
-                (0..edge_count).map(move |i| {
-                    let edge_id_str = format!("{edge_group_id}__{i}");
-                    let edge_id = Self::id_from_string(edge_id_str);
+    fn edge_default_type_interaction(
+        edge_kind: &EdgeKind,
+        forward_count: usize,
+        i: usize,
+    ) -> EntityType {
+        match edge_kind {
+            EdgeKind::Cyclic(_) => EntityType::InteractionEdgeCyclicForwardDefault,
+            EdgeKind::Sequence(_) => EntityType::InteractionEdgeSequenceForwardDefault,
+            EdgeKind::Symmetric(_) => {
+                // First half are forward, second half are reverse
+                if i < forward_count {
+                    EntityType::InteractionEdgeSymmetricForwardDefault
+                } else {
+                    EntityType::InteractionEdgeSymmetricReverseDefault
+                }
+            }
+        }
+    }
 
-                    let interaction_type = match edge_kind {
-                        EdgeKind::Cyclic(_) => EntityType::InteractionEdgeCyclicForwardDefault,
-                        EdgeKind::Sequence(_) => EntityType::InteractionEdgeSequenceForwardDefault,
-                        EdgeKind::Symmetric(_) => {
-                            // First half are forward, second half are reverse
-                            if i < forward_count {
-                                EntityType::InteractionEdgeSymmetricForwardDefault
-                            } else {
-                                EntityType::InteractionEdgeSymmetricReverseDefault
-                            }
-                        }
-                    };
+    fn build_entity_types_for_edges(
+        input_entity_types: &EntityTypes,
+        edge_group_id: &EdgeGroupId,
+        edge_kind: &EdgeKind,
+        edge_default_type_fn: fn(&EdgeKind, usize, usize) -> EntityType,
+    ) -> impl Iterator<Item = (Id, Set<EntityType>)> {
+        let (edge_count, forward_count) = match edge_kind {
+            EdgeKind::Cyclic(things) => (things.len(), things.len()),
+            EdgeKind::Sequence(things) => {
+                let count = things.len().saturating_sub(1);
+                (count, count)
+            }
+            EdgeKind::Symmetric(things) => {
+                // Forward edges + reverse edges
+                // For 1 thing: 2 edges (1 request, 1 response)
+                // For n things: (n-1) forward + (n-1) reverse
+                let forward = things.len().max(1).saturating_sub(1).max(1);
+                let total = if things.len() <= 1 { 2 } else { forward * 2 };
+                (total, forward)
+            }
+        };
 
-                    (edge_id, interaction_type)
-                })
-            })
-            .for_each(|(edge_id, interaction_type)| {
-                // Add to existing types or create new entry
-                entity_types
-                    .entry(edge_id)
-                    .or_default()
-                    .insert(interaction_type);
-            });
+        (0..edge_count).map(move |i| {
+            // Edge ID format: edge_group_id__index
+            let edge_id_str = format!("{edge_group_id}__{i}");
+            let edge_id = Self::id_from_string(edge_id_str);
+
+            let edge_default_type = edge_default_type_fn(edge_kind, forward_count, i);
+
+            let mut types = Set::new();
+            types.insert(edge_default_type);
+
+            if let Some(custom_type) = input_entity_types.get(&edge_id) {
+                types.insert(EntityType::from(custom_type.clone().into_inner()));
+            }
+
+            (edge_id, types)
+        })
     }
 
     /// Build NodeLayouts from node_hierarchy and theme data.
