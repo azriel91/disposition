@@ -1262,28 +1262,27 @@ impl InputToIrDiagramMapper {
             (node_id.clone().into_inner(), classes)
         });
 
-        // Build classes for edge groups
-        let edge_group_classes = edge_groups.keys().map(|edge_group_id| {
-            // Get the process steps that interact with this edge group
-            let interaction_steps = edge_group_to_steps
-                .get(edge_group_id)
-                .cloned()
-                .unwrap_or_default();
+        // Build classes for edge groups and edges
+        let edge_group_and_edge_classes = edge_groups.iter().flat_map(|(edge_group_id, edges)| {
+            let edge_group_classes = {
+                // Get the process steps that interact with this edge group
+                let interaction_steps = edge_group_to_steps
+                    .get(edge_group_id)
+                    .cloned()
+                    .unwrap_or_default();
 
-            let classes = Self::build_edge_group_tailwind_classes(
-                edge_group_id,
-                entity_types,
-                theme_default,
-                theme_types_styles,
-                &interaction_steps,
-            );
+                let classes = Self::build_edge_group_tailwind_classes(
+                    edge_group_id,
+                    entity_types,
+                    theme_default,
+                    theme_types_styles,
+                    &interaction_steps,
+                );
 
-            (edge_group_id.clone().into_inner(), classes)
-        });
+                (edge_group_id.clone().into_inner(), classes)
+            };
 
-        // Build classes for individual edges within edge groups (symmetric edges)
-        let edge_classes = edge_groups.iter().flat_map(|(edge_group_id, edges)| {
-            edges.iter().enumerate().map(move |(index, _edge)| {
+            let edge_classes = edges.iter().enumerate().map(move |(index, _edge)| {
                 let edge_id_str = format!("{edge_group_id}__{index}");
                 let edge_id = Self::id_from_string(edge_id_str);
 
@@ -1295,13 +1294,12 @@ impl InputToIrDiagramMapper {
                     theme_types_styles,
                 );
                 (edge_id, classes)
-            })
+            });
+
+            std::iter::once(edge_group_classes).chain(edge_classes)
         });
 
-        node_classes
-            .chain(edge_group_classes)
-            .chain(edge_classes)
-            .collect()
+        node_classes.chain(edge_group_and_edge_classes).collect()
     }
 
     /// Build a map of process step ID to (process ID, edge IDs they interact
@@ -1807,11 +1805,12 @@ struct TailwindClassState<'tw_state> {
 
 impl<'tw_state> TailwindClassState<'tw_state> {
     /// Convert stroke style to stroke-dasharray value.
-    fn stroke_style_to_dasharray(style: &str) -> Option<&'static str> {
+    fn stroke_style_to_dasharray(style: &str) -> Option<&str> {
         match style {
             "solid" => Some("none"),
             "dashed" => Some("3"),
             "dotted" => Some("2"),
+            s if s.starts_with("dasharray:") => Some(&s["dasharray:".len()..]),
             _ => None,
         }
     }
