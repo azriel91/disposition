@@ -67,6 +67,7 @@ disposition_input_ir_rt = { path = "crate/input_ir_rt", version = "0.0.1" }
 disposition_input_model = { path = "crate/input_model", version = "0.0.1" }
 disposition_ir_model = { path = "crate/ir_model", version = "0.0.1" }
 disposition_model_common = { path = "crate/model_common", version = "0.0.1" }
+disposition_taffy_model = { path = "crate/taffy_model", version = "0.0.1" }
 
 # external crates
 id_newtype = "0.2.0"
@@ -75,6 +76,7 @@ miette = "7.6.0"
 pretty_assertions = "1.4.1"
 serde = "1.0"
 serde-saphyr = "0.0.10"
+taffy = "0.9.2"
 thiserror = "2.0.17"
 utoipa = "5.4"
 

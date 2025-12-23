@@ -1,0 +1,21 @@
+[package]
+name = "disposition_taffy_model"
+description = "Data types that for disposition to work with taffy."
+documentation = "https://docs.rs/disposition_taffy_model/"
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+taffy = { workspace = true }
+
+[lints]
+workspace = true
