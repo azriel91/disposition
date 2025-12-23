@@ -691,8 +691,8 @@ theme_tag_things_focus:
 # Additional CSS to place in the SVG's inline `<styles>` section.
 css: |-
   @keyframes stroke-dashoffset-move {
-    0%   { stroke-dashoffset: 30; }
-    100% { stroke-dashoffset: 0; }
+    0%   { stroke-dasharray: 3; stroke-dashoffset: 30; }
+    100% { stroke-dasharray: 3; stroke-dashoffset: 0; }
   }
   @keyframes stroke-dashoffset-move-request {
     0%   { stroke-dashoffset: 0; }

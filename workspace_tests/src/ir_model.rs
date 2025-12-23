@@ -17,10 +17,8 @@ fn test_parse_example_ir() {
             .as_slice()
     );
     assert_eq!(18, diagram.node_copy_text.len());
-    // Verifies that order is maintained from the merge key, even when we override
-    // values.
     assert_eq!(
-        &["t_aws", "t_aws_iam", "t_aws_iam_ecs_policy",],
+        &["t_localhost", "t_localhost_repo", "t_localhost_repo_src"],
         diagram
             .node_copy_text
             .iter()
@@ -32,9 +30,9 @@ fn test_parse_example_ir() {
     assert_eq!(13, diagram.entity_descs.len());
     assert_eq!(
         &[
-            "proc_app_release_step_crate_version_update",
-            "proc_app_release_step_pull_request_open",
-            "proc_app_release_step_gh_actions_build",
+            "t_localhost",
+            "edge_ix_t_localhost__t_github_user_repo__pull",
+            "edge_ix_t_localhost__t_github_user_repo__push",
         ],
         diagram
             .entity_descs
@@ -64,8 +62,8 @@ fn test_parse_example_ir() {
             .as_slice()
     );
     assert_eq!(12, diagram.edge_groups.len());
-    assert_eq!(47, diagram.entity_types.len());
-    assert_eq!(53, diagram.tailwind_classes.len());
-    assert_eq!(30, diagram.node_layout.len());
+    assert_eq!(59, diagram.entity_types.len());
+    assert_eq!(59, diagram.tailwind_classes.len());
+    assert_eq!(36, diagram.node_layout.len());
     assert!(!diagram.css.is_empty());
 }
