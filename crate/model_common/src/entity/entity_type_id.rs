@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    borrow::Borrow,
+    ops::{Deref, DerefMut},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +24,10 @@ use crate::{Id, IdInvalidFmt};
 ///
 /// assert_eq!(entity_type_id.as_str(), "type_organisation");
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
 pub struct EntityTypeId(Id);
 
@@ -63,6 +69,18 @@ impl EntityTypeId {
 impl From<Id> for EntityTypeId {
     fn from(id: Id) -> Self {
         EntityTypeId(id)
+    }
+}
+
+impl AsRef<Id> for EntityTypeId {
+    fn as_ref(&self) -> &Id {
+        &self.0
+    }
+}
+
+impl Borrow<Id> for EntityTypeId {
+    fn borrow(&self) -> &Id {
+        &self.0
     }
 }
 

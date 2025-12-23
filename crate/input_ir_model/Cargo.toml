@@ -1,0 +1,32 @@
+[package]
+name = "disposition_input_ir_model"
+description = "`disposition` diagram generator input to IR mapping data types."
+documentation = "https://docs.rs/disposition_input_ir_model/"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+disposition_ir_model = { workspace = true }
+disposition_model_common = { workspace = true }
+miette = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+utoipa = { workspace = true, optional = true }
+
+[features]
+default = []
+
+# Only enable this when you need to generate OpenAPI documentation.
+openapi = ["dep:utoipa", "disposition_model_common/openapi"]
+
+test = []

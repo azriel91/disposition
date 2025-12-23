@@ -19,8 +19,17 @@ use serde::{Deserialize, Serialize};
 /// assert_eq!(id_compile_time_checked, id_runtime_checked);
 /// assert_eq!(id_runtime_checked.as_str(), "example_id");
 /// ```
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Id(Cow<'static, str>);
 
 id_newtype::id_newtype!(Id, IdInvalidFmt, id);
+
+impl AsRef<Id> for Id {
+    fn as_ref(&self) -> &Id {
+        self
+    }
+}
