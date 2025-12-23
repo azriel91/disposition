@@ -6,7 +6,7 @@ use disposition_model_common::{
 
 use crate::{
     edge::EdgeKind,
-    entity::{EntityDescs, EntityTypeId, EntityTypes},
+    entity::{EntityDescs, EntityType, EntityTypeId, EntityTypes},
     process::{
         ProcessDiagram, ProcessId, ProcessStepId, ProcessSteps, Processes, StepDescs,
         StepThingInteractions,
@@ -32,6 +32,7 @@ use crate::{
     EdgeId,
     EdgeKind,
     EntityDescs,
+    EntityType,
     EntityTypeId,
     EntityTypes,
     Id,

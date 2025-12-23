@@ -366,68 +366,96 @@ tag_things:
 #
 # This is like a tag, but doesn't require the user to click on the tag to apply the style.
 #
-# Built-in types that are automatically attached to entities unless overridden:
+# Built-in types that are automatically attached to entities unless
+# overridden:
 #
 # * `type_thing_default`
 # * `type_tag_default`
 # * `type_process_default`
 # * `type_process_step_default`
 #
-# For edges, multiple edges are generated for each dependency / interaction,
-# and each edge group and edge is assigned a type from the following:
+# For edges, an edge group is generated for each dependency / interaction:
 #
-# * `type_dependency_edge_cyclic_default`
-# * `type_dependency_edge_cyclic_forward_default`
+# Each edge group is assigned a type from the following:
+#
 # * `type_dependency_edge_sequence_default`
-# * `type_dependency_edge_sequence_forward_default`
+# * `type_dependency_edge_cyclic_default`
 # * `type_dependency_edge_symmetric_default`
+# * `type_interaction_edge_sequence_default`
+# * `type_interaction_edge_cyclic_default`
+# * `type_interaction_edge_symmetric_default`
+#
+# and each edge within each edge group is assigned a type from the following:
+#
+# * `type_dependency_edge_sequence_forward_default`
+# * `type_dependency_edge_cyclic_forward_default`
 # * `type_dependency_edge_symmetric_forward_default`
 # * `type_dependency_edge_symmetric_reverse_default`
-# * `type_interaction_edge_cyclic_default`
-# * `type_interaction_edge_cyclic_forward_default`
-# * `type_interaction_edge_sequence_default`
 # * `type_interaction_edge_sequence_forward_default`
-# * `type_interaction_edge_symmetric_default`
+# * `type_interaction_edge_cyclic_forward_default`
 # * `type_interaction_edge_symmetric_forward_default`
 # * `type_interaction_edge_symmetric_reverse_default`
 #
-# The edge ID will be the edge group ID specified in `thing_dependencies` /
+# The edge ID is the edge group ID specified in `thing_dependencies` /
 # `thing_interactions`, suffixed with the zero-based index of the edge like
 # so:
 #
 # ```text
 # edge_id = edge_group_id + "__" + edge_index
 # ```
+#
+# Additional entity types appended to each entity's default type.
+# Each entity can have multiple types, allowing styles to be stacked.
+#
+# These types are appended to the entity's computed default type:
+#
+# - Things: `type_thing_default`
+# - Tags: `type_tag_default`
+# - Processes: `type_process_default`
+# - Process steps: `type_process_step_default`
+# - Edge groups: `type_dependency_edge_*_default` or type_interaction_edge_*_default
+# - Edges: `type_dependency_edge_*_forward_default`, `type_interaction_edge_*_forward_default`, or `type_interaction_edge_*_reverse_default`
 entity_types:
-  t_aws: "type_organisation"
-  t_aws_iam: "type_service"
-  # t_aws_iam_ecs_policy: ~
-  t_aws_ecr: "type_service"
-  # t_aws_ecr_repo: ~
-  t_aws_ecr_repo_image_1: "type_docker_image"
-  t_aws_ecr_repo_image_2: "type_docker_image"
-  t_aws_ecs: "type_service"
-  # t_aws_ecs_cluster_app: ~
-  # t_aws_ecs_cluster_app_task: ~
-  t_github: "type_organisation"
-  # t_github_user_repo: ~
-  # t_localhost: ~
-  # t_localhost_repo: ~
-  # t_localhost_repo_src: ~
-  # t_localhost_repo_target: ~
-  # t_localhost_repo_target_file_zip: ~
-  # t_localhost_repo_target_dist_dir: ~
+  t_aws:
+    - type_organisation
+  t_aws_iam:
+    - type_service
+  # t_aws_iam_ecs_policy: []
+  t_aws_ecr:
+    - type_service
+  # t_aws_ecr_repo: []
+  t_aws_ecr_repo_image_1:
+    - type_docker_image
+  t_aws_ecr_repo_image_2:
+    - type_docker_image
+  t_aws_ecs:
+    - type_service
+  # t_aws_ecs_cluster_app: []
+  # t_aws_ecs_cluster_app_task: []
+  t_github:
+    - type_organisation
+  # t_github_user_repo: []
+  # t_localhost: []
+  # t_localhost_repo: []
+  # t_localhost_repo_src: []
+  # t_localhost_repo_target: []
+  # t_localhost_repo_target_file_zip: []
+  # t_localhost_repo_target_dist_dir: []
 
-  # edge_ix_t_localhost__t_github_user_repo__pull__0: "type_interaction_edge_symmetric_forward_default"
-  # edge_ix_t_localhost__t_github_user_repo__pull__1: "type_interaction_edge_symmetric_reverse_default"
-  # edge_ix_t_localhost__t_github_user_repo__push: ~
-  # edge_ix_t_localhost__t_localhost__within: ~
-  # edge_ix_t_github_user_repo__t_github_user_repo__within: ~
-  # edge_ix_t_github_user_repo__t_aws_ecr_repo__push: ~
-  # edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push: ~
+  # edge_ix_t_localhost__t_github_user_repo__pull__0:
+  #   - type_interaction_edge_symmetric_forward_default
+  # edge_ix_t_localhost__t_github_user_repo__pull__1:
+  #   - type_interaction_edge_symmetric_reverse_default
+  # edge_ix_t_localhost__t_github_user_repo__push: []
+  # edge_ix_t_localhost__t_localhost__within: []
+  # edge_ix_t_github_user_repo__t_github_user_repo__within: []
+  # edge_ix_t_github_user_repo__t_aws_ecr_repo__push: []
+  # edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push: []
 
-  # tag_app_development: "tag_type_default"
-  # tag_deployment: "tag_type_default"
+  # tag_app_development:
+  #   - tag_type_default
+  # tag_deployment:
+  #   - tag_type_default
 
 # Styles when the diagram has no user interaction.
 #

@@ -18,7 +18,7 @@ use disposition_input_model::{
 };
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeGroups},
-    entity::{EntityTailwindClasses, EntityType, EntityTypeId, EntityTypes as IrEntityTypes},
+    entity::{EntityTailwindClasses, EntityType, EntityTypeId},
     layout::{FlexDirection, FlexLayout, NodeLayout, NodeLayouts},
     node::{NodeCopyText, NodeHierarchy, NodeId, NodeNames},
     IrDiagram,
@@ -339,13 +339,13 @@ impl InputToIrDiagramMapper {
         input_entity_types: &EntityTypes,
         thing_dependencies: &ThingDependencies,
         thing_interactions: &ThingInteractions,
-    ) -> IrEntityTypes {
-        // Helper to build types vector with default and optional custom type
+    ) -> EntityTypes {
+        // Helper to build types vector with default and optional custom types
         let build_types = |id: &Id, default_type: EntityType| {
             let mut types = Set::new();
             types.insert(default_type);
-            if let Some(custom_type) = input_entity_types.get(id) {
-                types.insert(EntityType::from(custom_type.clone().into_inner()));
+            if let Some(custom_types) = input_entity_types.get(id) {
+                types.extend(custom_types.iter().cloned());
             }
             types
         };
@@ -398,7 +398,7 @@ impl InputToIrDiagramMapper {
             input_entity_types,
         );
 
-        IrEntityTypes::from(entity_types)
+        EntityTypes::from(entity_types)
     }
 
     /// Add edge types from dependencies.
@@ -473,8 +473,8 @@ impl InputToIrDiagramMapper {
         let mut types = Set::new();
         types.insert(edge_group_default_type);
 
-        if let Some(custom_type) = input_entity_types.get(&edge_group_id) {
-            types.insert(EntityType::from(custom_type.clone().into_inner()));
+        if let Some(custom_types) = input_entity_types.get(&edge_group_id) {
+            types.extend(custom_types.iter().cloned());
         }
 
         (edge_group_id, types)
@@ -566,8 +566,8 @@ impl InputToIrDiagramMapper {
             let mut types = Set::new();
             types.insert(edge_default_type);
 
-            if let Some(custom_type) = input_entity_types.get(&edge_id) {
-                types.insert(EntityType::from(custom_type.clone().into_inner()));
+            if let Some(custom_types) = input_entity_types.get(&edge_id) {
+                types.extend(custom_types.iter().cloned());
             }
 
             (edge_id, types)
@@ -577,7 +577,7 @@ impl InputToIrDiagramMapper {
     /// Build NodeLayouts from node_hierarchy and theme data.
     fn build_node_layouts(
         node_hierarchy: &NodeHierarchy,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
         tags: &TagNames,
@@ -714,7 +714,7 @@ impl InputToIrDiagramMapper {
         container_id: &Id,
         direction: FlexDirection,
         wrap: bool,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
     ) -> NodeLayout {
@@ -758,7 +758,7 @@ impl InputToIrDiagramMapper {
         node_id: &NodeId,
         direction: FlexDirection,
         wrap: bool,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
     ) -> NodeLayout {
@@ -789,7 +789,7 @@ impl InputToIrDiagramMapper {
     fn build_thing_layouts<F, G>(
         hierarchy: &NodeHierarchy,
         depth: usize,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
         node_layouts: &mut NodeLayouts,
@@ -878,7 +878,7 @@ impl InputToIrDiagramMapper {
     ///   result with defaults
     fn resolve_theme_attr<State, Result>(
         node_id: Option<&Id>,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
         state: &mut State,
@@ -922,7 +922,7 @@ impl InputToIrDiagramMapper {
 
     fn resolve_padding(
         node_id: Option<&Id>,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
     ) -> (f32, f32, f32, f32) {
@@ -1022,7 +1022,7 @@ impl InputToIrDiagramMapper {
 
     fn resolve_margin(
         node_id: Option<&Id>,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
     ) -> (f32, f32, f32, f32) {
@@ -1122,7 +1122,7 @@ impl InputToIrDiagramMapper {
 
     fn resolve_gap(
         node_id: Option<&Id>,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
     ) -> f32 {
@@ -1172,7 +1172,7 @@ impl InputToIrDiagramMapper {
     fn build_tailwind_classes(
         nodes: &NodeNames,
         edge_groups: &EdgeGroups,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
         theme_tag_things_focus: &ThemeTagThingsFocus,
@@ -1380,7 +1380,7 @@ impl InputToIrDiagramMapper {
     /// Build tailwind classes for a tag node.
     fn build_tag_tailwind_classes(
         id: &Id,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
     ) -> String {
@@ -1408,7 +1408,7 @@ impl InputToIrDiagramMapper {
     fn build_process_tailwind_classes(
         id: &Id,
         child_step_ids: Keys<'_, ProcessStepId, String>,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
     ) -> String {
@@ -1445,7 +1445,7 @@ impl InputToIrDiagramMapper {
     fn build_process_step_tailwind_classes(
         id: &Id,
         parent_process_id: Option<&ProcessId>,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
     ) -> String {
@@ -1479,7 +1479,7 @@ impl InputToIrDiagramMapper {
     #[allow(clippy::too_many_arguments)]
     fn build_thing_tailwind_classes(
         node_id: &NodeId,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
         theme_tag_things_focus: &ThemeTagThingsFocus,
@@ -1627,7 +1627,7 @@ impl InputToIrDiagramMapper {
     ///   with this edge.
     fn build_edge_group_tailwind_classes(
         edge_group_id: &EdgeGroupId,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
         interaction_process_step_ids: &[&ProcessStepId],
@@ -1683,7 +1683,7 @@ impl InputToIrDiagramMapper {
     /// group.
     fn build_edge_tailwind_classes(
         edge_id: &Id,
-        entity_types: &IrEntityTypes,
+        entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
     ) -> String {
@@ -1716,7 +1716,7 @@ impl InputToIrDiagramMapper {
     /// * `state`: Tailwind class state to write the resolved classes to.
     fn resolve_tailwind_attrs<'partials, 'tw_state>(
         entity_id: &Id,
-        entity_types: &'partials IrEntityTypes,
+        entity_types: &'partials EntityTypes,
         theme_default: &'partials ThemeDefault,
         theme_types_styles: &'partials ThemeTypesStyles,
         id_or_defaults_key: IdOrDefaults,

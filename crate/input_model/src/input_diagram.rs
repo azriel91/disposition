@@ -71,7 +71,8 @@ pub struct InputDiagram {
 
     /// Additional `type`s attached to entities for common styling.
     ///
-    /// Unlike tags, each entity can only have one type.
+    /// Each entity can have multiple types, allowing styles to be stacked.
+    /// These types are appended to the entity's computed default type.
     #[serde(default, skip_serializing_if = "EntityTypes::is_empty")]
     pub entity_types: EntityTypes,
 

@@ -14,6 +14,7 @@ use utoipa::OpenApi;
         // Entity types
         crate::entity::EntityDescs,
         crate::entity::EntityTailwindClasses,
+        crate::entity::EntityType,
         crate::entity::EntityTypeId,
         crate::entity::EntityTypes,
         // Node types
