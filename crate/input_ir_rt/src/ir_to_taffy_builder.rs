@@ -1,6 +1,7 @@
 use disposition_ir_model::{
+    entity::{EntityType, EntityTypes},
     layout::{NodeLayout, NodeLayouts},
-    node::NodeInbuilt,
+    node::{NodeHierarchy, NodeInbuilt},
     IrDiagram,
 };
 use disposition_taffy_model::{
@@ -90,32 +91,54 @@ impl IrToTaffyBuilder {
         let DimensionAndLod { dimension, lod: _ } = dimension_and_lod;
 
         let mut taffy_tree = TaffyTree::new();
-        let root = Self::taffy_container_node(
+        let (root, tags_container, things_container, processes_container) =
+            Self::build_taffy_container_nodes(node_layouts, dimension, &mut taffy_tree);
+
+        Self::build_taffy_nodes_for_first_level_nodes(
             &mut taffy_tree,
+            node_layouts,
+            entity_types,
+            node_hierarchy,
+            tags_container,
+            things_container,
+            processes_container,
+        );
+
+        std::iter::once(TaffyTreeAndRoot { taffy_tree, root })
+    }
+
+    /// Adds the inbuilt container nodes to the `TaffyTree`.
+    fn build_taffy_container_nodes(
+        node_layouts: &NodeLayouts,
+        dimension: &disposition_taffy_model::Dimension,
+        taffy_tree: &mut TaffyTree<NodeContext>,
+    ) -> (taffy::NodeId, taffy::NodeId, taffy::NodeId, taffy::NodeId) {
+        let root = Self::taffy_container_node(
+            taffy_tree,
             &node_layouts,
             NodeInbuilt::Root,
             Size::from_lengths(dimension.width(), dimension.height()),
         );
         let tags_container = Self::taffy_container_node(
-            &mut taffy_tree,
+            taffy_tree,
             &node_layouts,
             NodeInbuilt::TagsContainer,
             Size::auto(),
         );
         let things_and_processes_container = Self::taffy_container_node(
-            &mut taffy_tree,
+            taffy_tree,
             &node_layouts,
             NodeInbuilt::ThingsAndProcessesContainer,
             Size::auto(),
         );
         let things_container = Self::taffy_container_node(
-            &mut taffy_tree,
+            taffy_tree,
             &node_layouts,
             NodeInbuilt::ThingsContainer,
             Size::auto(),
         );
         let processes_container = Self::taffy_container_node(
-            &mut taffy_tree,
+            taffy_tree,
             &node_layouts,
             NodeInbuilt::ProcessesContainer,
             Size::auto(),
@@ -134,8 +157,129 @@ impl IrToTaffyBuilder {
         taffy_tree
             .add_child(things_and_processes_container, things_container)
             .expect("`taffy_tree.add_child(things_and_processes_container, things_container)` failed, but should be infallible.");
+        (root, tags_container, things_container, processes_container)
+    }
 
-        std::iter::once(TaffyTreeAndRoot { taffy_tree, root })
+    /// Adds the tags, things, and process nodes to the taffy tree.
+    ///
+    /// This is different from `build_taffy_nodes_for_node` in that the parent
+    /// node is one of the container nodes.
+    fn build_taffy_nodes_for_first_level_nodes(
+        taffy_tree: &mut TaffyTree<NodeContext>,
+        node_layouts: &NodeLayouts,
+        entity_types: &EntityTypes,
+        node_hierarchy: &NodeHierarchy,
+        tags_container: taffy::NodeId,
+        things_container: taffy::NodeId,
+        processes_container: taffy::NodeId,
+    ) {
+        node_hierarchy
+            .iter()
+            .for_each(|(node_id, child_hierarchy)| {
+                let node_id: &disposition_model_common::Id = node_id.as_ref();
+                let entity_type = entity_types
+                    .get(node_id)
+                    .map(|entity_types| entity_types.first())
+                    .flatten()
+                    .unwrap_or_else(|| panic!("`entity_type` not found for {node_id}"));
+
+                let taffy_parent_id = match entity_type {
+                    EntityType::ThingDefault => things_container,
+                    EntityType::TagDefault => tags_container,
+                    EntityType::ProcessDefault => processes_container,
+                    EntityType::ContainerInbuilt
+                    | EntityType::ProcessStepDefault
+                    | EntityType::DependencyEdgeSequenceDefault
+                    | EntityType::DependencyEdgeCyclicDefault
+                    | EntityType::DependencyEdgeSymmetricDefault
+                    | EntityType::DependencyEdgeSequenceForwardDefault
+                    | EntityType::DependencyEdgeCyclicForwardDefault
+                    | EntityType::DependencyEdgeSymmetricForwardDefault
+                    | EntityType::DependencyEdgeSymmetricReverseDefault
+                    | EntityType::InteractionEdgeSequenceDefault
+                    | EntityType::InteractionEdgeCyclicDefault
+                    | EntityType::InteractionEdgeSymmetricDefault
+                    | EntityType::InteractionEdgeSequenceForwardDefault
+                    | EntityType::InteractionEdgeCyclicForwardDefault
+                    | EntityType::InteractionEdgeSymmetricForwardDefault
+                    | EntityType::InteractionEdgeSymmetricReverseDefault
+                    | EntityType::Custom(_) => {
+                        unreachable!("First entity type for {node_id} cannot be {entity_type}")
+                    }
+                };
+
+                let taffy_style = Self::taffy_container_style(node_layouts, node_id, Size::auto());
+                let taffy_node_id = taffy_tree
+                    .new_leaf_with_context(
+                        taffy_style,
+                        NodeContext {
+                            entity_id: node_id.clone(),
+                            entity_type: entity_type.clone(),
+                        },
+                    )
+                    .unwrap_or_else(|e| {
+                        panic!("Expected to create a leaf node for {node_id}. Error: {e}")
+                    });
+                taffy_tree
+                    .add_child(taffy_parent_id, taffy_node_id)
+                    .expect("Failed to add child node");
+
+                if !child_hierarchy.is_empty() {
+                    Self::build_taffy_child_nodes_for_node(
+                        taffy_tree,
+                        node_layouts,
+                        entity_types,
+                        taffy_node_id,
+                        child_hierarchy,
+                    );
+                }
+            });
+    }
+
+    /// Adds the child taffy nodes for a given IR diagram node.
+    fn build_taffy_child_nodes_for_node(
+        taffy_tree: &mut TaffyTree<NodeContext>,
+        node_layouts: &NodeLayouts,
+        entity_types: &EntityTypes,
+        taffy_parent_id: taffy::NodeId,
+        node_hierarchy: &NodeHierarchy,
+    ) {
+        node_hierarchy
+            .iter()
+            .for_each(|(node_id, child_hierarchy)| {
+                let node_id: &disposition_model_common::Id = node_id.as_ref();
+                let entity_type = entity_types
+                    .get(node_id)
+                    .map(|entity_types| entity_types.first())
+                    .flatten()
+                    .unwrap_or_else(|| panic!("`entity_type` not found for {node_id}"));
+
+                let taffy_style = Self::taffy_container_style(node_layouts, node_id, Size::auto());
+                let taffy_node_id = taffy_tree
+                    .new_leaf_with_context(
+                        taffy_style,
+                        NodeContext {
+                            entity_id: node_id.clone(),
+                            entity_type: entity_type.clone(),
+                        },
+                    )
+                    .unwrap_or_else(|e| {
+                        panic!("Expected to create a leaf node for {node_id}. Error: {e}")
+                    });
+                taffy_tree
+                    .add_child(taffy_parent_id, taffy_node_id)
+                    .expect("Failed to add child node");
+
+                if !child_hierarchy.is_empty() {
+                    Self::build_taffy_child_nodes_for_node(
+                        taffy_tree,
+                        node_layouts,
+                        entity_types,
+                        taffy_node_id,
+                        child_hierarchy,
+                    );
+                }
+            });
     }
 
     /// Adds a container node to the `TaffyTree` and returns its ID.
@@ -154,7 +298,7 @@ impl IrToTaffyBuilder {
         max_size: Size<taffy::Dimension>,
     ) -> taffy::NodeId {
         let tags_container_style =
-            Self::taffy_container_style(node_layouts, node_inbuilt.id(), max_size);
+            Self::taffy_container_style(node_layouts, &node_inbuilt.id(), max_size);
         taffy_tree
             .new_leaf_with_context(
                 tags_container_style,
@@ -169,11 +313,11 @@ impl IrToTaffyBuilder {
     /// Returns the `taffy::Style` for container nodes.
     fn taffy_container_style(
         node_layouts: &NodeLayouts,
-        node_id: disposition_model_common::Id,
+        node_id: &disposition_model_common::Id,
         max_size: Size<taffy::Dimension>,
     ) -> Style {
         let style = node_layouts
-            .get(&node_id)
+            .get(node_id)
             .map(|node_layout| match node_layout {
                 NodeLayout::Flex(flex_layout) => {
                     let flex_style = Style {
