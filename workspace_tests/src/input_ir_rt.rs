@@ -254,7 +254,7 @@ fn test_node_layout_containers() {
 
     // _root container should have column_reverse direction
     let root_id = NodeId::from(id!("_root"));
-    let root_layout = diagram.node_layout.get(&root_id).unwrap();
+    let root_layout = diagram.node_layouts.get(&root_id).unwrap();
     if let NodeLayout::Flex(flex) = root_layout {
         assert_eq!(FlexDirection::ColumnReverse, flex.direction);
         assert!(flex.wrap);
@@ -271,7 +271,7 @@ fn test_node_layout_containers() {
     // _things_and_processes_container should have row_reverse direction
     let things_and_processes_container_id = NodeId::from(id!("_things_and_processes_container"));
     let things_and_processes_layout = diagram
-        .node_layout
+        .node_layouts
         .get(&things_and_processes_container_id)
         .unwrap();
     if let NodeLayout::Flex(flex) = things_and_processes_layout {
@@ -283,7 +283,7 @@ fn test_node_layout_containers() {
 
     // _processes_container should have row direction
     let processes_container_id = NodeId::from(id!("_processes_container"));
-    let processes_layout = diagram.node_layout.get(&processes_container_id).unwrap();
+    let processes_layout = diagram.node_layouts.get(&processes_container_id).unwrap();
     if let NodeLayout::Flex(flex) = processes_layout {
         assert_eq!(FlexDirection::Row, flex.direction);
         assert!(flex.wrap);
@@ -293,7 +293,7 @@ fn test_node_layout_containers() {
 
     // _tags_container should have row direction
     let tags_container_id = NodeId::from(id!("_tags_container"));
-    let tags_layout = diagram.node_layout.get(&tags_container_id).unwrap();
+    let tags_layout = diagram.node_layouts.get(&tags_container_id).unwrap();
     if let NodeLayout::Flex(flex) = tags_layout {
         assert_eq!(FlexDirection::Row, flex.direction);
         assert!(flex.wrap);
@@ -303,7 +303,7 @@ fn test_node_layout_containers() {
 
     // _things_container should have row direction
     let things_container_id = NodeId::from(id!("_things_container"));
-    let things_layout = diagram.node_layout.get(&things_container_id).unwrap();
+    let things_layout = diagram.node_layouts.get(&things_container_id).unwrap();
     if let NodeLayout::Flex(flex) = things_layout {
         assert_eq!(FlexDirection::Row, flex.direction);
         assert!(flex.wrap);
@@ -321,7 +321,7 @@ fn test_node_layout_processes() {
 
     // proc_app_dev has steps, should have column flex layout
     let proc_id = NodeId::from(id!("proc_app_dev"));
-    let proc_layout = diagram.node_layout.get(&proc_id).unwrap();
+    let proc_layout = diagram.node_layouts.get(&proc_id).unwrap();
     if let NodeLayout::Flex(flex) = proc_layout {
         assert_eq!(FlexDirection::Column, flex.direction);
         assert!(!flex.wrap);
@@ -334,11 +334,11 @@ fn test_node_layout_processes() {
 
     // Process steps are leaves, should have None layout
     let step_id = NodeId::from(id!("proc_app_dev_step_repository_clone"));
-    let step_layout = diagram.node_layout.get(&step_id).unwrap();
+    let step_layout = diagram.node_layouts.get(&step_id).unwrap();
     assert_eq!(&NodeLayout::None, step_layout);
 
     let step2_id = NodeId::from(id!("proc_app_dev_step_project_build"));
-    let step2_layout = diagram.node_layout.get(&step2_id).unwrap();
+    let step2_layout = diagram.node_layouts.get(&step2_id).unwrap();
     assert_eq!(&NodeLayout::None, step2_layout);
 }
 
@@ -350,11 +350,11 @@ fn test_node_layout_tags() {
     let diagram = ir_and_issues.diagram;
 
     let tag_0_id = NodeId::from(id!("tag_app_development"));
-    let tag_0_layout = diagram.node_layout.get(&tag_0_id).unwrap();
+    let tag_0_layout = diagram.node_layouts.get(&tag_0_id).unwrap();
     assert_eq!(&NodeLayout::None, tag_0_layout);
 
     let tag_1_id = NodeId::from(id!("tag_deployment"));
-    let tag_1_layout = diagram.node_layout.get(&tag_1_id).unwrap();
+    let tag_1_layout = diagram.node_layouts.get(&tag_1_id).unwrap();
     assert_eq!(&NodeLayout::None, tag_1_layout);
 }
 
@@ -368,7 +368,7 @@ fn test_node_layout_things_hierarchy() {
     // t_aws has children (t_aws_iam, t_aws_ecr, t_aws_ecs), should have column flex
     // (depth 0)
     let t_aws_id = NodeId::from(id!("t_aws"));
-    let t_aws_layout = diagram.node_layout.get(&t_aws_id).unwrap();
+    let t_aws_layout = diagram.node_layouts.get(&t_aws_id).unwrap();
     if let NodeLayout::Flex(flex) = t_aws_layout {
         assert_eq!(FlexDirection::Column, flex.direction);
         // Padding from node_defaults -> padding_normal -> 4.0
@@ -380,7 +380,7 @@ fn test_node_layout_things_hierarchy() {
 
     // t_aws_iam has children (t_aws_iam_ecs_policy), should have row flex (depth 1)
     let t_aws_iam_id = NodeId::from(id!("t_aws_iam"));
-    let t_aws_iam_layout = diagram.node_layout.get(&t_aws_iam_id).unwrap();
+    let t_aws_iam_layout = diagram.node_layouts.get(&t_aws_iam_id).unwrap();
     if let NodeLayout::Flex(flex) = t_aws_iam_layout {
         assert_eq!(FlexDirection::Row, flex.direction);
     } else {
@@ -389,12 +389,12 @@ fn test_node_layout_things_hierarchy() {
 
     // t_aws_iam_ecs_policy is a leaf, should have None layout
     let leaf_id = NodeId::from(id!("t_aws_iam_ecs_policy"));
-    let leaf_layout = diagram.node_layout.get(&leaf_id).unwrap();
+    let leaf_layout = diagram.node_layouts.get(&leaf_id).unwrap();
     assert_eq!(&NodeLayout::None, leaf_layout);
 
     // t_aws_ecr_repo has children (images), should have column flex (depth 2)
     let t_aws_ecr_repo_id = NodeId::from(id!("t_aws_ecr_repo"));
-    let t_aws_ecr_repo_layout = diagram.node_layout.get(&t_aws_ecr_repo_id).unwrap();
+    let t_aws_ecr_repo_layout = diagram.node_layouts.get(&t_aws_ecr_repo_id).unwrap();
     if let NodeLayout::Flex(flex) = t_aws_ecr_repo_layout {
         assert_eq!(FlexDirection::Column, flex.direction);
     } else {
@@ -403,7 +403,7 @@ fn test_node_layout_things_hierarchy() {
 
     // t_aws_ecr_repo_image_1 is a leaf
     let image_id = NodeId::from(id!("t_aws_ecr_repo_image_1"));
-    let image_layout = diagram.node_layout.get(&image_id).unwrap();
+    let image_layout = diagram.node_layouts.get(&image_id).unwrap();
     assert_eq!(&NodeLayout::None, image_layout);
 }
 
@@ -417,7 +417,7 @@ fn test_node_layout_padding_from_theme() {
     // All containers should get padding from node_defaults which uses
     // padding_normal (4.0)
     let t_aws_id = NodeId::from(id!("t_aws"));
-    let t_aws_layout = diagram.node_layout.get(&t_aws_id).unwrap();
+    let t_aws_layout = diagram.node_layouts.get(&t_aws_id).unwrap();
     if let NodeLayout::Flex(flex) = t_aws_layout {
         assert_eq!(4.0, flex.padding_top);
         assert_eq!(4.0, flex.padding_right);

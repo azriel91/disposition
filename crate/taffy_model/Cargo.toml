@@ -15,6 +15,7 @@ license.workspace = true
 
 [dependencies]
 disposition_model_common = { workspace = true }
+disposition_input_model = { workspace = true }
 miette = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

@@ -81,7 +81,7 @@ impl InputToIrDiagramMapper {
         );
 
         // 7. Build NodeLayouts from node_hierarchy and theme
-        let node_layout = Self::build_node_layouts(
+        let node_layouts = Self::build_node_layouts(
             &node_hierarchy,
             &ir_entity_types,
             &theme_default,
@@ -111,7 +111,7 @@ impl InputToIrDiagramMapper {
             entity_descs,
             entity_types: ir_entity_types,
             tailwind_classes,
-            node_layout,
+            node_layouts,
             css,
         };
 

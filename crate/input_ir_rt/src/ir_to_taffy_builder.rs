@@ -1,6 +1,7 @@
 use disposition_ir_model::{
     layout::{NodeLayout, NodeLayouts},
     node::NodeInbuilt,
+    IrDiagram,
 };
 use disposition_taffy_model::{
     taffy::{
@@ -9,7 +10,7 @@ use disposition_taffy_model::{
         AlignContent, AlignItems, Display, FlexWrap, LengthPercentage, Rect, Size, Style,
         TaffyTree,
     },
-    DimensionAndLod, IrToTaffyError, NodeContext, TaffyTreeAndRoot,
+    DimensionAndLod, IrToTaffyError, NodeContext, ProcessesIncluded, TaffyTreeAndRoot,
 };
 use serde::{Deserialize, Serialize};
 use typed_builder::TypedBuilder;
@@ -27,28 +28,37 @@ use typed_builder::TypedBuilder;
 /// ```
 #[derive(Clone, Debug, Deserialize, Serialize, TypedBuilder)]
 pub struct IrToTaffyBuilder {
+    /// The intermediate representation of the diagram to render the taffy trees
+    /// for.
+    #[builder(setter(prefix = "with_"))]
+    ir_diagram: IrDiagram,
     /// The dimensions at which elements should be repositioned.
     #[builder(setter(prefix = "with_"))]
     dimension_and_lods: Vec<DimensionAndLod>,
-    /// Node layouts for the diagram.
+    /// What processes to create diagrams for.
     #[builder(setter(prefix = "with_"))]
-    node_layouts: NodeLayouts,
+    processes_included: ProcessesIncluded,
 }
 
 impl IrToTaffyBuilder {
     /// Returns an iterator over `TaffyTreeAndRoot` instances for each
     /// dimension.
-    pub fn build(self) -> Result<impl Iterator<Item = TaffyTreeAndRoot>, IrToTaffyError> {
+    pub fn build(&self) -> Result<impl Iterator<Item = TaffyTreeAndRoot>, IrToTaffyError> {
         let IrToTaffyBuilder {
+            ir_diagram,
             dimension_and_lods,
-            node_layouts,
+            processes_included,
         } = self;
 
         let taffy_tree_and_root_iter =
             dimension_and_lods
-                .into_iter()
-                .map(move |dimension_and_lod| {
-                    Self::build_taffy_tree_for_dimension(dimension_and_lod, &node_layouts)
+                .iter()
+                .flat_map(move |dimension_and_lod| {
+                    Self::build_taffy_trees_for_dimension(
+                        ir_diagram,
+                        dimension_and_lod,
+                        processes_included,
+                    )
                 });
 
         Ok(taffy_tree_and_root_iter)
@@ -58,10 +68,23 @@ impl IrToTaffyBuilder {
     ///
     /// This includes the processes container. Clicking on each process node
     /// reveals the process steps.
-    fn build_taffy_tree_for_dimension(
-        dimension_and_lod: DimensionAndLod,
-        node_layouts: &NodeLayouts,
-    ) -> TaffyTreeAndRoot {
+    fn build_taffy_trees_for_dimension(
+        ir_diagram: &IrDiagram,
+        dimension_and_lod: &DimensionAndLod,
+        processes_included: &ProcessesIncluded,
+    ) -> impl Iterator<Item = TaffyTreeAndRoot> {
+        let IrDiagram {
+            nodes,
+            node_copy_text,
+            node_hierarchy,
+            edge_groups,
+            entity_descs,
+            entity_types,
+            tailwind_classes,
+            node_layouts,
+            css,
+        } = ir_diagram;
+
         // TODO: use `lod` to determine whether text is rendered, which affects the
         // layout calculation.
         let DimensionAndLod { dimension, lod: _ } = dimension_and_lod;
@@ -112,7 +135,7 @@ impl IrToTaffyBuilder {
             .add_child(things_and_processes_container, things_container)
             .expect("`taffy_tree.add_child(things_and_processes_container, things_container)` failed, but should be infallible.");
 
-        TaffyTreeAndRoot { taffy_tree, root }
+        std::iter::once(TaffyTreeAndRoot { taffy_tree, root })
     }
 
     /// Adds a container node to the `TaffyTree` and returns its ID.

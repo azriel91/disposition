@@ -133,6 +133,7 @@ dependencies = [
 name = "disposition_taffy_model"
 version = "0.0.1"
 dependencies = [
+ "disposition_input_model",
  "disposition_model_common",
  "miette",
  "serde",

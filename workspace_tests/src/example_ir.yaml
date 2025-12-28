@@ -1272,7 +1272,7 @@ tailwind_classes:
     animate-[stroke-dashoffset-move-request_2s_linear_infinite]
 
 # Layout configuration for nodes.
-node_layout:
+node_layouts:
   # Root container
   #
   # This is in `column_reverse` order so tag node state controls `things` and `processes`:

@@ -125,7 +125,7 @@ pub struct IrDiagram {
     ///
     /// Defines how children of each container node should be arranged.
     #[serde(default, skip_serializing_if = "NodeLayouts::is_empty")]
-    pub node_layout: NodeLayouts,
+    pub node_layouts: NodeLayouts,
 
     /// Additional CSS to place in the SVG's inline `<styles>` section.
     ///
