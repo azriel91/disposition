@@ -102,6 +102,7 @@ impl IrToTaffyBuilder {
             tags_container,
             things_container,
             processes_container,
+            processes_included,
         );
 
         std::iter::once(TaffyTreeAndRoot { taffy_tree, root })
@@ -172,6 +173,7 @@ impl IrToTaffyBuilder {
         tags_container: taffy::NodeId,
         things_container: taffy::NodeId,
         processes_container: taffy::NodeId,
+        processes_included: &ProcessesIncluded,
     ) {
         node_hierarchy
             .iter()
@@ -186,7 +188,18 @@ impl IrToTaffyBuilder {
                 let taffy_parent_id = match entity_type {
                     EntityType::ThingDefault => things_container,
                     EntityType::TagDefault => tags_container,
-                    EntityType::ProcessDefault => processes_container,
+                    EntityType::ProcessDefault => {
+                        match processes_included {
+                            ProcessesIncluded::All => {}
+                            ProcessesIncluded::Filter { process_ids } => {
+                                if process_ids.contains(node_id) {
+                                    // Don't add this process.
+                                    return;
+                                }
+                            }
+                        }
+                        processes_container
+                    }
                     EntityType::ContainerInbuilt
                     | EntityType::ProcessStepDefault
                     | EntityType::DependencyEdgeSequenceDefault
