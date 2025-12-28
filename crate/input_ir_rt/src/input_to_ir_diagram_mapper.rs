@@ -19,11 +19,12 @@ use disposition_input_model::{
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeGroups},
     entity::{EntityTailwindClasses, EntityType, EntityTypeId},
+    enum_iterator,
     layout::{FlexDirection, FlexLayout, NodeLayout, NodeLayouts},
-    node::{NodeCopyText, NodeHierarchy, NodeId, NodeNames},
+    node::{NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames},
     IrDiagram,
 };
-use disposition_model_common::{edge::EdgeGroupId, entity::EntityDescs, id, Id, Keys, Map, Set};
+use disposition_model_common::{edge::EdgeGroupId, entity::EntityDescs, Id, Keys, Map, Set};
 
 /// Maps an input diagram to an intermediate representation diagram.
 #[derive(Clone, Copy, Debug)]
@@ -379,7 +380,16 @@ impl InputToIrDiagramMapper {
             std::iter::once((process_id_inner, process_types)).chain(step_entries)
         });
 
-        let mut entity_types: Map<Id, Set<EntityType>> = thing_entries
+        // node inbuilt types
+        let node_inbuilt_types = enum_iterator::all::<NodeInbuilt>().map(|node_inbuilt| {
+            let mut entity_types = Set::with_capacity(1);
+            entity_types.insert(node_inbuilt.entity_type());
+
+            (node_inbuilt.id(), entity_types)
+        });
+
+        let mut entity_types: Map<Id, Set<EntityType>> = node_inbuilt_types
+            .chain(thing_entries)
             .chain(tag_entries)
             .chain(process_entries)
             .collect();
@@ -592,7 +602,7 @@ impl InputToIrDiagramMapper {
         let is_process = |node_id: &NodeId| processes.contains_key(node_id);
 
         // 1. Add _root container layout
-        let root_id = id!("_root");
+        let root_id = NodeInbuilt::Root.id();
         let root_layout = Self::build_container_layout(
             &root_id,
             FlexDirection::ColumnReverse,
@@ -604,7 +614,7 @@ impl InputToIrDiagramMapper {
         node_layouts.insert(NodeId::from(root_id), root_layout);
 
         // 2. Add _things_and_processes_container layout
-        let things_and_processes_id = id!("_things_and_processes_container");
+        let things_and_processes_id = NodeInbuilt::ThingsAndProcessesContainer.id();
         let things_and_processes_layout = Self::build_container_layout(
             &things_and_processes_id,
             FlexDirection::RowReverse,
@@ -619,7 +629,7 @@ impl InputToIrDiagramMapper {
         );
 
         // 3. Add _processes_container layout
-        let processes_container_id = id!("_processes_container");
+        let processes_container_id = NodeInbuilt::ProcessesContainer.id();
         let processes_container_layout = Self::build_container_layout(
             &processes_container_id,
             FlexDirection::Row,
@@ -663,7 +673,7 @@ impl InputToIrDiagramMapper {
         node_layouts.extend(process_layouts);
 
         // 5. Add _tags_container layout
-        let tags_container_id = id!("_tags_container");
+        let tags_container_id = NodeInbuilt::TagsContainer.id();
         let tags_container_layout = Self::build_container_layout(
             &tags_container_id,
             FlexDirection::Row,
@@ -683,7 +693,7 @@ impl InputToIrDiagramMapper {
         node_layouts.extend(tag_layouts);
 
         // 7. Add _things_container layout
-        let things_container_id = id!("_things_container");
+        let things_container_id = NodeInbuilt::ThingsContainer.id();
         let things_container_layout = Self::build_container_layout(
             &things_container_id,
             FlexDirection::Row,

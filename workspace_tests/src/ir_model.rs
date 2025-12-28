@@ -62,7 +62,7 @@ fn test_parse_example_ir() {
             .as_slice()
     );
     assert_eq!(12, diagram.edge_groups.len());
-    assert_eq!(59, diagram.entity_types.len());
+    assert_eq!(64, diagram.entity_types.len());
     assert_eq!(59, diagram.tailwind_classes.len());
     assert_eq!(36, diagram.node_layout.len());
     assert!(!diagram.css.is_empty());

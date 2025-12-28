@@ -3,6 +3,10 @@ use serde::{Deserialize, Serialize};
 use crate::{DiagramLod, Dimension};
 
 /// The width and height of a diagram, and the level of detail to render.
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub struct DimensionAndLod {
     /// The size of the diagram.

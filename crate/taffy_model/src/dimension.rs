@@ -6,6 +6,10 @@ use taffy::Size;
 /// These dimensions correspond to Tailwind CSS' [responsive breakpoints].
 ///
 /// [responsive breakpoints]: https://tailwindcss.com/docs/responsive-design
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Dimension {
     /// Diagram should fit within 640x480.

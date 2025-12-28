@@ -17,6 +17,7 @@ workspace = true
 
 [dependencies]
 disposition_model_common = { workspace = true }
+enum-iterator = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 utoipa = { workspace = true, optional = true }
 

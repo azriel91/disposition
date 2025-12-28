@@ -1,3 +1,4 @@
+use disposition_ir_model::node::NodeInbuilt;
 use disposition_taffy_model::{
     taffy::{Style, TaffyError, TaffyTree},
     DimensionAndLod, NodeContext, TaffyTreeAndRoot,
@@ -30,7 +31,13 @@ impl IrToTaffyBuilder {
     /// reveals the process steps.
     pub fn build(self) -> Result<TaffyTreeAndRoot, TaffyError> {
         let mut taffy_tree = TaffyTree::new();
-        let root = taffy_tree.new_leaf_with_context(Style::default(), NodeContext {})?;
+        let root = taffy_tree.new_leaf_with_context(
+            Style::default(),
+            NodeContext {
+                entity_id: NodeInbuilt::Root.id(),
+                entity_type: NodeInbuilt::Root.entity_type(),
+            },
+        )?;
         Ok(TaffyTreeAndRoot { taffy_tree, root })
     }
 }

@@ -222,6 +222,13 @@ entity_descs:
 
 # Entity types for styling.
 entity_types:
+  # nodes inbuilt
+  _root: [container_inbuilt]
+  _processes_container: [container_inbuilt]
+  _things_and_processes_container: [container_inbuilt]
+  _things_container: [container_inbuilt]
+  _tags_container: [container_inbuilt]
+
   # things
   t_aws: [type_thing_default, type_organisation]
   t_aws_iam: [type_thing_default, type_service]

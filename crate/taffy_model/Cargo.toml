@@ -14,8 +14,18 @@ keywords.workspace = true
 license.workspace = true
 
 [dependencies]
+disposition_model_common = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 taffy = { workspace = true }
+utoipa = { workspace = true, optional = true }
 
 [lints]
 workspace = true
+
+[features]
+default = []
+
+# Only enable this when you need to generate OpenAPI documentation.
+openapi = ["dep:utoipa", "disposition_model_common/openapi"]
+
+test = []

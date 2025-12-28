@@ -5,6 +5,7 @@
 //! the final SVG output.
 
 // Re-exports
+pub use enum_iterator;
 // This allows consumers to not need to depend on `utoipa` manually.
 #[cfg(all(feature = "openapi", not(feature = "test")))]
 pub use utoipa;
