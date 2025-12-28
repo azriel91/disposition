@@ -19,6 +19,7 @@ workspace = true
 disposition_model_common = { workspace = true }
 enum-iterator = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+taffy = { workspace = true }
 utoipa = { workspace = true, optional = true }
 
 [features]

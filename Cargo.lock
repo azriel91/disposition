@@ -89,6 +89,7 @@ dependencies = [
  "disposition_model_common",
  "disposition_taffy_model",
  "serde",
+ "typed-builder",
 ]
 
 [[package]]
@@ -107,6 +108,7 @@ dependencies = [
  "disposition_model_common",
  "enum-iterator",
  "serde",
+ "taffy",
  "utoipa",
 ]
 
@@ -132,8 +134,10 @@ name = "disposition_taffy_model"
 version = "0.0.1"
 dependencies = [
  "disposition_model_common",
+ "miette",
  "serde",
  "taffy",
+ "thiserror",
  "utoipa",
 ]
 
@@ -492,6 +496,26 @@ name = "thiserror-impl"
 version = "2.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ff15c8ecd7de3849db632e14d18d2571fa09dfc5ed93479bc4485c7a517c913"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "typed-builder"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31aa81521b70f94402501d848ccc0ecaa8f93c8eb6999eb9747e72287757ffda"
+dependencies = [
+ "typed-builder-macro",
+]
+
+[[package]]
+name = "typed-builder-macro"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "076a02dc54dd46795c2e9c8282ed40bcfb1e22747e955de9389a1de28190fb26"
 dependencies = [
  "proc-macro2",
  "quote",
