@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use disposition_ir_model::{
-    entity::{EntityType, EntityTypes},
+    entity::{EntityDescs, EntityType, EntityTypes},
     layout::{NodeLayout, NodeLayouts},
     node::{NodeHierarchy, NodeInbuilt, NodeNames},
     IrDiagram,
@@ -139,69 +139,15 @@ impl IrToTaffyBuilder {
                     height: AvailableSpace::Definite(dimension.height()),
                 },
                 |known_dimensions, available_space, _taffy_node_id, node_context, _style| {
-                    if let Size {
-                        width: Some(width),
-                        height: Some(height),
-                    } = known_dimensions
-                    {
-                        return Size { width, height };
-                    }
-
-                    let CosmicTextContext {
-                        font_system,
-                        buffer,
-                        font_attrs,
-                    } = cosmic_text_context;
-                    let text = node_context
-                        .as_ref()
-                        .map(|node_context| {
-                            let entity_id = &node_context.entity_id;
-                            let node_name = nodes
-                                .get(entity_id)
-                                .map(String::as_str)
-                                .unwrap_or_else(|| entity_id.as_str());
-
-                            match lod {
-                                DiagramLod::Simple => Cow::Borrowed(node_name),
-                                DiagramLod::Normal => {
-                                    let node_desc = entity_descs.get(entity_id).map(String::as_str);
-
-                                    match node_desc {
-                                        Some(desc) => Cow::Owned(format!("{node_name}\n\n{desc}")),
-                                        None => Cow::Borrowed(node_name),
-                                    }
-                                }
-                            }
-                        })
-                        .unwrap_or(Cow::Borrowed(""));
-                    buffer.set_text(
-                        font_system,
-                        &text,
-                        &font_attrs,
-                        Shaping::Advanced,
-                        Some(Align::Left),
-                    );
-
-                    // Set width constraint
-                    let width_constraint = known_dimensions.width.or(match available_space.width {
-                        AvailableSpace::MinContent => Some(0.0),
-                        AvailableSpace::MaxContent => None,
-                        AvailableSpace::Definite(width) => Some(width),
-                    });
-                    buffer.set_size(font_system, width_constraint, None);
-
-                    // Compute layout
-                    buffer.shape_until_scroll(font_system, false);
-
-                    // Determine measured size of text
-                    let (width, total_lines) = buffer
-                        .layout_runs()
-                        .fold((0.0, 0usize), |(width, total_lines), run| {
-                            (run.line_w.max(width), total_lines + 1)
-                        });
-                    let height = total_lines as f32 * buffer.metrics().line_height;
-
-                    taffy::Size { width, height }
+                    Self::node_size_measure(
+                        nodes,
+                        entity_descs,
+                        cosmic_text_context,
+                        lod,
+                        known_dimensions,
+                        available_space,
+                        node_context,
+                    )
                 },
             )
             .expect("Expected layout computation to succeed.");
@@ -585,6 +531,81 @@ impl IrToTaffyBuilder {
                 NodeLayout::None => TaffyWrapperNodeStyles::default(),
             })
             .unwrap_or_default()
+    }
+
+    /// Returns the size of a node based on its layout and available space.
+    fn node_size_measure(
+        nodes: &NodeNames,
+        entity_descs: &EntityDescs,
+        cosmic_text_context: &mut CosmicTextContext<'_>,
+        lod: &DiagramLod,
+        known_dimensions: Size<Option<f32>>,
+        available_space: Size<AvailableSpace>,
+        node_context: Option<&mut NodeContext>,
+    ) -> Size<f32> {
+        if let Size {
+            width: Some(width),
+            height: Some(height),
+        } = known_dimensions
+        {
+            return Size { width, height };
+        }
+
+        let CosmicTextContext {
+            font_system,
+            buffer,
+            font_attrs,
+        } = cosmic_text_context;
+        let text = node_context
+            .as_ref()
+            .map(|node_context| {
+                let entity_id = &node_context.entity_id;
+                let node_name = nodes
+                    .get(entity_id)
+                    .map(String::as_str)
+                    .unwrap_or_else(|| entity_id.as_str());
+
+                match lod {
+                    DiagramLod::Simple => Cow::Borrowed(node_name),
+                    DiagramLod::Normal => {
+                        let node_desc = entity_descs.get(entity_id).map(String::as_str);
+
+                        match node_desc {
+                            Some(desc) => Cow::Owned(format!("{node_name}\n\n{desc}")),
+                            None => Cow::Borrowed(node_name),
+                        }
+                    }
+                }
+            })
+            .unwrap_or(Cow::Borrowed(""));
+        buffer.set_text(
+            font_system,
+            &text,
+            &font_attrs,
+            Shaping::Advanced,
+            Some(Align::Left),
+        );
+
+        // Set width constraint
+        let width_constraint = known_dimensions.width.or(match available_space.width {
+            AvailableSpace::MinContent => Some(0.0),
+            AvailableSpace::MaxContent => None,
+            AvailableSpace::Definite(width) => Some(width),
+        });
+        buffer.set_size(font_system, width_constraint, None);
+
+        // Compute layout
+        buffer.shape_until_scroll(font_system, false);
+
+        // Determine measured size of text
+        let (width, total_lines) = buffer
+            .layout_runs()
+            .fold((0.0, 0usize), |(width, total_lines), run| {
+                (run.line_w.max(width), total_lines + 1)
+            });
+        let height = total_lines as f32 * buffer.metrics().line_height;
+
+        taffy::Size { width, height }
     }
 }
 
