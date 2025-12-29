@@ -25,10 +25,16 @@ use typed_builder::TypedBuilder;
 /// # Examples
 ///
 /// ```rust
-/// use disposition_input_ir_rt::IrToTaffyBuilder;
+/// # use disposition_input_ir_rt::IrToTaffyBuilder;
+/// # use disposition_ir_model::IrDiagram;
+/// # use disposition_taffy_model::DimensionAndLod;
+/// #
+/// let ir_diagram = IrDiagram::new();
+/// let dimension_and_lods = vec![DimensionAndLod::default_lg()];
 ///
-/// let mut taffy_trees = IrToTaffyBuilder::default()
-///     .node_layouts(node_layouts)
+/// let mut taffy_trees = IrToTaffyBuilder::builder()
+///     .with_ir_diagram(ir_diagram)
+///     .with_dimension_and_lods(dimension_and_lods)
 ///     .build();
 /// ```
 #[derive(Clone, Debug, Deserialize, Serialize, TypedBuilder)]
@@ -41,7 +47,7 @@ pub struct IrToTaffyBuilder {
     #[builder(setter(prefix = "with_"))]
     dimension_and_lods: Vec<DimensionAndLod>,
     /// What processes to create diagrams for.
-    #[builder(setter(prefix = "with_"))]
+    #[builder(setter(prefix = "with_"), default = ProcessesIncluded::All)]
     processes_included: ProcessesIncluded,
 }
 
