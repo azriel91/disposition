@@ -4,10 +4,5 @@ use utoipa::OpenApi;
 
 /// OpenAPI documentation for the intermediate representation types.
 #[derive(OpenApi)]
-#[openapi(components(schemas(
-    crate::DiagramLod,
-    crate::DimensionAndLod,
-    crate::NodeContext,
-    crate::Dimension,
-)))]
+#[openapi(components(schemas(crate::DiagramLod, crate::DimensionAndLod, crate::Dimension)))]
 pub struct ApiDoc;
