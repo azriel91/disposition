@@ -86,7 +86,7 @@ impl IrToTaffyBuilder {
     ) -> impl Iterator<Item = TaffyTreeAndRoot> {
         let IrDiagram {
             nodes,
-            node_copy_text,
+            node_copy_text: _,
             node_hierarchy,
             edge_groups: _,
             entity_descs,
@@ -172,40 +172,40 @@ impl IrToTaffyBuilder {
     ) -> taffy::NodeId {
         let things_container = Self::taffy_container_node(
             taffy_tree,
-            &node_layouts,
+            node_layouts,
             NodeInbuilt::ThingsContainer,
             Size::auto(),
             thing_taffy_node_ids,
         );
         let processes_container = Self::taffy_container_node(
             taffy_tree,
-            &node_layouts,
+            node_layouts,
             NodeInbuilt::ProcessesContainer,
             Size::auto(),
             process_taffy_node_ids,
         );
         let things_and_processes_container = Self::taffy_container_node(
             taffy_tree,
-            &node_layouts,
+            node_layouts,
             NodeInbuilt::ThingsAndProcessesContainer,
             Size::auto(),
             &[processes_container, things_container],
         );
         let tags_container = Self::taffy_container_node(
             taffy_tree,
-            &node_layouts,
+            node_layouts,
             NodeInbuilt::TagsContainer,
             Size::auto(),
             tag_taffy_node_ids,
         );
-        let root = Self::taffy_container_node(
+
+        Self::taffy_container_node(
             taffy_tree,
-            &node_layouts,
+            node_layouts,
             NodeInbuilt::Root,
             Size::from_lengths(dimension.width(), dimension.height()),
             &[tags_container, things_and_processes_container],
-        );
-        root
+        )
     }
 
     /// Adds the tags, things, and process nodes to the taffy tree.
@@ -230,8 +230,7 @@ impl IrToTaffyBuilder {
                 let node_id: &disposition_model_common::Id = node_id.as_ref();
                 let entity_type = entity_types
                     .get(node_id)
-                    .map(|entity_types| entity_types.first())
-                    .flatten()
+                    .and_then(|entity_types| entity_types.first())
                     .unwrap_or_else(|| panic!("`entity_type` not found for {node_id}"));
 
                 if matches!(entity_type, EntityType::ProcessDefault) {
@@ -329,8 +328,7 @@ impl IrToTaffyBuilder {
                 let node_id: &disposition_model_common::Id = node_id.as_ref();
                 let entity_type = entity_types
                     .get(node_id)
-                    .map(|entity_types| entity_types.first())
-                    .flatten()
+                    .and_then(|entity_types| entity_types.first())
                     .unwrap_or_else(|| panic!("`entity_type` not found for {node_id}"));
 
                 if child_hierarchy.is_empty() {
@@ -421,45 +419,41 @@ impl IrToTaffyBuilder {
         node_id: &disposition_model_common::Id,
         max_size: Size<taffy::Dimension>,
     ) -> Style {
-        let style = node_layouts
+        node_layouts
             .get(node_id)
             .map(|node_layout| match node_layout {
-                NodeLayout::Flex(flex_layout) => {
-                    let flex_style = Style {
-                        display: Display::Flex,
-                        max_size,
-                        margin: Rect {
-                            left: LengthPercentageAuto::length(flex_layout.margin_left()),
-                            right: LengthPercentageAuto::length(flex_layout.margin_right()),
-                            top: LengthPercentageAuto::length(flex_layout.margin_top()),
-                            bottom: LengthPercentageAuto::length(flex_layout.margin_bottom()),
-                        },
-                        padding: Rect {
-                            left: LengthPercentage::length(flex_layout.padding_left()),
-                            right: LengthPercentage::length(flex_layout.padding_right()),
-                            top: LengthPercentage::length(flex_layout.padding_top()),
-                            bottom: LengthPercentage::length(flex_layout.padding_bottom()),
-                        },
-                        border: Rect::length(1.0f32),
-                        align_items: Some(AlignItems::Center),
-                        justify_items: Some(AlignItems::Center),
-                        align_content: Some(AlignContent::Center),
-                        justify_content: Some(AlignContent::Center),
-                        gap: Size::length(flex_layout.gap()),
-                        flex_direction: FlexDirection::from(flex_layout.direction()),
-                        flex_wrap: if flex_layout.wrap() {
-                            FlexWrap::Wrap
-                        } else {
-                            FlexWrap::NoWrap
-                        },
-                        ..Default::default()
-                    };
-                    flex_style
-                }
+                NodeLayout::Flex(flex_layout) => Style {
+                    display: Display::Flex,
+                    max_size,
+                    margin: Rect {
+                        left: LengthPercentageAuto::length(flex_layout.margin_left()),
+                        right: LengthPercentageAuto::length(flex_layout.margin_right()),
+                        top: LengthPercentageAuto::length(flex_layout.margin_top()),
+                        bottom: LengthPercentageAuto::length(flex_layout.margin_bottom()),
+                    },
+                    padding: Rect {
+                        left: LengthPercentage::length(flex_layout.padding_left()),
+                        right: LengthPercentage::length(flex_layout.padding_right()),
+                        top: LengthPercentage::length(flex_layout.padding_top()),
+                        bottom: LengthPercentage::length(flex_layout.padding_bottom()),
+                    },
+                    border: Rect::length(1.0f32),
+                    align_items: Some(AlignItems::Center),
+                    justify_items: Some(AlignItems::Center),
+                    align_content: Some(AlignContent::Center),
+                    justify_content: Some(AlignContent::Center),
+                    gap: Size::length(flex_layout.gap()),
+                    flex_direction: FlexDirection::from(flex_layout.direction()),
+                    flex_wrap: if flex_layout.wrap() {
+                        FlexWrap::Wrap
+                    } else {
+                        FlexWrap::NoWrap
+                    },
+                    ..Default::default()
+                },
                 NodeLayout::None => Style::default(),
             })
-            .unwrap_or_default();
-        style
+            .unwrap_or_default()
     }
 
     /// Returns the `taffy::Style` for a wrapper node and its text node.
@@ -587,7 +581,7 @@ impl IrToTaffyBuilder {
         buffer.set_text(
             font_system,
             &text,
-            &font_attrs,
+            font_attrs,
             Shaping::Advanced,
             Some(Align::Left),
         );
