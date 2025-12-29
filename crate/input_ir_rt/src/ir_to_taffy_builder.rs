@@ -1,20 +1,19 @@
 use disposition_ir_model::{
     entity::{EntityType, EntityTypes},
     layout::{NodeLayout, NodeLayouts},
-    node::{NodeHierarchy, NodeInbuilt},
+    node::{NodeHierarchy, NodeInbuilt, NodeNames},
     IrDiagram,
 };
 use disposition_model_common::Map;
 use disposition_taffy_model::{
-    cosmic_text::FontSystem,
+    cosmic_text::{Align, Attrs, Buffer, FontSystem, Metrics, Shaping},
     taffy::{
         self,
         style::{FlexDirection, LengthPercentageAuto},
         AlignContent, AlignItems, AvailableSpace, Display, FlexWrap, LengthPercentage, Rect, Size,
         Style, TaffyTree,
     },
-    CosmicTextContext, DimensionAndLod, IrToTaffyError, NodeContext, ProcessesIncluded,
-    TaffyTreeAndRoot,
+    DimensionAndLod, IrToTaffyError, NodeContext, ProcessesIncluded, TaffyTreeAndRoot,
 };
 use serde::{Deserialize, Serialize};
 use typed_builder::TypedBuilder;
@@ -89,17 +88,26 @@ impl IrToTaffyBuilder {
             css,
         } = ir_diagram;
 
+        // In theory this could be shared for all diagram generation, but it isn't
+        // straightforward to satisfy Rust's constraints when returning an iterator.
+        let mut cosmic_text_context = CosmicTextContext::new();
+        let cosmic_text_context = &mut cosmic_text_context;
+
         // TODO: use `lod` to determine whether text is rendered, which affects the
         // layout calculation.
         let DimensionAndLod { dimension, lod: _ } = dimension_and_lod;
 
         let mut taffy_tree = TaffyTree::new();
 
-        let first_level_taffy_nodes = Self::build_taffy_nodes_for_first_level_nodes(
-            &mut taffy_tree,
+        let taffy_node_build_context = TaffyNodeBuildContext {
+            taffy_tree: &mut taffy_tree,
+            nodes,
             node_layouts,
-            entity_types,
             node_hierarchy,
+            entity_types,
+        };
+        let first_level_taffy_nodes = Self::build_taffy_nodes_for_first_level_nodes(
+            taffy_node_build_context,
             processes_included,
         );
         let thing_taffy_node_ids = first_level_taffy_nodes
@@ -123,7 +131,6 @@ impl IrToTaffyBuilder {
             tag_taffy_node_ids,
         );
 
-        let mut font_system = FontSystem::new();
         taffy_tree
             .compute_layout_with_measure(
                 root,
@@ -131,17 +138,57 @@ impl IrToTaffyBuilder {
                     width: AvailableSpace::Definite(dimension.width()),
                     height: AvailableSpace::Definite(dimension.height()),
                 },
-                // Note: this closure is a FnMut closure and can be used to borrow external context
-                // for the duration of layout For example, you may wish to borrow a
-                // global font registry and pass it into your text measuring
-                // function
-                |known_dimensions, available_space, _node_id, node_context, _style| {
-                    Self::measure_function(
-                        known_dimensions,
-                        available_space,
-                        node_context,
-                        &mut font_system,
-                    )
+                |known_dimensions, available_space, _taffy_node_id, node_context, _style| {
+                    if let Size {
+                        width: Some(width),
+                        height: Some(height),
+                    } = known_dimensions
+                    {
+                        return Size { width, height };
+                    }
+
+                    let CosmicTextContext {
+                        font_system,
+                        buffer,
+                        font_attrs,
+                    } = cosmic_text_context;
+                    let text = node_context
+                        .as_ref()
+                        .map(|node_context| {
+                            nodes
+                                .get(&node_context.entity_id)
+                                .map(String::as_str)
+                                .unwrap_or_else(|| node_context.entity_id.as_str())
+                        })
+                        .unwrap_or("");
+                    buffer.set_text(
+                        font_system,
+                        text,
+                        &font_attrs,
+                        Shaping::Advanced,
+                        Some(Align::Left),
+                    );
+
+                    // Set width constraint
+                    let width_constraint = known_dimensions.width.or(match available_space.width {
+                        AvailableSpace::MinContent => Some(0.0),
+                        AvailableSpace::MaxContent => None,
+                        AvailableSpace::Definite(width) => Some(width),
+                    });
+                    buffer.set_size(font_system, width_constraint, None);
+
+                    // Compute layout
+                    buffer.shape_until_scroll(font_system, false);
+
+                    // Determine measured size of text
+                    let (width, total_lines) = buffer
+                        .layout_runs()
+                        .fold((0.0, 0usize), |(width, total_lines), run| {
+                            (run.line_w.max(width), total_lines + 1)
+                        });
+                    let height = total_lines as f32 * buffer.metrics().line_height;
+
+                    taffy::Size { width, height }
                 },
             )
             .expect("Expected layout computation to succeed.");
@@ -201,12 +248,17 @@ impl IrToTaffyBuilder {
     /// This is different from `build_taffy_nodes_for_node` in that the parent
     /// node is one of the container nodes.
     fn build_taffy_nodes_for_first_level_nodes(
-        taffy_tree: &mut TaffyTree<NodeContext>,
-        node_layouts: &NodeLayouts,
-        entity_types: &EntityTypes,
-        node_hierarchy: &NodeHierarchy,
+        taffy_node_build_context: TaffyNodeBuildContext<'_>,
         processes_included: &ProcessesIncluded,
     ) -> Map<EntityType, Vec<taffy::NodeId>> {
+        let TaffyNodeBuildContext {
+            nodes,
+            taffy_tree,
+            node_layouts,
+            node_hierarchy,
+            entity_types,
+        } = taffy_node_build_context;
+
         node_hierarchy.iter().fold(
             Map::<EntityType, Vec<taffy::NodeId>>::new(),
             |mut entity_type_to_nodes, (node_id, child_hierarchy)| {
@@ -229,8 +281,6 @@ impl IrToTaffyBuilder {
                     };
                 }
 
-                let cosmic_text_context = CosmicTextContext::new();
-
                 let taffy_node_id = if child_hierarchy.is_empty() {
                     let taffy_style =
                         Self::taffy_container_style(node_layouts, node_id, Size::auto());
@@ -240,7 +290,6 @@ impl IrToTaffyBuilder {
                             NodeContext {
                                 entity_id: node_id.clone(),
                                 entity_type: entity_type.clone(),
-                                cosmic_text_context,
                             },
                         )
                         .unwrap_or_else(|e| {
@@ -263,12 +312,15 @@ impl IrToTaffyBuilder {
                         .unwrap_or_else(|e| {
                             panic!("Expected to create text leaf node for {node_id}. Error: {e}")
                         });
-                    let taffy_children_ids = Self::build_taffy_child_nodes_for_node(
+                    let taffy_node_build_context = TaffyNodeBuildContext {
+                        nodes,
                         taffy_tree,
                         node_layouts,
+                        node_hierarchy,
                         entity_types,
-                        child_hierarchy,
-                    );
+                    };
+                    let taffy_children_ids =
+                        Self::build_taffy_child_nodes_for_node(taffy_node_build_context);
                     let taffy_children_container_id = taffy_tree
                         .new_with_children(child_container_style, &taffy_children_ids)
                         .unwrap_or_else(|e| {
@@ -296,11 +348,16 @@ impl IrToTaffyBuilder {
 
     /// Adds the child taffy nodes for a given IR diagram node.
     fn build_taffy_child_nodes_for_node(
-        taffy_tree: &mut TaffyTree<NodeContext>,
-        node_layouts: &NodeLayouts,
-        entity_types: &EntityTypes,
-        node_hierarchy: &NodeHierarchy,
+        taffy_node_build_context: TaffyNodeBuildContext<'_>,
     ) -> Vec<taffy::NodeId> {
+        let TaffyNodeBuildContext {
+            nodes,
+            taffy_tree,
+            node_layouts,
+            node_hierarchy,
+            entity_types,
+        } = taffy_node_build_context;
+
         node_hierarchy
             .iter()
             .map(|(node_id, child_hierarchy)| {
@@ -342,12 +399,15 @@ impl IrToTaffyBuilder {
                         .unwrap_or_else(|e| {
                             panic!("Expected to create text leaf node for {node_id}. Error: {e}")
                         });
-                    let taffy_children_ids = Self::build_taffy_child_nodes_for_node(
+                    let taffy_node_build_context = TaffyNodeBuildContext {
+                        nodes,
                         taffy_tree,
                         node_layouts,
+                        node_hierarchy,
                         entity_types,
-                        child_hierarchy,
-                    );
+                    };
+                    let taffy_children_ids =
+                        Self::build_taffy_child_nodes_for_node(taffy_node_build_context);
                     let taffy_children_container_id = taffy_tree
                         .new_with_children(child_container_style, &taffy_children_ids)
                         .unwrap_or_else(|e| {
@@ -513,28 +573,38 @@ impl IrToTaffyBuilder {
             })
             .unwrap_or_default()
     }
+}
 
-    fn measure_function(
-        known_dimensions: taffy::Size<Option<f32>>,
-        available_space: taffy::Size<taffy::AvailableSpace>,
-        node_context: Option<&mut NodeContext>,
-        font_system: &mut FontSystem,
-    ) -> Size<f32> {
-        if let Size {
-            width: Some(width),
-            height: Some(height),
-        } = known_dimensions
-        {
-            return Size { width, height };
-        }
+struct TaffyNodeBuildContext<'ctx> {
+    taffy_tree: &'ctx mut TaffyTree<NodeContext>,
+    nodes: &'ctx NodeNames,
+    node_layouts: &'ctx NodeLayouts,
+    node_hierarchy: &'ctx NodeHierarchy,
+    entity_types: &'ctx EntityTypes,
+}
 
-        match node_context {
-            None => Size::zero(),
-            Some(NodeContext {
-                entity_id,
-                entity_type,
-                cosmic_text_context,
-            }) => cosmic_text_context.measure(known_dimensions, available_space, font_system),
+#[derive(Debug)]
+struct CosmicTextContext<'ctx> {
+    font_system: FontSystem,
+    buffer: Buffer,
+    font_attrs: Attrs<'ctx>,
+}
+
+impl CosmicTextContext<'_> {
+    fn new() -> Self {
+        let mut font_system = FontSystem::new();
+        let font_attrs = Attrs::new();
+        let font_metrics = Metrics {
+            font_size: 11.0f32,
+            line_height: 13.0f32,
+        };
+        let mut buffer = Buffer::new_empty(font_metrics);
+        buffer.set_size(&mut font_system, None, None);
+
+        Self {
+            font_system,
+            buffer,
+            font_attrs,
         }
     }
 }

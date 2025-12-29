@@ -1,8 +1,10 @@
 use disposition_model_common::{entity::EntityType, Id};
 
-use crate::CosmicTextContext;
-
 /// Data stored with each node in the taffy tree.
+#[cfg_attr(
+    all(feature = "openapi", not(feature = "test")),
+    derive(utoipa::ToSchema)
+)]
 #[derive(Clone, Debug)]
 pub struct NodeContext {
     /// ID of the entity from the input / IR diagram.
@@ -13,6 +15,4 @@ pub struct NodeContext {
     /// tell if it is a `thing`, `process`, `process_step`, `tag`, `edge_group`,
     /// or `edge`.
     pub entity_type: EntityType,
-    /// Context for rendering text within a `taffy` leaf node.
-    pub cosmic_text_context: CosmicTextContext,
 }
