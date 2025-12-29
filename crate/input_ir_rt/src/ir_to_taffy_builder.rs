@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use disposition_ir_model::{
     entity::{EntityType, EntityTypes},
     layout::{NodeLayout, NodeLayouts},
@@ -13,7 +15,7 @@ use disposition_taffy_model::{
         AlignContent, AlignItems, AvailableSpace, Display, FlexWrap, LengthPercentage, Rect, Size,
         Style, TaffyTree,
     },
-    DimensionAndLod, IrToTaffyError, NodeContext, ProcessesIncluded, TaffyTreeAndRoot,
+    DiagramLod, DimensionAndLod, IrToTaffyError, NodeContext, ProcessesIncluded, TaffyTreeAndRoot,
 };
 use serde::{Deserialize, Serialize};
 use typed_builder::TypedBuilder;
@@ -93,9 +95,7 @@ impl IrToTaffyBuilder {
         let mut cosmic_text_context = CosmicTextContext::new();
         let cosmic_text_context = &mut cosmic_text_context;
 
-        // TODO: use `lod` to determine whether text is rendered, which affects the
-        // layout calculation.
-        let DimensionAndLod { dimension, lod: _ } = dimension_and_lod;
+        let DimensionAndLod { dimension, lod } = dimension_and_lod;
 
         let mut taffy_tree = TaffyTree::new();
 
@@ -155,15 +155,28 @@ impl IrToTaffyBuilder {
                     let text = node_context
                         .as_ref()
                         .map(|node_context| {
-                            nodes
-                                .get(&node_context.entity_id)
+                            let entity_id = &node_context.entity_id;
+                            let node_name = nodes
+                                .get(entity_id)
                                 .map(String::as_str)
-                                .unwrap_or_else(|| node_context.entity_id.as_str())
+                                .unwrap_or_else(|| entity_id.as_str());
+
+                            match lod {
+                                DiagramLod::Simple => Cow::Borrowed(node_name),
+                                DiagramLod::Normal => {
+                                    let node_desc = entity_descs.get(entity_id).map(String::as_str);
+
+                                    match node_desc {
+                                        Some(desc) => Cow::Owned(format!("{node_name}\n\n{desc}")),
+                                        None => Cow::Borrowed(node_name),
+                                    }
+                                }
+                            }
                         })
-                        .unwrap_or("");
+                        .unwrap_or(Cow::Borrowed(""));
                     buffer.set_text(
                         font_system,
-                        text,
+                        &text,
                         &font_attrs,
                         Shaping::Advanced,
                         Some(Align::Left),
