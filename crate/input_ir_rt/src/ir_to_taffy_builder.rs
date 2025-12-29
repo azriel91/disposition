@@ -82,12 +82,12 @@ impl IrToTaffyBuilder {
             nodes,
             node_copy_text,
             node_hierarchy,
-            edge_groups,
+            edge_groups: _,
             entity_descs,
             entity_types,
-            tailwind_classes,
+            tailwind_classes: _,
             node_layouts,
-            css,
+            css: _,
         } = ir_diagram;
 
         // In theory this could be shared for all diagram generation, but it isn't
