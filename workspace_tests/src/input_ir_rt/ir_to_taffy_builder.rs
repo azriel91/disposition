@@ -1,6 +1,6 @@
 use disposition::{
     ir_model::IrDiagram,
-    taffy_model::{taffy::TaffyError, TaffyTreeAndRoot},
+    taffy_model::{taffy::TaffyError, TaffyNodeMappings},
 };
 use disposition_input_ir_rt::IrToTaffyBuilder;
 
@@ -53,7 +53,7 @@ fn test_example_ir_mapping_to_taffy_tree_and_root() -> Result<(), TaffyError> {
 }
 
 fn assert_taffy_measurements(
-    taffy_tree_and_diagram: TaffyTreeAndRoot,
+    taffy_node_mappings: TaffyNodeMappings,
     measurements_expected: MeasurementsExpected,
 ) -> Result<(), TaffyError> {
     let MeasurementsExpected {
@@ -61,7 +61,7 @@ fn assert_taffy_measurements(
         diagram_height,
     } = measurements_expected;
 
-    let TaffyTreeAndRoot { taffy_tree, root } = taffy_tree_and_diagram;
+    let TaffyNodeMappings { taffy_tree, root } = taffy_node_mappings;
     let root_layout = taffy_tree.layout(root)?;
     let distance_tolerance = 15.0f32;
     assert!(

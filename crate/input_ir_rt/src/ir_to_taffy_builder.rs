@@ -15,12 +15,12 @@ use disposition_taffy_model::{
         AlignContent, AlignItems, AvailableSpace, Display, FlexWrap, LengthPercentage, Rect, Size,
         Style, TaffyTree,
     },
-    DiagramLod, DimensionAndLod, IrToTaffyError, NodeContext, ProcessesIncluded, TaffyTreeAndRoot,
+    DiagramLod, DimensionAndLod, IrToTaffyError, NodeContext, ProcessesIncluded, TaffyNodeMappings,
 };
 use serde::{Deserialize, Serialize};
 use typed_builder::TypedBuilder;
 
-/// Maps an intermediate representation diagram to a `TaffyTreeAndRoot`.
+/// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///
 /// # Examples
 ///
@@ -56,16 +56,16 @@ pub struct IrToTaffyBuilder {
 }
 
 impl IrToTaffyBuilder {
-    /// Returns an iterator over `TaffyTreeAndRoot` instances for each
+    /// Returns an iterator over `TaffyNodeMappings` instances for each
     /// dimension.
-    pub fn build(&self) -> Result<impl Iterator<Item = TaffyTreeAndRoot>, IrToTaffyError> {
+    pub fn build(&self) -> Result<impl Iterator<Item = TaffyNodeMappings>, IrToTaffyError> {
         let IrToTaffyBuilder {
             ir_diagram,
             dimension_and_lods,
             processes_included,
         } = self;
 
-        let taffy_tree_and_root_iter =
+        let taffy_node_mappings_iter =
             dimension_and_lods
                 .iter()
                 .flat_map(move |dimension_and_lod| {
@@ -76,10 +76,10 @@ impl IrToTaffyBuilder {
                     )
                 });
 
-        Ok(taffy_tree_and_root_iter)
+        Ok(taffy_node_mappings_iter)
     }
 
-    /// Returns a `TaffyTreeAndRoot` with all processes as part of the diagram.
+    /// Returns a `TaffyNodeMappings` with all processes as part of the diagram.
     ///
     /// This includes the processes container. Clicking on each process node
     /// reveals the process steps.
@@ -87,7 +87,7 @@ impl IrToTaffyBuilder {
         ir_diagram: &IrDiagram,
         dimension_and_lod: &DimensionAndLod,
         processes_included: &ProcessesIncluded,
-    ) -> impl Iterator<Item = TaffyTreeAndRoot> {
+    ) -> impl Iterator<Item = TaffyNodeMappings> {
         let IrDiagram {
             nodes,
             node_copy_text: _,
@@ -162,7 +162,7 @@ impl IrToTaffyBuilder {
             )
             .expect("Expected layout computation to succeed.");
 
-        std::iter::once(TaffyTreeAndRoot { taffy_tree, root })
+        std::iter::once(TaffyNodeMappings { taffy_tree, root })
     }
 
     /// Adds the inbuilt container nodes to the `TaffyTree`.

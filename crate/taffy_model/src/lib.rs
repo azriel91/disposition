@@ -15,7 +15,7 @@ mod api_doc;
 pub use crate::{
     cosmic_text_context::CosmicTextContext, diagram_lod::DiagramLod, dimension::Dimension,
     dimension_and_lod::DimensionAndLod, error::IrToTaffyError, node_context::NodeContext,
-    processes_included::ProcessesIncluded, taffy_tree_and_root::TaffyTreeAndRoot,
+    processes_included::ProcessesIncluded, taffy_node_mappings::TaffyNodeMappings,
 };
 
 mod cosmic_text_context;
@@ -25,4 +25,4 @@ mod dimension_and_lod;
 mod error;
 mod node_context;
 mod processes_included;
-mod taffy_tree_and_root;
+mod taffy_node_mappings;
