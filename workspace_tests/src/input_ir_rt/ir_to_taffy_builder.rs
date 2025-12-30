@@ -63,8 +63,13 @@ fn assert_taffy_measurements(
 
     let TaffyNodeMappings {
         taffy_tree,
+        // TODO: assert:
+        //
+        // * `_processes_container` and `_things_container` have the same `y` coordinate.
+        // * `_processes_container` has a greater x coordinate than `_things_container`.
         node_inbuilt_to_taffy,
-        node_id_to_taffy,
+        // TODO: make assertions for node positioning
+        node_id_to_taffy: _,
     } = taffy_node_mappings;
     let root_layout = node_inbuilt_to_taffy
         .get(&NodeInbuilt::Root)
