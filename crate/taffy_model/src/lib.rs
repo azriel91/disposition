@@ -13,12 +13,11 @@ pub use crate::api_doc::ApiDoc;
 mod api_doc;
 
 pub use crate::{
-    cosmic_text_context::CosmicTextContext, diagram_lod::DiagramLod, dimension::Dimension,
-    dimension_and_lod::DimensionAndLod, error::IrToTaffyError, node_context::NodeContext,
-    processes_included::ProcessesIncluded, taffy_node_mappings::TaffyNodeMappings,
+    diagram_lod::DiagramLod, dimension::Dimension, dimension_and_lod::DimensionAndLod,
+    error::IrToTaffyError, node_context::NodeContext, processes_included::ProcessesIncluded,
+    taffy_node_mappings::TaffyNodeMappings,
 };
 
-mod cosmic_text_context;
 mod diagram_lod;
 mod dimension;
 mod dimension_and_lod;
