@@ -1,26 +1,31 @@
 [package]
-name = "disposition_ir_model"
-description = "SVG diagram generator intermediate representation."
-documentation = "https://docs.rs/disposition_ir_model/"
+name = "disposition_taffy_model"
+description = "Data types that for disposition to work with taffy."
+documentation = "https://docs.rs/disposition_taffy_model/"
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-repository.workspace = true
 homepage.workspace = true
+repository.workspace = true
 readme.workspace = true
 categories.workspace = true
 keywords.workspace = true
 license.workspace = true
 
-[lints]
-workspace = true
-
 [dependencies]
+cosmic-text = { workspace = true }
 disposition_model_common = { workspace = true }
-enum-iterator = { workspace = true }
+disposition_input_model = { workspace = true }
+disposition_ir_model = { workspace = true }
+miette = { workspace = true }
+thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 taffy = { workspace = true }
 utoipa = { workspace = true, optional = true }
+
+[lints]
+workspace = true
 
 [features]
 default = []

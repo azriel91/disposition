@@ -29,6 +29,9 @@ use crate::{id, Id};
 )]
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum EntityType {
+    /// Inbuilt container.
+    ContainerInbuilt,
+
     /// Default type for things
     ThingDefault,
     /// Default type for tags
@@ -91,6 +94,7 @@ impl EntityType {
     /// ```
     pub fn as_str(&self) -> &str {
         match self {
+            EntityType::ContainerInbuilt => "container_inbuilt",
             EntityType::ThingDefault => "type_thing_default",
             EntityType::TagDefault => "type_tag_default",
             EntityType::ProcessDefault => "type_process_default",
@@ -155,6 +159,7 @@ impl EntityType {
     /// ```
     pub fn into_id(self) -> Id {
         match self {
+            EntityType::ContainerInbuilt => id!("container_inbuilt"),
             EntityType::ThingDefault => id!("type_thing_default"),
             EntityType::TagDefault => id!("type_tag_default"),
             EntityType::ProcessDefault => id!("type_process_default"),
@@ -238,6 +243,7 @@ impl EntityType {
 impl From<Id> for EntityType {
     fn from(id: Id) -> Self {
         match id.as_str() {
+            "container_inbuilt" => EntityType::ContainerInbuilt,
             "type_thing_default" => EntityType::ThingDefault,
             "type_tag_default" => EntityType::TagDefault,
             "type_process_default" => EntityType::ProcessDefault,
@@ -319,9 +325,29 @@ impl Visitor<'_> for EntityTypeVisitor {
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str(
-            "a type name such as `type_thing_default`, `type_tag_default`, `type_process_default`, \
-             `type_process_step_default`, `type_dependency_edge_sequence_forward_default`, \
-             `type_interaction_edge_sequence_forward_default`, or a custom identifier",
+            "a type name such as:\n\
+            \n\
+            * `container_inbuilt`\n\
+            * `type_thing_default`\n\
+            * `type_tag_default`\n\
+            * `type_process_default`\n\
+            * `type_process_step_default`\n\
+            * `type_dependency_edge_sequence_default`\n\
+            * `type_dependency_edge_cyclic_default`\n\
+            * `type_dependency_edge_symmetric_default`\n\
+            * `type_dependency_edge_sequence_forward_default`\n\
+            * `type_dependency_edge_cyclic_forward_default`\n\
+            * `type_dependency_edge_symmetric_forward_default`\n\
+            * `type_dependency_edge_symmetric_reverse_default`\n\
+            * `type_interaction_edge_sequence_default`\n\
+            * `type_interaction_edge_cyclic_default`\n\
+            * `type_interaction_edge_symmetric_default`\n\
+            * `type_interaction_edge_sequence_forward_default`\n\
+            * `type_interaction_edge_cyclic_forward_default`\n\
+            * `type_interaction_edge_symmetric_forward_default`\n\
+            * `type_interaction_edge_symmetric_reverse_default`\n\
+            \n\
+            or a custom identifier",
         )
     }
 
@@ -330,6 +356,7 @@ impl Visitor<'_> for EntityTypeVisitor {
         E: serde::de::Error,
     {
         let entity_type = match value {
+            "container_inbuilt" => EntityType::ContainerInbuilt,
             "type_thing_default" => EntityType::ThingDefault,
             "type_tag_default" => EntityType::TagDefault,
             "type_process_default" => EntityType::ProcessDefault,

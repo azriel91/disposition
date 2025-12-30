@@ -69,3 +69,14 @@ pub enum FlexDirection {
     /// Items are placed bottom to top in a column.
     ColumnReverse,
 }
+
+impl From<FlexDirection> for taffy::style::FlexDirection {
+    fn from(direction: FlexDirection) -> Self {
+        match direction {
+            FlexDirection::Row => taffy::style::FlexDirection::Row,
+            FlexDirection::RowReverse => taffy::style::FlexDirection::RowReverse,
+            FlexDirection::Column => taffy::style::FlexDirection::Column,
+            FlexDirection::ColumnReverse => taffy::style::FlexDirection::ColumnReverse,
+        }
+    }
+}

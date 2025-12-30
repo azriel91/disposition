@@ -74,6 +74,11 @@ node_copy_text:
   t_github_user_repo: "azriel91/web_app"
 
 # Hierarchy of all nodes.
+#
+# Note that this should match the SVG element hierarchy, not the taffy hierarchy.
+# The flat structure is because we need the peer nodes to be siblings.
+#
+# The taffy hierarchy will have the inbuilt container nodes needed for flex layout calculation.
 node_hierarchy:
   # Tags before everything else
   tag_app_development: {}
@@ -222,6 +227,13 @@ entity_descs:
 
 # Entity types for styling.
 entity_types:
+  # nodes inbuilt
+  _root: [container_inbuilt]
+  _processes_container: [container_inbuilt]
+  _things_and_processes_container: [container_inbuilt]
+  _things_container: [container_inbuilt]
+  _tags_container: [container_inbuilt]
+
   # things
   t_aws: [type_thing_default, type_organisation]
   t_aws_iam: [type_thing_default, type_service]
@@ -1265,7 +1277,7 @@ tailwind_classes:
     animate-[stroke-dashoffset-move-request_2s_linear_infinite]
 
 # Layout configuration for nodes.
-node_layout:
+node_layouts:
   # Root container
   #
   # This is in `column_reverse` order so tag node state controls `things` and `processes`:
