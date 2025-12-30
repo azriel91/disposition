@@ -195,6 +195,7 @@ version = "0.0.1"
 dependencies = [
  "cosmic-text",
  "disposition_input_model",
+ "disposition_ir_model",
  "disposition_model_common",
  "miette",
  "serde",

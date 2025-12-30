@@ -1,5 +1,5 @@
 use disposition::{
-    ir_model::IrDiagram,
+    ir_model::{node::NodeInbuilt, IrDiagram},
     taffy_model::{taffy::TaffyError, TaffyNodeMappings},
 };
 use disposition_input_ir_rt::IrToTaffyBuilder;
@@ -61,8 +61,17 @@ fn assert_taffy_measurements(
         diagram_height,
     } = measurements_expected;
 
-    let TaffyNodeMappings { taffy_tree, root } = taffy_node_mappings;
-    let root_layout = taffy_tree.layout(root)?;
+    let TaffyNodeMappings {
+        taffy_tree,
+        node_inbuilt_to_taffy,
+        node_id_to_taffy,
+    } = taffy_node_mappings;
+    let root_layout = node_inbuilt_to_taffy
+        .get(&NodeInbuilt::Root)
+        .copied()
+        .map(|root| taffy_tree.layout(root))
+        .transpose()?
+        .expect("Failed to get `taffy` root node layout");
     let distance_tolerance = 15.0f32;
     assert!(
         root_layout.size.width > diagram_width - distance_tolerance

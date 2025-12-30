@@ -17,6 +17,7 @@ license.workspace = true
 cosmic-text = { workspace = true }
 disposition_model_common = { workspace = true }
 disposition_input_model = { workspace = true }
+disposition_ir_model = { workspace = true }
 miette = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

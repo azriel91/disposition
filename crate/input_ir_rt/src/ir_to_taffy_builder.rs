@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use disposition_ir_model::{
     entity::{EntityDescs, EntityType, EntityTypes},
     layout::{NodeLayout, NodeLayouts},
-    node::{NodeHierarchy, NodeInbuilt, NodeNames},
+    node::{NodeHierarchy, NodeId, NodeInbuilt, NodeNames},
     IrDiagram,
 };
 use disposition_model_common::Map;
@@ -108,6 +108,7 @@ impl IrToTaffyBuilder {
         let DimensionAndLod { dimension, lod } = dimension_and_lod;
 
         let mut taffy_tree = TaffyTree::new();
+        let mut node_id_to_taffy = Map::new();
 
         let taffy_node_build_context = TaffyNodeBuildContext {
             taffy_tree: &mut taffy_tree,
@@ -115,6 +116,7 @@ impl IrToTaffyBuilder {
             node_layouts,
             node_hierarchy,
             entity_types,
+            node_id_to_taffy: &mut node_id_to_taffy,
         };
         let first_level_taffy_nodes = Self::build_taffy_nodes_for_first_level_nodes(
             taffy_node_build_context,
@@ -132,7 +134,7 @@ impl IrToTaffyBuilder {
             .get(&EntityType::ProcessDefault)
             .map(Vec::as_slice)
             .unwrap_or_default();
-        let root = Self::build_taffy_container_nodes(
+        let node_inbuilt_to_taffy = Self::build_taffy_container_nodes(
             &mut taffy_tree,
             node_layouts,
             dimension,
@@ -140,6 +142,10 @@ impl IrToTaffyBuilder {
             process_taffy_node_ids,
             tag_taffy_node_ids,
         );
+
+        let Some(root) = node_inbuilt_to_taffy.get(&NodeInbuilt::Root).copied() else {
+            panic!("`root` node not present in `node_inbuilt_to_taffy`.");
+        };
 
         taffy_tree
             .compute_layout_with_measure(
@@ -162,7 +168,11 @@ impl IrToTaffyBuilder {
             )
             .expect("Expected layout computation to succeed.");
 
-        std::iter::once(TaffyNodeMappings { taffy_tree, root })
+        std::iter::once(TaffyNodeMappings {
+            taffy_tree,
+            node_inbuilt_to_taffy,
+            node_id_to_taffy,
+        })
     }
 
     /// Adds the inbuilt container nodes to the `TaffyTree`.
@@ -173,7 +183,7 @@ impl IrToTaffyBuilder {
         thing_taffy_node_ids: &[taffy::NodeId],
         process_taffy_node_ids: &[taffy::NodeId],
         tag_taffy_node_ids: &[taffy::NodeId],
-    ) -> taffy::NodeId {
+    ) -> Map<NodeInbuilt, taffy::NodeId> {
         let things_container = Self::taffy_container_node(
             taffy_tree,
             node_layouts,
@@ -203,13 +213,25 @@ impl IrToTaffyBuilder {
             tag_taffy_node_ids,
         );
 
-        Self::taffy_container_node(
+        let root = Self::taffy_container_node(
             taffy_tree,
             node_layouts,
             NodeInbuilt::Root,
             Size::from_lengths(dimension.width(), dimension.height()),
             &[tags_container, things_and_processes_container],
-        )
+        );
+
+        let mut node_inbuilt_to_taffy = Map::new();
+        node_inbuilt_to_taffy.insert(NodeInbuilt::ThingsContainer, things_container);
+        node_inbuilt_to_taffy.insert(NodeInbuilt::ProcessesContainer, processes_container);
+        node_inbuilt_to_taffy.insert(
+            NodeInbuilt::ThingsAndProcessesContainer,
+            things_and_processes_container,
+        );
+        node_inbuilt_to_taffy.insert(NodeInbuilt::TagsContainer, tags_container);
+        node_inbuilt_to_taffy.insert(NodeInbuilt::Root, root);
+
+        node_inbuilt_to_taffy
     }
 
     /// Adds the tags, things, and process nodes to the taffy tree.
@@ -226,6 +248,7 @@ impl IrToTaffyBuilder {
             node_layouts,
             node_hierarchy,
             entity_types,
+            node_id_to_taffy,
         } = taffy_node_build_context;
 
         node_hierarchy.iter().fold(
@@ -286,6 +309,7 @@ impl IrToTaffyBuilder {
                         node_layouts,
                         node_hierarchy: child_hierarchy,
                         entity_types,
+                        node_id_to_taffy,
                     };
                     let taffy_children_ids =
                         Self::build_taffy_child_nodes_for_node(taffy_node_build_context);
@@ -309,6 +333,8 @@ impl IrToTaffyBuilder {
                     .or_default()
                     .push(taffy_node_id);
 
+                node_id_to_taffy.insert(NodeId::from(node_id.clone()), taffy_node_id);
+
                 entity_type_to_nodes
             },
         )
@@ -324,6 +350,7 @@ impl IrToTaffyBuilder {
             node_layouts,
             node_hierarchy,
             entity_types,
+            node_id_to_taffy,
         } = taffy_node_build_context;
 
         node_hierarchy
@@ -335,7 +362,7 @@ impl IrToTaffyBuilder {
                     .and_then(|entity_types| entity_types.first())
                     .unwrap_or_else(|| panic!("`entity_type` not found for {node_id}"));
 
-                if child_hierarchy.is_empty() {
+                let taffy_node_id = if child_hierarchy.is_empty() {
                     let taffy_style =
                         Self::taffy_container_style(node_layouts, node_id, Size::auto());
                     taffy_tree
@@ -372,6 +399,7 @@ impl IrToTaffyBuilder {
                         node_layouts,
                         node_hierarchy: child_hierarchy,
                         entity_types,
+                        node_id_to_taffy,
                     };
                     let taffy_children_ids =
                         Self::build_taffy_child_nodes_for_node(taffy_node_build_context);
@@ -388,7 +416,11 @@ impl IrToTaffyBuilder {
                         .unwrap_or_else(|e| {
                             panic!("Expected to create wrapper node for {node_id}. Error: {e}")
                         })
-                }
+                };
+
+                node_id_to_taffy.insert(NodeId::from(node_id.clone()), taffy_node_id);
+
+                taffy_node_id
             })
             .collect::<Vec<taffy::NodeId>>()
     }
@@ -619,6 +651,7 @@ struct TaffyNodeBuildContext<'ctx> {
     node_layouts: &'ctx NodeLayouts,
     node_hierarchy: &'ctx NodeHierarchy,
     entity_types: &'ctx EntityTypes,
+    node_id_to_taffy: &'ctx mut Map<NodeId, taffy::NodeId>,
 }
 
 #[derive(Debug)]
