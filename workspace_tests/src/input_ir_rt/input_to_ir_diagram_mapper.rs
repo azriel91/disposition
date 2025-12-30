@@ -12,8 +12,7 @@ use disposition::{
 use disposition_input_ir_rt::InputToIrDiagramMapper;
 use pretty_assertions::assert_eq;
 
-const EXAMPLE_INPUT: &str = include_str!("../example_input.yaml");
-const EXAMPLE_IR: &str = include_str!("../example_ir.yaml");
+use crate::input_ir_rt::{EXAMPLE_INPUT, EXAMPLE_IR};
 
 #[test]
 fn test_input_to_ir_mapping() {

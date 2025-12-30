@@ -124,6 +124,7 @@ dependencies = [
  "disposition_input_model",
  "disposition_ir_model",
  "disposition_model_common",
+ "disposition_taffy_model",
 ]
 
 [[package]]

@@ -44,7 +44,11 @@ pub struct IrToTaffyBuilder {
     #[builder(setter(prefix = "with_"))]
     ir_diagram: IrDiagram,
     /// The dimensions at which elements should be repositioned.
-    #[builder(setter(prefix = "with_"))]
+    #[builder(setter(prefix = "with_"), default = vec![
+        DimensionAndLod::default_sm(),
+        DimensionAndLod::default_md(),
+        DimensionAndLod::default_lg(),
+    ])]
     dimension_and_lods: Vec<DimensionAndLod>,
     /// What processes to create diagrams for.
     #[builder(setter(prefix = "with_"), default = ProcessesIncluded::All)]
@@ -280,7 +284,7 @@ impl IrToTaffyBuilder {
                         nodes,
                         taffy_tree,
                         node_layouts,
-                        node_hierarchy,
+                        node_hierarchy: child_hierarchy,
                         entity_types,
                     };
                     let taffy_children_ids =
@@ -366,7 +370,7 @@ impl IrToTaffyBuilder {
                         nodes,
                         taffy_tree,
                         node_layouts,
-                        node_hierarchy,
+                        node_hierarchy: child_hierarchy,
                         entity_types,
                     };
                     let taffy_children_ids =
