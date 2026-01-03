@@ -634,12 +634,14 @@ impl IrToTaffyBuilder {
         buffer.shape_until_scroll(font_system, false);
 
         // Determine measured size of text
-        let (width, total_lines) = buffer
-            .layout_runs()
-            .fold((0.0, 0usize), |(width, total_lines), run| {
-                (run.line_w.max(width), total_lines + 1)
-            });
-        let height = total_lines as f32 * buffer.metrics().line_height;
+        let (width, line_count) = buffer.layout_runs().fold(
+            (0.0, 1.0f32),
+            |(line_width_max_so_far, line_count), layout_run| {
+                let line_width_max = layout_run.line_w.max(line_width_max_so_far);
+                (line_width_max, line_count + 1.0)
+            },
+        );
+        let height = line_count * buffer.metrics().line_height;
 
         taffy::Size { width, height }
     }
