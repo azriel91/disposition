@@ -39,8 +39,14 @@ use typed_builder::TypedBuilder;
 ///     .with_dimension_and_lods(dimension_and_lods)
 ///     .build();
 /// ```
-#[derive(Clone, Debug, Deserialize, Serialize, TypedBuilder)]
+#[derive(Debug, Deserialize, Serialize, TypedBuilder)]
 pub struct IrToTaffyBuilder {
+    /// Available `syntect` syntaxes.
+    #[builder(setter(prefix = "with_"), default = SyntaxSet::load_defaults_newlines())]
+    syntax_set: SyntaxSet,
+    /// Available `syntect` themes.
+    #[builder(setter(prefix = "with_"), default = ThemeSet::load_defaults())]
+    theme_set: ThemeSet,
     /// The intermediate representation of the diagram to render the taffy trees
     /// for.
     #[builder(setter(prefix = "with_"))]
@@ -62,6 +68,8 @@ impl IrToTaffyBuilder {
     /// dimension.
     pub fn build(&self) -> Result<impl Iterator<Item = TaffyNodeMappings>, IrToTaffyError> {
         let IrToTaffyBuilder {
+            syntax_set,
+            theme_set,
             ir_diagram,
             dimension_and_lods,
             processes_included,
@@ -72,6 +80,8 @@ impl IrToTaffyBuilder {
                 .iter()
                 .flat_map(move |dimension_and_lod| {
                     Self::build_taffy_trees_for_dimension(
+                        syntax_set,
+                        theme_set,
                         ir_diagram,
                         dimension_and_lod,
                         processes_included,
@@ -86,6 +96,8 @@ impl IrToTaffyBuilder {
     /// This includes the processes container. Clicking on each process node
     /// reveals the process steps.
     fn build_taffy_trees_for_dimension(
+        syntax_set: &SyntaxSet,
+        theme_set: &ThemeSet,
         ir_diagram: &IrDiagram,
         dimension_and_lod: &DimensionAndLod,
         processes_included: &ProcessesIncluded,
@@ -157,8 +169,8 @@ impl IrToTaffyBuilder {
             nodes,
             entity_descs,
             entity_highlighted_spans: &mut entity_highlighted_spans,
-            syntax_set: &SyntaxSet::load_defaults_newlines(),
-            theme_set: &ThemeSet::load_defaults(),
+            syntax_set,
+            theme_set,
             cosmic_text_context,
             entity_desc_laid_out_buffer: &mut entity_desc_laid_out_buffer,
         };
