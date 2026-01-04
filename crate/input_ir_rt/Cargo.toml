@@ -20,6 +20,7 @@ disposition_input_model = { workspace = true }
 disposition_model_common = { workspace = true }
 disposition_taffy_model = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+syntect = { workspace = true }
 typed-builder = { workspace = true }
 
 [lints]
