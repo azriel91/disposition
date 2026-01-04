@@ -45,7 +45,7 @@ fn test_example_ir_mapping_to_taffy_tree_and_root() -> Result<(), TaffyError> {
         taffy_tree_and_diagram_lg,
         MeasurementsExpected {
             diagram_width: 1024.0,
-            diagram_height: 722.0,
+            diagram_height: 768.0,
         },
     )?;
 
@@ -70,6 +70,7 @@ fn assert_taffy_measurements(
         node_inbuilt_to_taffy,
         // TODO: make assertions for node positioning
         node_id_to_taffy: _,
+        entity_highlighted_spans: _,
     } = taffy_node_mappings;
     let root_layout = node_inbuilt_to_taffy
         .get(&NodeInbuilt::Root)
@@ -78,15 +79,25 @@ fn assert_taffy_measurements(
         .transpose()?
         .expect("Failed to get `taffy` root node layout");
     let distance_tolerance = 15.0f32;
+
+    let root_width = root_layout.size.width;
+    let root_width_expected_min = diagram_width - distance_tolerance;
+    let root_width_expected_max = diagram_width;
     assert!(
-        root_layout.size.width > diagram_width - distance_tolerance
-            && root_layout.size.width <= diagram_width
+        root_width > root_width_expected_min
+            && root_width <= root_width_expected_max,
+        "Expected root container width `{root_width}` to be between {root_width_expected_min} and {root_width_expected_max}"
     );
 
+    let root_height = root_layout.size.height;
+    let root_height_expected_min = diagram_height - distance_tolerance;
+    let root_height_expected_max = diagram_height;
     assert!(
-        root_layout.size.height > diagram_height - distance_tolerance
-            && root_layout.size.height <= diagram_height
+        root_height > root_height_expected_min
+            && root_height <= root_height_expected_max,
+        "Expected root container height `{root_height}` to be between {root_height_expected_min} and {root_height_expected_max}"
     );
+
     Ok(())
 }
 

@@ -2,7 +2,7 @@ use disposition_ir_model::node::{NodeId, NodeInbuilt};
 use disposition_model_common::Map;
 use taffy::TaffyTree;
 
-use crate::NodeContext;
+use crate::{EntityHighlightedSpans, NodeContext};
 
 /// The taffy tree and mappings from each IR node ID to its `taffy` node ID.
 #[derive(Clone, Debug)]
@@ -14,4 +14,6 @@ pub struct TaffyNodeMappings {
     pub node_inbuilt_to_taffy: Map<NodeInbuilt, taffy::NodeId>,
     /// Map of each IR diagram node to its `taffy` node ID.
     pub node_id_to_taffy: Map<NodeId, taffy::NodeId>,
+    /// `syntect` highlighted spans of entity descriptions.
+    pub entity_highlighted_spans: EntityHighlightedSpans,
 }

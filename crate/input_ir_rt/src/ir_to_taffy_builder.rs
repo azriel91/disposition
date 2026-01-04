@@ -9,13 +9,15 @@ use disposition_ir_model::{
 use disposition_model_common::Map;
 use disposition_taffy_model::{
     cosmic_text::{Align, Attrs, Buffer, FontSystem, Metrics, Shaping},
+    syntect::{easy::HighlightLines, highlighting::ThemeSet, parsing::SyntaxSet},
     taffy::{
         self,
         style::{FlexDirection, LengthPercentageAuto},
         AlignContent, AlignItems, AvailableSpace, Display, FlexWrap, LengthPercentage, Rect, Size,
         Style, TaffyTree,
     },
-    DiagramLod, DimensionAndLod, IrToTaffyError, NodeContext, ProcessesIncluded, TaffyNodeMappings,
+    DiagramLod, DimensionAndLod, EntityHighlightedSpans, IrToTaffyError, NodeContext,
+    ProcessesIncluded, TaffyNodeMappings,
 };
 use serde::{Deserialize, Serialize};
 use typed_builder::TypedBuilder;
@@ -147,6 +149,20 @@ impl IrToTaffyBuilder {
             panic!("`root` node not present in `node_inbuilt_to_taffy`.");
         };
 
+        let mut entity_highlighted_spans =
+            EntityHighlightedSpans::with_capacity(entity_descs.len());
+        let mut entity_desc_laid_out_buffer = String::new();
+
+        let mut node_measure_context = NodeMeasureContext {
+            nodes,
+            entity_descs,
+            entity_highlighted_spans: &mut entity_highlighted_spans,
+            syntax_set: &SyntaxSet::load_defaults_newlines(),
+            theme_set: &ThemeSet::load_defaults(),
+            cosmic_text_context,
+            entity_desc_laid_out_buffer: &mut entity_desc_laid_out_buffer,
+        };
+
         taffy_tree
             .compute_layout_with_measure(
                 root,
@@ -156,9 +172,7 @@ impl IrToTaffyBuilder {
                 },
                 |known_dimensions, available_space, _taffy_node_id, node_context, _style| {
                     Self::node_size_measure(
-                        nodes,
-                        entity_descs,
-                        cosmic_text_context,
+                        &mut node_measure_context,
                         lod,
                         known_dimensions,
                         available_space,
@@ -172,6 +186,7 @@ impl IrToTaffyBuilder {
             taffy_tree,
             node_inbuilt_to_taffy,
             node_id_to_taffy,
+            entity_highlighted_spans,
         })
     }
 
@@ -571,9 +586,7 @@ impl IrToTaffyBuilder {
 
     /// Returns the size of a node based on its layout and available space.
     fn node_size_measure(
-        nodes: &NodeNames,
-        entity_descs: &EntityDescs,
-        cosmic_text_context: &mut CosmicTextContext<'_>,
+        node_measure_context: &mut NodeMeasureContext<'_>,
         lod: &DiagramLod,
         known_dimensions: Size<Option<f32>>,
         available_space: Size<AvailableSpace>,
@@ -586,6 +599,16 @@ impl IrToTaffyBuilder {
         {
             return Size { width, height };
         }
+
+        let NodeMeasureContext {
+            nodes,
+            entity_descs,
+            entity_highlighted_spans,
+            syntax_set,
+            theme_set,
+            cosmic_text_context,
+            entity_desc_laid_out_buffer,
+        } = node_measure_context;
 
         let CosmicTextContext {
             font_system,
@@ -634,16 +657,64 @@ impl IrToTaffyBuilder {
         buffer.shape_until_scroll(font_system, false);
 
         // Determine measured size of text
-        let (width, line_count) = buffer.layout_runs().fold(
-            (0.0, 1.0f32),
-            |(line_width_max_so_far, line_count), layout_run| {
+        let NodeMeasureAcc {
+            line_width_max,
+            line_count,
+            entity_desc_laid_out_buffer,
+        } = buffer.layout_runs().fold(
+            NodeMeasureAcc::new(entity_desc_laid_out_buffer),
+            |node_measure_acc, layout_run| {
+                let NodeMeasureAcc {
+                    line_width_max: line_width_max_so_far,
+                    line_count,
+                    entity_desc_laid_out_buffer,
+                } = node_measure_acc;
                 let line_width_max = layout_run.line_w.max(line_width_max_so_far);
-                (line_width_max, line_count + 1.0)
+
+                entity_desc_laid_out_buffer.push_str(layout_run.text);
+                entity_desc_laid_out_buffer.push('\n');
+
+                NodeMeasureAcc {
+                    line_width_max,
+                    line_count: line_count + 1.0,
+                    entity_desc_laid_out_buffer,
+                }
             },
         );
         let height = line_count * buffer.metrics().line_height;
 
-        taffy::Size { width, height }
+        if let Some(node_context) = node_context {
+            let node_id = &node_context.entity_id;
+            let mut highlighter = HighlightLines::new(
+                syntax_set
+                    .find_syntax_by_extension("md")
+                    .unwrap_or_else(|| syntax_set.find_syntax_plain_text()),
+                &theme_set.themes["InspiredGitHub"],
+            );
+
+            let highlighted_spans = entity_desc_laid_out_buffer.lines().fold(
+                Vec::new(),
+                |mut highlighted_spans, line| {
+                    let highlighted_spans_for_line = highlighter
+                        .highlight_line(line, syntax_set)
+                        .expect("Failed to highlight line.")
+                        .into_iter()
+                        .map(|(style, str)| (style, str.to_string()));
+
+                    highlighted_spans.extend(highlighted_spans_for_line);
+
+                    highlighted_spans
+                },
+            );
+            entity_highlighted_spans.insert(node_id.clone(), highlighted_spans);
+        }
+
+        entity_desc_laid_out_buffer.clear();
+
+        taffy::Size {
+            width: line_width_max,
+            height,
+        }
     }
 }
 
@@ -710,6 +781,51 @@ impl Default for TaffyWrapperNodeStyles {
                 justify_content: Some(AlignContent::Center),
                 ..Default::default()
             },
+        }
+    }
+}
+
+struct NodeMeasureContext<'ctx> {
+    nodes: &'ctx NodeNames,
+    entity_descs: &'ctx EntityDescs,
+    entity_highlighted_spans: &'ctx mut EntityHighlightedSpans,
+    /// `syntect` loaded syntaxes.
+    syntax_set: &'ctx SyntaxSet,
+    /// `syntect` loaded themes.
+    theme_set: &'ctx ThemeSet,
+    /// `cosmic-text` data.
+    cosmic_text_context: &'ctx mut CosmicTextContext<'ctx>,
+    /// The entity description rejoined where `layout_runs` are separated by
+    /// newlines.
+    ///
+    /// This is needed for `syntect` highlights to be applied after the entity
+    /// description is reflowed based on the available space.
+    entity_desc_laid_out_buffer: &'ctx mut String,
+}
+
+/// Accumulator for node measurements.
+struct NodeMeasureAcc<'buffer> {
+    /// Longest width of a line (I think this is in pixels).
+    line_width_max: f32,
+    /// Number of `layout_run` lines.
+    ///
+    /// We use an `f32` because we are multiplying it by `line_height` later,
+    /// which is an `f32`, and we want to avoid a `usize` to `f32` conversion.
+    line_count: f32,
+    /// The entity description rejoined where `layout_runs` are separated by
+    /// newlines.
+    ///
+    /// This is needed for `syntect` highlights to be applied after the entity
+    /// description is reflowed based on the available space.
+    entity_desc_laid_out_buffer: &'buffer mut String,
+}
+
+impl<'buffer> NodeMeasureAcc<'buffer> {
+    fn new(entity_desc_laid_out_buffer: &'buffer mut String) -> Self {
+        Self {
+            line_width_max: 0.0,
+            line_count: 1.0,
+            entity_desc_laid_out_buffer,
         }
     }
 }

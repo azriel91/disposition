@@ -4,7 +4,9 @@ use disposition_model_common::{Id, Map};
 use serde::{Deserialize, Serialize};
 use syntect::highlighting::Style;
 
-/// `syntect` highlighted spans, empty
+/// `syntect` highlighted spans of entity descriptions.
+///
+/// This is computed in `IrToTaffyBuilder`.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct EntityHighlightedSpans(Map<Id, Vec<(Style, String)>>);
 

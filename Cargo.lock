@@ -206,7 +206,6 @@ dependencies = [
  "disposition_model_common",
  "disposition_taffy_model",
  "serde",
- "syntect",
  "typed-builder",
 ]
 
@@ -257,6 +256,7 @@ dependencies = [
  "disposition_model_common",
  "miette",
  "serde",
+ "syntect",
  "taffy",
  "thiserror",
  "utoipa",
