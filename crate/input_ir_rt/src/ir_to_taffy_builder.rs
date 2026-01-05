@@ -708,10 +708,10 @@ impl IrToTaffyBuilder<'_> {
                 &theme_set.themes["InspiredGitHub"],
             );
 
-            let mut previous_span_x_end = 0.0;
             let highlighted_spans = entity_desc_laid_out_buffer.lines().enumerate().fold(
                 Vec::new(),
                 |mut highlighted_spans, (line_index, line)| {
+                    let mut previous_span_x_end = 0.0;
                     let y = line_index as f32 * line_height;
                     let highlighted_spans_for_line = highlighter
                         .highlight_line(line, syntax_set)
