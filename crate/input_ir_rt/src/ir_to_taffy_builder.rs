@@ -34,7 +34,7 @@ use typed_builder::TypedBuilder;
 /// let dimension_and_lods = vec![DimensionAndLod::default_lg()];
 ///
 /// let mut taffy_trees = IrToTaffyBuilder::builder()
-///     .with_ir_diagram(ir_diagram)
+///     .with_ir_diagram(&ir_diagram)
 ///     .with_dimension_and_lods(dimension_and_lods)
 ///     .build();
 /// ```
@@ -105,6 +105,7 @@ impl IrToTaffyBuilder<'_> {
             nodes,
             node_copy_text: _,
             node_hierarchy,
+            node_ordering: _,
             edge_groups: _,
             entity_descs,
             entity_types,

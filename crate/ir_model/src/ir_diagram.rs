@@ -5,7 +5,7 @@ use crate::{
     edge::EdgeGroups,
     entity::{EntityDescs, EntityTailwindClasses, EntityTypes},
     layout::NodeLayouts,
-    node::{NodeCopyText, NodeHierarchy, NodeNames},
+    node::{NodeCopyText, NodeHierarchy, NodeNames, NodeOrdering},
 };
 
 /// The intermediate representation of a diagram.
@@ -37,6 +37,12 @@ use crate::{
 ///     proc_app_dev_step_repository_clone: {}
 ///   t_aws:
 ///     t_aws_iam: {}
+///
+/// node_ordering:
+///   tag_app_development: 10
+///   proc_app_dev_step_repository_clone: 3
+///   proc_app_dev: 2
+///   t_aws: 1
 ///
 /// edge_groups:
 ///   edge_t_localhost__t_github_user_repo:
@@ -94,6 +100,14 @@ pub struct IrDiagram {
     /// The order of declaration is important for CSS peer selector ordering.
     #[serde(default, skip_serializing_if = "NodeHierarchy::is_empty")]
     pub node_hierarchy: NodeHierarchy,
+
+    /// Order that nodes should appear in the final SVG, and their tab indices.
+    ///
+    /// The map order defines rendering order (tags, then process steps, then
+    /// processes, then things), while the values define the tab indices for
+    /// keyboard navigation.
+    #[serde(default, skip_serializing_if = "NodeOrdering::is_empty")]
+    pub node_ordering: NodeOrdering,
 
     /// Edge groups derived from `thing_dependencies` and `thing_interactions`.
     ///

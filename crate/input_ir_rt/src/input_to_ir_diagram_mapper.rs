@@ -21,7 +21,7 @@ use disposition_ir_model::{
     entity::{EntityTailwindClasses, EntityType, EntityTypeId},
     enum_iterator,
     layout::{FlexDirection, FlexLayout, NodeLayout, NodeLayouts},
-    node::{NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames},
+    node::{NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering},
     IrDiagram,
 };
 use disposition_model_common::{edge::EdgeGroupId, entity::EntityDescs, Id, Keys, Map, Set};
@@ -64,13 +64,16 @@ impl InputToIrDiagramMapper {
         // 3. Build NodeHierarchy from tags, processes (with steps), and thing_hierarchy
         let node_hierarchy = Self::build_node_hierarchy(&tags, &processes, &thing_hierarchy);
 
-        // 4. Build EdgeGroups from thing_dependencies and thing_interactions
+        // 4. Build NodeOrdering from things, tags, and processes
+        let node_ordering = Self::build_node_ordering(&things, &thing_hierarchy, &tags, &processes);
+
+        // 5. Build EdgeGroups from thing_dependencies and thing_interactions
         let edge_groups = Self::build_edge_groups(&thing_dependencies, &thing_interactions);
 
-        // 5. Build EntityDescs from input entity_descs and process step_descs
+        // 6. Build EntityDescs from input entity_descs and process step_descs
         let entity_descs = Self::build_entity_descs(&entity_descs, &processes);
 
-        // 6. Build EntityTypes with defaults for each node type
+        // 7. Build EntityTypes with defaults for each node type
         let ir_entity_types = Self::build_entity_types(
             &things,
             &tags,
@@ -80,7 +83,7 @@ impl InputToIrDiagramMapper {
             &thing_interactions,
         );
 
-        // 7. Build NodeLayouts from node_hierarchy and theme
+        // 8. Build NodeLayouts from node_hierarchy and theme
         let node_layouts = Self::build_node_layouts(
             &node_hierarchy,
             &ir_entity_types,
@@ -90,7 +93,7 @@ impl InputToIrDiagramMapper {
             &processes,
         );
 
-        // 8. Build TailwindClasses from theme
+        // 9. Build TailwindClasses from theme
         let tailwind_classes = Self::build_tailwind_classes(
             &nodes,
             &edge_groups,
@@ -107,6 +110,7 @@ impl InputToIrDiagramMapper {
             nodes,
             node_copy_text,
             node_hierarchy,
+            node_ordering,
             edge_groups,
             entity_descs,
             entity_types: ir_entity_types,
@@ -224,6 +228,131 @@ impl InputToIrDiagramMapper {
                 (node_id, child_hierarchy)
             })
             .collect()
+    }
+
+    /// Build NodeOrdering from things, tags, and processes.
+    ///
+    /// The map order defines the rendering order in the SVG:
+    /// 1. Tags (for CSS peer selector ordering)
+    /// 2. Process steps (must come before processes for peer styling)
+    /// 3. Processes
+    /// 4. Things (in hierarchy order)
+    ///
+    /// The tab indices are calculated for keyboard navigation:
+    /// 1. Things (starting from 1, in declaration order)
+    /// 2. Processes and their steps (process first, then its steps)
+    /// 3. Tags (at the end)
+    fn build_node_ordering(
+        things: &ThingNames,
+        thing_hierarchy: &InputThingHierarchy,
+        tags: &TagNames,
+        processes: &Processes,
+    ) -> NodeOrdering {
+        // First, calculate tab indices in the user-expected order:
+        // things, then processes with their steps, then tags
+        let mut tab_index: u32 = 1;
+
+        // Collect things tab indices in hierarchy order (depth-first)
+        let mut tab_indices = Map::<&Id, u32>::new();
+        Self::collect_thing_tab_indices_recursive(
+            thing_hierarchy,
+            &mut tab_index,
+            &mut tab_indices,
+        );
+
+        // Collect process and step tab indices
+        let mut process_step_count = 0;
+        processes.iter().for_each(|(process_id, process_diagram)| {
+            tab_indices.insert(process_id.as_ref(), tab_index);
+            tab_index += 1;
+
+            process_diagram.steps.keys().for_each(|step_id| {
+                tab_indices.insert(step_id.as_ref(), tab_index);
+                tab_index += 1;
+            });
+
+            process_step_count = process_step_count + process_diagram.steps.len();
+        });
+
+        // Collect tag tab indices
+        tags.keys().for_each(|tag_id| {
+            tab_indices.insert(tag_id.as_ref(), tab_index);
+            tab_index += 1;
+        });
+
+        // Now build the NodeOrdering map in rendering order:
+        // tags, then process steps, then processes, then things
+        let mut node_ordering = NodeOrdering::with_capacity(
+            tags.len() + processes.len() + process_step_count + things.len(),
+        );
+
+        // 1. Tags first (for CSS peer selector ordering)
+        tags.keys().for_each(|tag_id| {
+            let tab_idx = tab_indices.get(tag_id.as_ref()).copied().unwrap_or(0);
+            let tag_node_id = NodeId::from(tag_id.clone().into_inner());
+            node_ordering.insert(tag_node_id, tab_idx);
+        });
+
+        // 2. Process steps (must come before processes for peer styling)
+        processes.values().for_each(|process_diagram| {
+            process_diagram.steps.keys().for_each(|step_id| {
+                let process_step_node_id = NodeId::from(step_id.clone().into_inner());
+                let tab_idx = tab_indices
+                    .get(process_step_node_id.as_ref())
+                    .copied()
+                    .unwrap_or(0);
+                node_ordering.insert(process_step_node_id, tab_idx);
+            });
+        });
+
+        // 3. Processes
+        processes.keys().for_each(|process_id| {
+            let process_node_id = NodeId::from(process_id.clone().into_inner());
+            let tab_idx = tab_indices
+                .get(process_node_id.as_ref())
+                .copied()
+                .unwrap_or(0);
+            node_ordering.insert(process_node_id, tab_idx);
+        });
+
+        // 4. Things (in hierarchy order)
+        Self::add_things_to_ordering_recursive(thing_hierarchy, &tab_indices, &mut node_ordering);
+
+        node_ordering
+    }
+
+    /// Recursively collect tab indices for things in hierarchy order.
+    fn collect_thing_tab_indices_recursive<'f>(
+        thing_hierarchy: &'f InputThingHierarchy,
+        tab_index: &mut u32,
+        tab_indices: &mut Map<&'f Id, u32>,
+    ) {
+        thing_hierarchy.iter().for_each(|(thing_id, children)| {
+            tab_indices.insert(thing_id.as_ref(), *tab_index);
+            *tab_index += 1;
+
+            // Recurse into children
+            Self::collect_thing_tab_indices_recursive(children, tab_index, tab_indices);
+        });
+    }
+
+    /// Recursively add things to ordering in hierarchy order.
+    fn add_things_to_ordering_recursive<'f>(
+        thing_hierarchy: &'f InputThingHierarchy,
+        thing_tab_indices: &Map<&'f Id, u32>,
+        node_ordering: &mut NodeOrdering,
+    ) {
+        thing_hierarchy.iter().for_each(|(thing_id, children)| {
+            let thing_node_id = NodeId::from(thing_id.clone().into_inner());
+            let tab_idx = thing_tab_indices
+                .get(thing_node_id.as_ref())
+                .copied()
+                .unwrap_or(0);
+            node_ordering.insert(thing_node_id, tab_idx);
+
+            // Recurse into children
+            Self::add_things_to_ordering_recursive(children, thing_tab_indices, node_ordering);
+        });
     }
 
     /// Build EdgeGroups from thing_dependencies and thing_interactions.
