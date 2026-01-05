@@ -16,11 +16,14 @@ use disposition_taffy_model::{
         AlignContent, AlignItems, AvailableSpace, Display, FlexWrap, LengthPercentage, Rect, Size,
         Style, TaffyTree,
     },
-    DiagramLod, DimensionAndLod, EntityHighlightedSpans, IrToTaffyError, NodeContext,
-    ProcessesIncluded, TaffyNodeMappings,
+    DiagramLod, DimensionAndLod, EntityHighlightedSpan, EntityHighlightedSpans, IrToTaffyError,
+    NodeContext, ProcessesIncluded, TaffyNodeMappings,
 };
 use serde::{Deserialize, Serialize};
 use typed_builder::TypedBuilder;
+
+const TEXT_FONT_SIZE: f32 = 11.0f32;
+const TEXT_LINE_HEIGHT: f32 = 13.0f32;
 
 /// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///
@@ -642,7 +645,7 @@ impl IrToTaffyBuilder {
                         let node_desc = entity_descs.get(entity_id).map(String::as_str);
 
                         match node_desc {
-                            Some(desc) => Cow::Owned(format!("{node_name}\n\n{desc}")),
+                            Some(desc) => Cow::Owned(format!("# {node_name}\n\n{desc}")),
                             None => Cow::Borrowed(node_name),
                         }
                     }
@@ -693,7 +696,9 @@ impl IrToTaffyBuilder {
                 }
             },
         );
-        let height = line_count * buffer.metrics().line_height;
+        let buffer_metrics = buffer.metrics();
+        let line_height = buffer_metrics.line_height;
+        let node_height = line_count * line_height;
 
         if let Some(node_context) = node_context {
             let node_id = &node_context.entity_id;
@@ -704,14 +709,49 @@ impl IrToTaffyBuilder {
                 &theme_set.themes["InspiredGitHub"],
             );
 
-            let highlighted_spans = entity_desc_laid_out_buffer.lines().fold(
+            let mut previous_span_x_end = 0.0;
+            let highlighted_spans = entity_desc_laid_out_buffer.lines().enumerate().fold(
                 Vec::new(),
-                |mut highlighted_spans, line| {
+                |mut highlighted_spans, (line_index, line)| {
+                    let y = line_index as f32 * line_height;
                     let highlighted_spans_for_line = highlighter
                         .highlight_line(line, syntax_set)
                         .expect("Failed to highlight line.")
                         .into_iter()
-                        .map(|(style, str)| (style, str.to_string()));
+                        .map(|(style, text)| {
+                            let x = previous_span_x_end;
+
+                            // We need to recalculate this because `len()` provides the length of
+                            // the text in bytes, not characters, and there may be unicode
+                            // characters that take up more than one byte.
+                            let width = {
+                                buffer.set_text(
+                                    font_system,
+                                    text,
+                                    font_attrs,
+                                    Shaping::Advanced,
+                                    Some(Align::Left),
+                                );
+
+                                buffer
+                                    .layout_runs()
+                                    .next()
+                                    .expect("Expected one layout run")
+                                    .line_w
+                            };
+
+                            let text = text.to_string();
+                            previous_span_x_end = x + width;
+
+                            EntityHighlightedSpan {
+                                x,
+                                y,
+                                width,
+                                height: line_height,
+                                style,
+                                text,
+                            }
+                        });
 
                     highlighted_spans.extend(highlighted_spans_for_line);
 
@@ -725,7 +765,7 @@ impl IrToTaffyBuilder {
 
         taffy::Size {
             width: line_width_max,
-            height,
+            height: node_height,
         }
     }
 }
@@ -751,8 +791,8 @@ impl CosmicTextContext<'_> {
         let mut font_system = FontSystem::new();
         let font_attrs = Attrs::new();
         let font_metrics = Metrics {
-            font_size: 11.0f32,
-            line_height: 13.0f32,
+            font_size: TEXT_FONT_SIZE,
+            line_height: TEXT_LINE_HEIGHT,
         };
         let mut buffer = Buffer::new_empty(font_metrics);
         buffer.set_size(&mut font_system, None, None);

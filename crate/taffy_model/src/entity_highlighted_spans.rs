@@ -2,13 +2,14 @@ use std::ops::{Deref, DerefMut};
 
 use disposition_model_common::{Id, Map};
 use serde::{Deserialize, Serialize};
-use syntect::highlighting::Style;
+
+use crate::EntityHighlightedSpan;
 
 /// `syntect` highlighted spans of entity descriptions.
 ///
 /// This is computed in `IrToTaffyBuilder`.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct EntityHighlightedSpans(Map<Id, Vec<(Style, String)>>);
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+pub struct EntityHighlightedSpans(Map<Id, Vec<EntityHighlightedSpan>>);
 
 impl EntityHighlightedSpans {
     /// Returns a new `EntityHighlightedSpans` map.
@@ -23,7 +24,7 @@ impl EntityHighlightedSpans {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<Id, Vec<(Style, String)>> {
+    pub fn into_inner(self) -> Map<Id, Vec<EntityHighlightedSpan>> {
         self.0
     }
 
@@ -43,7 +44,7 @@ impl EntityHighlightedSpans {
 }
 
 impl Deref for EntityHighlightedSpans {
-    type Target = Map<Id, Vec<(Style, String)>>;
+    type Target = Map<Id, Vec<EntityHighlightedSpan>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -56,14 +57,14 @@ impl DerefMut for EntityHighlightedSpans {
     }
 }
 
-impl From<Map<Id, Vec<(Style, String)>>> for EntityHighlightedSpans {
-    fn from(inner: Map<Id, Vec<(Style, String)>>) -> Self {
+impl From<Map<Id, Vec<EntityHighlightedSpan>>> for EntityHighlightedSpans {
+    fn from(inner: Map<Id, Vec<EntityHighlightedSpan>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(Id, Vec<(Style, String)>)> for EntityHighlightedSpans {
-    fn from_iter<I: IntoIterator<Item = (Id, Vec<(Style, String)>)>>(iter: I) -> Self {
+impl FromIterator<(Id, Vec<EntityHighlightedSpan>)> for EntityHighlightedSpans {
+    fn from_iter<I: IntoIterator<Item = (Id, Vec<EntityHighlightedSpan>)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }
