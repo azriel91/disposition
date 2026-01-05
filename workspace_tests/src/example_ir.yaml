@@ -75,10 +75,12 @@ node_copy_text:
 
 # Hierarchy of all nodes.
 #
-# Note that this should match the SVG element hierarchy, not the taffy hierarchy.
-# The flat structure is because we need the peer nodes to be siblings.
+# Note that this matches the taffy hierarchy, but doesn't show the inbuilt nodes (`_root`
+# container, etc.). The taffy hierarchy will have the inbuilt container nodes needed for flex
+# layout calculation.
 #
-# The taffy hierarchy will have the inbuilt container nodes needed for flex layout calculation.
+# The final SVG element structure will be flat for all nodes because we need the peer nodes to be
+# siblings; we will just position them such that they appear to be nested.
 node_hierarchy:
   # Tags before everything else
   tag_app_development: {}
