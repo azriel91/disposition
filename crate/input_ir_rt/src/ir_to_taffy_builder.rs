@@ -19,7 +19,6 @@ use disposition_taffy_model::{
     DiagramLod, DimensionAndLod, EntityHighlightedSpan, EntityHighlightedSpans, IrToTaffyError,
     NodeContext, ProcessesIncluded, TaffyNodeMappings,
 };
-use serde::{Deserialize, Serialize};
 use typed_builder::TypedBuilder;
 
 const TEXT_FONT_SIZE: f32 = 11.0f32;
@@ -42,8 +41,8 @@ const TEXT_LINE_HEIGHT: f32 = 13.0f32;
 ///     .with_dimension_and_lods(dimension_and_lods)
 ///     .build();
 /// ```
-#[derive(Debug, Deserialize, Serialize, TypedBuilder)]
-pub struct IrToTaffyBuilder {
+#[derive(Debug, TypedBuilder)]
+pub struct IrToTaffyBuilder<'builder> {
     /// Available `syntect` syntaxes.
     #[builder(setter(prefix = "with_"), default = SyntaxSet::load_defaults_newlines())]
     syntax_set: SyntaxSet,
@@ -53,7 +52,7 @@ pub struct IrToTaffyBuilder {
     /// The intermediate representation of the diagram to render the taffy trees
     /// for.
     #[builder(setter(prefix = "with_"))]
-    ir_diagram: IrDiagram,
+    ir_diagram: &'builder IrDiagram,
     /// The dimensions at which elements should be repositioned.
     #[builder(setter(prefix = "with_"), default = vec![
         DimensionAndLod::default_sm(),
@@ -66,7 +65,7 @@ pub struct IrToTaffyBuilder {
     processes_included: ProcessesIncluded,
 }
 
-impl IrToTaffyBuilder {
+impl IrToTaffyBuilder<'_> {
     /// Returns an iterator over `TaffyNodeMappings` instances for each
     /// dimension.
     pub fn build(&self) -> Result<impl Iterator<Item = TaffyNodeMappings>, IrToTaffyError> {

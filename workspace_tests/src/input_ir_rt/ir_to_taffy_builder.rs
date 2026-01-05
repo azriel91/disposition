@@ -10,39 +10,39 @@ use crate::input_ir_rt::EXAMPLE_IR;
 fn test_example_ir_mapping_to_taffy_tree_and_root() -> Result<(), TaffyError> {
     let ir_example = serde_saphyr::from_str::<IrDiagram>(EXAMPLE_IR).unwrap();
     let ir_to_taffy_builder = IrToTaffyBuilder::builder()
-        .with_ir_diagram(ir_example)
+        .with_ir_diagram(&ir_example)
         .build();
     let mut taffy_tree_and_root_iter = ir_to_taffy_builder
         .build()
         .expect("Expected `taffy_tree_and_root` to be built.");
 
-    let Some(taffy_tree_and_diagram_sm) = taffy_tree_and_root_iter.next() else {
+    let Some(taffy_node_mappings_sm) = taffy_tree_and_root_iter.next() else {
         panic!("Expected small `taffy_tree_and_root` to exist.");
     };
     assert_taffy_measurements(
-        taffy_tree_and_diagram_sm,
+        taffy_node_mappings_sm,
         MeasurementsExpected {
             diagram_width: 640.0,
             diagram_height: 480.0,
         },
     )?;
 
-    let Some(taffy_tree_and_diagram_md) = taffy_tree_and_root_iter.next() else {
+    let Some(taffy_node_mappings_md) = taffy_tree_and_root_iter.next() else {
         panic!("Expected medium `taffy_tree_and_root` to exist.");
     };
     assert_taffy_measurements(
-        taffy_tree_and_diagram_md,
+        taffy_node_mappings_md,
         MeasurementsExpected {
             diagram_width: 768.0,
             diagram_height: 512.0,
         },
     )?;
 
-    let Some(taffy_tree_and_diagram_lg) = taffy_tree_and_root_iter.next() else {
+    let Some(taffy_node_mappings_lg) = taffy_tree_and_root_iter.next() else {
         panic!("Expected large `taffy_tree_and_root` to exist.");
     };
     assert_taffy_measurements(
-        taffy_tree_and_diagram_lg,
+        taffy_node_mappings_lg,
         MeasurementsExpected {
             diagram_width: 1024.0,
             diagram_height: 768.0,
