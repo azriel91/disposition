@@ -119,6 +119,58 @@ node_hierarchy:
         t_localhost_repo_target_file_zip: {}
         t_localhost_repo_target_dist_dir: {}
 
+# Order that nodes should appear in the final SVG, and their tab indicies.
+#
+# Notes:
+#
+# 1. This is flat because we need each of these nodes to be siblings.
+# 2. Tags and process steps need to come before things for the sibling selector to work.
+# 3. Process steps must come before processes so that focusing on a process step can be used to
+#    style a process node.
+# 4. Tab indicies are explicitly calculated to be what a user would expect -- things in order of
+#    declaration, then each process and its steps, then tags.
+node_ordering:
+  # tags
+  tag_app_development: 30
+  tag_deployment: 31
+
+  # process steps
+  proc_app_dev_step_repository_clone: 20
+  proc_app_dev_step_project_build: 21
+
+  proc_app_release_step_crate_version_update: 23
+  proc_app_release_step_pull_request_open: 24
+  proc_app_release_step_tag_and_push: 25
+  proc_app_release_step_gh_actions_build: 26
+  proc_app_release_step_gh_actions_publish: 27
+
+  proc_i12e_region_tier_app_deploy_step_ecs_service_update: 29
+
+  # processes
+  proc_app_dev: 19
+  proc_app_release: 22
+  proc_i12e_region_tier_app_deploy: 28
+
+  # things
+  t_aws: 1
+  t_aws_iam: 2
+  t_aws_iam_ecs_policy: 3
+  t_aws_ecr: 4
+  t_aws_ecr_repo: 5
+  t_aws_ecr_repo_image_1: 6
+  t_aws_ecr_repo_image_2: 7
+  t_aws_ecs: 8
+  t_aws_ecs_cluster_app: 9
+  t_aws_ecs_cluster_app_task: 10
+  t_github: 11
+  t_github_user_repo: 12
+  t_localhost: 13
+  t_localhost_repo: 14
+  t_localhost_repo_src: 15
+  t_localhost_repo_target: 16
+  t_localhost_repo_target_file_zip: 17
+  t_localhost_repo_target_dist_dir: 18
+
 # Edge groups with explicit from/to edges.
 edge_groups:
   # Dependency edge groups
