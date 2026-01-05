@@ -182,13 +182,14 @@ impl IrToTaffyBuilder<'_> {
                     width: AvailableSpace::Definite(dimension.width()),
                     height: AvailableSpace::Definite(dimension.height()),
                 },
-                |known_dimensions, available_space, _taffy_node_id, node_context, _style| {
+                |known_dimensions, available_space, _taffy_node_id, node_context, style| {
                     Self::node_size_measure(
                         &mut node_measure_context,
                         lod,
                         known_dimensions,
                         available_space,
                         node_context,
+                        style,
                     )
                 },
             )
@@ -548,33 +549,23 @@ impl IrToTaffyBuilder<'_> {
                         justify_items: Some(AlignItems::FlexStart),
                         align_content: Some(AlignContent::Center),
                         justify_content: Some(AlignContent::Center),
-                        gap: Size::length(flex_layout.gap()),
                         flex_direction: FlexDirection::Column,
                         flex_wrap: FlexWrap::NoWrap,
                         ..Default::default()
                     };
                     // Leaf node doesn't need much difference from wrapper style
-                    let text_style = Style::default();
-                    let child_container_style = Style {
-                        display: Display::Flex,
-                        max_size: Size::auto(),
-                        margin: Rect {
-                            left: LengthPercentageAuto::length(flex_layout.margin_left()),
-                            right: LengthPercentageAuto::length(flex_layout.margin_right()),
-                            top: LengthPercentageAuto::length(flex_layout.margin_top()),
-                            bottom: LengthPercentageAuto::length(flex_layout.margin_bottom()),
-                        },
+                    let text_style = Style {
                         padding: Rect {
                             left: LengthPercentage::length(flex_layout.padding_left()),
                             right: LengthPercentage::length(flex_layout.padding_right()),
                             top: LengthPercentage::length(flex_layout.padding_top()),
                             bottom: LengthPercentage::length(flex_layout.padding_bottom()),
                         },
-                        border: Rect::length(1.0f32),
-                        align_items: Some(AlignItems::Center),
-                        justify_items: Some(AlignItems::Center),
-                        align_content: Some(AlignContent::Center),
-                        justify_content: Some(AlignContent::Center),
+                        ..Default::default()
+                    };
+                    let child_container_style = Style {
+                        display: Display::Flex,
+                        max_size: Size::auto(),
                         gap: Size::length(flex_layout.gap()),
                         flex_direction: FlexDirection::from(flex_layout.direction()),
                         flex_wrap: if flex_layout.wrap() {
@@ -603,6 +594,7 @@ impl IrToTaffyBuilder<'_> {
         known_dimensions: Size<Option<f32>>,
         available_space: Size<AvailableSpace>,
         node_context: Option<&mut NodeContext>,
+        style: &taffy::Style,
     ) -> Size<f32> {
         if let Size {
             width: Some(width),
@@ -695,7 +687,7 @@ impl IrToTaffyBuilder<'_> {
         );
         let buffer_metrics = buffer.metrics();
         let line_height = buffer_metrics.line_height;
-        let node_height = line_count * line_height;
+        let line_heights = line_count * line_height;
 
         if let Some(node_context) = node_context {
             let node_id = &node_context.entity_id;
@@ -709,8 +701,14 @@ impl IrToTaffyBuilder<'_> {
             let highlighted_spans = entity_desc_laid_out_buffer.lines().enumerate().fold(
                 Vec::new(),
                 |mut highlighted_spans, (line_index, line)| {
-                    let mut previous_span_x_end = 0.0;
-                    let y = (line_index + 1) as f32 * line_height;
+                    let mut previous_span_x_end = style
+                        .padding
+                        .horizontal_components()
+                        .start
+                        .into_raw()
+                        .value();
+                    let y = (line_index + 1) as f32 * line_height
+                        + style.padding.vertical_components().start.into_raw().value();
                     let highlighted_spans_for_line = highlighter
                         .highlight_line(line, syntax_set)
                         .expect("Failed to highlight line.")
@@ -761,8 +759,16 @@ impl IrToTaffyBuilder<'_> {
         entity_desc_laid_out_buffer.clear();
 
         taffy::Size {
-            width: line_width_max,
-            height: node_height,
+            width: line_width_max
+                + style.border.left.into_raw().value()
+                + style.border.right.into_raw().value()
+                + style.padding.left.into_raw().value()
+                + style.padding.right.into_raw().value(),
+            height: line_heights
+                + style.border.top.into_raw().value()
+                + style.border.bottom.into_raw().value()
+                + style.padding.top.into_raw().value()
+                + style.padding.bottom.into_raw().value(),
         }
     }
 }
