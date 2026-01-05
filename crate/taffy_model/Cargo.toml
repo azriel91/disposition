@@ -21,6 +21,7 @@ disposition_ir_model = { workspace = true }
 miette = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+syntect = { workspace = true }
 taffy = { workspace = true }
 utoipa = { workspace = true, optional = true }
 

@@ -9,16 +9,21 @@ use disposition_ir_model::{
 use disposition_model_common::Map;
 use disposition_taffy_model::{
     cosmic_text::{Align, Attrs, Buffer, FontSystem, Metrics, Shaping},
+    syntect::{easy::HighlightLines, highlighting::ThemeSet, parsing::SyntaxSet},
     taffy::{
         self,
         style::{FlexDirection, LengthPercentageAuto},
         AlignContent, AlignItems, AvailableSpace, Display, FlexWrap, LengthPercentage, Rect, Size,
         Style, TaffyTree,
     },
-    DiagramLod, DimensionAndLod, IrToTaffyError, NodeContext, ProcessesIncluded, TaffyNodeMappings,
+    DiagramLod, DimensionAndLod, EntityHighlightedSpan, EntityHighlightedSpans, IrToTaffyError,
+    NodeContext, ProcessesIncluded, TaffyNodeMappings,
 };
 use serde::{Deserialize, Serialize};
 use typed_builder::TypedBuilder;
+
+const TEXT_FONT_SIZE: f32 = 11.0f32;
+const TEXT_LINE_HEIGHT: f32 = 13.0f32;
 
 /// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///
@@ -37,8 +42,14 @@ use typed_builder::TypedBuilder;
 ///     .with_dimension_and_lods(dimension_and_lods)
 ///     .build();
 /// ```
-#[derive(Clone, Debug, Deserialize, Serialize, TypedBuilder)]
+#[derive(Debug, Deserialize, Serialize, TypedBuilder)]
 pub struct IrToTaffyBuilder {
+    /// Available `syntect` syntaxes.
+    #[builder(setter(prefix = "with_"), default = SyntaxSet::load_defaults_newlines())]
+    syntax_set: SyntaxSet,
+    /// Available `syntect` themes.
+    #[builder(setter(prefix = "with_"), default = ThemeSet::load_defaults())]
+    theme_set: ThemeSet,
     /// The intermediate representation of the diagram to render the taffy trees
     /// for.
     #[builder(setter(prefix = "with_"))]
@@ -60,6 +71,8 @@ impl IrToTaffyBuilder {
     /// dimension.
     pub fn build(&self) -> Result<impl Iterator<Item = TaffyNodeMappings>, IrToTaffyError> {
         let IrToTaffyBuilder {
+            syntax_set,
+            theme_set,
             ir_diagram,
             dimension_and_lods,
             processes_included,
@@ -70,6 +83,8 @@ impl IrToTaffyBuilder {
                 .iter()
                 .flat_map(move |dimension_and_lod| {
                     Self::build_taffy_trees_for_dimension(
+                        syntax_set,
+                        theme_set,
                         ir_diagram,
                         dimension_and_lod,
                         processes_included,
@@ -84,6 +99,8 @@ impl IrToTaffyBuilder {
     /// This includes the processes container. Clicking on each process node
     /// reveals the process steps.
     fn build_taffy_trees_for_dimension(
+        syntax_set: &SyntaxSet,
+        theme_set: &ThemeSet,
         ir_diagram: &IrDiagram,
         dimension_and_lod: &DimensionAndLod,
         processes_included: &ProcessesIncluded,
@@ -147,6 +164,20 @@ impl IrToTaffyBuilder {
             panic!("`root` node not present in `node_inbuilt_to_taffy`.");
         };
 
+        let mut entity_highlighted_spans =
+            EntityHighlightedSpans::with_capacity(entity_descs.len());
+        let mut entity_desc_laid_out_buffer = String::new();
+
+        let mut node_measure_context = NodeMeasureContext {
+            nodes,
+            entity_descs,
+            entity_highlighted_spans: &mut entity_highlighted_spans,
+            syntax_set,
+            theme_set,
+            cosmic_text_context,
+            entity_desc_laid_out_buffer: &mut entity_desc_laid_out_buffer,
+        };
+
         taffy_tree
             .compute_layout_with_measure(
                 root,
@@ -156,9 +187,7 @@ impl IrToTaffyBuilder {
                 },
                 |known_dimensions, available_space, _taffy_node_id, node_context, _style| {
                     Self::node_size_measure(
-                        nodes,
-                        entity_descs,
-                        cosmic_text_context,
+                        &mut node_measure_context,
                         lod,
                         known_dimensions,
                         available_space,
@@ -172,6 +201,7 @@ impl IrToTaffyBuilder {
             taffy_tree,
             node_inbuilt_to_taffy,
             node_id_to_taffy,
+            entity_highlighted_spans,
         })
     }
 
@@ -571,9 +601,7 @@ impl IrToTaffyBuilder {
 
     /// Returns the size of a node based on its layout and available space.
     fn node_size_measure(
-        nodes: &NodeNames,
-        entity_descs: &EntityDescs,
-        cosmic_text_context: &mut CosmicTextContext<'_>,
+        node_measure_context: &mut NodeMeasureContext<'_>,
         lod: &DiagramLod,
         known_dimensions: Size<Option<f32>>,
         available_space: Size<AvailableSpace>,
@@ -586,6 +614,16 @@ impl IrToTaffyBuilder {
         {
             return Size { width, height };
         }
+
+        let NodeMeasureContext {
+            nodes,
+            entity_descs,
+            entity_highlighted_spans,
+            syntax_set,
+            theme_set,
+            cosmic_text_context,
+            entity_desc_laid_out_buffer,
+        } = node_measure_context;
 
         let CosmicTextContext {
             font_system,
@@ -607,7 +645,7 @@ impl IrToTaffyBuilder {
                         let node_desc = entity_descs.get(entity_id).map(String::as_str);
 
                         match node_desc {
-                            Some(desc) => Cow::Owned(format!("{node_name}\n\n{desc}")),
+                            Some(desc) => Cow::Owned(format!("# {node_name}\n\n{desc}")),
                             None => Cow::Borrowed(node_name),
                         }
                     }
@@ -634,14 +672,101 @@ impl IrToTaffyBuilder {
         buffer.shape_until_scroll(font_system, false);
 
         // Determine measured size of text
-        let (width, total_lines) = buffer
-            .layout_runs()
-            .fold((0.0, 0usize), |(width, total_lines), run| {
-                (run.line_w.max(width), total_lines + 1)
-            });
-        let height = total_lines as f32 * buffer.metrics().line_height;
+        let NodeMeasureAcc {
+            line_width_max,
+            line_count,
+            entity_desc_laid_out_buffer,
+        } = buffer.layout_runs().fold(
+            NodeMeasureAcc::new(entity_desc_laid_out_buffer),
+            |node_measure_acc, layout_run| {
+                let NodeMeasureAcc {
+                    line_width_max: line_width_max_so_far,
+                    line_count,
+                    entity_desc_laid_out_buffer,
+                } = node_measure_acc;
+                let line_width_max = layout_run.line_w.max(line_width_max_so_far);
 
-        taffy::Size { width, height }
+                entity_desc_laid_out_buffer.push_str(layout_run.text);
+                entity_desc_laid_out_buffer.push('\n');
+
+                NodeMeasureAcc {
+                    line_width_max,
+                    line_count: line_count + 1.0,
+                    entity_desc_laid_out_buffer,
+                }
+            },
+        );
+        let buffer_metrics = buffer.metrics();
+        let line_height = buffer_metrics.line_height;
+        let node_height = line_count * line_height;
+
+        if let Some(node_context) = node_context {
+            let node_id = &node_context.entity_id;
+            let mut highlighter = HighlightLines::new(
+                syntax_set
+                    .find_syntax_by_extension("md")
+                    .unwrap_or_else(|| syntax_set.find_syntax_plain_text()),
+                &theme_set.themes["InspiredGitHub"],
+            );
+
+            let mut previous_span_x_end = 0.0;
+            let highlighted_spans = entity_desc_laid_out_buffer.lines().enumerate().fold(
+                Vec::new(),
+                |mut highlighted_spans, (line_index, line)| {
+                    let y = line_index as f32 * line_height;
+                    let highlighted_spans_for_line = highlighter
+                        .highlight_line(line, syntax_set)
+                        .expect("Failed to highlight line.")
+                        .into_iter()
+                        .map(|(style, text)| {
+                            let x = previous_span_x_end;
+
+                            // We need to recalculate this because `len()` provides the length of
+                            // the text in bytes, not characters, and there may be unicode
+                            // characters that take up more than one byte.
+                            let width = {
+                                buffer.set_text(
+                                    font_system,
+                                    text,
+                                    font_attrs,
+                                    Shaping::Advanced,
+                                    Some(Align::Left),
+                                );
+
+                                buffer
+                                    .layout_runs()
+                                    .next()
+                                    .expect("Expected one layout run")
+                                    .line_w
+                            };
+
+                            let text = text.to_string();
+                            previous_span_x_end = x + width;
+
+                            EntityHighlightedSpan {
+                                x,
+                                y,
+                                width,
+                                height: line_height,
+                                style,
+                                text,
+                            }
+                        });
+
+                    highlighted_spans.extend(highlighted_spans_for_line);
+
+                    highlighted_spans
+                },
+            );
+            entity_highlighted_spans.insert(node_id.clone(), highlighted_spans);
+        }
+
+        entity_desc_laid_out_buffer.clear();
+
+        taffy::Size {
+            width: line_width_max,
+            height: node_height,
+        }
     }
 }
 
@@ -666,8 +791,8 @@ impl CosmicTextContext<'_> {
         let mut font_system = FontSystem::new();
         let font_attrs = Attrs::new();
         let font_metrics = Metrics {
-            font_size: 11.0f32,
-            line_height: 13.0f32,
+            font_size: TEXT_FONT_SIZE,
+            line_height: TEXT_LINE_HEIGHT,
         };
         let mut buffer = Buffer::new_empty(font_metrics);
         buffer.set_size(&mut font_system, None, None);
@@ -708,6 +833,51 @@ impl Default for TaffyWrapperNodeStyles {
                 justify_content: Some(AlignContent::Center),
                 ..Default::default()
             },
+        }
+    }
+}
+
+struct NodeMeasureContext<'ctx> {
+    nodes: &'ctx NodeNames,
+    entity_descs: &'ctx EntityDescs,
+    entity_highlighted_spans: &'ctx mut EntityHighlightedSpans,
+    /// `syntect` loaded syntaxes.
+    syntax_set: &'ctx SyntaxSet,
+    /// `syntect` loaded themes.
+    theme_set: &'ctx ThemeSet,
+    /// `cosmic-text` data.
+    cosmic_text_context: &'ctx mut CosmicTextContext<'ctx>,
+    /// The entity description rejoined where `layout_runs` are separated by
+    /// newlines.
+    ///
+    /// This is needed for `syntect` highlights to be applied after the entity
+    /// description is reflowed based on the available space.
+    entity_desc_laid_out_buffer: &'ctx mut String,
+}
+
+/// Accumulator for node measurements.
+struct NodeMeasureAcc<'buffer> {
+    /// Longest width of a line (I think this is in pixels).
+    line_width_max: f32,
+    /// Number of `layout_run` lines.
+    ///
+    /// We use an `f32` because we are multiplying it by `line_height` later,
+    /// which is an `f32`, and we want to avoid a `usize` to `f32` conversion.
+    line_count: f32,
+    /// The entity description rejoined where `layout_runs` are separated by
+    /// newlines.
+    ///
+    /// This is needed for `syntect` highlights to be applied after the entity
+    /// description is reflowed based on the available space.
+    entity_desc_laid_out_buffer: &'buffer mut String,
+}
+
+impl<'buffer> NodeMeasureAcc<'buffer> {
+    fn new(entity_desc_laid_out_buffer: &'buffer mut String) -> Self {
+        Self {
+            line_width_max: 0.0,
+            line_count: 1.0,
+            entity_desc_laid_out_buffer,
         }
     }
 }
