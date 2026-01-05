@@ -17,12 +17,9 @@ use disposition_taffy_model::{
         Style, TaffyTree,
     },
     DiagramLod, DimensionAndLod, EntityHighlightedSpan, EntityHighlightedSpans, IrToTaffyError,
-    NodeContext, ProcessesIncluded, TaffyNodeMappings,
+    NodeContext, ProcessesIncluded, TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
 };
 use typed_builder::TypedBuilder;
-
-const TEXT_FONT_SIZE: f32 = 11.0f32;
-const TEXT_LINE_HEIGHT: f32 = 13.0f32;
 
 /// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///

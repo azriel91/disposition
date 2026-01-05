@@ -4,7 +4,9 @@ use disposition_ir_model::{
     node::{NodeHierarchy, NodeInbuilt},
     IrDiagram,
 };
-use disposition_taffy_model::{EntityHighlightedSpans, NodeContext, TaffyNodeMappings};
+use disposition_taffy_model::{
+    EntityHighlightedSpans, NodeContext, TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
+};
 use taffy::TaffyTree;
 
 #[derive(Clone, Copy, Debug)]
@@ -32,6 +34,9 @@ impl TaffyToSvgMapper {
 
         let mut content_buffer = String::with_capacity(4096);
         let mut styles_buffer = String::with_capacity(2048);
+
+        // Add default text styles
+        writeln!(&mut styles_buffer, "text {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: {TEXT_FONT_SIZE}px; line-height: {TEXT_LINE_HEIGHT}px; }}").unwrap();
 
         // Recursively render node hierarchy
         Self::render_node_hierarchy(
