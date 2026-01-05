@@ -112,8 +112,20 @@ impl TaffyToSvgMapper {
                 return;
             };
 
-            let x = layout.location.x;
-            let y = layout.location.y;
+            let (x, y) = {
+                let mut x_acc = layout.location.x;
+                let mut y_acc = layout.location.y;
+                let mut current_node_id = taffy_node_id;
+                while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
+                    let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
+                        break;
+                    };
+                    x_acc += parent_layout.location.x;
+                    y_acc += parent_layout.location.y;
+                    current_node_id = parent_taffy_node_id;
+                }
+                (x_acc, y_acc)
+            };
             let width = layout.size.width;
             let height = layout.size.height;
 
