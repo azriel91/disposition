@@ -123,8 +123,8 @@ impl TaffyToSvgMapper {
                         let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
                             break;
                         };
-                        x_acc += parent_layout.location.x;
-                        y_acc += parent_layout.location.y;
+                        x_acc += parent_layout.content_box_x();
+                        y_acc += parent_layout.content_box_y();
                         current_node_id = parent_taffy_node_id;
                     }
                     (x_acc, y_acc)
