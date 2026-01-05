@@ -1,9 +1,6 @@
 use std::fmt::Write;
 
-use disposition_ir_model::{
-    node::{NodeHierarchy, NodeInbuilt},
-    IrDiagram,
-};
+use disposition_ir_model::{node::NodeInbuilt, IrDiagram};
 use disposition_taffy_model::{
     EntityHighlightedSpans, NodeContext, TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
 };
@@ -38,9 +35,8 @@ impl TaffyToSvgMapper {
         // Add default text styles
         writeln!(&mut styles_buffer, "text {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: {TEXT_FONT_SIZE}px; line-height: {TEXT_LINE_HEIGHT}px; }}").unwrap();
 
-        // Recursively render node hierarchy
-        Self::render_node_hierarchy(
-            &ir_diagram.node_hierarchy,
+        // Render nodes in the order specified by node_ordering
+        Self::render_nodes(
             ir_diagram,
             &taffy_tree,
             &node_id_to_taffy,
@@ -96,8 +92,7 @@ impl TaffyToSvgMapper {
         buffer
     }
 
-    fn render_node_hierarchy(
-        hierarchy: &NodeHierarchy,
+    fn render_nodes(
         ir_diagram: &IrDiagram,
         taffy_tree: &TaffyTree<NodeContext>,
         node_id_to_taffy: &disposition_model_common::Map<
@@ -108,13 +103,13 @@ impl TaffyToSvgMapper {
         buffer: &mut String,
         styles_buffer: &mut String,
     ) {
-        for (node_id, children) in hierarchy.iter() {
+        ir_diagram.node_ordering.iter().for_each(|(node_id, &tab_index)| {
             // Look up taffy layout for this node
             let Some(&taffy_node_id) = node_id_to_taffy.get(node_id) else {
-                continue;
+                return;
             };
             let Ok(layout) = taffy_tree.layout(taffy_node_id) else {
-                continue;
+                return;
             };
 
             let x = layout.location.x;
@@ -144,7 +139,11 @@ impl TaffyToSvgMapper {
                 .unwrap_or_default();
 
             // Start group element with id, tabindex, and optional class
-            write!(buffer, r#"<g id="{node_id_str}"{class_attr} tabindex="0">"#).unwrap();
+            write!(
+                buffer,
+                r#"<g id="{node_id_str}"{class_attr} tabindex="{tab_index}">"#
+            )
+            .unwrap();
 
             // Add transform style for positioning
             writeln!(
@@ -175,22 +174,9 @@ impl TaffyToSvgMapper {
                 }
             }
 
-            // Recursively render children
-            if !children.is_empty() {
-                Self::render_node_hierarchy(
-                    children,
-                    ir_diagram,
-                    taffy_tree,
-                    node_id_to_taffy,
-                    entity_highlighted_spans,
-                    buffer,
-                    styles_buffer,
-                );
-            }
-
             // Close group element
             buffer.push_str("</g>");
-        }
+        });
     }
 
     /// Escape XML special characters in text content
