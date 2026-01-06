@@ -125,14 +125,19 @@ node_hierarchy:
 #
 # 1. This is flat because we need each of these nodes to be siblings.
 # 2. Tags and process steps need to come before things for the sibling selector to work.
-# 3. Process steps must come before processes so that focusing on a process step can be used to
-#    style a process node.
+# 3. Processes must come before process steps so that focusing on a process can be used to
+#    style a process step node.
 # 4. Tab indicies are explicitly calculated to be what a user would expect -- things in order of
 #    declaration, then each process and its steps, then tags.
 node_ordering:
   # tags
   tag_app_development: 30
   tag_deployment: 31
+
+  # processes
+  proc_app_dev: 19
+  proc_app_release: 22
+  proc_i12e_region_tier_app_deploy: 28
 
   # process steps
   proc_app_dev_step_repository_clone: 20
@@ -145,11 +150,6 @@ node_ordering:
   proc_app_release_step_gh_actions_publish: 27
 
   proc_i12e_region_tier_app_deploy_step_ecs_service_update: 29
-
-  # processes
-  proc_app_dev: 19
-  proc_app_release: 22
-  proc_i12e_region_tier_app_deploy: 28
 
   # things
   t_aws: 1

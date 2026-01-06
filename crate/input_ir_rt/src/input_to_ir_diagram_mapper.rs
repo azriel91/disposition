@@ -24,7 +24,7 @@ use disposition_ir_model::{
     node::{NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering},
     IrDiagram,
 };
-use disposition_model_common::{edge::EdgeGroupId, entity::EntityDescs, Id, Keys, Map, Set};
+use disposition_model_common::{edge::EdgeGroupId, entity::EntityDescs, Id, Map, Set};
 
 /// Maps an input diagram to an intermediate representation diagram.
 #[derive(Clone, Copy, Debug)]
@@ -234,8 +234,8 @@ impl InputToIrDiagramMapper {
     ///
     /// The map order defines the rendering order in the SVG:
     /// 1. Tags (for CSS peer selector ordering)
-    /// 2. Process steps (must come before processes for peer styling)
-    /// 3. Processes
+    /// 2. Processes (must come before process steps for peer styling)
+    /// 3. Process steps
     /// 4. Things (in hierarchy order)
     ///
     /// The tab indices are calculated for keyboard navigation:
@@ -293,7 +293,17 @@ impl InputToIrDiagramMapper {
             node_ordering.insert(tag_node_id, tab_idx);
         });
 
-        // 2. Process steps (must come before processes for peer styling)
+        // 2. Processes (must come before process steps for peer styling)
+        processes.keys().for_each(|process_id| {
+            let process_node_id = NodeId::from(process_id.clone().into_inner());
+            let tab_idx = tab_indices
+                .get(process_node_id.as_ref())
+                .copied()
+                .unwrap_or(0);
+            node_ordering.insert(process_node_id, tab_idx);
+        });
+
+        // 3. Process steps
         processes.values().for_each(|process_diagram| {
             process_diagram.steps.keys().for_each(|step_id| {
                 let process_step_node_id = NodeId::from(step_id.clone().into_inner());
@@ -303,16 +313,6 @@ impl InputToIrDiagramMapper {
                     .unwrap_or(0);
                 node_ordering.insert(process_step_node_id, tab_idx);
             });
-        });
-
-        // 3. Processes
-        processes.keys().for_each(|process_id| {
-            let process_node_id = NodeId::from(process_id.clone().into_inner());
-            let tab_idx = tab_indices
-                .get(process_node_id.as_ref())
-                .copied()
-                .unwrap_or(0);
-            node_ordering.insert(process_node_id, tab_idx);
         });
 
         // 4. Things (in hierarchy order)

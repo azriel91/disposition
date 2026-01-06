@@ -191,31 +191,25 @@ fn test_input_to_ir_mapping() {
         ordering_keys[1]
     );
 
-    // Then process steps
-    assert!(
-        ordering_keys[2].contains("_step_"),
-        "Third entry should be a process step, got: {}",
+    // Then processes
+    assert_eq!(
+        "proc_app_dev", ordering_keys[2],
+        "Third entry should be a process, got: {}",
         ordering_keys[2]
     );
 
-    // Find where processes start (after all steps)
-    let proc_app_dev_idx = ordering_keys
-        .iter()
-        .position(|&id| id == "proc_app_dev")
-        .expect("proc_app_dev should be in ordering");
-    assert!(
-        proc_app_dev_idx > 2,
-        "Processes should come after process steps"
+    // Then process steps
+    assert_eq!(
+        "proc_app_dev_step_repository_clone", ordering_keys[5],
+        "process step should come after processes, got: {}",
+        ordering_keys[5]
     );
 
-    // Find where things start
-    let t_aws_idx = ordering_keys
-        .iter()
-        .position(|&id| id == "t_aws")
-        .expect("t_aws should be in ordering");
-    assert!(
-        t_aws_idx > proc_app_dev_idx,
-        "Things should come after processes"
+    // Then things
+    assert_eq!(
+        "t_aws", ordering_keys[13],
+        "things should come after process steps, got: {}",
+        ordering_keys[13]
     );
 
     // Verify tab indices follow user-expected order:
@@ -262,46 +256,34 @@ fn test_node_ordering_map_order_and_tab_indices() {
     assert_eq!("tag_deployment", ordering_entries[1].0);
     assert_eq!(31, ordering_entries[1].1);
 
+    // Find proc_app_dev process entry (should be after all tags)
+    assert_eq!("proc_app_dev", ordering_entries[2].0);
+    assert_eq!(19, ordering_entries[2].1);
+
+    // Find proc_app_release process entry
+    assert_eq!("proc_app_release", ordering_entries[3].0);
+    assert_eq!(22, ordering_entries[3].1);
+
     // Process steps should come next (grouped by process)
     // proc_app_dev steps
-    assert_eq!("proc_app_dev_step_repository_clone", ordering_entries[2].0);
-    assert_eq!(20, ordering_entries[2].1);
-    assert_eq!("proc_app_dev_step_project_build", ordering_entries[3].0);
-    assert_eq!(21, ordering_entries[3].1);
+    assert_eq!("proc_app_dev_step_repository_clone", ordering_entries[5].0);
+    assert_eq!(20, ordering_entries[5].1);
+    assert_eq!("proc_app_dev_step_project_build", ordering_entries[6].0);
+    assert_eq!(21, ordering_entries[6].1);
 
     // proc_app_release steps
     assert_eq!(
         "proc_app_release_step_crate_version_update",
-        ordering_entries[4].0
+        ordering_entries[7].0
     );
-    assert_eq!(23, ordering_entries[4].1);
-
-    // Find proc_app_dev process entry (should be after all steps)
-    let proc_app_dev_entry = ordering_entries
-        .iter()
-        .find(|(id, _)| *id == "proc_app_dev")
-        .expect("proc_app_dev should exist");
-    assert_eq!(19, proc_app_dev_entry.1);
-
-    // Find proc_app_release process entry
-    let proc_app_release_entry = ordering_entries
-        .iter()
-        .find(|(id, _)| *id == "proc_app_release")
-        .expect("proc_app_release should exist");
-    assert_eq!(22, proc_app_release_entry.1);
+    assert_eq!(23, ordering_entries[7].1);
 
     // Things should be last in map order but have lowest tab indices
-    let t_aws_entry = ordering_entries
-        .iter()
-        .find(|(id, _)| *id == "t_aws")
-        .expect("t_aws should exist");
-    assert_eq!(1, t_aws_entry.1);
+    assert_eq!("t_aws", ordering_entries[13].0);
+    assert_eq!(1, ordering_entries[13].1);
 
-    let t_localhost_entry = ordering_entries
-        .iter()
-        .find(|(id, _)| *id == "t_localhost")
-        .expect("t_localhost should exist");
-    assert_eq!(13, t_localhost_entry.1);
+    assert_eq!("t_localhost", ordering_entries[25].0);
+    assert_eq!(13, ordering_entries[25].1);
 }
 
 #[test]
