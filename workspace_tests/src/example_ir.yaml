@@ -119,7 +119,7 @@ node_hierarchy:
         t_localhost_repo_target_file_zip: {}
         t_localhost_repo_target_dist_dir: {}
 
-# Order that nodes should appear in the final SVG, and their tab indicies.
+# Order that nodes should appear in the final SVG, and their tab indices.
 #
 # Notes:
 #
@@ -127,7 +127,7 @@ node_hierarchy:
 # 2. Tags and process steps need to come before things for the sibling selector to work.
 # 3. Processes must come before process steps so that focusing on a process can be used to
 #    style a process step node.
-# 4. Tab indicies are explicitly calculated to be what a user would expect -- things in order of
+# 4. Tab indices are explicitly calculated to be what a user would expect -- things in order of
 #    declaration, then each process and its steps, then tags.
 node_ordering:
   # tags
