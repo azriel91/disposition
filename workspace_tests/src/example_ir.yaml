@@ -956,8 +956,6 @@ tailwind_classes:
     active:stroke-blue-800
     [&>text]:fill-neutral-950
     group/proc_app_dev
-    peer/proc_app_dev_step_repository_clone
-    peer/proc_app_dev_step_project_build
   proc_app_dev_step_repository_clone: |
     invisible
     [stroke-dasharray:none]
@@ -972,6 +970,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_dev:visible
+    peer/proc_app_dev_step_repository_clone
   proc_app_dev_step_project_build: |
     invisible
     [stroke-dasharray:none]
@@ -986,6 +985,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_dev:visible
+    peer/proc_app_dev_step_project_build
 
   proc_app_release: |
     visible
@@ -1001,11 +1001,6 @@ tailwind_classes:
     active:stroke-blue-800
     [&>text]:fill-neutral-950
     group/proc_app_release
-    peer/proc_app_release_step_crate_version_update
-    peer/proc_app_release_step_pull_request_open
-    peer/proc_app_release_step_tag_and_push
-    peer/proc_app_release_step_gh_actions_build
-    peer/proc_app_release_step_gh_actions_publish
   proc_app_release_step_crate_version_update: |
     invisible
     [stroke-dasharray:none]
@@ -1020,6 +1015,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_release:visible
+    peer/proc_app_release_step_crate_version_update
   proc_app_release_step_pull_request_open: |
     invisible
     [stroke-dasharray:none]
@@ -1034,6 +1030,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_release:visible
+    peer/proc_app_release_step_pull_request_open
   proc_app_release_step_tag_and_push: |
     invisible
     [stroke-dasharray:none]
@@ -1048,6 +1045,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_release:visible
+    peer/proc_app_release_step_tag_and_push
   proc_app_release_step_gh_actions_build: |
     invisible
     [stroke-dasharray:none]
@@ -1062,6 +1060,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_release:visible
+    peer/proc_app_release_step_gh_actions_build
   proc_app_release_step_gh_actions_publish: |
     invisible
     [stroke-dasharray:none]
@@ -1076,6 +1075,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_release:visible
+    peer/proc_app_release_step_gh_actions_publish
 
   proc_i12e_region_tier_app_deploy: |
     visible
@@ -1091,7 +1091,6 @@ tailwind_classes:
     active:stroke-blue-800
     [&>text]:fill-neutral-950
     group/proc_i12e_region_tier_app_deploy
-    peer/proc_i12e_region_tier_app_deploy_step_ecs_service_update
   proc_i12e_region_tier_app_deploy_step_ecs_service_update: |
     invisible
     [stroke-dasharray:none]
@@ -1106,6 +1105,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_i12e_region_tier_app_deploy:visible
+    peer/proc_i12e_region_tier_app_deploy_step_ecs_service_update
 
   # Edges - visible when their associated step has focus
   #

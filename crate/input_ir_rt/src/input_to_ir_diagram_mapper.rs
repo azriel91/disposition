@@ -1347,21 +1347,8 @@ impl InputToIrDiagramMapper {
                     theme_types_styles,
                 )
             } else if is_process {
-                // Find the child process step IDs
-                let child_step_ids = processes
-                    .iter()
-                    .find_map(|(process_id, process_diagram)| {
-                        if process_id.as_ref() == node_id.as_ref() {
-                            Some(process_diagram.steps.keys())
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_default();
-
                 Self::build_process_tailwind_classes(
                     node_id,
-                    child_step_ids,
                     entity_types,
                     theme_default,
                     theme_types_styles,
@@ -1546,7 +1533,6 @@ impl InputToIrDiagramMapper {
     /// Build tailwind classes for a process node.
     fn build_process_tailwind_classes(
         id: &Id,
-        child_step_ids: Keys<'_, ProcessStepId, String>,
         entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
@@ -1567,15 +1553,6 @@ impl InputToIrDiagramMapper {
 
         // Processes get group/{id} class
         writeln!(&mut classes, "group/{}", id.as_str()).expect(CLASSES_BUFFER_WRITE_FAIL);
-
-        // Processes get peer/{step_id} classes for each child process step
-        // This is because process nodes are sibling elements to thing/edge_group
-        // elements, whereas process step nodes are not siblings, so things and
-        // edge_groups can only react to the process nodes' state for the
-        // sibling selector to work.
-        child_step_ids.for_each(|step_id| {
-            writeln!(&mut classes, "peer/{}", step_id.as_str()).expect(CLASSES_BUFFER_WRITE_FAIL);
-        });
 
         classes
     }
@@ -1610,6 +1587,8 @@ impl InputToIrDiagramMapper {
             writeln!(&mut classes, "group-focus-within/{process_id}:visible")
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
         }
+
+        writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);
 
         classes
     }

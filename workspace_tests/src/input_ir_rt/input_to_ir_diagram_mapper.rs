@@ -594,27 +594,12 @@ fn test_tailwind_classes_generation() {
         proc_classes
     );
 
-    // Process should also have peer/{step_id} classes for each child step
-    // This is because process nodes are sibling elements to thing/edge_group
-    // elements, whereas process step nodes are not siblings.
-    assert!(
-        proc_classes.contains("\npeer/proc_app_dev_step_repository_clone"),
-        "Process should have peer class for child step. Got: {}",
-        proc_classes
-    );
-    assert!(
-        proc_classes.contains("\npeer/proc_app_dev_step_project_build"),
-        "Process should have peer class for child step. Got: {}",
-        proc_classes
-    );
-
     // Test process step tailwind classes - should have
-    // group-focus-within/{process_id}:visible but NOT peer/{id} (that's on the
-    // parent process now)
+    // group-focus-within/{process_id}:visible and peer/{id}
     let step_id = id!("proc_app_dev_step_repository_clone");
     let step_classes = String::from("\n") + diagram.tailwind_classes.get(&step_id).unwrap();
     assert!(
-        !step_classes.contains("\npeer/proc_app_dev_step_repository_clone"),
+        step_classes.contains("\npeer/proc_app_dev_step_repository_clone"),
         "Process step should NOT have peer class (it's on the parent process now). Got: {}",
         step_classes
     );
