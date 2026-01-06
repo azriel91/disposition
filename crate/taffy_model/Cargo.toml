@@ -1,8 +1,7 @@
 [package]
 name = "disposition_taffy_model"
-description = "Data types that for disposition to work with taffy."
+description = "Data types for disposition to work with taffy."
 documentation = "https://docs.rs/disposition_taffy_model/"
-publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

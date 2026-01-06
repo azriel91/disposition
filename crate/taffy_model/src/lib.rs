@@ -1,4 +1,4 @@
-//! Data types that for disposition to work with taffy.
+//! Data types for disposition to work with taffy.
 
 // Re-exports
 pub use cosmic_text;
