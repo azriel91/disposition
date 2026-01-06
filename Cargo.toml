@@ -11,6 +11,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace]
 members = [
+    "app/*",
     "crate/*",
     "examples/*",
     "workspace_tests",
@@ -72,6 +73,7 @@ disposition_taffy_model = { path = "crate/taffy_model", version = "0.0.2" }
 
 # external crates
 cosmic-text = "0.15.0"
+dioxus = "0.7.2"
 encre-css = "0.20.0"
 enum-iterator = "2.3.0"
 id_newtype = "0.2.0"

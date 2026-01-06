@@ -32,6 +32,25 @@ todo!("This crate is a work in progress.")
 ```
 
 
+## Development
+
+### Playground
+
+Install `dx` (dioxus build tool):
+
+```bash
+cargo install cargo-binstall
+cargo binstall dioxus-cli
+```
+
+Run `dx serve` in `app/playground`:
+
+```bash
+cd app/playground
+dx serve
+```
+
+
 ## License
 
 Licensed under either of
