@@ -22,7 +22,6 @@ pub fn Navbar() -> Element {
                 [&>a]:transition-colors
                 [&>a]:duration-200
             ",
-            // components
             Link {
                 class: "font-bold",
                 to: Route::Home {},
