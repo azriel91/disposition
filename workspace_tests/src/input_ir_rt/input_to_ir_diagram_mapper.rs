@@ -170,6 +170,120 @@ fn test_input_to_ir_mapping() {
 
     // 7. Verify CSS is passed through
     assert!(!diagram.css.is_empty());
+
+    // 8. Verify NodeOrdering structure
+    // Should have all 31 nodes: 18 things + 2 tags + 3 processes + 8 process steps
+    assert_eq!(31, diagram.node_ordering.len());
+
+    // Verify map ordering: tags first, then process steps, then processes, then
+    // things
+    let ordering_keys: Vec<&str> = diagram.node_ordering.keys().map(|id| id.as_str()).collect();
+
+    // First entries should be tags
+    assert!(
+        ordering_keys[0].starts_with("tag_"),
+        "First entry should be a tag, got: {}",
+        ordering_keys[0]
+    );
+    assert!(
+        ordering_keys[1].starts_with("tag_"),
+        "Second entry should be a tag, got: {}",
+        ordering_keys[1]
+    );
+
+    // Then processes
+    assert_eq!(
+        "proc_app_dev", ordering_keys[2],
+        "Third entry should be a process, got: {}",
+        ordering_keys[2]
+    );
+
+    // Then process steps
+    assert_eq!(
+        "proc_app_dev_step_repository_clone", ordering_keys[5],
+        "process step should come after processes, got: {}",
+        ordering_keys[5]
+    );
+
+    // Then things
+    assert_eq!(
+        "t_aws", ordering_keys[13],
+        "things should come after process steps, got: {}",
+        ordering_keys[13]
+    );
+
+    // Verify tab indices follow user-expected order:
+    // things (1-18), then processes with steps (19-29), then tags (30-31)
+    let t_aws_tab = *diagram.node_ordering.get(&t_aws).unwrap();
+    assert_eq!(1, t_aws_tab, "t_aws should have tab index 1");
+
+    let proc_app_dev_tab = *diagram.node_ordering.get(&proc_app_dev).unwrap();
+    assert_eq!(
+        19, proc_app_dev_tab,
+        "proc_app_dev should have tab index 19"
+    );
+
+    let step_tab = *diagram
+        .node_ordering
+        .get(&proc_app_dev_step_repository_clone)
+        .unwrap();
+    assert_eq!(
+        20, step_tab,
+        "proc_app_dev_step_repository_clone should have tab index 20"
+    );
+
+    let tag_tab = *diagram.node_ordering.get(&tag_app_development).unwrap();
+    assert_eq!(30, tag_tab, "tag_app_development should have tab index 30");
+}
+
+#[test]
+fn test_node_ordering_map_order_and_tab_indices() {
+    // Detailed test for node_ordering computation
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // Verify the exact ordering matches expected from example_ir.yaml
+    let ordering_entries: Vec<(&str, u32)> = diagram
+        .node_ordering
+        .iter()
+        .map(|(id, &tab)| (id.as_str(), tab))
+        .collect();
+
+    // Tags should be first in map order
+    assert_eq!("tag_app_development", ordering_entries[0].0);
+    assert_eq!(30, ordering_entries[0].1);
+    assert_eq!("tag_deployment", ordering_entries[1].0);
+    assert_eq!(31, ordering_entries[1].1);
+
+    // Find proc_app_dev process entry (should be after all tags)
+    assert_eq!("proc_app_dev", ordering_entries[2].0);
+    assert_eq!(19, ordering_entries[2].1);
+
+    // Find proc_app_release process entry
+    assert_eq!("proc_app_release", ordering_entries[3].0);
+    assert_eq!(22, ordering_entries[3].1);
+
+    // Process steps should come next (grouped by process)
+    // proc_app_dev steps
+    assert_eq!("proc_app_dev_step_repository_clone", ordering_entries[5].0);
+    assert_eq!(20, ordering_entries[5].1);
+    assert_eq!("proc_app_dev_step_project_build", ordering_entries[6].0);
+    assert_eq!(21, ordering_entries[6].1);
+
+    // proc_app_release steps
+    assert_eq!(
+        "proc_app_release_step_crate_version_update",
+        ordering_entries[7].0
+    );
+    assert_eq!(23, ordering_entries[7].1);
+
+    // Things should be last in map order but have lowest tab indices
+    assert_eq!("t_aws", ordering_entries[13].0);
+    assert_eq!(1, ordering_entries[13].1);
+
+    assert_eq!("t_localhost", ordering_entries[25].0);
+    assert_eq!(13, ordering_entries[25].1);
 }
 
 #[test]
@@ -462,27 +576,12 @@ fn test_tailwind_classes_generation() {
         proc_classes
     );
 
-    // Process should also have peer/{step_id} classes for each child step
-    // This is because process nodes are sibling elements to thing/edge_group
-    // elements, whereas process step nodes are not siblings.
-    assert!(
-        proc_classes.contains("\npeer/proc_app_dev_step_repository_clone"),
-        "Process should have peer class for child step. Got: {}",
-        proc_classes
-    );
-    assert!(
-        proc_classes.contains("\npeer/proc_app_dev_step_project_build"),
-        "Process should have peer class for child step. Got: {}",
-        proc_classes
-    );
-
     // Test process step tailwind classes - should have
-    // group-focus-within/{process_id}:visible but NOT peer/{id} (that's on the
-    // parent process now)
+    // group-focus-within/{process_id}:visible and peer/{id}
     let step_id = id!("proc_app_dev_step_repository_clone");
     let step_classes = String::from("\n") + diagram.tailwind_classes.get(&step_id).unwrap();
     assert!(
-        !step_classes.contains("\npeer/proc_app_dev_step_repository_clone"),
+        step_classes.contains("\npeer/proc_app_dev_step_repository_clone"),
         "Process step should NOT have peer class (it's on the parent process now). Got: {}",
         step_classes
     );

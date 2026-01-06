@@ -75,10 +75,12 @@ node_copy_text:
 
 # Hierarchy of all nodes.
 #
-# Note that this should match the SVG element hierarchy, not the taffy hierarchy.
-# The flat structure is because we need the peer nodes to be siblings.
+# Note that this matches the taffy hierarchy, but doesn't show the inbuilt nodes (`_root`
+# container, etc.). The taffy hierarchy will have the inbuilt container nodes needed for flex
+# layout calculation.
 #
-# The taffy hierarchy will have the inbuilt container nodes needed for flex layout calculation.
+# The final SVG element structure will be flat for all nodes because we need the peer nodes to be
+# siblings; we will just position them such that they appear to be nested.
 node_hierarchy:
   # Tags before everything else
   tag_app_development: {}
@@ -116,6 +118,58 @@ node_hierarchy:
       t_localhost_repo_target:
         t_localhost_repo_target_file_zip: {}
         t_localhost_repo_target_dist_dir: {}
+
+# Order that nodes should appear in the final SVG, and their tab indices.
+#
+# Notes:
+#
+# 1. This is flat because we need each of these nodes to be siblings.
+# 2. Tags and process steps need to come before things for the sibling selector to work.
+# 3. Processes must come before process steps so that focusing on a process can be used to
+#    style a process step node.
+# 4. Tab indices are explicitly calculated to be what a user would expect -- things in order of
+#    declaration, then each process and its steps, then tags.
+node_ordering:
+  # tags
+  tag_app_development: 30
+  tag_deployment: 31
+
+  # processes
+  proc_app_dev: 19
+  proc_app_release: 22
+  proc_i12e_region_tier_app_deploy: 28
+
+  # process steps
+  proc_app_dev_step_repository_clone: 20
+  proc_app_dev_step_project_build: 21
+
+  proc_app_release_step_crate_version_update: 23
+  proc_app_release_step_pull_request_open: 24
+  proc_app_release_step_tag_and_push: 25
+  proc_app_release_step_gh_actions_build: 26
+  proc_app_release_step_gh_actions_publish: 27
+
+  proc_i12e_region_tier_app_deploy_step_ecs_service_update: 29
+
+  # things
+  t_aws: 1
+  t_aws_iam: 2
+  t_aws_iam_ecs_policy: 3
+  t_aws_ecr: 4
+  t_aws_ecr_repo: 5
+  t_aws_ecr_repo_image_1: 6
+  t_aws_ecr_repo_image_2: 7
+  t_aws_ecs: 8
+  t_aws_ecs_cluster_app: 9
+  t_aws_ecs_cluster_app_task: 10
+  t_github: 11
+  t_github_user_repo: 12
+  t_localhost: 13
+  t_localhost_repo: 14
+  t_localhost_repo_src: 15
+  t_localhost_repo_target: 16
+  t_localhost_repo_target_file_zip: 17
+  t_localhost_repo_target_dist_dir: 18
 
 # Edge groups with explicit from/to edges.
 edge_groups:
@@ -902,8 +956,6 @@ tailwind_classes:
     active:stroke-blue-800
     [&>text]:fill-neutral-950
     group/proc_app_dev
-    peer/proc_app_dev_step_repository_clone
-    peer/proc_app_dev_step_project_build
   proc_app_dev_step_repository_clone: |
     invisible
     [stroke-dasharray:none]
@@ -918,6 +970,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_dev:visible
+    peer/proc_app_dev_step_repository_clone
   proc_app_dev_step_project_build: |
     invisible
     [stroke-dasharray:none]
@@ -932,6 +985,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_dev:visible
+    peer/proc_app_dev_step_project_build
 
   proc_app_release: |
     visible
@@ -947,11 +1001,6 @@ tailwind_classes:
     active:stroke-blue-800
     [&>text]:fill-neutral-950
     group/proc_app_release
-    peer/proc_app_release_step_crate_version_update
-    peer/proc_app_release_step_pull_request_open
-    peer/proc_app_release_step_tag_and_push
-    peer/proc_app_release_step_gh_actions_build
-    peer/proc_app_release_step_gh_actions_publish
   proc_app_release_step_crate_version_update: |
     invisible
     [stroke-dasharray:none]
@@ -966,6 +1015,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_release:visible
+    peer/proc_app_release_step_crate_version_update
   proc_app_release_step_pull_request_open: |
     invisible
     [stroke-dasharray:none]
@@ -980,6 +1030,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_release:visible
+    peer/proc_app_release_step_pull_request_open
   proc_app_release_step_tag_and_push: |
     invisible
     [stroke-dasharray:none]
@@ -994,6 +1045,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_release:visible
+    peer/proc_app_release_step_tag_and_push
   proc_app_release_step_gh_actions_build: |
     invisible
     [stroke-dasharray:none]
@@ -1008,6 +1060,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_release:visible
+    peer/proc_app_release_step_gh_actions_build
   proc_app_release_step_gh_actions_publish: |
     invisible
     [stroke-dasharray:none]
@@ -1022,6 +1075,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_app_release:visible
+    peer/proc_app_release_step_gh_actions_publish
 
   proc_i12e_region_tier_app_deploy: |
     visible
@@ -1037,7 +1091,6 @@ tailwind_classes:
     active:stroke-blue-800
     [&>text]:fill-neutral-950
     group/proc_i12e_region_tier_app_deploy
-    peer/proc_i12e_region_tier_app_deploy_step_ecs_service_update
   proc_i12e_region_tier_app_deploy_step_ecs_service_update: |
     invisible
     [stroke-dasharray:none]
@@ -1052,6 +1105,7 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-focus-within/proc_i12e_region_tier_app_deploy:visible
+    peer/proc_i12e_region_tier_app_deploy_step_ecs_service_update
 
   # Edges - visible when their associated step has focus
   #

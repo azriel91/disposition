@@ -8,7 +8,7 @@ use disposition_ir_model::{
 };
 use disposition_model_common::Map;
 use disposition_taffy_model::{
-    cosmic_text::{Align, Attrs, Buffer, FontSystem, Metrics, Shaping},
+    cosmic_text::{Align, Attrs, Buffer, Family, FontSystem, Metrics, Shaping},
     syntect::{easy::HighlightLines, highlighting::ThemeSet, parsing::SyntaxSet},
     taffy::{
         self,
@@ -17,13 +17,9 @@ use disposition_taffy_model::{
         Style, TaffyTree,
     },
     DiagramLod, DimensionAndLod, EntityHighlightedSpan, EntityHighlightedSpans, IrToTaffyError,
-    NodeContext, ProcessesIncluded, TaffyNodeMappings,
+    NodeContext, ProcessesIncluded, TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
 };
-use serde::{Deserialize, Serialize};
 use typed_builder::TypedBuilder;
-
-const TEXT_FONT_SIZE: f32 = 11.0f32;
-const TEXT_LINE_HEIGHT: f32 = 13.0f32;
 
 /// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///
@@ -38,12 +34,12 @@ const TEXT_LINE_HEIGHT: f32 = 13.0f32;
 /// let dimension_and_lods = vec![DimensionAndLod::default_lg()];
 ///
 /// let mut taffy_trees = IrToTaffyBuilder::builder()
-///     .with_ir_diagram(ir_diagram)
+///     .with_ir_diagram(&ir_diagram)
 ///     .with_dimension_and_lods(dimension_and_lods)
 ///     .build();
 /// ```
-#[derive(Debug, Deserialize, Serialize, TypedBuilder)]
-pub struct IrToTaffyBuilder {
+#[derive(Debug, TypedBuilder)]
+pub struct IrToTaffyBuilder<'builder> {
     /// Available `syntect` syntaxes.
     #[builder(setter(prefix = "with_"), default = SyntaxSet::load_defaults_newlines())]
     syntax_set: SyntaxSet,
@@ -53,7 +49,7 @@ pub struct IrToTaffyBuilder {
     /// The intermediate representation of the diagram to render the taffy trees
     /// for.
     #[builder(setter(prefix = "with_"))]
-    ir_diagram: IrDiagram,
+    ir_diagram: &'builder IrDiagram,
     /// The dimensions at which elements should be repositioned.
     #[builder(setter(prefix = "with_"), default = vec![
         DimensionAndLod::default_sm(),
@@ -66,7 +62,7 @@ pub struct IrToTaffyBuilder {
     processes_included: ProcessesIncluded,
 }
 
-impl IrToTaffyBuilder {
+impl IrToTaffyBuilder<'_> {
     /// Returns an iterator over `TaffyNodeMappings` instances for each
     /// dimension.
     pub fn build(&self) -> Result<impl Iterator<Item = TaffyNodeMappings>, IrToTaffyError> {
@@ -109,6 +105,7 @@ impl IrToTaffyBuilder {
             nodes,
             node_copy_text: _,
             node_hierarchy,
+            node_ordering: _,
             edge_groups: _,
             entity_descs,
             entity_types,
@@ -185,13 +182,14 @@ impl IrToTaffyBuilder {
                     width: AvailableSpace::Definite(dimension.width()),
                     height: AvailableSpace::Definite(dimension.height()),
                 },
-                |known_dimensions, available_space, _taffy_node_id, node_context, _style| {
+                |known_dimensions, available_space, _taffy_node_id, node_context, style| {
                     Self::node_size_measure(
                         &mut node_measure_context,
                         lod,
                         known_dimensions,
                         available_space,
                         node_context,
+                        style,
                     )
                 },
             )
@@ -551,33 +549,23 @@ impl IrToTaffyBuilder {
                         justify_items: Some(AlignItems::FlexStart),
                         align_content: Some(AlignContent::Center),
                         justify_content: Some(AlignContent::Center),
-                        gap: Size::length(flex_layout.gap()),
                         flex_direction: FlexDirection::Column,
                         flex_wrap: FlexWrap::NoWrap,
                         ..Default::default()
                     };
                     // Leaf node doesn't need much difference from wrapper style
-                    let text_style = Style::default();
-                    let child_container_style = Style {
-                        display: Display::Flex,
-                        max_size: Size::auto(),
-                        margin: Rect {
-                            left: LengthPercentageAuto::length(flex_layout.margin_left()),
-                            right: LengthPercentageAuto::length(flex_layout.margin_right()),
-                            top: LengthPercentageAuto::length(flex_layout.margin_top()),
-                            bottom: LengthPercentageAuto::length(flex_layout.margin_bottom()),
-                        },
+                    let text_style = Style {
                         padding: Rect {
                             left: LengthPercentage::length(flex_layout.padding_left()),
                             right: LengthPercentage::length(flex_layout.padding_right()),
                             top: LengthPercentage::length(flex_layout.padding_top()),
                             bottom: LengthPercentage::length(flex_layout.padding_bottom()),
                         },
-                        border: Rect::length(1.0f32),
-                        align_items: Some(AlignItems::Center),
-                        justify_items: Some(AlignItems::Center),
-                        align_content: Some(AlignContent::Center),
-                        justify_content: Some(AlignContent::Center),
+                        ..Default::default()
+                    };
+                    let child_container_style = Style {
+                        display: Display::Flex,
+                        max_size: Size::auto(),
                         gap: Size::length(flex_layout.gap()),
                         flex_direction: FlexDirection::from(flex_layout.direction()),
                         flex_wrap: if flex_layout.wrap() {
@@ -606,6 +594,7 @@ impl IrToTaffyBuilder {
         known_dimensions: Size<Option<f32>>,
         available_space: Size<AvailableSpace>,
         node_context: Option<&mut NodeContext>,
+        style: &taffy::Style,
     ) -> Size<f32> {
         if let Size {
             width: Some(width),
@@ -698,7 +687,7 @@ impl IrToTaffyBuilder {
         );
         let buffer_metrics = buffer.metrics();
         let line_height = buffer_metrics.line_height;
-        let node_height = line_count * line_height;
+        let line_heights = line_count * line_height;
 
         if let Some(node_context) = node_context {
             let node_id = &node_context.entity_id;
@@ -709,11 +698,17 @@ impl IrToTaffyBuilder {
                 &theme_set.themes["InspiredGitHub"],
             );
 
-            let mut previous_span_x_end = 0.0;
             let highlighted_spans = entity_desc_laid_out_buffer.lines().enumerate().fold(
                 Vec::new(),
                 |mut highlighted_spans, (line_index, line)| {
-                    let y = line_index as f32 * line_height;
+                    let mut previous_span_x_end = style
+                        .padding
+                        .horizontal_components()
+                        .start
+                        .into_raw()
+                        .value();
+                    let y = (line_index + 1) as f32 * line_height
+                        + style.padding.vertical_components().start.into_raw().value();
                     let highlighted_spans_for_line = highlighter
                         .highlight_line(line, syntax_set)
                         .expect("Failed to highlight line.")
@@ -764,8 +759,16 @@ impl IrToTaffyBuilder {
         entity_desc_laid_out_buffer.clear();
 
         taffy::Size {
-            width: line_width_max,
-            height: node_height,
+            width: line_width_max
+                + style.border.left.into_raw().value()
+                + style.border.right.into_raw().value()
+                + style.padding.left.into_raw().value()
+                + style.padding.right.into_raw().value(),
+            height: line_heights
+                + style.border.top.into_raw().value()
+                + style.border.bottom.into_raw().value()
+                + style.padding.top.into_raw().value()
+                + style.padding.bottom.into_raw().value(),
         }
     }
 }
@@ -789,11 +792,11 @@ struct CosmicTextContext<'ctx> {
 impl CosmicTextContext<'_> {
     fn new() -> Self {
         let mut font_system = FontSystem::new();
-        let font_attrs = Attrs::new();
         let font_metrics = Metrics {
             font_size: TEXT_FONT_SIZE,
             line_height: TEXT_LINE_HEIGHT,
         };
+        let font_attrs = Attrs::new().metrics(font_metrics).family(Family::Monospace);
         let mut buffer = Buffer::new_empty(font_metrics);
         buffer.set_size(&mut font_system, None, None);
 

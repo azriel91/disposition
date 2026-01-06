@@ -7,8 +7,14 @@
 * Add `disposition_model_common` for common data structures. ([#3][#3])
 * Add `disposition_input_ir_rt` for runtime logic. ([#3][#3])
 * Implement `InputToIrMapper` to transform input model to intermediate representation. ([#3][#3])
+* Add `IrToTaffyBuilder` which maps an `IrDiagram` to `TaffyNodeMappings`. ([#4][#4])
+* Compute `syntect` highlighted spans. ([#5][#5])
+* Add `TaffyToSvgMapper` which maps `IrDiagram` and `TaffyNodeMapping` to an SVG. ([#6][#6])
 
 [#3]: https://github.com/azriel91/disposition/pull/3
+[#4]: https://github.com/azriel91/disposition/pull/4
+[#5]: https://github.com/azriel91/disposition/pull/5
+[#6]: https://github.com/azriel91/disposition/pull/6
 
 
 ## 0.0.1 (2025-12-06)

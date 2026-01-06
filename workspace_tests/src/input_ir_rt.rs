@@ -5,3 +5,4 @@ const EXAMPLE_IR: &str = include_str!("example_ir.yaml");
 
 mod input_to_ir_diagram_mapper;
 mod ir_to_taffy_builder;
+mod taffy_to_svg_mapper;
