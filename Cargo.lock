@@ -175,7 +175,7 @@ checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
 
 [[package]]
 name = "disposition"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "disposition_input_ir_model",
  "disposition_input_model",
@@ -186,7 +186,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_input_ir_model"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "disposition_ir_model",
  "disposition_model_common",
@@ -198,7 +198,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_input_ir_rt"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "disposition_input_ir_model",
  "disposition_input_model",
@@ -213,7 +213,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_input_model"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "disposition_model_common",
  "serde",
@@ -222,7 +222,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_ir_model"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "disposition_model_common",
  "enum-iterator",
@@ -233,7 +233,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_model_common"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "id_newtype",
  "indexmap",
@@ -243,14 +243,14 @@ dependencies = [
 
 [[package]]
 name = "disposition_openapi_spec"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "disposition",
 ]
 
 [[package]]
 name = "disposition_taffy_model"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "cosmic-text",
  "disposition_input_model",
@@ -1254,7 +1254,7 @@ checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
 
 [[package]]
 name = "workspace_tests"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "disposition",
  "disposition_input_ir_rt",
