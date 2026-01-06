@@ -148,7 +148,7 @@ impl TaffyToSvgMapper {
                                 classes_str.push(c);
                             }
                         });
-                        classes_str.push_str("\"");
+                        classes_str.push('"');
                         classes_str
                     })
                     .unwrap_or_default();

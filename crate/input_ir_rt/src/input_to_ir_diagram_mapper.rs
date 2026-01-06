@@ -271,7 +271,7 @@ impl InputToIrDiagramMapper {
                 tab_index += 1;
             });
 
-            process_step_count = process_step_count + process_diagram.steps.len();
+            process_step_count += process_diagram.steps.len();
         });
 
         // Collect tag tab indices
