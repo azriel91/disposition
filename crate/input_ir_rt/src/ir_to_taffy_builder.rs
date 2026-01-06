@@ -8,7 +8,7 @@ use disposition_ir_model::{
 };
 use disposition_model_common::Map;
 use disposition_taffy_model::{
-    cosmic_text::{Align, Attrs, Buffer, FontSystem, Metrics, Shaping},
+    cosmic_text::{Align, Attrs, Buffer, Family, FontSystem, Metrics, Shaping},
     syntect::{easy::HighlightLines, highlighting::ThemeSet, parsing::SyntaxSet},
     taffy::{
         self,
@@ -792,11 +792,11 @@ struct CosmicTextContext<'ctx> {
 impl CosmicTextContext<'_> {
     fn new() -> Self {
         let mut font_system = FontSystem::new();
-        let font_attrs = Attrs::new();
         let font_metrics = Metrics {
             font_size: TEXT_FONT_SIZE,
             line_height: TEXT_LINE_HEIGHT,
         };
+        let font_attrs = Attrs::new().metrics(font_metrics).family(Family::Monospace);
         let mut buffer = Buffer::new_empty(font_metrics);
         buffer.set_size(&mut font_system, None, None);
 
