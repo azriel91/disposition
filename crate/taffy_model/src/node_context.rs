@@ -5,7 +5,7 @@ use disposition_model_common::{entity::EntityType, Id};
     all(feature = "openapi", not(feature = "test")),
     derive(utoipa::ToSchema)
 )]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NodeContext {
     /// ID of the entity from the input / IR diagram.
     pub entity_id: Id,

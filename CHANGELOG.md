@@ -1,5 +1,12 @@
 # Changelog
 
+## unreleased
+
+* Add `disposition_playground` dioxus app. ([#7][#7])
+
+[#7]: https://github.com/azriel91/disposition/pull/7
+
+
 ## 0.0.2 (2026-01-06)
 
 * Rename `disposition_model` to `disposition_input_model`. ([#3][#3])
