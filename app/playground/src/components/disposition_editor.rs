@@ -1,4 +1,7 @@
-use std::fmt::Write;
+use std::{
+    fmt::Write,
+    hash::{DefaultHasher, Hasher},
+};
 
 use dioxus::{
     hooks::{use_memo, use_signal},
@@ -316,12 +319,22 @@ fn DispositionStatusMessage(status_messages: ReadSignal<Vec<String>>) -> Element
                     list-inside
                 ",
                 for message in status_messages.iter() {
-                    li {
-                        class: "
-                            text-sm
-                            text-gray-300
-                        ",
-                        "{message}"
+                    {
+                        let mut hasher = DefaultHasher::new();
+                        hasher.write(message.as_bytes());
+                        let key = hasher.finish();
+
+                        rsx! {
+                            li {
+                                key: "{key}",
+                                class: "
+                                    text-sm
+                                    text-gray-300
+                                ",
+                                "{message}"
+                            }
+                        }
+
                     }
                 }
             }
