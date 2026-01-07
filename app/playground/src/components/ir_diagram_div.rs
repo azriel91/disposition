@@ -1,7 +1,10 @@
-use dioxus::prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element};
+use dioxus::{
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    signals::{ReadSignal, ReadableExt},
+};
 
 #[component]
-pub fn IrDiagramDiv() -> Element {
+pub fn IrDiagramDiv(ir_diagram_string: ReadSignal<String>) -> Element {
     rsx! {
         div {
             id: "ir_diagram_div",
@@ -24,13 +27,15 @@ pub fn IrDiagramDiv() -> Element {
                 id: "ir_diagram_text",
                 class: "
                     flex-1
-                    h-100
+                    min-h-50
                     rounded-lg
                     border-2
                     border-gray-300
                     p-2
                     font-mono
-                "
+                ",
+                readonly: true,
+                value: ir_diagram_string.read().clone(),
             }
         }
     }

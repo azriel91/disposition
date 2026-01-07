@@ -1,7 +1,10 @@
-use dioxus::prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element};
+use dioxus::{
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    signals::{ReadSignal, ReadableExt},
+};
 
 #[component]
-pub fn TaffyNodeMappingsDiv() -> Element {
+pub fn TaffyNodeMappingsDiv(taffy_node_mappings_string: ReadSignal<String>) -> Element {
     rsx! {
         div {
             id: "taffy_node_mappings_div",
@@ -24,13 +27,15 @@ pub fn TaffyNodeMappingsDiv() -> Element {
                 id: "taffy_node_mappings_text",
                 class: "
                     flex-1
-                    h-100
+                    min-h-50
                     rounded-lg
                     border-2
                     border-gray-300
                     p-2
                     font-mono
-                "
+                ",
+                readonly: true,
+                value: taffy_node_mappings_string.read().clone(),
             }
         }
     }
