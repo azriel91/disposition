@@ -23,6 +23,7 @@ urlencoding = { workspace = true }
 [target.'wasm32-unknown-unknown'.dependencies]
 # needed to enable `"wasm_js"` feature, transitive dep of `serde-saphyr`, `reqwest`, et. al.
 getrandom = { workspace = true, features = ["wasm_js"] }
+web-time = { workspace = true }
 
 [features]
 default = ["web"]
