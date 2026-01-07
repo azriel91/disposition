@@ -13,6 +13,9 @@ jobs:
     name: Audit
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      issues: write
+      checks: write
     steps:
       - uses: actions/checkout@v6
       - name: "Generate Cargo.lock"
