@@ -21,6 +21,8 @@ use disposition_taffy_model::{
 };
 use typed_builder::TypedBuilder;
 
+use crate::NOTO_SANS_MONO_TTF;
+
 /// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///
 /// # Examples
@@ -792,6 +794,9 @@ struct CosmicTextContext<'ctx> {
 impl CosmicTextContext<'_> {
     fn new() -> Self {
         let mut font_system = FontSystem::new();
+        font_system
+            .db_mut()
+            .load_font_data(NOTO_SANS_MONO_TTF.to_vec());
         let font_metrics = Metrics {
             font_size: TEXT_FONT_SIZE,
             line_height: TEXT_LINE_HEIGHT,

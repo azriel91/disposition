@@ -18,6 +18,7 @@ dioxus = { workspace = true, features = ["router"] }
 disposition = { workspace = true }
 disposition_input_ir_rt = { workspace = true }
 serde-saphyr = { workspace = true }
+urlencoding = { workspace = true }
 
 [target.'wasm32-unknown-unknown'.dependencies]
 # needed to enable `"wasm_js"` feature, transitive dep of `serde-saphyr`, `reqwest`, et. al.

@@ -1701,6 +1701,7 @@ dependencies = [
 name = "disposition_input_ir_rt"
 version = "0.0.2"
 dependencies = [
+ "base64",
  "disposition_input_ir_model",
  "disposition_input_model",
  "disposition_ir_model",
@@ -1758,6 +1759,7 @@ dependencies = [
  "disposition_input_ir_rt",
  "getrandom 0.3.4",
  "serde-saphyr",
+ "urlencoding",
 ]
 
 [[package]]

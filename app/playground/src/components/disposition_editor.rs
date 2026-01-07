@@ -170,7 +170,8 @@ pub fn DispositionEditor() -> Element {
                 status_messages,
             }
             object {
-                {svg}
+                type: "image/svg+xml",
+                data: format!("data:image/svg+xml,{}", urlencoding::encode(svg().as_str())),
             }
         }
     }

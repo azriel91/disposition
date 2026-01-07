@@ -1,10 +1,13 @@
 use std::fmt::Write;
 
+use base64::{prelude::BASE64_STANDARD, Engine};
 use disposition_ir_model::{node::NodeInbuilt, IrDiagram};
 use disposition_taffy_model::{
     EntityHighlightedSpans, NodeContext, TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
 };
 use taffy::TaffyTree;
+
+use crate::NOTO_SANS_MONO_TTF;
 
 #[derive(Clone, Copy, Debug)]
 pub struct TaffyToSvgMapper;
@@ -34,6 +37,9 @@ impl TaffyToSvgMapper {
 
         // Add default text styles
         writeln!(&mut styles_buffer, "text {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: {TEXT_FONT_SIZE}px; line-height: {TEXT_LINE_HEIGHT}px; }}").unwrap();
+
+        // Add default font
+        writeln!(&mut styles_buffer, "@font-face {{ font-family: 'Noto Sans Mono'; src: url(data:application/x-font-ttf;base64,{}) format('truetype'); }}", BASE64_STANDARD.encode(NOTO_SANS_MONO_TTF)).unwrap();
 
         // Render nodes in the order specified by node_ordering
         Self::render_nodes(
