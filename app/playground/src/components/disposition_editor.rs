@@ -20,7 +20,7 @@ use crate::components::{InputDiagramDiv, IrDiagramDiv, TaffyNodeMappingsDiv};
 
 #[component]
 pub fn DispositionEditor() -> Element {
-    let mut status_messages: Signal<Vec<String>> = use_signal(|| Vec::new());
+    let mut status_messages: Signal<Vec<String>> = use_signal(Vec::new);
     let input_diagram_string = use_signal(|| String::from(""));
     let input_diagram: Memo<Option<InputDiagram>> = use_memo(move || {
         let mut status_messages = status_messages.write();
@@ -104,9 +104,7 @@ pub fn DispositionEditor() -> Element {
                 let taffy_node_mappings_iter_result = ir_to_taffy_builder.build();
                 match taffy_node_mappings_iter_result {
                     Ok(mut taffy_node_mappings_iter) => {
-                        let Some(taffy_node_mappings) = taffy_node_mappings_iter.next() else {
-                            return None;
-                        };
+                        let taffy_node_mappings = taffy_node_mappings_iter.next()?;
 
                         let mut taffy_node_mappings_string = taffy_node_mappings_string.write();
                         taffy_node_mappings_string.clear();
@@ -117,7 +115,7 @@ pub fn DispositionEditor() -> Element {
                             entity_highlighted_spans: _,
                         } = &taffy_node_mappings;
                         taffy_tree_fmt(
-                            &mut *taffy_node_mappings_string,
+                            &mut taffy_node_mappings_string,
                             taffy_tree,
                             node_inbuilt_to_taffy
                                 .get(&NodeInbuilt::Root)
