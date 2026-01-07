@@ -8,7 +8,6 @@ use disposition_ir_model::{
 };
 use disposition_model_common::Map;
 use disposition_taffy_model::{
-    cosmic_text::{Align, Attrs, Buffer, Family, FontSystem, Metrics, Shaping},
     syntect::{easy::HighlightLines, highlighting::ThemeSet, parsing::SyntaxSet},
     taffy::{
         self,
@@ -21,7 +20,10 @@ use disposition_taffy_model::{
 };
 use typed_builder::TypedBuilder;
 
-use crate::NOTO_SANS_MONO_TTF;
+/// Monospace character width as a ratio of font size.
+/// For Noto Sans Mono at 11px, the character width is approximately 6.6px (0.6
+/// * 11).
+const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.6;
 
 /// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///
@@ -116,11 +118,6 @@ impl IrToTaffyBuilder<'_> {
             css: _,
         } = ir_diagram;
 
-        // In theory this could be shared for all diagram generation, but it isn't
-        // straightforward to satisfy Rust's constraints when returning an iterator.
-        let mut cosmic_text_context = CosmicTextContext::new();
-        let cosmic_text_context = &mut cosmic_text_context;
-
         let DimensionAndLod { dimension, lod } = dimension_and_lod;
 
         let mut taffy_tree = TaffyTree::new();
@@ -163,18 +160,15 @@ impl IrToTaffyBuilder<'_> {
             panic!("`root` node not present in `node_inbuilt_to_taffy`.");
         };
 
-        let mut entity_highlighted_spans =
-            EntityHighlightedSpans::with_capacity(entity_descs.len());
-        let mut entity_desc_laid_out_buffer = String::new();
+        // Precompute monospace character width
+        let char_width = TEXT_FONT_SIZE * MONOSPACE_CHAR_WIDTH_RATIO;
 
+        // Compute layout (size measurement only, no syntax highlighting)
         let mut node_measure_context = NodeMeasureContext {
             nodes,
             entity_descs,
-            entity_highlighted_spans: &mut entity_highlighted_spans,
-            syntax_set,
-            theme_set,
-            cosmic_text_context,
-            entity_desc_laid_out_buffer: &mut entity_desc_laid_out_buffer,
+            char_width,
+            lod,
         };
 
         taffy_tree
@@ -187,7 +181,6 @@ impl IrToTaffyBuilder<'_> {
                 |known_dimensions, available_space, _taffy_node_id, node_context, style| {
                     Self::node_size_measure(
                         &mut node_measure_context,
-                        lod,
                         known_dimensions,
                         available_space,
                         node_context,
@@ -197,12 +190,136 @@ impl IrToTaffyBuilder<'_> {
             )
             .expect("Expected layout computation to succeed.");
 
+        // Compute highlighted spans *after* layout is complete.
+        //
+        // This is done once per node instead of multiple times during layout
+        // measurement
+        let entity_highlighted_spans = Self::compute_highlighted_spans(
+            &taffy_tree,
+            &node_id_to_taffy,
+            nodes,
+            entity_descs,
+            syntax_set,
+            theme_set,
+            char_width,
+            lod,
+        );
+
         std::iter::once(TaffyNodeMappings {
             taffy_tree,
             node_inbuilt_to_taffy,
             node_id_to_taffy,
             entity_highlighted_spans,
         })
+    }
+
+    /// Compute highlighted spans for all nodes after layout is complete.
+    /// This is much more efficient than doing it during measure() which gets
+    /// called multiple times.
+    fn compute_highlighted_spans(
+        taffy_tree: &TaffyTree<NodeContext>,
+        node_id_to_taffy: &Map<NodeId, taffy::NodeId>,
+        nodes: &NodeNames,
+        entity_descs: &EntityDescs,
+        syntax_set: &SyntaxSet,
+        theme_set: &ThemeSet,
+        char_width: f32,
+        lod: &DiagramLod,
+    ) -> EntityHighlightedSpans {
+        let mut entity_highlighted_spans =
+            EntityHighlightedSpans::with_capacity(node_id_to_taffy.len());
+
+        // Cache syntax and theme lookups
+        let md_syntax = syntax_set
+            .find_syntax_by_extension("md")
+            .unwrap_or_else(|| syntax_set.find_syntax_plain_text());
+        let highlight_theme = &theme_set.themes["InspiredGitHub"];
+
+        let line_height = TEXT_LINE_HEIGHT;
+
+        node_id_to_taffy
+            .iter()
+            .for_each(|(node_id, &taffy_node_id)| {
+                let Ok(layout) = taffy_tree.layout(taffy_node_id) else {
+                    return;
+                };
+
+                // Get the node context to access entity_id
+                let Some(node_context) = taffy_tree.get_node_context(taffy_node_id) else {
+                    return;
+                };
+
+                let entity_id = &node_context.entity_id;
+
+                // Build the text content
+                let node_name = nodes
+                    .get(entity_id)
+                    .map(String::as_str)
+                    .unwrap_or_else(|| entity_id.as_str());
+
+                let text: Cow<'_, str> = match lod {
+                    DiagramLod::Simple => Cow::Borrowed(node_name),
+                    DiagramLod::Normal => {
+                        let node_desc = entity_descs.get(entity_id).map(String::as_str);
+                        match node_desc {
+                            Some(desc) => Cow::Owned(format!("# {node_name}\n\n{desc}")),
+                            None => Cow::Borrowed(node_name),
+                        }
+                    }
+                };
+
+                if text.is_empty() {
+                    return;
+                }
+
+                // Use the computed layout width as constraint
+                let max_width = layout.size.width;
+
+                // Compute line wrapping using simple monospace calculation
+                let wrapped_lines = wrap_text_monospace(&text, char_width, max_width);
+
+                // Get style info for padding calculations
+                let padding_left = 0.0f32;
+                let padding_top = 0.0f32;
+
+                let highlighted_spans: Vec<EntityHighlightedSpan> = {
+                    // Full syntax highlighting for markdown content
+                    let mut highlighter = HighlightLines::new(md_syntax, highlight_theme);
+
+                    wrapped_lines
+                        .iter()
+                        .enumerate()
+                        .flat_map(|(line_index, line)| {
+                            let mut previous_span_x_end = padding_left;
+                            let y = (line_index + 1) as f32 * line_height + padding_top;
+
+                            highlighter
+                                .highlight_line(line, syntax_set)
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|(style, text)| {
+                                    let x = previous_span_x_end;
+                                    let width = text.chars().count() as f32 * char_width;
+                                    previous_span_x_end = x + width;
+
+                                    EntityHighlightedSpan {
+                                        x,
+                                        y,
+                                        width,
+                                        height: line_height,
+                                        style,
+                                        text: text.to_string(),
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .collect()
+                };
+
+                entity_highlighted_spans.insert(node_id.as_ref().clone(), highlighted_spans);
+            });
+
+        entity_highlighted_spans
     }
 
     /// Adds the inbuilt container nodes to the `TaffyTree`.
@@ -305,7 +422,7 @@ impl IrToTaffyBuilder<'_> {
                 let taffy_node_id = if child_hierarchy.is_empty() {
                     let taffy_style =
                         Self::taffy_container_style(node_layouts, node_id, Size::auto());
-                    taffy_tree
+                    let taffy_text_node_id = taffy_tree
                         .new_leaf_with_context(
                             taffy_style,
                             NodeContext {
@@ -315,7 +432,11 @@ impl IrToTaffyBuilder<'_> {
                         )
                         .unwrap_or_else(|e| {
                             panic!("Expected to create text leaf node for {node_id}. Error: {e}")
-                        })
+                        });
+
+                    node_id_to_taffy.insert(NodeId::from(node_id.clone()), taffy_text_node_id);
+
+                    taffy_text_node_id
                 } else {
                     let TaffyWrapperNodeStyles {
                         wrapper_style,
@@ -348,6 +469,11 @@ impl IrToTaffyBuilder<'_> {
                         .unwrap_or_else(|e| {
                             panic!("Expected to create text leaf node for {node_id}. Error: {e}")
                         });
+
+                    // Insert the text node into the mapping so that
+                    // `compute_highlighted_spans` can access its `NodeContext`.
+                    node_id_to_taffy.insert(NodeId::from(node_id.clone()), taffy_text_node_id);
+
                     taffy_tree
                         .new_with_children(
                             wrapper_style,
@@ -362,8 +488,6 @@ impl IrToTaffyBuilder<'_> {
                     .entry(entity_type.clone())
                     .or_default()
                     .push(taffy_node_id);
-
-                node_id_to_taffy.insert(NodeId::from(node_id.clone()), taffy_node_id);
 
                 entity_type_to_nodes
             },
@@ -392,10 +516,10 @@ impl IrToTaffyBuilder<'_> {
                     .and_then(|entity_types| entity_types.first())
                     .unwrap_or_else(|| panic!("`entity_type` not found for {node_id}"));
 
-                let taffy_node_id = if child_hierarchy.is_empty() {
+                if child_hierarchy.is_empty() {
                     let taffy_style =
                         Self::taffy_container_style(node_layouts, node_id, Size::auto());
-                    taffy_tree
+                    let taffy_text_node_id = taffy_tree
                         .new_leaf_with_context(
                             taffy_style,
                             NodeContext {
@@ -405,7 +529,11 @@ impl IrToTaffyBuilder<'_> {
                         )
                         .unwrap_or_else(|e| {
                             panic!("Expected to create text leaf node for {node_id}. Error: {e}")
-                        })
+                        });
+
+                    node_id_to_taffy.insert(NodeId::from(node_id.clone()), taffy_text_node_id);
+
+                    taffy_text_node_id
                 } else {
                     let TaffyWrapperNodeStyles {
                         wrapper_style,
@@ -438,6 +566,11 @@ impl IrToTaffyBuilder<'_> {
                         .unwrap_or_else(|e| {
                             panic!("Expected to create text leaf node for {node_id}. Error: {e}")
                         });
+
+                    // Insert the text node into the mapping so that
+                    // `compute_highlighted_spans` can access its `NodeContext`.
+                    node_id_to_taffy.insert(NodeId::from(node_id.clone()), taffy_text_node_id);
+
                     taffy_tree
                         .new_with_children(
                             wrapper_style,
@@ -446,11 +579,7 @@ impl IrToTaffyBuilder<'_> {
                         .unwrap_or_else(|e| {
                             panic!("Expected to create wrapper node for {node_id}. Error: {e}")
                         })
-                };
-
-                node_id_to_taffy.insert(NodeId::from(node_id.clone()), taffy_node_id);
-
-                taffy_node_id
+                }
             })
             .collect::<Vec<taffy::NodeId>>()
     }
@@ -590,9 +719,10 @@ impl IrToTaffyBuilder<'_> {
     }
 
     /// Returns the size of a node based on its layout and available space.
+    /// This is called during layout computation and only computes sizes.
+    /// Syntax highlighting is deferred to a separate pass after layout.
     fn node_size_measure(
         node_measure_context: &mut NodeMeasureContext<'_>,
-        lod: &DiagramLod,
         known_dimensions: Size<Option<f32>>,
         available_space: Size<AvailableSpace>,
         node_context: Option<&mut NodeContext>,
@@ -609,18 +739,10 @@ impl IrToTaffyBuilder<'_> {
         let NodeMeasureContext {
             nodes,
             entity_descs,
-            entity_highlighted_spans,
-            syntax_set,
-            theme_set,
-            cosmic_text_context,
-            entity_desc_laid_out_buffer,
+            char_width,
+            lod,
         } = node_measure_context;
 
-        let CosmicTextContext {
-            font_system,
-            buffer,
-            font_attrs,
-        } = cosmic_text_context;
         let text = node_context
             .as_ref()
             .map(|node_context| {
@@ -643,13 +765,6 @@ impl IrToTaffyBuilder<'_> {
                 }
             })
             .unwrap_or(Cow::Borrowed(""));
-        buffer.set_text(
-            font_system,
-            &text,
-            font_attrs,
-            Shaping::Advanced,
-            Some(Align::Left),
-        );
 
         // Set width constraint
         let width_constraint = known_dimensions.width.or(match available_space.width {
@@ -657,108 +772,13 @@ impl IrToTaffyBuilder<'_> {
             AvailableSpace::MaxContent => None,
             AvailableSpace::Definite(width) => Some(width),
         });
-        buffer.set_size(font_system, width_constraint, None);
 
-        // Compute layout
-        buffer.shape_until_scroll(font_system, false);
+        // Compute layout using simple monospace calculations
+        let (line_width_max, line_count) =
+            compute_text_dimensions(&text, *char_width, width_constraint);
 
-        // Determine measured size of text
-        let NodeMeasureAcc {
-            line_width_max,
-            line_count,
-            entity_desc_laid_out_buffer,
-        } = buffer.layout_runs().fold(
-            NodeMeasureAcc::new(entity_desc_laid_out_buffer),
-            |node_measure_acc, layout_run| {
-                let NodeMeasureAcc {
-                    line_width_max: line_width_max_so_far,
-                    line_count,
-                    entity_desc_laid_out_buffer,
-                } = node_measure_acc;
-                let line_width_max = layout_run.line_w.max(line_width_max_so_far);
-
-                entity_desc_laid_out_buffer.push_str(layout_run.text);
-                entity_desc_laid_out_buffer.push('\n');
-
-                NodeMeasureAcc {
-                    line_width_max,
-                    line_count: line_count + 1.0,
-                    entity_desc_laid_out_buffer,
-                }
-            },
-        );
-        let buffer_metrics = buffer.metrics();
-        let line_height = buffer_metrics.line_height;
+        let line_height = TEXT_LINE_HEIGHT;
         let line_heights = line_count * line_height;
-
-        if let Some(node_context) = node_context {
-            let node_id = &node_context.entity_id;
-            let mut highlighter = HighlightLines::new(
-                syntax_set
-                    .find_syntax_by_extension("md")
-                    .unwrap_or_else(|| syntax_set.find_syntax_plain_text()),
-                &theme_set.themes["InspiredGitHub"],
-            );
-
-            let highlighted_spans = entity_desc_laid_out_buffer.lines().enumerate().fold(
-                Vec::new(),
-                |mut highlighted_spans, (line_index, line)| {
-                    let mut previous_span_x_end = style
-                        .padding
-                        .horizontal_components()
-                        .start
-                        .into_raw()
-                        .value();
-                    let y = (line_index + 1) as f32 * line_height
-                        + style.padding.vertical_components().start.into_raw().value();
-                    let highlighted_spans_for_line = highlighter
-                        .highlight_line(line, syntax_set)
-                        .expect("Failed to highlight line.")
-                        .into_iter()
-                        .map(|(style, text)| {
-                            let x = previous_span_x_end;
-
-                            // We need to recalculate this because `len()` provides the length of
-                            // the text in bytes, not characters, and there may be unicode
-                            // characters that take up more than one byte.
-                            let width = {
-                                buffer.set_text(
-                                    font_system,
-                                    text,
-                                    font_attrs,
-                                    Shaping::Advanced,
-                                    Some(Align::Left),
-                                );
-
-                                buffer
-                                    .layout_runs()
-                                    .next()
-                                    .expect("Expected one layout run")
-                                    .line_w
-                            };
-
-                            let text = text.to_string();
-                            previous_span_x_end = x + width;
-
-                            EntityHighlightedSpan {
-                                x,
-                                y,
-                                width,
-                                height: line_height,
-                                style,
-                                text,
-                            }
-                        });
-
-                    highlighted_spans.extend(highlighted_spans_for_line);
-
-                    highlighted_spans
-                },
-            );
-            entity_highlighted_spans.insert(node_id.clone(), highlighted_spans);
-        }
-
-        entity_desc_laid_out_buffer.clear();
 
         taffy::Size {
             width: line_width_max
@@ -775,6 +795,131 @@ impl IrToTaffyBuilder<'_> {
     }
 }
 
+/// Compute text dimensions using simple monospace character width calculation.
+/// Returns (max_line_width, line_count).
+///
+/// Note: The line_count starts at 1.0 as SVG text is rendered above the `y`
+/// coordinate instead of below.
+fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) -> (f32, f32) {
+    if text.is_empty() {
+        return (0.0, 1.0);
+    }
+
+    let max_chars_per_line = max_width.map(|w| (w / char_width).floor() as usize);
+
+    let mut line_width_max: f32 = 0.0;
+    let mut line_count: f32 = 1.0;
+
+    text.lines().for_each(|line| {
+        let line_char_count = line.chars().count();
+
+        match max_chars_per_line {
+            Some(max_chars) if max_chars > 0 && line_char_count > max_chars => {
+                // Word wrap this line
+                let wrapped = wrap_line_monospace(line, max_chars);
+                wrapped.into_iter().for_each(|wrapped_line| {
+                    let width = wrapped_line.chars().count() as f32 * char_width;
+                    line_width_max = line_width_max.max(width);
+                    line_count += 1.0;
+                });
+            }
+            _ => {
+                let width = line_char_count as f32 * char_width;
+                line_width_max = line_width_max.max(width);
+                line_count += 1.0;
+            }
+        }
+    });
+
+    (line_width_max, line_count)
+}
+
+/// Wrap text for display, returning owned strings for each line.
+fn wrap_text_monospace(text: &str, char_width: f32, max_width: f32) -> Vec<String> {
+    let max_chars = (max_width / char_width).floor() as usize;
+
+    if max_chars == 0 {
+        return text.lines().map(String::from).collect();
+    }
+
+    let mut result = Vec::new();
+
+    text.lines().for_each(|line| {
+        let wrapped = wrap_line_monospace(line, max_chars);
+        result.extend(wrapped.into_iter().map(String::from));
+    });
+
+    if result.is_empty() {
+        result.push(String::new());
+    }
+
+    result
+}
+
+/// Wraps a single line to fit within max_chars characters.
+///
+/// Tries to break at word boundaries when possible.
+fn wrap_line_monospace(line: &str, max_chars: usize) -> Vec<&str> {
+    if max_chars == 0 {
+        return vec![line];
+    }
+
+    let mut result = Vec::new();
+    let mut remaining = line;
+
+    while !remaining.is_empty() {
+        let char_count = remaining.chars().count();
+        if char_count <= max_chars {
+            result.push(remaining);
+            break;
+        }
+
+        // Find a good break point (try to break at whitespace)
+        let mut break_at_byte = 0;
+        let mut break_at_char = 0;
+        let mut last_space_byte = None;
+        let mut last_space_char = 0;
+
+        remaining
+            .char_indices()
+            .enumerate()
+            .for_each(|(char_idx, (byte_idx, c))| {
+                if char_idx >= max_chars {
+                    return;
+                }
+                if c.is_whitespace() {
+                    last_space_byte = Some(byte_idx);
+                    last_space_char = char_idx;
+                }
+                break_at_byte = byte_idx + c.len_utf8();
+                break_at_char = char_idx + 1;
+            });
+
+        // Prefer breaking at whitespace if we found one in the second half
+        let (split_byte, split_char) =
+            if let Some(space_byte) = last_space_byte.filter(|_| last_space_char > max_chars / 2) {
+                (space_byte, last_space_char)
+            } else {
+                (break_at_byte, break_at_char)
+            };
+
+        if split_char == 0 {
+            // Safety: if we can't make progress, just take the whole thing
+            result.push(remaining);
+            break;
+        }
+
+        result.push(&remaining[..split_byte]);
+        remaining = remaining[split_byte..].trim_start();
+    }
+
+    if result.is_empty() {
+        result.push("");
+    }
+
+    result
+}
+
 struct TaffyNodeBuildContext<'ctx> {
     taffy_tree: &'ctx mut TaffyTree<NodeContext>,
     nodes: &'ctx NodeNames,
@@ -782,35 +927,6 @@ struct TaffyNodeBuildContext<'ctx> {
     node_hierarchy: &'ctx NodeHierarchy,
     entity_types: &'ctx EntityTypes,
     node_id_to_taffy: &'ctx mut Map<NodeId, taffy::NodeId>,
-}
-
-#[derive(Debug)]
-struct CosmicTextContext<'ctx> {
-    font_system: FontSystem,
-    buffer: Buffer,
-    font_attrs: Attrs<'ctx>,
-}
-
-impl CosmicTextContext<'_> {
-    fn new() -> Self {
-        let mut font_system = FontSystem::new();
-        font_system
-            .db_mut()
-            .load_font_data(NOTO_SANS_MONO_TTF.to_vec());
-        let font_metrics = Metrics {
-            font_size: TEXT_FONT_SIZE,
-            line_height: TEXT_LINE_HEIGHT,
-        };
-        let font_attrs = Attrs::new().metrics(font_metrics).family(Family::Monospace);
-        let mut buffer = Buffer::new_empty(font_metrics);
-        buffer.set_size(&mut font_system, None, None);
-
-        Self {
-            font_system,
-            buffer,
-            font_attrs,
-        }
-    }
 }
 
 /// Layout information for a wrapper node and its text node.
@@ -848,44 +964,8 @@ impl Default for TaffyWrapperNodeStyles {
 struct NodeMeasureContext<'ctx> {
     nodes: &'ctx NodeNames,
     entity_descs: &'ctx EntityDescs,
-    entity_highlighted_spans: &'ctx mut EntityHighlightedSpans,
-    /// `syntect` loaded syntaxes.
-    syntax_set: &'ctx SyntaxSet,
-    /// `syntect` loaded themes.
-    theme_set: &'ctx ThemeSet,
-    /// `cosmic-text` data.
-    cosmic_text_context: &'ctx mut CosmicTextContext<'ctx>,
-    /// The entity description rejoined where `layout_runs` are separated by
-    /// newlines.
-    ///
-    /// This is needed for `syntect` highlights to be applied after the entity
-    /// description is reflowed based on the available space.
-    entity_desc_laid_out_buffer: &'ctx mut String,
-}
-
-/// Accumulator for node measurements.
-struct NodeMeasureAcc<'buffer> {
-    /// Longest width of a line (I think this is in pixels).
-    line_width_max: f32,
-    /// Number of `layout_run` lines.
-    ///
-    /// We use an `f32` because we are multiplying it by `line_height` later,
-    /// which is an `f32`, and we want to avoid a `usize` to `f32` conversion.
-    line_count: f32,
-    /// The entity description rejoined where `layout_runs` are separated by
-    /// newlines.
-    ///
-    /// This is needed for `syntect` highlights to be applied after the entity
-    /// description is reflowed based on the available space.
-    entity_desc_laid_out_buffer: &'buffer mut String,
-}
-
-impl<'buffer> NodeMeasureAcc<'buffer> {
-    fn new(entity_desc_laid_out_buffer: &'buffer mut String) -> Self {
-        Self {
-            line_width_max: 0.0,
-            line_count: 1.0,
-            entity_desc_laid_out_buffer,
-        }
-    }
+    /// Monospace character width in pixels.
+    char_width: f32,
+    /// Level of detail for the diagram.
+    lod: &'ctx DiagramLod,
 }
