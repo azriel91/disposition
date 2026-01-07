@@ -12,6 +12,10 @@ categories.workspace = true
 keywords.workspace = true
 license.workspace = true
 
+[lib]
+doctest = true
+test = false
+
 [dependencies]
 cosmic-text = { workspace = true }
 disposition_model_common = { workspace = true }

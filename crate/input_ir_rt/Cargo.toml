@@ -13,6 +13,13 @@ categories.workspace = true
 keywords.workspace = true
 license.workspace = true
 
+[lib]
+doctest = true
+test = false
+
+[lints]
+workspace = true
+
 [dependencies]
 base64 = { workspace = true }
 disposition_input_ir_model = { workspace = true }
@@ -24,6 +31,3 @@ encre-css = { workspace = true }
 taffy = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 typed-builder = { workspace = true }
-
-[lints]
-workspace = true
