@@ -3,7 +3,8 @@ use std::fmt::Write;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use disposition_ir_model::{node::NodeInbuilt, IrDiagram};
 use disposition_taffy_model::{
-    EntityHighlightedSpans, NodeContext, TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
+    EntityHighlightedSpans, NodeContext, NodeToTaffyNodeIds, TaffyNodeMappings, TEXT_FONT_SIZE,
+    TEXT_LINE_HEIGHT,
 };
 use taffy::TaffyTree;
 
@@ -103,7 +104,7 @@ impl TaffyToSvgMapper {
         taffy_tree: &TaffyTree<NodeContext>,
         node_id_to_taffy: &disposition_model_common::Map<
             disposition_ir_model::node::NodeId,
-            taffy::NodeId,
+            NodeToTaffyNodeIds,
         >,
         entity_highlighted_spans: &EntityHighlightedSpans,
         buffer: &mut String,
@@ -114,14 +115,23 @@ impl TaffyToSvgMapper {
             .iter()
             .for_each(|(node_id, &tab_index)| {
                 // Look up taffy layout for this node
-                let Some(&taffy_node_id) = node_id_to_taffy.get(node_id) else {
+                let Some(taffy_node_ids) = node_id_to_taffy.get(node_id).copied() else {
                     return;
+                };
+                let taffy_node_id = match taffy_node_ids {
+                    NodeToTaffyNodeIds::Leaf { text_node_id } => text_node_id,
+                    NodeToTaffyNodeIds::Wrapper {
+                        wrapper_node_id,
+                        text_node_id: _,
+                    } => wrapper_node_id,
                 };
                 let Ok(layout) = taffy_tree.layout(taffy_node_id) else {
                     return;
                 };
 
                 let (x, y) = {
+                    // We don't use the content_box here because these are coordinates for the
+                    // `<rect>` element.
                     let mut x_acc = layout.location.x;
                     let mut y_acc = layout.location.y;
                     let mut current_node_id = taffy_node_id;

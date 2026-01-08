@@ -16,14 +16,15 @@ use disposition_taffy_model::{
         Style, TaffyTree,
     },
     DiagramLod, DimensionAndLod, EntityHighlightedSpan, EntityHighlightedSpans, IrToTaffyError,
-    NodeContext, ProcessesIncluded, TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
+    NodeContext, NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeMappings, TEXT_FONT_SIZE,
+    TEXT_LINE_HEIGHT,
 };
 use typed_builder::TypedBuilder;
 
 /// Monospace character width as a ratio of font size.
 /// For Noto Sans Mono at 11px, the character width is approximately 6.6px (0.6
 /// * 11).
-const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.6;
+const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.605;
 
 /// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///
@@ -218,7 +219,7 @@ impl IrToTaffyBuilder<'_> {
     /// called multiple times.
     fn compute_highlighted_spans(
         taffy_tree: &TaffyTree<NodeContext>,
-        node_id_to_taffy: &Map<NodeId, taffy::NodeId>,
+        node_id_to_taffy: &Map<NodeId, NodeToTaffyNodeIds>,
         nodes: &NodeNames,
         entity_descs: &EntityDescs,
         syntax_set: &SyntaxSet,
@@ -239,14 +240,22 @@ impl IrToTaffyBuilder<'_> {
 
         node_id_to_taffy
             .iter()
-            .for_each(|(node_id, &taffy_node_id)| {
-                let Ok(layout) = taffy_tree.layout(taffy_node_id) else {
-                    return;
-                };
+            .for_each(|(node_id, &taffy_node_ids)| {
+                let (layout, node_context) = match taffy_node_ids {
+                    NodeToTaffyNodeIds::Leaf { text_node_id }
+                    | NodeToTaffyNodeIds::Wrapper {
+                        wrapper_node_id: _,
+                        text_node_id,
+                    } => {
+                        let Ok(layout) = taffy_tree.layout(text_node_id) else {
+                            return;
+                        };
+                        let Some(node_context) = taffy_tree.get_node_context(text_node_id) else {
+                            return;
+                        };
 
-                // Get the node context to access entity_id
-                let Some(node_context) = taffy_tree.get_node_context(taffy_node_id) else {
-                    return;
+                        (layout, node_context)
+                    }
                 };
 
                 let entity_id = &node_context.entity_id;
@@ -279,8 +288,8 @@ impl IrToTaffyBuilder<'_> {
                 let wrapped_lines = wrap_text_monospace(&text, char_width, max_width);
 
                 // Get style info for padding calculations
-                let padding_left = 0.0f32;
-                let padding_top = 0.0f32;
+                let padding_left = layout.padding.left;
+                let padding_top = layout.padding.top;
 
                 let highlighted_spans: Vec<EntityHighlightedSpan> = {
                     // Full syntax highlighting for markdown content
@@ -419,7 +428,7 @@ impl IrToTaffyBuilder<'_> {
                     };
                 }
 
-                let taffy_node_id = if child_hierarchy.is_empty() {
+                let wrapper_node_id = if child_hierarchy.is_empty() {
                     let taffy_style =
                         Self::taffy_container_style(node_layouts, node_id, Size::auto());
                     let taffy_text_node_id = taffy_tree
@@ -434,7 +443,12 @@ impl IrToTaffyBuilder<'_> {
                             panic!("Expected to create text leaf node for {node_id}. Error: {e}")
                         });
 
-                    node_id_to_taffy.insert(NodeId::from(node_id.clone()), taffy_text_node_id);
+                    node_id_to_taffy.insert(
+                        NodeId::from(node_id.clone()),
+                        NodeToTaffyNodeIds::Leaf {
+                            text_node_id: taffy_text_node_id,
+                        },
+                    );
 
                     taffy_text_node_id
                 } else {
@@ -470,24 +484,30 @@ impl IrToTaffyBuilder<'_> {
                             panic!("Expected to create text leaf node for {node_id}. Error: {e}")
                         });
 
-                    // Insert the text node into the mapping so that
-                    // `compute_highlighted_spans` can access its `NodeContext`.
-                    node_id_to_taffy.insert(NodeId::from(node_id.clone()), taffy_text_node_id);
-
-                    taffy_tree
+                    let wrapper_node_id = taffy_tree
                         .new_with_children(
                             wrapper_style,
                             &[taffy_text_node_id, taffy_children_container_id],
                         )
                         .unwrap_or_else(|e| {
                             panic!("Expected to create wrapper node for {node_id}. Error: {e}")
-                        })
+                        });
+
+                    node_id_to_taffy.insert(
+                        NodeId::from(node_id.clone()),
+                        NodeToTaffyNodeIds::Wrapper {
+                            wrapper_node_id,
+                            text_node_id: taffy_text_node_id,
+                        },
+                    );
+
+                    wrapper_node_id
                 };
 
                 entity_type_to_nodes
                     .entry(entity_type.clone())
                     .or_default()
-                    .push(taffy_node_id);
+                    .push(wrapper_node_id);
 
                 entity_type_to_nodes
             },
@@ -531,7 +551,12 @@ impl IrToTaffyBuilder<'_> {
                             panic!("Expected to create text leaf node for {node_id}. Error: {e}")
                         });
 
-                    node_id_to_taffy.insert(NodeId::from(node_id.clone()), taffy_text_node_id);
+                    node_id_to_taffy.insert(
+                        NodeId::from(node_id.clone()),
+                        NodeToTaffyNodeIds::Leaf {
+                            text_node_id: taffy_text_node_id,
+                        },
+                    );
 
                     taffy_text_node_id
                 } else {
@@ -567,18 +592,24 @@ impl IrToTaffyBuilder<'_> {
                             panic!("Expected to create text leaf node for {node_id}. Error: {e}")
                         });
 
-                    // Insert the text node into the mapping so that
-                    // `compute_highlighted_spans` can access its `NodeContext`.
-                    node_id_to_taffy.insert(NodeId::from(node_id.clone()), taffy_text_node_id);
-
-                    taffy_tree
+                    let wrapper_node_id = taffy_tree
                         .new_with_children(
                             wrapper_style,
                             &[taffy_text_node_id, taffy_children_container_id],
                         )
                         .unwrap_or_else(|e| {
                             panic!("Expected to create wrapper node for {node_id}. Error: {e}")
-                        })
+                        });
+
+                    node_id_to_taffy.insert(
+                        NodeId::from(node_id.clone()),
+                        NodeToTaffyNodeIds::Wrapper {
+                            wrapper_node_id,
+                            text_node_id: taffy_text_node_id,
+                        },
+                    );
+
+                    wrapper_node_id
                 }
             })
             .collect::<Vec<taffy::NodeId>>()
@@ -692,6 +723,7 @@ impl IrToTaffyBuilder<'_> {
                             top: LengthPercentage::length(flex_layout.padding_top()),
                             bottom: LengthPercentage::length(flex_layout.padding_bottom()),
                         },
+                        flex_grow: 1.0,
                         ..Default::default()
                     };
                     let child_container_style = Style {
@@ -926,7 +958,7 @@ struct TaffyNodeBuildContext<'ctx> {
     node_layouts: &'ctx NodeLayouts,
     node_hierarchy: &'ctx NodeHierarchy,
     entity_types: &'ctx EntityTypes,
-    node_id_to_taffy: &'ctx mut Map<NodeId, taffy::NodeId>,
+    node_id_to_taffy: &'ctx mut Map<NodeId, NodeToTaffyNodeIds>,
 }
 
 /// Layout information for a wrapper node and its text node.

@@ -22,8 +22,8 @@ pub use crate::{
     diagram_lod::DiagramLod, dimension::Dimension, dimension_and_lod::DimensionAndLod,
     entity_highlighted_span::EntityHighlightedSpan,
     entity_highlighted_spans::EntityHighlightedSpans, error::IrToTaffyError,
-    node_context::NodeContext, processes_included::ProcessesIncluded,
-    taffy_node_mappings::TaffyNodeMappings,
+    ir_node_taffy_node_ids::NodeToTaffyNodeIds, node_context::NodeContext,
+    processes_included::ProcessesIncluded, taffy_node_mappings::TaffyNodeMappings,
 };
 
 mod diagram_lod;
@@ -32,6 +32,7 @@ mod dimension_and_lod;
 mod entity_highlighted_span;
 mod entity_highlighted_spans;
 mod error;
+mod ir_node_taffy_node_ids;
 mod node_context;
 mod processes_included;
 mod taffy_node_mappings;
