@@ -641,10 +641,13 @@ impl IrToTaffyBuilder<'_> {
                         bottom: LengthPercentage::length(flex_layout.padding_bottom()),
                     },
                     border: Rect::length(1.0f32),
-                    align_items: Some(AlignItems::Center),
-                    justify_items: Some(AlignItems::Center),
-                    align_content: Some(AlignContent::Center),
-                    justify_content: Some(AlignContent::Center),
+                    // We use `AlignItems::Start` because we want coordinates to be as close to the
+                    // top-left corner as possible. If we use `AlignItems::Center`, the coordinates
+                    // may be negative when the content width exceeds the diagram dimension.
+                    align_items: Some(AlignItems::Start),
+                    justify_items: Some(AlignItems::Start),
+                    align_content: Some(AlignContent::Start),
+                    justify_content: Some(AlignContent::Start),
                     gap: Size::length(flex_layout.gap()),
                     flex_direction: FlexDirection::from(flex_layout.direction()),
                     flex_wrap: if flex_layout.wrap() {
@@ -686,8 +689,8 @@ impl IrToTaffyBuilder<'_> {
                         border: Rect::length(1.0f32),
                         align_items: Some(AlignItems::FlexStart),
                         justify_items: Some(AlignItems::FlexStart),
-                        align_content: Some(AlignContent::Center),
-                        justify_content: Some(AlignContent::Center),
+                        align_content: Some(AlignContent::FlexStart),
+                        justify_content: Some(AlignContent::FlexStart),
                         flex_direction: FlexDirection::Column,
                         flex_wrap: FlexWrap::NoWrap,
                         ..Default::default()
@@ -987,10 +990,10 @@ impl Default for TaffyWrapperNodeStyles {
                 display: Display::Flex,
                 flex_direction: FlexDirection::Row,
                 flex_wrap: FlexWrap::Wrap,
-                align_items: Some(AlignItems::Center),
-                justify_items: Some(AlignItems::Center),
-                align_content: Some(AlignContent::Center),
-                justify_content: Some(AlignContent::Center),
+                align_items: Some(AlignItems::Start),
+                justify_items: Some(AlignItems::Start),
+                align_content: Some(AlignContent::Start),
+                justify_content: Some(AlignContent::Start),
                 ..Default::default()
             },
         }
