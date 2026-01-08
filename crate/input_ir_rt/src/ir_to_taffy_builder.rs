@@ -20,11 +20,13 @@ use disposition_taffy_model::{
     TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
 };
 use typed_builder::TypedBuilder;
+use unicode_segmentation::UnicodeSegmentation;
 
 /// Monospace character width as a ratio of font size.
 /// For Noto Sans Mono at 11px, the character width is approximately 6.6px (0.6
 /// * 11).
 const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.5;
+const EMOJI_CHAR_WIDTH: f32 = 2.5;
 
 /// Actual number of pixels taken up per character.
 ///
@@ -314,7 +316,7 @@ impl IrToTaffyBuilder<'_> {
                                 .into_iter()
                                 .map(|(style, text)| {
                                     let x = previous_span_x_end;
-                                    let width = text.chars().count() as f32 * char_width;
+                                    let width = line_width_measure(text, char_width);
                                     previous_span_x_end = x + width;
 
                                     EntityHighlightedSpan {
@@ -859,7 +861,7 @@ fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) 
                 // Word wrap this line
                 let wrapped = wrap_line_monospace(line, max_chars);
                 wrapped.into_iter().for_each(|wrapped_line| {
-                    // Note: this is where we *would* measure emoji if we could
+                    // Note: Ideally we can get a library to measure all kinds of graphemes.
                     //
                     // I tried this:
                     //
@@ -867,7 +869,7 @@ fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) 
                     // let width = unicode_width::UnicodeWidthStr::width_cjk(wrapped_line) as f32 * char_width;
                     // ```
                     //
-                    // but it didn't make a difference.
+                    // but it didn't count emoji widths correctly.
                     //
                     // Also tried `string-width`:
                     //
@@ -875,14 +877,14 @@ fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) 
                     // let width = string_width::string_width(wrapped_line) as f32 * char_width;
                     // ```
 
-                    let width = wrapped_line.chars().count() as f32 * char_width;
+                    let width = line_width_measure(wrapped_line, char_width);
                     line_width_max = line_width_max.max(width);
                     line_count += 1.0;
                 });
             }
             _ => {
                 // let width = string_width::string_width(line) as f32 * char_width;
-                let width = line_char_count as f32 * char_width;
+                let width = line_width_measure(line, char_width);
                 line_width_max = line_width_max.max(width);
                 line_count += 1.0;
             }
@@ -890,6 +892,16 @@ fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) 
     });
 
     (line_width_max * LETTER_SPACING_RATIO, line_count)
+}
+
+fn line_width_measure(line: &str, char_width: f32) -> f32 {
+    line.graphemes(true)
+        .map(|grapheme| match emojis::get(grapheme).is_some() {
+            true => EMOJI_CHAR_WIDTH,
+            false => 1.0f32,
+        })
+        .sum::<f32>()
+        * char_width
 }
 
 /// Wrap text for display, returning owned strings for each line.

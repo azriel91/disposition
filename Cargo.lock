@@ -1707,10 +1707,12 @@ dependencies = [
  "disposition_ir_model",
  "disposition_model_common",
  "disposition_taffy_model",
+ "emojis",
  "encre-css",
  "serde",
  "taffy",
  "typed-builder",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -1852,6 +1854,15 @@ name = "dunce"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
+
+[[package]]
+name = "emojis"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50c1c1870b766fc398e5f0526498d09c94b6de15be5fd769a28bbc804fb1b05d"
+dependencies = [
+ "phf 0.13.1",
+]
 
 [[package]]
 name = "encoding_rs"

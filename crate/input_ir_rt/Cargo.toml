@@ -27,7 +27,9 @@ disposition_ir_model = { workspace = true }
 disposition_input_model = { workspace = true }
 disposition_model_common = { workspace = true }
 disposition_taffy_model = { workspace = true }
+emojis = { workspace = true }
 encre-css = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 taffy = { workspace = true }
 typed-builder = { workspace = true }
+unicode-segmentation = { workspace = true }
