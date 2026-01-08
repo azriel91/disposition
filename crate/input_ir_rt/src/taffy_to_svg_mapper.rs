@@ -204,7 +204,7 @@ impl TaffyToSvgMapper {
                             "<text \
                                 x=\"{text_x}\" \
                                 y=\"{text_y}\" \
-                                fill=\"{fill_color}\" \
+                                style=\"fill: {fill_color};\" \
                                 stroke-width=\"0\" \
                             >{text_content}</text>"
                         )
