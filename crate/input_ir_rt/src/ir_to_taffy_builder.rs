@@ -24,7 +24,7 @@ use typed_builder::TypedBuilder;
 /// Monospace character width as a ratio of font size.
 /// For Noto Sans Mono at 11px, the character width is approximately 6.6px (0.6
 /// * 11).
-const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.605;
+const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.6;
 
 /// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///
@@ -850,12 +850,28 @@ fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) 
                 // Word wrap this line
                 let wrapped = wrap_line_monospace(line, max_chars);
                 wrapped.into_iter().for_each(|wrapped_line| {
+                    // Note: this is where we *would* measure emoji if we could
+                    //
+                    // I tried this:
+                    //
+                    // ```rust
+                    // let width = unicode_width::UnicodeWidthStr::width_cjk(wrapped_line) as f32 * char_width;
+                    // ```
+                    //
+                    // but it didn't make a difference.
+                    //
+                    // Also tried `string-width`:
+                    //
+                    // ```rust
+                    // let width = string_width::string_width(wrapped_line) as f32 * char_width;
+                    // ```
                     let width = wrapped_line.chars().count() as f32 * char_width;
                     line_width_max = line_width_max.max(width);
                     line_count += 1.0;
                 });
             }
             _ => {
+                // let width = string_width::string_width(line) as f32 * char_width;
                 let width = line_char_count as f32 * char_width;
                 line_width_max = line_width_max.max(width);
                 line_count += 1.0;
