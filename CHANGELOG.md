@@ -3,8 +3,12 @@
 ## unreleased
 
 * Add `disposition_playground` dioxus app. ([#7][#7])
+* Improve diagram rendering performance. ([#8][#8])
+* Remove `syntect` syntax highlighting. ([#8][#8])
+* Replace `cosmic-text` font width measurement with simple multiplication. ([#8][#8])
 
 [#7]: https://github.com/azriel91/disposition/pull/7
+[#8]: https://github.com/azriel91/disposition/pull/8
 
 
 ## 0.0.2 (2026-01-06)
