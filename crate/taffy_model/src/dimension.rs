@@ -22,6 +22,9 @@ pub enum Dimension {
     Xl,
     /// Diagram should fit within 1536x1280.
     _2xl,
+    /// Diagram should not be limited in size, and the content should be given
+    /// as much space as it needs.
+    NoLimit,
     /// Custom dimension with specified width and height.
     Custom { width: f32, height: f32 },
 }
@@ -34,6 +37,7 @@ impl Dimension {
             Dimension::Lg => 1024.0,
             Dimension::Xl => 1280.0,
             Dimension::_2xl => 1536.0,
+            Dimension::NoLimit => f32::INFINITY,
             Dimension::Custom { width, height: _ } => width,
         }
     }
@@ -45,6 +49,7 @@ impl Dimension {
             Dimension::Lg => 768.0,
             Dimension::Xl => 1024.0,
             Dimension::_2xl => 1280.0,
+            Dimension::NoLimit => f32::INFINITY,
             Dimension::Custom { width: _, height } => height,
         }
     }

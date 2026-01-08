@@ -111,7 +111,7 @@ pub fn DispositionEditor() -> Element {
                 let taffy_node_builder_start = Instant::now();
                 let ir_to_taffy_builder = IrToTaffyBuilder::builder()
                     .with_ir_diagram(ir_diagram)
-                    .with_dimension_and_lods(vec![DimensionAndLod::default_lg()])
+                    .with_dimension_and_lods(vec![DimensionAndLod::default_no_limit()])
                     .build();
                 let taffy_node_builder_duration_ms = Instant::now()
                     .duration_since(taffy_node_builder_start)

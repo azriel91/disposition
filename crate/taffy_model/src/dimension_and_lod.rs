@@ -45,4 +45,10 @@ impl DimensionAndLod {
     pub fn default_2xl() -> Self {
         Self::new(Dimension::_2xl, DiagramLod::Normal)
     }
+
+    /// Returns a new `DimensionAndLod` with [`Dimension::NoLimit`] and
+    /// [`DiagramLod::Normal`].
+    pub fn default_no_limit() -> Self {
+        Self::new(Dimension::NoLimit, DiagramLod::Normal)
+    }
 }

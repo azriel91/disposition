@@ -15,16 +15,22 @@ use disposition_taffy_model::{
         AlignContent, AlignItems, AvailableSpace, Display, FlexWrap, LengthPercentage, Rect, Size,
         Style, TaffyTree,
     },
-    DiagramLod, DimensionAndLod, EntityHighlightedSpan, EntityHighlightedSpans, IrToTaffyError,
-    NodeContext, NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeMappings, TEXT_FONT_SIZE,
-    TEXT_LINE_HEIGHT,
+    DiagramLod, Dimension, DimensionAndLod, EntityHighlightedSpan, EntityHighlightedSpans,
+    IrToTaffyError, NodeContext, NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeMappings,
+    TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
 };
 use typed_builder::TypedBuilder;
 
 /// Monospace character width as a ratio of font size.
 /// For Noto Sans Mono at 11px, the character width is approximately 6.6px (0.6
 /// * 11).
-const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.6;
+const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.5;
+
+/// Actual number of pixels taken up per character.
+///
+/// It seems that with Noto Sans Mono at least, the width of the rect that
+/// should encompass the text is `1.1 * char_count * char_width;`.
+const LETTER_SPACING_RATIO: f32 = 1.1;
 
 /// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///
@@ -373,7 +379,10 @@ impl IrToTaffyBuilder<'_> {
             taffy_tree,
             node_layouts,
             NodeInbuilt::Root,
-            Size::from_lengths(dimension.width(), dimension.height()),
+            match dimension {
+                Dimension::NoLimit => Size::auto(),
+                _ => Size::from_lengths(dimension.width(), dimension.height()),
+            },
             &[tags_container, things_and_processes_container],
         );
 
@@ -865,6 +874,7 @@ fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) 
                     // ```rust
                     // let width = string_width::string_width(wrapped_line) as f32 * char_width;
                     // ```
+
                     let width = wrapped_line.chars().count() as f32 * char_width;
                     line_width_max = line_width_max.max(width);
                     line_count += 1.0;
@@ -879,7 +889,7 @@ fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) 
         }
     });
 
-    (line_width_max, line_count)
+    (line_width_max * LETTER_SPACING_RATIO, line_count)
 }
 
 /// Wrap text for display, returning owned strings for each line.
