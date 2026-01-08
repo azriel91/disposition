@@ -13,12 +13,12 @@ keywords.workspace = true
 license.workspace = true
 publish = false
 
-[lints]
-workspace = true
-
 [lib]
 doctest = false
 test = true
+
+[lints]
+workspace = true
 
 [dev-dependencies]
 disposition = { workspace = true, features = ["test"] }

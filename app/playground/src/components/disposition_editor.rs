@@ -19,6 +19,11 @@ use disposition::{
 };
 use disposition_input_ir_rt::{InputToIrDiagramMapper, IrToTaffyBuilder, TaffyToSvgMapper};
 
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
+
 use crate::components::{InputDiagramDiv, IrDiagramDiv, TaffyNodeMappingsDiv};
 
 #[component]
@@ -33,17 +38,17 @@ pub fn DispositionEditor() -> Element {
         status_messages.clear();
 
         let input_diagram_string = &*input_diagram_string.read();
-        info!("Running `input_diagram` signal.");
         if input_diagram_string.is_empty() {
-            info!("`input_diagram_string` is empty");
             status_messages.push(String::from("ℹ️ Enter input diagram"));
 
             None
         } else {
-            info!("Deserializing `input_diagram`");
+            let deserialize_start = Instant::now();
             match serde_saphyr::from_str(input_diagram_string) {
                 Ok(input_diagram) => {
-                    info!("Deserialized `input_diagram`");
+                    let deserialize_duration_ms =
+                        Instant::now().duration_since(deserialize_start).as_millis();
+                    info!("`input_diagram` deserialization took {deserialize_duration_ms} ms.");
                     Some(input_diagram)
                 }
                 Err(error) => {
@@ -61,7 +66,12 @@ pub fn DispositionEditor() -> Element {
         let input_diagram = input_diagram.read().cloned();
         match input_diagram {
             Some(input_diagram) => {
+                let input_to_ir_map_start = Instant::now();
                 let input_diagram_and_issues = InputToIrDiagramMapper::map(input_diagram);
+                let input_to_ir_map_duration_ms = Instant::now()
+                    .duration_since(input_to_ir_map_start)
+                    .as_millis();
+                info!("`InputToIrDiagramMapper::map` took {input_to_ir_map_duration_ms} ms.");
                 let IrDiagramAndIssues { diagram, issues } = input_diagram_and_issues;
 
                 if !issues.is_empty() {
@@ -83,7 +93,6 @@ pub fn DispositionEditor() -> Element {
                     status_messages.push(error.to_string());
                 });
 
-                info!("Built `ir_diagram`");
                 Some(diagram)
             }
             None => {
@@ -99,15 +108,25 @@ pub fn DispositionEditor() -> Element {
         let ir_diagram = &*ir_diagram.read();
         match ir_diagram {
             Some(ir_diagram) => {
+                let taffy_node_builder_start = Instant::now();
                 let ir_to_taffy_builder = IrToTaffyBuilder::builder()
                     .with_ir_diagram(ir_diagram)
-                    .with_dimension_and_lods(vec![DimensionAndLod::default_lg()])
+                    .with_dimension_and_lods(vec![DimensionAndLod::default_no_limit()])
                     .build();
+                let taffy_node_builder_duration_ms = Instant::now()
+                    .duration_since(taffy_node_builder_start)
+                    .as_millis();
+                info!("`IrToTaffyBuilder` init took {taffy_node_builder_duration_ms} ms.");
 
                 let taffy_node_mappings_iter_result = ir_to_taffy_builder.build();
                 match taffy_node_mappings_iter_result {
                     Ok(mut taffy_node_mappings_iter) => {
+                        let taffy_node_mappings_start = Instant::now();
                         let taffy_node_mappings = taffy_node_mappings_iter.next()?;
+                        let taffy_node_mappings_duration_ms = Instant::now()
+                            .duration_since(taffy_node_mappings_start)
+                            .as_millis();
+                        info!("`taffy_node_mappings` generation took {taffy_node_mappings_duration_ms} ms.");
 
                         let mut taffy_node_mappings_string = taffy_node_mappings_string.write();
                         taffy_node_mappings_string.clear();
@@ -125,7 +144,6 @@ pub fn DispositionEditor() -> Element {
                                 .copied()
                                 .expect("Expected root taffy node to exist."),
                         );
-                        info!("Built `taffy_node_mappings`");
                         Some(taffy_node_mappings)
                     }
                     Err(error) => {
@@ -148,7 +166,14 @@ pub fn DispositionEditor() -> Element {
             .as_ref()
             .zip(taffy_node_mappings.clone())
             .map(|(ir_diagram, taffy_node_mappings)| {
-                TaffyToSvgMapper::map(ir_diagram, taffy_node_mappings)
+                let svg_generation_start = Instant::now();
+                let svg = TaffyToSvgMapper::map(ir_diagram, taffy_node_mappings);
+                let svg_generation_duration_ms = Instant::now()
+                    .duration_since(svg_generation_start)
+                    .as_millis();
+                info!("`svg` generation took {svg_generation_duration_ms} ms.");
+
+                svg
             })
             .unwrap_or_default()
     });
