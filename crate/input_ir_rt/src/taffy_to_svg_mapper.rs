@@ -191,10 +191,10 @@ impl TaffyToSvgMapper {
                     for span in spans {
                         let text_x = span.x;
                         let text_y = span.y;
-                        let r = span.style.foreground.r;
-                        let g = span.style.foreground.g;
-                        let b = span.style.foreground.b;
-                        let fill_color = format!("#{r:02x}{g:02x}{b:02x}");
+                        // let r = span.style.foreground.r;
+                        // let g = span.style.foreground.g;
+                        // let b = span.style.foreground.b;
+                        // let fill_color = format!("#{r:02x}{g:02x}{b:02x}");
                         let text_content = Self::escape_xml(&span.text);
 
                         // zero stroke-width because we want the tailwind classes from `<g>` to
@@ -204,7 +204,6 @@ impl TaffyToSvgMapper {
                             "<text \
                                 x=\"{text_x}\" \
                                 y=\"{text_y}\" \
-                                style=\"fill: {fill_color};\" \
                                 stroke-width=\"0\" \
                             >{text_content}</text>"
                         )

@@ -2,7 +2,6 @@
 
 // Re-exports
 pub use cosmic_text;
-pub use syntect;
 pub use taffy;
 // This allows consumers to not need to depend on `utoipa` manually.
 #[cfg(all(feature = "openapi", not(feature = "test")))]

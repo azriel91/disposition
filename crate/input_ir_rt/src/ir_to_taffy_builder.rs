@@ -8,7 +8,6 @@ use disposition_ir_model::{
 };
 use disposition_model_common::Map;
 use disposition_taffy_model::{
-    syntect::{easy::HighlightLines, highlighting::ThemeSet, parsing::SyntaxSet},
     taffy::{
         self,
         style::{FlexDirection, LengthPercentageAuto},
@@ -53,12 +52,6 @@ const LETTER_SPACING_RATIO: f32 = 1.1;
 /// ```
 #[derive(Debug, TypedBuilder)]
 pub struct IrToTaffyBuilder<'builder> {
-    /// Available `syntect` syntaxes.
-    #[builder(setter(prefix = "with_"), default = SyntaxSet::load_defaults_newlines())]
-    syntax_set: SyntaxSet,
-    /// Available `syntect` themes.
-    #[builder(setter(prefix = "with_"), default = ThemeSet::load_defaults())]
-    theme_set: ThemeSet,
     /// The intermediate representation of the diagram to render the taffy trees
     /// for.
     #[builder(setter(prefix = "with_"))]
@@ -80,8 +73,6 @@ impl IrToTaffyBuilder<'_> {
     /// dimension.
     pub fn build(&self) -> Result<impl Iterator<Item = TaffyNodeMappings>, IrToTaffyError> {
         let IrToTaffyBuilder {
-            syntax_set,
-            theme_set,
             ir_diagram,
             dimension_and_lods,
             processes_included,
@@ -92,8 +83,6 @@ impl IrToTaffyBuilder<'_> {
                 .iter()
                 .flat_map(move |dimension_and_lod| {
                     Self::build_taffy_trees_for_dimension(
-                        syntax_set,
-                        theme_set,
                         ir_diagram,
                         dimension_and_lod,
                         processes_included,
@@ -108,8 +97,6 @@ impl IrToTaffyBuilder<'_> {
     /// This includes the processes container. Clicking on each process node
     /// reveals the process steps.
     fn build_taffy_trees_for_dimension(
-        syntax_set: &SyntaxSet,
-        theme_set: &ThemeSet,
         ir_diagram: &IrDiagram,
         dimension_and_lod: &DimensionAndLod,
         processes_included: &ProcessesIncluded,
@@ -208,8 +195,6 @@ impl IrToTaffyBuilder<'_> {
             &node_id_to_taffy,
             nodes,
             entity_descs,
-            syntax_set,
-            theme_set,
             char_width,
             lod,
         );
@@ -230,19 +215,11 @@ impl IrToTaffyBuilder<'_> {
         node_id_to_taffy: &Map<NodeId, NodeToTaffyNodeIds>,
         nodes: &NodeNames,
         entity_descs: &EntityDescs,
-        syntax_set: &SyntaxSet,
-        theme_set: &ThemeSet,
         char_width: f32,
         lod: &DiagramLod,
     ) -> EntityHighlightedSpans {
         let mut entity_highlighted_spans =
             EntityHighlightedSpans::with_capacity(node_id_to_taffy.len());
-
-        // Cache syntax and theme lookups
-        let md_syntax = syntax_set
-            .find_syntax_by_extension("md")
-            .unwrap_or_else(|| syntax_set.find_syntax_plain_text());
-        let highlight_theme = &theme_set.themes["InspiredGitHub"];
 
         let line_height = TEXT_LINE_HEIGHT;
 
@@ -300,35 +277,24 @@ impl IrToTaffyBuilder<'_> {
                 let padding_top = layout.padding.top;
 
                 let highlighted_spans: Vec<EntityHighlightedSpan> = {
-                    // Full syntax highlighting for markdown content
-                    let mut highlighter = HighlightLines::new(md_syntax, highlight_theme);
-
                     wrapped_lines
                         .iter()
                         .enumerate()
                         .flat_map(|(line_index, line)| {
-                            let mut previous_span_x_end = padding_left;
+                            let x = padding_left;
                             let y = (line_index + 1) as f32 * line_height + padding_top;
+                            let width = line_width_measure(line, char_width);
 
-                            highlighter
-                                .highlight_line(line, syntax_set)
-                                .unwrap_or_default()
-                                .into_iter()
-                                .map(|(style, text)| {
-                                    let x = previous_span_x_end;
-                                    let width = line_width_measure(text, char_width);
-                                    previous_span_x_end = x + width;
+                            let entity_highlighted_span = EntityHighlightedSpan {
+                                x,
+                                y,
+                                width,
+                                height: line_height,
+                                // style,
+                                text: line.to_string(),
+                            };
 
-                                    EntityHighlightedSpan {
-                                        x,
-                                        y,
-                                        width,
-                                        height: line_height,
-                                        style,
-                                        text: text.to_string(),
-                                    }
-                                })
-                                .collect::<Vec<_>>()
+                            vec![entity_highlighted_span]
                         })
                         .collect()
                 };
