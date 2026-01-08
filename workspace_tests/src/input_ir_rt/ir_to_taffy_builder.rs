@@ -70,6 +70,7 @@ fn assert_taffy_measurements(
         node_inbuilt_to_taffy,
         // TODO: make assertions for node positioning
         node_id_to_taffy: _,
+        taffy_id_to_node: _,
         entity_highlighted_spans: _,
     } = taffy_node_mappings;
     let root_layout = node_inbuilt_to_taffy

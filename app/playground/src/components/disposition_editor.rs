@@ -11,10 +11,14 @@ use dioxus::{
 use disposition::{
     input_ir_model::IrDiagramAndIssues,
     input_model::InputDiagram,
-    ir_model::{node::NodeInbuilt, IrDiagram},
+    ir_model::{
+        node::{NodeId, NodeInbuilt},
+        IrDiagram,
+    },
+    model_common::Map,
     taffy_model::{
-        taffy::{self, PrintTree, TaffyTree},
-        DimensionAndLod, NodeContext, TaffyNodeMappings,
+        taffy::{self, PrintTree},
+        DimensionAndLod, TaffyNodeMappings,
     },
 };
 use disposition_input_ir_rt::{InputToIrDiagramMapper, IrToTaffyBuilder, TaffyToSvgMapper};
@@ -130,20 +134,7 @@ pub fn DispositionEditor() -> Element {
 
                         let mut taffy_node_mappings_string = taffy_node_mappings_string.write();
                         taffy_node_mappings_string.clear();
-                        let TaffyNodeMappings {
-                            taffy_tree,
-                            node_inbuilt_to_taffy,
-                            node_id_to_taffy: _,
-                            entity_highlighted_spans: _,
-                        } = &taffy_node_mappings;
-                        taffy_tree_fmt(
-                            &mut taffy_node_mappings_string,
-                            taffy_tree,
-                            node_inbuilt_to_taffy
-                                .get(&NodeInbuilt::Root)
-                                .copied()
-                                .expect("Expected root taffy node to exist."),
-                        );
+                        taffy_tree_fmt(&mut taffy_node_mappings_string, &taffy_node_mappings);
                         Some(taffy_node_mappings)
                     }
                     Err(error) => {
@@ -208,26 +199,46 @@ pub fn DispositionEditor() -> Element {
 /// This is copied and modified from the `taffy::TaffyTree::print_tree` method:
 ///
 /// <https://github.com/DioxusLabs/taffy/blob/v0.9.2/src/util/print.rs#L5>
-fn taffy_tree_fmt(
-    buffer: &mut String,
-    taffy_tree: &TaffyTree<NodeContext>,
-    root_taffy_node_id: taffy::NodeId,
-) {
+///
+/// then adapted to print the disposition diagram node ID.
+fn taffy_tree_fmt(buffer: &mut String, taffy_node_mappings: &TaffyNodeMappings) {
+    let TaffyNodeMappings {
+        taffy_tree,
+        node_inbuilt_to_taffy,
+        node_id_to_taffy: _,
+        entity_highlighted_spans: _,
+        taffy_id_to_node,
+    } = taffy_node_mappings;
+    let root_taffy_node_id = node_inbuilt_to_taffy
+        .get(&NodeInbuilt::Root)
+        .copied()
+        .expect("Expected root taffy node to exist.");
     writeln!(buffer, "TREE").expect("Failed to write taffy tree to buffer");
-    taffy_tree_node_fmt(buffer, taffy_tree, root_taffy_node_id, false, String::new());
+    taffy_tree_node_fmt(
+        buffer,
+        taffy_tree,
+        taffy_id_to_node,
+        root_taffy_node_id,
+        false,
+        String::new(),
+    );
 }
 
 /// Recursive function that prints each node in the tree
 fn taffy_tree_node_fmt(
     buffer: &mut String,
     tree: &impl PrintTree,
-    node_id: taffy::NodeId,
+    taffy_id_to_node: &Map<taffy::NodeId, NodeId>,
+    taffy_node_id: taffy::NodeId,
     has_sibling: bool,
     lines_string: String,
 ) {
-    let layout = &tree.get_final_layout(node_id);
-    let display = tree.get_debug_label(node_id);
-    let num_children = tree.child_count(node_id);
+    let layout = &tree.get_final_layout(taffy_node_id);
+    let display = taffy_id_to_node
+        .get(&taffy_node_id)
+        .map(|node_id| node_id.as_str())
+        .unwrap_or_else(|| tree.get_debug_label(taffy_node_id));
+    let num_children = tree.child_count(taffy_node_id);
 
     let fork_string = if has_sibling {
         "├── "
@@ -236,7 +247,7 @@ fn taffy_tree_node_fmt(
     };
     writeln!(
         buffer,
-        "{lines}{fork} {display} [x: {x:<4} y: {y:<4} w: {width:<4} h: {height:<4} content_w: {content_width:<4} content_h: {content_height:<4}, padding: l:{pl} r:{pr} t:{pt} b:{pb}] ({key:?})",
+        "{lines}{fork} {display} [x: {x:<4} y: {y:<4} w: {width:<4} h: {height:<4} content_w: {content_width:<4} content_h: {content_height:<4}, padding: l:{pl} r:{pr} t:{pt} b:{pb}]",
         lines = lines_string,
         fork = fork_string,
         display = display,
@@ -258,18 +269,24 @@ fn taffy_tree_node_fmt(
         pr = layout.padding.right,
         pt = layout.padding.top,
         pb = layout.padding.bottom,
-        key = node_id,
     )
     .expect("Failed to write taffy tree to buffer");
     let bar = if has_sibling { "│   " } else { "    " };
     let new_string = lines_string + bar;
 
     // Recurse into children
-    tree.child_ids(node_id)
+    tree.child_ids(taffy_node_id)
         .enumerate()
         .for_each(|(index, child)| {
             let has_sibling = index < num_children - 1;
-            taffy_tree_node_fmt(buffer, tree, child, has_sibling, new_string.clone());
+            taffy_tree_node_fmt(
+                buffer,
+                tree,
+                taffy_id_to_node,
+                child,
+                has_sibling,
+                new_string.clone(),
+            );
         });
 }
 

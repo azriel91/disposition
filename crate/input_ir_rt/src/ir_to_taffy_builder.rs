@@ -118,6 +118,7 @@ impl IrToTaffyBuilder<'_> {
 
         let mut taffy_tree = TaffyTree::new();
         let mut node_id_to_taffy = Map::new();
+        let mut taffy_id_to_node = Map::new();
 
         let taffy_node_build_context = TaffyNodeBuildContext {
             taffy_tree: &mut taffy_tree,
@@ -126,6 +127,7 @@ impl IrToTaffyBuilder<'_> {
             node_hierarchy,
             entity_types,
             node_id_to_taffy: &mut node_id_to_taffy,
+            taffy_id_to_node: &mut taffy_id_to_node,
         };
         let first_level_taffy_nodes = Self::build_taffy_nodes_for_first_level_nodes(
             taffy_node_build_context,
@@ -145,6 +147,7 @@ impl IrToTaffyBuilder<'_> {
             .unwrap_or_default();
         let node_inbuilt_to_taffy = Self::build_taffy_container_nodes(
             &mut taffy_tree,
+            &mut taffy_id_to_node,
             node_layouts,
             dimension,
             thing_taffy_node_ids,
@@ -203,6 +206,7 @@ impl IrToTaffyBuilder<'_> {
             taffy_tree,
             node_inbuilt_to_taffy,
             node_id_to_taffy,
+            taffy_id_to_node,
             entity_highlighted_spans,
         })
     }
@@ -308,6 +312,7 @@ impl IrToTaffyBuilder<'_> {
     /// Adds the inbuilt container nodes to the `TaffyTree`.
     fn build_taffy_container_nodes(
         taffy_tree: &mut TaffyTree<NodeContext>,
+        taffy_id_to_node: &mut Map<taffy::NodeId, NodeId>,
         node_layouts: &NodeLayouts,
         dimension: &disposition_taffy_model::Dimension,
         thing_taffy_node_ids: &[taffy::NodeId],
@@ -364,6 +369,24 @@ impl IrToTaffyBuilder<'_> {
         node_inbuilt_to_taffy.insert(NodeInbuilt::TagsContainer, tags_container);
         node_inbuilt_to_taffy.insert(NodeInbuilt::Root, root);
 
+        taffy_id_to_node.insert(
+            things_container,
+            NodeId::from(NodeInbuilt::ThingsContainer.id()),
+        );
+        taffy_id_to_node.insert(
+            processes_container,
+            NodeId::from(NodeInbuilt::ProcessesContainer.id()),
+        );
+        taffy_id_to_node.insert(
+            things_and_processes_container,
+            NodeId::from(NodeInbuilt::ThingsAndProcessesContainer.id()),
+        );
+        taffy_id_to_node.insert(
+            tags_container,
+            NodeId::from(NodeInbuilt::TagsContainer.id()),
+        );
+        taffy_id_to_node.insert(root, NodeId::from(NodeInbuilt::Root.id()));
+
         node_inbuilt_to_taffy
     }
 
@@ -382,6 +405,7 @@ impl IrToTaffyBuilder<'_> {
             node_hierarchy,
             entity_types,
             node_id_to_taffy,
+            taffy_id_to_node,
         } = taffy_node_build_context;
 
         node_hierarchy.iter().fold(
@@ -426,6 +450,7 @@ impl IrToTaffyBuilder<'_> {
                             text_node_id: taffy_text_node_id,
                         },
                     );
+                    taffy_id_to_node.insert(taffy_text_node_id, NodeId::from(node_id.clone()));
 
                     taffy_text_node_id
                 } else {
@@ -452,6 +477,7 @@ impl IrToTaffyBuilder<'_> {
                         node_hierarchy: child_hierarchy,
                         entity_types,
                         node_id_to_taffy,
+                        taffy_id_to_node,
                     };
                     let taffy_children_ids =
                         Self::build_taffy_child_nodes_for_node(taffy_node_build_context);
@@ -477,6 +503,7 @@ impl IrToTaffyBuilder<'_> {
                             text_node_id: taffy_text_node_id,
                         },
                     );
+                    taffy_id_to_node.insert(wrapper_node_id, NodeId::from(node_id.clone()));
 
                     wrapper_node_id
                 };
@@ -502,6 +529,7 @@ impl IrToTaffyBuilder<'_> {
             node_hierarchy,
             entity_types,
             node_id_to_taffy,
+            taffy_id_to_node,
         } = taffy_node_build_context;
 
         node_hierarchy
@@ -534,6 +562,7 @@ impl IrToTaffyBuilder<'_> {
                             text_node_id: taffy_text_node_id,
                         },
                     );
+                    taffy_id_to_node.insert(taffy_text_node_id, NodeId::from(node_id.clone()));
 
                     taffy_text_node_id
                 } else {
@@ -560,6 +589,7 @@ impl IrToTaffyBuilder<'_> {
                         node_hierarchy: child_hierarchy,
                         entity_types,
                         node_id_to_taffy,
+                        taffy_id_to_node,
                     };
                     let taffy_children_ids =
                         Self::build_taffy_child_nodes_for_node(taffy_node_build_context);
@@ -585,6 +615,7 @@ impl IrToTaffyBuilder<'_> {
                             text_node_id: taffy_text_node_id,
                         },
                     );
+                    taffy_id_to_node.insert(wrapper_node_id, NodeId::from(node_id.clone()));
 
                     wrapper_node_id
                 }
@@ -966,6 +997,7 @@ struct TaffyNodeBuildContext<'ctx> {
     node_hierarchy: &'ctx NodeHierarchy,
     entity_types: &'ctx EntityTypes,
     node_id_to_taffy: &'ctx mut Map<NodeId, NodeToTaffyNodeIds>,
+    taffy_id_to_node: &'ctx mut Map<taffy::NodeId, NodeId>,
 }
 
 /// Layout information for a wrapper node and its text node.
