@@ -51,6 +51,19 @@ impl<'id> NodeCopyText<'id> {
         self.0.is_empty()
     }
 
+    /// Converts this `NodeCopyText` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    pub fn into_static(self) -> NodeCopyText<'static> {
+        NodeCopyText(
+            self.0
+                .into_iter()
+                .map(|(node_id, text)| (node_id.into_static(), text))
+                .collect(),
+        )
+    }
+
     /// Returns true if this contains copy text for a node with the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where

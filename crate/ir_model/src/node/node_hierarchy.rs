@@ -99,6 +99,19 @@ impl<'id> NodeHierarchy<'id> {
         self.0.is_empty()
     }
 
+    /// Converts this `NodeHierarchy` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version. This recursively converts all children.
+    pub fn into_static(self) -> NodeHierarchy<'static> {
+        NodeHierarchy(
+            self.0
+                .into_iter()
+                .map(|(node_id, children)| (node_id.into_static(), children.into_static()))
+                .collect(),
+        )
+    }
+
     /// Returns true if this contains the hierarchy for a node with the given
     /// ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool

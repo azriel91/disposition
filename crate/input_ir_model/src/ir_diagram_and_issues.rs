@@ -26,4 +26,15 @@ impl<'id> IrDiagramAndIssues<'id> {
     pub fn issues(&self) -> &[ModelToIrIssue] {
         &self.issues
     }
+
+    /// Converts this `IrDiagramAndIssues` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    pub fn into_static(self) -> IrDiagramAndIssues<'static> {
+        IrDiagramAndIssues {
+            diagram: self.diagram.into_static(),
+            issues: self.issues,
+        }
+    }
 }

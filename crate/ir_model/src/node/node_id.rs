@@ -63,6 +63,26 @@ impl<'s> NodeId<'s> {
     pub fn into_inner(self) -> Id<'s> {
         self.0
     }
+
+    /// Converts this `NodeId` into one with a `'static` lifetime.
+    ///
+    /// If the inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use disposition_ir_model::node::NodeId;
+    /// use disposition_model_common::Id;
+    ///
+    /// let node_id = NodeId::new("example_id").unwrap();
+    /// let node_id_static: NodeId<'static> = node_id.into_static();
+    ///
+    /// assert_eq!(node_id_static.as_str(), "example_id");
+    /// ```
+    pub fn into_static(self) -> NodeId<'static> {
+        NodeId(self.0.into_static())
+    }
 }
 
 impl<'s> From<Id<'s>> for NodeId<'s> {

@@ -55,6 +55,19 @@ impl<'id> EntityDescs<'id> {
         self.0.is_empty()
     }
 
+    /// Converts this `EntityDescs` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    pub fn into_static(self) -> EntityDescs<'static> {
+        EntityDescs(
+            self.0
+                .into_iter()
+                .map(|(id, desc)| (id.into_static(), desc))
+                .collect(),
+        )
+    }
+
     /// Returns true if this contains a description for an entity with the given
     /// ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool

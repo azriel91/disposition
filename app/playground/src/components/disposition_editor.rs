@@ -34,7 +34,7 @@ use crate::components::{InputDiagramDiv, IrDiagramDiv, TaffyNodeMappingsDiv};
 pub fn DispositionEditor() -> Element {
     let mut status_messages: Signal<Vec<String>> = use_signal(Vec::new);
     let input_diagram_string = use_signal(|| String::from(""));
-    let input_diagram: Memo<Option<InputDiagram>> = use_memo(move || {
+    let input_diagram: Memo<Option<InputDiagram<'static>>> = use_memo(move || {
         let mut status_messages = status_messages.write();
 
         // Clear this on input; there's currently no other input mechanism, so we don't
@@ -64,14 +64,14 @@ pub fn DispositionEditor() -> Element {
         }
     });
     let mut ir_diagram_string = use_memo(|| String::from(""));
-    let ir_diagram: Memo<Option<IrDiagram>> = use_memo(move || {
+    let ir_diagram: Memo<Option<IrDiagram<'static>>> = use_memo(move || {
         let mut status_messages = status_messages.write();
 
         let input_diagram = input_diagram.read().cloned();
         match input_diagram {
             Some(input_diagram) => {
                 let input_to_ir_map_start = Instant::now();
-                let input_diagram_and_issues = InputToIrDiagramMapper::map(input_diagram);
+                let input_diagram_and_issues = InputToIrDiagramMapper::map(&input_diagram);
                 let input_to_ir_map_duration_ms = Instant::now()
                     .duration_since(input_to_ir_map_start)
                     .as_millis();
@@ -106,7 +106,7 @@ pub fn DispositionEditor() -> Element {
         }
     });
     let mut taffy_node_mappings_string = use_memo(|| String::from(""));
-    let taffy_node_mappings: Memo<Option<TaffyNodeMappings>> = use_memo(move || {
+    let taffy_node_mappings: Memo<Option<TaffyNodeMappings<'static>>> = use_memo(move || {
         let mut status_messages = status_messages.write();
 
         let ir_diagram = &*ir_diagram.read();

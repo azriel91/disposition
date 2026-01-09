@@ -145,6 +145,19 @@ impl<'id> NodeLayouts<'id> {
         self.0.is_empty()
     }
 
+    /// Converts this `NodeLayouts` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    pub fn into_static(self) -> NodeLayouts<'static> {
+        NodeLayouts(
+            self.0
+                .into_iter()
+                .map(|(node_id, layout)| (node_id.into_static(), layout))
+                .collect(),
+        )
+    }
+
     /// Returns true if this contains layout information for a node with the
     /// given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool

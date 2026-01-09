@@ -56,6 +56,14 @@ impl<'id> EdgeGroup<'id> {
     pub fn len(&self) -> usize {
         self.0.len()
     }
+
+    /// Converts this `EdgeGroup` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    pub fn into_static(self) -> EdgeGroup<'static> {
+        EdgeGroup(self.0.into_iter().map(|edge| edge.into_static()).collect())
+    }
 }
 
 impl<'id> Deref for EdgeGroup<'id> {

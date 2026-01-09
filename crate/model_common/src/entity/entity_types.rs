@@ -107,6 +107,19 @@ impl<'id> EntityTypes<'id> {
         self.0.is_empty()
     }
 
+    /// Converts this `EntityTypes` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    pub fn into_static(self) -> EntityTypes<'static> {
+        EntityTypes(
+            self.0
+                .into_iter()
+                .map(|(id, types)| (id.into_static(), types))
+                .collect(),
+        )
+    }
+
     /// Returns true if this contains type information for an entity with the
     /// given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool

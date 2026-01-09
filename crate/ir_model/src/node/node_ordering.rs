@@ -73,6 +73,19 @@ impl<'id> NodeOrdering<'id> {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    /// Converts this `NodeOrdering` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    pub fn into_static(self) -> NodeOrdering<'static> {
+        NodeOrdering(
+            self.0
+                .into_iter()
+                .map(|(node_id, tab_index)| (node_id.into_static(), tab_index))
+                .collect(),
+        )
+    }
 }
 
 impl<'id> Deref for NodeOrdering<'id> {

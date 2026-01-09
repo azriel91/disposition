@@ -92,4 +92,30 @@ impl<'id> Edge<'id> {
             to: self.from.clone(),
         }
     }
+
+    /// Converts this `Edge` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use disposition_ir_model::{edge::Edge, node::NodeId};
+    /// use disposition_model_common::{id, Id};
+    ///
+    /// let from: NodeId = id!("node_a").into();
+    /// let to: NodeId = id!("node_b").into();
+    /// let edge = Edge::new(from, to);
+    /// let edge_static: Edge<'static> = edge.into_static();
+    ///
+    /// assert_eq!(edge_static.from.as_str(), "node_a");
+    /// assert_eq!(edge_static.to.as_str(), "node_b");
+    /// ```
+    pub fn into_static(self) -> Edge<'static> {
+        Edge {
+            from: self.from.into_static(),
+            to: self.to.into_static(),
+        }
+    }
 }

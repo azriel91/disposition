@@ -154,4 +154,23 @@ impl<'id> IrDiagram<'id> {
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// Converts this `IrDiagram` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    pub fn into_static(self) -> IrDiagram<'static> {
+        IrDiagram {
+            nodes: self.nodes.into_static(),
+            node_copy_text: self.node_copy_text.into_static(),
+            node_hierarchy: self.node_hierarchy.into_static(),
+            node_ordering: self.node_ordering.into_static(),
+            edge_groups: self.edge_groups.into_static(),
+            entity_descs: self.entity_descs.into_static(),
+            entity_types: self.entity_types.into_static(),
+            tailwind_classes: self.tailwind_classes.into_static(),
+            node_layouts: self.node_layouts.into_static(),
+            css: self.css,
+        }
+    }
 }

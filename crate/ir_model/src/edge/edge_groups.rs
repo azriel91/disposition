@@ -71,6 +71,21 @@ impl<'id> EdgeGroups<'id> {
     {
         self.0.contains_key(id.as_ref())
     }
+
+    /// Converts this `EdgeGroups` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    pub fn into_static(self) -> EdgeGroups<'static> {
+        EdgeGroups(
+            self.0
+                .into_iter()
+                .map(|(edge_group_id, edge_group)| {
+                    (edge_group_id.into_static(), edge_group.into_static())
+                })
+                .collect(),
+        )
+    }
 }
 
 impl<'id> Deref for EdgeGroups<'id> {

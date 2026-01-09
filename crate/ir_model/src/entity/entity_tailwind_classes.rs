@@ -96,6 +96,20 @@ impl<'id> EntityTailwindClasses<'id> {
         self.0.is_empty()
     }
 
+    /// Converts this `EntityTailwindClasses` into one with a `'static`
+    /// lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    pub fn into_static(self) -> EntityTailwindClasses<'static> {
+        EntityTailwindClasses(
+            self.0
+                .into_iter()
+                .map(|(id, classes)| (id.into_static(), classes))
+                .collect(),
+        )
+    }
+
     /// Returns true if this contains tailwind classes for an entity with the
     /// given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool

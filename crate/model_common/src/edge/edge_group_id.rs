@@ -64,6 +64,25 @@ impl<'s> EdgeGroupId<'s> {
     pub fn into_inner(self) -> Id<'s> {
         self.0
     }
+
+    /// Converts this `EdgeGroupId` into one with a `'static` lifetime.
+    ///
+    /// If the inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use disposition_model_common::edge::EdgeGroupId;
+    ///
+    /// let edge_group_id = EdgeGroupId::new("edge_a_to_b").unwrap();
+    /// let edge_group_id_static: EdgeGroupId<'static> = edge_group_id.into_static();
+    ///
+    /// assert_eq!(edge_group_id_static.as_str(), "edge_a_to_b");
+    /// ```
+    pub fn into_static(self) -> EdgeGroupId<'static> {
+        EdgeGroupId(self.0.into_static())
+    }
 }
 
 impl<'s> From<Id<'s>> for EdgeGroupId<'s> {
