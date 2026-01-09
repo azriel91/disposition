@@ -9,7 +9,7 @@ use crate::EntityHighlightedSpan;
 ///
 /// This is computed in `IrToTaffyBuilder`.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-pub struct EntityHighlightedSpans(Map<Id, Vec<EntityHighlightedSpan>>);
+pub struct EntityHighlightedSpans(Map<Id<'static>, Vec<EntityHighlightedSpan>>);
 
 impl EntityHighlightedSpans {
     /// Returns a new `EntityHighlightedSpans` map.
@@ -24,7 +24,7 @@ impl EntityHighlightedSpans {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<Id, Vec<EntityHighlightedSpan>> {
+    pub fn into_inner(self) -> Map<Id<'static>, Vec<EntityHighlightedSpan>> {
         self.0
     }
 
@@ -37,14 +37,14 @@ impl EntityHighlightedSpans {
     /// given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'static>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
 impl Deref for EntityHighlightedSpans {
-    type Target = Map<Id, Vec<EntityHighlightedSpan>>;
+    type Target = Map<Id<'static>, Vec<EntityHighlightedSpan>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -57,14 +57,16 @@ impl DerefMut for EntityHighlightedSpans {
     }
 }
 
-impl From<Map<Id, Vec<EntityHighlightedSpan>>> for EntityHighlightedSpans {
-    fn from(inner: Map<Id, Vec<EntityHighlightedSpan>>) -> Self {
+impl From<Map<Id<'static>, Vec<EntityHighlightedSpan>>> for EntityHighlightedSpans {
+    fn from(inner: Map<Id<'static>, Vec<EntityHighlightedSpan>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(Id, Vec<EntityHighlightedSpan>)> for EntityHighlightedSpans {
-    fn from_iter<I: IntoIterator<Item = (Id, Vec<EntityHighlightedSpan>)>>(iter: I) -> Self {
+impl FromIterator<(Id<'static>, Vec<EntityHighlightedSpan>)> for EntityHighlightedSpans {
+    fn from_iter<I: IntoIterator<Item = (Id<'static>, Vec<EntityHighlightedSpan>)>>(
+        iter: I,
+    ) -> Self {
         Self(Map::from_iter(iter))
     }
 }

@@ -37,7 +37,7 @@ use crate::thing::ThingId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThingNames(Map<ThingId, String>);
+pub struct ThingNames(Map<ThingId<'static>, String>);
 
 impl ThingNames {
     /// Returns a new `ThingNames` map.
@@ -52,7 +52,7 @@ impl ThingNames {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<ThingId, String> {
+    pub fn into_inner(self) -> Map<ThingId<'static>, String> {
         self.0
     }
 
@@ -64,14 +64,14 @@ impl ThingNames {
     /// Returns true if this contains a name for a thing with the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'static>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
 impl Deref for ThingNames {
-    type Target = Map<ThingId, String>;
+    type Target = Map<ThingId<'static>, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -84,14 +84,14 @@ impl DerefMut for ThingNames {
     }
 }
 
-impl From<Map<ThingId, String>> for ThingNames {
-    fn from(inner: Map<ThingId, String>) -> Self {
+impl From<Map<ThingId<'static>, String>> for ThingNames {
+    fn from(inner: Map<ThingId<'static>, String>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(ThingId, String)> for ThingNames {
-    fn from_iter<I: IntoIterator<Item = (ThingId, String)>>(iter: I) -> Self {
+impl FromIterator<(ThingId<'static>, String)> for ThingNames {
+    fn from_iter<I: IntoIterator<Item = (ThingId<'static>, String)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

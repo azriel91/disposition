@@ -24,7 +24,7 @@ use crate::thing::ThingId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThingCopyText(Map<ThingId, String>);
+pub struct ThingCopyText(Map<ThingId<'static>, String>);
 
 impl ThingCopyText {
     /// Returns a new `ThingCopyText` map.
@@ -39,7 +39,7 @@ impl ThingCopyText {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<ThingId, String> {
+    pub fn into_inner(self) -> Map<ThingId<'static>, String> {
         self.0
     }
 
@@ -51,14 +51,14 @@ impl ThingCopyText {
     /// Returns true if this contains copy text for a thing with the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'static>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
 impl Deref for ThingCopyText {
-    type Target = Map<ThingId, String>;
+    type Target = Map<ThingId<'static>, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -71,14 +71,14 @@ impl DerefMut for ThingCopyText {
     }
 }
 
-impl From<Map<ThingId, String>> for ThingCopyText {
-    fn from(inner: Map<ThingId, String>) -> Self {
+impl From<Map<ThingId<'static>, String>> for ThingCopyText {
+    fn from(inner: Map<ThingId<'static>, String>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(ThingId, String)> for ThingCopyText {
-    fn from_iter<I: IntoIterator<Item = (ThingId, String)>>(iter: I) -> Self {
+impl FromIterator<(ThingId<'static>, String)> for ThingCopyText {
+    fn from_iter<I: IntoIterator<Item = (ThingId<'static>, String)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

@@ -42,7 +42,7 @@ use crate::edge::EdgeKind;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThingInteractions(Map<EdgeGroupId, EdgeKind>);
+pub struct ThingInteractions(Map<EdgeGroupId<'static>, EdgeKind>);
 
 impl ThingInteractions {
     /// Returns a new `ThingInteractions` map.
@@ -57,7 +57,7 @@ impl ThingInteractions {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<EdgeGroupId, EdgeKind> {
+    pub fn into_inner(self) -> Map<EdgeGroupId<'static>, EdgeKind> {
         self.0
     }
 
@@ -70,14 +70,14 @@ impl ThingInteractions {
     /// given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'static>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
 impl Deref for ThingInteractions {
-    type Target = Map<EdgeGroupId, EdgeKind>;
+    type Target = Map<EdgeGroupId<'static>, EdgeKind>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -90,14 +90,14 @@ impl DerefMut for ThingInteractions {
     }
 }
 
-impl From<Map<EdgeGroupId, EdgeKind>> for ThingInteractions {
-    fn from(inner: Map<EdgeGroupId, EdgeKind>) -> Self {
+impl From<Map<EdgeGroupId<'static>, EdgeKind>> for ThingInteractions {
+    fn from(inner: Map<EdgeGroupId<'static>, EdgeKind>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(EdgeGroupId, EdgeKind)> for ThingInteractions {
-    fn from_iter<I: IntoIterator<Item = (EdgeGroupId, EdgeKind)>>(iter: I) -> Self {
+impl FromIterator<(EdgeGroupId<'static>, EdgeKind)> for ThingInteractions {
+    fn from_iter<I: IntoIterator<Item = (EdgeGroupId<'static>, EdgeKind)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

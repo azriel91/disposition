@@ -216,7 +216,7 @@ impl IrToTaffyBuilder<'_> {
     /// called multiple times.
     fn compute_highlighted_spans(
         taffy_tree: &TaffyTree<NodeContext>,
-        node_id_to_taffy: &Map<NodeId, NodeToTaffyNodeIds>,
+        node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
         nodes: &NodeNames,
         entity_descs: &EntityDescs,
         char_width: f32,
@@ -996,8 +996,8 @@ struct TaffyNodeBuildContext<'ctx> {
     node_layouts: &'ctx NodeLayouts,
     node_hierarchy: &'ctx NodeHierarchy,
     entity_types: &'ctx EntityTypes,
-    node_id_to_taffy: &'ctx mut Map<NodeId, NodeToTaffyNodeIds>,
-    taffy_id_to_node: &'ctx mut Map<taffy::NodeId, NodeId>,
+    node_id_to_taffy: &'ctx mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
+    taffy_id_to_node: &'ctx mut Map<taffy::NodeId, NodeId<'static>>,
 }
 
 /// Layout information for a wrapper node and its text node.

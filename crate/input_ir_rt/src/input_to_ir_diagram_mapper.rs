@@ -123,7 +123,7 @@ impl InputToIrDiagramMapper {
     }
 
     /// Creates an Id from a String.
-    fn id_from_string(s: String) -> Id {
+    fn id_from_string(s: String) -> Id<'static> {
         // Use TryFrom<String> to create an Id from an owned String.
         // This will validate the ID format and create a Cow::Owned internally.
         Id::try_from(s).expect("valid ID string")
@@ -542,7 +542,7 @@ impl InputToIrDiagramMapper {
 
     /// Add edge types from dependencies.
     fn build_entity_types_dependencies(
-        entity_types: &mut Map<Id, Set<EntityType>>,
+        entity_types: &mut Map<Id<'static>, Set<EntityType>>,
         thing_deps: &ThingDependencies,
         input_entity_types: &EntityTypes,
     ) {
@@ -570,7 +570,7 @@ impl InputToIrDiagramMapper {
 
     /// Add interaction types to existing edge types.
     fn build_entity_types_interactions(
-        entity_types: &mut Map<Id, Set<EntityType>>,
+        entity_types: &mut Map<Id<'static>, Set<EntityType>>,
         thing_interactions: &ThingInteractions,
         input_entity_types: &EntityTypes,
     ) {
@@ -601,11 +601,11 @@ impl InputToIrDiagramMapper {
 
     fn build_entity_types_for_edge_groups(
         input_entity_types: &EntityTypes,
-        edge_group_id: &EdgeGroupId,
+        edge_group_id: &EdgeGroupId<'static>,
         edge_kind: &EdgeKind,
         edge_group_default_type_fn: fn(&EdgeKind) -> EntityType,
-    ) -> (Id, Set<EntityType>) {
-        let edge_group_id: Id = edge_group_id.clone().into_inner();
+    ) -> (Id<'static>, Set<EntityType>) {
+        let edge_group_id: Id<'static> = edge_group_id.clone().into_inner();
 
         let edge_group_default_type = edge_group_default_type_fn(edge_kind);
 
@@ -675,10 +675,10 @@ impl InputToIrDiagramMapper {
 
     fn build_entity_types_for_edges(
         input_entity_types: &EntityTypes,
-        edge_group_id: &EdgeGroupId,
+        edge_group_id: &EdgeGroupId<'static>,
         edge_kind: &EdgeKind,
         edge_default_type_fn: fn(&EdgeKind, usize, usize) -> EntityType,
-    ) -> impl Iterator<Item = (Id, Set<EntityType>)> {
+    ) -> impl Iterator<Item = (Id<'static>, Set<EntityType>)> {
         let (edge_count, forward_count) = match edge_kind {
             EdgeKind::Cyclic(things) => (things.len(), things.len()),
             EdgeKind::Sequence(things) => {
@@ -725,10 +725,10 @@ impl InputToIrDiagramMapper {
         let mut node_layouts = NodeLayouts::new();
 
         // Helper to determine if a node is a tag
-        let is_tag = |node_id: &NodeId| tags.contains_key(node_id);
+        let is_tag = |node_id: &NodeId<'static>| tags.contains_key(node_id);
 
         // Helper to determine if a node is a process
-        let is_process = |node_id: &NodeId| processes.contains_key(node_id);
+        let is_process = |node_id: &NodeId<'static>| processes.contains_key(node_id);
 
         // 1. Add _root container layout
         let root_id = NodeInbuilt::Root.id();
@@ -850,7 +850,7 @@ impl InputToIrDiagramMapper {
 
     /// Build a container layout with specified direction.
     fn build_container_layout(
-        container_id: &Id,
+        container_id: &Id<'static>,
         direction: FlexDirection,
         wrap: bool,
         entity_types: &EntityTypes,
@@ -894,14 +894,14 @@ impl InputToIrDiagramMapper {
 
     /// Build a flex layout for a specific node.
     fn build_node_flex_layout(
-        node_id: &NodeId,
+        node_id: &NodeId<'static>,
         direction: FlexDirection,
         wrap: bool,
         entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
     ) -> NodeLayout {
-        let id: Id = node_id.clone().into_inner();
+        let id: Id<'static> = node_id.clone().into_inner();
         let (padding_top, padding_right, padding_bottom, padding_left) =
             Self::resolve_padding(Some(&id), entity_types, theme_default, theme_types_styles);
         let (margin_top, margin_right, margin_bottom, margin_left) =
@@ -935,8 +935,8 @@ impl InputToIrDiagramMapper {
         is_tag: &F,
         is_process: &G,
     ) where
-        F: Fn(&NodeId) -> bool,
-        G: Fn(&NodeId) -> bool,
+        F: Fn(&NodeId<'static>) -> bool,
+        G: Fn(&NodeId<'static>) -> bool,
     {
         let thing_layouts: Vec<_> = hierarchy
             .iter()
@@ -1016,7 +1016,7 @@ impl InputToIrDiagramMapper {
     /// - `finalize`: Closure that converts the accumulated state into the final
     ///   result with defaults
     fn resolve_theme_attr<State, Result>(
-        node_id: Option<&Id>,
+        node_id: Option<&Id<'static>>,
         entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
@@ -1060,7 +1060,7 @@ impl InputToIrDiagramMapper {
     }
 
     fn resolve_padding(
-        node_id: Option<&Id>,
+        node_id: Option<&Id<'static>>,
         entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
@@ -1160,7 +1160,7 @@ impl InputToIrDiagramMapper {
     }
 
     fn resolve_margin(
-        node_id: Option<&Id>,
+        node_id: Option<&Id<'static>>,
         entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
@@ -1260,7 +1260,7 @@ impl InputToIrDiagramMapper {
     }
 
     fn resolve_gap(
-        node_id: Option<&Id>,
+        node_id: Option<&Id<'static>>,
         entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
@@ -1432,7 +1432,7 @@ impl InputToIrDiagramMapper {
     /// with).
     fn build_step_interactions_map(
         processes: &Processes,
-    ) -> Map<&ProcessStepId, (&ProcessId, &Vec<EdgeGroupId>)> {
+    ) -> Map<&ProcessStepId<'static>, (&ProcessId<'static>, &Vec<EdgeGroupId<'static>>)> {
         processes
             .iter()
             .flat_map(|(process_id, process_diagram)| {
@@ -1448,7 +1448,7 @@ impl InputToIrDiagramMapper {
     /// Build a map of edge group ID to process steps that interact with it.
     fn build_edge_group_to_steps_map(
         processes: &Processes,
-    ) -> Map<&EdgeGroupId, Vec<&ProcessStepId>> {
+    ) -> Map<&EdgeGroupId<'static>, Vec<&ProcessStepId<'static>>> {
         processes
             .values()
             .flat_map(|process_diagram| {
@@ -1461,7 +1461,7 @@ impl InputToIrDiagramMapper {
                 )
             })
             .fold(
-                Map::<&EdgeGroupId, Vec<&ProcessStepId>>::new(),
+                Map::<&EdgeGroupId<'static>, Vec<&ProcessStepId<'static>>>::new(),
                 |mut acc, (edge_group_id, step_id)| {
                     acc.entry(edge_group_id).or_default().push(step_id);
                     acc
@@ -1473,8 +1473,11 @@ impl InputToIrDiagramMapper {
     /// involving that thing.
     fn build_thing_to_interaction_steps_map<'f>(
         edge_groups: &'f EdgeGroups,
-        step_interactions: &'f Map<&'f ProcessStepId, (&'f ProcessId, &'f Vec<EdgeGroupId>)>,
-    ) -> Map<&'f NodeId, Set<&'f ProcessStepId>> {
+        step_interactions: &'f Map<
+            &'f ProcessStepId<'static>,
+            (&'f ProcessId<'static>, &'f Vec<EdgeGroupId<'static>>),
+        >,
+    ) -> Map<&'f NodeId<'static>, Set<&'f ProcessStepId<'static>>> {
         // For each process step and its edge interactions
         step_interactions
             .iter()
@@ -1495,7 +1498,7 @@ impl InputToIrDiagramMapper {
                 })
             })
             .fold(
-                Map::<&NodeId, Set<&ProcessStepId>>::new(),
+                Map::<&NodeId<'static>, Set<&ProcessStepId<'static>>>::new(),
                 |mut acc, (node_id, step_id)| {
                     acc.entry(node_id).or_default().insert(step_id);
                     acc
@@ -1505,7 +1508,7 @@ impl InputToIrDiagramMapper {
 
     /// Build tailwind classes for a tag node.
     fn build_tag_tailwind_classes(
-        id: &Id,
+        id: &Id<'static>,
         entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
@@ -1532,7 +1535,7 @@ impl InputToIrDiagramMapper {
 
     /// Build tailwind classes for a process node.
     fn build_process_tailwind_classes(
-        id: &Id,
+        id: &Id<'static>,
         entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
@@ -1559,8 +1562,8 @@ impl InputToIrDiagramMapper {
 
     /// Build tailwind classes for a process step node.
     fn build_process_step_tailwind_classes(
-        id: &Id,
-        parent_process_id: Option<&ProcessId>,
+        id: &Id<'static>,
+        parent_process_id: Option<&ProcessId<'static>>,
         entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
@@ -1596,14 +1599,14 @@ impl InputToIrDiagramMapper {
     /// Build tailwind classes for a regular thing node.
     #[allow(clippy::too_many_arguments)]
     fn build_thing_tailwind_classes(
-        node_id: &NodeId,
+        node_id: &NodeId<'static>,
         entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
         theme_tag_things_focus: &ThemeTagThingsFocus,
         tags: &TagNames,
         tag_things: &TagThings,
-        thing_to_interaction_steps: &Map<&NodeId, Set<&ProcessStepId>>,
+        thing_to_interaction_steps: &Map<&NodeId<'static>, Set<&ProcessStepId<'static>>>,
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -1744,11 +1747,11 @@ impl InputToIrDiagramMapper {
     /// * `interaction_process_step_ids`: The process step IDs that interact
     ///   with this edge.
     fn build_edge_group_tailwind_classes(
-        edge_group_id: &EdgeGroupId,
+        edge_group_id: &EdgeGroupId<'static>,
         entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
-        interaction_process_step_ids: &[&ProcessStepId],
+        interaction_process_step_ids: &[&ProcessStepId<'static>],
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -1800,7 +1803,7 @@ impl InputToIrDiagramMapper {
     /// Build tailwind classes for individual symmetric edges within an edge
     /// group.
     fn build_edge_tailwind_classes(
-        edge_id: &Id,
+        edge_id: &Id<'static>,
         entity_types: &EntityTypes,
         theme_default: &ThemeDefault,
         theme_types_styles: &ThemeTypesStyles,
@@ -1833,7 +1836,7 @@ impl InputToIrDiagramMapper {
     ///   `IdOrDefaults::EdgeDefaults`.
     /// * `state`: Tailwind class state to write the resolved classes to.
     fn resolve_tailwind_attrs<'partials, 'tw_state>(
-        entity_id: &Id,
+        entity_id: &Id<'static>,
         entity_types: &'partials EntityTypes,
         theme_default: &'partials ThemeDefault,
         theme_types_styles: &'partials ThemeTypesStyles,

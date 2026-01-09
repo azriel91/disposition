@@ -51,7 +51,7 @@ pub enum StyleAlias {
     /// Dashed stroke with animation for response direction.
     StrokeDashedAnimatedResponse,
     /// Custom user-defined style alias.
-    Custom(Id),
+    Custom(Id<'static>),
 }
 
 impl StyleAlias {
@@ -94,7 +94,7 @@ impl StyleAlias {
     /// let custom = StyleAlias::Custom("my_style".parse().unwrap());
     /// assert!(custom.custom_id().is_some());
     /// ```
-    pub fn custom_id(&self) -> Option<&Id> {
+    pub fn custom_id(&self) -> Option<&Id<'static>> {
         if let Self::Custom(id) = self {
             Some(id)
         } else {
@@ -103,8 +103,8 @@ impl StyleAlias {
     }
 }
 
-impl From<Id> for StyleAlias {
-    fn from(id: Id) -> Self {
+impl From<Id<'static>> for StyleAlias {
+    fn from(id: Id<'static>) -> Self {
         match id.as_str() {
             "padding_none" => StyleAlias::PaddingNone,
             "padding_tight" => StyleAlias::PaddingTight,

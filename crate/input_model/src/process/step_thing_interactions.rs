@@ -25,7 +25,7 @@ use crate::process::ProcessStepId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct StepThingInteractions(Map<ProcessStepId, Vec<EdgeGroupId>>);
+pub struct StepThingInteractions(Map<ProcessStepId<'static>, Vec<EdgeGroupId<'static>>>);
 
 impl StepThingInteractions {
     /// Returns a new `StepThingInteractions` map.
@@ -40,7 +40,7 @@ impl StepThingInteractions {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<ProcessStepId, Vec<EdgeGroupId>> {
+    pub fn into_inner(self) -> Map<ProcessStepId<'static>, Vec<EdgeGroupId<'static>>> {
         self.0
     }
 
@@ -53,14 +53,14 @@ impl StepThingInteractions {
     /// the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'static>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
 impl Deref for StepThingInteractions {
-    type Target = Map<ProcessStepId, Vec<EdgeGroupId>>;
+    type Target = Map<ProcessStepId<'static>, Vec<EdgeGroupId<'static>>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -73,14 +73,16 @@ impl DerefMut for StepThingInteractions {
     }
 }
 
-impl From<Map<ProcessStepId, Vec<EdgeGroupId>>> for StepThingInteractions {
-    fn from(inner: Map<ProcessStepId, Vec<EdgeGroupId>>) -> Self {
+impl From<Map<ProcessStepId<'static>, Vec<EdgeGroupId<'static>>>> for StepThingInteractions {
+    fn from(inner: Map<ProcessStepId<'static>, Vec<EdgeGroupId<'static>>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(ProcessStepId, Vec<EdgeGroupId>)> for StepThingInteractions {
-    fn from_iter<I: IntoIterator<Item = (ProcessStepId, Vec<EdgeGroupId>)>>(iter: I) -> Self {
+impl FromIterator<(ProcessStepId<'static>, Vec<EdgeGroupId<'static>>)> for StepThingInteractions {
+    fn from_iter<I: IntoIterator<Item = (ProcessStepId<'static>, Vec<EdgeGroupId<'static>>)>>(
+        iter: I,
+    ) -> Self {
         Self(Map::from_iter(iter))
     }
 }

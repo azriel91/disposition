@@ -41,7 +41,7 @@ use crate::thing::ThingId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThingHierarchy(Map<ThingId, ThingHierarchy>);
+pub struct ThingHierarchy(Map<ThingId<'static>, ThingHierarchy>);
 
 impl ThingHierarchy {
     /// Returns a new empty `ThingHierarchy`.
@@ -55,7 +55,7 @@ impl ThingHierarchy {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<ThingId, ThingHierarchy> {
+    pub fn into_inner(self) -> Map<ThingId<'static>, ThingHierarchy> {
         self.0
     }
 
@@ -86,14 +86,14 @@ impl ThingHierarchy {
     /// ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'static>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
 impl Deref for ThingHierarchy {
-    type Target = Map<ThingId, ThingHierarchy>;
+    type Target = Map<ThingId<'static>, ThingHierarchy>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -106,14 +106,14 @@ impl DerefMut for ThingHierarchy {
     }
 }
 
-impl From<Map<ThingId, ThingHierarchy>> for ThingHierarchy {
-    fn from(inner: Map<ThingId, ThingHierarchy>) -> Self {
+impl From<Map<ThingId<'static>, ThingHierarchy>> for ThingHierarchy {
+    fn from(inner: Map<ThingId<'static>, ThingHierarchy>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(ThingId, ThingHierarchy)> for ThingHierarchy {
-    fn from_iter<I: IntoIterator<Item = (ThingId, ThingHierarchy)>>(iter: I) -> Self {
+impl FromIterator<(ThingId<'static>, ThingHierarchy)> for ThingHierarchy {
+    fn from_iter<I: IntoIterator<Item = (ThingId<'static>, ThingHierarchy)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

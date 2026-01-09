@@ -21,7 +21,7 @@ use crate::tag::TagId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct TagNames(Map<TagId, String>);
+pub struct TagNames(Map<TagId<'static>, String>);
 
 impl TagNames {
     /// Returns a new `TagNames` map.
@@ -36,7 +36,7 @@ impl TagNames {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<TagId, String> {
+    pub fn into_inner(self) -> Map<TagId<'static>, String> {
         self.0
     }
 
@@ -48,14 +48,14 @@ impl TagNames {
     /// Returns true if this contains a tag with the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'static>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
 impl Deref for TagNames {
-    type Target = Map<TagId, String>;
+    type Target = Map<TagId<'static>, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -68,14 +68,14 @@ impl DerefMut for TagNames {
     }
 }
 
-impl From<Map<TagId, String>> for TagNames {
-    fn from(inner: Map<TagId, String>) -> Self {
+impl From<Map<TagId<'static>, String>> for TagNames {
+    fn from(inner: Map<TagId<'static>, String>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(TagId, String)> for TagNames {
-    fn from_iter<I: IntoIterator<Item = (TagId, String)>>(iter: I) -> Self {
+impl FromIterator<(TagId<'static>, String)> for TagNames {
+    fn from_iter<I: IntoIterator<Item = (TagId<'static>, String)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

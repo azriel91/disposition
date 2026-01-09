@@ -42,7 +42,7 @@ pub enum TagIdOrDefaults {
     ///     node_excluded_defaults:
     ///       opacity: "0.3"
     /// ```
-    Custom(TagId),
+    Custom(TagId<'static>),
 }
 
 impl TagIdOrDefaults {
@@ -55,7 +55,7 @@ impl TagIdOrDefaults {
     }
 
     /// Returns the underlying `TagId` if this holds a custom tag ID.
-    pub fn tag_id(&self) -> Option<&TagId> {
+    pub fn tag_id(&self) -> Option<&TagId<'static>> {
         if let Self::Custom(tag_id) = self {
             Some(tag_id)
         } else {
@@ -64,8 +64,8 @@ impl TagIdOrDefaults {
     }
 }
 
-impl From<TagId> for TagIdOrDefaults {
-    fn from(tag_id: TagId) -> Self {
+impl From<TagId<'static>> for TagIdOrDefaults {
+    fn from(tag_id: TagId<'static>) -> Self {
         Self::Custom(tag_id)
     }
 }

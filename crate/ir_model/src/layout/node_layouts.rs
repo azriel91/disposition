@@ -122,7 +122,7 @@ use crate::{layout::NodeLayout, node::NodeId};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-pub struct NodeLayouts(Map<NodeId, NodeLayout>);
+pub struct NodeLayouts(Map<NodeId<'static>, NodeLayout>);
 
 impl NodeLayouts {
     /// Returns a new `NodeLayouts` map.
@@ -136,7 +136,7 @@ impl NodeLayouts {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<NodeId, NodeLayout> {
+    pub fn into_inner(self) -> Map<NodeId<'static>, NodeLayout> {
         self.0
     }
 
@@ -149,14 +149,14 @@ impl NodeLayouts {
     /// given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'static>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
 impl Deref for NodeLayouts {
-    type Target = Map<NodeId, NodeLayout>;
+    type Target = Map<NodeId<'static>, NodeLayout>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -169,14 +169,14 @@ impl DerefMut for NodeLayouts {
     }
 }
 
-impl From<Map<NodeId, NodeLayout>> for NodeLayouts {
-    fn from(inner: Map<NodeId, NodeLayout>) -> Self {
+impl From<Map<NodeId<'static>, NodeLayout>> for NodeLayouts {
+    fn from(inner: Map<NodeId<'static>, NodeLayout>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(NodeId, NodeLayout)> for NodeLayouts {
-    fn from_iter<I: IntoIterator<Item = (NodeId, NodeLayout)>>(iter: I) -> Self {
+impl FromIterator<(NodeId<'static>, NodeLayout)> for NodeLayouts {
+    fn from_iter<I: IntoIterator<Item = (NodeId<'static>, NodeLayout)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

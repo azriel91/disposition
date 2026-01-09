@@ -57,7 +57,7 @@ pub enum IdOrDefaults {
     /// ```
     EdgeDefaults,
     /// ID of a thing, edge, tag, process, or process_step.
-    Id(Id),
+    Id(Id<'static>),
 }
 
 impl IdOrDefaults {
@@ -72,7 +72,7 @@ impl IdOrDefaults {
     }
 
     /// Returns the underlying `Id` if this holds an ID.
-    pub fn any_id(&self) -> Option<&Id> {
+    pub fn any_id(&self) -> Option<&Id<'static>> {
         if let Self::Id(any_id) = self {
             Some(any_id)
         } else {
@@ -81,8 +81,8 @@ impl IdOrDefaults {
     }
 }
 
-impl From<Id> for IdOrDefaults {
-    fn from(any_id: Id) -> Self {
+impl From<Id<'static>> for IdOrDefaults {
+    fn from(any_id: Id<'static>) -> Self {
         Self::Id(any_id)
     }
 }

@@ -41,7 +41,7 @@ use crate::edge::EdgeGroup;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct EdgeGroups(Map<EdgeGroupId, EdgeGroup>);
+pub struct EdgeGroups(Map<EdgeGroupId<'static>, EdgeGroup>);
 
 impl EdgeGroups {
     /// Returns a new `EdgeGroups` map.
@@ -55,7 +55,7 @@ impl EdgeGroups {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<EdgeGroupId, EdgeGroup> {
+    pub fn into_inner(self) -> Map<EdgeGroupId<'static>, EdgeGroup> {
         self.0
     }
 
@@ -67,14 +67,14 @@ impl EdgeGroups {
     /// Returns true if this contains edge groups for the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'static>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
 impl Deref for EdgeGroups {
-    type Target = Map<EdgeGroupId, EdgeGroup>;
+    type Target = Map<EdgeGroupId<'static>, EdgeGroup>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -87,14 +87,14 @@ impl DerefMut for EdgeGroups {
     }
 }
 
-impl From<Map<EdgeGroupId, EdgeGroup>> for EdgeGroups {
-    fn from(inner: Map<EdgeGroupId, EdgeGroup>) -> Self {
+impl From<Map<EdgeGroupId<'static>, EdgeGroup>> for EdgeGroups {
+    fn from(inner: Map<EdgeGroupId<'static>, EdgeGroup>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(EdgeGroupId, EdgeGroup)> for EdgeGroups {
-    fn from_iter<I: IntoIterator<Item = (EdgeGroupId, EdgeGroup)>>(iter: I) -> Self {
+impl FromIterator<(EdgeGroupId<'static>, EdgeGroup)> for EdgeGroups {
+    fn from_iter<I: IntoIterator<Item = (EdgeGroupId<'static>, EdgeGroup)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

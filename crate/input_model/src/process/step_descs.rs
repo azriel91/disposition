@@ -33,7 +33,7 @@ use crate::process::ProcessStepId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct StepDescs(Map<ProcessStepId, String>);
+pub struct StepDescs(Map<ProcessStepId<'static>, String>);
 
 impl StepDescs {
     /// Returns a new `StepDescs` map.
@@ -48,7 +48,7 @@ impl StepDescs {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<ProcessStepId, String> {
+    pub fn into_inner(self) -> Map<ProcessStepId<'static>, String> {
         self.0
     }
 
@@ -61,14 +61,14 @@ impl StepDescs {
     /// the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'static>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
 impl Deref for StepDescs {
-    type Target = Map<ProcessStepId, String>;
+    type Target = Map<ProcessStepId<'static>, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -81,14 +81,14 @@ impl DerefMut for StepDescs {
     }
 }
 
-impl From<Map<ProcessStepId, String>> for StepDescs {
-    fn from(inner: Map<ProcessStepId, String>) -> Self {
+impl From<Map<ProcessStepId<'static>, String>> for StepDescs {
+    fn from(inner: Map<ProcessStepId<'static>, String>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(ProcessStepId, String)> for StepDescs {
-    fn from_iter<I: IntoIterator<Item = (ProcessStepId, String)>>(iter: I) -> Self {
+impl FromIterator<(ProcessStepId<'static>, String)> for StepDescs {
+    fn from_iter<I: IntoIterator<Item = (ProcessStepId<'static>, String)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

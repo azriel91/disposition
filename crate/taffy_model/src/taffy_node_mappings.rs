@@ -13,9 +13,9 @@ pub struct TaffyNodeMappings {
     /// node ID.
     pub node_inbuilt_to_taffy: Map<NodeInbuilt, taffy::NodeId>,
     /// Map of each IR diagram node to related `taffy` node IDs.
-    pub node_id_to_taffy: Map<NodeId, NodeToTaffyNodeIds>,
+    pub node_id_to_taffy: Map<NodeId<'static>, NodeToTaffyNodeIds>,
     /// Map of each `taffy` node ID to its corresponding IR node ID.
-    pub taffy_id_to_node: Map<taffy::NodeId, NodeId>,
+    pub taffy_id_to_node: Map<taffy::NodeId, NodeId<'static>>,
     /// Syntax highlighted spans of entity descriptions.
     ///
     /// Currently this does not contain any styling information, because diagram

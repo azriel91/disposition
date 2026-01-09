@@ -41,7 +41,7 @@ use crate::process::{ProcessDiagram, ProcessId};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct Processes(Map<ProcessId, ProcessDiagram>);
+pub struct Processes(Map<ProcessId<'static>, ProcessDiagram>);
 
 impl Processes {
     /// Returns a new `Processes` map.
@@ -56,7 +56,7 @@ impl Processes {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<ProcessId, ProcessDiagram> {
+    pub fn into_inner(self) -> Map<ProcessId<'static>, ProcessDiagram> {
         self.0
     }
 
@@ -68,14 +68,14 @@ impl Processes {
     /// Returns true if this contains a process with the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'static>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
 impl Deref for Processes {
-    type Target = Map<ProcessId, ProcessDiagram>;
+    type Target = Map<ProcessId<'static>, ProcessDiagram>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -88,14 +88,14 @@ impl DerefMut for Processes {
     }
 }
 
-impl From<Map<ProcessId, ProcessDiagram>> for Processes {
-    fn from(inner: Map<ProcessId, ProcessDiagram>) -> Self {
+impl From<Map<ProcessId<'static>, ProcessDiagram>> for Processes {
+    fn from(inner: Map<ProcessId<'static>, ProcessDiagram>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(ProcessId, ProcessDiagram)> for Processes {
-    fn from_iter<I: IntoIterator<Item = (ProcessId, ProcessDiagram)>>(iter: I) -> Self {
+impl FromIterator<(ProcessId<'static>, ProcessDiagram)> for Processes {
+    fn from_iter<I: IntoIterator<Item = (ProcessId<'static>, ProcessDiagram)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

@@ -26,10 +26,10 @@ use crate::node::NodeId;
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Edge {
     /// The source node ID where this edge originates.
-    pub from: NodeId,
+    pub from: NodeId<'static>,
 
     /// The target node ID where this edge points to.
-    pub to: NodeId,
+    pub to: NodeId<'static>,
 }
 
 impl Edge {
@@ -48,7 +48,7 @@ impl Edge {
     /// assert_eq!(edge.from, from);
     /// assert_eq!(edge.to, to);
     /// ```
-    pub fn new(from: NodeId, to: NodeId) -> Self {
+    pub fn new(from: NodeId<'static>, to: NodeId<'static>) -> Self {
         Self { from, to }
     }
 

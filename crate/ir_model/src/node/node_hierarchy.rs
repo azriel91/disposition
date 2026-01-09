@@ -58,7 +58,7 @@ use crate::node::NodeId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct NodeHierarchy(Map<NodeId, NodeHierarchy>);
+pub struct NodeHierarchy(Map<NodeId<'static>, NodeHierarchy>);
 
 impl NodeHierarchy {
     /// Returns a new empty `NodeHierarchy`.
@@ -72,7 +72,7 @@ impl NodeHierarchy {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<NodeId, NodeHierarchy> {
+    pub fn into_inner(self) -> Map<NodeId<'static>, NodeHierarchy> {
         self.0
     }
 
@@ -103,14 +103,14 @@ impl NodeHierarchy {
     /// ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'static>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
 impl Deref for NodeHierarchy {
-    type Target = Map<NodeId, NodeHierarchy>;
+    type Target = Map<NodeId<'static>, NodeHierarchy>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -123,21 +123,21 @@ impl DerefMut for NodeHierarchy {
     }
 }
 
-impl From<Map<NodeId, NodeHierarchy>> for NodeHierarchy {
-    fn from(inner: Map<NodeId, NodeHierarchy>) -> Self {
+impl From<Map<NodeId<'static>, NodeHierarchy>> for NodeHierarchy {
+    fn from(inner: Map<NodeId<'static>, NodeHierarchy>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(NodeId, NodeHierarchy)> for NodeHierarchy {
-    fn from_iter<I: IntoIterator<Item = (NodeId, NodeHierarchy)>>(iter: I) -> Self {
+impl FromIterator<(NodeId<'static>, NodeHierarchy)> for NodeHierarchy {
+    fn from_iter<I: IntoIterator<Item = (NodeId<'static>, NodeHierarchy)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }
 
 impl IntoIterator for NodeHierarchy {
-    type IntoIter = <Map<NodeId, NodeHierarchy> as IntoIterator>::IntoIter;
-    type Item = (NodeId, NodeHierarchy);
+    type IntoIter = <Map<NodeId<'static>, NodeHierarchy> as IntoIterator>::IntoIter;
+    type Item = (NodeId<'static>, NodeHierarchy);
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -145,8 +145,12 @@ impl IntoIterator for NodeHierarchy {
 }
 
 impl<'node_hierarchy> IntoIterator for &'node_hierarchy NodeHierarchy {
-    type IntoIter = <&'node_hierarchy Map<NodeId, NodeHierarchy> as IntoIterator>::IntoIter;
-    type Item = (&'node_hierarchy NodeId, &'node_hierarchy NodeHierarchy);
+    type IntoIter =
+        <&'node_hierarchy Map<NodeId<'static>, NodeHierarchy> as IntoIterator>::IntoIter;
+    type Item = (
+        &'node_hierarchy NodeId<'static>,
+        &'node_hierarchy NodeHierarchy,
+    );
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
@@ -154,8 +158,12 @@ impl<'node_hierarchy> IntoIterator for &'node_hierarchy NodeHierarchy {
 }
 
 impl<'node_hierarchy> IntoIterator for &'node_hierarchy mut NodeHierarchy {
-    type IntoIter = <&'node_hierarchy mut Map<NodeId, NodeHierarchy> as IntoIterator>::IntoIter;
-    type Item = (&'node_hierarchy NodeId, &'node_hierarchy mut NodeHierarchy);
+    type IntoIter =
+        <&'node_hierarchy mut Map<NodeId<'static>, NodeHierarchy> as IntoIterator>::IntoIter;
+    type Item = (
+        &'node_hierarchy NodeId<'static>,
+        &'node_hierarchy mut NodeHierarchy,
+    );
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter_mut()

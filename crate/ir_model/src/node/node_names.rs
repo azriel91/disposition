@@ -40,7 +40,7 @@ use crate::node::NodeId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct NodeNames(Map<NodeId, String>);
+pub struct NodeNames(Map<NodeId<'static>, String>);
 
 impl NodeNames {
     /// Returns a new `NodeNames` map.
@@ -54,7 +54,7 @@ impl NodeNames {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<NodeId, String> {
+    pub fn into_inner(self) -> Map<NodeId<'static>, String> {
         self.0
     }
 
@@ -66,14 +66,14 @@ impl NodeNames {
     /// Returns true if this contains a name for a node with the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'static>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
 impl Deref for NodeNames {
-    type Target = Map<NodeId, String>;
+    type Target = Map<NodeId<'static>, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -86,14 +86,14 @@ impl DerefMut for NodeNames {
     }
 }
 
-impl From<Map<NodeId, String>> for NodeNames {
-    fn from(inner: Map<NodeId, String>) -> Self {
+impl From<Map<NodeId<'static>, String>> for NodeNames {
+    fn from(inner: Map<NodeId<'static>, String>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(NodeId, String)> for NodeNames {
-    fn from_iter<I: IntoIterator<Item = (NodeId, String)>>(iter: I) -> Self {
+impl FromIterator<(NodeId<'static>, String)> for NodeNames {
+    fn from_iter<I: IntoIterator<Item = (NodeId<'static>, String)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

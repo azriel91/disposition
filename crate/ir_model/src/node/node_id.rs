@@ -29,9 +29,9 @@ use serde::{Deserialize, Serialize};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
-pub struct NodeId(Id);
+pub struct NodeId<'s>(Id<'s>);
 
-impl NodeId {
+impl<'s> NodeId<'s> {
     /// Creates a new [`NodeId`] from a string.
     ///
     /// # Examples
@@ -44,7 +44,7 @@ impl NodeId {
     ///
     /// assert_eq!(node_id.as_str(), "example_id");
     /// ```
-    pub fn new(id: &'static str) -> Result<Self, IdInvalidFmt<'static>> {
+    pub fn new(id: &'s str) -> Result<Self, IdInvalidFmt<'s>> {
         Id::new(id).map(NodeId)
     }
 
@@ -60,44 +60,44 @@ impl NodeId {
     ///
     /// assert_eq!(node_id.into_inner(), Id::new("example_id").unwrap());
     /// ```
-    pub fn into_inner(self) -> Id {
+    pub fn into_inner(self) -> Id<'s> {
         self.0
     }
 }
 
-impl From<Id> for NodeId {
-    fn from(id: Id) -> Self {
+impl<'s> From<Id<'s>> for NodeId<'s> {
+    fn from(id: Id<'s>) -> Self {
         NodeId(id)
     }
 }
 
-impl AsRef<Id> for NodeId {
-    fn as_ref(&self) -> &Id {
+impl<'s> AsRef<Id<'s>> for NodeId<'s> {
+    fn as_ref(&self) -> &Id<'s> {
         &self.0
     }
 }
 
-impl Borrow<Id> for NodeId {
-    fn borrow(&self) -> &Id {
+impl<'s> Borrow<Id<'s>> for NodeId<'s> {
+    fn borrow(&self) -> &Id<'s> {
         &self.0
     }
 }
 
-impl Deref for NodeId {
-    type Target = Id;
+impl<'s> Deref for NodeId<'s> {
+    type Target = Id<'s>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for NodeId {
+impl<'s> DerefMut for NodeId<'s> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl Display for NodeId {
+impl<'s> Display for NodeId<'s> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
