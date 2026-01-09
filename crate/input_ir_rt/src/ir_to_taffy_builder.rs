@@ -55,7 +55,7 @@ pub struct IrToTaffyBuilder<'builder> {
     /// The intermediate representation of the diagram to render the taffy trees
     /// for.
     #[builder(setter(prefix = "with_"))]
-    ir_diagram: &'builder IrDiagram,
+    ir_diagram: &'builder IrDiagram<'static>,
     /// The dimensions at which elements should be repositioned.
     #[builder(setter(prefix = "with_"), default = vec![
         DimensionAndLod::default_sm(),
@@ -71,7 +71,9 @@ pub struct IrToTaffyBuilder<'builder> {
 impl IrToTaffyBuilder<'_> {
     /// Returns an iterator over `TaffyNodeMappings` instances for each
     /// dimension.
-    pub fn build(&self) -> Result<impl Iterator<Item = TaffyNodeMappings>, IrToTaffyError> {
+    pub fn build(
+        &self,
+    ) -> Result<impl Iterator<Item = TaffyNodeMappings<'static>>, IrToTaffyError> {
         let IrToTaffyBuilder {
             ir_diagram,
             dimension_and_lods,
@@ -97,10 +99,10 @@ impl IrToTaffyBuilder<'_> {
     /// This includes the processes container. Clicking on each process node
     /// reveals the process steps.
     fn build_taffy_trees_for_dimension(
-        ir_diagram: &IrDiagram,
+        ir_diagram: &IrDiagram<'static>,
         dimension_and_lod: &DimensionAndLod,
         processes_included: &ProcessesIncluded,
-    ) -> impl Iterator<Item = TaffyNodeMappings> {
+    ) -> impl Iterator<Item = TaffyNodeMappings<'static>> {
         let IrDiagram {
             nodes,
             node_copy_text: _,
@@ -217,11 +219,11 @@ impl IrToTaffyBuilder<'_> {
     fn compute_highlighted_spans(
         taffy_tree: &TaffyTree<NodeContext>,
         node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
-        nodes: &NodeNames,
-        entity_descs: &EntityDescs,
+        nodes: &NodeNames<'static>,
+        entity_descs: &EntityDescs<'static>,
         char_width: f32,
         lod: &DiagramLod,
-    ) -> EntityHighlightedSpans {
+    ) -> EntityHighlightedSpans<'static> {
         let mut entity_highlighted_spans =
             EntityHighlightedSpans::with_capacity(node_id_to_taffy.len());
 
@@ -992,10 +994,10 @@ fn wrap_line_monospace(line: &str, max_chars: usize) -> Vec<&str> {
 
 struct TaffyNodeBuildContext<'ctx> {
     taffy_tree: &'ctx mut TaffyTree<NodeContext>,
-    nodes: &'ctx NodeNames,
-    node_layouts: &'ctx NodeLayouts,
-    node_hierarchy: &'ctx NodeHierarchy,
-    entity_types: &'ctx EntityTypes,
+    nodes: &'ctx NodeNames<'static>,
+    node_layouts: &'ctx NodeLayouts<'static>,
+    node_hierarchy: &'ctx NodeHierarchy<'static>,
+    entity_types: &'ctx EntityTypes<'static>,
     node_id_to_taffy: &'ctx mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
     taffy_id_to_node: &'ctx mut Map<taffy::NodeId, NodeId<'static>>,
 }
@@ -1033,8 +1035,8 @@ impl Default for TaffyWrapperNodeStyles {
 }
 
 struct NodeMeasureContext<'ctx> {
-    nodes: &'ctx NodeNames,
-    entity_descs: &'ctx EntityDescs,
+    nodes: &'ctx NodeNames<'static>,
+    entity_descs: &'ctx EntityDescs<'static>,
     /// Monospace character width in pixels.
     char_width: f32,
     /// Level of detail for the diagram.

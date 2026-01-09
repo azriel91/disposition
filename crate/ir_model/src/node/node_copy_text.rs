@@ -28,9 +28,9 @@ use crate::node::NodeId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct NodeCopyText(Map<NodeId<'static>, String>);
+pub struct NodeCopyText<'id>(Map<NodeId<'id>, String>);
 
-impl NodeCopyText {
+impl<'id> NodeCopyText<'id> {
     /// Returns a new `NodeCopyText` map.
     pub fn new() -> Self {
         Self::default()
@@ -42,7 +42,7 @@ impl NodeCopyText {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<NodeId<'static>, String> {
+    pub fn into_inner(self) -> Map<NodeId<'id>, String> {
         self.0
     }
 
@@ -54,34 +54,34 @@ impl NodeCopyText {
     /// Returns true if this contains copy text for a node with the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id<'static>>,
+        IdT: AsRef<Id<'id>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
-impl Deref for NodeCopyText {
-    type Target = Map<NodeId<'static>, String>;
+impl<'id> Deref for NodeCopyText<'id> {
+    type Target = Map<NodeId<'id>, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for NodeCopyText {
+impl<'id> DerefMut for NodeCopyText<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<NodeId<'static>, String>> for NodeCopyText {
-    fn from(inner: Map<NodeId<'static>, String>) -> Self {
+impl<'id> From<Map<NodeId<'id>, String>> for NodeCopyText<'id> {
+    fn from(inner: Map<NodeId<'id>, String>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(NodeId<'static>, String)> for NodeCopyText {
-    fn from_iter<I: IntoIterator<Item = (NodeId<'static>, String)>>(iter: I) -> Self {
+impl<'id> FromIterator<(NodeId<'id>, String)> for NodeCopyText<'id> {
+    fn from_iter<I: IntoIterator<Item = (NodeId<'id>, String)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

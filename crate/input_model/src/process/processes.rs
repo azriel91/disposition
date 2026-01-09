@@ -41,9 +41,9 @@ use crate::process::{ProcessDiagram, ProcessId};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct Processes(Map<ProcessId<'static>, ProcessDiagram>);
+pub struct Processes<'id>(Map<ProcessId<'id>, ProcessDiagram<'id>>);
 
-impl Processes {
+impl<'id> Processes<'id> {
     /// Returns a new `Processes` map.
     pub fn new() -> Self {
         Self::default()
@@ -56,7 +56,7 @@ impl Processes {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<ProcessId<'static>, ProcessDiagram> {
+    pub fn into_inner(self) -> Map<ProcessId<'id>, ProcessDiagram<'id>> {
         self.0
     }
 
@@ -68,34 +68,34 @@ impl Processes {
     /// Returns true if this contains a process with the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id<'static>>,
+        IdT: AsRef<Id<'id>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
-impl Deref for Processes {
-    type Target = Map<ProcessId<'static>, ProcessDiagram>;
+impl<'id> Deref for Processes<'id> {
+    type Target = Map<ProcessId<'id>, ProcessDiagram<'id>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for Processes {
+impl<'id> DerefMut for Processes<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<ProcessId<'static>, ProcessDiagram>> for Processes {
-    fn from(inner: Map<ProcessId<'static>, ProcessDiagram>) -> Self {
+impl<'id> From<Map<ProcessId<'id>, ProcessDiagram<'id>>> for Processes<'id> {
+    fn from(inner: Map<ProcessId<'id>, ProcessDiagram<'id>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(ProcessId<'static>, ProcessDiagram)> for Processes {
-    fn from_iter<I: IntoIterator<Item = (ProcessId<'static>, ProcessDiagram)>>(iter: I) -> Self {
+impl<'id> FromIterator<(ProcessId<'id>, ProcessDiagram<'id>)> for Processes<'id> {
+    fn from_iter<I: IntoIterator<Item = (ProcessId<'id>, ProcessDiagram<'id>)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

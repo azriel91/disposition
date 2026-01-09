@@ -16,7 +16,7 @@ use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 /// ```rust
 /// use disposition_input_model::theme::StyleAlias;
 ///
-/// let style_alias = StyleAlias::PaddingNormal;
+/// let style_alias = StyleAlias::<'static>::PaddingNormal;
 /// assert_eq!(style_alias.as_str(), "padding_normal");
 ///
 /// let custom_alias = StyleAlias::Custom("my_custom_style".parse().unwrap());
@@ -27,7 +27,7 @@ use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub enum StyleAlias {
+pub enum StyleAlias<'id> {
     /// No padding.
     PaddingNone,
     /// Tight padding (2 units).
@@ -51,10 +51,10 @@ pub enum StyleAlias {
     /// Dashed stroke with animation for response direction.
     StrokeDashedAnimatedResponse,
     /// Custom user-defined style alias.
-    Custom(Id<'static>),
+    Custom(Id<'id>),
 }
 
-impl StyleAlias {
+impl<'id> StyleAlias<'id> {
     /// Returns the string representation of the style alias.
     ///
     /// # Examples
@@ -62,8 +62,11 @@ impl StyleAlias {
     /// ```rust
     /// use disposition_input_model::theme::StyleAlias;
     ///
-    /// assert_eq!(StyleAlias::PaddingNormal.as_str(), "padding_normal");
-    /// assert_eq!(StyleAlias::ShadeLight.as_str(), "shade_light");
+    /// assert_eq!(
+    ///     StyleAlias::<'static>::PaddingNormal.as_str(),
+    ///     "padding_normal"
+    /// );
+    /// assert_eq!(StyleAlias::<'static>::ShadeLight.as_str(), "shade_light");
     /// ```
     pub fn as_str(&self) -> &str {
         match self {
@@ -89,22 +92,42 @@ impl StyleAlias {
     /// ```rust
     /// use disposition_input_model::theme::StyleAlias;
     ///
-    /// assert_eq!(StyleAlias::PaddingNormal.custom_id(), None);
+    /// assert_eq!(StyleAlias::<'static>::PaddingNormal.custom_id(), None);
     ///
     /// let custom = StyleAlias::Custom("my_style".parse().unwrap());
     /// assert!(custom.custom_id().is_some());
     /// ```
-    pub fn custom_id(&self) -> Option<&Id<'static>> {
+    pub fn custom_id(&self) -> Option<&Id<'id>> {
         if let Self::Custom(id) = self {
             Some(id)
         } else {
             None
         }
     }
+
+    /// Converts this `StyleAlias` into one with a `'static` lifetime.
+    ///
+    /// This clones the inner `Id` if it's a `Custom` variant.
+    pub fn into_static(self) -> StyleAlias<'static> {
+        match self {
+            StyleAlias::PaddingNone => StyleAlias::PaddingNone,
+            StyleAlias::PaddingTight => StyleAlias::PaddingTight,
+            StyleAlias::PaddingNormal => StyleAlias::PaddingNormal,
+            StyleAlias::PaddingWide => StyleAlias::PaddingWide,
+            StyleAlias::ShadePale => StyleAlias::ShadePale,
+            StyleAlias::ShadeLight => StyleAlias::ShadeLight,
+            StyleAlias::ShadeMedium => StyleAlias::ShadeMedium,
+            StyleAlias::ShadeDark => StyleAlias::ShadeDark,
+            StyleAlias::StrokeDashedAnimated => StyleAlias::StrokeDashedAnimated,
+            StyleAlias::StrokeDashedAnimatedRequest => StyleAlias::StrokeDashedAnimatedRequest,
+            StyleAlias::StrokeDashedAnimatedResponse => StyleAlias::StrokeDashedAnimatedResponse,
+            StyleAlias::Custom(id) => StyleAlias::Custom(id.into_static()),
+        }
+    }
 }
 
-impl From<Id<'static>> for StyleAlias {
-    fn from(id: Id<'static>) -> Self {
+impl<'id> From<Id<'id>> for StyleAlias<'id> {
+    fn from(id: Id<'id>) -> Self {
         match id.as_str() {
             "padding_none" => StyleAlias::PaddingNone,
             "padding_tight" => StyleAlias::PaddingTight,
@@ -122,13 +145,13 @@ impl From<Id<'static>> for StyleAlias {
     }
 }
 
-impl Display for StyleAlias {
+impl Display for StyleAlias<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.as_str().fmt(f)
     }
 }
 
-impl Serialize for StyleAlias {
+impl Serialize for StyleAlias<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -137,7 +160,7 @@ impl Serialize for StyleAlias {
     }
 }
 
-impl<'de> Deserialize<'de> for StyleAlias {
+impl<'de> Deserialize<'de> for StyleAlias<'static> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -149,7 +172,7 @@ impl<'de> Deserialize<'de> for StyleAlias {
 struct StyleAliasVisitor;
 
 impl Visitor<'_> for StyleAliasVisitor {
-    type Value = StyleAlias;
+    type Value = StyleAlias<'static>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str(

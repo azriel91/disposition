@@ -30,9 +30,9 @@ use crate::{tag::TagId, thing::ThingId};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct TagThings(Map<TagId<'static>, Set<ThingId<'static>>>);
+pub struct TagThings<'id>(Map<TagId<'id>, Set<ThingId<'id>>>);
 
-impl TagThings {
+impl<'id> TagThings<'id> {
     /// Returns a new `TagThings` map.
     pub fn new() -> Self {
         Self::default()
@@ -45,7 +45,7 @@ impl TagThings {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<TagId<'static>, Set<ThingId<'static>>> {
+    pub fn into_inner(self) -> Map<TagId<'id>, Set<ThingId<'id>>> {
         self.0
     }
 
@@ -57,34 +57,34 @@ impl TagThings {
     /// Returns true if this contains things for a tag with the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id<'static>>,
+        IdT: AsRef<Id<'id>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
-impl Deref for TagThings {
-    type Target = Map<TagId<'static>, Set<ThingId<'static>>>;
+impl<'id> Deref for TagThings<'id> {
+    type Target = Map<TagId<'id>, Set<ThingId<'id>>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for TagThings {
+impl<'id> DerefMut for TagThings<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<TagId<'static>, Set<ThingId<'static>>>> for TagThings {
-    fn from(inner: Map<TagId<'static>, Set<ThingId<'static>>>) -> Self {
+impl<'id> From<Map<TagId<'id>, Set<ThingId<'id>>>> for TagThings<'id> {
+    fn from(inner: Map<TagId<'id>, Set<ThingId<'id>>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(TagId<'static>, Set<ThingId<'static>>)> for TagThings {
-    fn from_iter<I: IntoIterator<Item = (TagId<'static>, Set<ThingId<'static>>)>>(iter: I) -> Self {
+impl<'id> FromIterator<(TagId<'id>, Set<ThingId<'id>>)> for TagThings<'id> {
+    fn from_iter<I: IntoIterator<Item = (TagId<'id>, Set<ThingId<'id>>)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

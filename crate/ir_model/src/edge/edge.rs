@@ -24,15 +24,15 @@ use crate::node::NodeId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub struct Edge {
+pub struct Edge<'id> {
     /// The source node ID where this edge originates.
-    pub from: NodeId<'static>,
+    pub from: NodeId<'id>,
 
     /// The target node ID where this edge points to.
-    pub to: NodeId<'static>,
+    pub to: NodeId<'id>,
 }
 
-impl Edge {
+impl<'id> Edge<'id> {
     /// Creates a new `Edge` from source to target.
     ///
     /// # Examples
@@ -48,7 +48,7 @@ impl Edge {
     /// assert_eq!(edge.from, from);
     /// assert_eq!(edge.to, to);
     /// ```
-    pub fn new(from: NodeId<'static>, to: NodeId<'static>) -> Self {
+    pub fn new(from: NodeId<'id>, to: NodeId<'id>) -> Self {
         Self { from, to }
     }
 

@@ -34,7 +34,7 @@ const CLASSES_BUFFER_WRITE_FAIL: &str = "Failed to write string to buffer";
 
 impl InputToIrDiagramMapper {
     /// Maps an input diagram to an intermediate representation diagram.
-    pub fn map(input_diagram: InputDiagram) -> IrDiagramAndIssues {
+    pub fn map(input_diagram: InputDiagram<'static>) -> IrDiagramAndIssues<'static> {
         let issues = Vec::new();
 
         let InputDiagram {
@@ -130,7 +130,11 @@ impl InputToIrDiagramMapper {
     }
 
     /// Build NodeNames from things, tags, processes, and process steps.
-    fn build_node_names(things: &ThingNames, tags: &TagNames, processes: &Processes) -> NodeNames {
+    fn build_node_names(
+        things: &ThingNames<'static>,
+        tags: &TagNames<'static>,
+        processes: &Processes<'static>,
+    ) -> NodeNames<'static> {
         // Add things
         let thing_nodes = things.iter().map(|(thing_id, name)| {
             let node_id = NodeId::from(thing_id.clone().into_inner());
@@ -168,7 +172,7 @@ impl InputToIrDiagramMapper {
     }
 
     /// Build NodeCopyText from thing_copy_text.
-    fn build_node_copy_text(thing_copy_text: ThingCopyText) -> NodeCopyText {
+    fn build_node_copy_text(thing_copy_text: ThingCopyText<'static>) -> NodeCopyText<'static> {
         thing_copy_text
             .into_inner()
             .into_iter()
@@ -182,10 +186,10 @@ impl InputToIrDiagramMapper {
     /// Build NodeHierarchy from tags, processes (with steps), and
     /// thing_hierarchy.
     fn build_node_hierarchy(
-        tags: &TagNames,
-        processes: &Processes,
-        thing_hierarchy: &InputThingHierarchy,
-    ) -> NodeHierarchy {
+        tags: &TagNames<'static>,
+        processes: &Processes<'static>,
+        thing_hierarchy: &InputThingHierarchy<'static>,
+    ) -> NodeHierarchy<'static> {
         // Add tags first (for CSS peer selector ordering)
         let tag_entries = tags.keys().map(|tag_id| {
             let node_id = NodeId::from(tag_id.clone().into_inner());
@@ -218,8 +222,8 @@ impl InputToIrDiagramMapper {
 
     /// Recursively convert ThingHierarchy to NodeHierarchy.
     fn convert_thing_hierarchy_to_node_hierarchy(
-        thing_hierarchy: &InputThingHierarchy,
-    ) -> NodeHierarchy {
+        thing_hierarchy: &InputThingHierarchy<'static>,
+    ) -> NodeHierarchy<'static> {
         thing_hierarchy
             .iter()
             .map(|(thing_id, children)| {
@@ -243,11 +247,11 @@ impl InputToIrDiagramMapper {
     /// 2. Processes and their steps (process first, then its steps)
     /// 3. Tags (at the end)
     fn build_node_ordering(
-        things: &ThingNames,
-        thing_hierarchy: &InputThingHierarchy,
-        tags: &TagNames,
-        processes: &Processes,
-    ) -> NodeOrdering {
+        things: &ThingNames<'static>,
+        thing_hierarchy: &InputThingHierarchy<'static>,
+        tags: &TagNames<'static>,
+        processes: &Processes<'static>,
+    ) -> NodeOrdering<'static> {
         // First, calculate tab indices in the user-expected order:
         // things, then processes with their steps, then tags
         let mut tab_index: u32 = 1;
@@ -323,9 +327,9 @@ impl InputToIrDiagramMapper {
 
     /// Recursively collect tab indices for things in hierarchy order.
     fn collect_thing_tab_indices_recursive<'f>(
-        thing_hierarchy: &'f InputThingHierarchy,
+        thing_hierarchy: &'f InputThingHierarchy<'static>,
         tab_index: &mut u32,
-        tab_indices: &mut Map<&'f Id, u32>,
+        tab_indices: &mut Map<&'f Id<'static>, u32>,
     ) {
         thing_hierarchy.iter().for_each(|(thing_id, children)| {
             tab_indices.insert(thing_id.as_ref(), *tab_index);
@@ -338,9 +342,9 @@ impl InputToIrDiagramMapper {
 
     /// Recursively add things to ordering in hierarchy order.
     fn add_things_to_ordering_recursive<'f>(
-        thing_hierarchy: &'f InputThingHierarchy,
-        thing_tab_indices: &Map<&'f Id, u32>,
-        node_ordering: &mut NodeOrdering,
+        thing_hierarchy: &'f InputThingHierarchy<'static>,
+        thing_tab_indices: &Map<&'f Id<'static>, u32>,
+        node_ordering: &mut NodeOrdering<'static>,
     ) {
         thing_hierarchy.iter().for_each(|(thing_id, children)| {
             let thing_node_id = NodeId::from(thing_id.clone().into_inner());
@@ -357,9 +361,9 @@ impl InputToIrDiagramMapper {
 
     /// Build EdgeGroups from thing_dependencies and thing_interactions.
     fn build_edge_groups(
-        thing_dependencies: &ThingDependencies,
-        thing_interactions: &ThingInteractions,
-    ) -> EdgeGroups {
+        thing_dependencies: &ThingDependencies<'static>,
+        thing_interactions: &ThingInteractions<'static>,
+    ) -> EdgeGroups<'static> {
         // Process thing_dependencies
         let dependency_entries = thing_dependencies.iter().map(|(edge_group_id, edge_kind)| {
             (edge_group_id.clone(), Self::edge_kind_to_edges(edge_kind))
@@ -378,7 +382,7 @@ impl InputToIrDiagramMapper {
     }
 
     /// Convert an EdgeKind to a list of Edges.
-    fn edge_kind_to_edges(edge_kind: &EdgeKind) -> EdgeGroup {
+    fn edge_kind_to_edges(edge_kind: &EdgeKind<'static>) -> EdgeGroup<'static> {
         let edges: Vec<Edge> = match edge_kind {
             EdgeKind::Cyclic(things) => {
                 // Create edges from each thing to the next, and from last back to first
@@ -444,7 +448,10 @@ impl InputToIrDiagramMapper {
     }
 
     /// Build EntityDescs from input entity_descs and process step_descs.
-    fn build_entity_descs(input_entity_descs: &EntityDescs, processes: &Processes) -> EntityDescs {
+    fn build_entity_descs(
+        input_entity_descs: &EntityDescs<'static>,
+        processes: &Processes<'static>,
+    ) -> EntityDescs<'static> {
         // Copy existing entity descs
         let existing_entries = input_entity_descs
             .iter()
@@ -463,13 +470,13 @@ impl InputToIrDiagramMapper {
 
     /// Build EntityTypes with defaults for each node type.
     fn build_entity_types(
-        things: &ThingNames,
-        tags: &TagNames,
-        processes: &Processes,
-        input_entity_types: &EntityTypes,
-        thing_dependencies: &ThingDependencies,
-        thing_interactions: &ThingInteractions,
-    ) -> EntityTypes {
+        things: &ThingNames<'static>,
+        tags: &TagNames<'static>,
+        processes: &Processes<'static>,
+        input_entity_types: &EntityTypes<'static>,
+        thing_dependencies: &ThingDependencies<'static>,
+        thing_interactions: &ThingInteractions<'static>,
+    ) -> EntityTypes<'static> {
         // Helper to build types vector with default and optional custom types
         let build_types = |id: &Id, default_type: EntityType| {
             let mut types = Set::new();
@@ -543,8 +550,8 @@ impl InputToIrDiagramMapper {
     /// Add edge types from dependencies.
     fn build_entity_types_dependencies(
         entity_types: &mut Map<Id<'static>, Set<EntityType>>,
-        thing_deps: &ThingDependencies,
-        input_entity_types: &EntityTypes,
+        thing_deps: &ThingDependencies<'static>,
+        input_entity_types: &EntityTypes<'static>,
     ) {
         let edge_group_entries = thing_deps.iter().flat_map(|(edge_group_id, edge_kind)| {
             // edge group entity types
@@ -571,8 +578,8 @@ impl InputToIrDiagramMapper {
     /// Add interaction types to existing edge types.
     fn build_entity_types_interactions(
         entity_types: &mut Map<Id<'static>, Set<EntityType>>,
-        thing_interactions: &ThingInteractions,
-        input_entity_types: &EntityTypes,
+        thing_interactions: &ThingInteractions<'static>,
+        input_entity_types: &EntityTypes<'static>,
     ) {
         let edge_group_entries =
             thing_interactions
@@ -600,10 +607,10 @@ impl InputToIrDiagramMapper {
     }
 
     fn build_entity_types_for_edge_groups(
-        input_entity_types: &EntityTypes,
+        input_entity_types: &EntityTypes<'static>,
         edge_group_id: &EdgeGroupId<'static>,
-        edge_kind: &EdgeKind,
-        edge_group_default_type_fn: fn(&EdgeKind) -> EntityType,
+        edge_kind: &EdgeKind<'static>,
+        edge_group_default_type_fn: fn(&EdgeKind<'static>) -> EntityType,
     ) -> (Id<'static>, Set<EntityType>) {
         let edge_group_id: Id<'static> = edge_group_id.clone().into_inner();
 
@@ -619,7 +626,7 @@ impl InputToIrDiagramMapper {
         (edge_group_id, types)
     }
 
-    fn edge_group_default_type_dependency(edge_kind: &EdgeKind) -> EntityType {
+    fn edge_group_default_type_dependency(edge_kind: &EdgeKind<'static>) -> EntityType {
         match edge_kind {
             EdgeKind::Cyclic(_) => EntityType::DependencyEdgeCyclicDefault,
             EdgeKind::Sequence(_) => EntityType::DependencyEdgeSequenceDefault,
@@ -628,7 +635,7 @@ impl InputToIrDiagramMapper {
     }
 
     fn edge_default_type_dependency(
-        edge_kind: &EdgeKind,
+        edge_kind: &EdgeKind<'static>,
         forward_count: usize,
         i: usize,
     ) -> EntityType {
@@ -646,7 +653,7 @@ impl InputToIrDiagramMapper {
         }
     }
 
-    fn edge_group_default_type_interaction(edge_kind: &EdgeKind) -> EntityType {
+    fn edge_group_default_type_interaction(edge_kind: &EdgeKind<'static>) -> EntityType {
         match edge_kind {
             EdgeKind::Cyclic(_) => EntityType::InteractionEdgeCyclicDefault,
             EdgeKind::Sequence(_) => EntityType::InteractionEdgeSequenceDefault,
@@ -655,7 +662,7 @@ impl InputToIrDiagramMapper {
     }
 
     fn edge_default_type_interaction(
-        edge_kind: &EdgeKind,
+        edge_kind: &EdgeKind<'static>,
         forward_count: usize,
         i: usize,
     ) -> EntityType {
@@ -674,10 +681,10 @@ impl InputToIrDiagramMapper {
     }
 
     fn build_entity_types_for_edges(
-        input_entity_types: &EntityTypes,
+        input_entity_types: &EntityTypes<'static>,
         edge_group_id: &EdgeGroupId<'static>,
-        edge_kind: &EdgeKind,
-        edge_default_type_fn: fn(&EdgeKind, usize, usize) -> EntityType,
+        edge_kind: &EdgeKind<'static>,
+        edge_default_type_fn: fn(&EdgeKind<'static>, usize, usize) -> EntityType,
     ) -> impl Iterator<Item = (Id<'static>, Set<EntityType>)> {
         let (edge_count, forward_count) = match edge_kind {
             EdgeKind::Cyclic(things) => (things.len(), things.len()),
@@ -715,13 +722,13 @@ impl InputToIrDiagramMapper {
 
     /// Build NodeLayouts from node_hierarchy and theme data.
     fn build_node_layouts(
-        node_hierarchy: &NodeHierarchy,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
-        tags: &TagNames,
-        processes: &Processes,
-    ) -> NodeLayouts {
+        node_hierarchy: &NodeHierarchy<'static>,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
+        tags: &TagNames<'static>,
+        processes: &Processes<'static>,
+    ) -> NodeLayouts<'static> {
         let mut node_layouts = NodeLayouts::new();
 
         // Helper to determine if a node is a tag
@@ -853,9 +860,9 @@ impl InputToIrDiagramMapper {
         container_id: &Id<'static>,
         direction: FlexDirection,
         wrap: bool,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
     ) -> NodeLayout {
         // Containers don't have entity types, so we only resolve from NodeDefaults
         let (padding_top, padding_right, padding_bottom, padding_left) = Self::resolve_padding(
@@ -897,9 +904,9 @@ impl InputToIrDiagramMapper {
         node_id: &NodeId<'static>,
         direction: FlexDirection,
         wrap: bool,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
     ) -> NodeLayout {
         let id: Id<'static> = node_id.clone().into_inner();
         let (padding_top, padding_right, padding_bottom, padding_left) =
@@ -926,12 +933,12 @@ impl InputToIrDiagramMapper {
     /// Recursively build layouts for things in the hierarchy.
     #[allow(clippy::too_many_arguments)] // we may reduce this during refactoring
     fn build_thing_layouts<F, G>(
-        hierarchy: &NodeHierarchy,
+        hierarchy: &NodeHierarchy<'static>,
         depth: usize,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
-        node_layouts: &mut NodeLayouts,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
+        node_layouts: &mut NodeLayouts<'static>,
         is_tag: &F,
         is_process: &G,
     ) where
@@ -1016,12 +1023,12 @@ impl InputToIrDiagramMapper {
     /// - `finalize`: Closure that converts the accumulated state into the final
     ///   result with defaults
     fn resolve_theme_attr<State, Result>(
-        node_id: Option<&Id<'static>>,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
+        node_id: &Id<'static>,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
         state: &mut State,
-        apply_from_partials: impl Fn(&CssClassPartials, &StyleAliases, &mut State),
+        apply_from_partials: impl Fn(&CssClassPartials<'static>, &StyleAliases<'static>, &mut State),
         finalize: impl FnOnce(&State) -> Result,
     ) -> Result {
         // 1. Start with NodeDefaults (lowest priority)
@@ -1032,9 +1039,7 @@ impl InputToIrDiagramMapper {
         }
 
         // 2. Apply EntityTypes in order (later types override earlier ones)
-        if let Some(id) = node_id
-            && let Some(types) = entity_types.get(id)
-        {
+        if let Some(types) = entity_types.get(node_id) {
             types
                 .iter()
                 .filter_map(|entity_type| {
@@ -1049,9 +1054,9 @@ impl InputToIrDiagramMapper {
         }
 
         // 3. Apply node ID itself (highest priority)
-        if let Some(id) = node_id
-            && let Some(node_partials) =
-                theme_default.base_styles.get(&IdOrDefaults::Id(id.clone()))
+        if let Some(node_partials) = theme_default
+            .base_styles
+            .get(&IdOrDefaults::Id(node_id.clone()))
         {
             apply_from_partials(node_partials, &theme_default.style_aliases, state);
         }
@@ -1061,35 +1066,39 @@ impl InputToIrDiagramMapper {
 
     fn resolve_padding(
         node_id: Option<&Id<'static>>,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
     ) -> (f32, f32, f32, f32) {
         let mut state = (None, None, None, None);
 
-        Self::resolve_theme_attr(
-            node_id,
-            entity_types,
-            theme_default,
-            theme_types_styles,
-            &mut state,
-            Self::apply_padding_from_partials,
-            |state| {
-                (
-                    state.0.unwrap_or(0.0),
-                    state.1.unwrap_or(0.0),
-                    state.2.unwrap_or(0.0),
-                    state.3.unwrap_or(0.0),
-                )
-            },
-        )
+        if let Some(id) = node_id {
+            Self::resolve_theme_attr(
+                id,
+                entity_types,
+                theme_default,
+                theme_types_styles,
+                &mut state,
+                Self::apply_padding_from_partials,
+                |state| {
+                    (
+                        state.0.unwrap_or(0.0),
+                        state.1.unwrap_or(0.0),
+                        state.2.unwrap_or(0.0),
+                        state.3.unwrap_or(0.0),
+                    )
+                },
+            )
+        } else {
+            (0.0, 0.0, 0.0, 0.0)
+        }
     }
 
     /// Apply padding values from CssClassPartials, checking both direct
     /// attributes and style aliases.
     fn apply_padding_from_partials(
-        partials: &CssClassPartials,
-        style_aliases: &StyleAliases,
+        partials: &CssClassPartials<'static>,
+        style_aliases: &StyleAliases<'static>,
         state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
     ) {
         // First, check style_aliases_applied (lower priority within this partials)
@@ -1105,7 +1114,7 @@ impl InputToIrDiagramMapper {
 
     /// Extract padding values from a map of ThemeAttr to String.
     fn extract_padding_from_map(
-        partials: &CssClassPartials,
+        partials: &CssClassPartials<'static>,
         state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
     ) {
         let (padding_top, padding_right, padding_bottom, padding_left) = state;
@@ -1161,35 +1170,39 @@ impl InputToIrDiagramMapper {
 
     fn resolve_margin(
         node_id: Option<&Id<'static>>,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
     ) -> (f32, f32, f32, f32) {
         let mut state = (None, None, None, None);
 
-        Self::resolve_theme_attr(
-            node_id,
-            entity_types,
-            theme_default,
-            theme_types_styles,
-            &mut state,
-            Self::apply_margin_from_partials,
-            |state| {
-                (
-                    state.0.unwrap_or(0.0),
-                    state.1.unwrap_or(0.0),
-                    state.2.unwrap_or(0.0),
-                    state.3.unwrap_or(0.0),
-                )
-            },
-        )
+        if let Some(id) = node_id {
+            Self::resolve_theme_attr(
+                id,
+                entity_types,
+                theme_default,
+                theme_types_styles,
+                &mut state,
+                Self::apply_margin_from_partials,
+                |state| {
+                    (
+                        state.0.unwrap_or(0.0),
+                        state.1.unwrap_or(0.0),
+                        state.2.unwrap_or(0.0),
+                        state.3.unwrap_or(0.0),
+                    )
+                },
+            )
+        } else {
+            (0.0, 0.0, 0.0, 0.0)
+        }
     }
 
     /// Apply margin values from CssClassPartials, checking both direct
     /// attributes and style aliases.
     fn apply_margin_from_partials(
-        partials: &CssClassPartials,
-        style_aliases: &StyleAliases,
+        partials: &CssClassPartials<'static>,
+        style_aliases: &StyleAliases<'static>,
         state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
     ) {
         // First, check style_aliases_applied (lower priority within this partials)
@@ -1205,7 +1218,7 @@ impl InputToIrDiagramMapper {
 
     /// Extract margin values from a map of ThemeAttr to String.
     fn extract_margin_from_map(
-        partials: &CssClassPartials,
+        partials: &CssClassPartials<'static>,
         state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
     ) {
         let (margin_top, margin_right, margin_bottom, margin_left) = state;
@@ -1261,28 +1274,32 @@ impl InputToIrDiagramMapper {
 
     fn resolve_gap(
         node_id: Option<&Id<'static>>,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
     ) -> f32 {
         let mut state = None;
 
-        Self::resolve_theme_attr(
-            node_id,
-            entity_types,
-            theme_default,
-            theme_types_styles,
-            &mut state,
-            Self::apply_gap_from_partials,
-            |state| state.unwrap_or(0.0),
-        )
+        if let Some(id) = node_id {
+            Self::resolve_theme_attr(
+                id,
+                entity_types,
+                theme_default,
+                theme_types_styles,
+                &mut state,
+                Self::apply_gap_from_partials,
+                |state| state.unwrap_or(0.0),
+            )
+        } else {
+            0.0
+        }
     }
 
-    /// Apply gap value from CssClassPartials, checking both direct attributes
+    /// Apply gap value from CssClassPartials, checking both direct
     /// and style aliases.
     fn apply_gap_from_partials(
-        partials: &CssClassPartials,
-        style_aliases: &StyleAliases,
+        partials: &CssClassPartials<'static>,
+        style_aliases: &StyleAliases<'static>,
         state: &mut Option<f32>,
     ) {
         // First, check style_aliases_applied (lower priority within this partials)
@@ -1309,16 +1326,16 @@ impl InputToIrDiagramMapper {
     /// Build tailwind classes for all entities (nodes, edge groups, edges).
     #[allow(clippy::too_many_arguments)]
     fn build_tailwind_classes(
-        nodes: &NodeNames,
-        edge_groups: &EdgeGroups,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
-        theme_tag_things_focus: &ThemeTagThingsFocus,
-        tags: &TagNames,
-        tag_things: &TagThings,
-        processes: &Processes,
-    ) -> EntityTailwindClasses {
+        nodes: &NodeNames<'static>,
+        edge_groups: &EdgeGroups<'static>,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
+        theme_tag_things_focus: &ThemeTagThingsFocus<'static>,
+        tags: &TagNames<'static>,
+        tag_things: &TagThings<'static>,
+        processes: &Processes<'static>,
+    ) -> EntityTailwindClasses<'static> {
         // Build a map of process step ID to (process ID, edge IDs they interact with)
         let step_interactions = Self::build_step_interactions_map(processes);
 
@@ -1430,9 +1447,10 @@ impl InputToIrDiagramMapper {
 
     /// Build a map of process step ID to (process ID, edge IDs they interact
     /// with).
-    fn build_step_interactions_map(
-        processes: &Processes,
-    ) -> Map<&ProcessStepId<'static>, (&ProcessId<'static>, &Vec<EdgeGroupId<'static>>)> {
+    fn build_step_interactions_map<'a>(
+        processes: &'a Processes<'static>,
+    ) -> Map<&'a ProcessStepId<'static>, (&'a ProcessId<'static>, &'a Vec<EdgeGroupId<'static>>)>
+    {
         processes
             .iter()
             .flat_map(|(process_id, process_diagram)| {
@@ -1446,9 +1464,9 @@ impl InputToIrDiagramMapper {
     }
 
     /// Build a map of edge group ID to process steps that interact with it.
-    fn build_edge_group_to_steps_map(
-        processes: &Processes,
-    ) -> Map<&EdgeGroupId<'static>, Vec<&ProcessStepId<'static>>> {
+    fn build_edge_group_to_steps_map<'a>(
+        processes: &'a Processes<'static>,
+    ) -> Map<&'a EdgeGroupId<'static>, Vec<&'a ProcessStepId<'static>>> {
         processes
             .values()
             .flat_map(|process_diagram| {
@@ -1472,7 +1490,7 @@ impl InputToIrDiagramMapper {
     /// Build a map of thing ID to process steps that interact with edges
     /// involving that thing.
     fn build_thing_to_interaction_steps_map<'f>(
-        edge_groups: &'f EdgeGroups,
+        edge_groups: &'f EdgeGroups<'static>,
         step_interactions: &'f Map<
             &'f ProcessStepId<'static>,
             (&'f ProcessId<'static>, &'f Vec<EdgeGroupId<'static>>),
@@ -1509,9 +1527,9 @@ impl InputToIrDiagramMapper {
     /// Build tailwind classes for a tag node.
     fn build_tag_tailwind_classes(
         id: &Id<'static>,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -1536,9 +1554,9 @@ impl InputToIrDiagramMapper {
     /// Build tailwind classes for a process node.
     fn build_process_tailwind_classes(
         id: &Id<'static>,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -1564,9 +1582,9 @@ impl InputToIrDiagramMapper {
     fn build_process_step_tailwind_classes(
         id: &Id<'static>,
         parent_process_id: Option<&ProcessId<'static>>,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -1600,12 +1618,12 @@ impl InputToIrDiagramMapper {
     #[allow(clippy::too_many_arguments)]
     fn build_thing_tailwind_classes(
         node_id: &NodeId<'static>,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
-        theme_tag_things_focus: &ThemeTagThingsFocus,
-        tags: &TagNames,
-        tag_things: &TagThings,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
+        theme_tag_things_focus: &ThemeTagThingsFocus<'static>,
+        tags: &TagNames<'static>,
+        tag_things: &TagThings<'static>,
         thing_to_interaction_steps: &Map<&NodeId<'static>, Set<&ProcessStepId<'static>>>,
     ) -> String {
         let mut state = TailwindClassState::default();
@@ -1748,9 +1766,9 @@ impl InputToIrDiagramMapper {
     ///   with this edge.
     fn build_edge_group_tailwind_classes(
         edge_group_id: &EdgeGroupId<'static>,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
         interaction_process_step_ids: &[&ProcessStepId<'static>],
     ) -> String {
         let mut state = TailwindClassState::default();
@@ -1804,9 +1822,9 @@ impl InputToIrDiagramMapper {
     /// group.
     fn build_edge_tailwind_classes(
         edge_id: &Id<'static>,
-        entity_types: &EntityTypes,
-        theme_default: &ThemeDefault,
-        theme_types_styles: &ThemeTypesStyles,
+        entity_types: &EntityTypes<'static>,
+        theme_default: &ThemeDefault<'static>,
+        theme_types_styles: &ThemeTypesStyles<'static>,
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -1837,10 +1855,10 @@ impl InputToIrDiagramMapper {
     /// * `state`: Tailwind class state to write the resolved classes to.
     fn resolve_tailwind_attrs<'partials, 'tw_state>(
         entity_id: &Id<'static>,
-        entity_types: &'partials EntityTypes,
-        theme_default: &'partials ThemeDefault,
-        theme_types_styles: &'partials ThemeTypesStyles,
-        id_or_defaults_key: IdOrDefaults,
+        entity_types: &'partials EntityTypes<'static>,
+        theme_default: &'partials ThemeDefault<'static>,
+        theme_types_styles: &'partials ThemeTypesStyles<'static>,
+        id_or_defaults_key: IdOrDefaults<'static>,
         state: &mut TailwindClassState<'tw_state>,
     ) where
         'partials: 'tw_state,
@@ -1884,8 +1902,8 @@ impl InputToIrDiagramMapper {
 
     /// Apply tailwind attribute values from CssClassPartials.
     fn apply_tailwind_from_partials<'partials, 'tw_state>(
-        partials: &'partials CssClassPartials,
-        style_aliases: &'partials StyleAliases,
+        partials: &'partials CssClassPartials<'static>,
+        style_aliases: &'partials StyleAliases<'static>,
         state: &mut TailwindClassState<'tw_state>,
     ) where
         'partials: 'tw_state,

@@ -80,26 +80,26 @@ use crate::{
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
-pub struct IrDiagram {
+pub struct IrDiagram<'id> {
     /// All nodes in the diagram and their display labels.
     ///
     /// This includes things, tags, processes, and process steps.
     #[serde(default, skip_serializing_if = "NodeNames::is_empty")]
-    pub nodes: NodeNames,
+    pub nodes: NodeNames<'id>,
 
     /// Text to copy to clipboard when a node's copy button is clicked.
     ///
     /// This allows nodes to have different copy text than their display label.
     /// Typically only includes `thing` nodes.
     #[serde(default, skip_serializing_if = "NodeCopyText::is_empty")]
-    pub node_copy_text: NodeCopyText,
+    pub node_copy_text: NodeCopyText<'id>,
 
     /// Hierarchy of all nodes as a recursive tree structure.
     ///
     /// This includes tags, processes (with their steps), and things.
     /// The order of declaration is important for CSS peer selector ordering.
     #[serde(default, skip_serializing_if = "NodeHierarchy::is_empty")]
-    pub node_hierarchy: NodeHierarchy,
+    pub node_hierarchy: NodeHierarchy<'id>,
 
     /// Order that nodes should appear in the final SVG, and their tab indices.
     ///
@@ -107,39 +107,39 @@ pub struct IrDiagram {
     /// processes, then things), while the values define the tab indices for
     /// keyboard navigation.
     #[serde(default, skip_serializing_if = "NodeOrdering::is_empty")]
-    pub node_ordering: NodeOrdering,
+    pub node_ordering: NodeOrdering<'id>,
 
     /// Edge groups derived from `thing_dependencies` and `thing_interactions`.
     ///
     /// Each edge group contains explicit `from`/`to` edges.
     #[serde(default, skip_serializing_if = "EdgeGroups::is_empty")]
-    pub edge_groups: EdgeGroups,
+    pub edge_groups: EdgeGroups<'id>,
 
     /// Descriptions for entities (nodes, edges, and edge groups).
     ///
     /// Contains text (typically markdown) that provides additional context
     /// about entities in the diagram, such as process steps or edge labels.
     #[serde(default, skip_serializing_if = "EntityDescs::is_empty")]
-    pub entity_descs: EntityDescs,
+    pub entity_descs: EntityDescs<'id>,
 
     /// Entity types attached to nodes and edges for common styling.
     ///
     /// Each node/edge can have multiple types, allowing styles to be stacked.
     #[serde(default, skip_serializing_if = "EntityTypes::is_empty")]
-    pub entity_types: EntityTypes,
+    pub entity_types: EntityTypes<'id>,
 
     /// Computed Tailwind CSS classes for interactive visibility behaviour.
     ///
     /// These classes control visibility, colors, animations, and interactions
     /// based on the diagram's state.
     #[serde(default, skip_serializing_if = "EntityTailwindClasses::is_empty")]
-    pub tailwind_classes: EntityTailwindClasses,
+    pub tailwind_classes: EntityTailwindClasses<'id>,
 
     /// Layout configuration for each node.
     ///
     /// Defines how children of each container node should be arranged.
     #[serde(default, skip_serializing_if = "NodeLayouts::is_empty")]
-    pub node_layouts: NodeLayouts,
+    pub node_layouts: NodeLayouts<'id>,
 
     /// Additional CSS to place in the SVG's inline `<styles>` section.
     ///
@@ -149,7 +149,7 @@ pub struct IrDiagram {
     pub css: Css,
 }
 
-impl IrDiagram {
+impl<'id> IrDiagram<'id> {
     /// Returns a new `IrDiagram` with default values.
     pub fn new() -> Self {
         Self::default()

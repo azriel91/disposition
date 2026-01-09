@@ -72,9 +72,9 @@ use serde::{Deserialize, Serialize};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct EntityTailwindClasses(Map<Id<'static>, String>);
+pub struct EntityTailwindClasses<'id>(Map<Id<'id>, String>);
 
-impl EntityTailwindClasses {
+impl<'id> EntityTailwindClasses<'id> {
     /// Returns a new `TailwindClasses` map.
     pub fn new() -> Self {
         Self::default()
@@ -87,7 +87,7 @@ impl EntityTailwindClasses {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<Id<'static>, String> {
+    pub fn into_inner(self) -> Map<Id<'id>, String> {
         self.0
     }
 
@@ -100,34 +100,34 @@ impl EntityTailwindClasses {
     /// given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id<'static>>,
+        IdT: AsRef<Id<'id>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
-impl Deref for EntityTailwindClasses {
-    type Target = Map<Id<'static>, String>;
+impl<'id> Deref for EntityTailwindClasses<'id> {
+    type Target = Map<Id<'id>, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for EntityTailwindClasses {
+impl<'id> DerefMut for EntityTailwindClasses<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<Id<'static>, String>> for EntityTailwindClasses {
-    fn from(inner: Map<Id<'static>, String>) -> Self {
+impl<'id> From<Map<Id<'id>, String>> for EntityTailwindClasses<'id> {
+    fn from(inner: Map<Id<'id>, String>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(Id<'static>, String)> for EntityTailwindClasses {
-    fn from_iter<I: IntoIterator<Item = (Id<'static>, String)>>(iter: I) -> Self {
+impl<'id> FromIterator<(Id<'id>, String)> for EntityTailwindClasses<'id> {
+    fn from_iter<I: IntoIterator<Item = (Id<'id>, String)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

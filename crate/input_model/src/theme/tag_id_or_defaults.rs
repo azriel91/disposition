@@ -11,7 +11,7 @@ use crate::tag::TagId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum TagIdOrDefaults {
+pub enum TagIdOrDefaults<'id> {
     /// Styles to apply to all tags by default.
     ///
     /// These properties control the visual appearance of things when any tag
@@ -42,10 +42,10 @@ pub enum TagIdOrDefaults {
     ///     node_excluded_defaults:
     ///       opacity: "0.3"
     /// ```
-    Custom(TagId<'static>),
+    Custom(TagId<'id>),
 }
 
-impl TagIdOrDefaults {
+impl<'id> TagIdOrDefaults<'id> {
     /// Returns the string representation of the `TagIdOrDefaults`.
     pub fn as_str(&self) -> &str {
         match self {
@@ -55,28 +55,40 @@ impl TagIdOrDefaults {
     }
 
     /// Returns the underlying `TagId` if this holds a custom tag ID.
-    pub fn tag_id(&self) -> Option<&TagId<'static>> {
+    pub fn tag_id(&self) -> Option<&TagId<'id>> {
         if let Self::Custom(tag_id) = self {
             Some(tag_id)
         } else {
             None
         }
     }
+
+    /// Converts this `TagIdOrDefaults` into one with a `'static` lifetime.
+    ///
+    /// This clones the inner `TagId` if it's a `Custom` variant.
+    pub fn into_static(self) -> TagIdOrDefaults<'static> {
+        match self {
+            TagIdOrDefaults::TagDefaults => TagIdOrDefaults::TagDefaults,
+            TagIdOrDefaults::Custom(tag_id) => {
+                TagIdOrDefaults::Custom(TagId::from(tag_id.into_inner().into_static()))
+            }
+        }
+    }
 }
 
-impl From<TagId<'static>> for TagIdOrDefaults {
-    fn from(tag_id: TagId<'static>) -> Self {
+impl<'id> From<TagId<'id>> for TagIdOrDefaults<'id> {
+    fn from(tag_id: TagId<'id>) -> Self {
         Self::Custom(tag_id)
     }
 }
 
-impl Display for TagIdOrDefaults {
+impl Display for TagIdOrDefaults<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.as_str().fmt(f)
     }
 }
 
-impl Serialize for TagIdOrDefaults {
+impl Serialize for TagIdOrDefaults<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -85,7 +97,7 @@ impl Serialize for TagIdOrDefaults {
     }
 }
 
-impl<'de> Deserialize<'de> for TagIdOrDefaults {
+impl<'de> Deserialize<'de> for TagIdOrDefaults<'static> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -97,7 +109,7 @@ impl<'de> Deserialize<'de> for TagIdOrDefaults {
 struct TagIdOrDefaultsVisitor;
 
 impl Visitor<'_> for TagIdOrDefaultsVisitor {
-    type Value = TagIdOrDefaults;
+    type Value = TagIdOrDefaults<'static>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("`tag_defaults` or a tag ID")

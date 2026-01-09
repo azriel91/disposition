@@ -29,9 +29,9 @@ use crate::edge::Edge;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct EdgeGroup(Vec<Edge>);
+pub struct EdgeGroup<'id>(Vec<Edge<'id>>);
 
-impl EdgeGroup {
+impl<'id> EdgeGroup<'id> {
     /// Returns a new empty `EdgeGroup`.
     pub fn new() -> Self {
         Self::default()
@@ -43,7 +43,7 @@ impl EdgeGroup {
     }
 
     /// Returns the underlying vector.
-    pub fn into_inner(self) -> Vec<Edge> {
+    pub fn into_inner(self) -> Vec<Edge<'id>> {
         self.0
     }
 
@@ -58,28 +58,28 @@ impl EdgeGroup {
     }
 }
 
-impl Deref for EdgeGroup {
-    type Target = Vec<Edge>;
+impl<'id> Deref for EdgeGroup<'id> {
+    type Target = Vec<Edge<'id>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for EdgeGroup {
+impl<'id> DerefMut for EdgeGroup<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Vec<Edge>> for EdgeGroup {
-    fn from(inner: Vec<Edge>) -> Self {
+impl<'id> From<Vec<Edge<'id>>> for EdgeGroup<'id> {
+    fn from(inner: Vec<Edge<'id>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<Edge> for EdgeGroup {
-    fn from_iter<I: IntoIterator<Item = Edge>>(iter: I) -> Self {
+impl<'id> FromIterator<Edge<'id>> for EdgeGroup<'id> {
+    fn from_iter<I: IntoIterator<Item = Edge<'id>>>(iter: I) -> Self {
         Self(Vec::from_iter(iter))
     }
 }

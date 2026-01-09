@@ -24,9 +24,9 @@ use crate::process::ProcessStepId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ProcessSteps(Map<ProcessStepId<'static>, String>);
+pub struct ProcessSteps<'id>(Map<ProcessStepId<'id>, String>);
 
-impl ProcessSteps {
+impl<'id> ProcessSteps<'id> {
     /// Returns a new `ProcessSteps` map.
     pub fn new() -> Self {
         Self::default()
@@ -39,7 +39,7 @@ impl ProcessSteps {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<ProcessStepId<'static>, String> {
+    pub fn into_inner(self) -> Map<ProcessStepId<'id>, String> {
         self.0
     }
 
@@ -51,34 +51,34 @@ impl ProcessSteps {
     /// Returns true if this contains a process step with the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id<'static>>,
+        IdT: AsRef<Id<'id>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
-impl Deref for ProcessSteps {
-    type Target = Map<ProcessStepId<'static>, String>;
+impl<'id> Deref for ProcessSteps<'id> {
+    type Target = Map<ProcessStepId<'id>, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for ProcessSteps {
+impl<'id> DerefMut for ProcessSteps<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<ProcessStepId<'static>, String>> for ProcessSteps {
-    fn from(inner: Map<ProcessStepId<'static>, String>) -> Self {
+impl<'id> From<Map<ProcessStepId<'id>, String>> for ProcessSteps<'id> {
+    fn from(inner: Map<ProcessStepId<'id>, String>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(ProcessStepId<'static>, String)> for ProcessSteps {
-    fn from_iter<I: IntoIterator<Item = (ProcessStepId<'static>, String)>>(iter: I) -> Self {
+impl<'id> FromIterator<(ProcessStepId<'id>, String)> for ProcessSteps<'id> {
+    fn from_iter<I: IntoIterator<Item = (ProcessStepId<'id>, String)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

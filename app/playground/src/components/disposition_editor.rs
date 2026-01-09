@@ -294,7 +294,7 @@ fn taffy_tree_node_fmt(
 fn DispositionDataDivs(
     input_diagram_string: Signal<String>,
     ir_diagram_string: Memo<String>,
-    ir_diagram: Memo<Option<IrDiagram>>,
+    ir_diagram: Memo<Option<IrDiagram<'static>>>,
     taffy_node_mappings_string: Memo<String>,
 ) -> Element {
     rsx! {

@@ -41,9 +41,9 @@ use crate::edge::EdgeGroup;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct EdgeGroups(Map<EdgeGroupId<'static>, EdgeGroup>);
+pub struct EdgeGroups<'id>(Map<EdgeGroupId<'id>, EdgeGroup<'id>>);
 
-impl EdgeGroups {
+impl<'id> EdgeGroups<'id> {
     /// Returns a new `EdgeGroups` map.
     pub fn new() -> Self {
         Self::default()
@@ -55,7 +55,7 @@ impl EdgeGroups {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<EdgeGroupId<'static>, EdgeGroup> {
+    pub fn into_inner(self) -> Map<EdgeGroupId<'id>, EdgeGroup<'id>> {
         self.0
     }
 
@@ -67,34 +67,34 @@ impl EdgeGroups {
     /// Returns true if this contains edge groups for the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id<'static>>,
+        IdT: AsRef<Id<'id>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
-impl Deref for EdgeGroups {
-    type Target = Map<EdgeGroupId<'static>, EdgeGroup>;
+impl<'id> Deref for EdgeGroups<'id> {
+    type Target = Map<EdgeGroupId<'id>, EdgeGroup<'id>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for EdgeGroups {
+impl<'id> DerefMut for EdgeGroups<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<EdgeGroupId<'static>, EdgeGroup>> for EdgeGroups {
-    fn from(inner: Map<EdgeGroupId<'static>, EdgeGroup>) -> Self {
+impl<'id> From<Map<EdgeGroupId<'id>, EdgeGroup<'id>>> for EdgeGroups<'id> {
+    fn from(inner: Map<EdgeGroupId<'id>, EdgeGroup<'id>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(EdgeGroupId<'static>, EdgeGroup)> for EdgeGroups {
-    fn from_iter<I: IntoIterator<Item = (EdgeGroupId<'static>, EdgeGroup)>>(iter: I) -> Self {
+impl<'id> FromIterator<(EdgeGroupId<'id>, EdgeGroup<'id>)> for EdgeGroups<'id> {
+    fn from_iter<I: IntoIterator<Item = (EdgeGroupId<'id>, EdgeGroup<'id>)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

@@ -9,16 +9,16 @@ use crate::issue::ModelToIrIssue;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug)]
-pub struct IrDiagramAndIssues {
+pub struct IrDiagramAndIssues<'id> {
     /// The mapped intermediate representation diagram.
-    pub diagram: IrDiagram,
+    pub diagram: IrDiagram<'id>,
     /// Issues encountered during mapping.
     pub issues: Vec<ModelToIrIssue>,
 }
 
-impl IrDiagramAndIssues {
+impl<'id> IrDiagramAndIssues<'id> {
     /// Returns a reference to the intermediate representation diagram.
-    pub fn diagram(&self) -> &IrDiagram {
+    pub fn diagram(&self) -> &IrDiagram<'id> {
         &self.diagram
     }
 

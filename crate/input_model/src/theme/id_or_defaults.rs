@@ -9,7 +9,7 @@ use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum IdOrDefaults {
+pub enum IdOrDefaults<'id> {
     /// Styles to apply to all nodes.
     ///
     /// These properties control the visual appearance of nodes (things,
@@ -57,10 +57,10 @@ pub enum IdOrDefaults {
     /// ```
     EdgeDefaults,
     /// ID of a thing, edge, tag, process, or process_step.
-    Id(Id<'static>),
+    Id(Id<'id>),
 }
 
-impl IdOrDefaults {
+impl<'id> IdOrDefaults<'id> {
     /// Returns the string representation of the `IdOrDefaults`.
     pub fn as_str(&self) -> &str {
         match self {
@@ -72,28 +72,40 @@ impl IdOrDefaults {
     }
 
     /// Returns the underlying `Id` if this holds an ID.
-    pub fn any_id(&self) -> Option<&Id<'static>> {
+    pub fn any_id(&self) -> Option<&Id<'id>> {
         if let Self::Id(any_id) = self {
             Some(any_id)
         } else {
             None
         }
     }
+
+    /// Converts this `IdOrDefaults` into one with a `'static` lifetime.
+    ///
+    /// This clones the inner `Id` if it's an `Id` variant.
+    pub fn into_static(self) -> IdOrDefaults<'static> {
+        match self {
+            IdOrDefaults::NodeDefaults => IdOrDefaults::NodeDefaults,
+            IdOrDefaults::NodeExcludedDefaults => IdOrDefaults::NodeExcludedDefaults,
+            IdOrDefaults::EdgeDefaults => IdOrDefaults::EdgeDefaults,
+            IdOrDefaults::Id(any_id) => IdOrDefaults::Id(any_id.into_static()),
+        }
+    }
 }
 
-impl From<Id<'static>> for IdOrDefaults {
-    fn from(any_id: Id<'static>) -> Self {
+impl<'id> From<Id<'id>> for IdOrDefaults<'id> {
+    fn from(any_id: Id<'id>) -> Self {
         Self::Id(any_id)
     }
 }
 
-impl Display for IdOrDefaults {
+impl Display for IdOrDefaults<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.as_str().fmt(f)
     }
 }
 
-impl Serialize for IdOrDefaults {
+impl Serialize for IdOrDefaults<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -102,7 +114,7 @@ impl Serialize for IdOrDefaults {
     }
 }
 
-impl<'de> Deserialize<'de> for IdOrDefaults {
+impl<'de> Deserialize<'de> for IdOrDefaults<'static> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -114,7 +126,7 @@ impl<'de> Deserialize<'de> for IdOrDefaults {
 struct IdOrDefaultsVisitor;
 
 impl Visitor<'_> for IdOrDefaultsVisitor {
-    type Value = IdOrDefaults;
+    type Value = IdOrDefaults<'static>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("one of `node_defaults`, `node_excluded_defaults`, `edge_defaults`, or a node/edge/tag ID")

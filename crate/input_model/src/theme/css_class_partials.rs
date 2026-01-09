@@ -41,16 +41,17 @@ use crate::theme::{StyleAlias, ThemeAttr};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct CssClassPartials {
+#[serde(bound(deserialize = "StyleAlias<'id>: Deserialize<'de>"))]
+pub struct CssClassPartials<'id> {
     /// The style aliases applied to the CSS class partials.
     #[serde(default)]
-    style_aliases_applied: Vec<StyleAlias>,
+    style_aliases_applied: Vec<StyleAlias<'id>>,
     /// The map of CSS class partials.
     #[serde(default, flatten)]
     partials: Map<ThemeAttr, String>,
 }
 
-impl CssClassPartials {
+impl<'id> CssClassPartials<'id> {
     /// Returns a new `CssClassPartials` map.
     pub fn new() -> Self {
         Self::default()
@@ -66,18 +67,18 @@ impl CssClassPartials {
     }
 
     /// Returns the style aliases applied to the CSS class partials.
-    pub fn style_aliases_applied(&self) -> &[StyleAlias] {
+    pub fn style_aliases_applied(&self) -> &[StyleAlias<'id>] {
         &self.style_aliases_applied
     }
 
     /// Returns a mutable reference to the style aliases applied to the CSS
     /// class partials.
-    pub fn style_aliases_applied_mut(&mut self) -> &mut Vec<StyleAlias> {
+    pub fn style_aliases_applied_mut(&mut self) -> &mut Vec<StyleAlias<'id>> {
         &mut self.style_aliases_applied
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> (Vec<StyleAlias>, Map<ThemeAttr, String>) {
+    pub fn into_inner(self) -> (Vec<StyleAlias<'id>>, Map<ThemeAttr, String>) {
         let CssClassPartials {
             style_aliases_applied,
             partials,
@@ -87,7 +88,7 @@ impl CssClassPartials {
     }
 }
 
-impl Deref for CssClassPartials {
+impl<'id> Deref for CssClassPartials<'id> {
     type Target = Map<ThemeAttr, String>;
 
     fn deref(&self) -> &Self::Target {
@@ -95,13 +96,13 @@ impl Deref for CssClassPartials {
     }
 }
 
-impl DerefMut for CssClassPartials {
+impl<'id> DerefMut for CssClassPartials<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.partials
     }
 }
 
-impl From<Map<ThemeAttr, String>> for CssClassPartials {
+impl<'id> From<Map<ThemeAttr, String>> for CssClassPartials<'id> {
     fn from(partials: Map<ThemeAttr, String>) -> Self {
         Self {
             style_aliases_applied: Vec::new(),
@@ -110,7 +111,7 @@ impl From<Map<ThemeAttr, String>> for CssClassPartials {
     }
 }
 
-impl FromIterator<(ThemeAttr, String)> for CssClassPartials {
+impl<'id> FromIterator<(ThemeAttr, String)> for CssClassPartials<'id> {
     fn from_iter<I: IntoIterator<Item = (ThemeAttr, String)>>(iter: I) -> Self {
         Self {
             style_aliases_applied: Vec::new(),

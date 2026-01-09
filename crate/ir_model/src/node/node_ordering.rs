@@ -51,9 +51,9 @@ use crate::node::NodeId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct NodeOrdering(Map<NodeId<'static>, u32>);
+pub struct NodeOrdering<'id>(Map<NodeId<'id>, u32>);
 
-impl NodeOrdering {
+impl<'id> NodeOrdering<'id> {
     /// Returns a new `NodeOrdering` map.
     pub fn new() -> Self {
         Self::default()
@@ -65,7 +65,7 @@ impl NodeOrdering {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<NodeId<'static>, u32> {
+    pub fn into_inner(self) -> Map<NodeId<'id>, u32> {
         self.0
     }
 
@@ -75,28 +75,28 @@ impl NodeOrdering {
     }
 }
 
-impl Deref for NodeOrdering {
-    type Target = Map<NodeId<'static>, u32>;
+impl<'id> Deref for NodeOrdering<'id> {
+    type Target = Map<NodeId<'id>, u32>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for NodeOrdering {
+impl<'id> DerefMut for NodeOrdering<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<NodeId<'static>, u32>> for NodeOrdering {
-    fn from(inner: Map<NodeId<'static>, u32>) -> Self {
+impl<'id> From<Map<NodeId<'id>, u32>> for NodeOrdering<'id> {
+    fn from(inner: Map<NodeId<'id>, u32>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(NodeId<'static>, u32)> for NodeOrdering {
-    fn from_iter<I: IntoIterator<Item = (NodeId<'static>, u32)>>(iter: I) -> Self {
+impl<'id> FromIterator<(NodeId<'id>, u32)> for NodeOrdering<'id> {
+    fn from_iter<I: IntoIterator<Item = (NodeId<'id>, u32)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

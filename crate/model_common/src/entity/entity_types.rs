@@ -84,9 +84,9 @@ use super::EntityType;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct EntityTypes(Map<Id<'static>, Set<EntityType>>);
+pub struct EntityTypes<'id>(Map<Id<'id>, Set<EntityType>>);
 
-impl EntityTypes {
+impl<'id> EntityTypes<'id> {
     /// Returns a new `EntityTypes` map.
     pub fn new() -> Self {
         Self::default()
@@ -98,7 +98,7 @@ impl EntityTypes {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<Id<'static>, Set<EntityType>> {
+    pub fn into_inner(self) -> Map<Id<'id>, Set<EntityType>> {
         self.0
     }
 
@@ -111,34 +111,34 @@ impl EntityTypes {
     /// given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id<'static>>,
+        IdT: AsRef<Id<'id>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
-impl Deref for EntityTypes {
-    type Target = Map<Id<'static>, Set<EntityType>>;
+impl<'id> Deref for EntityTypes<'id> {
+    type Target = Map<Id<'id>, Set<EntityType>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for EntityTypes {
+impl<'id> DerefMut for EntityTypes<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<Id<'static>, Set<EntityType>>> for EntityTypes {
-    fn from(inner: Map<Id<'static>, Set<EntityType>>) -> Self {
+impl<'id> From<Map<Id<'id>, Set<EntityType>>> for EntityTypes<'id> {
+    fn from(inner: Map<Id<'id>, Set<EntityType>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(Id<'static>, Set<EntityType>)> for EntityTypes {
-    fn from_iter<I: IntoIterator<Item = (Id<'static>, Set<EntityType>)>>(iter: I) -> Self {
+impl<'id> FromIterator<(Id<'id>, Set<EntityType>)> for EntityTypes<'id> {
+    fn from_iter<I: IntoIterator<Item = (Id<'id>, Set<EntityType>)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }
