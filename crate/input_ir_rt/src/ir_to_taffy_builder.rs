@@ -195,7 +195,7 @@ impl IrToTaffyBuilder<'_> {
         //
         // This is done once per node instead of multiple times during layout
         // measurement
-        let entity_highlighted_spans = Self::compute_highlighted_spans(
+        let entity_highlighted_spans = Self::highlighted_spans_compute(
             &taffy_tree,
             &node_id_to_taffy,
             nodes,
@@ -216,7 +216,7 @@ impl IrToTaffyBuilder<'_> {
     /// Compute highlighted spans for all nodes after layout is complete.
     /// This is much more efficient than doing it during measure() which gets
     /// called multiple times.
-    fn compute_highlighted_spans(
+    fn highlighted_spans_compute(
         taffy_tree: &TaffyTree<NodeContext>,
         node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
         nodes: &NodeNames<'static>,
@@ -282,12 +282,19 @@ impl IrToTaffyBuilder<'_> {
                 let padding_left = layout.padding.left;
                 let padding_top = layout.padding.top;
 
+                // Note: we shift the text by half a character width because even though we have
+                // padding, the text still reaches the left and right edges of the node.
+                //
+                // The half a character width (at each end) is added to the node's width in
+                // `line_width_measure`.
+                let text_leftmost_x = padding_left + 0.5 * char_width;
+
                 let highlighted_spans: Vec<EntityHighlightedSpan> = {
                     wrapped_lines
                         .iter()
                         .enumerate()
                         .flat_map(|(line_index, line)| {
-                            let x = padding_left;
+                            let x = text_leftmost_x;
                             let y = (line_index + 1) as f32 * line_height + padding_top;
                             let width = line_width_measure(line, char_width);
 
@@ -892,14 +899,30 @@ fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) 
     (line_width_max * LETTER_SPACING_RATIO, line_count)
 }
 
+/// Returns the width in pixels to display the given line of text.
 fn line_width_measure(line: &str, char_width: f32) -> f32 {
-    line.graphemes(true)
+    if line.is_empty() {
+        return 0.0;
+    }
+
+    let mut line_char_column_count = line
+        .graphemes(true)
         .map(|grapheme| match emojis::get(grapheme).is_some() {
             true => EMOJI_CHAR_WIDTH,
             false => 1.0f32,
         })
-        .sum::<f32>()
-        * char_width
+        .sum::<f32>();
+
+    // Add one character width
+    //
+    // Without this, even with node padding, the text characters reach to both ends
+    // of the node.
+    //
+    // Note that we shift the x coordinates of each line of text by `0.5 *
+    // char_width` in `highlighted_spans_compute`.
+    line_char_column_count += 1.0;
+
+    line_char_column_count * char_width
 }
 
 /// Wrap text for display, returning owned strings for each line.
