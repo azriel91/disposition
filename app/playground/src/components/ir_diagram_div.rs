@@ -9,7 +9,6 @@ pub fn IrDiagramDiv(ir_diagram_string: ReadSignal<String>) -> Element {
         div {
             id: "ir_diagram_div",
             class: "
-                flex-1
                 flex
                 flex-col
             ",
@@ -33,6 +32,7 @@ pub fn IrDiagramDiv(ir_diagram_string: ReadSignal<String>) -> Element {
                     border-gray-300
                     p-2
                     font-mono
+                    text-nowrap
                 ",
                 readonly: true,
                 value: ir_diagram_string.read().clone(),

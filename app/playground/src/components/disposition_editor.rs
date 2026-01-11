@@ -175,18 +175,30 @@ pub fn DispositionEditor() -> Element {
             class: "
                 flex
                 flex-col
+                lg:flex-row
                 gap-2
             ",
-            DispositionDataDivs {
-                input_diagram_string,
-                ir_diagram_string,
-                ir_diagram,
-                taffy_node_mappings_string,
-            }
-            DispositionStatusMessageDiv {
-                status_messages,
+            div {
+                class: "
+                    flex-1
+                    flex
+                    flex-col
+                    gap-2
+                ",
+                DispositionDataDivs {
+                    input_diagram_string,
+                    ir_diagram_string,
+                    ir_diagram,
+                    taffy_node_mappings_string,
+                }
+                DispositionStatusMessageDiv {
+                    status_messages,
+                }
             }
             object {
+                class: "
+                    flex-1
+                ",
                 type: "image/svg+xml",
                 data: format!("data:image/svg+xml,{}", urlencoding::encode(svg().as_str())),
             }
@@ -303,10 +315,11 @@ fn DispositionDataDivs(
             class: "
                 w-full
                 flex
-                flex-row
-                flex-wrap
+                flex-col
                 items-center
                 justify-center
+                [&>*]:w-full
+                lg:[&>*]:min-w-190
             ",
             InputDiagramDiv { input_diagram_string }
             IrDiagramDiv { ir_diagram_string }
