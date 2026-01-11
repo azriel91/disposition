@@ -18,6 +18,7 @@ use disposition_taffy_model::{
     IrToTaffyError, NodeContext, NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeMappings,
     TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
 };
+use taffy::prelude::TaffyZero;
 use typed_builder::TypedBuilder;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -740,8 +741,8 @@ impl IrToTaffyBuilder<'_> {
                         padding: Rect {
                             left: LengthPercentage::length(flex_layout.padding_left()),
                             right: LengthPercentage::length(flex_layout.padding_right()),
-                            top: LengthPercentage::length(flex_layout.padding_top()),
-                            bottom: LengthPercentage::length(flex_layout.padding_bottom()),
+                            top: LengthPercentage::ZERO,
+                            bottom: LengthPercentage::ZERO,
                         },
                         ..Default::default()
                     };
