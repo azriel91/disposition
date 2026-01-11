@@ -150,7 +150,7 @@ impl TaffyToSvgMapper {
                     (x_acc, y_acc)
                 };
                 let width = layout.size.width;
-                let height = layout.size.height;
+                let height = layout.size.height.min(layout.content_size.height);
 
                 let node_id_str = node_id.as_str();
 
