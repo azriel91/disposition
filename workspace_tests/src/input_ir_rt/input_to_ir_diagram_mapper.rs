@@ -17,7 +17,7 @@ use crate::input_ir_rt::{EXAMPLE_INPUT, EXAMPLE_IR};
 #[test]
 fn test_input_to_ir_mapping() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
 
     let IrDiagramAndIssues { diagram, issues } = ir_and_issues;
 
@@ -240,7 +240,7 @@ fn test_input_to_ir_mapping() {
 fn test_node_ordering_map_order_and_tab_indices() {
     // Detailed test for node_ordering computation
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // Verify the exact ordering matches expected from example_ir.yaml
@@ -290,7 +290,7 @@ fn test_node_ordering_map_order_and_tab_indices() {
 fn test_cyclic_edge_expansion() {
     // Test that cyclic edges create a loop
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // edge_dep_t_localhost__t_github_user_repo__pull is cyclic with:
@@ -317,7 +317,7 @@ fn test_cyclic_edge_expansion() {
 fn test_self_loop_edge() {
     // Test that a cyclic edge with one thing creates a self-loop
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // edge_dep_t_localhost__t_localhost__within is cyclic with `[t_localhost]`
@@ -338,7 +338,7 @@ fn test_self_loop_edge() {
 fn test_sequence_edge_expansion() {
     // Test that sequence edges create a chain without cycling back
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // edge_dep_t_localhost__t_github_user_repo__push is sequence with:
@@ -360,7 +360,7 @@ fn test_sequence_edge_expansion() {
 fn test_node_layout_containers() {
     // Test that container nodes get correct flex layouts
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // _root container should have column_reverse direction
@@ -427,7 +427,7 @@ fn test_node_layout_containers() {
 fn test_node_layout_processes() {
     // Test that processes with steps get flex layout, steps get none
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // proc_app_dev has steps, should have column flex layout
@@ -457,7 +457,7 @@ fn test_node_layout_processes() {
 fn test_node_layout_tags() {
     // Test that tags are leaf nodes with no layout
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     let tag_0_id = NodeId::from(id!("tag_app_development"));
@@ -473,7 +473,7 @@ fn test_node_layout_tags() {
 fn test_node_layout_things_hierarchy() {
     // Test that things with children get flex layout, leaves get none
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_aws has children (t_aws_iam, t_aws_ecr, t_aws_ecs), should have column flex
@@ -522,7 +522,7 @@ fn test_node_layout_things_hierarchy() {
 fn test_node_layout_padding_from_theme() {
     // Test that padding values are correctly resolved from theme
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // All containers should get padding from node_defaults which uses
@@ -547,7 +547,7 @@ fn test_node_layout_padding_from_theme() {
 #[test]
 fn test_tailwind_classes_generation() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // Verify tailwind classes are generated
@@ -625,7 +625,7 @@ fn test_tailwind_classes_generation() {
 #[test]
 fn test_tailwind_classes_shade_resolution() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_aws has type_organisation which uses shade_pale
@@ -659,7 +659,7 @@ fn test_tailwind_classes_shade_resolution() {
 #[test]
 fn test_tailwind_classes_stroke_style() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_aws has type_organisation which has stroke_style: "dotted"
@@ -687,7 +687,7 @@ fn test_tailwind_classes_stroke_style() {
 #[test]
 fn test_tailwind_classes_thing_peer_classes() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_localhost should have peer classes for process steps that interact with
@@ -753,7 +753,7 @@ fn test_tailwind_classes_tag_peer_classes_for_included_things() {
     // Tests that things included in a tag get proper peer classes based on
     // theme_tag_things_focus NodeDefaults
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_localhost is in tag_app_development
@@ -808,7 +808,7 @@ fn test_tailwind_classes_tag_peer_classes_for_excluded_things() {
     // Tests that things NOT included in any tag get peer classes based on
     // theme_tag_things_focus NodeExcludedDefaults
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_aws is not in any tag (tag_things only has tag_app_development and
@@ -851,7 +851,7 @@ fn test_tailwind_classes_tag_peer_classes_for_excluded_things() {
 fn test_tailwind_classes_tag_peer_classes_tag_specific_override() {
     // Tests that tag-specific styles override tag_defaults
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_github_user_repo is in BOTH tag_app_development and tag_deployment
@@ -901,7 +901,7 @@ fn test_tailwind_classes_tag_peer_classes_tag_specific_override() {
 #[test]
 fn test_example_input_maps_to_example_ir() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let ir_example = serde_saphyr::from_str::<IrDiagram>(EXAMPLE_IR).unwrap();
 
     assert_eq!(ir_example, ir_and_issues.diagram);

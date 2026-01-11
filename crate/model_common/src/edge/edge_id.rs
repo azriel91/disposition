@@ -27,9 +27,9 @@ use crate::{Id, IdInvalidFmt};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
-pub struct EdgeId(Id);
+pub struct EdgeId<'s>(Id<'s>);
 
-impl EdgeId {
+impl<'s> EdgeId<'s> {
     /// Creates a new [`EdgeId`] from a string.
     ///
     /// # Examples
@@ -41,7 +41,7 @@ impl EdgeId {
     ///
     /// assert_eq!(edge_id.as_str(), "edge_a_to_b");
     /// ```
-    pub fn new(id: &'static str) -> Result<Self, IdInvalidFmt<'static>> {
+    pub fn new(id: &'s str) -> Result<Self, IdInvalidFmt<'s>> {
         Id::new(id).map(EdgeId)
     }
 
@@ -56,44 +56,44 @@ impl EdgeId {
     ///
     /// assert_eq!(edge_id.into_inner(), Id::new("edge_a_to_b").unwrap());
     /// ```
-    pub fn into_inner(self) -> Id {
+    pub fn into_inner(self) -> Id<'s> {
         self.0
     }
 }
 
-impl From<Id> for EdgeId {
-    fn from(id: Id) -> Self {
+impl<'s> From<Id<'s>> for EdgeId<'s> {
+    fn from(id: Id<'s>) -> Self {
         EdgeId(id)
     }
 }
 
-impl AsRef<Id> for EdgeId {
-    fn as_ref(&self) -> &Id {
+impl<'s> AsRef<Id<'s>> for EdgeId<'s> {
+    fn as_ref(&self) -> &Id<'s> {
         &self.0
     }
 }
 
-impl Borrow<Id> for EdgeId {
-    fn borrow(&self) -> &Id {
+impl<'s> Borrow<Id<'s>> for EdgeId<'s> {
+    fn borrow(&self) -> &Id<'s> {
         &self.0
     }
 }
 
-impl Deref for EdgeId {
-    type Target = Id;
+impl<'s> Deref for EdgeId<'s> {
+    type Target = Id<'s>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for EdgeId {
+impl<'s> DerefMut for EdgeId<'s> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl Display for EdgeId {
+impl<'s> Display for EdgeId<'s> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }

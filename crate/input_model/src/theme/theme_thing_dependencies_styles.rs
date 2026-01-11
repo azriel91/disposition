@@ -31,17 +31,18 @@ use crate::theme::ThemeStyles;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThemeThingDependenciesStyles {
+#[serde(bound(deserialize = "ThemeStyles<'id>: Deserialize<'de>"))]
+pub struct ThemeThingDependenciesStyles<'id> {
     /// Styles applied to things that are included in the dependency view.
     #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
-    pub things_included_styles: ThemeStyles,
+    pub things_included_styles: ThemeStyles<'id>,
 
     /// Styles applied to things that are excluded from the dependency view.
     #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
-    pub things_excluded_styles: ThemeStyles,
+    pub things_excluded_styles: ThemeStyles<'id>,
 }
 
-impl ThemeThingDependenciesStyles {
+impl<'id> ThemeThingDependenciesStyles<'id> {
     /// Returns a new `ThemeThingDependenciesStyles` with default values.
     pub fn new() -> Self {
         Self::default()

@@ -29,9 +29,9 @@ use crate::{Id, IdInvalidFmt};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
-pub struct EntityTypeId(Id);
+pub struct EntityTypeId<'s>(Id<'s>);
 
-impl EntityTypeId {
+impl<'s> EntityTypeId<'s> {
     /// Creates a new [`EntityTypeId`] from a string.
     ///
     /// # Examples
@@ -43,7 +43,7 @@ impl EntityTypeId {
     ///
     /// assert_eq!(entity_type_id.as_str(), "type_organisation");
     /// ```
-    pub fn new(id: &'static str) -> Result<Self, IdInvalidFmt<'static>> {
+    pub fn new(id: &'s str) -> Result<Self, IdInvalidFmt<'s>> {
         Id::new(id).map(EntityTypeId)
     }
 
@@ -61,38 +61,38 @@ impl EntityTypeId {
     ///     Id::new("type_organisation").unwrap()
     /// );
     /// ```
-    pub fn into_inner(self) -> Id {
+    pub fn into_inner(self) -> Id<'s> {
         self.0
     }
 }
 
-impl From<Id> for EntityTypeId {
-    fn from(id: Id) -> Self {
+impl<'s> From<Id<'s>> for EntityTypeId<'s> {
+    fn from(id: Id<'s>) -> Self {
         EntityTypeId(id)
     }
 }
 
-impl AsRef<Id> for EntityTypeId {
-    fn as_ref(&self) -> &Id {
+impl<'s> AsRef<Id<'s>> for EntityTypeId<'s> {
+    fn as_ref(&self) -> &Id<'s> {
         &self.0
     }
 }
 
-impl Borrow<Id> for EntityTypeId {
-    fn borrow(&self) -> &Id {
+impl<'s> Borrow<Id<'s>> for EntityTypeId<'s> {
+    fn borrow(&self) -> &Id<'s> {
         &self.0
     }
 }
 
-impl Deref for EntityTypeId {
-    type Target = Id;
+impl<'s> Deref for EntityTypeId<'s> {
+    type Target = Id<'s>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for EntityTypeId {
+impl<'s> DerefMut for EntityTypeId<'s> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

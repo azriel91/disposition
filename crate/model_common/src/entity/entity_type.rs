@@ -78,7 +78,7 @@ pub enum EntityType {
     InteractionEdgeSymmetricReverseDefault,
 
     /// Custom user-defined type.
-    Custom(Id),
+    Custom(Id<'static>),
 }
 
 impl EntityType {
@@ -157,7 +157,7 @@ impl EntityType {
     /// );
     /// assert_eq!(EntityType::TagDefault.into_id(), id!("type_tag_default"));
     /// ```
-    pub fn into_id(self) -> Id {
+    pub fn into_id(self) -> Id<'static> {
         match self {
             EntityType::ContainerInbuilt => id!("container_inbuilt"),
             EntityType::ThingDefault => id!("type_thing_default"),
@@ -231,7 +231,7 @@ impl EntityType {
     /// let custom = EntityType::Custom("type_server".parse().unwrap());
     /// assert!(custom.custom_id().is_some());
     /// ```
-    pub fn custom_id(&self) -> Option<&Id> {
+    pub fn custom_id(&self) -> Option<&Id<'static>> {
         if let Self::Custom(id) = self {
             Some(id)
         } else {
@@ -240,8 +240,8 @@ impl EntityType {
     }
 }
 
-impl From<Id> for EntityType {
-    fn from(id: Id) -> Self {
+impl From<Id<'static>> for EntityType {
+    fn from(id: Id<'static>) -> Self {
         match id.as_str() {
             "container_inbuilt" => EntityType::ContainerInbuilt,
             "type_thing_default" => EntityType::ThingDefault,

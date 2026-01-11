@@ -42,9 +42,9 @@ use crate::edge::EdgeKind;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThingInteractions(Map<EdgeGroupId, EdgeKind>);
+pub struct ThingInteractions<'id>(Map<EdgeGroupId<'id>, EdgeKind<'id>>);
 
-impl ThingInteractions {
+impl<'id> ThingInteractions<'id> {
     /// Returns a new `ThingInteractions` map.
     pub fn new() -> Self {
         Self::default()
@@ -57,7 +57,7 @@ impl ThingInteractions {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<EdgeGroupId, EdgeKind> {
+    pub fn into_inner(self) -> Map<EdgeGroupId<'id>, EdgeKind<'id>> {
         self.0
     }
 
@@ -70,34 +70,34 @@ impl ThingInteractions {
     /// given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'id>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
-impl Deref for ThingInteractions {
-    type Target = Map<EdgeGroupId, EdgeKind>;
+impl<'id> Deref for ThingInteractions<'id> {
+    type Target = Map<EdgeGroupId<'id>, EdgeKind<'id>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for ThingInteractions {
+impl<'id> DerefMut for ThingInteractions<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<EdgeGroupId, EdgeKind>> for ThingInteractions {
-    fn from(inner: Map<EdgeGroupId, EdgeKind>) -> Self {
+impl<'id> From<Map<EdgeGroupId<'id>, EdgeKind<'id>>> for ThingInteractions<'id> {
+    fn from(inner: Map<EdgeGroupId<'id>, EdgeKind<'id>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(EdgeGroupId, EdgeKind)> for ThingInteractions {
-    fn from_iter<I: IntoIterator<Item = (EdgeGroupId, EdgeKind)>>(iter: I) -> Self {
+impl<'id> FromIterator<(EdgeGroupId<'id>, EdgeKind<'id>)> for ThingInteractions<'id> {
+    fn from_iter<I: IntoIterator<Item = (EdgeGroupId<'id>, EdgeKind<'id>)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

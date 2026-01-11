@@ -40,7 +40,7 @@ use crate::process::{ProcessSteps, StepDescs, StepThingInteractions};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ProcessDiagram {
+pub struct ProcessDiagram<'id> {
     /// Display name of the process.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -53,23 +53,23 @@ pub struct ProcessDiagram {
 
     /// Steps in the process and their display labels.
     #[serde(default, skip_serializing_if = "ProcessSteps::is_empty")]
-    pub steps: ProcessSteps,
+    pub steps: ProcessSteps<'id>,
 
     /// Descriptions for each step in the process.
     ///
     /// This is intended to take markdown text.
     #[serde(default, skip_serializing_if = "StepDescs::is_empty")]
-    pub step_descs: StepDescs,
+    pub step_descs: StepDescs<'id>,
 
     /// Thing interactions that should be actively highlighted when each step is
     /// focused.
     ///
     /// References IDs in `thing_interactions` top level element.
     #[serde(default, skip_serializing_if = "StepThingInteractions::is_empty")]
-    pub step_thing_interactions: StepThingInteractions,
+    pub step_thing_interactions: StepThingInteractions<'id>,
 }
 
-impl ProcessDiagram {
+impl<'id> ProcessDiagram<'id> {
     /// Returns a new `ProcessDiagram` with default values.
     pub fn new() -> Self {
         Self::default()

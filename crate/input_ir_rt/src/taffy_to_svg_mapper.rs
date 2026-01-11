@@ -19,6 +19,7 @@ impl TaffyToSvgMapper {
             taffy_tree,
             node_inbuilt_to_taffy,
             node_id_to_taffy,
+            taffy_id_to_node: _,
             entity_highlighted_spans,
         } = taffy_node_mappings;
 
@@ -139,14 +140,17 @@ impl TaffyToSvgMapper {
                         let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
                             break;
                         };
-                        x_acc += parent_layout.content_box_x();
-                        y_acc += parent_layout.content_box_y();
+                        // `content_box_x/y` places the inner nodes to align to the bottom right of
+                        // the parent nodes instead of having appropriate padding around the inner
+                        // node.
+                        x_acc += parent_layout.location.x;
+                        y_acc += parent_layout.location.y;
                         current_node_id = parent_taffy_node_id;
                     }
                     (x_acc, y_acc)
                 };
                 let width = layout.size.width;
-                let height = layout.size.height;
+                let height = layout.size.height.min(layout.content_size.height);
 
                 let node_id_str = node_id.as_str();
 
