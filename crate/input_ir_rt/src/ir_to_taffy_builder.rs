@@ -736,7 +736,6 @@ impl IrToTaffyBuilder<'_> {
                             top: LengthPercentage::length(flex_layout.padding_top()),
                             bottom: LengthPercentage::length(flex_layout.padding_bottom()),
                         },
-                        flex_grow: 1.0,
                         ..Default::default()
                     };
                     let child_container_style = Style {
@@ -823,7 +822,7 @@ impl IrToTaffyBuilder<'_> {
             compute_text_dimensions(&text, *char_width, width_constraint);
 
         let line_height = TEXT_LINE_HEIGHT;
-        let line_heights = line_count * line_height;
+        let line_heights = (line_count as f32 + 0.5) * line_height;
 
         taffy::Size {
             width: line_width_max
@@ -842,18 +841,15 @@ impl IrToTaffyBuilder<'_> {
 
 /// Compute text dimensions using simple monospace character width calculation.
 /// Returns (max_line_width, line_count).
-///
-/// Note: The line_count starts at 1.0 as SVG text is rendered above the `y`
-/// coordinate instead of below.
-fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) -> (f32, f32) {
+fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) -> (f32, usize) {
     if text.is_empty() {
-        return (0.0, 1.0);
+        return (0.0, 0);
     }
 
     let max_chars_per_line = max_width.map(|w| (w / char_width).floor() as usize);
 
     let mut line_width_max: f32 = 0.0;
-    let mut line_count: f32 = 1.0;
+    let mut line_count: usize = 0;
 
     text.lines().for_each(|line| {
         let line_char_count = line.chars().count();
@@ -881,14 +877,14 @@ fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) 
 
                     let width = line_width_measure(wrapped_line, char_width);
                     line_width_max = line_width_max.max(width);
-                    line_count += 1.0;
+                    line_count += 1;
                 });
             }
             _ => {
                 // let width = string_width::string_width(line) as f32 * char_width;
                 let width = line_width_measure(line, char_width);
                 line_width_max = line_width_max.max(width);
-                line_count += 1.0;
+                line_count += 1;
             }
         }
     });
