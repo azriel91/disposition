@@ -10,6 +10,10 @@
 //! The [`Navbar`] component will be rendered on all pages of our app since
 //! every page is under the layout. The layout defines a common wrapper around
 //! all child routes.
+//!
+//! [`Route`]: crate::Route
+//! [`Route::Home`]: crate::Route::Home
+//! [`Route::Blog`]: crate::Route::Blog
 
 pub use self::{blog::Blog, home::Home, navbar::Navbar};
 
