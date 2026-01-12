@@ -24,7 +24,11 @@ use disposition_ir_model::{
     node::{NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering},
     IrDiagram,
 };
-use disposition_model_common::{edge::EdgeGroupId, entity::EntityDescs, Id, Map, Set};
+use disposition_model_common::{
+    edge::EdgeGroupId,
+    entity::{EntityDescs, EntityTooltips},
+    Id, Map, Set,
+};
 
 /// Maps an input diagram to an intermediate representation diagram.
 #[derive(Clone, Copy, Debug)]
@@ -50,6 +54,7 @@ impl InputToIrDiagramMapper {
             tags,
             tag_things,
             entity_descs,
+            entity_tooltips,
             entity_types,
             theme_default,
             theme_types_styles,
@@ -73,10 +78,13 @@ impl InputToIrDiagramMapper {
         // 5. Build EdgeGroups from thing_dependencies and thing_interactions
         let edge_groups = Self::build_edge_groups(thing_dependencies, thing_interactions);
 
-        // 6. Build EntityDescs from input entity_descs and process step_descs
-        let entity_descs = Self::build_entity_descs(entity_descs, processes);
+        // 6. Build EntityDescs from input entity_descs
+        let entity_descs = Self::build_entity_descs(entity_descs);
 
-        // 7. Build EntityTypes with defaults for each node type
+        // 7. Build EntityTooltips from input entity_tooltips
+        let entity_tooltips = Self::build_entity_tooltips(entity_tooltips);
+
+        // 8. Build EntityTypes with defaults for each node type
         let ir_entity_types = Self::build_entity_types(
             things,
             tags,
@@ -86,7 +94,7 @@ impl InputToIrDiagramMapper {
             thing_interactions,
         );
 
-        // 8. Build NodeLayouts from node_hierarchy and theme
+        // 9. Build NodeLayouts from node_hierarchy and theme
         let node_layouts = Self::build_node_layouts(
             &node_hierarchy,
             &ir_entity_types,
@@ -96,7 +104,7 @@ impl InputToIrDiagramMapper {
             processes,
         );
 
-        // 9. Build TailwindClasses from theme
+        // 10. Build TailwindClasses from theme
         let tailwind_classes = Self::build_tailwind_classes(
             &nodes,
             &edge_groups,
@@ -116,6 +124,7 @@ impl InputToIrDiagramMapper {
             node_ordering,
             edge_groups,
             entity_descs,
+            entity_tooltips,
             entity_types: ir_entity_types,
             tailwind_classes,
             node_layouts,
@@ -449,25 +458,24 @@ impl InputToIrDiagramMapper {
         EdgeGroup::from(edges)
     }
 
-    /// Build EntityDescs from input entity_descs and process step_descs.
-    fn build_entity_descs<'id>(
-        input_entity_descs: &EntityDescs<'id>,
-        processes: &Processes<'id>,
-    ) -> EntityDescs<'id> {
+    /// Build EntityDescs from input entity_descs.
+    fn build_entity_descs<'id>(input_entity_descs: &EntityDescs<'id>) -> EntityDescs<'id> {
         // Copy existing entity descs
-        let existing_entries = input_entity_descs
+        input_entity_descs
             .iter()
-            .map(|(id, desc)| (id.clone(), desc.clone()));
+            .map(|(id, desc)| (id.clone(), desc.clone()))
+            .collect()
+    }
 
-        // Add process step descriptions
-        let step_entries = processes.values().flat_map(|process_diagram| {
-            process_diagram.step_descs.iter().map(|(step_id, desc)| {
-                let id: Id = step_id.as_ref().clone();
-                (id, desc.clone())
-            })
-        });
-
-        existing_entries.chain(step_entries).collect()
+    /// Build EntityTooltips from input entity_tooltips.
+    fn build_entity_tooltips<'id>(
+        input_entity_tooltips: &EntityTooltips<'id>,
+    ) -> EntityTooltips<'id> {
+        // Copy existing entity tooltips
+        input_entity_tooltips
+            .iter()
+            .map(|(id, tooltip)| (id.clone(), tooltip.clone()))
+            .collect()
     }
 
     /// Build EntityTypes with defaults for each node type.

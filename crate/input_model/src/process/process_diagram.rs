@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::process::{ProcessSteps, StepDescs, StepThingInteractions};
+use crate::process::{ProcessSteps, StepThingInteractions};
 
 /// Represents a process with its steps and associated metadata.
 ///
@@ -54,12 +54,6 @@ pub struct ProcessDiagram<'id> {
     /// Steps in the process and their display labels.
     #[serde(default, skip_serializing_if = "ProcessSteps::is_empty")]
     pub steps: ProcessSteps<'id>,
-
-    /// Descriptions for each step in the process.
-    ///
-    /// This is intended to take markdown text.
-    #[serde(default, skip_serializing_if = "StepDescs::is_empty")]
-    pub step_descs: StepDescs<'id>,
 
     /// Thing interactions that should be actively highlighted when each step is
     /// focused.

@@ -1,4 +1,4 @@
-use disposition_model_common::theme::Css;
+use disposition_model_common::{entity::EntityTooltips, theme::Css};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -72,6 +72,13 @@ pub struct InputDiagram<'id> {
     /// Descriptions to render next to entities (things, edges, edge groups).
     #[serde(default, skip_serializing_if = "EntityDescs::is_empty")]
     pub entity_descs: EntityDescs<'id>,
+
+    /// Descriptions for entities (nodes, edges, and edge groups).
+    ///
+    /// Contains text (typically markdown) that provides additional context
+    /// about entities in the diagram, such as process steps.
+    #[serde(default, skip_serializing_if = "EntityTooltips::is_empty")]
+    pub entity_tooltips: EntityTooltips<'id>,
 
     /// Additional `type`s attached to entities for common styling.
     ///

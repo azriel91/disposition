@@ -1,4 +1,4 @@
-use disposition_model_common::theme::Css;
+use disposition_model_common::{entity::EntityTooltips, theme::Css};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -17,10 +17,12 @@ use crate::{
 /// Key differences from the input model:
 ///
 /// * Uses a unified `NodeId` for all things, tags, processes, and steps
-/// * `node_hierarchy` includes all node types, not just things
+/// * `node_hierarchy` includes the flow-layout hierarchy for all node types,
+///   not just things.
 /// * `edge_groups` contains explicit `from`/`to` edges instead of `EdgeKind`
 /// * `tailwind_classes` contains computed CSS classes instead of theme configs
-/// * `node_layout` defines positioning for all nodes
+/// * `node_layout` defines the flex layout values for each node.
+/// * `node_tooltip` defines the tooltip content for process steps.
 ///
 /// # Example
 ///
@@ -50,9 +52,12 @@ use crate::{
 ///       to: t_github_user_repo
 ///
 /// entity_descs:
+///   t_localhost: "User's computer"
+///   edge_t_localhost__t_github_user_repo__pull: "Fetch from GitHub"
+///
+/// entity_tooltips:
 ///   proc_app_release_step_tag_and_push: |-
 ///     When the PR is merged, tag the commit and push the tag to GitHub.
-///   edge_t_localhost__t_github_user_repo__pull: "Fetch from GitHub"
 ///
 /// tailwind_classes:
 ///   t_aws: "stroke-1 visible hover:fill-yellow-50 fill-yellow-100"
@@ -118,9 +123,16 @@ pub struct IrDiagram<'id> {
     /// Descriptions for entities (nodes, edges, and edge groups).
     ///
     /// Contains text (typically markdown) that provides additional context
-    /// about entities in the diagram, such as process steps or edge labels.
+    /// about entities in the diagram, such as things or edge labels.
     #[serde(default, skip_serializing_if = "EntityDescs::is_empty")]
     pub entity_descs: EntityDescs<'id>,
+
+    /// Descriptions for entities (nodes, edges, and edge groups).
+    ///
+    /// Contains text (typically markdown) that provides additional context
+    /// about entities in the diagram, such as process steps.
+    #[serde(default, skip_serializing_if = "EntityTooltips::is_empty")]
+    pub entity_tooltips: EntityTooltips<'id>,
 
     /// Entity types attached to nodes and edges for common styling.
     ///
@@ -167,6 +179,7 @@ impl<'id> IrDiagram<'id> {
             node_ordering: self.node_ordering.into_static(),
             edge_groups: self.edge_groups.into_static(),
             entity_descs: self.entity_descs.into_static(),
+            entity_tooltips: self.entity_tooltips.into_static(),
             entity_types: self.entity_types.into_static(),
             tailwind_classes: self.tailwind_classes.into_static(),
             node_layouts: self.node_layouts.into_static(),

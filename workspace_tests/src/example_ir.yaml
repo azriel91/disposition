@@ -234,8 +234,11 @@ edge_groups:
       to: t_aws_ecs_service
 
 # Descriptions for entities.
+#
+# For nodes, these are rendered within the node body.
+# For edges, these are rendered beside the arrows
 entity_descs:
-  # nodes
+  # things
   t_localhost: "User's computer"
 
   # edge groups
@@ -246,6 +249,8 @@ entity_descs:
   edge_ix_t_localhost__t_github_user_repo__pull__0: "`git pull`"
   edge_ix_t_localhost__t_github_user_repo__push__0: "`git push`"
 
+# Tooltips when hovering over entities.
+entity_tooltips:
   # process_steps
   proc_app_dev_step_repository_clone: |-
     ```bash

@@ -111,6 +111,7 @@ impl IrToTaffyBuilder<'_> {
             node_ordering: _,
             edge_groups: _,
             entity_descs,
+            entity_tooltips: _,
             entity_types,
             tailwind_classes: _,
             node_layouts,

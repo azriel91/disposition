@@ -117,11 +117,13 @@ fn test_input_to_ir_mapping() {
     let pull_edge_id = id!("edge_ix_t_localhost__t_github_user_repo__pull");
     assert!(diagram.entity_descs.contains_key(&pull_edge_id));
 
-    // Check step desc merged in
-    let step_desc_id = id!("proc_app_dev_step_repository_clone");
-    assert!(diagram.entity_descs.contains_key(&step_desc_id));
+    // 6. Check entity tooltip from input
+    let proc_app_dev_step_repository_clone_id = id!("proc_app_dev_step_repository_clone");
+    assert!(diagram
+        .entity_tooltips
+        .contains_key(&proc_app_dev_step_repository_clone_id));
 
-    // 6. Verify EntityTypes with defaults
+    // 7. Verify EntityTypes with defaults
     // Things should have type_thing_default
     let t_aws_id = id!("t_aws");
     let t_aws_types = diagram.entity_types.get(&t_aws_id).unwrap();
