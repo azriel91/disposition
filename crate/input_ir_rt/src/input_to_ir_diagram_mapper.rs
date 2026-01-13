@@ -1555,7 +1555,7 @@ impl InputToIrDiagramMapper {
         state.write_classes(&mut classes);
 
         // Tags get peer/{id} class
-        writeln!(&mut classes, "peer/{}", id.as_str()).expect(CLASSES_BUFFER_WRITE_FAIL);
+        writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);
 
         classes
     }
@@ -1581,8 +1581,8 @@ impl InputToIrDiagramMapper {
         let mut classes = String::new();
         state.write_classes(&mut classes);
 
-        // Processes get group/{id} class
-        writeln!(&mut classes, "group/{}", id.as_str()).expect(CLASSES_BUFFER_WRITE_FAIL);
+        // Processes get `peer/{id}` class
+        writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);
 
         classes
     }
@@ -1609,12 +1609,12 @@ impl InputToIrDiagramMapper {
         let mut classes = String::new();
         state.write_classes(&mut classes);
 
-        // Process steps get group-focus-within/{process_id}:visible class
+        // Process steps get peer-[:focus-within]/{process_id}:visible class
         // Note: peer/{step_id} classes are placed on the parent process node instead,
         // because process nodes are sibling elements to thing/edge_group elements,
         // whereas process step nodes are not siblings.
         if let Some(process_id) = parent_process_id {
-            writeln!(&mut classes, "group-focus-within/{process_id}:visible")
+            writeln!(&mut classes, "peer-[:focus-within]/{process_id}:visible")
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
