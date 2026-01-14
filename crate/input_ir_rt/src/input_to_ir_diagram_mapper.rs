@@ -4,7 +4,7 @@ use disposition_input_ir_model::IrDiagramAndIssues;
 use disposition_input_model::{
     edge::EdgeKind,
     entity::EntityTypes,
-    process::{ProcessId, ProcessStepId, Processes},
+    process::{ProcessDiagram, ProcessId, ProcessStepId, Processes},
     tag::{TagNames, TagThings},
     theme::{
         CssClassPartials, IdOrDefaults, StyleAliases, TagIdOrDefaults, ThemeAttr, ThemeDefault,
@@ -1381,11 +1381,11 @@ impl InputToIrDiagramMapper {
                     theme_types_styles,
                 )
             } else if is_process_step {
-                // Find the parent process ID
-                let parent_process_id =
+                // Find the parent process diagram
+                let parent_process_id_and_diagram =
                     processes.iter().find_map(|(process_id, process_diagram)| {
                         if process_diagram.steps.contains_key(node_id) {
-                            Some(process_id)
+                            Some((process_id, process_diagram))
                         } else {
                             None
                         }
@@ -1393,7 +1393,7 @@ impl InputToIrDiagramMapper {
 
                 Self::build_process_step_tailwind_classes(
                     node_id,
-                    parent_process_id,
+                    parent_process_id_and_diagram,
                     entity_types,
                     theme_default,
                     theme_types_styles,
@@ -1590,7 +1590,7 @@ impl InputToIrDiagramMapper {
     /// Build tailwind classes for a process step node.
     fn build_process_step_tailwind_classes<'id>(
         id: &Id<'id>,
-        parent_process_id: Option<&ProcessId<'id>>,
+        parent_process_id_and_diagram: Option<(&ProcessId<'id>, &ProcessDiagram<'id>)>,
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
@@ -1609,13 +1609,31 @@ impl InputToIrDiagramMapper {
         let mut classes = String::new();
         state.write_classes(&mut classes);
 
-        // Process steps get peer-[:focus-within]/{process_id}:visible class
-        // Note: peer/{step_id} classes are placed on the parent process node instead,
-        // because process nodes are sibling elements to thing/edge_group elements,
-        // whereas process step nodes are not siblings.
-        if let Some(process_id) = parent_process_id {
-            writeln!(&mut classes, "peer-[:focus-within]/{process_id}:visible")
+        // Process steps get:
+        //
+        // * `group-[:has(#{process_id}:focus-within)]:visible`
+        // * one of `group-[:has(#{process_step_id}:focus-within)]:visible` for each of
+        //   the process steps (including itself).
+        //
+        // These are the same for all steps in the process, so technically we could
+        // compute it just once.
+        //
+        // TODO: currently doesn't work because IDs contain underscores, and encre-css
+        // replaces underscores with spaces.
+        if let Some((process_id, process_diagram)) = parent_process_id_and_diagram {
+            writeln!(
+                &mut classes,
+                "group-[:has(#{process_id}:focus-within)]:visible"
+            )
+            .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+            process_diagram.steps.keys().for_each(|process_step_id| {
+                writeln!(
+                    &mut classes,
+                    "group-[:has(#{process_step_id}:focus-within)]:visible"
+                )
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
+            });
         }
 
         writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);

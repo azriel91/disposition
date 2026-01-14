@@ -82,7 +82,12 @@ impl TaffyToSvgMapper {
         // Start SVG element
         write!(
             buffer,
-            r#"<svg xmlns="http://www.w3.org/2000/svg" width="{svg_width}" height="{svg_height}">"#
+            "<svg \
+                xmlns=\"http://www.w3.org/2000/svg\" \
+                width=\"{svg_width}\" \
+                height=\"{svg_height}\" \
+                class=\"group\"\
+            >"
         )
         .unwrap();
 
