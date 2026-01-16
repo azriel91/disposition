@@ -581,11 +581,11 @@ fn test_tailwind_classes_generation() {
     let step_classes = String::from("\n") + diagram.tailwind_classes.get(&step_id).unwrap();
     assert!(
         step_classes.contains("\npeer/proc_app_dev_step_repository_clone"),
-        "Process step should NOT have peer class (it's on the parent process now). Got: {step_classes}"
+        "Process step should have peer class. Got: {step_classes}"
     );
     assert!(
-        step_classes.contains("\npeer-[:focus-within]/proc_app_dev:visible"),
-        "Process step should have group-focus-within class. Got: {step_classes}"
+        step_classes.contains("\ngroup-[:has(#proc_app_dev:focus-within)]:visible"),
+        "Process step should have group-[:has(...)] class for parent process. Got: {step_classes}"
     );
 
     // Test thing tailwind classes - t_aws should have yellow color from

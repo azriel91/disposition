@@ -53,8 +53,11 @@ impl TaffyToSvgMapper {
             &mut styles_buffer,
         );
 
-        // Generate CSS from tailwind classes
-        let tailwind_classes_iter = ir_diagram.tailwind_classes.values().map(String::as_str);
+        // Generate CSS from tailwind classes (using escaped version for encre-css)
+        let tailwind_classes_iter = ir_diagram
+            .tailwind_classes_escaped
+            .values()
+            .map(String::as_str);
         let generated_css =
             encre_css::generate(tailwind_classes_iter, &encre_css::Config::default())
                 .replace("&", "&amp;");
@@ -228,16 +231,14 @@ impl TaffyToSvgMapper {
     /// Escape XML special characters in text content
     fn escape_xml(s: &str) -> String {
         let mut result = String::with_capacity(s.len());
-        for c in s.chars() {
-            match c {
-                '&' => result.push_str("&amp;"),
-                '<' => result.push_str("&lt;"),
-                '>' => result.push_str("&gt;"),
-                '"' => result.push_str("&quot;"),
-                '\'' => result.push_str("&apos;"),
-                _ => result.push(c),
-            }
-        }
+        s.chars().for_each(|c| match c {
+            '&' => result.push_str("&amp;"),
+            '<' => result.push_str("&lt;"),
+            '>' => result.push_str("&gt;"),
+            '"' => result.push_str("&quot;"),
+            '\'' => result.push_str("&apos;"),
+            _ => result.push(c),
+        });
         result
     }
 }

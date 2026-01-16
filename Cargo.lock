@@ -1859,9 +1859,9 @@ dependencies = [
 
 [[package]]
 name = "encre-css"
-version = "0.20.0"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b5281bb55d6f880c7bb5004ea1a7f2866861f9c53b15aa58bca33076167efbd"
+checksum = "c14c98eb65ca535f4c9f6db521ebb37992536768af40b13bdb9a257e7423c093"
 dependencies = [
  "phf 0.13.1",
  "serde",
