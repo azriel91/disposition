@@ -36,46 +36,6 @@ pub struct InputToIrDiagramMapper;
 
 const CLASSES_BUFFER_WRITE_FAIL: &str = "Failed to write string to buffer";
 
-/// Escapes underscores within arbitrary variant brackets (`[...]`) in a
-/// tailwind class string.
-///
-/// This is needed because encre-css interprets underscores as spaces within
-/// arbitrary variants. By replacing `_` with `&#95;` inside brackets, we
-/// preserve the literal underscore in the generated CSS.
-///
-/// # Examples
-///
-/// ```text
-/// "group-[:has(#proc_app_dev:focus-within)]:visible"
-/// // becomes
-/// "group-[:has(#proc&#95;app&#95;dev:focus-within)]:visible"
-///
-/// "peer/tag_app_development" // unchanged (underscore not in brackets)
-/// ```
-fn escape_underscores_in_brackets(classes: &str) -> String {
-    let mut result = String::with_capacity(classes.len());
-    let mut bracket_depth: u32 = 0;
-
-    classes.chars().for_each(|c| match c {
-        '[' => {
-            bracket_depth += 1;
-            result.push(c);
-        }
-        ']' => {
-            bracket_depth = bracket_depth.saturating_sub(1);
-            result.push(c);
-        }
-        '_' if bracket_depth > 0 => {
-            result.push_str("&#95;");
-        }
-        _ => {
-            result.push(c);
-        }
-    });
-
-    result
-}
-
 impl InputToIrDiagramMapper {
     /// Maps an input diagram to an intermediate representation diagram.
     pub fn map<'f, 'id>(input_diagram: &'f InputDiagram<'id>) -> IrDiagramAndIssues<'id>
@@ -157,15 +117,6 @@ impl InputToIrDiagramMapper {
             processes,
         );
 
-        // 11. Build escaped tailwind classes for encre-css CSS generation
-        let tailwind_classes_escaped = tailwind_classes
-            .iter()
-            .map(|(id, classes)| {
-                let escaped = escape_underscores_in_brackets(classes);
-                (id.clone(), escaped)
-            })
-            .collect::<EntityTailwindClasses<'id>>();
-
         let diagram = IrDiagram {
             nodes,
             node_copy_text,
@@ -176,7 +127,6 @@ impl InputToIrDiagramMapper {
             entity_tooltips,
             entity_types: ir_entity_types,
             tailwind_classes,
-            tailwind_classes_escaped,
             node_layouts,
             css: css.clone(),
         };

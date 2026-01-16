@@ -144,22 +144,8 @@ pub struct IrDiagram<'id> {
     ///
     /// These classes control visibility, colors, animations, and interactions
     /// based on the diagram's state.
-    ///
-    /// These are unescaped classes, suitable for use in SVG element `class`
-    /// attributes.
     #[serde(default, skip_serializing_if = "EntityTailwindClasses::is_empty")]
     pub tailwind_classes: EntityTailwindClasses<'id>,
-
-    /// Computed Tailwind CSS classes with underscores escaped in arbitrary
-    /// variants.
-    ///
-    /// This contains the same classes as `tailwind_classes`, but with
-    /// underscores (`_`) replaced by `&#95;` inside arbitrary variant
-    /// brackets (`[...]`). This escaped version is required for CSS
-    /// generation with encre-css, which interprets underscores as spaces
-    /// within arbitrary variants.
-    #[serde(default, skip_serializing_if = "EntityTailwindClasses::is_empty")]
-    pub tailwind_classes_escaped: EntityTailwindClasses<'id>,
 
     /// Layout configuration for each node.
     ///
@@ -196,7 +182,6 @@ impl<'id> IrDiagram<'id> {
             entity_tooltips: self.entity_tooltips.into_static(),
             entity_types: self.entity_types.into_static(),
             tailwind_classes: self.tailwind_classes.into_static(),
-            tailwind_classes_escaped: self.tailwind_classes_escaped.into_static(),
             node_layouts: self.node_layouts.into_static(),
             css: self.css,
         }

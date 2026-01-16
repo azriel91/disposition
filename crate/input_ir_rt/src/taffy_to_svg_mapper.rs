@@ -53,11 +53,14 @@ impl TaffyToSvgMapper {
             &mut styles_buffer,
         );
 
-        // Generate CSS from tailwind classes (using escaped version for encre-css)
-        let tailwind_classes_iter = ir_diagram
-            .tailwind_classes_escaped
+        // Generate CSS from tailwind classes (escaping underscores in brackets for
+        // encre-css)
+        let escaped_classes: Vec<String> = ir_diagram
+            .tailwind_classes
             .values()
-            .map(String::as_str);
+            .map(|classes| Self::escape_underscores_in_brackets(classes))
+            .collect();
+        let tailwind_classes_iter = escaped_classes.iter().map(String::as_str);
         let generated_css =
             encre_css::generate(tailwind_classes_iter, &encre_css::Config::default())
                 .replace("&", "&amp;");
@@ -226,6 +229,37 @@ impl TaffyToSvgMapper {
                 // Close group element
                 buffer.push_str("</g>");
             });
+    }
+
+    /// Escapes underscores within arbitrary variant brackets (`[...]`) in a
+    /// tailwind class string.
+    ///
+    /// This is needed because encre-css interprets underscores as spaces within
+    /// arbitrary variants. By replacing `_` with `&#95;` inside brackets, we
+    /// preserve the literal underscore in the generated CSS.
+    fn escape_underscores_in_brackets(classes: &str) -> String {
+        let mut bracket_depth: u32 = 0;
+        classes
+            .chars()
+            .fold(String::with_capacity(classes.len()), |mut result, c| {
+                match c {
+                    '[' => {
+                        bracket_depth += 1;
+                        result.push(c);
+                    }
+                    ']' => {
+                        bracket_depth = bracket_depth.saturating_sub(1);
+                        result.push(c);
+                    }
+                    '_' if bracket_depth > 0 => {
+                        result.push_str("&#95;");
+                    }
+                    _ => {
+                        result.push(c);
+                    }
+                }
+                result
+            })
     }
 
     /// Escape XML special characters in text content
