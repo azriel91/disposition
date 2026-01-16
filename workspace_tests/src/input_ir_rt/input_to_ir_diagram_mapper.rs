@@ -584,8 +584,8 @@ fn test_tailwind_classes_generation() {
         "Process step should have peer class. Got: {step_classes}"
     );
     assert!(
-        step_classes.contains("\ngroup-[:has(#proc_app_dev:focus-within)]:visible"),
-        "Process step should have group-[:has(...)] class for parent process. Got: {step_classes}"
+        step_classes.contains("\ngroup-has-[#proc_app_dev:focus-within]:visible"),
+        "Process step should have group-has-[...] class for parent process. Got: {step_classes}"
     );
 
     // Test thing tailwind classes - t_aws should have yellow color from

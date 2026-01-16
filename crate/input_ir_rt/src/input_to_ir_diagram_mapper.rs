@@ -1611,8 +1611,8 @@ impl InputToIrDiagramMapper {
 
         // Process steps get:
         //
-        // * `group-[:has(#{process_id}:focus-within)]:visible`
-        // * one of `group-[:has(#{process_step_id}:focus-within)]:visible` for each of
+        // * `group-has-[#{process_id}:focus-within]:visible`
+        // * one of `group-has-[#{process_step_id}:focus-within]:visible` for each of
         //   the process steps (including itself).
         //
         // These are the same for all steps in the process, so technically we could
@@ -1620,14 +1620,14 @@ impl InputToIrDiagramMapper {
         if let Some((process_id, process_diagram)) = parent_process_id_and_diagram {
             writeln!(
                 &mut classes,
-                "group-[:has(#{process_id}:focus-within)]:visible"
+                "group-has-[#{process_id}:focus-within]:visible"
             )
             .expect(CLASSES_BUFFER_WRITE_FAIL);
 
             process_diagram.steps.keys().for_each(|process_step_id| {
                 writeln!(
                     &mut classes,
-                    "group-[:has(#{process_step_id}:focus-within)]:visible"
+                    "group-has-[#{process_step_id}:focus-within]:visible"
                 )
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
             });

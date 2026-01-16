@@ -974,9 +974,9 @@ tailwind_classes:
     focus:stroke-sky-700
     active:stroke-sky-800
     [&>text]:fill-neutral-950
-    group-[:has(#proc_app_dev:focus-within)]:visible
-    group-[:has(#proc_app_dev_step_repository_clone:focus-within)]:visible
-    group-[:has(#proc_app_dev_step_project_build:focus-within)]:visible
+    group-has-[#proc_app_dev:focus-within]:visible
+    group-has-[#proc_app_dev_step_repository_clone:focus-within]:visible
+    group-has-[#proc_app_dev_step_project_build:focus-within]:visible
     peer/proc_app_dev_step_repository_clone
   proc_app_dev_step_project_build: |
     invisible
@@ -991,9 +991,9 @@ tailwind_classes:
     focus:stroke-sky-700
     active:stroke-sky-800
     [&>text]:fill-neutral-950
-    group-[:has(#proc_app_dev:focus-within)]:visible
-    group-[:has(#proc_app_dev_step_repository_clone:focus-within)]:visible
-    group-[:has(#proc_app_dev_step_project_build:focus-within)]:visible
+    group-has-[#proc_app_dev:focus-within]:visible
+    group-has-[#proc_app_dev_step_repository_clone:focus-within]:visible
+    group-has-[#proc_app_dev_step_project_build:focus-within]:visible
     peer/proc_app_dev_step_project_build
 
   proc_app_release: |
@@ -1023,12 +1023,12 @@ tailwind_classes:
     focus:stroke-sky-700
     active:stroke-sky-800
     [&>text]:fill-neutral-950
-    group-[:has(#proc_app_release:focus-within)]:visible
-    group-[:has(#proc_app_release_step_crate_version_update:focus-within)]:visible
-    group-[:has(#proc_app_release_step_pull_request_open:focus-within)]:visible
-    group-[:has(#proc_app_release_step_tag_and_push:focus-within)]:visible
-    group-[:has(#proc_app_release_step_gh_actions_build:focus-within)]:visible
-    group-[:has(#proc_app_release_step_gh_actions_publish:focus-within)]:visible
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
     peer/proc_app_release_step_crate_version_update
   proc_app_release_step_pull_request_open: |
     invisible
@@ -1043,12 +1043,12 @@ tailwind_classes:
     focus:stroke-sky-700
     active:stroke-sky-800
     [&>text]:fill-neutral-950
-    group-[:has(#proc_app_release:focus-within)]:visible
-    group-[:has(#proc_app_release_step_crate_version_update:focus-within)]:visible
-    group-[:has(#proc_app_release_step_pull_request_open:focus-within)]:visible
-    group-[:has(#proc_app_release_step_tag_and_push:focus-within)]:visible
-    group-[:has(#proc_app_release_step_gh_actions_build:focus-within)]:visible
-    group-[:has(#proc_app_release_step_gh_actions_publish:focus-within)]:visible
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
     peer/proc_app_release_step_pull_request_open
   proc_app_release_step_tag_and_push: |
     invisible
@@ -1063,12 +1063,12 @@ tailwind_classes:
     focus:stroke-sky-700
     active:stroke-sky-800
     [&>text]:fill-neutral-950
-    group-[:has(#proc_app_release:focus-within)]:visible
-    group-[:has(#proc_app_release_step_crate_version_update:focus-within)]:visible
-    group-[:has(#proc_app_release_step_pull_request_open:focus-within)]:visible
-    group-[:has(#proc_app_release_step_tag_and_push:focus-within)]:visible
-    group-[:has(#proc_app_release_step_gh_actions_build:focus-within)]:visible
-    group-[:has(#proc_app_release_step_gh_actions_publish:focus-within)]:visible
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
     peer/proc_app_release_step_tag_and_push
   proc_app_release_step_gh_actions_build: |
     invisible
@@ -1083,12 +1083,12 @@ tailwind_classes:
     focus:stroke-sky-700
     active:stroke-sky-800
     [&>text]:fill-neutral-950
-    group-[:has(#proc_app_release:focus-within)]:visible
-    group-[:has(#proc_app_release_step_crate_version_update:focus-within)]:visible
-    group-[:has(#proc_app_release_step_pull_request_open:focus-within)]:visible
-    group-[:has(#proc_app_release_step_tag_and_push:focus-within)]:visible
-    group-[:has(#proc_app_release_step_gh_actions_build:focus-within)]:visible
-    group-[:has(#proc_app_release_step_gh_actions_publish:focus-within)]:visible
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
     peer/proc_app_release_step_gh_actions_build
   proc_app_release_step_gh_actions_publish: |
     invisible
@@ -1103,12 +1103,12 @@ tailwind_classes:
     focus:stroke-sky-700
     active:stroke-sky-800
     [&>text]:fill-neutral-950
-    group-[:has(#proc_app_release:focus-within)]:visible
-    group-[:has(#proc_app_release_step_crate_version_update:focus-within)]:visible
-    group-[:has(#proc_app_release_step_pull_request_open:focus-within)]:visible
-    group-[:has(#proc_app_release_step_tag_and_push:focus-within)]:visible
-    group-[:has(#proc_app_release_step_gh_actions_build:focus-within)]:visible
-    group-[:has(#proc_app_release_step_gh_actions_publish:focus-within)]:visible
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
     peer/proc_app_release_step_gh_actions_publish
 
   proc_i12e_region_tier_app_deploy: |
@@ -1138,8 +1138,8 @@ tailwind_classes:
     focus:stroke-sky-700
     active:stroke-sky-800
     [&>text]:fill-neutral-950
-    group-[:has(#proc_i12e_region_tier_app_deploy:focus-within)]:visible
-    group-[:has(#proc_i12e_region_tier_app_deploy_step_ecs_service_update:focus-within)]:visible
+    group-has-[#proc_i12e_region_tier_app_deploy:focus-within]:visible
+    group-has-[#proc_i12e_region_tier_app_deploy_step_ecs_service_update:focus-within]:visible
     peer/proc_i12e_region_tier_app_deploy_step_ecs_service_update
 
   # Edges - visible when their associated step has focus
