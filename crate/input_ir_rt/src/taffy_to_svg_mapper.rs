@@ -231,28 +231,91 @@ impl TaffyToSvgMapper {
             });
     }
 
-    /// Escapes underscores within arbitrary variant brackets (`[...]`) in a
-    /// tailwind class string.
+    /// Escapes underscores within ID selectors inside arbitrary variant
+    /// brackets (`[...]`) in a tailwind class string.
     ///
     /// This is needed because encre-css interprets underscores as spaces within
-    /// arbitrary variants. By replacing `_` with `&#95;` inside brackets, we
-    /// preserve the literal underscore in the generated CSS.
-    fn escape_underscores_in_brackets(classes: &str) -> String {
+    /// arbitrary variants. By replacing `_` with `&#95;` inside ID selectors
+    /// (e.g. `#some_id`), we preserve the literal underscore in the generated
+    /// CSS.
+    ///
+    /// Only underscores that are part of an ID selector (starting with `#`) are
+    /// escaped. For example:
+    /// - `group-has-[#some_id:focus]` → `group-has-[#some&#95;id:focus]`
+    /// - `peer/some-peer:animate-[animation-name_2s_linear_infinite]` →
+    ///   unchanged
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use disposition_input_ir_rt::TaffyToSvgMapper;
+    /// // ID selectors have underscores escaped
+    /// assert_eq!(
+    ///     TaffyToSvgMapper::escape_underscores_in_brackets(
+    ///         "group-has-[#some_id:focus]:stroke-blue-500"
+    ///     ),
+    ///     "group-has-[#some&#95;id:focus]:stroke-blue-500"
+    /// );
+    ///
+    /// // Multiple underscores in ID
+    /// assert_eq!(
+    ///     TaffyToSvgMapper::escape_underscores_in_brackets(
+    ///         "group-has-[#my_element_id:hover]:fill-red-500"
+    ///     ),
+    ///     "group-has-[#my&#95;element&#95;id:hover]:fill-red-500"
+    /// );
+    ///
+    /// // Animation values are NOT escaped (no ID selector)
+    /// assert_eq!(
+    ///     TaffyToSvgMapper::escape_underscores_in_brackets(
+    ///         "peer/some-peer:animate-[animation-name_2s_linear_infinite]"
+    ///     ),
+    ///     "peer/some-peer:animate-[animation-name_2s_linear_infinite]"
+    /// );
+    ///
+    /// // Mixed: ID escaped, non-ID not escaped
+    /// assert_eq!(
+    ///     TaffyToSvgMapper::escape_underscores_in_brackets(
+    ///         "group-has-[#some_id:focus]:animate-[fade_in_1s]"
+    ///     ),
+    ///     "group-has-[#some&#95;id:focus]:animate-[fade_in_1s]"
+    /// );
+    ///
+    /// // No brackets - unchanged
+    /// assert_eq!(
+    ///     TaffyToSvgMapper::escape_underscores_in_brackets("text_red-500"),
+    ///     "text_red-500"
+    /// );
+    /// ```
+    pub fn escape_underscores_in_brackets(classes: &str) -> String {
         let mut bracket_depth: u32 = 0;
+        let mut is_parsing_id = false;
+
         classes
             .chars()
             .fold(String::with_capacity(classes.len()), |mut result, c| {
                 match c {
                     '[' => {
                         bracket_depth += 1;
+                        is_parsing_id = false;
                         result.push(c);
                     }
                     ']' => {
                         bracket_depth = bracket_depth.saturating_sub(1);
+                        is_parsing_id = false;
                         result.push(c);
                     }
-                    '_' if bracket_depth > 0 => {
+                    '#' if bracket_depth > 0 => {
+                        is_parsing_id = true;
+                        result.push(c);
+                    }
+                    '_' if bracket_depth > 0 && is_parsing_id => {
                         result.push_str("&#95;");
+                    }
+                    // Characters that end an ID context (not valid in CSS IDs)
+                    ':' | ' ' | ',' | '.' | '>' | '+' | '~' | '(' | ')' if is_parsing_id => {
+                        is_parsing_id = false;
+                        result.push(c);
                     }
                     _ => {
                         result.push(c);

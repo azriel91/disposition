@@ -476,6 +476,12 @@ theme_default:
     padding_wide:
       padding: "6.0"
       gap: "6.0"
+    fill_pale:
+      fill_shade_hover: "50"
+      fill_shade_normal: "100"
+      fill_shade_focus: "200"
+      fill_shade_active: "300"
+      text_shade: "800"
     shade_pale:
       fill_shade_hover: "50"
       fill_shade_normal: "100"
@@ -539,7 +545,7 @@ theme_default:
       # Used for both fill and stroke colors.
       shape_color: "slate"
       stroke_style: "solid"
-      stroke_width: "1"
+      stroke_width: "2"
       text_color: "neutral"
       visibility: "visible"
     edge_defaults:
@@ -554,7 +560,7 @@ theme_default:
 
   process_step_selected_styles:
     node_defaults:
-      style_aliases_applied: [shade_pale, stroke_dashed_animated]
+      style_aliases_applied: [fill_pale, stroke_dashed_animated]
     edge_defaults:
       visibility: "visible"
 
@@ -566,25 +572,25 @@ theme_types_styles:
       style_aliases_applied: [shade_light]
       stroke_style: "solid"
       shape_color: "slate"
-      stroke_width: "1"
+      stroke_width: "2"
   type_tag_default:
     node_defaults:
       style_aliases_applied: [shade_medium]
       stroke_style: "solid"
       shape_color: "emerald"
-      stroke_width: "1"
+      stroke_width: "2"
   type_process_default:
     node_defaults:
       style_aliases_applied: [shade_medium]
       stroke_style: "solid"
       shape_color: "blue"
-      stroke_width: "1"
+      stroke_width: "2"
   type_process_step_default:
     node_defaults:
       style_aliases_applied: [shade_medium]
       stroke_style: "solid"
       shape_color: "sky"
-      stroke_width: "1"
+      stroke_width: "2"
       visibility: "invisible"
 
   # thing_dependencies - edge groups
@@ -593,36 +599,36 @@ theme_types_styles:
       style_aliases_applied: [shade_dark]
       stroke_style: solid
       shape_color: "neutral"
-      stroke_width: "1"
+      stroke_width: "2"
       visibility: "visible"
   type_dependency_edge_cyclic_default:
     edge_defaults:
       style_aliases_applied: [shade_dark]
       stroke_style: solid
       shape_color: "neutral"
-      stroke_width: "1"
+      stroke_width: "2"
       visibility: "visible"
   type_dependency_edge_symmetric_default:
     edge_defaults:
       style_aliases_applied: [shade_dark]
       stroke_style: solid
       shape_color: "neutral"
-      stroke_width: "1"
+      stroke_width: "2"
       visibility: "visible"
 
   # thing_dependencies - edges
   type_dependency_edge_sequence_forward_default:
     edge_defaults:
-      stroke_width: "1"
+      stroke_width: "2"
   type_dependency_edge_cyclic_forward_default:
     edge_defaults:
-      stroke_width: "1"
+      stroke_width: "2"
   type_dependency_edge_symmetric_forward_default:
     edge_defaults:
-      stroke_width: "1"
+      stroke_width: "2"
   type_dependency_edge_symmetric_reverse_default:
     edge_defaults:
-      stroke_width: "1"
+      stroke_width: "2"
 
   # thing_interactions - edge groups
   type_interaction_edge_sequence_default:
@@ -702,7 +708,7 @@ theme_thing_dependencies_styles:
 theme_tag_things_focus:
   tag_defaults:
     node_defaults:
-      style_aliases_applied: [shade_pale, stroke_dashed_animated]
+      style_aliases_applied: [fill_pale, stroke_dashed_animated]
     node_excluded_defaults:
       opacity: "75"
 
