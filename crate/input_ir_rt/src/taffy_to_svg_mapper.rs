@@ -386,6 +386,8 @@ impl TaffyToSvgMapper {
                     &process_steps_heights,
                 );
 
+                // TODO: if the process steps were the tallest elements in the diagram, the
+                // diagram height may need to be reduced as well.
                 let width = layout.size.width;
                 let height_expanded = layout.size.height.min(layout.content_size.height);
                 let height_collapsed = {
