@@ -1617,6 +1617,9 @@ impl InputToIrDiagramMapper {
         //
         // These are the same for all steps in the process, so technically we could
         // compute it just once.
+        //
+        // TODO: these should be deduced from
+        // `theme_default.process_step_selected_styles` instead of hard coded.
         if let Some((process_id, process_diagram)) = parent_process_id_and_diagram {
             writeln!(
                 &mut classes,
