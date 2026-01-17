@@ -398,8 +398,8 @@ fn test_node_layout_containers() {
     let processes_container_id = NodeId::from(id!("_processes_container"));
     let processes_layout = diagram.node_layouts.get(&processes_container_id).unwrap();
     if let NodeLayout::Flex(flex) = processes_layout {
-        assert_eq!(FlexDirection::Row, flex.direction);
-        assert!(flex.wrap);
+        assert_eq!(FlexDirection::Column, flex.direction);
+        assert!(!flex.wrap);
     } else {
         panic!("Expected Flex layout for _processes_container");
     }

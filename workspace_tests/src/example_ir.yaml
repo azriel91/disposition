@@ -1353,17 +1353,19 @@ node_layouts:
 
   # Processes container (groups all processes horizontally)
   #
-  # This is in `row` order so processes are laid out left to right:
+  # This is in `column` order so processes are laid out top to bottom:
   #
   # ```text
-  # .-----------------------------------------------------------------------------.
-  # | 0. proc_app_dev | 1. proc_app_release | 2. proc_i12e_region_tier_app_deploy |
-  # '-----------------------------------------------------------------------------'
+  # .-------------------------------------.
+  # | 0. proc_app_dev                     |
+  # | 1. proc_app_release                 |
+  # | 2. proc_i12e_region_tier_app_deploy |
+  # '-------------------------------------'
   # ```
   _processes_container:
     flex:
-      direction: "row"
-      wrap: true
+      direction: "column"
+      wrap: false
       padding_top: 4.0
       padding_right: 4.0
       padding_bottom: 4.0

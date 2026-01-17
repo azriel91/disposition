@@ -778,8 +778,8 @@ impl InputToIrDiagramMapper {
         let processes_container_id = NodeInbuilt::ProcessesContainer.id();
         let processes_container_layout = Self::build_container_layout(
             &processes_container_id,
-            FlexDirection::Row,
-            true,
+            FlexDirection::Column,
+            false,
             entity_types,
             theme_default,
             theme_types_styles,
