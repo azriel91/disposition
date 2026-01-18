@@ -20,3 +20,27 @@ pub enum NodeToTaffyNodeIds {
         text_node_id: taffy::NodeId,
     },
 }
+
+impl NodeToTaffyNodeIds {
+    /// Returns the wrapper taffy node ID, which is the same as the wrapper node
+    /// ID if the node is a wrapper, or the text node ID if the node is a
+    /// leaf.
+    pub fn wrapper_taffy_node_id(self) -> taffy::NodeId {
+        match self {
+            NodeToTaffyNodeIds::Leaf { text_node_id } => text_node_id,
+            NodeToTaffyNodeIds::Wrapper {
+                wrapper_node_id,
+                text_node_id: _,
+            } => wrapper_node_id,
+        }
+    }
+
+    /// Returns the text node ID, which is the same as the outer node ID if the
+    /// node is a leaf, or the text node ID if the node is a wrapper.
+    pub fn text_taffy_node_id(&self) -> taffy::NodeId {
+        match self {
+            NodeToTaffyNodeIds::Leaf { text_node_id } => *text_node_id,
+            NodeToTaffyNodeIds::Wrapper { text_node_id, .. } => *text_node_id,
+        }
+    }
+}

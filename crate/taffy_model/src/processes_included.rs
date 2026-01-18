@@ -17,6 +17,6 @@ pub enum ProcessesIncluded {
     /// Diagram should fit within 1536x1280.
     Filter {
         /// IDs of the processes to include.
-        process_ids: Set<ProcessId>,
+        process_ids: Set<ProcessId<'static>>,
     },
 }

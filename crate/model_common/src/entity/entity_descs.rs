@@ -32,9 +32,9 @@ use crate::{Id, Map};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct EntityDescs(Map<Id, String>);
+pub struct EntityDescs<'id>(Map<Id<'id>, String>);
 
-impl EntityDescs {
+impl<'id> EntityDescs<'id> {
     /// Returns a new `EntityDescs` map.
     pub fn new() -> Self {
         Self::default()
@@ -46,7 +46,7 @@ impl EntityDescs {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<Id, String> {
+    pub fn into_inner(self) -> Map<Id<'id>, String> {
         self.0
     }
 
@@ -55,38 +55,51 @@ impl EntityDescs {
         self.0.is_empty()
     }
 
+    /// Converts this `EntityDescs` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    pub fn into_static(self) -> EntityDescs<'static> {
+        EntityDescs(
+            self.0
+                .into_iter()
+                .map(|(id, desc)| (id.into_static(), desc))
+                .collect(),
+        )
+    }
+
     /// Returns true if this contains a description for an entity with the given
     /// ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'id>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
-impl Deref for EntityDescs {
-    type Target = Map<Id, String>;
+impl<'id> Deref for EntityDescs<'id> {
+    type Target = Map<Id<'id>, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for EntityDescs {
+impl<'id> DerefMut for EntityDescs<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<Id, String>> for EntityDescs {
-    fn from(inner: Map<Id, String>) -> Self {
+impl<'id> From<Map<Id<'id>, String>> for EntityDescs<'id> {
+    fn from(inner: Map<Id<'id>, String>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(Id, String)> for EntityDescs {
-    fn from_iter<I: IntoIterator<Item = (Id, String)>>(iter: I) -> Self {
+impl<'id> FromIterator<(Id<'id>, String)> for EntityDescs<'id> {
+    fn from_iter<I: IntoIterator<Item = (Id<'id>, String)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

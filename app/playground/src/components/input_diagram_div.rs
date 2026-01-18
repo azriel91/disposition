@@ -9,7 +9,6 @@ pub fn InputDiagramDiv(input_diagram_string: Signal<String>) -> Element {
         div {
             id: "input_diagram_div",
             class: "
-                flex-1
                 flex
                 flex-col
             ",
@@ -38,6 +37,7 @@ pub fn InputDiagramDiv(input_diagram_string: Signal<String>) -> Element {
                     border-gray-300
                     p-2
                     font-mono
+                    text-nowrap
                 "
             }
         }

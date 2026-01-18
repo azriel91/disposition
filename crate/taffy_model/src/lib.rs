@@ -13,9 +13,9 @@ pub use crate::api_doc::ApiDoc;
 mod api_doc;
 
 /// Default text font size.
-pub const TEXT_FONT_SIZE: f32 = 12.0f32;
+pub const TEXT_FONT_SIZE: f32 = 14.0f32;
 /// Default text line height.
-pub const TEXT_LINE_HEIGHT: f32 = 14.0f32;
+pub const TEXT_LINE_HEIGHT: f32 = 17.0f32;
 
 pub use crate::{
     diagram_lod::DiagramLod, dimension::Dimension, dimension_and_lod::DimensionAndLod,

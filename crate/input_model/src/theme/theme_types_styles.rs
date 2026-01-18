@@ -51,9 +51,10 @@ use crate::{entity::EntityTypeId, theme::ThemeStyles};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThemeTypesStyles(Map<EntityTypeId, ThemeStyles>);
+#[serde(bound(deserialize = "ThemeStyles<'id>: Deserialize<'de>"))]
+pub struct ThemeTypesStyles<'id>(Map<EntityTypeId<'id>, ThemeStyles<'id>>);
 
-impl ThemeTypesStyles {
+impl<'id> ThemeTypesStyles<'id> {
     /// Returns a new empty `ThemeTypesStyles` map.
     pub fn new() -> Self {
         Self::default()
@@ -66,7 +67,7 @@ impl ThemeTypesStyles {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<EntityTypeId, ThemeStyles> {
+    pub fn into_inner(self) -> Map<EntityTypeId<'id>, ThemeStyles<'id>> {
         self.0
     }
 
@@ -76,28 +77,28 @@ impl ThemeTypesStyles {
     }
 }
 
-impl Deref for ThemeTypesStyles {
-    type Target = Map<EntityTypeId, ThemeStyles>;
+impl<'id> Deref for ThemeTypesStyles<'id> {
+    type Target = Map<EntityTypeId<'id>, ThemeStyles<'id>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for ThemeTypesStyles {
+impl<'id> DerefMut for ThemeTypesStyles<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<EntityTypeId, ThemeStyles>> for ThemeTypesStyles {
-    fn from(inner: Map<EntityTypeId, ThemeStyles>) -> Self {
+impl<'id> From<Map<EntityTypeId<'id>, ThemeStyles<'id>>> for ThemeTypesStyles<'id> {
+    fn from(inner: Map<EntityTypeId<'id>, ThemeStyles<'id>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(EntityTypeId, ThemeStyles)> for ThemeTypesStyles {
-    fn from_iter<I: IntoIterator<Item = (EntityTypeId, ThemeStyles)>>(iter: I) -> Self {
+impl<'id> FromIterator<(EntityTypeId<'id>, ThemeStyles<'id>)> for ThemeTypesStyles<'id> {
+    fn from_iter<I: IntoIterator<Item = (EntityTypeId<'id>, ThemeStyles<'id>)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

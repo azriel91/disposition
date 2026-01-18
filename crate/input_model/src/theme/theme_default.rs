@@ -61,24 +61,27 @@ use crate::theme::{StyleAliases, ThemeStyles};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThemeDefault {
+#[serde(bound(
+    deserialize = "StyleAliases<'id>: Deserialize<'de>, ThemeStyles<'id>: Deserialize<'de>"
+))]
+pub struct ThemeDefault<'id> {
     /// Style aliases available to all theme data.
     ///
     /// These group common style properties under a single name that can be
     /// referenced using `style_aliases_applied`.
     #[serde(default, skip_serializing_if = "StyleAliases::is_empty")]
-    pub style_aliases: StyleAliases,
+    pub style_aliases: StyleAliases<'id>,
 
     /// Base styles for entities when there is no user interaction.
     #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
-    pub base_styles: ThemeStyles,
+    pub base_styles: ThemeStyles<'id>,
 
     /// Styles applied to entities when a process step is selected.
     #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
-    pub process_step_selected_styles: ThemeStyles,
+    pub process_step_selected_styles: ThemeStyles<'id>,
 }
 
-impl ThemeDefault {
+impl<'id> ThemeDefault<'id> {
     /// Returns a new `ThemeDefault` with default values.
     pub fn new() -> Self {
         Self::default()

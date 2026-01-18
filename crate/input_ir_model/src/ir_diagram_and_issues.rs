@@ -9,21 +9,32 @@ use crate::issue::ModelToIrIssue;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug)]
-pub struct IrDiagramAndIssues {
+pub struct IrDiagramAndIssues<'id> {
     /// The mapped intermediate representation diagram.
-    pub diagram: IrDiagram,
+    pub diagram: IrDiagram<'id>,
     /// Issues encountered during mapping.
     pub issues: Vec<ModelToIrIssue>,
 }
 
-impl IrDiagramAndIssues {
+impl<'id> IrDiagramAndIssues<'id> {
     /// Returns a reference to the intermediate representation diagram.
-    pub fn diagram(&self) -> &IrDiagram {
+    pub fn diagram(&self) -> &IrDiagram<'id> {
         &self.diagram
     }
 
     /// Returns a reference to the issues encountered during mapping.
     pub fn issues(&self) -> &[ModelToIrIssue] {
         &self.issues
+    }
+
+    /// Converts this `IrDiagramAndIssues` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    pub fn into_static(self) -> IrDiagramAndIssues<'static> {
+        IrDiagramAndIssues {
+            diagram: self.diagram.into_static(),
+            issues: self.issues,
+        }
     }
 }

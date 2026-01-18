@@ -32,9 +32,9 @@ use crate::{Id, IdInvalidFmt};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
-pub struct EdgeGroupId(Id);
+pub struct EdgeGroupId<'s>(Id<'s>);
 
-impl EdgeGroupId {
+impl<'s> EdgeGroupId<'s> {
     /// Creates a new [`EdgeGroupId`] from a string.
     ///
     /// # Examples
@@ -46,7 +46,7 @@ impl EdgeGroupId {
     ///
     /// assert_eq!(edge_group_id.as_str(), "edge_a_to_b");
     /// ```
-    pub fn new(id: &'static str) -> Result<Self, IdInvalidFmt<'static>> {
+    pub fn new(id: &'s str) -> Result<Self, IdInvalidFmt<'s>> {
         Id::new(id).map(EdgeGroupId)
     }
 
@@ -61,44 +61,63 @@ impl EdgeGroupId {
     ///
     /// assert_eq!(edge_group_id.into_inner(), Id::new("edge_a_to_b").unwrap());
     /// ```
-    pub fn into_inner(self) -> Id {
+    pub fn into_inner(self) -> Id<'s> {
         self.0
+    }
+
+    /// Converts this `EdgeGroupId` into one with a `'static` lifetime.
+    ///
+    /// If the inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use disposition_model_common::edge::EdgeGroupId;
+    ///
+    /// let edge_group_id = EdgeGroupId::new("edge_a_to_b").unwrap();
+    /// let edge_group_id_static: EdgeGroupId<'static> = edge_group_id.into_static();
+    ///
+    /// assert_eq!(edge_group_id_static.as_str(), "edge_a_to_b");
+    /// ```
+    pub fn into_static(self) -> EdgeGroupId<'static> {
+        EdgeGroupId(self.0.into_static())
     }
 }
 
-impl From<Id> for EdgeGroupId {
-    fn from(id: Id) -> Self {
+impl<'s> From<Id<'s>> for EdgeGroupId<'s> {
+    fn from(id: Id<'s>) -> Self {
         EdgeGroupId(id)
     }
 }
 
-impl AsRef<Id> for EdgeGroupId {
-    fn as_ref(&self) -> &Id {
+impl<'s> AsRef<Id<'s>> for EdgeGroupId<'s> {
+    fn as_ref(&self) -> &Id<'s> {
         &self.0
     }
 }
 
-impl Borrow<Id> for EdgeGroupId {
-    fn borrow(&self) -> &Id {
+impl<'s> Borrow<Id<'s>> for EdgeGroupId<'s> {
+    fn borrow(&self) -> &Id<'s> {
         &self.0
     }
 }
 
-impl Deref for EdgeGroupId {
-    type Target = Id;
+impl<'s> Deref for EdgeGroupId<'s> {
+    type Target = Id<'s>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for EdgeGroupId {
+impl<'s> DerefMut for EdgeGroupId<'s> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl Display for EdgeGroupId {
+impl<'s> Display for EdgeGroupId<'s> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }

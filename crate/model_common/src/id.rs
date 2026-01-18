@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
 
-/// Unique identifier for any entity in the diagram, `Cow<'static, str>`
+/// Unique identifier for any entity in the diagram, `Cow<'s, str>`
 /// newtype.
 ///
 /// Must begin with a letter or underscore, and contain only letters, numbers,
@@ -24,12 +24,12 @@ use serde::{Deserialize, Serialize};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
-pub struct Id(Cow<'static, str>);
+pub struct Id<'s>(Cow<'s, str>);
 
-id_newtype::id_newtype!(Id, IdInvalidFmt, id);
+id_newtype::id_newtype!(Id, IdInvalidFmt, id, 's);
 
-impl AsRef<Id> for Id {
-    fn as_ref(&self) -> &Id {
+impl<'s> AsRef<Id<'s>> for Id<'s> {
+    fn as_ref(&self) -> &Id<'s> {
         self
     }
 }

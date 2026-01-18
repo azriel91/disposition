@@ -27,17 +27,18 @@ use crate::theme::ThemeStyles;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThingsFocusStyles {
+#[serde(bound(deserialize = "ThemeStyles<'id>: Deserialize<'de>"))]
+pub struct ThingsFocusStyles<'id> {
     /// Styles applied to things that are included in the focus.
     #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
-    pub things_included_styles: ThemeStyles,
+    pub things_included_styles: ThemeStyles<'id>,
 
     /// Styles applied to things that are excluded from the focus.
     #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
-    pub things_excluded_styles: ThemeStyles,
+    pub things_excluded_styles: ThemeStyles<'id>,
 }
 
-impl ThingsFocusStyles {
+impl<'id> ThingsFocusStyles<'id> {
     /// Returns a new `ThingsFocusStyles` with default values.
     pub fn new() -> Self {
         Self::default()

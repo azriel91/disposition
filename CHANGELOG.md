@@ -6,9 +6,11 @@
 * Improve diagram rendering performance. ([#8][#8])
 * Remove `syntect` syntax highlighting. ([#8][#8])
 * Replace `cosmic-text` font width measurement with simple multiplication. ([#8][#8])
+* Implement collapsible process steps. ([#9][#9])
 
 [#7]: https://github.com/azriel91/disposition/pull/7
 [#8]: https://github.com/azriel91/disposition/pull/8
+[#9]: https://github.com/azriel91/disposition/pull/9
 
 
 ## 0.0.2 (2026-01-06)

@@ -188,6 +188,61 @@ thing_interactions:
       - t_aws_ecr_repo
       - t_aws_ecs_service
 
+# Processes are groupings of interactions between things sequenced over time.
+#
+# We want to make it easy to see which things are involved (in each step of) a process. By
+# highlighting the things / edges when a user focuses on a step in a process, it brings clarity to
+# the user.
+processes:
+  proc_app_dev:
+    name: "App Development"
+    desc: |-
+      Development of the web application.
+
+      * [🐙 Repo](https://github.com/azriel91/web_app)
+    steps:
+      proc_app_dev_step_repository_clone: "Clone repository"
+      proc_app_dev_step_project_build: "Build project"
+
+    # Thing interactions that should be actively highlighted when this step is focused.
+    #
+    # The things associated with all of the interaction IDs in the list should be highlighted.
+    #
+    # optional, references IDs in `thing_interactions` top level element.
+    step_thing_interactions:
+      proc_app_dev_step_repository_clone: [edge_ix_t_localhost__t_github_user_repo__pull]
+      proc_app_dev_step_project_build: [edge_ix_t_localhost__t_localhost__within]
+
+  proc_app_release:
+    name: "App Release"
+    steps:
+      proc_app_release_step_crate_version_update: "Update crate versions"
+      proc_app_release_step_pull_request_open: "Open PR"
+      proc_app_release_step_tag_and_push: "Tag and push"
+      proc_app_release_step_gh_actions_build: "Github Actions build"
+      proc_app_release_step_gh_actions_publish: "Github Actions publish"
+
+    step_thing_interactions:
+      proc_app_release_step_crate_version_update: [edge_ix_t_localhost__t_localhost__within]
+      proc_app_release_step_pull_request_open: [edge_ix_t_localhost__t_github_user_repo__pull]
+      proc_app_release_step_tag_and_push: [edge_ix_t_localhost__t_github_user_repo__push]
+      proc_app_release_step_gh_actions_build:
+        [edge_ix_t_github_user_repo__t_github_user_repo__within]
+      proc_app_release_step_gh_actions_publish: [edge_ix_t_github_user_repo__t_aws_ecr_repo__push]
+
+  # Some processes not defined yet.
+  #
+  # proc_i12e_global_deploy: {}
+  # proc_i12e_region_mgmt_deploy: {}
+  # proc_i12e_region_tier_subnets_deploy: {}
+  proc_i12e_region_tier_app_deploy:
+    name: "Prod App Deploy"
+    steps:
+      proc_i12e_region_tier_app_deploy_step_ecs_service_update: "Update ECS service"
+    step_thing_interactions:
+      proc_i12e_region_tier_app_deploy_step_ecs_service_update:
+        [edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push]
+
 # Descriptions to render next to each node, edge group, or edge.
 #
 # This is intended to take markdown text.
@@ -216,96 +271,37 @@ entity_descs:
   edge_ix_t_localhost__t_github_user_repo__push__0: |-
     `git push`
 
-# Processes are groupings of interactions between things sequenced over time.
-#
-# We want to make it easy to see which things are involved (in each step of) a process. By
-# highlighting the things / edges when a user focuses on a step in a process, it brings clarity to
-# the user.
-processes:
-  proc_app_dev:
-    name: "App Development"
-    desc: |-
-      Development of the web application.
+entity_tooltips:
+  proc_app_dev_step_repository_clone: |-
+    ```bash
+    git clone https://github.com/azriel91/web_app.git
+    ```
+  proc_app_dev_step_project_build: |-
+    Develop the app:
 
-      * [🐙 Repo](https://github.com/azriel91/web_app)
-    steps:
-      proc_app_dev_step_repository_clone: "Clone repository"
-      proc_app_dev_step_project_build: "Build project"
-    step_descs:
-      proc_app_dev_step_repository_clone: |-
-        ```bash
-        git clone https://github.com/azriel91/web_app.git
-        ```
+    * Always link to issue.
+    * Open PR.
+  proc_app_release_step_crate_version_update: |-
+    ```bash
+    sd -s 'version = "0.3.0"' 'version = "0.3.0"' $(fd -tf -F toml) README.md src/lib.rs
+    ```
+  proc_app_release_step_pull_request_open: |-
+    Create a pull request as usual.
+  proc_app_release_step_gh_actions_build: |-
+    Github Actions will build the image.
+  proc_app_release_step_tag_and_push: |-
+    When the PR is merged, tag the commit and push the tag to GitHub.
 
-      proc_app_dev_step_project_build: |-
-        Develop the app:
+    ```bash
+    git tag 0.3.0
+    git push origin 0.3.0
+    ```
 
-        * Always link to issue.
-        * Open PR.
-
-    # Thing interactions that should be actively highlighted when this step is focused.
-    #
-    # The things associated with all of the interaction IDs in the list should be highlighted.
-    #
-    # optional, references IDs in `thing_interactions` top level element.
-    step_thing_interactions:
-      proc_app_dev_step_repository_clone: [edge_ix_t_localhost__t_github_user_repo__pull]
-      proc_app_dev_step_project_build: [edge_ix_t_localhost__t_localhost__within]
-
-  proc_app_release:
-    name: "App Release"
-    steps:
-      proc_app_release_step_crate_version_update: "Update crate versions"
-      proc_app_release_step_pull_request_open: "Open PR"
-      proc_app_release_step_tag_and_push: "Tag and push"
-      proc_app_release_step_gh_actions_build: "Github Actions build"
-      proc_app_release_step_gh_actions_publish: "Github Actions publish"
-
-    step_descs:
-      proc_app_release_step_crate_version_update: |-
-        ```bash
-        sd -s 'version = "0.3.0"' 'version = "0.3.0"' $(fd -tf -F toml) README.md src/lib.rs
-        ```
-      proc_app_release_step_pull_request_open: |-
-        Create a pull request as usual.
-      proc_app_release_step_gh_actions_build: |-
-        Github Actions will build the image.
-      proc_app_release_step_tag_and_push: |-
-        When the PR is merged, tag the commit and push the tag to GitHub.
-
-        ```bash
-        git tag 0.3.0
-        git push origin 0.3.0
-        ```
-
-        The build will push the new version to ECR automatically.
-      proc_app_release_step_gh_actions_publish: |-
-        Github Actions will publish the image to AWS ECR.
-
-    step_thing_interactions:
-      proc_app_release_step_crate_version_update: [edge_ix_t_localhost__t_localhost__within]
-      proc_app_release_step_pull_request_open: [edge_ix_t_localhost__t_github_user_repo__pull]
-      proc_app_release_step_tag_and_push: [edge_ix_t_localhost__t_github_user_repo__push]
-      proc_app_release_step_gh_actions_build:
-        [edge_ix_t_github_user_repo__t_github_user_repo__within]
-      proc_app_release_step_gh_actions_publish: [edge_ix_t_github_user_repo__t_aws_ecr_repo__push]
-
-  # Some processes not defined yet.
-  #
-  # proc_i12e_global_deploy: {}
-  # proc_i12e_region_mgmt_deploy: {}
-  # proc_i12e_region_tier_subnets_deploy: {}
-  proc_i12e_region_tier_app_deploy:
-    name: "Prod App Deploy"
-    steps:
-      proc_i12e_region_tier_app_deploy_step_ecs_service_update: "Update ECS service"
-
-    step_descs:
-      proc_i12e_region_tier_app_deploy_step_ecs_service_update: |-
-        Deploy or update the existing ECS service with the new image.
-    step_thing_interactions:
-      proc_i12e_region_tier_app_deploy_step_ecs_service_update:
-        [edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push]
+    The build will push the new version to ECR automatically.
+  proc_app_release_step_gh_actions_publish: |-
+    Github Actions will publish the image to AWS ECR.
+  proc_i12e_region_tier_app_deploy_step_ecs_service_update: |-
+    Deploy or update the existing ECS service with the new image.
 
 # Tags are labels that can be associated with things, so that the things can be highlighted when
 # the tag is focused.
@@ -480,6 +476,12 @@ theme_default:
     padding_wide:
       padding: "6.0"
       gap: "6.0"
+    fill_pale:
+      fill_shade_hover: "50"
+      fill_shade_normal: "100"
+      fill_shade_focus: "200"
+      fill_shade_active: "300"
+      text_shade: "800"
     shade_pale:
       fill_shade_hover: "50"
       fill_shade_normal: "100"
@@ -543,7 +545,7 @@ theme_default:
       # Used for both fill and stroke colors.
       shape_color: "slate"
       stroke_style: "solid"
-      stroke_width: "1"
+      stroke_width: "2"
       text_color: "neutral"
       visibility: "visible"
     edge_defaults:
@@ -558,7 +560,7 @@ theme_default:
 
   process_step_selected_styles:
     node_defaults:
-      style_aliases_applied: [shade_pale, stroke_dashed_animated]
+      style_aliases_applied: [fill_pale, stroke_dashed_animated]
     edge_defaults:
       visibility: "visible"
 
@@ -570,25 +572,25 @@ theme_types_styles:
       style_aliases_applied: [shade_light]
       stroke_style: "solid"
       shape_color: "slate"
-      stroke_width: "1"
+      stroke_width: "2"
   type_tag_default:
     node_defaults:
       style_aliases_applied: [shade_medium]
       stroke_style: "solid"
       shape_color: "emerald"
-      stroke_width: "1"
+      stroke_width: "2"
   type_process_default:
     node_defaults:
       style_aliases_applied: [shade_medium]
       stroke_style: "solid"
       shape_color: "blue"
-      stroke_width: "1"
+      stroke_width: "2"
   type_process_step_default:
     node_defaults:
       style_aliases_applied: [shade_medium]
       stroke_style: "solid"
       shape_color: "sky"
-      stroke_width: "1"
+      stroke_width: "2"
       visibility: "invisible"
 
   # thing_dependencies - edge groups
@@ -597,36 +599,36 @@ theme_types_styles:
       style_aliases_applied: [shade_dark]
       stroke_style: solid
       shape_color: "neutral"
-      stroke_width: "1"
+      stroke_width: "2"
       visibility: "visible"
   type_dependency_edge_cyclic_default:
     edge_defaults:
       style_aliases_applied: [shade_dark]
       stroke_style: solid
       shape_color: "neutral"
-      stroke_width: "1"
+      stroke_width: "2"
       visibility: "visible"
   type_dependency_edge_symmetric_default:
     edge_defaults:
       style_aliases_applied: [shade_dark]
       stroke_style: solid
       shape_color: "neutral"
-      stroke_width: "1"
+      stroke_width: "2"
       visibility: "visible"
 
   # thing_dependencies - edges
   type_dependency_edge_sequence_forward_default:
     edge_defaults:
-      stroke_width: "1"
+      stroke_width: "2"
   type_dependency_edge_cyclic_forward_default:
     edge_defaults:
-      stroke_width: "1"
+      stroke_width: "2"
   type_dependency_edge_symmetric_forward_default:
     edge_defaults:
-      stroke_width: "1"
+      stroke_width: "2"
   type_dependency_edge_symmetric_reverse_default:
     edge_defaults:
-      stroke_width: "1"
+      stroke_width: "2"
 
   # thing_interactions - edge groups
   type_interaction_edge_sequence_default:
@@ -706,7 +708,7 @@ theme_thing_dependencies_styles:
 theme_tag_things_focus:
   tag_defaults:
     node_defaults:
-      style_aliases_applied: [shade_pale, stroke_dashed_animated]
+      style_aliases_applied: [fill_pale, stroke_dashed_animated]
     node_excluded_defaults:
       opacity: "75"
 

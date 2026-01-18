@@ -28,9 +28,9 @@ use crate::node::NodeId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct NodeCopyText(Map<NodeId, String>);
+pub struct NodeCopyText<'id>(Map<NodeId<'id>, String>);
 
-impl NodeCopyText {
+impl<'id> NodeCopyText<'id> {
     /// Returns a new `NodeCopyText` map.
     pub fn new() -> Self {
         Self::default()
@@ -42,7 +42,7 @@ impl NodeCopyText {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<NodeId, String> {
+    pub fn into_inner(self) -> Map<NodeId<'id>, String> {
         self.0
     }
 
@@ -51,37 +51,50 @@ impl NodeCopyText {
         self.0.is_empty()
     }
 
+    /// Converts this `NodeCopyText` into one with a `'static` lifetime.
+    ///
+    /// If any inner `Cow` is borrowed, this will clone the string to create
+    /// an owned version.
+    pub fn into_static(self) -> NodeCopyText<'static> {
+        NodeCopyText(
+            self.0
+                .into_iter()
+                .map(|(node_id, text)| (node_id.into_static(), text))
+                .collect(),
+        )
+    }
+
     /// Returns true if this contains copy text for a node with the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'id>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
-impl Deref for NodeCopyText {
-    type Target = Map<NodeId, String>;
+impl<'id> Deref for NodeCopyText<'id> {
+    type Target = Map<NodeId<'id>, String>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for NodeCopyText {
+impl<'id> DerefMut for NodeCopyText<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<NodeId, String>> for NodeCopyText {
-    fn from(inner: Map<NodeId, String>) -> Self {
+impl<'id> From<Map<NodeId<'id>, String>> for NodeCopyText<'id> {
+    fn from(inner: Map<NodeId<'id>, String>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(NodeId, String)> for NodeCopyText {
-    fn from_iter<I: IntoIterator<Item = (NodeId, String)>>(iter: I) -> Self {
+impl<'id> FromIterator<(NodeId<'id>, String)> for NodeCopyText<'id> {
+    fn from_iter<I: IntoIterator<Item = (NodeId<'id>, String)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }

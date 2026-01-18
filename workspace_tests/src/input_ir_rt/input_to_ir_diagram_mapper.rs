@@ -17,7 +17,7 @@ use crate::input_ir_rt::{EXAMPLE_INPUT, EXAMPLE_IR};
 #[test]
 fn test_input_to_ir_mapping() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
 
     let IrDiagramAndIssues { diagram, issues } = ir_and_issues;
 
@@ -117,11 +117,13 @@ fn test_input_to_ir_mapping() {
     let pull_edge_id = id!("edge_ix_t_localhost__t_github_user_repo__pull");
     assert!(diagram.entity_descs.contains_key(&pull_edge_id));
 
-    // Check step desc merged in
-    let step_desc_id = id!("proc_app_dev_step_repository_clone");
-    assert!(diagram.entity_descs.contains_key(&step_desc_id));
+    // 6. Check entity tooltip from input
+    let proc_app_dev_step_repository_clone_id = id!("proc_app_dev_step_repository_clone");
+    assert!(diagram
+        .entity_tooltips
+        .contains_key(&proc_app_dev_step_repository_clone_id));
 
-    // 6. Verify EntityTypes with defaults
+    // 7. Verify EntityTypes with defaults
     // Things should have type_thing_default
     let t_aws_id = id!("t_aws");
     let t_aws_types = diagram.entity_types.get(&t_aws_id).unwrap();
@@ -240,7 +242,7 @@ fn test_input_to_ir_mapping() {
 fn test_node_ordering_map_order_and_tab_indices() {
     // Detailed test for node_ordering computation
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // Verify the exact ordering matches expected from example_ir.yaml
@@ -290,7 +292,7 @@ fn test_node_ordering_map_order_and_tab_indices() {
 fn test_cyclic_edge_expansion() {
     // Test that cyclic edges create a loop
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // edge_dep_t_localhost__t_github_user_repo__pull is cyclic with:
@@ -317,7 +319,7 @@ fn test_cyclic_edge_expansion() {
 fn test_self_loop_edge() {
     // Test that a cyclic edge with one thing creates a self-loop
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // edge_dep_t_localhost__t_localhost__within is cyclic with `[t_localhost]`
@@ -338,7 +340,7 @@ fn test_self_loop_edge() {
 fn test_sequence_edge_expansion() {
     // Test that sequence edges create a chain without cycling back
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // edge_dep_t_localhost__t_github_user_repo__push is sequence with:
@@ -360,7 +362,7 @@ fn test_sequence_edge_expansion() {
 fn test_node_layout_containers() {
     // Test that container nodes get correct flex layouts
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // _root container should have column_reverse direction
@@ -396,8 +398,8 @@ fn test_node_layout_containers() {
     let processes_container_id = NodeId::from(id!("_processes_container"));
     let processes_layout = diagram.node_layouts.get(&processes_container_id).unwrap();
     if let NodeLayout::Flex(flex) = processes_layout {
-        assert_eq!(FlexDirection::Row, flex.direction);
-        assert!(flex.wrap);
+        assert_eq!(FlexDirection::Column, flex.direction);
+        assert!(!flex.wrap);
     } else {
         panic!("Expected Flex layout for _processes_container");
     }
@@ -427,7 +429,7 @@ fn test_node_layout_containers() {
 fn test_node_layout_processes() {
     // Test that processes with steps get flex layout, steps get none
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // proc_app_dev has steps, should have column flex layout
@@ -457,7 +459,7 @@ fn test_node_layout_processes() {
 fn test_node_layout_tags() {
     // Test that tags are leaf nodes with no layout
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     let tag_0_id = NodeId::from(id!("tag_app_development"));
@@ -473,7 +475,7 @@ fn test_node_layout_tags() {
 fn test_node_layout_things_hierarchy() {
     // Test that things with children get flex layout, leaves get none
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_aws has children (t_aws_iam, t_aws_ecr, t_aws_ecs), should have column flex
@@ -522,7 +524,7 @@ fn test_node_layout_things_hierarchy() {
 fn test_node_layout_padding_from_theme() {
     // Test that padding values are correctly resolved from theme
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // All containers should get padding from node_defaults which uses
@@ -547,7 +549,7 @@ fn test_node_layout_padding_from_theme() {
 #[test]
 fn test_tailwind_classes_generation() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // Verify tailwind classes are generated
@@ -558,37 +560,32 @@ fn test_tailwind_classes_generation() {
     let tag_classes = String::from("\n") + diagram.tailwind_classes.get(&tag_id).unwrap();
     assert!(
         tag_classes.contains("\npeer/tag_app_development"),
-        "Tag should have peer class. Got: {}",
-        tag_classes
+        "Tag should have peer class. Got: {tag_classes}"
     );
     assert!(
         tag_classes.contains("\nvisible"),
-        "Tag should have visibility. Got: {}",
-        tag_classes
+        "Tag should have visibility. Got: {tag_classes}"
     );
 
-    // Test process tailwind classes - should have group/{id} class
+    // Test process tailwind classes - should have `peer/{id}` class
     let proc_id = id!("proc_app_dev");
     let proc_classes = String::from("\n") + diagram.tailwind_classes.get(&proc_id).unwrap();
     assert!(
-        proc_classes.contains("\ngroup/proc_app_dev"),
-        "Process should have group class. Got: {}",
-        proc_classes
+        proc_classes.contains("\npeer/proc_app_dev"),
+        "Process should have peer class. Got: {proc_classes}"
     );
 
     // Test process step tailwind classes - should have
-    // group-focus-within/{process_id}:visible and peer/{id}
+    // `peer-[:focus-within]/{process_id}:visible` and `peer/{id}`
     let step_id = id!("proc_app_dev_step_repository_clone");
     let step_classes = String::from("\n") + diagram.tailwind_classes.get(&step_id).unwrap();
     assert!(
         step_classes.contains("\npeer/proc_app_dev_step_repository_clone"),
-        "Process step should NOT have peer class (it's on the parent process now). Got: {}",
-        step_classes
+        "Process step should have peer class. Got: {step_classes}"
     );
     assert!(
-        step_classes.contains("\ngroup-focus-within/proc_app_dev:visible"),
-        "Process step should have group-focus-within class. Got: {}",
-        step_classes
+        step_classes.contains("\ngroup-has-[#proc_app_dev:focus-within]:visible"),
+        "Process step should have group-has-[...] class for parent process. Got: {step_classes}"
     );
 
     // Test thing tailwind classes - t_aws should have yellow color from
@@ -597,13 +594,11 @@ fn test_tailwind_classes_generation() {
     let t_aws_classes = String::from("\n") + diagram.tailwind_classes.get(&t_aws_id).unwrap();
     assert!(
         t_aws_classes.contains("\nfill-yellow"),
-        "t_aws should have yellow fill. Got: {}",
-        t_aws_classes
+        "t_aws should have yellow fill. Got: {t_aws_classes}"
     );
     assert!(
         t_aws_classes.contains("\nstroke-yellow"),
-        "t_aws should have yellow stroke. Got: {}",
-        t_aws_classes
+        "t_aws should have yellow stroke. Got: {t_aws_classes}"
     );
 
     // Test edge group tailwind classes (using interaction edge groups)
@@ -611,21 +606,19 @@ fn test_tailwind_classes_generation() {
     let edge_classes = String::from("\n") + diagram.tailwind_classes.get(&edge_group_id).unwrap();
     assert!(
         edge_classes.contains("\nstroke-"),
-        "Edge group should have stroke class. Got: {}",
-        edge_classes
+        "Edge group should have stroke class. Got: {edge_classes}"
     );
     // Should have peer classes for interacting process steps
     assert!(
         edge_classes.contains("\npeer-[:focus-within]/proc_app_dev_step_repository_clone:"),
-        "Edge should have peer class for interacting step. Got: {}",
-        edge_classes
+        "Edge should have peer class for interacting step. Got: {edge_classes}"
     );
 }
 
 #[test]
 fn test_tailwind_classes_shade_resolution() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_aws has type_organisation which uses shade_pale
@@ -634,13 +627,11 @@ fn test_tailwind_classes_shade_resolution() {
     let t_aws_classes = String::from("\n") + diagram.tailwind_classes.get(&t_aws_id).unwrap();
     assert!(
         t_aws_classes.contains("\nfill-yellow-100"),
-        "t_aws should have fill-yellow-100 from shade_pale. Got: {}",
-        t_aws_classes
+        "t_aws should have fill-yellow-100 from shade_pale. Got: {t_aws_classes}"
     );
     assert!(
         t_aws_classes.contains("\nhover:fill-yellow-50"),
-        "t_aws should have hover:fill-yellow-50 from shade_pale. Got: {}",
-        t_aws_classes
+        "t_aws should have hover:fill-yellow-50 from shade_pale. Got: {t_aws_classes}"
     );
 
     // t_aws_iam has type_thing_default (shade_light) and type_service
@@ -651,15 +642,14 @@ fn test_tailwind_classes_shade_resolution() {
         String::from("\n") + diagram.tailwind_classes.get(&t_aws_iam_id).unwrap();
     assert!(
         t_aws_iam_classes.contains("\nfill-slate-300"),
-        "t_aws_iam should have fill-slate-300 from type_thing_default + shade_light. Got: {}",
-        t_aws_iam_classes
+        "t_aws_iam should have fill-slate-300 from type_thing_default + shade_light. Got: {t_aws_iam_classes}"
     );
 }
 
 #[test]
 fn test_tailwind_classes_stroke_style() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_aws has type_organisation which has stroke_style: "dotted"
@@ -668,8 +658,7 @@ fn test_tailwind_classes_stroke_style() {
     let t_aws_classes = String::from("\n") + diagram.tailwind_classes.get(&t_aws_id).unwrap();
     assert!(
         t_aws_classes.contains("\n[stroke-dasharray:2]"),
-        "t_aws should have stroke-dasharray:2 from dotted stroke_style. Got: {}",
-        t_aws_classes
+        "t_aws should have stroke-dasharray:2 from dotted stroke_style. Got: {t_aws_classes}"
     );
 
     // t_aws_iam has type_service which has stroke_style: "dashed"
@@ -679,15 +668,14 @@ fn test_tailwind_classes_stroke_style() {
         String::from("\n") + diagram.tailwind_classes.get(&t_aws_iam_id).unwrap();
     assert!(
         t_aws_iam_classes.contains("\n[stroke-dasharray:3]"),
-        "t_aws_iam should have stroke-dasharray:3 from dashed stroke_style. Got: {}",
-        t_aws_iam_classes
+        "t_aws_iam should have stroke-dasharray:3 from dashed stroke_style. Got: {t_aws_iam_classes}"
     );
 }
 
 #[test]
 fn test_tailwind_classes_thing_peer_classes() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_localhost should have peer classes for process steps that interact with
@@ -708,15 +696,13 @@ fn test_tailwind_classes_thing_peer_classes() {
     // Should have peer class for proc_app_dev_step_repository_clone
     assert!(
         t_localhost_classes.contains("\npeer-[:focus-within]/proc_app_dev_step_repository_clone:"),
-        "t_localhost should have peer class for proc_app_dev_step_repository_clone. Got: {}",
-        t_localhost_classes
+        "t_localhost should have peer class for proc_app_dev_step_repository_clone. Got: {t_localhost_classes}"
     );
 
     // Should have peer class for proc_app_dev_step_project_build
     assert!(
         t_localhost_classes.contains("\npeer-[:focus-within]/proc_app_dev_step_project_build:"),
-        "t_localhost should have peer class for proc_app_dev_step_project_build. Got: {}",
-        t_localhost_classes
+        "t_localhost should have peer class for proc_app_dev_step_project_build. Got: {t_localhost_classes}"
     );
 
     // Should NOT have peer class for proc_app_release_step_gh_actions_build
@@ -725,8 +711,7 @@ fn test_tailwind_classes_thing_peer_classes() {
     // t_localhost
     assert!(
         !t_localhost_classes.contains("\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:"),
-        "t_localhost should NOT have peer class for proc_app_release_step_gh_actions_build. Got: {}",
-        t_localhost_classes
+        "t_localhost should NOT have peer class for proc_app_release_step_gh_actions_build. Got: {t_localhost_classes}"
     );
 
     // t_github_user_repo should have peer classes for process steps that interact
@@ -743,8 +728,7 @@ fn test_tailwind_classes_thing_peer_classes() {
     // edge_t_github_user_repo__t_github_user_repo__within
     assert!(
         t_github_user_repo_classes.contains("\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:"),
-        "t_github_user_repo should have peer class for proc_app_release_step_gh_actions_build. Got: {}",
-        t_github_user_repo_classes
+        "t_github_user_repo should have peer class for proc_app_release_step_gh_actions_build. Got: {t_github_user_repo_classes}"
     );
 }
 
@@ -753,7 +737,7 @@ fn test_tailwind_classes_tag_peer_classes_for_included_things() {
     // Tests that things included in a tag get proper peer classes based on
     // theme_tag_things_focus NodeDefaults
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_localhost is in tag_app_development
@@ -775,31 +759,27 @@ fn test_tailwind_classes_tag_peer_classes_for_included_things() {
     assert!(
         t_localhost_classes
             .contains("\npeer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]"),
-        "t_localhost should have animation for tag_app_development focus. Got: {}",
-        t_localhost_classes
+        "t_localhost should have animation for tag_app_development focus. Got: {t_localhost_classes}"
     );
 
     // Should have fill classes for tag_app_development
     assert!(
         t_localhost_classes.contains("\npeer-[:focus-within]/tag_app_development:fill-slate-"),
-        "t_localhost should have fill classes for tag_app_development. Got: {}",
-        t_localhost_classes
+        "t_localhost should have fill classes for tag_app_development. Got: {t_localhost_classes}"
     );
 
     // t_localhost is NOT in tag_deployment, so should only have opacity class
     // (from node_excluded_defaults with opacity: 75 from tag_defaults)
     assert!(
         t_localhost_classes.contains("\npeer-[:focus-within]/tag_deployment:opacity-75"),
-        "t_localhost should have opacity-75 for tag_deployment (excluded). Got: {}",
-        t_localhost_classes
+        "t_localhost should have opacity-75 for tag_deployment (excluded). Got: {t_localhost_classes}"
     );
 
     // Should NOT have full fill/stroke classes for tag_deployment since it's
     // excluded
     assert!(
         !t_localhost_classes.contains("\npeer-[:focus-within]/tag_deployment:fill-slate-"),
-        "t_localhost should NOT have fill classes for tag_deployment. Got: {}",
-        t_localhost_classes
+        "t_localhost should NOT have fill classes for tag_deployment. Got: {t_localhost_classes}"
     );
 }
 
@@ -808,7 +788,7 @@ fn test_tailwind_classes_tag_peer_classes_for_excluded_things() {
     // Tests that things NOT included in any tag get peer classes based on
     // theme_tag_things_focus NodeExcludedDefaults
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_aws is not in any tag (tag_things only has tag_app_development and
@@ -827,23 +807,20 @@ fn test_tailwind_classes_tag_peer_classes_for_excluded_things() {
     // tag_app_development's node_excluded_defaults (opacity: 50)
     assert!(
         t_aws_classes.contains("\npeer-[:focus-within]/tag_app_development:opacity-50"),
-        "t_aws should have opacity-50 for tag_app_development (excluded with specific override). Got: {}",
-        t_aws_classes
+        "t_aws should have opacity-50 for tag_app_development (excluded with specific override). Got: {t_aws_classes}"
     );
 
     // t_aws is NOT in tag_deployment, so should have opacity from
     // tag_defaults.node_excluded_defaults (opacity: 75)
     assert!(
         t_aws_classes.contains("\npeer-[:focus-within]/tag_deployment:opacity-75"),
-        "t_aws should have opacity-75 for tag_deployment (excluded, using tag_defaults). Got: {}",
-        t_aws_classes
+        "t_aws should have opacity-75 for tag_deployment (excluded, using tag_defaults). Got: {t_aws_classes}"
     );
 
     // Should NOT have animation classes since it's excluded from both tags
     assert!(
         !t_aws_classes.contains("\npeer-[:focus-within]/tag_app_development:animate-"),
-        "t_aws should NOT have animation for tag_app_development. Got: {}",
-        t_aws_classes
+        "t_aws should NOT have animation for tag_app_development. Got: {t_aws_classes}"
     );
 }
 
@@ -851,7 +828,7 @@ fn test_tailwind_classes_tag_peer_classes_for_excluded_things() {
 fn test_tailwind_classes_tag_peer_classes_tag_specific_override() {
     // Tests that tag-specific styles override tag_defaults
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
     // t_github_user_repo is in BOTH tag_app_development and tag_deployment
@@ -873,14 +850,12 @@ fn test_tailwind_classes_tag_peer_classes_tag_specific_override() {
     assert!(
         t_github_user_repo_classes
             .contains("\npeer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]"),
-        "t_github_user_repo should have animation for tag_app_development. Got: {}",
-        t_github_user_repo_classes
+        "t_github_user_repo should have animation for tag_app_development. Got: {t_github_user_repo_classes}"
     );
     assert!(
         t_github_user_repo_classes
             .contains("\npeer-[:focus-within]/tag_deployment:animate-[stroke-dashoffset-move_2s_linear_infinite]"),
-        "t_github_user_repo should have animation for tag_deployment. Got: {}",
-        t_github_user_repo_classes
+        "t_github_user_repo should have animation for tag_deployment. Got: {t_github_user_repo_classes}"
     );
 
     // Both should have fill classes since t_github_user_repo is included in both
@@ -888,20 +863,18 @@ fn test_tailwind_classes_tag_peer_classes_tag_specific_override() {
     assert!(
         t_github_user_repo_classes
             .contains("\npeer-[:focus-within]/tag_app_development:fill-slate-"),
-        "t_github_user_repo should have fill classes for tag_app_development. Got: {}",
-        t_github_user_repo_classes
+        "t_github_user_repo should have fill classes for tag_app_development. Got: {t_github_user_repo_classes}"
     );
     assert!(
         t_github_user_repo_classes.contains("\npeer-[:focus-within]/tag_deployment:fill-slate-"),
-        "t_github_user_repo should have fill classes for tag_deployment. Got: {}",
-        t_github_user_repo_classes
+        "t_github_user_repo should have fill classes for tag_deployment. Got: {t_github_user_repo_classes}"
     );
 }
 
 #[test]
 fn test_example_input_maps_to_example_ir() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
-    let ir_and_issues = InputToIrDiagramMapper::map(input_diagram);
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let ir_example = serde_saphyr::from_str::<IrDiagram>(EXAMPLE_IR).unwrap();
 
     assert_eq!(ir_example, ir_and_issues.diagram);

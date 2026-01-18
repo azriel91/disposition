@@ -18,20 +18,15 @@ use disposition_taffy_model::{
     IrToTaffyError, NodeContext, NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeMappings,
     TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
 };
+use taffy::prelude::TaffyZero;
 use typed_builder::TypedBuilder;
 use unicode_segmentation::UnicodeSegmentation;
 
 /// Monospace character width as a ratio of font size.
 /// For Noto Sans Mono at 11px, the character width is approximately 6.6px (0.6
 /// * 11).
-const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.5;
-const EMOJI_CHAR_WIDTH: f32 = 2.5;
-
-/// Actual number of pixels taken up per character.
-///
-/// It seems that with Noto Sans Mono at least, the width of the rect that
-/// should encompass the text is `1.1 * char_count * char_width;`.
-const LETTER_SPACING_RATIO: f32 = 1.1;
+const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.6;
+const EMOJI_CHAR_WIDTH: f32 = 2.29;
 
 /// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///
@@ -55,7 +50,7 @@ pub struct IrToTaffyBuilder<'builder> {
     /// The intermediate representation of the diagram to render the taffy trees
     /// for.
     #[builder(setter(prefix = "with_"))]
-    ir_diagram: &'builder IrDiagram,
+    ir_diagram: &'builder IrDiagram<'static>,
     /// The dimensions at which elements should be repositioned.
     #[builder(setter(prefix = "with_"), default = vec![
         DimensionAndLod::default_sm(),
@@ -71,7 +66,9 @@ pub struct IrToTaffyBuilder<'builder> {
 impl IrToTaffyBuilder<'_> {
     /// Returns an iterator over `TaffyNodeMappings` instances for each
     /// dimension.
-    pub fn build(&self) -> Result<impl Iterator<Item = TaffyNodeMappings>, IrToTaffyError> {
+    pub fn build(
+        &self,
+    ) -> Result<impl Iterator<Item = TaffyNodeMappings<'static>>, IrToTaffyError> {
         let IrToTaffyBuilder {
             ir_diagram,
             dimension_and_lods,
@@ -97,10 +94,10 @@ impl IrToTaffyBuilder<'_> {
     /// This includes the processes container. Clicking on each process node
     /// reveals the process steps.
     fn build_taffy_trees_for_dimension(
-        ir_diagram: &IrDiagram,
+        ir_diagram: &IrDiagram<'static>,
         dimension_and_lod: &DimensionAndLod,
         processes_included: &ProcessesIncluded,
-    ) -> impl Iterator<Item = TaffyNodeMappings> {
+    ) -> impl Iterator<Item = TaffyNodeMappings<'static>> {
         let IrDiagram {
             nodes,
             node_copy_text: _,
@@ -108,6 +105,7 @@ impl IrToTaffyBuilder<'_> {
             node_ordering: _,
             edge_groups: _,
             entity_descs,
+            entity_tooltips: _,
             entity_types,
             tailwind_classes: _,
             node_layouts,
@@ -118,6 +116,7 @@ impl IrToTaffyBuilder<'_> {
 
         let mut taffy_tree = TaffyTree::new();
         let mut node_id_to_taffy = Map::new();
+        let mut taffy_id_to_node = Map::new();
 
         let taffy_node_build_context = TaffyNodeBuildContext {
             taffy_tree: &mut taffy_tree,
@@ -126,6 +125,7 @@ impl IrToTaffyBuilder<'_> {
             node_hierarchy,
             entity_types,
             node_id_to_taffy: &mut node_id_to_taffy,
+            taffy_id_to_node: &mut taffy_id_to_node,
         };
         let first_level_taffy_nodes = Self::build_taffy_nodes_for_first_level_nodes(
             taffy_node_build_context,
@@ -145,6 +145,7 @@ impl IrToTaffyBuilder<'_> {
             .unwrap_or_default();
         let node_inbuilt_to_taffy = Self::build_taffy_container_nodes(
             &mut taffy_tree,
+            &mut taffy_id_to_node,
             node_layouts,
             dimension,
             thing_taffy_node_ids,
@@ -190,7 +191,7 @@ impl IrToTaffyBuilder<'_> {
         //
         // This is done once per node instead of multiple times during layout
         // measurement
-        let entity_highlighted_spans = Self::compute_highlighted_spans(
+        let entity_highlighted_spans = Self::highlighted_spans_compute(
             &taffy_tree,
             &node_id_to_taffy,
             nodes,
@@ -203,6 +204,7 @@ impl IrToTaffyBuilder<'_> {
             taffy_tree,
             node_inbuilt_to_taffy,
             node_id_to_taffy,
+            taffy_id_to_node,
             entity_highlighted_spans,
         })
     }
@@ -210,14 +212,14 @@ impl IrToTaffyBuilder<'_> {
     /// Compute highlighted spans for all nodes after layout is complete.
     /// This is much more efficient than doing it during measure() which gets
     /// called multiple times.
-    fn compute_highlighted_spans(
+    fn highlighted_spans_compute(
         taffy_tree: &TaffyTree<NodeContext>,
-        node_id_to_taffy: &Map<NodeId, NodeToTaffyNodeIds>,
-        nodes: &NodeNames,
-        entity_descs: &EntityDescs,
+        node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
+        nodes: &NodeNames<'static>,
+        entity_descs: &EntityDescs<'static>,
         char_width: f32,
         lod: &DiagramLod,
-    ) -> EntityHighlightedSpans {
+    ) -> EntityHighlightedSpans<'static> {
         let mut entity_highlighted_spans =
             EntityHighlightedSpans::with_capacity(node_id_to_taffy.len());
 
@@ -276,12 +278,19 @@ impl IrToTaffyBuilder<'_> {
                 let padding_left = layout.padding.left;
                 let padding_top = layout.padding.top;
 
+                // Note: we shift the text by half a character width because even though we have
+                // padding, the text still reaches the left and right edges of the node.
+                //
+                // The half a character width (at each end) is added to the node's width in
+                // `line_width_measure`.
+                let text_leftmost_x = padding_left + 0.5 * char_width;
+
                 let highlighted_spans: Vec<EntityHighlightedSpan> = {
                     wrapped_lines
                         .iter()
                         .enumerate()
                         .flat_map(|(line_index, line)| {
-                            let x = padding_left;
+                            let x = text_leftmost_x;
                             let y = (line_index + 1) as f32 * line_height + padding_top;
                             let width = line_width_measure(line, char_width);
 
@@ -308,6 +317,7 @@ impl IrToTaffyBuilder<'_> {
     /// Adds the inbuilt container nodes to the `TaffyTree`.
     fn build_taffy_container_nodes(
         taffy_tree: &mut TaffyTree<NodeContext>,
+        taffy_id_to_node: &mut Map<taffy::NodeId, NodeId>,
         node_layouts: &NodeLayouts,
         dimension: &disposition_taffy_model::Dimension,
         thing_taffy_node_ids: &[taffy::NodeId],
@@ -364,6 +374,24 @@ impl IrToTaffyBuilder<'_> {
         node_inbuilt_to_taffy.insert(NodeInbuilt::TagsContainer, tags_container);
         node_inbuilt_to_taffy.insert(NodeInbuilt::Root, root);
 
+        taffy_id_to_node.insert(
+            things_container,
+            NodeId::from(NodeInbuilt::ThingsContainer.id()),
+        );
+        taffy_id_to_node.insert(
+            processes_container,
+            NodeId::from(NodeInbuilt::ProcessesContainer.id()),
+        );
+        taffy_id_to_node.insert(
+            things_and_processes_container,
+            NodeId::from(NodeInbuilt::ThingsAndProcessesContainer.id()),
+        );
+        taffy_id_to_node.insert(
+            tags_container,
+            NodeId::from(NodeInbuilt::TagsContainer.id()),
+        );
+        taffy_id_to_node.insert(root, NodeId::from(NodeInbuilt::Root.id()));
+
         node_inbuilt_to_taffy
     }
 
@@ -382,6 +410,7 @@ impl IrToTaffyBuilder<'_> {
             node_hierarchy,
             entity_types,
             node_id_to_taffy,
+            taffy_id_to_node,
         } = taffy_node_build_context;
 
         node_hierarchy.iter().fold(
@@ -426,6 +455,7 @@ impl IrToTaffyBuilder<'_> {
                             text_node_id: taffy_text_node_id,
                         },
                     );
+                    taffy_id_to_node.insert(taffy_text_node_id, NodeId::from(node_id.clone()));
 
                     taffy_text_node_id
                 } else {
@@ -452,6 +482,7 @@ impl IrToTaffyBuilder<'_> {
                         node_hierarchy: child_hierarchy,
                         entity_types,
                         node_id_to_taffy,
+                        taffy_id_to_node,
                     };
                     let taffy_children_ids =
                         Self::build_taffy_child_nodes_for_node(taffy_node_build_context);
@@ -477,6 +508,7 @@ impl IrToTaffyBuilder<'_> {
                             text_node_id: taffy_text_node_id,
                         },
                     );
+                    taffy_id_to_node.insert(wrapper_node_id, NodeId::from(node_id.clone()));
 
                     wrapper_node_id
                 };
@@ -502,6 +534,7 @@ impl IrToTaffyBuilder<'_> {
             node_hierarchy,
             entity_types,
             node_id_to_taffy,
+            taffy_id_to_node,
         } = taffy_node_build_context;
 
         node_hierarchy
@@ -534,6 +567,7 @@ impl IrToTaffyBuilder<'_> {
                             text_node_id: taffy_text_node_id,
                         },
                     );
+                    taffy_id_to_node.insert(taffy_text_node_id, NodeId::from(node_id.clone()));
 
                     taffy_text_node_id
                 } else {
@@ -560,6 +594,7 @@ impl IrToTaffyBuilder<'_> {
                         node_hierarchy: child_hierarchy,
                         entity_types,
                         node_id_to_taffy,
+                        taffy_id_to_node,
                     };
                     let taffy_children_ids =
                         Self::build_taffy_child_nodes_for_node(taffy_node_build_context);
@@ -585,6 +620,7 @@ impl IrToTaffyBuilder<'_> {
                             text_node_id: taffy_text_node_id,
                         },
                     );
+                    taffy_id_to_node.insert(wrapper_node_id, NodeId::from(node_id.clone()));
 
                     wrapper_node_id
                 }
@@ -641,10 +677,13 @@ impl IrToTaffyBuilder<'_> {
                         bottom: LengthPercentage::length(flex_layout.padding_bottom()),
                     },
                     border: Rect::length(1.0f32),
-                    align_items: Some(AlignItems::Center),
-                    justify_items: Some(AlignItems::Center),
-                    align_content: Some(AlignContent::Center),
-                    justify_content: Some(AlignContent::Center),
+                    // We use `AlignItems::Start` because we want coordinates to be as close to the
+                    // top-left corner as possible. If we use `AlignItems::Center`, the coordinates
+                    // may be negative when the content width exceeds the diagram dimension.
+                    align_items: Some(AlignItems::Start),
+                    justify_items: Some(AlignItems::Start),
+                    align_content: Some(AlignContent::Start),
+                    justify_content: Some(AlignContent::Start),
                     gap: Size::length(flex_layout.gap()),
                     flex_direction: FlexDirection::from(flex_layout.direction()),
                     flex_wrap: if flex_layout.wrap() {
@@ -686,8 +725,8 @@ impl IrToTaffyBuilder<'_> {
                         border: Rect::length(1.0f32),
                         align_items: Some(AlignItems::FlexStart),
                         justify_items: Some(AlignItems::FlexStart),
-                        align_content: Some(AlignContent::Center),
-                        justify_content: Some(AlignContent::Center),
+                        align_content: Some(AlignContent::FlexStart),
+                        justify_content: Some(AlignContent::FlexStart),
                         flex_direction: FlexDirection::Column,
                         flex_wrap: FlexWrap::NoWrap,
                         ..Default::default()
@@ -697,10 +736,9 @@ impl IrToTaffyBuilder<'_> {
                         padding: Rect {
                             left: LengthPercentage::length(flex_layout.padding_left()),
                             right: LengthPercentage::length(flex_layout.padding_right()),
-                            top: LengthPercentage::length(flex_layout.padding_top()),
-                            bottom: LengthPercentage::length(flex_layout.padding_bottom()),
+                            top: LengthPercentage::ZERO,
+                            bottom: LengthPercentage::ZERO,
                         },
-                        flex_grow: 1.0,
                         ..Default::default()
                     };
                     let child_container_style = Style {
@@ -787,7 +825,7 @@ impl IrToTaffyBuilder<'_> {
             compute_text_dimensions(&text, *char_width, width_constraint);
 
         let line_height = TEXT_LINE_HEIGHT;
-        let line_heights = line_count * line_height;
+        let line_heights = (line_count as f32 + 0.5) * line_height;
 
         taffy::Size {
             width: line_width_max
@@ -806,18 +844,15 @@ impl IrToTaffyBuilder<'_> {
 
 /// Compute text dimensions using simple monospace character width calculation.
 /// Returns (max_line_width, line_count).
-///
-/// Note: The line_count starts at 1.0 as SVG text is rendered above the `y`
-/// coordinate instead of below.
-fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) -> (f32, f32) {
+fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) -> (f32, usize) {
     if text.is_empty() {
-        return (0.0, 1.0);
+        return (0.0, 0);
     }
 
     let max_chars_per_line = max_width.map(|w| (w / char_width).floor() as usize);
 
     let mut line_width_max: f32 = 0.0;
-    let mut line_count: f32 = 1.0;
+    let mut line_count: usize = 0;
 
     text.lines().for_each(|line| {
         let line_char_count = line.chars().count();
@@ -845,29 +880,45 @@ fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) 
 
                     let width = line_width_measure(wrapped_line, char_width);
                     line_width_max = line_width_max.max(width);
-                    line_count += 1.0;
+                    line_count += 1;
                 });
             }
             _ => {
                 // let width = string_width::string_width(line) as f32 * char_width;
                 let width = line_width_measure(line, char_width);
                 line_width_max = line_width_max.max(width);
-                line_count += 1.0;
+                line_count += 1;
             }
         }
     });
 
-    (line_width_max * LETTER_SPACING_RATIO, line_count)
+    (line_width_max, line_count)
 }
 
+/// Returns the width in pixels to display the given line of text.
 fn line_width_measure(line: &str, char_width: f32) -> f32 {
-    line.graphemes(true)
+    if line.is_empty() {
+        return 0.0;
+    }
+
+    let mut line_char_column_count = line
+        .graphemes(true)
         .map(|grapheme| match emojis::get(grapheme).is_some() {
             true => EMOJI_CHAR_WIDTH,
             false => 1.0f32,
         })
-        .sum::<f32>()
-        * char_width
+        .sum::<f32>();
+
+    // Add one character width
+    //
+    // Without this, even with node padding, the text characters reach to both ends
+    // of the node, and sometimes the last character wraps down.
+    //
+    // Note that we shift the x coordinates of each line of text by `0.5 *
+    // char_width` in `highlighted_spans_compute`.
+    line_char_column_count += 1.0;
+
+    line_char_column_count * char_width
 }
 
 /// Wrap text for display, returning owned strings for each line.
@@ -958,11 +1009,12 @@ fn wrap_line_monospace(line: &str, max_chars: usize) -> Vec<&str> {
 
 struct TaffyNodeBuildContext<'ctx> {
     taffy_tree: &'ctx mut TaffyTree<NodeContext>,
-    nodes: &'ctx NodeNames,
-    node_layouts: &'ctx NodeLayouts,
-    node_hierarchy: &'ctx NodeHierarchy,
-    entity_types: &'ctx EntityTypes,
-    node_id_to_taffy: &'ctx mut Map<NodeId, NodeToTaffyNodeIds>,
+    nodes: &'ctx NodeNames<'static>,
+    node_layouts: &'ctx NodeLayouts<'static>,
+    node_hierarchy: &'ctx NodeHierarchy<'static>,
+    entity_types: &'ctx EntityTypes<'static>,
+    node_id_to_taffy: &'ctx mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
+    taffy_id_to_node: &'ctx mut Map<taffy::NodeId, NodeId<'static>>,
 }
 
 /// Layout information for a wrapper node and its text node.
@@ -987,10 +1039,10 @@ impl Default for TaffyWrapperNodeStyles {
                 display: Display::Flex,
                 flex_direction: FlexDirection::Row,
                 flex_wrap: FlexWrap::Wrap,
-                align_items: Some(AlignItems::Center),
-                justify_items: Some(AlignItems::Center),
-                align_content: Some(AlignContent::Center),
-                justify_content: Some(AlignContent::Center),
+                align_items: Some(AlignItems::Start),
+                justify_items: Some(AlignItems::Start),
+                align_content: Some(AlignContent::Start),
+                justify_content: Some(AlignContent::Start),
                 ..Default::default()
             },
         }
@@ -998,8 +1050,8 @@ impl Default for TaffyWrapperNodeStyles {
 }
 
 struct NodeMeasureContext<'ctx> {
-    nodes: &'ctx NodeNames,
-    entity_descs: &'ctx EntityDescs,
+    nodes: &'ctx NodeNames<'static>,
+    entity_descs: &'ctx EntityDescs<'static>,
     /// Monospace character width in pixels.
     char_width: f32,
     /// Level of detail for the diagram.

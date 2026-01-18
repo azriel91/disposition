@@ -35,9 +35,12 @@ use crate::theme::{TagIdOrDefaults, ThemeStyles};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThemeTagThingsFocus(Map<TagIdOrDefaults, ThemeStyles>);
+#[serde(bound(
+    deserialize = "TagIdOrDefaults<'id>: Deserialize<'de>, ThemeStyles<'id>: Deserialize<'de>"
+))]
+pub struct ThemeTagThingsFocus<'id>(Map<TagIdOrDefaults<'id>, ThemeStyles<'id>>);
 
-impl ThemeTagThingsFocus {
+impl<'id> ThemeTagThingsFocus<'id> {
     /// Returns a new empty `ThemeTagThingsFocus` map.
     pub fn new() -> Self {
         Self::default()
@@ -50,7 +53,7 @@ impl ThemeTagThingsFocus {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<TagIdOrDefaults, ThemeStyles> {
+    pub fn into_inner(self) -> Map<TagIdOrDefaults<'id>, ThemeStyles<'id>> {
         self.0
     }
 
@@ -60,28 +63,30 @@ impl ThemeTagThingsFocus {
     }
 }
 
-impl Deref for ThemeTagThingsFocus {
-    type Target = Map<TagIdOrDefaults, ThemeStyles>;
+impl<'id> Deref for ThemeTagThingsFocus<'id> {
+    type Target = Map<TagIdOrDefaults<'id>, ThemeStyles<'id>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for ThemeTagThingsFocus {
+impl<'id> DerefMut for ThemeTagThingsFocus<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<TagIdOrDefaults, ThemeStyles>> for ThemeTagThingsFocus {
-    fn from(inner: Map<TagIdOrDefaults, ThemeStyles>) -> Self {
+impl<'id> From<Map<TagIdOrDefaults<'id>, ThemeStyles<'id>>> for ThemeTagThingsFocus<'id> {
+    fn from(inner: Map<TagIdOrDefaults<'id>, ThemeStyles<'id>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(TagIdOrDefaults, ThemeStyles)> for ThemeTagThingsFocus {
-    fn from_iter<I: IntoIterator<Item = (TagIdOrDefaults, ThemeStyles)>>(iter: I) -> Self {
+impl<'id> FromIterator<(TagIdOrDefaults<'id>, ThemeStyles<'id>)> for ThemeTagThingsFocus<'id> {
+    fn from_iter<I: IntoIterator<Item = (TagIdOrDefaults<'id>, ThemeStyles<'id>)>>(
+        iter: I,
+    ) -> Self {
         Self(Map::from_iter(iter))
     }
 }
