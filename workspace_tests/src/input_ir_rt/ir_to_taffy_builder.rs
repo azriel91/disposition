@@ -44,7 +44,7 @@ fn test_example_ir_mapping_to_taffy_tree_and_root() -> Result<(), TaffyError> {
     assert_taffy_measurements(
         taffy_node_mappings_lg,
         MeasurementsExpected {
-            diagram_width: 870.0,
+            diagram_width: 931.0,
             diagram_height: 408.0,
         },
     )?;

@@ -25,14 +25,8 @@ use unicode_segmentation::UnicodeSegmentation;
 /// Monospace character width as a ratio of font size.
 /// For Noto Sans Mono at 11px, the character width is approximately 6.6px (0.6
 /// * 11).
-const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.5;
-const EMOJI_CHAR_WIDTH: f32 = 2.5;
-
-/// Actual number of pixels taken up per character.
-///
-/// It seems that with Noto Sans Mono at least, the width of the rect that
-/// should encompass the text is `1.1 * char_count * char_width;`.
-const LETTER_SPACING_RATIO: f32 = 1.1;
+const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.6;
+const EMOJI_CHAR_WIDTH: f32 = 2.29;
 
 /// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///
@@ -898,7 +892,7 @@ fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) 
         }
     });
 
-    (line_width_max * LETTER_SPACING_RATIO, line_count)
+    (line_width_max, line_count)
 }
 
 /// Returns the width in pixels to display the given line of text.
@@ -918,7 +912,7 @@ fn line_width_measure(line: &str, char_width: f32) -> f32 {
     // Add one character width
     //
     // Without this, even with node padding, the text characters reach to both ends
-    // of the node.
+    // of the node, and sometimes the last character wraps down.
     //
     // Note that we shift the x coordinates of each line of text by `0.5 *
     // char_width` in `highlighted_spans_compute`.
