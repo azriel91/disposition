@@ -1615,11 +1615,15 @@ impl InputToIrDiagramMapper {
         // * one of `group-has-[#{process_step_id}:focus-within]:visible` for each of
         //   the process steps (including itself).
         //
+        // so that when a process or sibling steps are focused, all steps within the
+        // process are visible.
+        //
         // These are the same for all steps in the process, so technically we could
         // compute it just once.
         //
-        // TODO: these should be deduced from
-        // `theme_default.process_step_selected_styles` instead of hard coded.
+        // When a process step is selected, `thing`s receive styles
+        // `theme_default.process_step_selected_styles` -- see
+        // `build_thing_tailwind_classes`
         if let Some((process_id, process_diagram)) = parent_process_id_and_diagram {
             writeln!(
                 &mut classes,
