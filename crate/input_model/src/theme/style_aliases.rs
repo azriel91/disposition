@@ -49,9 +49,12 @@ use crate::theme::{CssClassPartials, StyleAlias};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct StyleAliases(Map<StyleAlias, CssClassPartials>);
+#[serde(bound(
+    deserialize = "StyleAlias<'id>: Deserialize<'de>, CssClassPartials<'id>: Deserialize<'de>"
+))]
+pub struct StyleAliases<'id>(Map<StyleAlias<'id>, CssClassPartials<'id>>);
 
-impl StyleAliases {
+impl<'id> StyleAliases<'id> {
     /// Returns a new empty `StyleAliases` map.
     pub fn new() -> Self {
         Self::default()
@@ -63,7 +66,7 @@ impl StyleAliases {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<StyleAlias, CssClassPartials> {
+    pub fn into_inner(self) -> Map<StyleAlias<'id>, CssClassPartials<'id>> {
         self.0
     }
 
@@ -73,28 +76,30 @@ impl StyleAliases {
     }
 }
 
-impl Deref for StyleAliases {
-    type Target = Map<StyleAlias, CssClassPartials>;
+impl<'id> Deref for StyleAliases<'id> {
+    type Target = Map<StyleAlias<'id>, CssClassPartials<'id>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for StyleAliases {
+impl<'id> DerefMut for StyleAliases<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<StyleAlias, CssClassPartials>> for StyleAliases {
-    fn from(inner: Map<StyleAlias, CssClassPartials>) -> Self {
+impl<'id> From<Map<StyleAlias<'id>, CssClassPartials<'id>>> for StyleAliases<'id> {
+    fn from(inner: Map<StyleAlias<'id>, CssClassPartials<'id>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(StyleAlias, CssClassPartials)> for StyleAliases {
-    fn from_iter<I: IntoIterator<Item = (StyleAlias, CssClassPartials)>>(iter: I) -> Self {
+impl<'id> FromIterator<(StyleAlias<'id>, CssClassPartials<'id>)> for StyleAliases<'id> {
+    fn from_iter<I: IntoIterator<Item = (StyleAlias<'id>, CssClassPartials<'id>)>>(
+        iter: I,
+    ) -> Self {
         Self(Map::from_iter(iter))
     }
 }

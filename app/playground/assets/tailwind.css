@@ -217,12 +217,6 @@
   .flex-col {
     flex-direction: column;
   }
-  .flex-row {
-    flex-direction: row;
-  }
-  .flex-wrap {
-    flex-wrap: wrap;
-  }
   .items-center {
     align-items: center;
   }
@@ -273,12 +267,32 @@
     --tw-font-weight: var(--font-weight-bold);
     font-weight: var(--font-weight-bold);
   }
+  .text-nowrap {
+    text-wrap: nowrap;
+  }
   .text-gray-300 {
     color: var(--color-gray-300);
   }
   .select-text {
     -webkit-user-select: text;
     user-select: text;
+  }
+  .lg\:flex-row {
+    @media (width >= 64rem) {
+      flex-direction: row;
+    }
+  }
+  .\[\&\>\*\]\:w-full {
+    &>* {
+      width: 100%;
+    }
+  }
+  .lg\:\[\&\>\*\]\:min-w-190 {
+    @media (width >= 64rem) {
+      &>* {
+        min-width: calc(var(--spacing) * 190);
+      }
+    }
   }
   .\[\&\>a\]\:transition-colors {
     &>a {

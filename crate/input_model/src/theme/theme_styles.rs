@@ -40,9 +40,12 @@ use crate::theme::{CssClassPartials, IdOrDefaults};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThemeStyles(Map<IdOrDefaults, CssClassPartials>);
+#[serde(bound(
+    deserialize = "IdOrDefaults<'id>: Deserialize<'de>, CssClassPartials<'id>: Deserialize<'de>"
+))]
+pub struct ThemeStyles<'id>(Map<IdOrDefaults<'id>, CssClassPartials<'id>>);
 
-impl ThemeStyles {
+impl<'id> ThemeStyles<'id> {
     /// Returns a new `ThemeStyles` map.
     pub fn new() -> Self {
         Self::default()
@@ -55,7 +58,7 @@ impl ThemeStyles {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<IdOrDefaults, CssClassPartials> {
+    pub fn into_inner(self) -> Map<IdOrDefaults<'id>, CssClassPartials<'id>> {
         self.0
     }
 
@@ -65,28 +68,30 @@ impl ThemeStyles {
     }
 }
 
-impl Deref for ThemeStyles {
-    type Target = Map<IdOrDefaults, CssClassPartials>;
+impl<'id> Deref for ThemeStyles<'id> {
+    type Target = Map<IdOrDefaults<'id>, CssClassPartials<'id>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for ThemeStyles {
+impl<'id> DerefMut for ThemeStyles<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<IdOrDefaults, CssClassPartials>> for ThemeStyles {
-    fn from(inner: Map<IdOrDefaults, CssClassPartials>) -> Self {
+impl<'id> From<Map<IdOrDefaults<'id>, CssClassPartials<'id>>> for ThemeStyles<'id> {
+    fn from(inner: Map<IdOrDefaults<'id>, CssClassPartials<'id>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(IdOrDefaults, CssClassPartials)> for ThemeStyles {
-    fn from_iter<I: IntoIterator<Item = (IdOrDefaults, CssClassPartials)>>(iter: I) -> Self {
+impl<'id> FromIterator<(IdOrDefaults<'id>, CssClassPartials<'id>)> for ThemeStyles<'id> {
+    fn from_iter<I: IntoIterator<Item = (IdOrDefaults<'id>, CssClassPartials<'id>)>>(
+        iter: I,
+    ) -> Self {
         Self(Map::from_iter(iter))
     }
 }

@@ -9,7 +9,6 @@ pub fn TaffyNodeMappingsDiv(taffy_node_mappings_string: ReadSignal<String>) -> E
         div {
             id: "taffy_node_mappings_div",
             class: "
-                flex-1
                 flex
                 flex-col
             ",
@@ -33,6 +32,7 @@ pub fn TaffyNodeMappingsDiv(taffy_node_mappings_string: ReadSignal<String>) -> E
                     border-gray-300
                     p-2
                     font-mono
+                    text-nowrap
                 ",
                 readonly: true,
                 value: taffy_node_mappings_string.read().clone(),

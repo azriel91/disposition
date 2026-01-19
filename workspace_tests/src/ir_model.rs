@@ -27,7 +27,8 @@ fn test_parse_example_ir() {
             .collect::<Vec<_>>()
             .as_slice()
     );
-    assert_eq!(13, diagram.entity_descs.len());
+    assert_eq!(5, diagram.entity_descs.len());
+    assert_eq!(8, diagram.entity_tooltips.len());
     assert_eq!(
         &[
             "t_localhost",

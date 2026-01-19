@@ -108,7 +108,7 @@ impl NodeInbuilt {
     /// assert_eq!(NodeInbuilt::Root.id(), id!("_root"));
     /// assert_eq!(NodeInbuilt::TagsContainer.id(), id!("_tags_container"));
     /// ```
-    pub const fn id(self) -> Id {
+    pub const fn id(self) -> Id<'static> {
         match self {
             NodeInbuilt::Root => id!("_root"),
             NodeInbuilt::ProcessesContainer => id!("_processes_container"),
@@ -140,10 +140,10 @@ impl NodeInbuilt {
     }
 }
 
-impl TryFrom<Id> for NodeInbuilt {
-    type Error = Id;
+impl TryFrom<Id<'static>> for NodeInbuilt {
+    type Error = Id<'static>;
 
-    fn try_from(id: Id) -> Result<Self, Id> {
+    fn try_from(id: Id<'static>) -> Result<Self, Id<'static>> {
         match id.as_str() {
             "_root" => Ok(NodeInbuilt::Root),
             "_processes_container" => Ok(NodeInbuilt::ProcessesContainer),

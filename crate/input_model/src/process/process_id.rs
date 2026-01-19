@@ -27,9 +27,9 @@ use serde::{Deserialize, Serialize};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ProcessId(Id);
+pub struct ProcessId<'s>(Id<'s>);
 
-impl ProcessId {
+impl<'s> ProcessId<'s> {
     /// Creates a new [`ProcessId`] from a string.
     ///
     /// # Examples
@@ -42,7 +42,7 @@ impl ProcessId {
     ///
     /// assert_eq!(process_id.as_str(), "example_id");
     /// ```
-    pub fn new(id: &'static str) -> Result<Self, IdInvalidFmt<'static>> {
+    pub fn new(id: &'s str) -> Result<Self, IdInvalidFmt<'s>> {
         Id::new(id).map(ProcessId)
     }
 
@@ -58,44 +58,44 @@ impl ProcessId {
     ///
     /// assert_eq!(process_id.into_inner(), Id::new("example_id").unwrap());
     /// ```
-    pub fn into_inner(self) -> Id {
+    pub fn into_inner(self) -> Id<'s> {
         self.0
     }
 }
 
-impl From<Id> for ProcessId {
-    fn from(id: Id) -> Self {
+impl<'s> From<Id<'s>> for ProcessId<'s> {
+    fn from(id: Id<'s>) -> Self {
         ProcessId(id)
     }
 }
 
-impl AsRef<Id> for ProcessId {
-    fn as_ref(&self) -> &Id {
+impl<'s> AsRef<Id<'s>> for ProcessId<'s> {
+    fn as_ref(&self) -> &Id<'s> {
         &self.0
     }
 }
 
-impl Borrow<Id> for ProcessId {
-    fn borrow(&self) -> &Id {
+impl<'s> Borrow<Id<'s>> for ProcessId<'s> {
+    fn borrow(&self) -> &Id<'s> {
         &self.0
     }
 }
 
-impl Deref for ProcessId {
-    type Target = Id;
+impl<'s> Deref for ProcessId<'s> {
+    type Target = Id<'s>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for ProcessId {
+impl<'s> DerefMut for ProcessId<'s> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl Display for ProcessId {
+impl<'s> Display for ProcessId<'s> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }

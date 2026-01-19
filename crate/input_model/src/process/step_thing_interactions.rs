@@ -25,9 +25,9 @@ use crate::process::ProcessStepId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct StepThingInteractions(Map<ProcessStepId, Vec<EdgeGroupId>>);
+pub struct StepThingInteractions<'id>(Map<ProcessStepId<'id>, Vec<EdgeGroupId<'id>>>);
 
-impl StepThingInteractions {
+impl<'id> StepThingInteractions<'id> {
     /// Returns a new `StepThingInteractions` map.
     pub fn new() -> Self {
         Self::default()
@@ -40,7 +40,7 @@ impl StepThingInteractions {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<ProcessStepId, Vec<EdgeGroupId>> {
+    pub fn into_inner(self) -> Map<ProcessStepId<'id>, Vec<EdgeGroupId<'id>>> {
         self.0
     }
 
@@ -53,34 +53,36 @@ impl StepThingInteractions {
     /// the given ID.
     pub fn contains_key<IdT>(&self, id: &IdT) -> bool
     where
-        IdT: AsRef<Id>,
+        IdT: AsRef<Id<'id>>,
     {
         self.0.contains_key(id.as_ref())
     }
 }
 
-impl Deref for StepThingInteractions {
-    type Target = Map<ProcessStepId, Vec<EdgeGroupId>>;
+impl<'id> Deref for StepThingInteractions<'id> {
+    type Target = Map<ProcessStepId<'id>, Vec<EdgeGroupId<'id>>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for StepThingInteractions {
+impl<'id> DerefMut for StepThingInteractions<'id> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<Map<ProcessStepId, Vec<EdgeGroupId>>> for StepThingInteractions {
-    fn from(inner: Map<ProcessStepId, Vec<EdgeGroupId>>) -> Self {
+impl<'id> From<Map<ProcessStepId<'id>, Vec<EdgeGroupId<'id>>>> for StepThingInteractions<'id> {
+    fn from(inner: Map<ProcessStepId<'id>, Vec<EdgeGroupId<'id>>>) -> Self {
         Self(inner)
     }
 }
 
-impl FromIterator<(ProcessStepId, Vec<EdgeGroupId>)> for StepThingInteractions {
-    fn from_iter<I: IntoIterator<Item = (ProcessStepId, Vec<EdgeGroupId>)>>(iter: I) -> Self {
+impl<'id> FromIterator<(ProcessStepId<'id>, Vec<EdgeGroupId<'id>>)> for StepThingInteractions<'id> {
+    fn from_iter<I: IntoIterator<Item = (ProcessStepId<'id>, Vec<EdgeGroupId<'id>>)>>(
+        iter: I,
+    ) -> Self {
         Self(Map::from_iter(iter))
     }
 }

@@ -1,7 +1,12 @@
 use std::fmt::Write;
 
 use base64::{prelude::BASE64_STANDARD, Engine};
-use disposition_ir_model::{node::NodeInbuilt, IrDiagram};
+use disposition_ir_model::{
+    layout::NodeLayout,
+    node::{NodeId, NodeInbuilt},
+    IrDiagram,
+};
+use disposition_model_common::{entity::EntityType, Map};
 use disposition_taffy_model::{
     EntityHighlightedSpans, NodeContext, NodeToTaffyNodeIds, TaffyNodeMappings, TEXT_FONT_SIZE,
     TEXT_LINE_HEIGHT,
@@ -19,6 +24,7 @@ impl TaffyToSvgMapper {
             taffy_tree,
             node_inbuilt_to_taffy,
             node_id_to_taffy,
+            taffy_id_to_node: _,
             entity_highlighted_spans,
         } = taffy_node_mappings;
 
@@ -35,9 +41,10 @@ impl TaffyToSvgMapper {
 
         let mut content_buffer = String::with_capacity(4096);
         let mut styles_buffer = String::with_capacity(2048);
+        let mut additional_tailwind_classes: Vec<String> = Vec::new();
 
         // Add default text styles
-        writeln!(&mut styles_buffer, "text {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: {TEXT_FONT_SIZE}px; line-height: {TEXT_LINE_HEIGHT}px; }}").unwrap();
+        writeln!(&mut styles_buffer, "text {{ font-family: 'Noto Sans Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace; font-size: {TEXT_FONT_SIZE}px; line-height: {TEXT_LINE_HEIGHT}px; }}").unwrap();
 
         // Add default font
         writeln!(&mut styles_buffer, "@font-face {{ font-family: 'Noto Sans Mono'; src: url(data:application/x-font-ttf;base64,{}) format('truetype'); }}", BASE64_STANDARD.encode(NOTO_SANS_MONO_TTF)).unwrap();
@@ -49,11 +56,18 @@ impl TaffyToSvgMapper {
             &node_id_to_taffy,
             &entity_highlighted_spans,
             &mut content_buffer,
-            &mut styles_buffer,
+            &mut additional_tailwind_classes,
         );
 
-        // Generate CSS from tailwind classes
-        let tailwind_classes_iter = ir_diagram.tailwind_classes.values().map(String::as_str);
+        // Generate CSS from tailwind classes (escaping underscores in brackets for
+        // encre-css)
+        let escaped_classes: Vec<String> = ir_diagram
+            .tailwind_classes
+            .values()
+            .chain(additional_tailwind_classes.iter())
+            .map(|classes| Self::escape_underscores_in_brackets(classes))
+            .collect();
+        let tailwind_classes_iter = escaped_classes.iter().map(String::as_str);
         let generated_css =
             encre_css::generate(tailwind_classes_iter, &encre_css::Config::default())
                 .replace("&", "&amp;");
@@ -81,7 +95,12 @@ impl TaffyToSvgMapper {
         // Start SVG element
         write!(
             buffer,
-            r#"<svg xmlns="http://www.w3.org/2000/svg" width="{svg_width}" height="{svg_height}">"#
+            "<svg \
+                xmlns=\"http://www.w3.org/2000/svg\" \
+                width=\"{svg_width}\" \
+                height=\"{svg_height}\" \
+                class=\"group\"\
+            >"
         )
         .unwrap();
 
@@ -99,17 +118,227 @@ impl TaffyToSvgMapper {
         buffer
     }
 
+    /// Collects information about process nodes and their steps for
+    /// y-coordinate calculations.
+    ///
+    /// Returns a vector of ProcessInfo in the order processes appear in
+    /// node_ordering.
+    fn process_step_heights_calculate<'id>(
+        ir_diagram: &IrDiagram<'id>,
+        taffy_tree: &TaffyTree<NodeContext>,
+        node_id_to_taffy: &Map<NodeId, NodeToTaffyNodeIds>,
+    ) -> Vec<ProcessStepsHeight<'id>> {
+        let mut process_steps_height = Vec::new();
+
+        // Iterate through node_ordering to find process nodes in order
+        ir_diagram
+            .node_hierarchy
+            .iter()
+            .filter_map(|(node_id, children)| {
+                let is_process = ir_diagram
+                    .entity_types
+                    .get(node_id.as_ref())
+                    .is_some_and(|types| types.contains(&EntityType::ProcessDefault));
+                if is_process {
+                    Some((
+                        node_id.clone(),
+                        children.keys().cloned().collect::<Vec<NodeId<'_>>>(),
+                    ))
+                } else {
+                    None
+                }
+            })
+            .for_each(|(process_id, process_step_ids)| {
+                // Calculate total height of all steps
+                let mut total_height = process_step_ids
+                    .iter()
+                    .filter_map(|process_step_id| node_id_to_taffy.get(process_step_id))
+                    .copied()
+                    .map(NodeToTaffyNodeIds::wrapper_taffy_node_id)
+                    .filter_map(|taffy_node_id| taffy_tree.layout(taffy_node_id).ok())
+                    .map(|layout| layout.size.height.min(layout.content_size.height))
+                    .sum::<f32>();
+
+                // Include the gap between the process name and the steps
+                if let Some(NodeLayout::Flex(flex_layout)) =
+                    ir_diagram.node_layouts.get(process_id.as_ref())
+                {
+                    total_height += flex_layout.gap * (process_step_ids.len() + 1) as f32;
+                }
+
+                process_steps_height.push(ProcessStepsHeight {
+                    process_id,
+                    process_step_ids,
+                    total_height,
+                });
+            });
+
+        process_steps_height
+    }
+
+    /// Returns the index of the process in the `process_steps_height` list,
+    /// or `None` if not found.
+    ///
+    /// Finds the process that a given node belongs to (if it's a process or
+    /// process step).
+    fn process_steps_height_index(
+        node_id: &NodeId<'_>,
+        ir_diagram: &IrDiagram,
+        is_process: bool,
+        process_steps_height: &[ProcessStepsHeight],
+    ) -> Option<usize> {
+        let entity_types = ir_diagram.entity_types.get(node_id.as_ref());
+
+        let is_process_step = entity_types
+            .map(|types| types.contains(&EntityType::ProcessStepDefault))
+            .unwrap_or(false);
+
+        if is_process {
+            // Find this process in the list
+            process_steps_height
+                .iter()
+                .position(|p| &p.process_id == node_id)
+        } else if is_process_step {
+            // Find which process this step belongs to
+            process_steps_height
+                .iter()
+                .position(|p| p.process_step_ids.contains(node_id))
+        } else {
+            None
+        }
+    }
+
+    /// Computes the cumulative height of steps from all processes before the
+    /// given process index.
+    fn process_steps_height_predecessors_cumulative(
+        process_steps_height: &[ProcessStepsHeight],
+        process_index: usize,
+    ) -> f32 {
+        process_steps_height
+            .iter()
+            .take(process_index)
+            .map(|p| p.total_height)
+            .sum()
+    }
+
+    /// Builds simple translate-x and translate-y tailwind classes for
+    /// non-process/step nodes.
+    fn build_translate_classes(x: f32, y: f32, height_collapsed: f32) -> String {
+        let mut classes = String::new();
+        writeln!(&mut classes, "translate-x-[{x}px]").unwrap();
+        writeln!(&mut classes, "translate-y-[{y}px]").unwrap();
+        writeln!(&mut classes, "[&>rect]:h-[{height_collapsed}px]").unwrap();
+        classes
+    }
+
+    /// Builds the translation tailwind classes for a process or process step
+    /// node.
+    ///
+    /// This creates:
+    /// 1. A translate-x class for horizontal positioning
+    /// 2. A base translate-y class for the collapsed state
+    /// 3. group-has-[#id:focus-within]:translate-y-[...] classes for when
+    ///    previous processes are focused
+    /// 4. transition-transform and duration classes for smooth animation
+    fn build_process_translate_classes(
+        x: f32,
+        taffy_y: f32,
+        height_collapsed: f32,
+        height_to_expand_to: Option<f32>,
+        process_index: usize,
+        process_steps_height: &[ProcessStepsHeight],
+    ) -> String {
+        let mut classes = String::new();
+
+        // Add translate-x for horizontal positioning
+        writeln!(&mut classes, "translate-x-[{x}px]").unwrap();
+
+        // Calculate the cumulative height of all previous processes' steps
+        let process_steps_height_predecessors_cumulative =
+            Self::process_steps_height_predecessors_cumulative(process_steps_height, process_index);
+
+        // Base y position (collapsed state): taffy_y minus all previous steps' heights
+        let base_y = taffy_y - process_steps_height_predecessors_cumulative;
+
+        // Base height for inner `rect`
+        writeln!(&mut classes, "[&>rect]:h-[{height_collapsed}px]").unwrap();
+
+        // When this process or any of its steps are focused, expand the height
+        if let Some(height_to_expand_to) = height_to_expand_to {
+            let ProcessStepsHeight {
+                process_id,
+                process_step_ids,
+                total_height: _,
+            } = &process_steps_height[process_index];
+            writeln!(
+                &mut classes,
+                "group-has-[#{process_id}:focus-within]:[&>rect]:h-[{height_to_expand_to}px]"
+            )
+            .unwrap();
+
+            // Add classes for when any of the process's steps are focused
+            process_step_ids
+                .iter()
+                .for_each(|process_step_id| {
+                    writeln!(
+                        &mut classes,
+                        "group-has-[#{process_step_id}:focus-within]:[&>rect]:h-[{height_to_expand_to}px]"
+                    )
+                    .unwrap();
+                });
+        }
+
+        // Add transition class for smooth animation
+        writeln!(&mut classes, "transition-transform").unwrap();
+        writeln!(&mut classes, "duration-300").unwrap();
+
+        // Base translate-y for collapsed state
+        writeln!(&mut classes, "translate-y-[{base_y}px]").unwrap();
+
+        // For each previous process, add a class that moves this node down when that
+        // process is focused
+        (0..process_index).for_each(|prev_idx| {
+            let process_steps_height_prev = &process_steps_height[prev_idx];
+            let ProcessStepsHeight { process_id, process_step_ids, total_height } = process_steps_height_prev;
+
+            // When this previous process (or any of its steps) is focused,
+            // we need to add back that process's steps' height
+            let y_when_prev_focused = base_y + total_height;
+
+            // Add class for when the process itself is focused
+            writeln!(
+                &mut classes,
+                "group-has-[#{process_id}:focus-within]:translate-y-[{y_when_prev_focused}px]"
+            )
+            .unwrap();
+
+            // Add classes for when any of the process's steps are focused
+            process_step_ids
+                .iter()
+                .for_each(|process_step_id| {
+                    writeln!(
+                        &mut classes,
+                        "group-has-[#{process_step_id}:focus-within]:translate-y-[{y_when_prev_focused}px]"
+                    )
+                    .unwrap();
+                });
+        });
+
+        classes
+    }
+
     fn render_nodes(
         ir_diagram: &IrDiagram,
         taffy_tree: &TaffyTree<NodeContext>,
-        node_id_to_taffy: &disposition_model_common::Map<
-            disposition_ir_model::node::NodeId,
-            NodeToTaffyNodeIds,
-        >,
+        node_id_to_taffy: &Map<NodeId, NodeToTaffyNodeIds>,
         entity_highlighted_spans: &EntityHighlightedSpans,
         buffer: &mut String,
-        styles_buffer: &mut String,
+        additional_tailwind_classes: &mut Vec<String>,
     ) {
+        // First, collect process information for y-coordinate calculations
+        let process_steps_heights =
+            Self::process_step_heights_calculate(ir_diagram, taffy_tree, node_id_to_taffy);
+
         ir_diagram
             .node_ordering
             .iter()
@@ -118,16 +347,16 @@ impl TaffyToSvgMapper {
                 let Some(taffy_node_ids) = node_id_to_taffy.get(node_id).copied() else {
                     return;
                 };
-                let taffy_node_id = match taffy_node_ids {
-                    NodeToTaffyNodeIds::Leaf { text_node_id } => text_node_id,
-                    NodeToTaffyNodeIds::Wrapper {
-                        wrapper_node_id,
-                        text_node_id: _,
-                    } => wrapper_node_id,
-                };
+                let taffy_node_id = taffy_node_ids.wrapper_taffy_node_id();
                 let Ok(layout) = taffy_tree.layout(taffy_node_id) else {
                     return;
                 };
+
+                let is_process = ir_diagram
+                    .entity_types
+                    .get(node_id.as_ref())
+                    .map(|types| types.contains(&EntityType::ProcessDefault))
+                    .unwrap_or(false);
 
                 let (x, y) = {
                     // We don't use the content_box here because these are coordinates for the
@@ -139,25 +368,85 @@ impl TaffyToSvgMapper {
                         let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
                             break;
                         };
-                        x_acc += parent_layout.content_box_x();
-                        y_acc += parent_layout.content_box_y();
+                        // `content_box_x/y` places the inner nodes to align to the bottom right of
+                        // the parent nodes instead of having appropriate padding around the inner
+                        // node.
+                        x_acc += parent_layout.location.x;
+                        y_acc += parent_layout.location.y;
                         current_node_id = parent_taffy_node_id;
                     }
                     (x_acc, y_acc)
                 };
+
+                // Check if this is a process or process step node
+                let process_index = Self::process_steps_height_index(
+                    node_id,
+                    ir_diagram,
+                    is_process,
+                    &process_steps_heights,
+                );
+
+                // TODO: if the process steps were the tallest elements in the diagram, the
+                // diagram height may need to be reduced as well.
                 let width = layout.size.width;
-                let height = layout.size.height;
+                let height_expanded = layout.size.height.min(layout.content_size.height);
+                let height_collapsed = {
+                    let mut node_height = height_expanded;
 
-                let node_id_str = node_id.as_str();
+                    // If this is a process, subtract the height of its process steps.
+                    if is_process
+                        && let Some(process_steps_height) =
+                            process_index.map(|process_index| &process_steps_heights[process_index])
+                    {
+                        node_height -= process_steps_height.total_height;
+                    }
 
-                // Build class attribute if tailwind classes exist
-                let class_attr = ir_diagram
-                    .tailwind_classes
-                    .get(node_id.as_ref())
-                    .map(|classes| {
-                        let mut classes_str = String::with_capacity(classes.len() + 25);
+                    node_height
+                };
+                let height_to_expand_to = if is_process {
+                    Some(height_expanded)
+                } else {
+                    None
+                };
+
+                // Build translation classes
+                let translate_classes = if let Some(idx) = process_index {
+                    Self::build_process_translate_classes(
+                        x,
+                        y,
+                        height_collapsed,
+                        height_to_expand_to,
+                        idx,
+                        &process_steps_heights,
+                    )
+                } else {
+                    Self::build_translate_classes(x, y, height_collapsed)
+                };
+
+                // Collect translate classes for CSS generation
+                additional_tailwind_classes.push(translate_classes.clone());
+
+                // Build class attribute combining existing tailwind classes and y-translate
+                // classes
+                let class_attr = {
+                    let existing_classes = ir_diagram
+                        .tailwind_classes
+                        .get(node_id.as_ref())
+                        .map(|s| s.as_str())
+                        .unwrap_or("");
+
+                    let combined = if existing_classes.is_empty() {
+                        translate_classes
+                    } else {
+                        format!("{existing_classes}\n{translate_classes}")
+                    };
+
+                    if combined.is_empty() {
+                        String::new()
+                    } else {
+                        let mut classes_str = String::with_capacity(combined.len() + 25);
                         classes_str.push_str(r#" class=""#);
-                        classes.chars().for_each(|c| {
+                        combined.chars().for_each(|c| {
                             if c == '&' {
                                 classes_str.push_str("&amp;");
                             } else {
@@ -166,25 +455,18 @@ impl TaffyToSvgMapper {
                         });
                         classes_str.push('"');
                         classes_str
-                    })
-                    .unwrap_or_default();
+                    }
+                };
 
                 // Start group element with id, tabindex, and optional class
                 write!(
                     buffer,
-                    r#"<g id="{node_id_str}"{class_attr} tabindex="{tab_index}">"#
-                )
-                .unwrap();
-
-                // Add transform style for positioning
-                writeln!(
-                    styles_buffer,
-                    "#{node_id_str} {{ transform: translate({x}px, {y}px); }}"
+                    r#"<g id="{node_id}"{class_attr} tabindex="{tab_index}">"#
                 )
                 .unwrap();
 
                 // Add rect element
-                write!(buffer, r#"<rect width="{width}" height="{height}"/>"#).unwrap();
+                write!(buffer, r#"<rect width="{width}" />"#).unwrap();
 
                 // Add text elements for highlighted spans if they exist
                 if let Some(spans) = entity_highlighted_spans.get(node_id.as_ref()) {
@@ -216,19 +498,125 @@ impl TaffyToSvgMapper {
             });
     }
 
+    /// Escapes underscores within ID selectors inside arbitrary variant
+    /// brackets (`[...]`) in a tailwind class string.
+    ///
+    /// This is needed because encre-css interprets underscores as spaces within
+    /// arbitrary variants. By replacing `_` with `&#95;` inside ID selectors
+    /// (e.g. `#some_id`), we preserve the literal underscore in the generated
+    /// CSS.
+    ///
+    /// Only underscores that are part of an ID selector (starting with `#`) are
+    /// escaped. For example:
+    /// - `group-has-[#some_id:focus]` → `group-has-[#some&#95;id:focus]`
+    /// - `peer/some-peer:animate-[animation-name_2s_linear_infinite]` →
+    ///   unchanged
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use disposition_input_ir_rt::TaffyToSvgMapper;
+    /// // ID selectors have underscores escaped
+    /// assert_eq!(
+    ///     TaffyToSvgMapper::escape_underscores_in_brackets(
+    ///         "group-has-[#some_id:focus]:stroke-blue-500"
+    ///     ),
+    ///     "group-has-[#some&#95;id:focus]:stroke-blue-500"
+    /// );
+    ///
+    /// // Multiple underscores in ID
+    /// assert_eq!(
+    ///     TaffyToSvgMapper::escape_underscores_in_brackets(
+    ///         "group-has-[#my_element_id:hover]:fill-red-500"
+    ///     ),
+    ///     "group-has-[#my&#95;element&#95;id:hover]:fill-red-500"
+    /// );
+    ///
+    /// // Animation values are NOT escaped (no ID selector)
+    /// assert_eq!(
+    ///     TaffyToSvgMapper::escape_underscores_in_brackets(
+    ///         "peer/some-peer:animate-[animation-name_2s_linear_infinite]"
+    ///     ),
+    ///     "peer/some-peer:animate-[animation-name_2s_linear_infinite]"
+    /// );
+    ///
+    /// // Mixed: ID escaped, non-ID not escaped
+    /// assert_eq!(
+    ///     TaffyToSvgMapper::escape_underscores_in_brackets(
+    ///         "group-has-[#some_id:focus]:animate-[fade_in_1s]"
+    ///     ),
+    ///     "group-has-[#some&#95;id:focus]:animate-[fade_in_1s]"
+    /// );
+    ///
+    /// // No brackets - unchanged
+    /// assert_eq!(
+    ///     TaffyToSvgMapper::escape_underscores_in_brackets("text_red-500"),
+    ///     "text_red-500"
+    /// );
+    /// ```
+    pub fn escape_underscores_in_brackets(classes: &str) -> String {
+        let mut bracket_depth: u32 = 0;
+        let mut is_parsing_id = false;
+
+        classes
+            .chars()
+            .fold(String::with_capacity(classes.len()), |mut result, c| {
+                match c {
+                    '[' => {
+                        bracket_depth += 1;
+                        is_parsing_id = false;
+                        result.push(c);
+                    }
+                    ']' => {
+                        bracket_depth = bracket_depth.saturating_sub(1);
+                        is_parsing_id = false;
+                        result.push(c);
+                    }
+                    '#' if bracket_depth > 0 => {
+                        is_parsing_id = true;
+                        result.push(c);
+                    }
+                    '_' if bracket_depth > 0 && is_parsing_id => {
+                        result.push_str("&#95;");
+                    }
+                    // Characters that end an ID context (not valid in CSS IDs)
+                    ':' | ' ' | ',' | '.' | '>' | '+' | '~' | '(' | ')' if is_parsing_id => {
+                        is_parsing_id = false;
+                        result.push(c);
+                    }
+                    _ => {
+                        result.push(c);
+                    }
+                }
+                result
+            })
+    }
+
     /// Escape XML special characters in text content
     fn escape_xml(s: &str) -> String {
         let mut result = String::with_capacity(s.len());
-        for c in s.chars() {
-            match c {
-                '&' => result.push_str("&amp;"),
-                '<' => result.push_str("&lt;"),
-                '>' => result.push_str("&gt;"),
-                '"' => result.push_str("&quot;"),
-                '\'' => result.push_str("&apos;"),
-                _ => result.push(c),
-            }
-        }
+        s.chars().for_each(|c| match c {
+            '&' => result.push_str("&amp;"),
+            '<' => result.push_str("&lt;"),
+            '>' => result.push_str("&gt;"),
+            '"' => result.push_str("&quot;"),
+            '\'' => result.push_str("&apos;"),
+            _ => result.push(c),
+        });
         result
     }
+}
+
+/// Heights for all steps within a process for y-coordinate calculations.
+///
+/// These are used to collapse processes to reduce the number of steps
+/// displayed.
+#[derive(Debug)]
+struct ProcessStepsHeight<'id> {
+    /// The node ID of the process.
+    process_id: NodeId<'id>,
+    /// List of process step node IDs belonging to this process.
+    process_step_ids: Vec<NodeId<'id>>,
+    /// Total height of all process steps belonging to this process.
+    total_height: f32,
 }

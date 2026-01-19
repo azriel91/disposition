@@ -8,7 +8,7 @@ use disposition_model_common::{entity::EntityType, Id};
 #[derive(Clone, Debug, PartialEq)]
 pub struct NodeContext {
     /// ID of the entity from the input / IR diagram.
-    pub entity_id: Id,
+    pub entity_id: Id<'static>,
     /// Tracks whether this is a `thing`, `process`, `tag`, etc.
     ///
     /// This should be the default type assigned to an entity, so that we can
