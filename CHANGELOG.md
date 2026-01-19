@@ -1,6 +1,6 @@
 # Changelog
 
-## unreleased
+## 0.0.3 (2026-01-20)
 
 * Add `disposition_playground` dioxus app. ([#7][#7])
 * Improve diagram rendering performance. ([#8][#8])
