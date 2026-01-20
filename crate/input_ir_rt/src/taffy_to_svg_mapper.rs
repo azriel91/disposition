@@ -4,6 +4,7 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use disposition_ir_model::{
     layout::NodeLayout,
     node::{NodeId, NodeInbuilt},
+    shape::{NodeShape, NodeShapeRect},
     IrDiagram,
 };
 use disposition_model_common::{entity::EntityType, Map};
@@ -227,7 +228,7 @@ impl TaffyToSvgMapper {
         let mut classes = String::new();
         writeln!(&mut classes, "translate-x-[{x}px]").unwrap();
         writeln!(&mut classes, "translate-y-[{y}px]").unwrap();
-        writeln!(&mut classes, "[&>rect]:h-[{height_collapsed}px]").unwrap();
+        writeln!(&mut classes, "[&>path]:h-[{height_collapsed}px]").unwrap();
         classes
     }
 
@@ -260,8 +261,8 @@ impl TaffyToSvgMapper {
         // Base y position (collapsed state): taffy_y minus all previous steps' heights
         let base_y = taffy_y - process_steps_height_predecessors_cumulative;
 
-        // Base height for inner `rect`
-        writeln!(&mut classes, "[&>rect]:h-[{height_collapsed}px]").unwrap();
+        // Base height for inner `path`
+        writeln!(&mut classes, "[&>path]:h-[{height_collapsed}px]").unwrap();
 
         // When this process or any of its steps are focused, expand the height
         if let Some(height_to_expand_to) = height_to_expand_to {
@@ -272,7 +273,7 @@ impl TaffyToSvgMapper {
             } = &process_steps_height[process_index];
             writeln!(
                 &mut classes,
-                "group-has-[#{process_id}:focus-within]:[&>rect]:h-[{height_to_expand_to}px]"
+                "group-has-[#{process_id}:focus-within]:[&>path]:h-[{height_to_expand_to}px]"
             )
             .unwrap();
 
@@ -282,7 +283,7 @@ impl TaffyToSvgMapper {
                 .for_each(|process_step_id| {
                     writeln!(
                         &mut classes,
-                        "group-has-[#{process_step_id}:focus-within]:[&>rect]:h-[{height_to_expand_to}px]"
+                        "group-has-[#{process_step_id}:focus-within]:[&>path]:h-[{height_to_expand_to}px]"
                     )
                     .unwrap();
                 });
@@ -335,6 +336,9 @@ impl TaffyToSvgMapper {
         buffer: &mut String,
         additional_tailwind_classes: &mut Vec<String>,
     ) {
+        // Default shape for nodes without explicit shape configuration
+        let default_shape = NodeShape::Rect(NodeShapeRect::new());
+
         // First, collect process information for y-coordinate calculations
         let process_steps_heights =
             Self::process_step_heights_calculate(ir_diagram, taffy_tree, node_id_to_taffy);
@@ -465,8 +469,18 @@ impl TaffyToSvgMapper {
                 )
                 .unwrap();
 
-                // Add rect element
-                write!(buffer, r#"<rect width="{width}" />"#).unwrap();
+                // Get the node shape (corner radii)
+                let node_shape = ir_diagram
+                    .node_shapes
+                    .get(node_id)
+                    .unwrap_or(&default_shape);
+
+                // Add path element with corner radii
+                // Note: height_collapsed is used here. For animated height changes,
+                // CSS transforms (scaleY) would need to be used instead of the
+                // h-[...] classes that worked with <rect>.
+                let path_d = Self::build_rect_path(width, height_collapsed, node_shape);
+                write!(buffer, r#"<path d="{path_d}" />"#).unwrap();
 
                 // Add text elements for highlighted spans if they exist
                 if let Some(spans) = entity_highlighted_spans.get(node_id.as_ref()) {
@@ -480,7 +494,7 @@ impl TaffyToSvgMapper {
                         let text_content = Self::escape_xml(&span.text);
 
                         // zero stroke-width because we want the tailwind classes from `<g>` to
-                        // apply to the `<rect>`, but not to the `<text>`
+                        // apply to the `<path>`, but not to the `<text>`
                         write!(
                             buffer,
                             "<text \
@@ -496,6 +510,78 @@ impl TaffyToSvgMapper {
                 // Close group element
                 buffer.push_str("</g>");
             });
+    }
+
+    /// Builds an SVG path `d` attribute for a rectangle with optional corner
+    /// radii.
+    ///
+    /// The path is constructed to draw a rectangle starting from just after
+    /// the top-left corner (if rounded), proceeding clockwise:
+    /// 1. Horizontal line to top-right corner
+    /// 2. Arc for top-right corner (if radius > 0)
+    /// 3. Vertical line to bottom-right corner
+    /// 4. Arc for bottom-right corner (if radius > 0)
+    /// 5. Horizontal line to bottom-left corner
+    /// 6. Arc for bottom-left corner (if radius > 0)
+    /// 7. Vertical line to top-left corner
+    /// 8. Arc for top-left corner (if radius > 0)
+    /// 9. Close path
+    ///
+    /// # Parameters
+    /// - `width`: The width of the rectangle
+    /// - `height`: The height of the rectangle
+    /// - `node_shape`: The shape configuration containing corner radii
+    fn build_rect_path(width: f32, height: f32, node_shape: &NodeShape) -> String {
+        let NodeShape::Rect(rect) = node_shape;
+
+        let r_tl = rect.top_left;
+        let r_tr = rect.top_right;
+        let r_bl = rect.bottom_left;
+        let r_br = rect.bottom_right;
+
+        let h = height;
+
+        let mut d = String::with_capacity(128);
+
+        // Move to start position (after top-left corner)
+        write!(d, "M {r_tl} 0").unwrap();
+
+        // Top edge: horizontal line to (width - r_tr, 0)
+        write!(d, " H {}", width - r_tr).unwrap();
+
+        // Top-right corner arc (if radius > 0)
+        if r_tr > 0.0 {
+            write!(d, " A {r_tr} {r_tr} 0 0 1 {width} {r_tr}").unwrap();
+        }
+
+        // Right edge: vertical line to (width, h - r_br)
+        write!(d, " V {}", h - r_br).unwrap();
+
+        // Bottom-right corner arc (if radius > 0)
+        if r_br > 0.0 {
+            write!(d, " A {r_br} {r_br} 0 0 1 {} {h}", width - r_br).unwrap();
+        }
+
+        // Bottom edge: horizontal line to (r_bl, h)
+        write!(d, " H {r_bl}").unwrap();
+
+        // Bottom-left corner arc (if radius > 0)
+        if r_bl > 0.0 {
+            write!(d, " A {r_bl} {r_bl} 0 0 1 0 {}", h - r_bl).unwrap();
+        }
+
+        // Left edge: vertical line to (0, r_tl)
+        write!(d, " V {r_tl}").unwrap();
+
+        // Top-left corner arc (if radius > 0)
+        if r_tl > 0.0 {
+            write!(d, " A {r_tl} {r_tl} 0 0 1 {r_tl} 0").unwrap();
+        }
+
+        // Close the path
+        d.push_str(" Z");
+
+        d
     }
 
     /// Escapes underscores within ID selectors inside arbitrary variant

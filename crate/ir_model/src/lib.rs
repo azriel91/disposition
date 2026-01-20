@@ -18,6 +18,7 @@ pub mod edge;
 pub mod entity;
 pub mod layout;
 pub mod node;
+pub mod shape;
 
 #[cfg(all(feature = "openapi", not(feature = "test")))]
 mod api_doc;
