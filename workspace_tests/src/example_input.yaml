@@ -476,6 +476,51 @@ theme_default:
     padding_wide:
       padding: "6.0"
       gap: "6.0"
+    # Corner radius for each node.
+    #
+    # `<rect>` elements can only specify `rx` and `ry`, which controls the corner radius for all
+    # corners. Because some diagrams may intend to have different corner radii for each corner,
+    # a `<path>` element is used, and an `Arc` within the `d` attribute to draw the rounded corner.
+    rounded_xs:
+      radius_top_left: "2.0"
+      radius_top_right: "2.0"
+      radius_bottom_left: "2.0"
+      radius_bottom_right: "2.0"
+    rounded_sm:
+      radius_top_left: "4.0"
+      radius_top_right: "4.0"
+      radius_bottom_left: "4.0"
+      radius_bottom_right: "4.0"
+    rounded_md:
+      radius_top_left: "6.0"
+      radius_top_right: "6.0"
+      radius_bottom_left: "6.0"
+      radius_bottom_right: "6.0"
+    rounded_lg:
+      radius_top_left: "8.0"
+      radius_top_right: "8.0"
+      radius_bottom_left: "8.0"
+      radius_bottom_right: "8.0"
+    rounded_xl:
+      radius_top_left: "12.0"
+      radius_top_right: "12.0"
+      radius_bottom_left: "12.0"
+      radius_bottom_right: "12.0"
+    rounded_2xl:
+      radius_top_left: "16.0"
+      radius_top_right: "16.0"
+      radius_bottom_left: "16.0"
+      radius_bottom_right: "16.0"
+    rounded_3xl:
+      radius_top_left: "24.0"
+      radius_top_right: "24.0"
+      radius_bottom_left: "24.0"
+      radius_bottom_right: "24.0"
+    rounded_4xl:
+      radius_top_left: "32.0"
+      radius_top_right: "32.0"
+      radius_bottom_left: "32.0"
+      radius_bottom_right: "32.0"
     fill_pale:
       fill_shade_hover: "50"
       fill_shade_normal: "100"
@@ -569,25 +614,25 @@ theme_types_styles:
   # These are default styles that are built into `disposition`, but may be overridden by users.
   type_thing_default:
     node_defaults:
-      style_aliases_applied: [shade_light]
+      style_aliases_applied: [rounded_sm, shade_light]
       stroke_style: "solid"
       shape_color: "slate"
       stroke_width: "2"
   type_tag_default:
     node_defaults:
-      style_aliases_applied: [shade_medium]
+      style_aliases_applied: [rounded_sm, shade_medium]
       stroke_style: "solid"
       shape_color: "emerald"
       stroke_width: "2"
   type_process_default:
     node_defaults:
-      style_aliases_applied: [shade_medium]
+      style_aliases_applied: [rounded_sm, shade_medium]
       stroke_style: "solid"
       shape_color: "blue"
       stroke_width: "2"
   type_process_step_default:
     node_defaults:
-      style_aliases_applied: [shade_medium]
+      style_aliases_applied: [rounded_sm, shade_medium]
       stroke_style: "solid"
       shape_color: "sky"
       stroke_width: "2"
