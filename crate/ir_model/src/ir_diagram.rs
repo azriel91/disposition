@@ -5,8 +5,7 @@ use crate::{
     edge::EdgeGroups,
     entity::{EntityDescs, EntityTailwindClasses, EntityTypes},
     layout::NodeLayouts,
-    node::{NodeCopyText, NodeHierarchy, NodeNames, NodeOrdering},
-    shape::NodeShapes,
+    node::{NodeCopyText, NodeHierarchy, NodeNames, NodeOrdering, NodeShapes},
 };
 
 /// The intermediate representation of a diagram.

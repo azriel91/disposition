@@ -3,8 +3,7 @@ use std::fmt::Write;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use disposition_ir_model::{
     layout::NodeLayout,
-    node::{NodeId, NodeInbuilt},
-    shape::{NodeShape, NodeShapeRect},
+    node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
 };
 use disposition_model_common::{entity::EntityType, Map};
@@ -224,11 +223,22 @@ impl TaffyToSvgMapper {
 
     /// Builds simple translate-x and translate-y tailwind classes for
     /// non-process/step nodes.
-    fn build_translate_classes(x: f32, y: f32, height_collapsed: f32) -> String {
+    fn build_translate_classes(
+        x: f32,
+        y: f32,
+        width: f32,
+        height_collapsed: f32,
+        node_shape: &NodeShape,
+    ) -> String {
         let mut classes = String::new();
         writeln!(&mut classes, "translate-x-[{x}px]").unwrap();
         writeln!(&mut classes, "translate-y-[{y}px]").unwrap();
-        writeln!(&mut classes, "[&>path]:h-[{height_collapsed}px]").unwrap();
+
+        // Build path d attribute with collapsed height
+        let path_d = Self::build_rect_path(width, height_collapsed, node_shape);
+        let path_d_escaped = path_d.replace(' ', "_");
+        writeln!(&mut classes, "[&>path]:[d:path('{path_d_escaped}')]").unwrap();
+
         classes
     }
 
@@ -241,13 +251,16 @@ impl TaffyToSvgMapper {
     /// 3. group-has-[#id:focus-within]:translate-y-[...] classes for when
     ///    previous processes are focused
     /// 4. transition-transform and duration classes for smooth animation
+    /// 5. [d:path(...)] classes for collapsed and expanded path shapes
     fn build_process_translate_classes(
         x: f32,
         taffy_y: f32,
+        width: f32,
         height_collapsed: f32,
         height_to_expand_to: Option<f32>,
         process_index: usize,
         process_steps_height: &[ProcessStepsHeight],
+        node_shape: &NodeShape,
     ) -> String {
         let mut classes = String::new();
 
@@ -261,8 +274,14 @@ impl TaffyToSvgMapper {
         // Base y position (collapsed state): taffy_y minus all previous steps' heights
         let base_y = taffy_y - process_steps_height_predecessors_cumulative;
 
-        // Base height for inner `path`
-        writeln!(&mut classes, "[&>path]:h-[{height_collapsed}px]").unwrap();
+        // Build path d attribute with collapsed height
+        let path_d_collapsed = Self::build_rect_path(width, height_collapsed, node_shape);
+        let path_d_collapsed_escaped = path_d_collapsed.replace(' ', "_");
+        writeln!(
+            &mut classes,
+            "[&>path]:[d:path('{path_d_collapsed_escaped}')]"
+        )
+        .unwrap();
 
         // When this process or any of its steps are focused, expand the height
         if let Some(height_to_expand_to) = height_to_expand_to {
@@ -271,27 +290,30 @@ impl TaffyToSvgMapper {
                 process_step_ids,
                 total_height: _,
             } = &process_steps_height[process_index];
+
+            // Build path d attribute with expanded height
+            let path_d_expanded = Self::build_rect_path(width, height_to_expand_to, node_shape);
+            let path_d_expanded_escaped = path_d_expanded.replace(' ', "_");
+
             writeln!(
                 &mut classes,
-                "group-has-[#{process_id}:focus-within]:[&>path]:h-[{height_to_expand_to}px]"
+                "group-has-[#{process_id}:focus-within]:[&>path]:[d:path('{path_d_expanded_escaped}')]"
             )
             .unwrap();
 
             // Add classes for when any of the process's steps are focused
-            process_step_ids
-                .iter()
-                .for_each(|process_step_id| {
-                    writeln!(
-                        &mut classes,
-                        "group-has-[#{process_step_id}:focus-within]:[&>path]:h-[{height_to_expand_to}px]"
-                    )
-                    .unwrap();
-                });
+            process_step_ids.iter().for_each(|process_step_id| {
+                writeln!(
+                    &mut classes,
+                    "group-has-[#{process_step_id}:focus-within]:[&>path]:[d:path('{path_d_expanded_escaped}')]"
+                )
+                .unwrap();
+            });
         }
 
         // Add transition class for smooth animation
-        writeln!(&mut classes, "transition-transform").unwrap();
-        writeln!(&mut classes, "duration-300").unwrap();
+        writeln!(&mut classes, "transition-all").unwrap();
+        writeln!(&mut classes, "duration-200").unwrap();
 
         // Base translate-y for collapsed state
         writeln!(&mut classes, "translate-y-[{base_y}px]").unwrap();
@@ -300,7 +322,11 @@ impl TaffyToSvgMapper {
         // process is focused
         (0..process_index).for_each(|prev_idx| {
             let process_steps_height_prev = &process_steps_height[prev_idx];
-            let ProcessStepsHeight { process_id, process_step_ids, total_height } = process_steps_height_prev;
+            let ProcessStepsHeight {
+                process_id,
+                process_step_ids,
+                total_height,
+            } = process_steps_height_prev;
 
             // When this previous process (or any of its steps) is focused,
             // we need to add back that process's steps' height
@@ -314,15 +340,13 @@ impl TaffyToSvgMapper {
             .unwrap();
 
             // Add classes for when any of the process's steps are focused
-            process_step_ids
-                .iter()
-                .for_each(|process_step_id| {
-                    writeln!(
-                        &mut classes,
-                        "group-has-[#{process_step_id}:focus-within]:translate-y-[{y_when_prev_focused}px]"
-                    )
-                    .unwrap();
-                });
+            process_step_ids.iter().for_each(|process_step_id| {
+                writeln!(
+                    &mut classes,
+                    "group-has-[#{process_step_id}:focus-within]:translate-y-[{y_when_prev_focused}px]"
+                )
+                .unwrap();
+            });
         });
 
         classes
@@ -413,18 +437,26 @@ impl TaffyToSvgMapper {
                     None
                 };
 
+                // Get the node shape (corner radii)
+                let node_shape = ir_diagram
+                    .node_shapes
+                    .get(node_id)
+                    .unwrap_or(&default_shape);
+
                 // Build translation classes
                 let translate_classes = if let Some(idx) = process_index {
                     Self::build_process_translate_classes(
                         x,
                         y,
+                        width,
                         height_collapsed,
                         height_to_expand_to,
                         idx,
                         &process_steps_heights,
+                        node_shape,
                     )
                 } else {
-                    Self::build_translate_classes(x, y, height_collapsed)
+                    Self::build_translate_classes(x, y, width, height_collapsed, node_shape)
                 };
 
                 // Collect translate classes for CSS generation
@@ -468,12 +500,6 @@ impl TaffyToSvgMapper {
                     r#"<g id="{node_id}"{class_attr} tabindex="{tab_index}">"#
                 )
                 .unwrap();
-
-                // Get the node shape (corner radii)
-                let node_shape = ir_diagram
-                    .node_shapes
-                    .get(node_id)
-                    .unwrap_or(&default_shape);
 
                 // Add path element with corner radii
                 // Note: height_collapsed is used here. For animated height changes,
@@ -534,10 +560,10 @@ impl TaffyToSvgMapper {
     fn build_rect_path(width: f32, height: f32, node_shape: &NodeShape) -> String {
         let NodeShape::Rect(rect) = node_shape;
 
-        let r_tl = rect.top_left;
-        let r_tr = rect.top_right;
-        let r_bl = rect.bottom_left;
-        let r_br = rect.bottom_right;
+        let r_tl = rect.radius_top_left;
+        let r_tr = rect.radius_top_right;
+        let r_bl = rect.radius_bottom_left;
+        let r_br = rect.radius_bottom_right;
 
         let h = height;
 
@@ -647,6 +673,7 @@ impl TaffyToSvgMapper {
         classes
             .chars()
             .fold(String::with_capacity(classes.len()), |mut result, c| {
+                // https://docs.rs/encre-css/latest/encre_css/plugins/typography/content/index.html
                 match c {
                     '[' => {
                         bracket_depth += 1;
@@ -661,6 +688,18 @@ impl TaffyToSvgMapper {
                     '#' if bracket_depth > 0 => {
                         is_parsing_id = true;
                         result.push(c);
+                    }
+                    '"' if bracket_depth > 0 => {
+                        result.push_str("&#34;");
+                    }
+                    '\'' if bracket_depth > 0 => {
+                        result.push_str("&#39;");
+                    }
+                    '(' if bracket_depth > 0 => {
+                        result.push_str("&#40;");
+                    }
+                    ')' if bracket_depth > 0 => {
+                        result.push_str("&#41;");
                     }
                     '_' if bracket_depth > 0 && is_parsing_id => {
                         result.push_str("&#95;");

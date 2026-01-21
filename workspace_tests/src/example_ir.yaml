@@ -1630,194 +1630,194 @@ node_shapes:
   # Things
   t_aws:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_aws_iam:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_aws_iam_ecs_policy:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_aws_ecr:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_aws_ecr_repo:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_aws_ecr_repo_image_1:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_aws_ecr_repo_image_2:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_aws_ecs:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_aws_ecs_cluster_app:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_aws_ecs_cluster_app_task:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_github:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_github_user_repo:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_localhost:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_localhost_repo:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_localhost_repo_src:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_localhost_repo_target:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_localhost_repo_target_file_zip:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   t_localhost_repo_target_dist_dir:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
 
   # Tags
   tag_app_development:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   tag_deployment:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
 
   # Processes and process steps
   proc_app_dev:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   proc_app_dev_step_repository_clone:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   proc_app_dev_step_project_build:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   proc_app_release:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   proc_app_release_step_crate_version_update:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   proc_app_release_step_pull_request_open:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   proc_app_release_step_tag_and_push:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   proc_app_release_step_gh_actions_build:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   proc_app_release_step_gh_actions_publish:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   proc_i12e_region_tier_app_deploy:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
   proc_i12e_region_tier_app_deploy_step_ecs_service_update:
     rect:
-      top_left: 4.0
-      top_right: 4.0
-      bottom_left: 4.0
-      bottom_right: 4.0
+      radius_top_left: 4.0
+      radius_top_right: 4.0
+      radius_bottom_left: 4.0
+      radius_bottom_right: 4.0
 
 # Additional CSS for animations.
 css: |-

@@ -21,8 +21,10 @@ use disposition_ir_model::{
     entity::{EntityTailwindClasses, EntityType, EntityTypeId},
     enum_iterator,
     layout::{FlexDirection, FlexLayout, NodeLayout, NodeLayouts},
-    node::{NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering},
-    shape::{NodeShape, NodeShapeRect, NodeShapes},
+    node::{
+        NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering, NodeShape,
+        NodeShapeRect, NodeShapes,
+    },
     IrDiagram,
 };
 use disposition_model_common::{
@@ -1040,18 +1042,19 @@ impl InputToIrDiagramMapper {
             .iter()
             .map(|(node_id, _name)| {
                 let id: Id<'id> = node_id.as_ref().clone();
-                let (top_left, top_right, bottom_left, bottom_right) = Self::resolve_radius(
-                    Some(&id),
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                );
+                let (radius_top_left, radius_top_right, radius_bottom_left, radius_bottom_right) =
+                    Self::resolve_radius(
+                        Some(&id),
+                        entity_types,
+                        theme_default,
+                        theme_types_styles,
+                    );
 
                 let shape = NodeShape::Rect(NodeShapeRect {
-                    top_left,
-                    top_right,
-                    bottom_left,
-                    bottom_right,
+                    radius_top_left,
+                    radius_top_right,
+                    radius_bottom_left,
+                    radius_bottom_right,
                 });
 
                 (node_id.clone(), shape)
