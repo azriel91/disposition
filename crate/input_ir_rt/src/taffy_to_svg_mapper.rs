@@ -235,9 +235,9 @@ impl TaffyToSvgMapper {
         writeln!(&mut classes, "translate-y-[{y}px]").unwrap();
 
         // Build path d attribute with collapsed height
-        let path_d = Self::build_rect_path(width, height_collapsed, node_shape);
-        let path_d_escaped = path_d.replace(' ', "_");
-        writeln!(&mut classes, "[&>path]:[d:path('{path_d_escaped}')]").unwrap();
+        let mut path_d = Self::build_rect_path(width, height_collapsed, node_shape);
+        Self::char_replace_inplace(&mut path_d, ' ', '_');
+        writeln!(&mut classes, "[&>path]:[d:path('{path_d}')]").unwrap();
 
         classes
     }
@@ -275,13 +275,9 @@ impl TaffyToSvgMapper {
         let base_y = taffy_y - process_steps_height_predecessors_cumulative;
 
         // Build path d attribute with collapsed height
-        let path_d_collapsed = Self::build_rect_path(width, height_collapsed, node_shape);
-        let path_d_collapsed_escaped = path_d_collapsed.replace(' ', "_");
-        writeln!(
-            &mut classes,
-            "[&>path]:[d:path('{path_d_collapsed_escaped}')]"
-        )
-        .unwrap();
+        let mut path_d_collapsed = Self::build_rect_path(width, height_collapsed, node_shape);
+        Self::char_replace_inplace(&mut path_d_collapsed, ' ', '_');
+        writeln!(&mut classes, "[&>path]:[d:path('{path_d_collapsed}')]").unwrap();
 
         // When this process or any of its steps are focused, expand the height
         if let Some(height_to_expand_to) = height_to_expand_to {
@@ -292,12 +288,12 @@ impl TaffyToSvgMapper {
             } = &process_steps_height[process_index];
 
             // Build path d attribute with expanded height
-            let path_d_expanded = Self::build_rect_path(width, height_to_expand_to, node_shape);
-            let path_d_expanded_escaped = path_d_expanded.replace(' ', "_");
+            let mut path_d_expanded = Self::build_rect_path(width, height_to_expand_to, node_shape);
+            Self::char_replace_inplace(&mut path_d_expanded, ' ', '_');
 
             writeln!(
                 &mut classes,
-                "group-has-[#{process_id}:focus-within]:[&>path]:[d:path('{path_d_expanded_escaped}')]"
+                "group-has-[#{process_id}:focus-within]:[&>path]:[d:path('{path_d_expanded}')]"
             )
             .unwrap();
 
@@ -305,7 +301,7 @@ impl TaffyToSvgMapper {
             process_step_ids.iter().for_each(|process_step_id| {
                 writeln!(
                     &mut classes,
-                    "group-has-[#{process_step_id}:focus-within]:[&>path]:[d:path('{path_d_expanded_escaped}')]"
+                    "group-has-[#{process_step_id}:focus-within]:[&>path]:[d:path('{path_d_expanded}')]"
                 )
                 .unwrap();
             });
@@ -536,6 +532,36 @@ impl TaffyToSvgMapper {
                 // Close group element
                 buffer.push_str("</g>");
             });
+    }
+
+    /// Replaces all occurrences of `from` byte with `to` byte in the given
+    /// string, mutating it in place.
+    ///
+    /// # Safety
+    ///
+    /// This is safe because:
+    ///
+    /// * Both `from` and `to` must be ASCII bytes (single-byte UTF-8)
+    /// * Replacing one ASCII byte with another ASCII byte preserves UTF-8
+    ///   validity
+    ///
+    /// # Panics
+    ///
+    /// Panics in debug mode if either `from` or `to` is not ASCII.
+    fn char_replace_inplace(s: &mut str, from: char, to: char) {
+        debug_assert!(from.is_ascii(), "`from` byte must be ASCII");
+        debug_assert!(to.is_ascii(), "`to` byte must be ASCII");
+
+        // SAFETY: Replacing ASCII with ASCII preserves UTF-8 validity
+        // because ASCII bytes are always single-byte UTF-8 sequences
+        // and never appear as continuation bytes in multi-byte sequences.
+        unsafe {
+            s.as_bytes_mut().iter_mut().for_each(|byte| {
+                if *byte == from as u8 {
+                    *byte = to as u8;
+                }
+            });
+        }
     }
 
     /// Builds an SVG path `d` attribute for a rectangle with optional corner
