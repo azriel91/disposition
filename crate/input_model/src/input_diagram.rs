@@ -19,10 +19,12 @@ use crate::{
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(bound(deserialize = "ThemeDefault<'id>: Deserialize<'de>, \
-                   ThemeTypesStyles<'id>: Deserialize<'de>, \
-                   ThemeThingDependenciesStyles<'id>: Deserialize<'de>, \
-                   ThemeTagThingsFocus<'id>: Deserialize<'de>"))]
+#[serde(bound(deserialize = "\
+    ThemeDefault<'id>: Deserialize<'de>, \
+    ThemeTypesStyles<'id>: Deserialize<'de>, \
+    ThemeThingDependenciesStyles<'id>: Deserialize<'de>, \
+    ThemeTagThingsFocus<'id>: Deserialize<'de>\
+"))]
 pub struct InputDiagram<'id> {
     /// Things in the diagram and their display labels.
     #[serde(default, skip_serializing_if = "ThingNames::is_empty")]
