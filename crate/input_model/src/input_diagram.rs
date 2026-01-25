@@ -136,6 +136,13 @@ impl InputDiagram<'static> {
     ///
     /// This contains standard style aliases, base styles, type styles, tag
     /// focus styles, and CSS animations as sensible defaults.
+    ///
+    /// # Maintainers
+    ///
+    /// A YAML representation of this diagram is available in
+    /// `workspace_tests/src/base_diagram.yaml`.
+    ///
+    /// Make sure to update `base_diagram.yaml` when updating this file.
     #[allow(clippy::too_many_lines)]
     pub fn base() -> Self {
         let style_aliases = base_style_aliases();
