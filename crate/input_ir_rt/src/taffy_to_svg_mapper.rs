@@ -246,12 +246,13 @@ impl TaffyToSvgMapper {
     /// node.
     ///
     /// This creates:
-    /// 1. A translate-x class for horizontal positioning
-    /// 2. A base translate-y class for the collapsed state
-    /// 3. group-has-[#id:focus-within]:translate-y-[...] classes for when
+    /// 1. A `translate-x-*` class for horizontal positioning
+    /// 2. A base `translate-y-*` class for the collapsed state
+    /// 3. `group-has-[#id:focus-within]:translate-y-[..]` classes for when
     ///    previous processes are focused
     /// 4. transition-transform and duration classes for smooth animation
-    /// 5. [d:path(...)] classes for collapsed and expanded path shapes
+    /// 5. `[d:path(..)]` classes for collapsed and expanded path shapes
+    #[allow(clippy::too_many_arguments)]
     fn build_process_translate_classes(
         x: f32,
         taffy_y: f32,

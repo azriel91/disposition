@@ -301,7 +301,7 @@ impl InputDiagramMerger {
         result
     }
 
-    fn merge_css<'id>(base: Css, overlay: &Css) -> Css {
+    fn merge_css(base: Css, overlay: &Css) -> Css {
         // If overlay has CSS, use it; otherwise use base
         if overlay.is_empty() {
             base
