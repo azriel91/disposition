@@ -17,7 +17,6 @@ doctest = true
 test = false
 
 [dependencies]
-cosmic-text = { workspace = true }
 disposition_model_common = { workspace = true }
 disposition_input_model = { workspace = true }
 disposition_ir_model = { workspace = true }

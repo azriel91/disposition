@@ -73,7 +73,6 @@ disposition_taffy_model = { path = "crate/taffy_model", version = "0.0.3" }
 
 # external crates
 base64 = "0.22.1"
-cosmic-text = "0.16.0"
 dioxus = "0.7.3"
 emojis = "0.8.0"
 encre-css = "0.20.1"
