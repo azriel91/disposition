@@ -45,10 +45,10 @@ use crate::theme::{StyleAlias, ThemeAttr};
 pub struct CssClassPartials<'id> {
     /// The style aliases applied to the CSS class partials.
     #[serde(default)]
-    style_aliases_applied: Vec<StyleAlias<'id>>,
+    pub style_aliases_applied: Vec<StyleAlias<'id>>,
     /// The map of CSS class partials.
     #[serde(default, flatten)]
-    partials: Map<ThemeAttr, String>,
+    pub partials: Map<ThemeAttr, String>,
 }
 
 impl<'id> CssClassPartials<'id> {

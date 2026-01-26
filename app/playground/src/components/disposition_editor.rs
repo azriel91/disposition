@@ -21,7 +21,9 @@ use disposition::{
         DimensionAndLod, TaffyNodeMappings,
     },
 };
-use disposition_input_ir_rt::{InputToIrDiagramMapper, IrToTaffyBuilder, TaffyToSvgMapper};
+use disposition_input_ir_rt::{
+    InputDiagramMerger, InputToIrDiagramMapper, IrToTaffyBuilder, TaffyToSvgMapper,
+};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
@@ -70,8 +72,16 @@ pub fn DispositionEditor() -> Element {
         let input_diagram = input_diagram.read().cloned();
         match input_diagram {
             Some(input_diagram) => {
+                let input_diagram_merge_start = Instant::now();
+                let input_diagram_merged =
+                    InputDiagramMerger::merge(InputDiagram::base(), &input_diagram);
+                let input_diagram_merge_duration_ms = Instant::now()
+                    .duration_since(input_diagram_merge_start)
+                    .as_millis();
+                info!("`InputDiagramMerger::merge` took {input_diagram_merge_duration_ms} ms.");
+
                 let input_to_ir_map_start = Instant::now();
-                let input_diagram_and_issues = InputToIrDiagramMapper::map(&input_diagram);
+                let input_diagram_and_issues = InputToIrDiagramMapper::map(&input_diagram_merged);
                 let input_to_ir_map_duration_ms = Instant::now()
                     .duration_since(input_to_ir_map_start)
                     .as_millis();
@@ -112,15 +122,10 @@ pub fn DispositionEditor() -> Element {
         let ir_diagram = &*ir_diagram.read();
         match ir_diagram {
             Some(ir_diagram) => {
-                let taffy_node_builder_start = Instant::now();
                 let ir_to_taffy_builder = IrToTaffyBuilder::builder()
                     .with_ir_diagram(ir_diagram)
                     .with_dimension_and_lods(vec![DimensionAndLod::default_no_limit()])
                     .build();
-                let taffy_node_builder_duration_ms = Instant::now()
-                    .duration_since(taffy_node_builder_start)
-                    .as_millis();
-                info!("`IrToTaffyBuilder` init took {taffy_node_builder_duration_ms} ms.");
 
                 let taffy_node_mappings_iter_result = ir_to_taffy_builder.build();
                 match taffy_node_mappings_iter_result {

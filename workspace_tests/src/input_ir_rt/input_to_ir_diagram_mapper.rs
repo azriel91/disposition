@@ -12,11 +12,11 @@ use disposition::{
 use disposition_input_ir_rt::InputToIrDiagramMapper;
 use pretty_assertions::assert_eq;
 
-use crate::input_ir_rt::{EXAMPLE_INPUT, EXAMPLE_IR};
+use crate::input_ir_rt::{EXAMPLE_INPUT_MERGED, EXAMPLE_IR};
 
 #[test]
 fn test_input_to_ir_mapping() {
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
 
     let IrDiagramAndIssues { diagram, issues } = ir_and_issues;
@@ -241,7 +241,7 @@ fn test_input_to_ir_mapping() {
 #[test]
 fn test_node_ordering_map_order_and_tab_indices() {
     // Detailed test for node_ordering computation
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -291,7 +291,7 @@ fn test_node_ordering_map_order_and_tab_indices() {
 #[test]
 fn test_cyclic_edge_expansion() {
     // Test that cyclic edges create a loop
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -318,7 +318,7 @@ fn test_cyclic_edge_expansion() {
 #[test]
 fn test_self_loop_edge() {
     // Test that a cyclic edge with one thing creates a self-loop
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -339,7 +339,7 @@ fn test_self_loop_edge() {
 #[test]
 fn test_sequence_edge_expansion() {
     // Test that sequence edges create a chain without cycling back
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -361,7 +361,7 @@ fn test_sequence_edge_expansion() {
 #[test]
 fn test_node_layout_containers() {
     // Test that container nodes get correct flex layouts
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -428,7 +428,7 @@ fn test_node_layout_containers() {
 #[test]
 fn test_node_layout_processes() {
     // Test that processes with steps get flex layout, steps get none
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -458,7 +458,7 @@ fn test_node_layout_processes() {
 #[test]
 fn test_node_layout_tags() {
     // Test that tags are leaf nodes with no layout
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -474,7 +474,7 @@ fn test_node_layout_tags() {
 #[test]
 fn test_node_layout_things_hierarchy() {
     // Test that things with children get flex layout, leaves get none
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -523,7 +523,7 @@ fn test_node_layout_things_hierarchy() {
 #[test]
 fn test_node_layout_padding_from_theme() {
     // Test that padding values are correctly resolved from theme
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -548,7 +548,7 @@ fn test_node_layout_padding_from_theme() {
 
 #[test]
 fn test_tailwind_classes_generation() {
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -617,7 +617,7 @@ fn test_tailwind_classes_generation() {
 
 #[test]
 fn test_tailwind_classes_shade_resolution() {
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -648,7 +648,7 @@ fn test_tailwind_classes_shade_resolution() {
 
 #[test]
 fn test_tailwind_classes_stroke_style() {
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -674,7 +674,7 @@ fn test_tailwind_classes_stroke_style() {
 
 #[test]
 fn test_tailwind_classes_thing_peer_classes() {
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -736,7 +736,7 @@ fn test_tailwind_classes_thing_peer_classes() {
 fn test_tailwind_classes_tag_peer_classes_for_included_things() {
     // Tests that things included in a tag get proper peer classes based on
     // theme_tag_things_focus NodeDefaults
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -787,7 +787,7 @@ fn test_tailwind_classes_tag_peer_classes_for_included_things() {
 fn test_tailwind_classes_tag_peer_classes_for_excluded_things() {
     // Tests that things NOT included in any tag get peer classes based on
     // theme_tag_things_focus NodeExcludedDefaults
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -827,7 +827,7 @@ fn test_tailwind_classes_tag_peer_classes_for_excluded_things() {
 #[test]
 fn test_tailwind_classes_tag_peer_classes_tag_specific_override() {
     // Tests that tag-specific styles override tag_defaults
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
@@ -873,7 +873,7 @@ fn test_tailwind_classes_tag_peer_classes_tag_specific_override() {
 
 #[test]
 fn test_example_input_maps_to_example_ir() {
-    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let ir_example = serde_saphyr::from_str::<IrDiagram>(EXAMPLE_IR).unwrap();
 

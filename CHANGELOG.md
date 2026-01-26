@@ -1,5 +1,12 @@
 # Changelog
 
+## unreleased
+
+* Support `InputDiagram` merging. ([#10][#10])
+
+[#10]: https://github.com/azriel91/disposition/pull/10
+
+
 ## 0.0.3 (2026-01-20)
 
 * Add `disposition_playground` dioxus app. ([#7][#7])

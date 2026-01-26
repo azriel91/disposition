@@ -36,6 +36,24 @@ pub enum StyleAlias<'id> {
     PaddingNormal,
     /// Wide padding (6 units).
     PaddingWide,
+    /// Extra small rounded corners (2 units).
+    RoundedXs,
+    /// Small rounded corners (4 units).
+    RoundedSm,
+    /// Medium rounded corners (6 units).
+    RoundedMd,
+    /// Large rounded corners (8 units).
+    RoundedLg,
+    /// Extra large rounded corners (12 units).
+    RoundedXl,
+    /// 2x extra large rounded corners (16 units).
+    Rounded2xl,
+    /// 3x extra large rounded corners (24 units).
+    Rounded3xl,
+    /// 4x extra large rounded corners (32 units).
+    Rounded4xl,
+    /// Pale fill shade (lightest fill, no stroke shades).
+    FillPale,
     /// Pale shade (lightest).
     ShadePale,
     /// Light shade.
@@ -74,6 +92,15 @@ impl<'id> StyleAlias<'id> {
             StyleAlias::PaddingTight => "padding_tight",
             StyleAlias::PaddingNormal => "padding_normal",
             StyleAlias::PaddingWide => "padding_wide",
+            StyleAlias::RoundedXs => "rounded_xs",
+            StyleAlias::RoundedSm => "rounded_sm",
+            StyleAlias::RoundedMd => "rounded_md",
+            StyleAlias::RoundedLg => "rounded_lg",
+            StyleAlias::RoundedXl => "rounded_xl",
+            StyleAlias::Rounded2xl => "rounded_2xl",
+            StyleAlias::Rounded3xl => "rounded_3xl",
+            StyleAlias::Rounded4xl => "rounded_4xl",
+            StyleAlias::FillPale => "fill_pale",
             StyleAlias::ShadePale => "shade_pale",
             StyleAlias::ShadeLight => "shade_light",
             StyleAlias::ShadeMedium => "shade_medium",
@@ -114,6 +141,15 @@ impl<'id> StyleAlias<'id> {
             StyleAlias::PaddingTight => StyleAlias::PaddingTight,
             StyleAlias::PaddingNormal => StyleAlias::PaddingNormal,
             StyleAlias::PaddingWide => StyleAlias::PaddingWide,
+            StyleAlias::RoundedXs => StyleAlias::RoundedXs,
+            StyleAlias::RoundedSm => StyleAlias::RoundedSm,
+            StyleAlias::RoundedMd => StyleAlias::RoundedMd,
+            StyleAlias::RoundedLg => StyleAlias::RoundedLg,
+            StyleAlias::RoundedXl => StyleAlias::RoundedXl,
+            StyleAlias::Rounded2xl => StyleAlias::Rounded2xl,
+            StyleAlias::Rounded3xl => StyleAlias::Rounded3xl,
+            StyleAlias::Rounded4xl => StyleAlias::Rounded4xl,
+            StyleAlias::FillPale => StyleAlias::FillPale,
             StyleAlias::ShadePale => StyleAlias::ShadePale,
             StyleAlias::ShadeLight => StyleAlias::ShadeLight,
             StyleAlias::ShadeMedium => StyleAlias::ShadeMedium,
@@ -133,6 +169,15 @@ impl<'id> From<Id<'id>> for StyleAlias<'id> {
             "padding_tight" => StyleAlias::PaddingTight,
             "padding_normal" => StyleAlias::PaddingNormal,
             "padding_wide" => StyleAlias::PaddingWide,
+            "rounded_xs" => StyleAlias::RoundedXs,
+            "rounded_sm" => StyleAlias::RoundedSm,
+            "rounded_md" => StyleAlias::RoundedMd,
+            "rounded_lg" => StyleAlias::RoundedLg,
+            "rounded_xl" => StyleAlias::RoundedXl,
+            "rounded_2xl" => StyleAlias::Rounded2xl,
+            "rounded_3xl" => StyleAlias::Rounded3xl,
+            "rounded_4xl" => StyleAlias::Rounded4xl,
+            "fill_pale" => StyleAlias::FillPale,
             "shade_pale" => StyleAlias::ShadePale,
             "shade_light" => StyleAlias::ShadeLight,
             "shade_medium" => StyleAlias::ShadeMedium,
@@ -177,7 +222,9 @@ impl Visitor<'_> for StyleAliasVisitor {
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str(
             "a style alias name such as `padding_none`, `padding_tight`, `padding_normal`, \
-             `padding_wide`, `shade_pale`, `shade_light`, `shade_medium`, `shade_dark`, \
+             `padding_wide`, `rounded_xs`, `rounded_sm`, `rounded_md`, `rounded_lg`, \
+             `rounded_xl`, `rounded_2xl`, `rounded_3xl`, `rounded_4xl`, `fill_pale`, \
+             `shade_pale`, `shade_light`, `shade_medium`, `shade_dark`, \
              `stroke_dashed_animated`, `stroke_dashed_animated_request`, \
              `stroke_dashed_animated_response`, or a custom identifier",
         )
@@ -192,6 +239,15 @@ impl Visitor<'_> for StyleAliasVisitor {
             "padding_tight" => StyleAlias::PaddingTight,
             "padding_normal" => StyleAlias::PaddingNormal,
             "padding_wide" => StyleAlias::PaddingWide,
+            "rounded_xs" => StyleAlias::RoundedXs,
+            "rounded_sm" => StyleAlias::RoundedSm,
+            "rounded_md" => StyleAlias::RoundedMd,
+            "rounded_lg" => StyleAlias::RoundedLg,
+            "rounded_xl" => StyleAlias::RoundedXl,
+            "rounded_2xl" => StyleAlias::Rounded2xl,
+            "rounded_3xl" => StyleAlias::Rounded3xl,
+            "rounded_4xl" => StyleAlias::Rounded4xl,
+            "fill_pale" => StyleAlias::FillPale,
             "shade_pale" => StyleAlias::ShadePale,
             "shade_light" => StyleAlias::ShadeLight,
             "shade_medium" => StyleAlias::ShadeMedium,

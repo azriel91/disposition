@@ -109,6 +109,7 @@ impl IrToTaffyBuilder<'_> {
             entity_types,
             tailwind_classes: _,
             node_layouts,
+            node_shapes: _,
             css: _,
         } = ir_diagram;
 

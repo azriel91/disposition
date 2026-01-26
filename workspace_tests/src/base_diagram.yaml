@@ -1,0 +1,291 @@
+# This is the YAML representation of `InputDiagram::base`.
+#
+# Make sure to update that function when updating this file.
+
+# Styles when the diagram has no user interaction.
+#
+# It's important for UX that the field nesting level (and hence indentation level) is consistent
+# with the other `theme_*` data.
+#
+# `style_aliases` here are available to all the other `theme_*` data.
+theme_default:
+  # `StyleAliases` will have well-known keys, and is extendable to have custom keys.
+  #
+  # i.e. a `StyleAlias` enum, with a final variant of `Custom(String)`.
+  style_aliases:
+    padding_none:
+      padding: "0.0"
+      gap: "0.0"
+    padding_tight:
+      padding: "2.0"
+      gap: "2.0"
+    padding_normal:
+      padding: "4.0"
+      gap: "4.0"
+    padding_wide:
+      padding: "6.0"
+      gap: "6.0"
+    # Corner radius for each node.
+    #
+    # `<rect>` elements can only specify `rx` and `ry`, which controls the corner radius for all
+    # corners. Because some diagrams may intend to have different corner radii for each corner,
+    # a `<path>` element is used, and an `Arc` within the `d` attribute to draw the rounded corner.
+    rounded_xs:
+      radius_top_left: "2.0"
+      radius_top_right: "2.0"
+      radius_bottom_left: "2.0"
+      radius_bottom_right: "2.0"
+    rounded_sm:
+      radius_top_left: "4.0"
+      radius_top_right: "4.0"
+      radius_bottom_left: "4.0"
+      radius_bottom_right: "4.0"
+    rounded_md:
+      radius_top_left: "6.0"
+      radius_top_right: "6.0"
+      radius_bottom_left: "6.0"
+      radius_bottom_right: "6.0"
+    rounded_lg:
+      radius_top_left: "8.0"
+      radius_top_right: "8.0"
+      radius_bottom_left: "8.0"
+      radius_bottom_right: "8.0"
+    rounded_xl:
+      radius_top_left: "12.0"
+      radius_top_right: "12.0"
+      radius_bottom_left: "12.0"
+      radius_bottom_right: "12.0"
+    rounded_2xl:
+      radius_top_left: "16.0"
+      radius_top_right: "16.0"
+      radius_bottom_left: "16.0"
+      radius_bottom_right: "16.0"
+    rounded_3xl:
+      radius_top_left: "24.0"
+      radius_top_right: "24.0"
+      radius_bottom_left: "24.0"
+      radius_bottom_right: "24.0"
+    rounded_4xl:
+      radius_top_left: "32.0"
+      radius_top_right: "32.0"
+      radius_bottom_left: "32.0"
+      radius_bottom_right: "32.0"
+    fill_pale:
+      fill_shade_hover: "50"
+      fill_shade_normal: "100"
+      fill_shade_focus: "200"
+      fill_shade_active: "300"
+      text_shade: "800"
+    shade_pale:
+      fill_shade_hover: "50"
+      fill_shade_normal: "100"
+      fill_shade_focus: "200"
+      fill_shade_active: "300"
+      stroke_shade_hover: "100"
+      stroke_shade_normal: "200"
+      stroke_shade_focus: "300"
+      stroke_shade_active: "400"
+      text_shade: "800"
+    shade_light:
+      fill_shade_hover: "200"
+      fill_shade_normal: "300"
+      fill_shade_focus: "400"
+      fill_shade_active: "500"
+      stroke_shade_hover: "300"
+      stroke_shade_normal: "400"
+      stroke_shade_focus: "500"
+      stroke_shade_active: "600"
+      text_shade: "900"
+    shade_medium:
+      fill_shade_hover: "400"
+      fill_shade_normal: "500"
+      fill_shade_focus: "600"
+      fill_shade_active: "700"
+      stroke_shade_hover: "500"
+      stroke_shade_normal: "600"
+      stroke_shade_focus: "700"
+      stroke_shade_active: "800"
+      text_shade: "950"
+    shade_dark:
+      fill_shade_hover: "600"
+      fill_shade_normal: "700"
+      fill_shade_focus: "800"
+      fill_shade_active: "900"
+      stroke_shade_hover: "700"
+      stroke_shade_normal: "800"
+      stroke_shade_focus: "900"
+      stroke_shade_active: "950"
+      text_shade: "950"
+    stroke_dashed_animated:
+      stroke_style: "dashed"
+      stroke_width: "2"
+      animate: "[stroke-dashoffset-move_2s_linear_infinite]"
+    stroke_dashed_animated_request:
+      animate: "[stroke-dashoffset-move-request_2s_linear_infinite]"
+    stroke_dashed_animated_response:
+      animate: "[stroke-dashoffset-move-response_2s_linear_infinite]"
+
+  # The keys in this map can be:
+  #
+  # * `node_defaults`: Applies to all things.
+  # * `edge_defaults`: Applies to all edges.
+  # * `thing_id`: Applies to the particular thing.
+  # * `edge_id`: Applies to the particular edge.
+  # * `tag_id`: Applies to the tag.
+  base_styles:
+    node_defaults:
+      # Vector of style aliases to apply.
+      style_aliases_applied: [shade_light, padding_normal]
+      # Used for both fill and stroke colors.
+      shape_color: "slate"
+      stroke_style: "solid"
+      stroke_width: "2"
+      text_color: "neutral"
+      visibility: "visible"
+    edge_defaults:
+      text_color: "neutral"
+
+  process_step_selected_styles:
+    node_defaults:
+      style_aliases_applied: [fill_pale, stroke_dashed_animated]
+    edge_defaults:
+      visibility: "visible"
+
+# Styles applied to things / edges of a particular `type` specified in `thing_types`.
+theme_types_styles:
+  # These are default styles that are built into `disposition`, but may be overridden by users.
+  type_thing_default:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      stroke_style: "solid"
+      shape_color: "slate"
+      stroke_width: "2"
+  type_tag_default:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_medium]
+      stroke_style: "solid"
+      shape_color: "emerald"
+      stroke_width: "2"
+  type_process_default:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_medium]
+      stroke_style: "solid"
+      shape_color: "blue"
+      stroke_width: "2"
+  type_process_step_default:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_medium]
+      stroke_style: "solid"
+      shape_color: "sky"
+      stroke_width: "2"
+      visibility: "invisible"
+
+  # thing_dependencies - edge groups
+  type_dependency_edge_sequence_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      stroke_style: solid
+      shape_color: "neutral"
+      stroke_width: "2"
+      visibility: "visible"
+  type_dependency_edge_cyclic_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      stroke_style: solid
+      shape_color: "neutral"
+      stroke_width: "2"
+      visibility: "visible"
+  type_dependency_edge_symmetric_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      stroke_style: solid
+      shape_color: "neutral"
+      stroke_width: "2"
+      visibility: "visible"
+
+  # thing_dependencies - edges
+  type_dependency_edge_sequence_forward_default:
+    edge_defaults:
+      stroke_width: "2"
+  type_dependency_edge_cyclic_forward_default:
+    edge_defaults:
+      stroke_width: "2"
+  type_dependency_edge_symmetric_forward_default:
+    edge_defaults:
+      stroke_width: "2"
+  type_dependency_edge_symmetric_reverse_default:
+    edge_defaults:
+      stroke_width: "2"
+
+  # thing_interactions - edge groups
+  type_interaction_edge_sequence_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      shape_color: "violet"
+      stroke_width: "2"
+      stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
+      visibility: "invisible"
+  type_interaction_edge_cyclic_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      shape_color: "violet"
+      stroke_width: "2"
+      stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
+      visibility: "invisible"
+  type_interaction_edge_symmetric_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      shape_color: "violet"
+      stroke_width: "2"
+      visibility: "invisible"
+
+  # thing_interactions - edges
+  type_interaction_edge_sequence_forward_default:
+    edge_defaults:
+      style_aliases_applied: [stroke_dashed_animated_request]
+  type_interaction_edge_cyclic_forward_default:
+    edge_defaults:
+      style_aliases_applied: [stroke_dashed_animated_request]
+  type_interaction_edge_symmetric_forward_default:
+    edge_defaults:
+      style_aliases_applied: [stroke_dashed_animated_request]
+      stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
+  type_interaction_edge_symmetric_reverse_default:
+    edge_defaults:
+      style_aliases_applied: [stroke_dashed_animated_response]
+      stroke_style: "dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80"
+
+# When a tag is focused, things and edges associated with the tag are highlighted.
+#
+# We also want to allow things that are not associated with the tag to be styled, but having one
+# layer with the tag ID, and one layer of `things_included_styles` and `things_excluded_styles`
+# makes it one nesting level deeper than the other `theme_*` keys.
+#
+# There is a `tag_defaults` key that applies to all tags' styles, and if the user wants to style things differently per tag, they can specify them per tag ID.
+theme_tag_things_focus:
+  tag_defaults:
+    node_defaults:
+      style_aliases_applied: [fill_pale, stroke_dashed_animated]
+    node_excluded_defaults:
+      opacity: "75"
+
+  tag_app_development:
+    node_excluded_defaults:
+      opacity: "50"
+    node_defaults:
+      style_aliases_applied: [stroke_dashed_animated]
+
+# Additional CSS to place in the SVG's inline `<styles>` section.
+css: |-
+  @keyframes stroke-dashoffset-move {
+    0%   { stroke-dasharray: 3; stroke-dashoffset: 30; }
+    100% { stroke-dasharray: 3; stroke-dashoffset: 0; }
+  }
+  @keyframes stroke-dashoffset-move-request {
+    0%   { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: 228; }
+  }
+  @keyframes stroke-dashoffset-move-response {
+    0%   { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -248; }
+  }

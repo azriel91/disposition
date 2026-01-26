@@ -5,7 +5,7 @@ use crate::{
     edge::EdgeGroups,
     entity::{EntityDescs, EntityTailwindClasses, EntityTypes},
     layout::NodeLayouts,
-    node::{NodeCopyText, NodeHierarchy, NodeNames, NodeOrdering},
+    node::{NodeCopyText, NodeHierarchy, NodeNames, NodeOrdering, NodeShapes},
 };
 
 /// The intermediate representation of a diagram.
@@ -153,6 +153,12 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "NodeLayouts::is_empty")]
     pub node_layouts: NodeLayouts<'id>,
 
+    /// Shape configuration for each node.
+    ///
+    /// Defines the shape and corner radii for each node in the diagram.
+    #[serde(default, skip_serializing_if = "NodeShapes::is_empty")]
+    pub node_shapes: NodeShapes<'id>,
+
     /// Additional CSS to place in the SVG's inline `<styles>` section.
     ///
     /// Allows for custom CSS rules such as keyframe animations that
@@ -183,6 +189,7 @@ impl<'id> IrDiagram<'id> {
             entity_types: self.entity_types.into_static(),
             tailwind_classes: self.tailwind_classes.into_static(),
             node_layouts: self.node_layouts.into_static(),
+            node_shapes: self.node_shapes.into_static(),
             css: self.css,
         }
     }

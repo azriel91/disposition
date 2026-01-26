@@ -3,7 +3,7 @@ use std::fmt::Write;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use disposition_ir_model::{
     layout::NodeLayout,
-    node::{NodeId, NodeInbuilt},
+    node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
 };
 use disposition_model_common::{entity::EntityType, Map};
@@ -223,11 +223,22 @@ impl TaffyToSvgMapper {
 
     /// Builds simple translate-x and translate-y tailwind classes for
     /// non-process/step nodes.
-    fn build_translate_classes(x: f32, y: f32, height_collapsed: f32) -> String {
+    fn build_translate_classes(
+        x: f32,
+        y: f32,
+        width: f32,
+        height_collapsed: f32,
+        node_shape: &NodeShape,
+    ) -> String {
         let mut classes = String::new();
         writeln!(&mut classes, "translate-x-[{x}px]").unwrap();
         writeln!(&mut classes, "translate-y-[{y}px]").unwrap();
-        writeln!(&mut classes, "[&>rect]:h-[{height_collapsed}px]").unwrap();
+
+        // Build path d attribute with collapsed height
+        let mut path_d = Self::build_rect_path(width, height_collapsed, node_shape);
+        Self::char_replace_inplace(&mut path_d, ' ', '_');
+        writeln!(&mut classes, "[&>path]:[d:path('{path_d}')]").unwrap();
+
         classes
     }
 
@@ -235,18 +246,22 @@ impl TaffyToSvgMapper {
     /// node.
     ///
     /// This creates:
-    /// 1. A translate-x class for horizontal positioning
-    /// 2. A base translate-y class for the collapsed state
-    /// 3. group-has-[#id:focus-within]:translate-y-[...] classes for when
+    /// 1. A `translate-x-*` class for horizontal positioning
+    /// 2. A base `translate-y-*` class for the collapsed state
+    /// 3. `group-has-[#id:focus-within]:translate-y-[..]` classes for when
     ///    previous processes are focused
     /// 4. transition-transform and duration classes for smooth animation
+    /// 5. `[d:path(..)]` classes for collapsed and expanded path shapes
+    #[allow(clippy::too_many_arguments)]
     fn build_process_translate_classes(
         x: f32,
         taffy_y: f32,
+        width: f32,
         height_collapsed: f32,
         height_to_expand_to: Option<f32>,
         process_index: usize,
         process_steps_height: &[ProcessStepsHeight],
+        node_shape: &NodeShape,
     ) -> String {
         let mut classes = String::new();
 
@@ -260,8 +275,10 @@ impl TaffyToSvgMapper {
         // Base y position (collapsed state): taffy_y minus all previous steps' heights
         let base_y = taffy_y - process_steps_height_predecessors_cumulative;
 
-        // Base height for inner `rect`
-        writeln!(&mut classes, "[&>rect]:h-[{height_collapsed}px]").unwrap();
+        // Build path d attribute with collapsed height
+        let mut path_d_collapsed = Self::build_rect_path(width, height_collapsed, node_shape);
+        Self::char_replace_inplace(&mut path_d_collapsed, ' ', '_');
+        writeln!(&mut classes, "[&>path]:[d:path('{path_d_collapsed}')]").unwrap();
 
         // When this process or any of its steps are focused, expand the height
         if let Some(height_to_expand_to) = height_to_expand_to {
@@ -270,27 +287,30 @@ impl TaffyToSvgMapper {
                 process_step_ids,
                 total_height: _,
             } = &process_steps_height[process_index];
+
+            // Build path d attribute with expanded height
+            let mut path_d_expanded = Self::build_rect_path(width, height_to_expand_to, node_shape);
+            Self::char_replace_inplace(&mut path_d_expanded, ' ', '_');
+
             writeln!(
                 &mut classes,
-                "group-has-[#{process_id}:focus-within]:[&>rect]:h-[{height_to_expand_to}px]"
+                "group-has-[#{process_id}:focus-within]:[&>path]:[d:path('{path_d_expanded}')]"
             )
             .unwrap();
 
             // Add classes for when any of the process's steps are focused
-            process_step_ids
-                .iter()
-                .for_each(|process_step_id| {
-                    writeln!(
-                        &mut classes,
-                        "group-has-[#{process_step_id}:focus-within]:[&>rect]:h-[{height_to_expand_to}px]"
-                    )
-                    .unwrap();
-                });
+            process_step_ids.iter().for_each(|process_step_id| {
+                writeln!(
+                    &mut classes,
+                    "group-has-[#{process_step_id}:focus-within]:[&>path]:[d:path('{path_d_expanded}')]"
+                )
+                .unwrap();
+            });
         }
 
         // Add transition class for smooth animation
-        writeln!(&mut classes, "transition-transform").unwrap();
-        writeln!(&mut classes, "duration-300").unwrap();
+        writeln!(&mut classes, "transition-all").unwrap();
+        writeln!(&mut classes, "duration-200").unwrap();
 
         // Base translate-y for collapsed state
         writeln!(&mut classes, "translate-y-[{base_y}px]").unwrap();
@@ -299,7 +319,11 @@ impl TaffyToSvgMapper {
         // process is focused
         (0..process_index).for_each(|prev_idx| {
             let process_steps_height_prev = &process_steps_height[prev_idx];
-            let ProcessStepsHeight { process_id, process_step_ids, total_height } = process_steps_height_prev;
+            let ProcessStepsHeight {
+                process_id,
+                process_step_ids,
+                total_height,
+            } = process_steps_height_prev;
 
             // When this previous process (or any of its steps) is focused,
             // we need to add back that process's steps' height
@@ -313,15 +337,13 @@ impl TaffyToSvgMapper {
             .unwrap();
 
             // Add classes for when any of the process's steps are focused
-            process_step_ids
-                .iter()
-                .for_each(|process_step_id| {
-                    writeln!(
-                        &mut classes,
-                        "group-has-[#{process_step_id}:focus-within]:translate-y-[{y_when_prev_focused}px]"
-                    )
-                    .unwrap();
-                });
+            process_step_ids.iter().for_each(|process_step_id| {
+                writeln!(
+                    &mut classes,
+                    "group-has-[#{process_step_id}:focus-within]:translate-y-[{y_when_prev_focused}px]"
+                )
+                .unwrap();
+            });
         });
 
         classes
@@ -335,6 +357,9 @@ impl TaffyToSvgMapper {
         buffer: &mut String,
         additional_tailwind_classes: &mut Vec<String>,
     ) {
+        // Default shape for nodes without explicit shape configuration
+        let default_shape = NodeShape::Rect(NodeShapeRect::new());
+
         // First, collect process information for y-coordinate calculations
         let process_steps_heights =
             Self::process_step_heights_calculate(ir_diagram, taffy_tree, node_id_to_taffy);
@@ -409,18 +434,26 @@ impl TaffyToSvgMapper {
                     None
                 };
 
+                // Get the node shape (corner radii)
+                let node_shape = ir_diagram
+                    .node_shapes
+                    .get(node_id)
+                    .unwrap_or(&default_shape);
+
                 // Build translation classes
                 let translate_classes = if let Some(idx) = process_index {
                     Self::build_process_translate_classes(
                         x,
                         y,
+                        width,
                         height_collapsed,
                         height_to_expand_to,
                         idx,
                         &process_steps_heights,
+                        node_shape,
                     )
                 } else {
-                    Self::build_translate_classes(x, y, height_collapsed)
+                    Self::build_translate_classes(x, y, width, height_collapsed, node_shape)
                 };
 
                 // Collect translate classes for CSS generation
@@ -465,8 +498,12 @@ impl TaffyToSvgMapper {
                 )
                 .unwrap();
 
-                // Add rect element
-                write!(buffer, r#"<rect width="{width}" />"#).unwrap();
+                // Add path element with corner radii
+                // Note: height_collapsed is used here. For animated height changes,
+                // CSS transforms (scaleY) would need to be used instead of the
+                // h-[...] classes that worked with <rect>.
+                let path_d = Self::build_rect_path(width, height_collapsed, node_shape);
+                write!(buffer, r#"<path d="{path_d}" />"#).unwrap();
 
                 // Add text elements for highlighted spans if they exist
                 if let Some(spans) = entity_highlighted_spans.get(node_id.as_ref()) {
@@ -480,7 +517,7 @@ impl TaffyToSvgMapper {
                         let text_content = Self::escape_xml(&span.text);
 
                         // zero stroke-width because we want the tailwind classes from `<g>` to
-                        // apply to the `<rect>`, but not to the `<text>`
+                        // apply to the `<path>`, but not to the `<text>`
                         write!(
                             buffer,
                             "<text \
@@ -496,6 +533,108 @@ impl TaffyToSvgMapper {
                 // Close group element
                 buffer.push_str("</g>");
             });
+    }
+
+    /// Replaces all occurrences of `from` byte with `to` byte in the given
+    /// string, mutating it in place.
+    ///
+    /// # Safety
+    ///
+    /// This is safe because:
+    ///
+    /// * Both `from` and `to` must be ASCII bytes (single-byte UTF-8)
+    /// * Replacing one ASCII byte with another ASCII byte preserves UTF-8
+    ///   validity
+    ///
+    /// # Panics
+    ///
+    /// Panics in debug mode if either `from` or `to` is not ASCII.
+    fn char_replace_inplace(s: &mut str, from: char, to: char) {
+        debug_assert!(from.is_ascii(), "`from` byte must be ASCII");
+        debug_assert!(to.is_ascii(), "`to` byte must be ASCII");
+
+        // SAFETY: Replacing ASCII with ASCII preserves UTF-8 validity
+        // because ASCII bytes are always single-byte UTF-8 sequences
+        // and never appear as continuation bytes in multi-byte sequences.
+        unsafe {
+            s.as_bytes_mut().iter_mut().for_each(|byte| {
+                if *byte == from as u8 {
+                    *byte = to as u8;
+                }
+            });
+        }
+    }
+
+    /// Builds an SVG path `d` attribute for a rectangle with optional corner
+    /// radii.
+    ///
+    /// The path is constructed to draw a rectangle starting from just after
+    /// the top-left corner (if rounded), proceeding clockwise:
+    /// 1. Horizontal line to top-right corner
+    /// 2. Arc for top-right corner (if radius > 0)
+    /// 3. Vertical line to bottom-right corner
+    /// 4. Arc for bottom-right corner (if radius > 0)
+    /// 5. Horizontal line to bottom-left corner
+    /// 6. Arc for bottom-left corner (if radius > 0)
+    /// 7. Vertical line to top-left corner
+    /// 8. Arc for top-left corner (if radius > 0)
+    /// 9. Close path
+    ///
+    /// # Parameters
+    /// - `width`: The width of the rectangle
+    /// - `height`: The height of the rectangle
+    /// - `node_shape`: The shape configuration containing corner radii
+    fn build_rect_path(width: f32, height: f32, node_shape: &NodeShape) -> String {
+        let NodeShape::Rect(rect) = node_shape;
+
+        let r_tl = rect.radius_top_left;
+        let r_tr = rect.radius_top_right;
+        let r_bl = rect.radius_bottom_left;
+        let r_br = rect.radius_bottom_right;
+
+        let h = height;
+
+        let mut d = String::with_capacity(128);
+
+        // Move to start position (after top-left corner)
+        write!(d, "M {r_tl} 0").unwrap();
+
+        // Top edge: horizontal line to (width - r_tr, 0)
+        write!(d, " H {}", width - r_tr).unwrap();
+
+        // Top-right corner arc (if radius > 0)
+        if r_tr > 0.0 {
+            write!(d, " A {r_tr} {r_tr} 0 0 1 {width} {r_tr}").unwrap();
+        }
+
+        // Right edge: vertical line to (width, h - r_br)
+        write!(d, " V {}", h - r_br).unwrap();
+
+        // Bottom-right corner arc (if radius > 0)
+        if r_br > 0.0 {
+            write!(d, " A {r_br} {r_br} 0 0 1 {} {h}", width - r_br).unwrap();
+        }
+
+        // Bottom edge: horizontal line to (r_bl, h)
+        write!(d, " H {r_bl}").unwrap();
+
+        // Bottom-left corner arc (if radius > 0)
+        if r_bl > 0.0 {
+            write!(d, " A {r_bl} {r_bl} 0 0 1 0 {}", h - r_bl).unwrap();
+        }
+
+        // Left edge: vertical line to (0, r_tl)
+        write!(d, " V {r_tl}").unwrap();
+
+        // Top-left corner arc (if radius > 0)
+        if r_tl > 0.0 {
+            write!(d, " A {r_tl} {r_tl} 0 0 1 {r_tl} 0").unwrap();
+        }
+
+        // Close the path
+        d.push_str(" Z");
+
+        d
     }
 
     /// Escapes underscores within ID selectors inside arbitrary variant
@@ -561,6 +700,7 @@ impl TaffyToSvgMapper {
         classes
             .chars()
             .fold(String::with_capacity(classes.len()), |mut result, c| {
+                // https://docs.rs/encre-css/latest/encre_css/plugins/typography/content/index.html
                 match c {
                     '[' => {
                         bracket_depth += 1;
@@ -575,6 +715,18 @@ impl TaffyToSvgMapper {
                     '#' if bracket_depth > 0 => {
                         is_parsing_id = true;
                         result.push(c);
+                    }
+                    '"' if bracket_depth > 0 => {
+                        result.push_str("&#34;");
+                    }
+                    '\'' if bracket_depth > 0 => {
+                        result.push_str("&#39;");
+                    }
+                    '(' if bracket_depth > 0 => {
+                        result.push_str("&#40;");
+                    }
+                    ')' if bracket_depth > 0 => {
+                        result.push_str("&#41;");
                     }
                     '_' if bracket_depth > 0 && is_parsing_id => {
                         result.push_str("&#95;");

@@ -497,6 +497,14 @@ pub enum ThemeAttr {
     /// Outline style when an element is being clicked / pressed, e.g. `"none"`,
     /// `"solid"`, `"dashed"`, `"dotted"`.
     OutlineStyleActive,
+    /// Radius for the top left corner of a node. Defaults to `"0.0"`
+    RadiusTopLeft,
+    /// Radius for the top right corner of a node. Defaults to `"0.0"`
+    RadiusTopRight,
+    /// Radius for the bottom left corner of a node. Defaults to `"0.0"`
+    RadiusBottomLeft,
+    /// Radius for the bottom right corner of a node. Defaults to `"0.0"`
+    RadiusBottomRight,
     /// Base colour for shape colourable attributes, e.g. stroke/border, fill.
     ShapeColor,
     /// Line/border colour for elements for all states, e.g. `"slate"`.

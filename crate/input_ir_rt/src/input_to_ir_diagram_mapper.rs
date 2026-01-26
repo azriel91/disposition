@@ -21,7 +21,10 @@ use disposition_ir_model::{
     entity::{EntityTailwindClasses, EntityType, EntityTypeId},
     enum_iterator,
     layout::{FlexDirection, FlexLayout, NodeLayout, NodeLayouts},
-    node::{NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering},
+    node::{
+        NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering, NodeShape,
+        NodeShapeRect, NodeShapes,
+    },
     IrDiagram,
 };
 use disposition_model_common::{
@@ -104,7 +107,11 @@ impl InputToIrDiagramMapper {
             processes,
         );
 
-        // 10. Build TailwindClasses from theme
+        // 10. Build NodeShapes from theme
+        let node_shapes =
+            Self::build_node_shapes(&nodes, &ir_entity_types, theme_default, theme_types_styles);
+
+        // 11. Build TailwindClasses from theme
         let tailwind_classes = Self::build_tailwind_classes(
             &nodes,
             &edge_groups,
@@ -128,6 +135,7 @@ impl InputToIrDiagramMapper {
             entity_types: ir_entity_types,
             tailwind_classes,
             node_layouts,
+            node_shapes,
             css: css.clone(),
         };
 
@@ -1013,6 +1021,124 @@ impl InputToIrDiagramMapper {
                     );
                 }
             });
+    }
+
+    // =========================================================================
+    // Node Shape Building
+    // =========================================================================
+
+    /// Build NodeShapes for all nodes from theme data.
+    ///
+    /// This extracts the corner radius values from the theme configuration
+    /// for each node and creates a `NodeShape` (currently `Rect` with corner
+    /// radii).
+    fn build_node_shapes<'id>(
+        nodes: &NodeNames<'id>,
+        entity_types: &EntityTypes<'id>,
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+    ) -> NodeShapes<'id> {
+        nodes
+            .iter()
+            .map(|(node_id, _name)| {
+                let id: Id<'id> = node_id.as_ref().clone();
+                let (radius_top_left, radius_top_right, radius_bottom_left, radius_bottom_right) =
+                    Self::resolve_radius(
+                        Some(&id),
+                        entity_types,
+                        theme_default,
+                        theme_types_styles,
+                    );
+
+                let shape = NodeShape::Rect(NodeShapeRect {
+                    radius_top_left,
+                    radius_top_right,
+                    radius_bottom_left,
+                    radius_bottom_right,
+                });
+
+                (node_id.clone(), shape)
+            })
+            .collect()
+    }
+
+    /// Resolve corner radius values for a node from the theme.
+    fn resolve_radius<'id>(
+        node_id: Option<&Id<'id>>,
+        entity_types: &EntityTypes<'id>,
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+    ) -> (f32, f32, f32, f32) {
+        let mut state = (None, None, None, None);
+
+        if let Some(id) = node_id {
+            Self::resolve_theme_attr(
+                id,
+                entity_types,
+                theme_default,
+                theme_types_styles,
+                &mut state,
+                Self::apply_radius_from_partials,
+                |state| {
+                    (
+                        state.0.unwrap_or(0.0),
+                        state.1.unwrap_or(0.0),
+                        state.2.unwrap_or(0.0),
+                        state.3.unwrap_or(0.0),
+                    )
+                },
+            )
+        } else {
+            (0.0, 0.0, 0.0, 0.0)
+        }
+    }
+
+    /// Apply radius values from CssClassPartials, checking both direct
+    /// attributes and style aliases.
+    fn apply_radius_from_partials<'id>(
+        partials: &CssClassPartials<'id>,
+        style_aliases: &StyleAliases<'id>,
+        state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
+    ) {
+        // First, check style_aliases_applied (lower priority within this partials)
+        partials
+            .style_aliases_applied()
+            .iter()
+            .filter_map(|alias| style_aliases.get(alias))
+            .for_each(|alias_partials| Self::extract_radius_from_map(alias_partials, state));
+
+        // Then, check direct attributes (higher priority within this partials)
+        Self::extract_radius_from_map(partials, state);
+    }
+
+    /// Extract radius values from a map of ThemeAttr to String.
+    fn extract_radius_from_map<'id>(
+        partials: &CssClassPartials<'id>,
+        state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
+    ) {
+        let (radius_top_left, radius_top_right, radius_bottom_left, radius_bottom_right) = state;
+
+        // Check specific radius attributes
+        if let Some(value) = partials.get(&ThemeAttr::RadiusTopLeft)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *radius_top_left = Some(v);
+        }
+        if let Some(value) = partials.get(&ThemeAttr::RadiusTopRight)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *radius_top_right = Some(v);
+        }
+        if let Some(value) = partials.get(&ThemeAttr::RadiusBottomLeft)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *radius_bottom_left = Some(v);
+        }
+        if let Some(value) = partials.get(&ThemeAttr::RadiusBottomRight)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *radius_bottom_right = Some(v);
+        }
     }
 
     /// Resolves a theme attribute value by traversing theme sources in priority
