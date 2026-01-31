@@ -5,7 +5,7 @@ use disposition_ir_model::{
     node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
 };
-use disposition_model_common::{entity::EntityType, Map};
+use disposition_model_common::{entity::EntityType, Map, Set};
 use disposition_svg_model::{SvgElements, SvgNodeInfo, SvgProcessInfo, SvgTextSpan};
 use disposition_taffy_model::{NodeContext, NodeToTaffyNodeIds, TaffyNodeMappings};
 use taffy::TaffyTree;
@@ -287,7 +287,7 @@ impl TaffyToSvgElementsMapper {
                 if is_process {
                     Some((
                         node_id.clone(),
-                        children.keys().cloned().collect::<Vec<NodeId<'_>>>(),
+                        children.keys().cloned().collect::<Set<NodeId<'_>>>(),
                     ))
                 } else {
                     None
@@ -616,7 +616,7 @@ struct ProcessStepsHeight<'id> {
     /// The node ID of the process.
     process_id: NodeId<'id>,
     /// List of process step node IDs belonging to this process.
-    process_step_ids: Vec<NodeId<'id>>,
+    process_step_ids: Set<NodeId<'id>>,
     /// Total height of all process steps belonging to this process.
     total_height: f32,
 }

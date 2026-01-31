@@ -1,4 +1,5 @@
 use disposition_ir_model::node::NodeId;
+use disposition_model_common::Set;
 use serde::{Deserialize, Serialize};
 
 /// Information for animating process node expansion.
@@ -19,7 +20,7 @@ pub struct SvgProcessInfo<'id> {
     /// The node ID of the process (used in CSS selectors).
     pub process_id: NodeId<'id>,
     /// List of process step node IDs (used in CSS selectors).
-    pub process_step_ids: Vec<NodeId<'id>>,
+    pub process_step_ids: Set<NodeId<'id>>,
     /// The index of this process in the list of all processes.
     /// Used for calculating y-translations when previous processes expand.
     pub process_index: usize,
@@ -37,7 +38,7 @@ impl<'id> SvgProcessInfo<'id> {
         height_to_expand_to: f32,
         path_d_expanded: String,
         process_id: NodeId<'id>,
-        process_step_ids: Vec<NodeId<'id>>,
+        process_step_ids: Set<NodeId<'id>>,
         process_index: usize,
         total_height: f32,
         base_y: f32,
