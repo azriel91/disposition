@@ -166,10 +166,8 @@ impl TaffyToSvgElementsMapper {
                     let mut node_height = height_expanded;
 
                     // If this is a process, subtract the height of its process steps.
-                    if is_process {
-                        if let Some(proc_info) = process_infos.get(node_id) {
-                            node_height -= proc_info.total_height;
-                        }
+                    if is_process && let Some(proc_info) = process_infos.get(node_id) {
+                        node_height -= proc_info.total_height;
                     }
 
                     node_height
@@ -349,8 +347,13 @@ impl TaffyToSvgElementsMapper {
             // Find which process this step belongs to
             process_infos
                 .iter()
-                .find(|(_, info)| info.process_step_ids.contains(node_id))
-                .map(|(proc_id, _)| proc_id.clone())
+                .find_map(|(proc_id, svg_process_info)| {
+                    if svg_process_info.process_step_ids.contains(node_id) {
+                        Some(proc_id.clone())
+                    } else {
+                        None
+                    }
+                })
         } else {
             None
         }
