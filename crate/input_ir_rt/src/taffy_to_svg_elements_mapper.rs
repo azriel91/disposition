@@ -54,8 +54,8 @@ impl TaffyToSvgElementsMapper {
         process_steps_heights
             .iter()
             .enumerate()
-            .for_each(|(idx, psh)| {
-                let process_node_id = &psh.process_id;
+            .for_each(|(idx, process_steps_height)| {
+                let process_node_id = &process_steps_height.process_id;
 
                 // Look up taffy layout for the process node
                 if let Some(taffy_node_ids) = node_id_to_taffy.get(process_node_id).copied() {
@@ -97,17 +97,18 @@ impl TaffyToSvgElementsMapper {
                             );
                         let base_y = y - process_steps_height_predecessors_cumulative;
 
-                        let process_info = SvgProcessInfo::new(
+                        let svg_process_info = SvgProcessInfo::new(
                             height_expanded,
                             path_d_expanded,
-                            psh.process_id.clone(),
-                            psh.process_step_ids.clone(),
+                            process_steps_height.process_id.clone(),
+                            process_steps_height.process_step_ids.clone(),
                             idx,
-                            psh.total_height,
+                            process_steps_height.total_height,
                             base_y,
                         );
 
-                        process_infos.insert(psh.process_id.clone(), process_info);
+                        process_infos
+                            .insert(process_steps_height.process_id.clone(), svg_process_info);
                     }
                 }
             });
