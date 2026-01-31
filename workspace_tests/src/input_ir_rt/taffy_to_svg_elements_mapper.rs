@@ -48,10 +48,11 @@ fn test_example_ir_mapping_to_svg_elements() -> Result<(), TaffyError> {
             );
 
             eprintln!(
-                "\n------------------------\nSvgElements:\n  svg_width: {}\n  svg_height: {}\n  node_count: {}\n  tailwind_class_count: {}\n-----------------------\n",
+                "\n------------------------\nSvgElements:\n  svg_width: {}\n  svg_height: {}\n  node_count: {}\n  process_info_count: {}\n  tailwind_class_count: {}\n-----------------------\n",
                 svg_elements.svg_width,
                 svg_elements.svg_height,
                 svg_elements.svg_node_infos.len(),
+                svg_elements.process_infos.len(),
                 svg_elements.additional_tailwind_classes.len()
             );
         });
@@ -93,6 +94,57 @@ fn test_svg_elements_node_info_structure() -> Result<(), TaffyError> {
                     assert_eq!(
                         svg_node_info.tab_index, expected_tab_index,
                         "Tab index should match for node {}",
+                        svg_node_info.node_id
+                    );
+                }
+            }
+        });
+
+    Ok(())
+}
+
+#[test]
+fn test_process_infos_map_structure() -> Result<(), TaffyError> {
+    let ir_example = serde_saphyr::from_str::<IrDiagram>(EXAMPLE_IR).unwrap();
+    let ir_to_taffy_builder = IrToTaffyBuilder::builder()
+        .with_ir_diagram(&ir_example)
+        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
+        .build();
+    ir_to_taffy_builder
+        .build()
+        .expect("Expected `taffy_node_mappings` to be built.")
+        .map(|taffy_node_mappings| TaffyToSvgElementsMapper::map(&ir_example, &taffy_node_mappings))
+        .for_each(|svg_elements| {
+            // Verify process_infos is keyed by process node ID
+            for (process_id, process_info) in &svg_elements.process_infos {
+                // The key should match the process_id in the value
+                assert_eq!(
+                    process_id, &process_info.process_id,
+                    "Map key should match process_info.process_id"
+                );
+
+                // Process info should have valid data
+                assert!(
+                    process_info.height_to_expand_to > 0.0,
+                    "height_to_expand_to should be positive"
+                );
+                assert!(
+                    !process_info.path_d_expanded.is_empty(),
+                    "path_d_expanded should be non-empty"
+                );
+                assert!(
+                    process_info.total_height >= 0.0,
+                    "total_height should be non-negative"
+                );
+            }
+
+            // Verify that nodes with process_id can look up their process info
+            for svg_node_info in &svg_elements.svg_node_infos {
+                if let Some(ref proc_id) = svg_node_info.process_id {
+                    assert!(
+                        svg_elements.process_infos.contains_key(proc_id),
+                        "process_id {:?} in node {} should exist in process_infos map",
+                        proc_id,
                         svg_node_info.node_id
                     );
                 }

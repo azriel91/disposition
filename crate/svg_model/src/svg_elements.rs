@@ -1,3 +1,5 @@
+use disposition_ir_model::node::NodeId;
+use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
 use crate::{SvgEdgeInfo, SvgNodeInfo, SvgProcessInfo};
@@ -30,11 +32,12 @@ pub struct SvgElements<'id> {
     /// * The `<path>` element's coordinates and its `d` attribute.
     /// * Tailwind classes to define its styling and visibility.
     pub svg_edge_infos: Vec<SvgEdgeInfo<'id>>,
-    /// Process information for all processes in the diagram.
+    /// Process information indexed by process node ID.
     ///
     /// Used for calculating y-translations when processes expand.
-    /// Stored separately so nodes can reference previous processes' heights.
-    pub process_infos: Vec<SvgProcessInfo<'id>>,
+    /// The map preserves insertion order, which corresponds to process order
+    /// in the diagram.
+    pub process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>>,
     /// Additional tailwind classes generated during element mapping.
     ///
     /// These are the translate classes and other dynamically generated classes
@@ -49,7 +52,7 @@ impl<'id> SvgElements<'id> {
         svg_height: f32,
         svg_node_infos: Vec<SvgNodeInfo<'id>>,
         svg_edge_infos: Vec<SvgEdgeInfo<'id>>,
-        process_infos: Vec<SvgProcessInfo<'id>>,
+        process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>>,
         additional_tailwind_classes: Vec<String>,
     ) -> Self {
         Self {

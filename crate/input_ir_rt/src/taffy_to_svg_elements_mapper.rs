@@ -5,7 +5,7 @@ use disposition_ir_model::{
     node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
 };
-use disposition_model_common::entity::EntityType;
+use disposition_model_common::{entity::EntityType, Map};
 use disposition_svg_model::{SvgElements, SvgNodeInfo, SvgProcessInfo, SvgTextSpan};
 use disposition_taffy_model::{NodeContext, NodeToTaffyNodeIds, TaffyNodeMappings};
 use taffy::TaffyTree;
@@ -47,24 +47,70 @@ impl TaffyToSvgElementsMapper {
         let process_steps_heights =
             Self::process_step_heights_calculate(ir_diagram, taffy_tree, node_id_to_taffy);
 
-        // Build process_infos from process_steps_heights
-        let process_infos: Vec<SvgProcessInfo<'id>> = process_steps_heights
+        // Build process_infos map from process_steps_heights
+        // We need to compute the actual values for each process node
+        let mut process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>> = Map::new();
+
+        process_steps_heights
             .iter()
             .enumerate()
-            .map(|(idx, psh)| {
-                // We'll fill in actual values during node processing
-                // For now, create placeholder info
-                SvgProcessInfo::new(
-                    0.0, // height_to_expand_to - will be set per-node
-                    String::new(),
-                    psh.process_id.clone(),
-                    psh.process_step_ids.clone(),
-                    idx,
-                    psh.total_height,
-                    0.0, // base_y - will be set per-node
-                )
-            })
-            .collect();
+            .for_each(|(idx, psh)| {
+                let process_node_id = &psh.process_id;
+
+                // Look up taffy layout for the process node
+                if let Some(taffy_node_ids) = node_id_to_taffy.get(process_node_id).copied() {
+                    let taffy_node_id = taffy_node_ids.wrapper_taffy_node_id();
+                    if let Ok(layout) = taffy_tree.layout(taffy_node_id) {
+                        // Calculate y coordinate
+                        let y = {
+                            let mut y_acc = layout.location.y;
+                            let mut current_node_id = taffy_node_id;
+                            while let Some(parent_taffy_node_id) =
+                                taffy_tree.parent(current_node_id)
+                            {
+                                let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id)
+                                else {
+                                    break;
+                                };
+                                y_acc += parent_layout.location.y;
+                                current_node_id = parent_taffy_node_id;
+                            }
+                            y_acc
+                        };
+
+                        let width = layout.size.width;
+                        let height_expanded = layout.size.height.min(layout.content_size.height);
+
+                        // Get the node shape (corner radii)
+                        let node_shape = ir_diagram
+                            .node_shapes
+                            .get(process_node_id)
+                            .unwrap_or(&default_shape);
+
+                        let path_d_expanded =
+                            Self::build_rect_path(width, height_expanded, node_shape);
+
+                        let process_steps_height_predecessors_cumulative =
+                            Self::process_steps_height_predecessors_cumulative(
+                                &process_steps_heights,
+                                idx,
+                            );
+                        let base_y = y - process_steps_height_predecessors_cumulative;
+
+                        let process_info = SvgProcessInfo::new(
+                            height_expanded,
+                            path_d_expanded,
+                            psh.process_id.clone(),
+                            psh.process_step_ids.clone(),
+                            idx,
+                            psh.total_height,
+                            base_y,
+                        );
+
+                        process_infos.insert(psh.process_id.clone(), process_info);
+                    }
+                }
+            });
 
         let mut svg_node_infos: Vec<SvgNodeInfo<'id>> = Vec::new();
         let mut additional_tailwind_classes: Vec<String> = Vec::new();
@@ -109,13 +155,8 @@ impl TaffyToSvgElementsMapper {
                     (x_acc, y_acc)
                 };
 
-                // Check if this is a process or process step node
-                let process_index = Self::process_steps_height_index(
-                    node_id,
-                    ir_diagram,
-                    is_process,
-                    &process_steps_heights,
-                );
+                // Find the process ID this node belongs to (if any)
+                let process_id = Self::find_process_id(node_id, ir_diagram, &process_infos);
 
                 // TODO: if the process steps were the tallest elements in the diagram, the
                 // diagram height may need to be reduced as well.
@@ -125,11 +166,10 @@ impl TaffyToSvgElementsMapper {
                     let mut node_height = height_expanded;
 
                     // If this is a process, subtract the height of its process steps.
-                    if is_process
-                        && let Some(process_steps_height) =
-                            process_index.map(|process_index| &process_steps_heights[process_index])
-                    {
-                        node_height -= process_steps_height.total_height;
+                    if is_process {
+                        if let Some(proc_info) = process_infos.get(node_id) {
+                            node_height -= proc_info.total_height;
+                        }
                     }
 
                     node_height
@@ -149,45 +189,36 @@ impl TaffyToSvgElementsMapper {
                 // Build path d attribute with collapsed height
                 let path_d_collapsed = Self::build_rect_path(width, height_collapsed, node_shape);
 
-                // Build process info if this is a process or process step
-                let process_info = process_index.map(|idx| {
-                    let process_steps_height_predecessors_cumulative =
-                        Self::process_steps_height_predecessors_cumulative(
-                            &process_steps_heights,
-                            idx,
-                        );
-                    let base_y = y - process_steps_height_predecessors_cumulative;
+                // Build translate classes
+                let translate_classes = if let Some(ref proc_id) = process_id {
+                    if let Some(proc_info) = process_infos.get(proc_id) {
+                        // Calculate base_y for this specific node
+                        let process_steps_height_predecessors_cumulative =
+                            Self::process_steps_height_predecessors_cumulative(
+                                &process_steps_heights,
+                                proc_info.process_index,
+                            );
+                        let base_y = y - process_steps_height_predecessors_cumulative;
 
-                    let (height_to_expand_to, path_d_expanded) =
-                        if let Some(h) = height_to_expand_to {
-                            (h, Self::build_rect_path(width, h, node_shape))
+                        // Build path_d_expanded for this node if it's a process
+                        let path_d_expanded = if height_to_expand_to.is_some() {
+                            Self::build_rect_path(width, height_expanded, node_shape)
                         } else {
-                            (height_collapsed, path_d_collapsed.clone())
+                            path_d_collapsed.clone()
                         };
 
-                    let psh = &process_steps_heights[idx];
-                    SvgProcessInfo::new(
-                        height_to_expand_to,
-                        path_d_expanded,
-                        psh.process_id.clone(),
-                        psh.process_step_ids.clone(),
-                        idx,
-                        psh.total_height,
-                        base_y,
-                    )
-                });
-
-                // Build translate classes
-                let translate_classes = if let Some(ref proc_info) = process_info {
-                    Self::build_process_translate_classes(
-                        x,
-                        proc_info.base_y,
-                        &path_d_collapsed,
-                        height_to_expand_to,
-                        &proc_info.path_d_expanded,
-                        proc_info.process_index,
-                        &process_steps_heights,
-                    )
+                        Self::build_process_translate_classes(
+                            x,
+                            base_y,
+                            &path_d_collapsed,
+                            height_to_expand_to,
+                            &path_d_expanded,
+                            proc_info.process_index,
+                            &process_steps_heights,
+                        )
+                    } else {
+                        Self::build_translate_classes(x, y, &path_d_collapsed)
+                    }
                 } else {
                     Self::build_translate_classes(x, y, &path_d_collapsed)
                 };
@@ -216,7 +247,7 @@ impl TaffyToSvgElementsMapper {
                     width,
                     height_collapsed,
                     path_d_collapsed,
-                    process_info,
+                    process_id,
                     text_spans,
                 );
 
@@ -241,7 +272,7 @@ impl TaffyToSvgElementsMapper {
     fn process_step_heights_calculate<'id>(
         ir_diagram: &IrDiagram<'id>,
         taffy_tree: &TaffyTree<NodeContext>,
-        node_id_to_taffy: &disposition_model_common::Map<NodeId<'id>, NodeToTaffyNodeIds>,
+        node_id_to_taffy: &Map<NodeId<'id>, NodeToTaffyNodeIds>,
     ) -> Vec<ProcessStepsHeight<'id>> {
         let mut process_steps_height = Vec::new();
 
@@ -291,33 +322,35 @@ impl TaffyToSvgElementsMapper {
         process_steps_height
     }
 
-    /// Returns the index of the process in the `process_steps_height` list,
-    /// or `None` if not found.
+    /// Finds the process ID that a given node belongs to (if any).
     ///
-    /// Finds the process that a given node belongs to (if it's a process or
-    /// process step).
-    fn process_steps_height_index(
-        node_id: &NodeId<'_>,
-        ir_diagram: &IrDiagram,
-        is_process: bool,
-        process_steps_height: &[ProcessStepsHeight],
-    ) -> Option<usize> {
+    /// For process nodes, returns the node's own ID.
+    /// For process step nodes, returns the parent process's ID.
+    /// For other nodes, returns None.
+    fn find_process_id<'id>(
+        node_id: &NodeId<'id>,
+        ir_diagram: &IrDiagram<'id>,
+        process_infos: &Map<NodeId<'id>, SvgProcessInfo<'id>>,
+    ) -> Option<NodeId<'id>> {
         let entity_types = ir_diagram.entity_types.get(node_id.as_ref());
+
+        let is_process = entity_types
+            .map(|types| types.contains(&EntityType::ProcessDefault))
+            .unwrap_or(false);
 
         let is_process_step = entity_types
             .map(|types| types.contains(&EntityType::ProcessStepDefault))
             .unwrap_or(false);
 
         if is_process {
-            // Find this process in the list
-            process_steps_height
-                .iter()
-                .position(|p| &p.process_id == node_id)
+            // Process nodes reference themselves
+            Some(node_id.clone())
         } else if is_process_step {
             // Find which process this step belongs to
-            process_steps_height
+            process_infos
                 .iter()
-                .position(|p| p.process_step_ids.contains(node_id))
+                .find(|(_, info)| info.process_step_ids.contains(node_id))
+                .map(|(proc_id, _)| proc_id.clone())
         } else {
             None
         }

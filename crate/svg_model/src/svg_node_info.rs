@@ -1,7 +1,7 @@
 use disposition_ir_model::node::NodeId;
 use serde::{Deserialize, Serialize};
 
-use crate::{SvgProcessInfo, SvgTextSpan};
+use crate::SvgTextSpan;
 
 /// Information to render SVG elements for a node.
 ///
@@ -32,10 +32,15 @@ pub struct SvgNodeInfo<'id> {
     pub height_collapsed: f32,
     /// The path `d` attribute for the collapsed state.
     pub path_d_collapsed: String,
-    /// Process-specific information for expansion animation.
+    /// Reference to the process this node belongs to (if any).
     ///
-    /// Only present for process and process step nodes.
-    pub process_info: Option<SvgProcessInfo<'id>>,
+    /// For process nodes, this points to themselves.
+    /// For process step nodes, this points to their parent process.
+    /// For other nodes, this is `None`.
+    ///
+    /// The full process information can be looked up in
+    /// `SvgElements.process_infos` using this ID.
+    pub process_id: Option<NodeId<'id>>,
     /// Text spans to render within this node.
     pub text_spans: Vec<SvgTextSpan>,
 }
@@ -51,7 +56,7 @@ impl<'id> SvgNodeInfo<'id> {
         width: f32,
         height_collapsed: f32,
         path_d_collapsed: String,
-        process_info: Option<SvgProcessInfo<'id>>,
+        process_id: Option<NodeId<'id>>,
         text_spans: Vec<SvgTextSpan>,
     ) -> Self {
         Self {
@@ -62,7 +67,7 @@ impl<'id> SvgNodeInfo<'id> {
             width,
             height_collapsed,
             path_d_collapsed,
-            process_info,
+            process_id,
             text_spans,
         }
     }
