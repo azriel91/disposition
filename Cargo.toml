@@ -45,6 +45,7 @@ disposition_input_ir_model = { workspace = true }
 disposition_input_model = { workspace = true }
 disposition_ir_model = { workspace = true }
 disposition_model_common = { workspace = true }
+disposition_svg_model = { workspace = true }
 disposition_taffy_model = { workspace = true }
 
 [features]
@@ -53,12 +54,14 @@ openapi = [
     "disposition_input_ir_model/openapi",
     "disposition_input_model/openapi",
     "disposition_ir_model/openapi",
+    "disposition_svg_model/openapi",
 ]
 test = [
     "disposition_input_model/test",
     "disposition_input_ir_model/test",
     "disposition_ir_model/test",
     "disposition_model_common/test",
+    "disposition_svg_model/test",
 ]
 
 [workspace.dependencies]
@@ -69,6 +72,7 @@ disposition_input_ir_rt = { path = "crate/input_ir_rt", version = "0.0.3" }
 disposition_input_model = { path = "crate/input_model", version = "0.0.3" }
 disposition_ir_model = { path = "crate/ir_model", version = "0.0.3" }
 disposition_model_common = { path = "crate/model_common", version = "0.0.3" }
+disposition_svg_model = { path = "crate/svg_model", version = "0.0.3" }
 disposition_taffy_model = { path = "crate/taffy_model", version = "0.0.3" }
 
 # external crates
@@ -80,6 +84,7 @@ enum-iterator = "2.3.0"
 getrandom = "0.3.4"
 id_newtype = "0.3.0"
 indexmap = "2.13.0"
+kurbo = "0.13.0"
 miette = "7.6.0"
 pretty_assertions = "1.4.1"
 serde = "1.0"

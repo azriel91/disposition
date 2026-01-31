@@ -1,0 +1,34 @@
+[package]
+name = "disposition_svg_model"
+description = "Data types for disposition to represent SVG elements."
+documentation = "https://docs.rs/disposition_svg_model/"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+
+[lib]
+doctest = true
+test = false
+
+[dependencies]
+disposition_model_common = { workspace = true }
+disposition_ir_model = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+utoipa = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+# Only enable this when you need to generate OpenAPI documentation.
+openapi = ["dep:utoipa", "disposition_model_common/openapi"]
+
+test = []
