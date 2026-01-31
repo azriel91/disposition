@@ -4,5 +4,11 @@ use utoipa::OpenApi;
 
 /// OpenAPI documentation for the intermediate representation types.
 #[derive(OpenApi)]
-#[openapi(components(schemas(crate::SvgElements, crate::SvgEdgeInfo, crate::SvgNodeInfo)))]
+#[openapi(components(schemas(
+    crate::SvgElements,
+    crate::SvgEdgeInfo,
+    crate::SvgNodeInfo,
+    crate::SvgProcessInfo,
+    crate::SvgTextSpan
+)))]
 pub struct ApiDoc;
