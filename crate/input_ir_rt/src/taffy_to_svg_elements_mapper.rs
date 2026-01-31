@@ -189,35 +189,33 @@ impl TaffyToSvgElementsMapper {
                 let path_d_collapsed = Self::build_rect_path(width, height_collapsed, node_shape);
 
                 // Build translate classes
-                let translate_classes = if let Some(ref proc_id) = process_id {
-                    if let Some(proc_info) = process_infos.get(proc_id) {
-                        // Calculate base_y for this specific node
-                        let process_steps_height_predecessors_cumulative =
-                            Self::process_steps_height_predecessors_cumulative(
-                                &process_steps_heights,
-                                proc_info.process_index,
-                            );
-                        let base_y = y - process_steps_height_predecessors_cumulative;
-
-                        // Build path_d_expanded for this node if it's a process
-                        let path_d_expanded = if height_to_expand_to.is_some() {
-                            Self::build_rect_path(width, height_expanded, node_shape)
-                        } else {
-                            path_d_collapsed.clone()
-                        };
-
-                        Self::build_process_translate_classes(
-                            x,
-                            base_y,
-                            &path_d_collapsed,
-                            height_to_expand_to,
-                            &path_d_expanded,
-                            proc_info.process_index,
+                let translate_classes = if let Some(ref proc_id) = process_id
+                    && let Some(proc_info) = process_infos.get(proc_id)
+                {
+                    // Calculate base_y for this specific node
+                    let process_steps_height_predecessors_cumulative =
+                        Self::process_steps_height_predecessors_cumulative(
                             &process_steps_heights,
-                        )
+                            proc_info.process_index,
+                        );
+                    let base_y = y - process_steps_height_predecessors_cumulative;
+
+                    // Build path_d_expanded for this node if it's a process
+                    let path_d_expanded = if height_to_expand_to.is_some() {
+                        Self::build_rect_path(width, height_expanded, node_shape)
                     } else {
-                        Self::build_translate_classes(x, y, &path_d_collapsed)
-                    }
+                        path_d_collapsed.clone()
+                    };
+
+                    Self::build_process_translate_classes(
+                        x,
+                        base_y,
+                        &path_d_collapsed,
+                        height_to_expand_to,
+                        &path_d_expanded,
+                        proc_info.process_index,
+                        &process_steps_heights,
+                    )
                 } else {
                     Self::build_translate_classes(x, y, &path_d_collapsed)
                 };
