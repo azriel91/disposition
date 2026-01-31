@@ -136,25 +136,7 @@ impl TaffyToSvgElementsMapper {
                     .map(|types| types.contains(&EntityType::ProcessDefault))
                     .unwrap_or(false);
 
-                let (x, y) = {
-                    // We don't use the content_box here because these are coordinates for the
-                    // `<rect>` element.
-                    let mut x_acc = layout.location.x;
-                    let mut y_acc = layout.location.y;
-                    let mut current_node_id = taffy_node_id;
-                    while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
-                        let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
-                            break;
-                        };
-                        // `content_box_x/y` places the inner nodes to align to the bottom right of
-                        // the parent nodes instead of having appropriate padding around the inner
-                        // node.
-                        x_acc += parent_layout.location.x;
-                        y_acc += parent_layout.location.y;
-                        current_node_id = parent_taffy_node_id;
-                    }
-                    (x_acc, y_acc)
-                };
+                let (x, y) = Self::node_absolute_xy_coordinates(taffy_tree, taffy_node_id, layout);
 
                 // Find the process ID this node belongs to (if any)
                 let process_id = Self::find_process_id(node_id, ir_diagram, &process_infos);
@@ -241,6 +223,38 @@ impl TaffyToSvgElementsMapper {
             process_infos,
             additional_tailwind_classes,
         )
+    }
+
+    /// Calculates the absolute x and y coordinates of a node.
+    ///
+    /// The coordinates of the taffy node in the Taffy tree are relative to each
+    /// node's parent, whereas we need them to be absolute when rendering the
+    /// SVG.
+    fn node_absolute_xy_coordinates(
+        taffy_tree: &TaffyTree<NodeContext>,
+        taffy_node_id: taffy::NodeId,
+        layout: &taffy::Layout,
+    ) -> (f32, f32) {
+        let (x, y) = {
+            // We don't use the content_box here because these are coordinates for the
+            // `<rect>` element.
+            let mut x_acc = layout.location.x;
+            let mut y_acc = layout.location.y;
+            let mut current_node_id = taffy_node_id;
+            while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
+                let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
+                    break;
+                };
+                // `content_box_x/y` places the inner nodes to align to the bottom right of
+                // the parent nodes instead of having appropriate padding around the inner
+                // node.
+                x_acc += parent_layout.location.x;
+                y_acc += parent_layout.location.y;
+                current_node_id = parent_taffy_node_id;
+            }
+            (x_acc, y_acc)
+        };
+        (x, y)
     }
 
     /// Collects information about process nodes and their steps for
