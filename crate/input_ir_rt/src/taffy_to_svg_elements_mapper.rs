@@ -189,36 +189,18 @@ impl TaffyToSvgElementsMapper {
                 let path_d_collapsed = Self::build_rect_path(width, height_collapsed, node_shape);
 
                 // Build translate classes
-                let translate_classes = if let Some(ref proc_id) = process_id
-                    && let Some(proc_info) = process_infos.get(proc_id)
-                {
-                    // Calculate base_y for this specific node
-                    let process_steps_height_predecessors_cumulative =
-                        Self::process_steps_height_predecessors_cumulative(
-                            &process_steps_heights,
-                            proc_info.process_index,
-                        );
-                    let base_y = y - process_steps_height_predecessors_cumulative;
-
-                    // Build path_d_expanded for this node if it's a process
-                    let path_d_expanded = if height_to_expand_to.is_some() {
-                        Self::build_rect_path(width, height_expanded, node_shape)
-                    } else {
-                        path_d_collapsed.clone()
-                    };
-
-                    Self::build_process_translate_classes(
-                        x,
-                        base_y,
-                        &path_d_collapsed,
-                        height_to_expand_to,
-                        &path_d_expanded,
-                        proc_info.process_index,
-                        &process_steps_heights,
-                    )
-                } else {
-                    Self::build_translate_classes(x, y, &path_d_collapsed)
-                };
+                let translate_classes = Self::build_translate_classes(
+                    &process_steps_heights,
+                    &process_infos,
+                    x,
+                    y,
+                    &process_id,
+                    width,
+                    height_expanded,
+                    height_to_expand_to,
+                    node_shape,
+                    &path_d_collapsed,
+                );
 
                 // Collect translate classes for CSS generation
                 additional_tailwind_classes.push(translate_classes);
@@ -371,9 +353,59 @@ impl TaffyToSvgElementsMapper {
             .sum()
     }
 
+    /// Builds translate-x and translate-y tailwind classes for nodes.
+    ///
+    /// * Process nodes will have classes that collapse depending on focus on
+    ///   them or their steps.
+    /// * Non-process nodes will have simple translate-x and translate-y
+    ///   classes.
+    fn build_translate_classes<'id>(
+        process_steps_heights: &[ProcessStepsHeight<'_>],
+        process_infos: &Map<NodeId<'id>, SvgProcessInfo<'id>>,
+        x: f32,
+        y: f32,
+        process_id: &Option<NodeId<'_>>,
+        width: f32,
+        height_expanded: f32,
+        height_to_expand_to: Option<f32>,
+        node_shape: &NodeShape,
+        path_d_collapsed: &String,
+    ) -> String {
+        if let Some(ref proc_id) = *process_id
+            && let Some(proc_info) = process_infos.get(proc_id)
+        {
+            // Calculate base_y for this specific node
+            let process_steps_height_predecessors_cumulative =
+                Self::process_steps_height_predecessors_cumulative(
+                    &process_steps_heights,
+                    proc_info.process_index,
+                );
+            let base_y = y - process_steps_height_predecessors_cumulative;
+
+            // Build path_d_expanded for this node if it's a process
+            let path_d_expanded = if height_to_expand_to.is_some() {
+                Self::build_rect_path(width, height_expanded, node_shape)
+            } else {
+                path_d_collapsed.clone()
+            };
+
+            Self::build_translate_classes_for_process(
+                x,
+                base_y,
+                path_d_collapsed,
+                height_to_expand_to,
+                &path_d_expanded,
+                proc_info.process_index,
+                &process_steps_heights,
+            )
+        } else {
+            Self::build_translate_classes_for_node(x, y, path_d_collapsed)
+        }
+    }
+
     /// Builds simple translate-x and translate-y tailwind classes for
     /// non-process/step nodes.
-    fn build_translate_classes(x: f32, y: f32, path_d_collapsed: &str) -> String {
+    fn build_translate_classes_for_node(x: f32, y: f32, path_d_collapsed: &str) -> String {
         let mut classes = String::new();
         writeln!(&mut classes, "translate-x-[{x}px]").unwrap();
         writeln!(&mut classes, "translate-y-[{y}px]").unwrap();
@@ -396,7 +428,7 @@ impl TaffyToSvgElementsMapper {
     /// 4. transition-transform and duration classes for smooth animation
     /// 5. `[d:path(..)]` classes for collapsed and expanded path shapes
     #[allow(clippy::too_many_arguments)]
-    fn build_process_translate_classes(
+    fn build_translate_classes_for_process(
         x: f32,
         base_y: f32,
         path_d_collapsed: &str,
