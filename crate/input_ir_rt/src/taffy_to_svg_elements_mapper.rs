@@ -51,12 +51,9 @@ impl TaffyToSvgElementsMapper {
 
         // Build process_infos map from process_steps_heights
         // We need to compute the actual values for each process node
-        let mut process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>> = Map::new();
-
-        process_steps_heights
-            .iter()
-            .enumerate()
-            .for_each(|(idx, process_steps_height)| {
+        let svg_process_infos = process_steps_heights.iter().enumerate().fold(
+            Map::<NodeId<'id>, SvgProcessInfo<'id>>::new(),
+            |mut svg_process_infos, (idx, process_steps_height)| {
                 let process_node_id = &process_steps_height.process_id;
 
                 // Look up taffy layout for the process node
@@ -109,11 +106,14 @@ impl TaffyToSvgElementsMapper {
                             base_y,
                         );
 
-                        process_infos
+                        svg_process_infos
                             .insert(process_steps_height.process_id.clone(), svg_process_info);
                     }
                 }
-            });
+
+                svg_process_infos
+            },
+        );
 
         // Build an `SvgNodeInfo` for each node in the order specified by
         // `node_ordering`.
@@ -123,7 +123,7 @@ impl TaffyToSvgElementsMapper {
             entity_highlighted_spans,
             default_shape: &default_shape,
             process_steps_heights: &process_steps_heights,
-            process_infos: &process_infos,
+            svg_process_infos: &svg_process_infos,
         };
         let (svg_node_infos, additional_tailwind_classes) = ir_diagram.node_ordering.iter().fold(
             (Vec::new(), Vec::new()),
@@ -157,7 +157,7 @@ impl TaffyToSvgElementsMapper {
             svg_height,
             svg_node_infos,
             svg_edge_infos,
-            process_infos,
+            svg_process_infos,
             additional_tailwind_classes,
         )
     }
@@ -177,7 +177,7 @@ impl TaffyToSvgElementsMapper {
             entity_highlighted_spans,
             default_shape,
             process_steps_heights,
-            process_infos,
+            svg_process_infos,
         } = svg_node_info_build_context;
 
         let is_process = ir_diagram
@@ -188,7 +188,7 @@ impl TaffyToSvgElementsMapper {
 
         let (x, y) =
             Self::node_absolute_xy_coordinates(taffy_tree, taffy_node_id, taffy_node_layout);
-        let process_id = Self::find_process_id(node_id, ir_diagram, process_infos);
+        let process_id = Self::find_process_id(node_id, ir_diagram, svg_process_infos);
 
         let width = taffy_node_layout.size.width;
         let height_expanded = taffy_node_layout
@@ -199,7 +199,7 @@ impl TaffyToSvgElementsMapper {
             let mut node_height = height_expanded;
 
             // If this is a process, subtract the height of its process steps.
-            if is_process && let Some(proc_info) = process_infos.get(node_id) {
+            if is_process && let Some(proc_info) = svg_process_infos.get(node_id) {
                 node_height -= proc_info.total_height;
             }
 
@@ -218,7 +218,7 @@ impl TaffyToSvgElementsMapper {
         let path_d_collapsed = Self::build_rect_path(width, height_collapsed, node_shape);
         let translate_classes = Self::build_translate_classes(
             &process_steps_heights,
-            process_infos,
+            svg_process_infos,
             x,
             y,
             &process_id,
@@ -687,7 +687,7 @@ struct SvgNodeInfoBuildContext<'ctx, 'id> {
     entity_highlighted_spans: &'ctx EntityHighlightedSpans<'id>,
     default_shape: &'ctx NodeShape,
     process_steps_heights: &'ctx [ProcessStepsHeight<'id>],
-    process_infos: &'ctx Map<NodeId<'id>, SvgProcessInfo<'id>>,
+    svg_process_infos: &'ctx Map<NodeId<'id>, SvgProcessInfo<'id>>,
 }
 
 /// Heights for all steps within a process for y-coordinate calculations.
