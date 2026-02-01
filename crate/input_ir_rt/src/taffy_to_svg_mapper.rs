@@ -29,7 +29,7 @@ impl TaffyToSvgMapper {
             svg_height,
             svg_node_infos,
             svg_edge_infos: _,
-            process_infos: _,
+            svg_process_infos: _,
             additional_tailwind_classes,
         } = svg_elements;
 

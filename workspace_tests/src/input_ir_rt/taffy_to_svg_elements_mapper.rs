@@ -52,7 +52,7 @@ fn test_example_ir_mapping_to_svg_elements() -> Result<(), TaffyError> {
                 svg_elements.svg_width,
                 svg_elements.svg_height,
                 svg_elements.svg_node_infos.len(),
-                svg_elements.process_infos.len(),
+                svg_elements.svg_process_infos.len(),
                 svg_elements.additional_tailwind_classes.len()
             );
         });
@@ -116,7 +116,7 @@ fn test_process_infos_map_structure() -> Result<(), TaffyError> {
         .map(|taffy_node_mappings| TaffyToSvgElementsMapper::map(&ir_example, &taffy_node_mappings))
         .for_each(|svg_elements| {
             // Verify process_infos is keyed by process node ID
-            for (process_id, process_info) in &svg_elements.process_infos {
+            for (process_id, process_info) in &svg_elements.svg_process_infos {
                 // The key should match the process_id in the value
                 assert_eq!(
                     process_id, &process_info.process_id,
@@ -142,7 +142,7 @@ fn test_process_infos_map_structure() -> Result<(), TaffyError> {
             for svg_node_info in &svg_elements.svg_node_infos {
                 if let Some(ref proc_id) = svg_node_info.process_id {
                     assert!(
-                        svg_elements.process_infos.contains_key(proc_id),
+                        svg_elements.svg_process_infos.contains_key(proc_id),
                         "process_id {:?} in node {} should exist in process_infos map",
                         proc_id,
                         svg_node_info.node_id

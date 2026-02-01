@@ -37,7 +37,7 @@ pub struct SvgElements<'id> {
     /// Used for calculating y-translations when processes expand.
     /// The map preserves insertion order, which corresponds to process order
     /// in the diagram.
-    pub process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>>,
+    pub svg_process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>>,
     /// Additional tailwind classes generated during element mapping.
     ///
     /// These are the translate classes and other dynamically generated classes
@@ -52,7 +52,7 @@ impl<'id> SvgElements<'id> {
         svg_height: f32,
         svg_node_infos: Vec<SvgNodeInfo<'id>>,
         svg_edge_infos: Vec<SvgEdgeInfo<'id>>,
-        process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>>,
+        svg_process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>>,
         additional_tailwind_classes: Vec<String>,
     ) -> Self {
         Self {
@@ -60,7 +60,7 @@ impl<'id> SvgElements<'id> {
             svg_height,
             svg_node_infos,
             svg_edge_infos,
-            process_infos,
+            svg_process_infos,
             additional_tailwind_classes,
         }
     }
