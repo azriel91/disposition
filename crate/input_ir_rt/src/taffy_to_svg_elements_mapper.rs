@@ -51,6 +51,12 @@ impl TaffyToSvgElementsMapper {
 
         // Build process_infos map from process_steps_heights
         // We need to compute the actual values for each process node
+        let svg_process_info_build_context = SvgProcessInfoBuildContext {
+            ir_diagram,
+            taffy_tree,
+            default_shape: &default_shape,
+            process_steps_heights: &process_steps_heights,
+        };
         let svg_process_infos = process_steps_heights.iter().enumerate().fold(
             Map::<NodeId<'id>, SvgProcessInfo<'id>>::new(),
             |mut svg_process_infos, (process_idx, process_steps_height)| {
@@ -61,10 +67,7 @@ impl TaffyToSvgElementsMapper {
                     let taffy_node_id = taffy_node_ids.wrapper_taffy_node_id();
                     if let Ok(layout) = taffy_tree.layout(taffy_node_id) {
                         let svg_process_info = Self::build_svg_process_info(
-                            ir_diagram,
-                            taffy_tree,
-                            &default_shape,
-                            &process_steps_heights,
+                            svg_process_info_build_context,
                             process_idx,
                             process_steps_height,
                             process_node_id,
@@ -129,17 +132,21 @@ impl TaffyToSvgElementsMapper {
     }
 
     /// Returns the [`SvgProcessInfo`] for the given process IR node.
-    fn build_svg_process_info<'id>(
-        ir_diagram: &IrDiagram<'id>,
-        taffy_tree: &TaffyTree<NodeContext>,
-        default_shape: &NodeShape,
-        process_steps_heights: &[ProcessStepsHeight<'id>],
+    fn build_svg_process_info<'ctx, 'id>(
+        svg_process_info_build_context: SvgProcessInfoBuildContext<'ctx, 'id>,
         process_idx: usize,
         process_steps_height: &ProcessStepsHeight<'id>,
         process_node_id: &NodeId<'id>,
         taffy_node_id: taffy::NodeId,
         layout: &taffy::Layout,
     ) -> SvgProcessInfo<'id> {
+        let SvgProcessInfoBuildContext {
+            ir_diagram,
+            taffy_tree,
+            default_shape,
+            process_steps_heights,
+        } = svg_process_info_build_context;
+
         // Calculate y coordinate
         let y = {
             let mut y_acc = layout.location.y;
@@ -169,7 +176,7 @@ impl TaffyToSvgElementsMapper {
             Self::process_steps_height_predecessors_cumulative(process_steps_heights, process_idx);
         let base_y = y - process_steps_height_predecessors_cumulative;
 
-        let svg_process_info = SvgProcessInfo::new(
+        SvgProcessInfo::new(
             height_expanded,
             path_d_expanded,
             process_steps_height.process_id.clone(),
@@ -177,8 +184,7 @@ impl TaffyToSvgElementsMapper {
             process_idx,
             process_steps_height.total_height,
             base_y,
-        );
-        svg_process_info
+        )
     }
 
     /// Returns the [`SvgNodeInfo`] for the given IR node.
@@ -229,14 +235,11 @@ impl TaffyToSvgElementsMapper {
         } else {
             None
         };
-        let node_shape = ir_diagram
-            .node_shapes
-            .get(node_id)
-            .unwrap_or(&default_shape);
+        let node_shape = ir_diagram.node_shapes.get(node_id).unwrap_or(default_shape);
 
         let path_d_collapsed = Self::build_rect_path(width, height_collapsed, node_shape);
         let translate_classes = Self::build_translate_classes(
-            &process_steps_heights,
+            process_steps_heights,
             svg_process_infos,
             x,
             y,
@@ -421,6 +424,7 @@ impl TaffyToSvgElementsMapper {
     ///   them or their steps.
     /// * Non-process nodes will have simple translate-x and translate-y
     ///   classes.
+    #[allow(clippy::too_many_arguments)]
     fn build_translate_classes<'id>(
         process_steps_heights: &[ProcessStepsHeight<'_>],
         process_infos: &Map<NodeId<'id>, SvgProcessInfo<'id>>,
@@ -431,7 +435,7 @@ impl TaffyToSvgElementsMapper {
         height_expanded: f32,
         height_to_expand_to: Option<f32>,
         node_shape: &NodeShape,
-        path_d_collapsed: &String,
+        path_d_collapsed: &str,
     ) -> String {
         if let Some(ref proc_id) = *process_id
             && let Some(proc_info) = process_infos.get(proc_id)
@@ -439,7 +443,7 @@ impl TaffyToSvgElementsMapper {
             // Calculate base_y for this specific node
             let process_steps_height_predecessors_cumulative =
                 Self::process_steps_height_predecessors_cumulative(
-                    &process_steps_heights,
+                    process_steps_heights,
                     proc_info.process_index,
                 );
             let base_y = y - process_steps_height_predecessors_cumulative;
@@ -448,7 +452,7 @@ impl TaffyToSvgElementsMapper {
             let path_d_expanded = if height_to_expand_to.is_some() {
                 Self::build_rect_path(width, height_expanded, node_shape)
             } else {
-                path_d_collapsed.clone()
+                path_d_collapsed.to_string()
             };
 
             Self::build_translate_classes_for_process(
@@ -458,7 +462,7 @@ impl TaffyToSvgElementsMapper {
                 height_to_expand_to,
                 &path_d_expanded,
                 proc_info.process_index,
-                &process_steps_heights,
+                process_steps_heights,
             )
         } else {
             Self::build_translate_classes_for_node(x, y, path_d_collapsed)
@@ -697,6 +701,14 @@ impl TaffyToSvgElementsMapper {
         });
         result
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SvgProcessInfoBuildContext<'ctx, 'id> {
+    ir_diagram: &'ctx IrDiagram<'id>,
+    taffy_tree: &'ctx TaffyTree<NodeContext>,
+    default_shape: &'ctx NodeShape,
+    process_steps_heights: &'ctx [ProcessStepsHeight<'id>],
 }
 
 #[derive(Clone, Copy, Debug)]
