@@ -53,57 +53,23 @@ impl TaffyToSvgElementsMapper {
         // We need to compute the actual values for each process node
         let svg_process_infos = process_steps_heights.iter().enumerate().fold(
             Map::<NodeId<'id>, SvgProcessInfo<'id>>::new(),
-            |mut svg_process_infos, (idx, process_steps_height)| {
+            |mut svg_process_infos, (process_idx, process_steps_height)| {
                 let process_node_id = &process_steps_height.process_id;
 
                 // Look up taffy layout for the process node
                 if let Some(taffy_node_ids) = node_id_to_taffy.get(process_node_id).copied() {
                     let taffy_node_id = taffy_node_ids.wrapper_taffy_node_id();
                     if let Ok(layout) = taffy_tree.layout(taffy_node_id) {
-                        // Calculate y coordinate
-                        let y = {
-                            let mut y_acc = layout.location.y;
-                            let mut current_node_id = taffy_node_id;
-                            while let Some(parent_taffy_node_id) =
-                                taffy_tree.parent(current_node_id)
-                            {
-                                let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id)
-                                else {
-                                    break;
-                                };
-                                y_acc += parent_layout.location.y;
-                                current_node_id = parent_taffy_node_id;
-                            }
-                            y_acc
-                        };
-
-                        let width = layout.size.width;
-                        let height_expanded = layout.size.height.min(layout.content_size.height);
-
-                        // Get the node shape (corner radii)
-                        let node_shape = ir_diagram
-                            .node_shapes
-                            .get(process_node_id)
-                            .unwrap_or(&default_shape);
-
-                        let path_d_expanded =
-                            Self::build_rect_path(width, height_expanded, node_shape);
-
-                        let process_steps_height_predecessors_cumulative =
-                            Self::process_steps_height_predecessors_cumulative(
-                                &process_steps_heights,
-                                idx,
-                            );
-                        let base_y = y - process_steps_height_predecessors_cumulative;
-
-                        let svg_process_info = SvgProcessInfo::new(
-                            height_expanded,
-                            path_d_expanded,
-                            process_steps_height.process_id.clone(),
-                            process_steps_height.process_step_ids.clone(),
-                            idx,
-                            process_steps_height.total_height,
-                            base_y,
+                        let svg_process_info = Self::build_svg_process_info(
+                            ir_diagram,
+                            taffy_tree,
+                            &default_shape,
+                            &process_steps_heights,
+                            process_idx,
+                            process_steps_height,
+                            process_node_id,
+                            taffy_node_id,
+                            layout,
                         );
 
                         svg_process_infos
@@ -160,6 +126,59 @@ impl TaffyToSvgElementsMapper {
             svg_process_infos,
             additional_tailwind_classes,
         )
+    }
+
+    /// Returns the [`SvgProcessInfo`] for the given process IR node.
+    fn build_svg_process_info<'id>(
+        ir_diagram: &IrDiagram<'id>,
+        taffy_tree: &TaffyTree<NodeContext>,
+        default_shape: &NodeShape,
+        process_steps_heights: &[ProcessStepsHeight<'id>],
+        process_idx: usize,
+        process_steps_height: &ProcessStepsHeight<'id>,
+        process_node_id: &NodeId<'id>,
+        taffy_node_id: taffy::NodeId,
+        layout: &taffy::Layout,
+    ) -> SvgProcessInfo<'id> {
+        // Calculate y coordinate
+        let y = {
+            let mut y_acc = layout.location.y;
+            let mut current_node_id = taffy_node_id;
+            while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
+                let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
+                    break;
+                };
+                y_acc += parent_layout.location.y;
+                current_node_id = parent_taffy_node_id;
+            }
+            y_acc
+        };
+
+        let width = layout.size.width;
+        let height_expanded = layout.size.height.min(layout.content_size.height);
+
+        // Get the node shape (corner radii)
+        let node_shape = ir_diagram
+            .node_shapes
+            .get(process_node_id)
+            .unwrap_or(default_shape);
+
+        let path_d_expanded = Self::build_rect_path(width, height_expanded, node_shape);
+
+        let process_steps_height_predecessors_cumulative =
+            Self::process_steps_height_predecessors_cumulative(process_steps_heights, process_idx);
+        let base_y = y - process_steps_height_predecessors_cumulative;
+
+        let svg_process_info = SvgProcessInfo::new(
+            height_expanded,
+            path_d_expanded,
+            process_steps_height.process_id.clone(),
+            process_steps_height.process_step_ids.clone(),
+            process_idx,
+            process_steps_height.total_height,
+            base_y,
+        );
+        svg_process_info
     }
 
     /// Returns the [`SvgNodeInfo`] for the given IR node.
