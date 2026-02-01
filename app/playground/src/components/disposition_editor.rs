@@ -23,6 +23,7 @@ use disposition::{
 };
 use disposition_input_ir_rt::{
     InputDiagramMerger, InputToIrDiagramMapper, IrToTaffyBuilder, SvgElementsToSvgMapper,
+    TaffyToSvgElementsMapper,
 };
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -163,7 +164,8 @@ pub fn DispositionEditor() -> Element {
             .zip(taffy_node_mappings.clone())
             .map(|(ir_diagram, taffy_node_mappings)| {
                 let svg_generation_start = Instant::now();
-                let svg = SvgElementsToSvgMapper::map(ir_diagram, taffy_node_mappings);
+                let svg_elements = TaffyToSvgElementsMapper::map(ir_diagram, &taffy_node_mappings);
+                let svg = SvgElementsToSvgMapper::map(ir_diagram, &svg_elements);
                 let svg_generation_duration_ms = Instant::now()
                     .duration_since(svg_generation_start)
                     .as_millis();

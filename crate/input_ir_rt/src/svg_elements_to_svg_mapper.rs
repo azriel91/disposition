@@ -3,27 +3,16 @@ use std::fmt::Write;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use disposition_ir_model::IrDiagram;
 use disposition_svg_model::SvgElements;
-use disposition_taffy_model::{TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
+use disposition_taffy_model::{TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
 
-use crate::{TaffyToSvgElementsMapper, NOTO_SANS_MONO_TTF};
+use crate::NOTO_SANS_MONO_TTF;
 
 #[derive(Clone, Copy, Debug)]
 pub struct SvgElementsToSvgMapper;
 
 impl SvgElementsToSvgMapper {
-    pub fn map(ir_diagram: &IrDiagram, taffy_node_mappings: TaffyNodeMappings) -> String {
-        // First, compute the SVG elements
-        let svg_elements = TaffyToSvgElementsMapper::map(ir_diagram, &taffy_node_mappings);
-
-        // Then render to string
-        Self::render(ir_diagram, &svg_elements)
-    }
-
     /// Renders the SVG elements to a string.
-    ///
-    /// This is separate from `map` to allow users to modify the `SvgElements`
-    /// before rendering (e.g., to add edges).
-    pub fn render(ir_diagram: &IrDiagram, svg_elements: &SvgElements) -> String {
+    pub fn map(ir_diagram: &IrDiagram, svg_elements: &SvgElements) -> String {
         let SvgElements {
             svg_width,
             svg_height,
