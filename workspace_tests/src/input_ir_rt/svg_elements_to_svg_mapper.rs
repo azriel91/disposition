@@ -2,7 +2,7 @@ use disposition::{
     ir_model::IrDiagram,
     taffy_model::{taffy::TaffyError, DimensionAndLod},
 };
-use disposition_input_ir_rt::{IrToTaffyBuilder, TaffyToSvgMapper};
+use disposition_input_ir_rt::{IrToTaffyBuilder, SvgElementsToSvgMapper};
 
 use crate::input_ir_rt::EXAMPLE_IR;
 
@@ -16,7 +16,7 @@ fn test_example_ir_mapping_to_taffy_node_mappings() -> Result<(), TaffyError> {
     ir_to_taffy_builder
         .build()
         .expect("Expected `taffy_node_mappings` to be built.")
-        .map(|taffy_node_mappings| TaffyToSvgMapper::map(&ir_example, taffy_node_mappings))
+        .map(|taffy_node_mappings| SvgElementsToSvgMapper::map(&ir_example, taffy_node_mappings))
         .for_each(|svg| {
             eprintln!("\n------------------------\n{svg}\n\n-----------------------\n");
         });

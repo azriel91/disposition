@@ -8,9 +8,9 @@ use disposition_taffy_model::{TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGH
 use crate::{TaffyToSvgElementsMapper, NOTO_SANS_MONO_TTF};
 
 #[derive(Clone, Copy, Debug)]
-pub struct TaffyToSvgMapper;
+pub struct SvgElementsToSvgMapper;
 
-impl TaffyToSvgMapper {
+impl SvgElementsToSvgMapper {
     pub fn map(ir_diagram: &IrDiagram, taffy_node_mappings: TaffyNodeMappings) -> String {
         // First, compute the SVG elements
         let svg_elements = TaffyToSvgElementsMapper::map(ir_diagram, &taffy_node_mappings);
