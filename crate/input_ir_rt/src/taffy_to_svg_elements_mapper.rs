@@ -7,7 +7,9 @@ use disposition_ir_model::{
 };
 use disposition_model_common::{entity::EntityType, Map, Set};
 use disposition_svg_model::{SvgElements, SvgNodeInfo, SvgProcessInfo, SvgTextSpan};
-use disposition_taffy_model::{NodeContext, NodeToTaffyNodeIds, TaffyNodeMappings};
+use disposition_taffy_model::{
+    EntityHighlightedSpans, NodeContext, NodeToTaffyNodeIds, TaffyNodeMappings,
+};
 use taffy::TaffyTree;
 
 /// Maps the IR diagram and `TaffyNodeMappings` to SVG elements.
@@ -113,115 +115,142 @@ impl TaffyToSvgElementsMapper {
                 }
             });
 
-        let mut svg_node_infos: Vec<SvgNodeInfo<'id>> = Vec::new();
-        let mut additional_tailwind_classes: Vec<String> = Vec::new();
+        // Build an `SvgNodeInfo` for each node in the order specified by
+        // `node_ordering`.
+        let svg_node_info_build_context = SvgNodeInfoBuildContext {
+            ir_diagram,
+            taffy_tree,
+            entity_highlighted_spans,
+            default_shape: &default_shape,
+            process_steps_heights: &process_steps_heights,
+            process_infos: &process_infos,
+        };
+        let (svg_node_infos, additional_tailwind_classes) = ir_diagram.node_ordering.iter().fold(
+            (Vec::new(), Vec::new()),
+            |(mut svg_node_infos, mut additional_tailwind_classes), (node_id, &tab_index)| {
+                if let Some(taffy_node_ids) = node_id_to_taffy.get(node_id).copied() {
+                    let taffy_node_id = taffy_node_ids.wrapper_taffy_node_id();
 
-        // Process nodes in the order specified by node_ordering
-        ir_diagram
-            .node_ordering
-            .iter()
-            .for_each(|(node_id, &tab_index)| {
-                // Look up taffy layout for this node
-                let Some(taffy_node_ids) = node_id_to_taffy.get(node_id).copied() else {
-                    return;
-                };
-                let taffy_node_id = taffy_node_ids.wrapper_taffy_node_id();
-                let Ok(layout) = taffy_tree.layout(taffy_node_id) else {
-                    return;
-                };
+                    if let Ok(taffy_node_layout) = taffy_tree.layout(taffy_node_id) {
+                        let svg_node_info = Self::build_svg_node_info(
+                            svg_node_info_build_context,
+                            taffy_node_id,
+                            taffy_node_layout,
+                            &mut additional_tailwind_classes,
+                            node_id,
+                            tab_index,
+                        );
 
-                let is_process = ir_diagram
-                    .entity_types
-                    .get(node_id.as_ref())
-                    .map(|types| types.contains(&EntityType::ProcessDefault))
-                    .unwrap_or(false);
-
-                let (x, y) = Self::node_absolute_xy_coordinates(taffy_tree, taffy_node_id, layout);
-
-                // Find the process ID this node belongs to (if any)
-                let process_id = Self::find_process_id(node_id, ir_diagram, &process_infos);
-
-                // TODO: if the process steps were the tallest elements in the diagram, the
-                // diagram height may need to be reduced as well.
-                let width = layout.size.width;
-                let height_expanded = layout.size.height.min(layout.content_size.height);
-                let height_collapsed = {
-                    let mut node_height = height_expanded;
-
-                    // If this is a process, subtract the height of its process steps.
-                    if is_process && let Some(proc_info) = process_infos.get(node_id) {
-                        node_height -= proc_info.total_height;
+                        svg_node_infos.push(svg_node_info);
                     }
+                }
 
-                    node_height
-                };
-                let height_to_expand_to = if is_process {
-                    Some(height_expanded)
-                } else {
-                    None
-                };
+                (svg_node_infos, additional_tailwind_classes)
+            },
+        );
 
-                // Get the node shape (corner radii)
-                let node_shape = ir_diagram
-                    .node_shapes
-                    .get(node_id)
-                    .unwrap_or(&default_shape);
-
-                // Build path d attribute with collapsed height
-                let path_d_collapsed = Self::build_rect_path(width, height_collapsed, node_shape);
-
-                // Build translate classes
-                let translate_classes = Self::build_translate_classes(
-                    &process_steps_heights,
-                    &process_infos,
-                    x,
-                    y,
-                    &process_id,
-                    width,
-                    height_expanded,
-                    height_to_expand_to,
-                    node_shape,
-                    &path_d_collapsed,
-                );
-
-                // Collect translate classes for CSS generation
-                additional_tailwind_classes.push(translate_classes);
-
-                // Collect text spans
-                let text_spans: Vec<SvgTextSpan> = entity_highlighted_spans
-                    .get(node_id.as_ref())
-                    .map(|spans| {
-                        spans
-                            .iter()
-                            .map(|span| {
-                                SvgTextSpan::new(span.x, span.y, Self::escape_xml(&span.text))
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default();
-
-                let svg_node_info = SvgNodeInfo::new(
-                    node_id.clone(),
-                    tab_index,
-                    x,
-                    y,
-                    width,
-                    height_collapsed,
-                    path_d_collapsed,
-                    process_id,
-                    text_spans,
-                );
-
-                svg_node_infos.push(svg_node_info);
-            });
+        // TODO: Implement edge information
+        let svg_edge_infos = Vec::new();
 
         SvgElements::new(
             svg_width,
             svg_height,
             svg_node_infos,
-            Vec::new(), // svg_edge_infos - empty for now
+            svg_edge_infos,
             process_infos,
             additional_tailwind_classes,
+        )
+    }
+
+    /// Returns the [`SvgNodeInfo`] for the given IR node.
+    fn build_svg_node_info<'ctx, 'id>(
+        svg_node_info_build_context: SvgNodeInfoBuildContext<'ctx, 'id>,
+        taffy_node_id: taffy::NodeId,
+        taffy_node_layout: &taffy::Layout,
+        additional_tailwind_classes: &mut Vec<String>,
+        node_id: &NodeId<'id>,
+        tab_index: u32,
+    ) -> SvgNodeInfo<'id> {
+        let SvgNodeInfoBuildContext {
+            ir_diagram,
+            taffy_tree,
+            entity_highlighted_spans,
+            default_shape,
+            process_steps_heights,
+            process_infos,
+        } = svg_node_info_build_context;
+
+        let is_process = ir_diagram
+            .entity_types
+            .get(node_id.as_ref())
+            .map(|types| types.contains(&EntityType::ProcessDefault))
+            .unwrap_or(false);
+
+        let (x, y) =
+            Self::node_absolute_xy_coordinates(taffy_tree, taffy_node_id, taffy_node_layout);
+        let process_id = Self::find_process_id(node_id, ir_diagram, process_infos);
+
+        let width = taffy_node_layout.size.width;
+        let height_expanded = taffy_node_layout
+            .size
+            .height
+            .min(taffy_node_layout.content_size.height);
+        let height_collapsed = {
+            let mut node_height = height_expanded;
+
+            // If this is a process, subtract the height of its process steps.
+            if is_process && let Some(proc_info) = process_infos.get(node_id) {
+                node_height -= proc_info.total_height;
+            }
+
+            node_height
+        };
+        let height_to_expand_to = if is_process {
+            Some(height_expanded)
+        } else {
+            None
+        };
+        let node_shape = ir_diagram
+            .node_shapes
+            .get(node_id)
+            .unwrap_or(&default_shape);
+
+        let path_d_collapsed = Self::build_rect_path(width, height_collapsed, node_shape);
+        let translate_classes = Self::build_translate_classes(
+            &process_steps_heights,
+            process_infos,
+            x,
+            y,
+            &process_id,
+            width,
+            height_expanded,
+            height_to_expand_to,
+            node_shape,
+            &path_d_collapsed,
+        );
+
+        additional_tailwind_classes.push(translate_classes);
+
+        let text_spans: Vec<SvgTextSpan> = entity_highlighted_spans
+            .get(node_id.as_ref())
+            .map(|spans| {
+                spans
+                    .iter()
+                    .map(|span| SvgTextSpan::new(span.x, span.y, Self::escape_xml(&span.text)))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        SvgNodeInfo::new(
+            node_id.clone(),
+            tab_index,
+            x,
+            y,
+            width,
+            height_collapsed,
+            path_d_collapsed,
+            process_id,
+            text_spans,
         )
     }
 
@@ -649,6 +678,16 @@ impl TaffyToSvgElementsMapper {
         });
         result
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SvgNodeInfoBuildContext<'ctx, 'id> {
+    ir_diagram: &'ctx IrDiagram<'id>,
+    taffy_tree: &'ctx TaffyTree<NodeContext>,
+    entity_highlighted_spans: &'ctx EntityHighlightedSpans<'id>,
+    default_shape: &'ctx NodeShape,
+    process_steps_heights: &'ctx [ProcessStepsHeight<'id>],
+    process_infos: &'ctx Map<NodeId<'id>, SvgProcessInfo<'id>>,
 }
 
 /// Heights for all steps within a process for y-coordinate calculations.
