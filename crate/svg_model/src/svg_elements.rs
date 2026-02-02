@@ -1,5 +1,5 @@
-use disposition_ir_model::node::NodeId;
-use disposition_model_common::Map;
+use disposition_ir_model::{entity::EntityTailwindClasses, node::NodeId};
+use disposition_model_common::{theme::Css, Map};
 use serde::{Deserialize, Serialize};
 
 use crate::{SvgEdgeInfo, SvgNodeInfo, SvgProcessInfo};
@@ -43,6 +43,16 @@ pub struct SvgElements<'id> {
     /// These are the translate classes and other dynamically generated classes
     /// that need to be included in CSS generation.
     pub additional_tailwind_classes: Vec<String>,
+    /// Computed Tailwind CSS classes for interactive visibility behaviour.
+    ///
+    /// These classes control visibility, colors, animations, and interactions
+    /// based on the diagram's state.
+    pub tailwind_classes: EntityTailwindClasses<'id>,
+    /// Additional CSS to place in the SVG's inline `<styles>` section.
+    ///
+    /// Allows for custom CSS rules such as keyframe animations that
+    /// cannot be expressed through Tailwind classes alone.
+    pub css: Css,
 }
 
 impl<'id> SvgElements<'id> {
@@ -54,6 +64,8 @@ impl<'id> SvgElements<'id> {
         svg_edge_infos: Vec<SvgEdgeInfo<'id>>,
         svg_process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>>,
         additional_tailwind_classes: Vec<String>,
+        tailwind_classes: EntityTailwindClasses<'id>,
+        css: Css,
     ) -> Self {
         Self {
             svg_width,
@@ -62,6 +74,8 @@ impl<'id> SvgElements<'id> {
             svg_edge_infos,
             svg_process_infos,
             additional_tailwind_classes,
+            tailwind_classes,
+            css,
         }
     }
 }

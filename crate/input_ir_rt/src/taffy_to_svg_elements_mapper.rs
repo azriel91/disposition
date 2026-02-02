@@ -121,6 +121,10 @@ impl TaffyToSvgElementsMapper {
         // TODO: Implement edge information
         let svg_edge_infos = Vec::new();
 
+        // Clone tailwind_classes and css from ir_diagram into SvgElements
+        let tailwind_classes = ir_diagram.tailwind_classes.clone();
+        let css = ir_diagram.css.clone();
+
         SvgElements::new(
             svg_width,
             svg_height,
@@ -128,6 +132,8 @@ impl TaffyToSvgElementsMapper {
             svg_edge_infos,
             svg_process_infos,
             additional_tailwind_classes,
+            tailwind_classes,
+            css,
         )
     }
 

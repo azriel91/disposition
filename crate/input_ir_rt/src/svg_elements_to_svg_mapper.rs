@@ -1,7 +1,6 @@
 use std::fmt::Write;
 
 use base64::{prelude::BASE64_STANDARD, Engine};
-use disposition_ir_model::IrDiagram;
 use disposition_svg_model::SvgElements;
 use disposition_taffy_model::{TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
 
@@ -12,7 +11,7 @@ pub struct SvgElementsToSvgMapper;
 
 impl SvgElementsToSvgMapper {
     /// Renders the SVG elements to a string.
-    pub fn map(ir_diagram: &IrDiagram, svg_elements: &SvgElements) -> String {
+    pub fn map(svg_elements: &SvgElements) -> String {
         let SvgElements {
             svg_width,
             svg_height,
@@ -20,6 +19,8 @@ impl SvgElementsToSvgMapper {
             svg_edge_infos: _,
             svg_process_infos: _,
             additional_tailwind_classes,
+            tailwind_classes,
+            css,
         } = svg_elements;
 
         let mut content_buffer = String::with_capacity(4096);
@@ -49,8 +50,7 @@ impl SvgElementsToSvgMapper {
                 .unwrap_or("");
 
             let class_attr = {
-                let existing_classes = ir_diagram
-                    .tailwind_classes
+                let existing_classes = tailwind_classes
                     .get(node_id.as_ref())
                     .map(|s| s.as_str())
                     .unwrap_or("");
@@ -113,8 +113,7 @@ impl SvgElementsToSvgMapper {
 
         // Generate CSS from tailwind classes (escaping underscores in brackets for
         // encre-css)
-        let escaped_classes: Vec<String> = ir_diagram
-            .tailwind_classes
+        let escaped_classes: Vec<String> = tailwind_classes
             .values()
             .chain(additional_tailwind_classes.iter())
             .map(|classes| Self::escape_underscores_in_brackets(classes))
@@ -126,7 +125,7 @@ impl SvgElementsToSvgMapper {
 
         // Build the style content
         let mut style_content =
-            String::with_capacity(generated_css.len() + styles_buffer.len() + ir_diagram.css.len());
+            String::with_capacity(generated_css.len() + styles_buffer.len() + css.len());
         style_content.push_str(&generated_css);
         if !styles_buffer.is_empty() {
             if !style_content.is_empty() {
@@ -134,11 +133,11 @@ impl SvgElementsToSvgMapper {
             }
             style_content.push_str(&styles_buffer);
         }
-        if !ir_diagram.css.is_empty() {
+        if !css.is_empty() {
             if !style_content.is_empty() {
                 style_content.push('\n');
             }
-            style_content.push_str(ir_diagram.css.as_str());
+            style_content.push_str(css.as_str());
         }
 
         // Build final SVG
@@ -187,10 +186,10 @@ impl SvgElementsToSvgMapper {
     /// # Examples
     ///
     /// ```rust
-    /// # use disposition_input_ir_rt::TaffyToSvgMapper;
+    /// # use disposition_input_ir_rt::SvgElementsToSvgMapper;
     /// // ID selectors have underscores escaped
     /// assert_eq!(
-    ///     TaffyToSvgMapper::escape_underscores_in_brackets(
+    ///     SvgElementsToSvgMapper::escape_underscores_in_brackets(
     ///         "group-has-[#some_id:focus]:stroke-blue-500"
     ///     ),
     ///     "group-has-[#some&#95;id:focus]:stroke-blue-500"
@@ -198,7 +197,7 @@ impl SvgElementsToSvgMapper {
     ///
     /// // Multiple underscores in ID
     /// assert_eq!(
-    ///     TaffyToSvgMapper::escape_underscores_in_brackets(
+    ///     SvgElementsToSvgMapper::escape_underscores_in_brackets(
     ///         "group-has-[#my_element_id:hover]:fill-red-500"
     ///     ),
     ///     "group-has-[#my&#95;element&#95;id:hover]:fill-red-500"
@@ -206,7 +205,7 @@ impl SvgElementsToSvgMapper {
     ///
     /// // Animation values are NOT escaped (no ID selector)
     /// assert_eq!(
-    ///     TaffyToSvgMapper::escape_underscores_in_brackets(
+    ///     SvgElementsToSvgMapper::escape_underscores_in_brackets(
     ///         "peer/some-peer:animate-[animation-name_2s_linear_infinite]"
     ///     ),
     ///     "peer/some-peer:animate-[animation-name_2s_linear_infinite]"
@@ -214,7 +213,7 @@ impl SvgElementsToSvgMapper {
     ///
     /// // Mixed: ID escaped, non-ID not escaped
     /// assert_eq!(
-    ///     TaffyToSvgMapper::escape_underscores_in_brackets(
+    ///     SvgElementsToSvgMapper::escape_underscores_in_brackets(
     ///         "group-has-[#some_id:focus]:animate-[fade_in_1s]"
     ///     ),
     ///     "group-has-[#some&#95;id:focus]:animate-[fade_in_1s]"
@@ -222,7 +221,7 @@ impl SvgElementsToSvgMapper {
     ///
     /// // No brackets - unchanged
     /// assert_eq!(
-    ///     TaffyToSvgMapper::escape_underscores_in_brackets("text_red-500"),
+    ///     SvgElementsToSvgMapper::escape_underscores_in_brackets("text_red-500"),
     ///     "text_red-500"
     /// );
     /// ```

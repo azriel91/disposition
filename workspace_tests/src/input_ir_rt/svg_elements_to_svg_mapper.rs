@@ -17,7 +17,7 @@ fn test_example_ir_mapping_to_taffy_node_mappings() -> Result<(), TaffyError> {
         .build()
         .expect("Expected `taffy_node_mappings` to be built.")
         .map(|taffy_node_mappings| TaffyToSvgElementsMapper::map(&ir_example, &taffy_node_mappings))
-        .map(|svg_elements| SvgElementsToSvgMapper::map(&ir_example, &svg_elements))
+        .map(|svg_elements| SvgElementsToSvgMapper::map(&svg_elements))
         .for_each(|svg| {
             eprintln!("\n------------------------\n{svg}\n\n-----------------------\n");
         });

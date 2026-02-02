@@ -165,7 +165,7 @@ pub fn DispositionEditor() -> Element {
             .map(|(ir_diagram, taffy_node_mappings)| {
                 let svg_generation_start = Instant::now();
                 let svg_elements = TaffyToSvgElementsMapper::map(ir_diagram, &taffy_node_mappings);
-                let svg = SvgElementsToSvgMapper::map(ir_diagram, &svg_elements);
+                let svg = SvgElementsToSvgMapper::map(&svg_elements);
                 let svg_generation_duration_ms = Instant::now()
                     .duration_since(svg_generation_start)
                     .as_millis();
