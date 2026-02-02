@@ -41,8 +41,8 @@ pub struct SvgElements<'id> {
     /// Additional tailwind classes generated during element mapping.
     ///
     /// These are the translate classes and other dynamically generated classes
-    /// that need to be included in CSS generation.
-    pub additional_tailwind_classes: Vec<String>,
+    /// that need to be included in CSS generation, keyed by node ID.
+    pub additional_tailwind_classes: Map<NodeId<'id>, String>,
     /// Computed Tailwind CSS classes for interactive visibility behaviour.
     ///
     /// These classes control visibility, colors, animations, and interactions
@@ -63,7 +63,7 @@ impl<'id> SvgElements<'id> {
         svg_node_infos: Vec<SvgNodeInfo<'id>>,
         svg_edge_infos: Vec<SvgEdgeInfo<'id>>,
         svg_process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>>,
-        additional_tailwind_classes: Vec<String>,
+        additional_tailwind_classes: Map<NodeId<'id>, String>,
         tailwind_classes: EntityTailwindClasses<'id>,
         css: Css,
     ) -> Self {

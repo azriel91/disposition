@@ -95,7 +95,7 @@ impl TaffyToSvgElementsMapper {
             svg_process_infos: &svg_process_infos,
         };
         let (svg_node_infos, additional_tailwind_classes) = ir_diagram.node_ordering.iter().fold(
-            (Vec::new(), Vec::new()),
+            (Vec::new(), Map::new()),
             |(mut svg_node_infos, mut additional_tailwind_classes), (node_id, &tab_index)| {
                 if let Some(taffy_node_ids) = node_id_to_taffy.get(node_id).copied() {
                     let taffy_node_id = taffy_node_ids.wrapper_taffy_node_id();
@@ -198,7 +198,7 @@ impl TaffyToSvgElementsMapper {
         svg_node_info_build_context: SvgNodeInfoBuildContext<'ctx, 'id>,
         taffy_node_id: taffy::NodeId,
         taffy_node_layout: &taffy::Layout,
-        additional_tailwind_classes: &mut Vec<String>,
+        additional_tailwind_classes: &mut Map<NodeId<'id>, String>,
         node_id: &NodeId<'id>,
         tab_index: u32,
     ) -> SvgNodeInfo<'id> {
@@ -257,7 +257,7 @@ impl TaffyToSvgElementsMapper {
             &path_d_collapsed,
         );
 
-        additional_tailwind_classes.push(translate_classes);
+        additional_tailwind_classes.insert(node_id.clone(), translate_classes);
 
         let text_spans: Vec<SvgTextSpan> = entity_highlighted_spans
             .get(node_id.as_ref())

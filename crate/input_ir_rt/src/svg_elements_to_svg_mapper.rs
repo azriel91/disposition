@@ -39,13 +39,9 @@ impl SvgElementsToSvgMapper {
             let path_d = &svg_node_info.path_d_collapsed;
 
             // Build class attribute combining existing tailwind classes and translate
-            // classes from additional_tailwind_classes (index corresponds to node order)
-            let node_index = svg_node_infos
-                .iter()
-                .position(|n| n.node_id == *node_id)
-                .unwrap_or(0);
+            // classes from additional_tailwind_classes (keyed by node ID)
             let translate_classes = additional_tailwind_classes
-                .get(node_index)
+                .get(node_id)
                 .map(|s| s.as_str())
                 .unwrap_or("");
 
@@ -115,7 +111,7 @@ impl SvgElementsToSvgMapper {
         // encre-css)
         let escaped_classes: Vec<String> = tailwind_classes
             .values()
-            .chain(additional_tailwind_classes.iter())
+            .chain(additional_tailwind_classes.values())
             .map(|classes| Self::escape_underscores_in_brackets(classes))
             .collect();
         let tailwind_classes_iter = escaped_classes.iter().map(String::as_str);
