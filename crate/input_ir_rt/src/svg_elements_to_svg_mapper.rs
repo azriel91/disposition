@@ -33,7 +33,7 @@ impl SvgElementsToSvgMapper {
         writeln!(&mut styles_buffer, "@font-face {{ font-family: 'Noto Sans Mono'; src: url(data:application/x-font-ttf;base64,{}) format('truetype'); }}", BASE64_STANDARD.encode(NOTO_SANS_MONO_TTF)).unwrap();
 
         // Render nodes
-        for svg_node_info in svg_node_infos {
+        svg_node_infos.iter().for_each(|svg_node_info| {
             let node_id = &svg_node_info.node_id;
             let tab_index = svg_node_info.tab_index;
             let path_d = &svg_node_info.path_d_collapsed;
@@ -85,7 +85,7 @@ impl SvgElementsToSvgMapper {
             write!(content_buffer, r#"<path d="{path_d}" />"#).unwrap();
 
             // Add text elements for highlighted spans
-            for span in &svg_node_info.text_spans {
+            svg_node_info.text_spans.iter().for_each(|span| {
                 let text_x = span.x;
                 let text_y = span.y;
                 let text_content = &span.text;
@@ -101,11 +101,11 @@ impl SvgElementsToSvgMapper {
                     >{text_content}</text>"
                 )
                 .unwrap();
-            }
+            });
 
             // Close group element
             content_buffer.push_str("</g>");
-        }
+        });
 
         // Generate CSS from tailwind classes (escaping underscores in brackets for
         // encre-css)
