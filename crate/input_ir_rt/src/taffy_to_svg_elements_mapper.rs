@@ -1,15 +1,17 @@
 use std::fmt::Write;
 
 use disposition_ir_model::{
+    edge::{Edge, EdgeGroups},
     layout::NodeLayout,
     node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
 };
-use disposition_model_common::{entity::EntityType, Map, Set};
-use disposition_svg_model::{SvgElements, SvgNodeInfo, SvgProcessInfo, SvgTextSpan};
+use disposition_model_common::{edge::EdgeGroupId, entity::EntityType, Id, Map, Set};
+use disposition_svg_model::{SvgEdgeInfo, SvgElements, SvgNodeInfo, SvgProcessInfo, SvgTextSpan};
 use disposition_taffy_model::{
     EntityHighlightedSpans, NodeContext, NodeToTaffyNodeIds, TaffyNodeMappings,
 };
+use kurbo::{BezPath, Point};
 use taffy::TaffyTree;
 
 /// Maps the IR diagram and `TaffyNodeMappings` to SVG elements.
@@ -118,8 +120,15 @@ impl TaffyToSvgElementsMapper {
             },
         );
 
-        // TODO: Implement edge information
-        let svg_edge_infos = Vec::new();
+        // Build a lookup map from NodeId to SvgNodeInfo for edge building
+        let svg_node_info_map: Map<&NodeId<'id>, &SvgNodeInfo<'id>> = svg_node_infos
+            .iter()
+            .map(|info| (&info.node_id, info))
+            .collect();
+
+        // Build edge information
+        let svg_edge_infos =
+            Self::build_svg_edge_infos(&ir_diagram.edge_groups, &svg_node_info_map);
 
         // Clone tailwind_classes and css from ir_diagram into SvgElements
         let tailwind_classes = ir_diagram.tailwind_classes.clone();
@@ -707,6 +716,438 @@ impl TaffyToSvgElementsMapper {
         });
         result
     }
+
+    /// Builds [`SvgEdgeInfo`] for all edges in the diagram.
+    ///
+    /// This iterates over all edge groups and their edges, computing the
+    /// curved path for each edge based on the relative positions of the
+    /// source and target nodes.
+    fn build_svg_edge_infos<'id>(
+        edge_groups: &EdgeGroups<'id>,
+        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+    ) -> Vec<SvgEdgeInfo<'id>> {
+        let mut svg_edge_infos = Vec::new();
+
+        edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
+            // Check if this edge group has bidirectional edges (A->B and B->A)
+            let bidirectional_pairs = Self::find_bidirectional_pairs(edge_group.as_slice());
+
+            edge_group
+                .iter()
+                .enumerate()
+                .for_each(|(edge_index, edge)| {
+                    // Skip edges where either node is not found
+                    let Some(from_info) = svg_node_info_map.get(&edge.from) else {
+                        return;
+                    };
+                    let Some(to_info) = svg_node_info_map.get(&edge.to) else {
+                        return;
+                    };
+
+                    // Check if this edge is part of a bidirectional pair
+                    let is_forward_of_bidirectional =
+                        bidirectional_pairs.contains(&(&edge.from, &edge.to));
+                    let is_reverse_of_bidirectional =
+                        bidirectional_pairs.contains(&(&edge.to, &edge.from));
+
+                    let path_d = Self::build_edge_path(
+                        from_info,
+                        to_info,
+                        is_forward_of_bidirectional && !is_reverse_of_bidirectional,
+                        is_reverse_of_bidirectional,
+                    );
+
+                    let edge_id = Self::generate_edge_id(edge_group_id, edge_index);
+
+                    svg_edge_infos.push(SvgEdgeInfo::new(
+                        edge_id,
+                        edge_group_id.clone(),
+                        edge.from.clone(),
+                        edge.to.clone(),
+                        path_d,
+                    ));
+                });
+        });
+
+        svg_edge_infos
+    }
+
+    /// Finds pairs of edges that form bidirectional connections (A->B and
+    /// B->A).
+    ///
+    /// Returns a set of (from, to) pairs where the reverse also exists.
+    fn find_bidirectional_pairs<'a, 'id>(
+        edges: &'a [Edge<'id>],
+    ) -> Set<(&'a NodeId<'id>, &'a NodeId<'id>)> {
+        let mut pairs = Set::new();
+
+        edges.into_iter().for_each(|edge| {
+            // Check if the reverse edge exists
+            let has_reverse = edges
+                .iter()
+                .any(|other| other.from == edge.to && other.to == edge.from);
+
+            if has_reverse {
+                pairs.insert((&edge.from, &edge.to));
+            }
+        });
+
+        pairs
+    }
+
+    /// Generates an edge ID from the edge group ID and edge index.
+    fn generate_edge_id(
+        edge_group_id: &EdgeGroupId<'_>,
+        edge_index: usize,
+    ) -> disposition_ir_model::edge::EdgeId<'static> {
+        let edge_id_str = format!("{}__{}", edge_group_id.as_str(), edge_index);
+        Id::try_from(edge_id_str)
+            .expect("edge ID should be valid")
+            .into()
+    }
+
+    /// Builds the SVG path `d` attribute for an edge between two nodes.
+    ///
+    /// The path is a curved Bézier curve that connects the appropriate faces
+    /// of the source and target nodes based on their relative positions.
+    fn build_edge_path(
+        from_info: &SvgNodeInfo,
+        to_info: &SvgNodeInfo,
+        is_forward_bidirectional: bool,
+        is_reverse_bidirectional: bool,
+    ) -> String {
+        // Constants for edge layout
+        const SELF_LOOP_X_OFFSET_RATIO: f32 = 0.1;
+        const SELF_LOOP_Y_EXTENSION_RATIO: f32 = 0.3;
+        const SELF_LOOP_X_EXTENSION_RATIO: f32 = 0.2;
+        const BIDIRECTIONAL_OFFSET_RATIO: f32 = 0.1;
+        const CURVE_CONTROL_RATIO: f32 = 0.3;
+
+        // Handle self-loop case
+        if from_info.node_id == to_info.node_id {
+            return Self::build_self_loop_path(
+                from_info,
+                SELF_LOOP_X_OFFSET_RATIO,
+                SELF_LOOP_Y_EXTENSION_RATIO,
+                SELF_LOOP_X_EXTENSION_RATIO,
+            );
+        }
+
+        // Determine which faces to use based on relative positions
+        let (from_face, to_face) = Self::select_edge_faces(from_info, to_info);
+
+        // Check if from is contained inside to
+        let from_contained_in_to = Self::is_node_contained_in(from_info, to_info);
+        if from_contained_in_to {
+            return Self::build_contained_edge_path(from_info, to_info, CURVE_CONTROL_RATIO);
+        }
+
+        // Get base connection points
+        let (mut start_x, mut start_y) = Self::get_face_center(from_info, from_face);
+        let (mut end_x, mut end_y) = Self::get_face_center(to_info, to_face);
+
+        // Apply bidirectional offset
+        if is_forward_bidirectional || is_reverse_bidirectional {
+            let offset_direction = if is_reverse_bidirectional { 1.0 } else { -1.0 };
+
+            match from_face {
+                Face::Right | Face::Left => {
+                    start_y +=
+                        from_info.height_collapsed * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+                }
+                Face::Top | Face::Bottom => {
+                    start_x += from_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+                }
+            }
+
+            match to_face {
+                Face::Right | Face::Left => {
+                    end_y +=
+                        to_info.height_collapsed * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+                }
+                Face::Top | Face::Bottom => {
+                    end_x += to_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+                }
+            }
+        }
+
+        // Build curved path
+        Self::build_curved_edge_path(
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+            from_face,
+            to_face,
+            CURVE_CONTROL_RATIO,
+        )
+    }
+
+    /// Builds a self-loop path that goes from the bottom of a node, extends
+    /// down, curves left, and returns to the bottom of the same node.
+    fn build_self_loop_path(
+        node_info: &SvgNodeInfo,
+        x_offset_ratio: f32,
+        y_extension_ratio: f32,
+        x_extension_ratio: f32,
+    ) -> String {
+        let start_x = node_info.x + node_info.width * (0.5 + x_offset_ratio);
+        let start_y = node_info.y + node_info.height_collapsed;
+        let end_x = node_info.x + node_info.width * (0.5 - x_offset_ratio);
+        let end_y = start_y;
+
+        let extension_y = node_info.height_collapsed * y_extension_ratio;
+        let extension_x = node_info.width * x_extension_ratio;
+
+        let mut path = BezPath::new();
+        path.move_to(Point::new(start_x as f64, start_y as f64));
+
+        // Control points for the self-loop curve
+        let ctrl1 = Point::new(start_x as f64, (start_y + extension_y) as f64);
+        let ctrl2 = Point::new(
+            (start_x - extension_x) as f64,
+            (start_y + extension_y) as f64,
+        );
+        let mid = Point::new(
+            (node_info.x + node_info.width * 0.5 - extension_x) as f64,
+            (start_y + extension_y) as f64,
+        );
+
+        path.curve_to(ctrl1, ctrl2, mid);
+
+        let ctrl3 = Point::new(
+            (end_x - extension_x * 0.5) as f64,
+            (start_y + extension_y) as f64,
+        );
+        let ctrl4 = Point::new(end_x as f64, (end_y + extension_y * 0.5) as f64);
+        let end = Point::new(end_x as f64, end_y as f64);
+
+        path.curve_to(ctrl3, ctrl4, end);
+
+        path.to_svg()
+    }
+
+    /// Builds a path for an edge where the source node is contained inside the
+    /// target node.
+    fn build_contained_edge_path(
+        from_info: &SvgNodeInfo,
+        to_info: &SvgNodeInfo,
+        curve_ratio: f32,
+    ) -> String {
+        // Start from bottom of from node
+        let start_x = from_info.x + from_info.width * 0.5;
+        let start_y = from_info.y + from_info.height_collapsed;
+
+        // End at left face of to node
+        let end_x = to_info.x;
+        let end_y = to_info.y + to_info.height_collapsed * 0.5;
+
+        // Control points: go down, then left, then up
+        let ctrl_distance = (start_y - end_y).abs().max(from_info.width) * curve_ratio;
+
+        let mut path = BezPath::new();
+        path.move_to(Point::new(start_x as f64, start_y as f64));
+
+        let ctrl1 = Point::new(start_x as f64, (start_y + ctrl_distance) as f64);
+        let ctrl2 = Point::new((end_x - ctrl_distance) as f64, end_y as f64);
+        let end = Point::new(end_x as f64, end_y as f64);
+
+        path.curve_to(ctrl1, ctrl2, end);
+
+        path.to_svg()
+    }
+
+    /// Selects the appropriate faces for connecting two nodes based on their
+    /// relative positions, choosing the faces that produce the shortest path.
+    fn select_edge_faces(from_info: &SvgNodeInfo, to_info: &SvgNodeInfo) -> (Face, Face) {
+        let from_center_x = from_info.x + from_info.width / 2.0;
+        let from_center_y = from_info.y + from_info.height_collapsed / 2.0;
+        let to_center_x = to_info.x + to_info.width / 2.0;
+        let to_center_y = to_info.y + to_info.height_collapsed / 2.0;
+
+        let dx = to_center_x - from_center_x;
+        let dy = to_center_y - from_center_y;
+
+        // Check for clear horizontal or vertical alignment
+        let from_right = from_info.x + from_info.width;
+        let to_right = to_info.x + to_info.width;
+        let from_bottom = from_info.y + from_info.height_collapsed;
+        let to_bottom = to_info.y + to_info.height_collapsed;
+
+        // Node is clearly to the right (no horizontal overlap)
+        if from_right < to_info.x {
+            if from_bottom < to_info.y {
+                // Diagonal: from is above-left of to
+                return Self::select_diagonal_faces(
+                    from_info,
+                    to_info,
+                    Face::Right,
+                    Face::Bottom,
+                    Face::Left,
+                    Face::Top,
+                );
+            } else if from_info.y > to_bottom {
+                // Diagonal: from is below-left of to
+                return Self::select_diagonal_faces(
+                    from_info,
+                    to_info,
+                    Face::Right,
+                    Face::Top,
+                    Face::Left,
+                    Face::Bottom,
+                );
+            }
+            return (Face::Right, Face::Left);
+        }
+
+        // Node is clearly to the left (no horizontal overlap)
+        if to_right < from_info.x {
+            if from_bottom < to_info.y {
+                // Diagonal: from is above-right of to
+                return Self::select_diagonal_faces(
+                    from_info,
+                    to_info,
+                    Face::Left,
+                    Face::Bottom,
+                    Face::Right,
+                    Face::Top,
+                );
+            } else if from_info.y > to_bottom {
+                // Diagonal: from is below-right of to
+                return Self::select_diagonal_faces(
+                    from_info,
+                    to_info,
+                    Face::Left,
+                    Face::Top,
+                    Face::Right,
+                    Face::Bottom,
+                );
+            }
+            return (Face::Left, Face::Right);
+        }
+
+        // Node is clearly below (no vertical overlap but horizontal overlap)
+        if from_bottom < to_info.y {
+            return (Face::Bottom, Face::Top);
+        }
+
+        // Node is clearly above (no vertical overlap but horizontal overlap)
+        if to_bottom < from_info.y {
+            return (Face::Top, Face::Bottom);
+        }
+
+        // Overlapping nodes - use primary direction
+        if dx.abs() > dy.abs() {
+            if dx > 0.0 {
+                (Face::Right, Face::Left)
+            } else {
+                (Face::Left, Face::Right)
+            }
+        } else if dy > 0.0 {
+            (Face::Bottom, Face::Top)
+        } else {
+            (Face::Top, Face::Bottom)
+        }
+    }
+
+    /// Selects the best faces for diagonal connections by comparing distances.
+    fn select_diagonal_faces(
+        from_info: &SvgNodeInfo,
+        to_info: &SvgNodeInfo,
+        from_horiz: Face,
+        from_vert: Face,
+        to_horiz: Face,
+        to_vert: Face,
+    ) -> (Face, Face) {
+        // Calculate distances for horizontal-to-vertical vs vertical-to-horizontal
+        let (from_h_x, from_h_y) = Self::get_face_center(from_info, from_horiz);
+        let (to_v_x, to_v_y) = Self::get_face_center(to_info, to_vert);
+        let dist_h_to_v = ((to_v_x - from_h_x).powi(2) + (to_v_y - from_h_y).powi(2)).sqrt();
+
+        let (from_v_x, from_v_y) = Self::get_face_center(from_info, from_vert);
+        let (to_h_x, to_h_y) = Self::get_face_center(to_info, to_horiz);
+        let dist_v_to_h = ((to_h_x - from_v_x).powi(2) + (to_h_y - from_v_y).powi(2)).sqrt();
+
+        if dist_h_to_v <= dist_v_to_h {
+            (from_horiz, to_vert)
+        } else {
+            (from_vert, to_horiz)
+        }
+    }
+
+    /// Gets the center point of a node's face.
+    fn get_face_center(node_info: &SvgNodeInfo, face: Face) -> (f32, f32) {
+        match face {
+            Face::Top => (node_info.x + node_info.width / 2.0, node_info.y),
+            Face::Bottom => (
+                node_info.x + node_info.width / 2.0,
+                node_info.y + node_info.height_collapsed,
+            ),
+            Face::Left => (node_info.x, node_info.y + node_info.height_collapsed / 2.0),
+            Face::Right => (
+                node_info.x + node_info.width,
+                node_info.y + node_info.height_collapsed / 2.0,
+            ),
+        }
+    }
+
+    /// Checks if a node is geometrically contained within another node.
+    fn is_node_contained_in(inner: &SvgNodeInfo, outer: &SvgNodeInfo) -> bool {
+        inner.x >= outer.x
+            && inner.y >= outer.y
+            && inner.x + inner.width <= outer.x + outer.width
+            && inner.y + inner.height_collapsed <= outer.y + outer.height_collapsed
+    }
+
+    /// Builds a curved Bézier path between two points with control points
+    /// based on the faces being connected.
+    fn build_curved_edge_path(
+        start_x: f32,
+        start_y: f32,
+        end_x: f32,
+        end_y: f32,
+        from_face: Face,
+        to_face: Face,
+        curve_ratio: f32,
+    ) -> String {
+        let dx = end_x - start_x;
+        let dy = end_y - start_y;
+        let distance = (dx * dx + dy * dy).sqrt();
+        let ctrl_distance = distance * curve_ratio;
+
+        // Calculate control points based on face directions
+        let (ctrl1_x, ctrl1_y) = Self::get_control_point_offset(from_face, ctrl_distance);
+        let (ctrl2_x, ctrl2_y) = Self::get_control_point_offset(to_face, ctrl_distance);
+
+        let mut path = BezPath::new();
+        path.move_to(Point::new(start_x as f64, start_y as f64));
+        path.curve_to(
+            Point::new((start_x + ctrl1_x) as f64, (start_y + ctrl1_y) as f64),
+            Point::new((end_x + ctrl2_x) as f64, (end_y + ctrl2_y) as f64),
+            Point::new(end_x as f64, end_y as f64),
+        );
+
+        path.to_svg()
+    }
+
+    /// Gets the control point offset direction based on the face.
+    fn get_control_point_offset(face: Face, distance: f32) -> (f32, f32) {
+        match face {
+            Face::Top => (0.0, -distance),
+            Face::Bottom => (0.0, distance),
+            Face::Left => (-distance, 0.0),
+            Face::Right => (distance, 0.0),
+        }
+    }
+}
+
+/// Represents a face/side of a rectangular node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Face {
+    Top,
+    Bottom,
+    Left,
+    Right,
 }
 
 #[derive(Clone, Copy, Debug)]

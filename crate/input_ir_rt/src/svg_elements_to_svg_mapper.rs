@@ -16,7 +16,7 @@ impl SvgElementsToSvgMapper {
             svg_width,
             svg_height,
             svg_node_infos,
-            svg_edge_infos: _,
+            svg_edge_infos,
             svg_process_infos: _,
             additional_tailwind_classes,
             tailwind_classes,
@@ -105,6 +105,59 @@ impl SvgElementsToSvgMapper {
 
             // Close group element
             content_buffer.push_str("</g>");
+        });
+
+        // Render edges
+        svg_edge_infos.iter().for_each(|svg_edge_info| {
+            let edge_id = &svg_edge_info.edge_id;
+            let edge_group_id = &svg_edge_info.edge_group_id;
+            let path_d = &svg_edge_info.path_d;
+
+            // Build class attribute from tailwind_classes for the edge
+            // First check for edge-specific classes, then fall back to edge group classes
+            let class_attr = {
+                let edge_classes = tailwind_classes
+                    .get(edge_id.as_ref())
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+
+                let edge_group_classes = tailwind_classes
+                    .get(edge_group_id.as_ref())
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+
+                let combined = if edge_classes.is_empty() {
+                    edge_group_classes.to_string()
+                } else if edge_group_classes.is_empty() {
+                    edge_classes.to_string()
+                } else {
+                    format!("{edge_group_classes}\n{edge_classes}")
+                };
+
+                if combined.is_empty() {
+                    String::new()
+                } else {
+                    let mut classes_str = String::with_capacity(combined.len() + 25);
+                    classes_str.push_str(r#" class=""#);
+                    combined.chars().for_each(|c| {
+                        if c == '&' {
+                            classes_str.push_str("&amp;");
+                        } else {
+                            classes_str.push(c);
+                        }
+                    });
+                    classes_str.push('"');
+                    classes_str
+                }
+            };
+
+            // Render edge as a group with a path
+            // The path has fill="none" since edges are stroked lines, not filled shapes
+            write!(
+                content_buffer,
+                r#"<g id="{edge_id}"{class_attr}><path d="{path_d}" fill="none" /></g>"#
+            )
+            .unwrap();
         });
 
         // Generate CSS from tailwind classes (escaping underscores in brackets for
