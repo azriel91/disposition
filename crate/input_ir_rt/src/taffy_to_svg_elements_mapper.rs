@@ -9,7 +9,7 @@ use disposition_ir_model::{
 use disposition_model_common::{edge::EdgeGroupId, entity::EntityType, Id, Map, Set};
 use disposition_svg_model::{SvgEdgeInfo, SvgElements, SvgNodeInfo, SvgProcessInfo, SvgTextSpan};
 use disposition_taffy_model::{
-    EntityHighlightedSpans, NodeContext, NodeToTaffyNodeIds, TaffyNodeMappings,
+    EntityHighlightedSpans, NodeContext, NodeToTaffyNodeIds, TaffyNodeMappings, TEXT_LINE_HEIGHT,
 };
 use kurbo::{BezPath, Point};
 use taffy::TaffyTree;
@@ -817,10 +817,19 @@ impl TaffyToSvgElementsMapper {
         is_reverse_bidirectional: bool,
     ) -> String {
         // Constants for edge layout
-        const SELF_LOOP_X_OFFSET_RATIO: f32 = 0.1;
-        const SELF_LOOP_Y_EXTENSION_RATIO: f32 = 0.3;
+
+        /// Percentage of the node's width to offset the edge's x coordinate
+        /// from the midpoint of the node.
+        const SELF_LOOP_X_OFFSET_RATIO: f32 = 0.2;
+        /// Percentage of the node's height to extend the edge vertically.
+        const SELF_LOOP_Y_EXTENSION_RATIO: f32 = 0.2;
+        /// Percentage of the node's width to curve the edge horizontally
+        /// outward.
         const SELF_LOOP_X_EXTENSION_RATIO: f32 = 0.2;
+        /// Percentage of the node's width/height to offset the edge when
+        /// connecting to another edge.
         const BIDIRECTIONAL_OFFSET_RATIO: f32 = 0.1;
+        /// Percentage of the node's width/height to curve the edge outward.
         const CURVE_CONTROL_RATIO: f32 = 0.3;
 
         // Handle self-loop case
@@ -896,33 +905,31 @@ impl TaffyToSvgElementsMapper {
         let end_x = node_info.x + node_info.width * (0.5 - x_offset_ratio);
         let end_y = start_y;
 
-        let extension_y = node_info.height_collapsed * y_extension_ratio;
+        let extension_y = TEXT_LINE_HEIGHT.max(node_info.height_collapsed * y_extension_ratio);
         let extension_x = node_info.width * x_extension_ratio;
 
         let mut path = BezPath::new();
-        path.move_to(Point::new(start_x as f64, start_y as f64));
+        let start = Point::new(start_x as f64, start_y as f64);
+        path.move_to(start);
 
         // Control points for the self-loop curve
-        let ctrl1 = Point::new(start_x as f64, (start_y + extension_y) as f64);
-        let ctrl2 = Point::new(
-            (start_x - extension_x) as f64,
+        let ctrl1 = Point::new(
+            (start_x + extension_x * 0.5) as f64,
             (start_y + extension_y) as f64,
         );
         let mid = Point::new(
-            (node_info.x + node_info.width * 0.5 - extension_x) as f64,
+            (node_info.x + node_info.width * 0.5) as f64,
             (start_y + extension_y) as f64,
         );
-
-        path.curve_to(ctrl1, ctrl2, mid);
 
         let ctrl3 = Point::new(
             (end_x - extension_x * 0.5) as f64,
             (start_y + extension_y) as f64,
         );
-        let ctrl4 = Point::new(end_x as f64, (end_y + extension_y * 0.5) as f64);
         let end = Point::new(end_x as f64, end_y as f64);
 
-        path.curve_to(ctrl3, ctrl4, end);
+        path.curve_to(start, ctrl1, mid);
+        path.curve_to(mid, ctrl3, end);
 
         path.to_svg()
     }
