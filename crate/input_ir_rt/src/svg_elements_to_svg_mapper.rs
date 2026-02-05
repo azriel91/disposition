@@ -57,21 +57,7 @@ impl SvgElementsToSvgMapper {
                     format!("{existing_classes}\n{translate_classes}")
                 };
 
-                if combined.is_empty() {
-                    String::new()
-                } else {
-                    let mut classes_str = String::with_capacity(combined.len() + 25);
-                    classes_str.push_str(r#" class=""#);
-                    combined.chars().for_each(|c| {
-                        if c == '&' {
-                            classes_str.push_str("&amp;");
-                        } else {
-                            classes_str.push(c);
-                        }
-                    });
-                    classes_str.push('"');
-                    classes_str
-                }
+                Self::class_attr_escaped(combined)
             };
 
             // Start group element with id, tabindex, and optional class
@@ -134,21 +120,7 @@ impl SvgElementsToSvgMapper {
                     format!("{edge_group_classes}\n{edge_classes}")
                 };
 
-                if combined.is_empty() {
-                    String::new()
-                } else {
-                    let mut classes_str = String::with_capacity(combined.len() + 25);
-                    classes_str.push_str(r#" class=""#);
-                    combined.chars().for_each(|c| {
-                        if c == '&' {
-                            classes_str.push_str("&amp;");
-                        } else {
-                            classes_str.push(c);
-                        }
-                    });
-                    classes_str.push('"');
-                    classes_str
-                }
+                Self::class_attr_escaped(combined)
             };
 
             // Render edge as a group with a path
@@ -218,6 +190,27 @@ impl SvgElementsToSvgMapper {
         buffer.push_str("</svg>");
 
         buffer
+    }
+
+    /// Returns the `class=".."` attribute with `&` escaped as `&amp;`.
+    fn class_attr_escaped(tailwind_classes: String) -> String {
+        if tailwind_classes.is_empty() {
+            String::new()
+        } else {
+            let ampersand_count = tailwind_classes.matches('&').count();
+            let mut classes_str =
+                String::with_capacity(tailwind_classes.len() + ampersand_count * 5 + 10);
+            classes_str.push_str(r#" class=""#);
+            tailwind_classes.chars().for_each(|c| {
+                if c == '&' {
+                    classes_str.push_str("&amp;");
+                } else {
+                    classes_str.push(c);
+                }
+            });
+            classes_str.push('"');
+            classes_str
+        }
     }
 
     /// Escapes underscores within ID selectors inside arbitrary variant
