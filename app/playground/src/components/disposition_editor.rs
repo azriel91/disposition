@@ -32,7 +32,7 @@ use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
 use web_time::Instant;
 
-use crate::components::{InputDiagramDiv, IrDiagramDiv, TaffyNodeMappingsDiv};
+use crate::components::{InputDiagramDiv, IrDiagramDiv, SvgElementsDiv, TaffyNodeMappingsDiv};
 
 #[component]
 pub fn DispositionEditor() -> Element {
@@ -187,8 +187,8 @@ pub fn DispositionEditor() -> Element {
         }
     });
 
-    // Serialize SvgElements to string (kept for potential future use)
-    let _svg_elements_string: Memo<String> = use_memo(move || {
+    // Serialize SvgElements to string
+    let svg_elements_string: Memo<String> = use_memo(move || {
         let svg_elements = &*svg_elements.read();
         match svg_elements {
             Ok(svg_elements) => {
@@ -265,6 +265,7 @@ pub fn DispositionEditor() -> Element {
                     input_diagram_string,
                     ir_diagram_string,
                     taffy_node_mappings_string,
+                    svg_elements_string,
                 }
                 DispositionStatusMessageDiv {
                     status_messages,
@@ -382,6 +383,7 @@ fn DispositionDataDivs(
     input_diagram_string: Signal<String>,
     ir_diagram_string: Memo<String>,
     taffy_node_mappings_string: Memo<String>,
+    svg_elements_string: Memo<String>,
 ) -> Element {
     rsx! {
         div {
@@ -398,6 +400,7 @@ fn DispositionDataDivs(
             InputDiagramDiv { input_diagram_string }
             IrDiagramDiv { ir_diagram_string }
             TaffyNodeMappingsDiv { taffy_node_mappings_string }
+            SvgElementsDiv { svg_elements_string }
         }
     }
 }
