@@ -11,8 +11,8 @@ things: &things
   t_aws_ecr_repo_image_1: "💿 Image 1"
   t_aws_ecr_repo_image_2: "💿 Image 2"
   t_aws_ecs: "💻 Elastic Container Service"
-  t_aws_ecs_cluster_app: "🎛️ web_app cluster"
-  t_aws_ecs_cluster_app_task: "🖨️ web_app task version 1"
+  t_aws_ecs_cluster: "🎛️ web_app cluster"
+  t_aws_ecs_cluster_task: "🖨️ web_app task version 1"
   t_github: "🐙 GitHub"
   t_github_user_repo: "azriel91/web_app"
   t_localhost: "🧑‍💻 localhost"
@@ -53,8 +53,8 @@ thing_hierarchy:
         t_aws_ecr_repo_image_1: {}
         t_aws_ecr_repo_image_2: {}
     t_aws_ecs:
-      t_aws_ecs_cluster_app:
-        t_aws_ecs_cluster_app_task: {}
+      t_aws_ecs_cluster:
+        t_aws_ecs_cluster_task: {}
 
   t_github:
     t_github_user_repo: {}
@@ -123,10 +123,10 @@ thing_dependencies: &thing_dependencies
     sequence:
       - t_github_user_repo
       - t_aws_ecr_repo
-  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push:
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push:
     sequence:
       - t_aws_ecr_repo
-      - t_aws_ecs_service
+      - t_aws_ecs_cluster
 
 # Interactions between things can be cyclic, a sequence, or symmetric.
 #
@@ -183,10 +183,10 @@ thing_interactions:
     sequence:
       - t_github_user_repo
       - t_aws_ecr_repo
-  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push:
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push:
     sequence:
       - t_aws_ecr_repo
-      - t_aws_ecs_service
+      - t_aws_ecs_cluster
 
 # Processes are groupings of interactions between things sequenced over time.
 #
@@ -238,10 +238,10 @@ processes:
   proc_i12e_region_tier_app_deploy:
     name: "Prod App Deploy"
     steps:
-      proc_i12e_region_tier_app_deploy_step_ecs_service_update: "Update ECS service"
+      proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: "Update ECS cluster"
     step_thing_interactions:
-      proc_i12e_region_tier_app_deploy_step_ecs_service_update:
-        [edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push]
+      proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:
+        [edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push]
 
 # Descriptions to render next to each node, edge group, or edge.
 #
@@ -300,8 +300,8 @@ entity_tooltips:
     The build will push the new version to ECR automatically.
   proc_app_release_step_gh_actions_publish: |-
     Github Actions will publish the image to AWS ECR.
-  proc_i12e_region_tier_app_deploy_step_ecs_service_update: |-
-    Deploy or update the existing ECS service with the new image.
+  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: |-
+    Deploy or update the existing ECS cluster with the new image.
 
 # Tags are labels that can be associated with things, so that the things can be highlighted when
 # the tag is focused.
@@ -330,8 +330,8 @@ entity_types:
   t_aws_ecr_repo_image_1: [type_docker_image]
   t_aws_ecr_repo_image_2: [type_docker_image]
   t_aws_ecs: [type_service]
-  # t_aws_ecs_cluster_app: []
-  # t_aws_ecs_cluster_app_task: []
+  # t_aws_ecs_cluster: []
+  # t_aws_ecs_cluster_task: []
   t_github: [type_organisation]
 
 theme_default:

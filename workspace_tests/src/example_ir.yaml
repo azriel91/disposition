@@ -21,8 +21,8 @@ nodes: &nodes
   t_aws_ecr_repo_image_1: "💿 Image 1"
   t_aws_ecr_repo_image_2: "💿 Image 2"
   t_aws_ecs: "💻 Elastic Container Service"
-  t_aws_ecs_cluster_app: "🎛️ web_app cluster"
-  t_aws_ecs_cluster_app_task: "🖨️ web_app task version 1"
+  t_aws_ecs_cluster: "🎛️ web_app cluster"
+  t_aws_ecs_cluster_task: "🖨️ web_app task version 1"
   t_github: "🐙 GitHub"
   t_github_user_repo: "azriel91/web_app"
   t_localhost: "🧑‍💻 localhost"
@@ -49,7 +49,7 @@ nodes: &nodes
   proc_app_release_step_gh_actions_publish: "Github Actions publish"
 
   proc_i12e_region_tier_app_deploy: "Prod App Deploy"
-  proc_i12e_region_tier_app_deploy_step_ecs_service_update: "Update ECS service"
+  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: "Update ECS cluster"
 
 # Text to copy to clipboard when a node's copy button is clicked.
 node_copy_text:
@@ -68,8 +68,8 @@ node_copy_text:
   t_aws_ecr_repo_image_1: "💿 Image 1"
   t_aws_ecr_repo_image_2: "💿 Image 2"
   t_aws_ecs: "💻 Elastic Container Service"
-  t_aws_ecs_cluster_app: "🎛️ web_app cluster"
-  t_aws_ecs_cluster_app_task: "🖨️ web_app task version 1"
+  t_aws_ecs_cluster: "🎛️ web_app cluster"
+  t_aws_ecs_cluster_task: "🖨️ web_app task version 1"
   t_github: "🐙 GitHub"
   t_github_user_repo: "azriel91/web_app"
 
@@ -97,7 +97,7 @@ node_hierarchy:
     proc_app_release_step_gh_actions_build: {}
     proc_app_release_step_gh_actions_publish: {}
   proc_i12e_region_tier_app_deploy:
-    proc_i12e_region_tier_app_deploy_step_ecs_service_update: {}
+    proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: {}
 
   # Things
   t_aws:
@@ -108,8 +108,8 @@ node_hierarchy:
         t_aws_ecr_repo_image_1: {}
         t_aws_ecr_repo_image_2: {}
     t_aws_ecs:
-      t_aws_ecs_cluster_app:
-        t_aws_ecs_cluster_app_task: {}
+      t_aws_ecs_cluster:
+        t_aws_ecs_cluster_task: {}
   t_github:
     t_github_user_repo: {}
   t_localhost:
@@ -149,7 +149,7 @@ node_ordering:
   proc_app_release_step_gh_actions_build: 26
   proc_app_release_step_gh_actions_publish: 27
 
-  proc_i12e_region_tier_app_deploy_step_ecs_service_update: 29
+  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: 29
 
   # things
   t_aws: 1
@@ -160,8 +160,8 @@ node_ordering:
   t_aws_ecr_repo_image_1: 6
   t_aws_ecr_repo_image_2: 7
   t_aws_ecs: 8
-  t_aws_ecs_cluster_app: 9
-  t_aws_ecs_cluster_app_task: 10
+  t_aws_ecs_cluster: 9
+  t_aws_ecs_cluster_task: 10
   t_github: 11
   t_github_user_repo: 12
   t_localhost: 13
@@ -198,10 +198,10 @@ edge_groups:
     # sequence: [t_github_user_repo, t_aws_ecr_repo]: A -> B
     - from: t_github_user_repo
       to: t_aws_ecr_repo
-  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push:
-    # sequence: [t_aws_ecr_repo, t_aws_ecs_service]: A -> B
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push:
+    # sequence: [t_aws_ecr_repo, t_aws_ecs_cluster]: A -> B
     - from: t_aws_ecr_repo
-      to: t_aws_ecs_service
+      to: t_aws_ecs_cluster
 
   # Interaction edge groups
   edge_ix_t_localhost__t_github_user_repo__pull:
@@ -228,10 +228,10 @@ edge_groups:
     # sequence: [t_github_user_repo, t_aws_ecr_repo]: A -> B
     - from: t_github_user_repo
       to: t_aws_ecr_repo
-  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push:
-    # sequence: [t_aws_ecr_repo, t_aws_ecs_service]: A -> B
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push:
+    # sequence: [t_aws_ecr_repo, t_aws_ecs_cluster]: A -> B
     - from: t_aws_ecr_repo
-      to: t_aws_ecs_service
+      to: t_aws_ecs_cluster
 
 # Descriptions for entities.
 #
@@ -281,8 +281,8 @@ entity_tooltips:
     The build will push the new version to ECR automatically.
   proc_app_release_step_gh_actions_publish: |-
     Github Actions will publish the image to AWS ECR.
-  proc_i12e_region_tier_app_deploy_step_ecs_service_update: |-
-    Deploy or update the existing ECS service with the new image.
+  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: |-
+    Deploy or update the existing ECS cluster with the new image.
 
 # Entity types for styling.
 entity_types:
@@ -302,8 +302,8 @@ entity_types:
   t_aws_ecr_repo_image_1: [type_thing_default, type_docker_image]
   t_aws_ecr_repo_image_2: [type_thing_default, type_docker_image]
   t_aws_ecs: [type_thing_default, type_service]
-  t_aws_ecs_cluster_app: [type_thing_default]
-  t_aws_ecs_cluster_app_task: [type_thing_default]
+  t_aws_ecs_cluster: [type_thing_default]
+  t_aws_ecs_cluster_task: [type_thing_default]
   t_github: [type_thing_default, type_organisation]
   t_github_user_repo: [type_thing_default]
   t_localhost: [type_thing_default]
@@ -330,7 +330,7 @@ entity_types:
   proc_app_release_step_gh_actions_publish: [type_process_step_default]
 
   proc_i12e_region_tier_app_deploy: [type_process_default]
-  proc_i12e_region_tier_app_deploy_step_ecs_service_update: [type_process_step_default]
+  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: [type_process_step_default]
 
   # edge groups
 
@@ -373,11 +373,11 @@ entity_types:
   edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0:
     [type_dependency_edge_sequence_forward_default]
 
-  # edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push: sequence [t_aws_ecr_repo, t_aws_ecs_service]
+  # edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push: sequence [t_aws_ecr_repo, t_aws_ecs_cluster]
   #   edges:
-  #     - 0: t_aws_ecr_repo -> t_aws_ecs_service
-  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push: [type_dependency_edge_sequence_default]
-  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push__0:
+  #     - 0: t_aws_ecr_repo -> t_aws_ecs_cluster
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push: [type_dependency_edge_sequence_default]
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push__0:
     [type_dependency_edge_sequence_forward_default]
 
   # interaction edge groups and edges
@@ -421,11 +421,11 @@ entity_types:
   edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0:
     [type_interaction_edge_sequence_forward_default]
 
-  # edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push: sequence [t_aws_ecr_repo, t_aws_ecs_service]
+  # edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push: sequence [t_aws_ecr_repo, t_aws_ecs_cluster]
   #   edges:
-  #     - 0: t_aws_ecr_repo -> t_aws_ecs_service
-  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push: [type_interaction_edge_sequence_default]
-  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push__0:
+  #     - 0: t_aws_ecr_repo -> t_aws_ecs_cluster
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push: [type_interaction_edge_sequence_default]
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0:
     [type_interaction_edge_sequence_forward_default]
 
 # Computed Tailwind CSS classes.
@@ -547,13 +547,13 @@ tailwind_classes:
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:fill-slate-100
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:fill-slate-200
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:fill-slate-300
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:[stroke-dasharray:3]
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:stroke-2
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:animate-[stroke-dashoffset-move_2s_linear_infinite]
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:hover:fill-slate-50
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:fill-slate-100
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:focus:fill-slate-200
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:active:fill-slate-300
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:[stroke-dasharray:3]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:stroke-2
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:fill-slate-50
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:fill-slate-100
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:fill-slate-200
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:fill-slate-300
 
   t_aws_ecr_repo_image_1: |
     visible
@@ -600,7 +600,7 @@ tailwind_classes:
     [&>text]:fill-neutral-900
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_aws_ecs_cluster_app: |
+  t_aws_ecs_cluster: |
     visible
     [stroke-dasharray:none]
     stroke-2
@@ -615,7 +615,15 @@ tailwind_classes:
     [&>text]:fill-neutral-900
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
-  t_aws_ecs_cluster_app_task: |
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:[stroke-dasharray:3]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:stroke-2
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:fill-slate-50
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:fill-slate-100
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:fill-slate-200
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:fill-slate-300
+
+  t_aws_ecs_cluster_task: |
     visible
     [stroke-dasharray:none]
     stroke-2
@@ -1061,7 +1069,7 @@ tailwind_classes:
     active:stroke-blue-800
     [&>text]:fill-neutral-950
     peer/proc_i12e_region_tier_app_deploy
-  proc_i12e_region_tier_app_deploy_step_ecs_service_update: |
+  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: |
     invisible
     [stroke-dasharray:none]
     stroke-2
@@ -1075,8 +1083,8 @@ tailwind_classes:
     active:stroke-sky-800
     [&>text]:fill-neutral-950
     group-has-[#proc_i12e_region_tier_app_deploy:focus-within]:visible
-    group-has-[#proc_i12e_region_tier_app_deploy_step_ecs_service_update:focus-within]:visible
-    peer/proc_i12e_region_tier_app_deploy_step_ecs_service_update
+    group-has-[#proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus-within]:visible
+    peer/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update
 
   # Edges - visible when their associated step has focus
   #
@@ -1174,7 +1182,7 @@ tailwind_classes:
   edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0: |
     stroke-2
 
-  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push: |
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push: |
     visible
     [stroke-dasharray:none]
     stroke-2
@@ -1187,7 +1195,7 @@ tailwind_classes:
     focus:stroke-neutral-900
     active:stroke-neutral-950
     [&>text]:fill-neutral-950
-  edge_dep_t_aws_ecr_repo__t_aws_ecs_service__push__0: |
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push__0: |
     stroke-2
 
   # interaction edges
@@ -1284,7 +1292,7 @@ tailwind_classes:
   edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: |
     animate-[stroke-dashoffset-move-request_2s_linear_infinite]
 
-  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push: |
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push: |
     invisible
     [stroke-dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
     stroke-2
@@ -1297,8 +1305,8 @@ tailwind_classes:
     focus:stroke-violet-900
     active:stroke-violet-950
     [&>text]:fill-neutral-950
-    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_service_update:visible
-  edge_ix_t_aws_ecr_repo__t_aws_ecs_service__push__0: |
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:visible
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0: |
     animate-[stroke-dashoffset-move-request_2s_linear_infinite]
 
 # Layout configuration for nodes.
@@ -1435,7 +1443,7 @@ node_layouts:
       margin_bottom: 0.0
       margin_left: 0.0
       gap: 4.0
-  proc_i12e_region_tier_app_deploy_step_ecs_service_update: none
+  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: none
 
   # Tags container
   #
@@ -1548,7 +1556,7 @@ node_layouts:
       margin_bottom: 0.0
       margin_left: 0.0
       gap: 4.0
-  t_aws_ecs_cluster_app:
+  t_aws_ecs_cluster:
     flex:
       direction: "column"
       wrap: false
@@ -1561,7 +1569,7 @@ node_layouts:
       margin_bottom: 0.0
       margin_left: 0.0
       gap: 4.0
-  t_aws_ecs_cluster_app_task: none
+  t_aws_ecs_cluster_task: none
 
   t_github:
     flex:
@@ -1676,13 +1684,13 @@ node_shapes:
       radius_top_right: 4.0
       radius_bottom_left: 4.0
       radius_bottom_right: 4.0
-  t_aws_ecs_cluster_app:
+  t_aws_ecs_cluster:
     rect:
       radius_top_left: 4.0
       radius_top_right: 4.0
       radius_bottom_left: 4.0
       radius_bottom_right: 4.0
-  t_aws_ecs_cluster_app_task:
+  t_aws_ecs_cluster_task:
     rect:
       radius_top_left: 4.0
       radius_top_right: 4.0
@@ -1812,7 +1820,7 @@ node_shapes:
       radius_top_right: 4.0
       radius_bottom_left: 4.0
       radius_bottom_right: 4.0
-  proc_i12e_region_tier_app_deploy_step_ecs_service_update:
+  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:
     rect:
       radius_top_left: 4.0
       radius_top_right: 4.0
