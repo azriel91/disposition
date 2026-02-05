@@ -750,12 +750,13 @@ impl TaffyToSvgElementsMapper {
                     let is_reverse_of_bidirectional =
                         bidirectional_pairs.contains(&(&edge.to, &edge.from));
 
-                    let path_d = Self::build_edge_path(
+                    let path = Self::build_edge_path(
                         from_info,
                         to_info,
                         is_forward_of_bidirectional && !is_reverse_of_bidirectional,
                         is_reverse_of_bidirectional,
                     );
+                    let path_d = path.to_svg();
 
                     let edge_id = Self::generate_edge_id(edge_group_id, edge_index);
 
@@ -815,7 +816,7 @@ impl TaffyToSvgElementsMapper {
         to_info: &SvgNodeInfo,
         is_forward_bidirectional: bool,
         is_reverse_bidirectional: bool,
-    ) -> String {
+    ) -> BezPath {
         // Constants for edge layout
 
         /// Percentage of the node's width to offset the edge's x coordinate
@@ -899,7 +900,7 @@ impl TaffyToSvgElementsMapper {
         x_offset_ratio: f32,
         y_extension_ratio: f32,
         x_extension_ratio: f32,
-    ) -> String {
+    ) -> BezPath {
         let start_x = node_info.x + node_info.width * (0.5 + x_offset_ratio);
         let start_y = node_info.y + node_info.height_collapsed;
         let end_x = node_info.x + node_info.width * (0.5 - x_offset_ratio);
@@ -908,9 +909,7 @@ impl TaffyToSvgElementsMapper {
         let extension_y = TEXT_LINE_HEIGHT.max(node_info.height_collapsed * y_extension_ratio);
         let extension_x = node_info.width * x_extension_ratio;
 
-        let mut path = BezPath::new();
         let start = Point::new(start_x as f64, start_y as f64);
-        path.move_to(start);
 
         // Control points for the self-loop curve
         let ctrl1 = Point::new(
@@ -928,10 +927,17 @@ impl TaffyToSvgElementsMapper {
         );
         let end = Point::new(end_x as f64, end_y as f64);
 
-        path.curve_to(start, ctrl1, mid);
-        path.curve_to(mid, ctrl3, end);
+        // Paths have to be built in reverse to get them to render in the correct
+        // direction in the SVG.
+        let mut path = BezPath::new();
+        // path.move_to(start);
+        // path.curve_to(start, ctrl1, mid);
+        // path.curve_to(mid, ctrl3, end);
+        path.move_to(end);
+        path.curve_to(end, ctrl3, mid);
+        path.curve_to(mid, ctrl1, start);
 
-        path.to_svg()
+        path
     }
 
     /// Builds a path for an edge where the source node is contained inside the
@@ -940,7 +946,7 @@ impl TaffyToSvgElementsMapper {
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
         curve_ratio: f32,
-    ) -> String {
+    ) -> BezPath {
         // Start from bottom of from node
         let start_x = from_info.x + from_info.width * 0.5;
         let start_y = from_info.y + from_info.height_collapsed;
@@ -952,16 +958,20 @@ impl TaffyToSvgElementsMapper {
         // Control points: go down, then left, then up
         let ctrl_distance = (start_y - end_y).abs().max(from_info.width) * curve_ratio;
 
-        let mut path = BezPath::new();
-        path.move_to(Point::new(start_x as f64, start_y as f64));
-
         let ctrl1 = Point::new(start_x as f64, (start_y + ctrl_distance) as f64);
         let ctrl2 = Point::new((end_x - ctrl_distance) as f64, end_y as f64);
         let end = Point::new(end_x as f64, end_y as f64);
 
-        path.curve_to(ctrl1, ctrl2, end);
+        // Paths have to be built in reverse to get them to render in the correct
+        // direction in the SVG.
+        let mut path = BezPath::new();
+        let start = Point::new(start_x as f64, start_y as f64);
+        // path.move_to(start);
+        // path.curve_to(ctrl1, ctrl2, end);
+        path.move_to(end);
+        path.curve_to(ctrl2, ctrl1, start);
 
-        path.to_svg()
+        path
     }
 
     /// Selects the appropriate faces for connecting two nodes based on their
@@ -1116,25 +1126,29 @@ impl TaffyToSvgElementsMapper {
         from_face: Face,
         to_face: Face,
         curve_ratio: f32,
-    ) -> String {
+    ) -> BezPath {
         let dx = end_x - start_x;
         let dy = end_y - start_y;
         let distance = (dx * dx + dy * dy).sqrt();
         let ctrl_distance = distance * curve_ratio;
 
         // Calculate control points based on face directions
+        let start = Point::new(start_x as f64, start_y as f64);
         let (ctrl1_x, ctrl1_y) = Self::get_control_point_offset(from_face, ctrl_distance);
         let (ctrl2_x, ctrl2_y) = Self::get_control_point_offset(to_face, ctrl_distance);
+        let ctrl1 = Point::new((start_x + ctrl1_x) as f64, (start_y + ctrl1_y) as f64);
+        let ctrl2 = Point::new((end_x + ctrl2_x) as f64, (end_y + ctrl2_y) as f64);
+        let end = Point::new(end_x as f64, end_y as f64);
 
+        // Paths have to be built in reverse to get them to render in the correct
+        // direction in the SVG.
         let mut path = BezPath::new();
-        path.move_to(Point::new(start_x as f64, start_y as f64));
-        path.curve_to(
-            Point::new((start_x + ctrl1_x) as f64, (start_y + ctrl1_y) as f64),
-            Point::new((end_x + ctrl2_x) as f64, (end_y + ctrl2_y) as f64),
-            Point::new(end_x as f64, end_y as f64),
-        );
+        // path.move_to(start);
+        // path.curve_to(ctrl1, ctrl2, end);
+        path.move_to(end);
+        path.curve_to(ctrl2, ctrl1, start);
 
-        path.to_svg()
+        path
     }
 
     /// Gets the control point offset direction based on the face.

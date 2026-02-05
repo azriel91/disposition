@@ -168,8 +168,8 @@ impl InputDiagram<'static> {
                100% { stroke-dashoffset: 228; }\n\
              }\n\
              @keyframes stroke-dashoffset-move-response {\n  \
-               0%   { stroke-dashoffset: 0; }\n  \
-               100% { stroke-dashoffset: -248; }\n\
+               0%   { stroke-dashoffset: -248; }\n  \
+               100% { stroke-dashoffset: 0; }\n\
              }",
         ));
 
