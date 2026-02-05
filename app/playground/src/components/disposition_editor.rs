@@ -35,6 +35,7 @@ use web_time::Instant;
 use crate::components::{InputDiagramDiv, IrDiagramDiv, SvgElementsDiv, TaffyNodeMappingsDiv};
 
 #[component]
+#[allow(clippy::type_complexity)] // Maybe reduce complexity for `Memo<_>` types when we refactor this.
 pub fn DispositionEditor() -> Element {
     let input_diagram_string = use_signal(|| String::from(""));
 
@@ -45,19 +46,18 @@ pub fn DispositionEditor() -> Element {
             Err(vec![String::from("ℹ️ Enter input diagram")])
         } else {
             let deserialize_start = Instant::now();
-            serde_saphyr::from_str(input_diagram_string)
-                .map(|input_diagram| {
-                    let deserialize_duration_ms =
-                        Instant::now().duration_since(deserialize_start).as_millis();
-                    info!("`input_diagram` deserialization took {deserialize_duration_ms} ms.");
-                    input_diagram
-                })
-                .map_err(|error| {
-                    vec![
-                        String::from("⚠️ Error parsing input diagram"),
-                        error.to_string(),
-                    ]
-                })
+            let input_diagram = serde_saphyr::from_str(input_diagram_string).map_err(|error| {
+                vec![
+                    String::from("⚠️ Error parsing input diagram"),
+                    error.to_string(),
+                ]
+            });
+
+            let deserialize_duration_ms =
+                Instant::now().duration_since(deserialize_start).as_millis();
+            info!("`input_diagram` deserialization took {deserialize_duration_ms} ms.");
+
+            input_diagram
         }
     });
 
