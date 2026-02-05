@@ -738,9 +738,11 @@ impl TaffyToSvgElementsMapper {
                 .for_each(|(edge_index, edge)| {
                     // Skip edges where either node is not found
                     let Some(from_info) = svg_node_info_map.get(&edge.from) else {
+                        // TODO: warn user that they probably got a Node ID wrong.
                         return;
                     };
                     let Some(to_info) = svg_node_info_map.get(&edge.to) else {
+                        // TODO: warn user that they probably got a Node ID wrong.
                         return;
                     };
 
@@ -777,6 +779,10 @@ impl TaffyToSvgElementsMapper {
     /// B->A).
     ///
     /// Returns a set of (from, to) pairs where the reverse also exists.
+    ///
+    /// TODO: Symmetric edge groups with only one node will have two `from` and
+    /// `to` pairs which are the node itself, and the second pair needs its edge
+    /// reversed.
     fn find_bidirectional_pairs<'a, 'id>(
         edges: &'a [Edge<'id>],
     ) -> Set<(&'a NodeId<'id>, &'a NodeId<'id>)> {
