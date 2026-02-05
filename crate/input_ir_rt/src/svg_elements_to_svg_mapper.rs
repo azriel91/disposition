@@ -1,7 +1,8 @@
 use std::fmt::Write;
 
 use base64::{prelude::BASE64_STANDARD, Engine};
-use disposition_svg_model::SvgElements;
+use disposition_ir_model::entity::EntityTailwindClasses;
+use disposition_svg_model::{SvgEdgeInfo, SvgElements};
 use disposition_taffy_model::{TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
 
 use crate::NOTO_SANS_MONO_TTF;
@@ -94,43 +95,7 @@ impl SvgElementsToSvgMapper {
         });
 
         // Render edges
-        svg_edge_infos.iter().for_each(|svg_edge_info| {
-            let edge_id = &svg_edge_info.edge_id;
-            let edge_group_id = &svg_edge_info.edge_group_id;
-            let path_d = &svg_edge_info.path_d;
-
-            // Build class attribute from tailwind_classes for the edge
-            // First check for edge-specific classes, then fall back to edge group classes
-            let class_attr = {
-                let edge_classes = tailwind_classes
-                    .get(edge_id.as_ref())
-                    .map(|s| s.as_str())
-                    .unwrap_or("");
-
-                let edge_group_classes = tailwind_classes
-                    .get(edge_group_id.as_ref())
-                    .map(|s| s.as_str())
-                    .unwrap_or("");
-
-                let combined = if edge_classes.is_empty() {
-                    edge_group_classes.to_string()
-                } else if edge_group_classes.is_empty() {
-                    edge_classes.to_string()
-                } else {
-                    format!("{edge_group_classes}\n{edge_classes}")
-                };
-
-                Self::class_attr_escaped(combined)
-            };
-
-            // Render edge as a group with a path
-            // The path has fill="none" since edges are stroked lines, not filled shapes
-            write!(
-                content_buffer,
-                r#"<g id="{edge_id}"{class_attr}><path d="{path_d}" fill="none" /></g>"#
-            )
-            .unwrap();
-        });
+        Self::render_edges(&mut content_buffer, svg_edge_infos, tailwind_classes);
 
         // Generate CSS from tailwind classes
         //
@@ -190,6 +155,69 @@ impl SvgElementsToSvgMapper {
         buffer.push_str("</svg>");
 
         buffer
+    }
+
+    /// Writes edges to the SVG content buffer.
+    ///
+    /// These will be rendered as the following elements (some attributes
+    /// omitted):
+    ///
+    /// ```svg
+    /// <g id="{edge_id}">
+    ///   <path d="{path_d}" />
+    /// </g>
+    /// ```
+    fn render_edges(
+        content_buffer: &mut String,
+        svg_edge_infos: &[SvgEdgeInfo<'_>],
+        tailwind_classes: &EntityTailwindClasses<'_>,
+    ) {
+        svg_edge_infos.iter().for_each(|svg_edge_info| {
+            let edge_id = &svg_edge_info.edge_id;
+            let edge_group_id = &svg_edge_info.edge_group_id;
+            let path_d = &svg_edge_info.path_d;
+
+            // Build class attribute from tailwind_classes for the edge
+            // First check for edge-specific classes, then fall back to edge group classes
+            let class_attr = {
+                let edge_classes = tailwind_classes
+                    .get(edge_id.as_ref())
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+
+                let edge_group_classes = tailwind_classes
+                    .get(edge_group_id.as_ref())
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+
+                let combined = if edge_classes.is_empty() {
+                    edge_group_classes.to_string()
+                } else if edge_group_classes.is_empty() {
+                    edge_classes.to_string()
+                } else {
+                    format!("{edge_group_classes}\n{edge_classes}")
+                };
+
+                Self::class_attr_escaped(combined)
+            };
+
+            // Render edge as a group with a path
+            //
+            // The path has fill="none" since edges are stroked lines, not filled shapes
+            write!(
+                content_buffer,
+                "<g \
+                    id=\"{edge_id}\"\
+                    {class_attr}\
+                >\
+                    <path \
+                        d=\"{path_d}\" \
+                        fill=\"none\" \
+                    />\
+                </g>"
+            )
+            .unwrap();
+        });
     }
 
     /// Returns the `class=".."` attribute with `&` escaped as `&amp;`.
