@@ -160,12 +160,14 @@ impl SvgElementsToSvgMapper {
             .unwrap();
         });
 
-        // Generate CSS from tailwind classes (escaping underscores in brackets for
-        // encre-css)
+        // Generate CSS from tailwind classes
+        //
+        // We also need to escape underscores in brackets for correct tailwind class
+        // generation.
         let escaped_classes: Vec<String> = tailwind_classes
             .values()
             .chain(additional_tailwind_classes.values())
-            .map(|classes| Self::escape_underscores_in_brackets(classes))
+            .map(|classes| Self::escape_ids_in_brackets(classes))
             .collect();
         let tailwind_classes_iter = escaped_classes.iter().map(String::as_str);
         let generated_css =
@@ -238,7 +240,7 @@ impl SvgElementsToSvgMapper {
     /// # use disposition_input_ir_rt::SvgElementsToSvgMapper;
     /// // ID selectors have underscores escaped
     /// assert_eq!(
-    ///     SvgElementsToSvgMapper::escape_underscores_in_brackets(
+    ///     SvgElementsToSvgMapper::escape_ids_in_brackets(
     ///         "group-has-[#some_id:focus]:stroke-blue-500"
     ///     ),
     ///     "group-has-[#some&#95;id:focus]:stroke-blue-500"
@@ -246,7 +248,7 @@ impl SvgElementsToSvgMapper {
     ///
     /// // Multiple underscores in ID
     /// assert_eq!(
-    ///     SvgElementsToSvgMapper::escape_underscores_in_brackets(
+    ///     SvgElementsToSvgMapper::escape_ids_in_brackets(
     ///         "group-has-[#my_element_id:hover]:fill-red-500"
     ///     ),
     ///     "group-has-[#my&#95;element&#95;id:hover]:fill-red-500"
@@ -254,7 +256,7 @@ impl SvgElementsToSvgMapper {
     ///
     /// // Animation values are NOT escaped (no ID selector)
     /// assert_eq!(
-    ///     SvgElementsToSvgMapper::escape_underscores_in_brackets(
+    ///     SvgElementsToSvgMapper::escape_ids_in_brackets(
     ///         "peer/some-peer:animate-[animation-name_2s_linear_infinite]"
     ///     ),
     ///     "peer/some-peer:animate-[animation-name_2s_linear_infinite]"
@@ -262,7 +264,7 @@ impl SvgElementsToSvgMapper {
     ///
     /// // Mixed: ID escaped, non-ID not escaped
     /// assert_eq!(
-    ///     SvgElementsToSvgMapper::escape_underscores_in_brackets(
+    ///     SvgElementsToSvgMapper::escape_ids_in_brackets(
     ///         "group-has-[#some_id:focus]:animate-[fade_in_1s]"
     ///     ),
     ///     "group-has-[#some&#95;id:focus]:animate-[fade_in_1s]"
@@ -270,11 +272,11 @@ impl SvgElementsToSvgMapper {
     ///
     /// // No brackets - unchanged
     /// assert_eq!(
-    ///     SvgElementsToSvgMapper::escape_underscores_in_brackets("text_red-500"),
+    ///     SvgElementsToSvgMapper::escape_ids_in_brackets("text_red-500"),
     ///     "text_red-500"
     /// );
     /// ```
-    pub fn escape_underscores_in_brackets(classes: &str) -> String {
+    pub fn escape_ids_in_brackets(classes: &str) -> String {
         let mut bracket_depth: u32 = 0;
         let mut is_parsing_id = false;
 
