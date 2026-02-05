@@ -781,7 +781,7 @@ impl TaffyToSvgElementsMapper {
     ) -> Set<(&'a NodeId<'id>, &'a NodeId<'id>)> {
         let mut pairs = Set::new();
 
-        edges.into_iter().for_each(|edge| {
+        edges.iter().for_each(|edge| {
             // Check if the reverse edge exists
             let has_reverse = edges
                 .iter()
