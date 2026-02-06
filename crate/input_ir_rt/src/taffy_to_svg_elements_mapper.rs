@@ -823,8 +823,7 @@ impl TaffyToSvgElementsMapper {
 
                         // Append dasharray and animate tailwind classes to this
                         // edge's existing classes.
-                        let edge_id_owned: Id<'id> = Id::try_from(edge_id.as_str().to_owned())
-                            .expect("edge ID should be valid");
+                        let edge_id_owned: Id<'id> = edge_id.clone().into_inner();
                         let existing = tailwind_classes
                             .get(&edge_id_owned)
                             .cloned()
