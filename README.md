@@ -14,6 +14,29 @@ SVG diagram generator.
 > See design notes at <https://peace.mk/book/side_projects/disposition.html>.
 
 
+## Features
+
+<details open>
+
+* [x] Pure Rust.
+* [x] SVG for lossless resolution.
+* [x] Stable layout.
+* [x] Sensible default styling.
+* [x] Customizable styling.
+* [x] Interactive highlighting.
+* [x] CSS only interactivity.
+* [x] Edges between nodes.
+* [ ] Arrows on edges.
+* [ ] Circle as node shape.
+* [ ] Dependencies between process steps.
+* [ ] Tooltips.
+* [ ] Images in nodes.
+* [ ] Responsive layout.
+* [ ] Light and dark modes.
+
+</details>
+
+
 ## Usage
 
 Add the following to `Cargo.toml`:

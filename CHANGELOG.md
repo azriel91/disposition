@@ -3,8 +3,10 @@
 ## unreleased
 
 * Support `InputDiagram` merging. ([#10][#10])
+* Add edges to diagram. ([#11][#11])
 
 [#10]: https://github.com/azriel91/disposition/pull/10
+[#11]: https://github.com/azriel91/disposition/pull/11
 
 
 ## 0.0.3 (2026-01-20)

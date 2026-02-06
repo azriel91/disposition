@@ -1573,6 +1573,7 @@ dependencies = [
  "disposition_input_model",
  "disposition_ir_model",
  "disposition_model_common",
+ "disposition_svg_model",
  "disposition_taffy_model",
 ]
 
@@ -1597,9 +1598,11 @@ dependencies = [
  "disposition_input_model",
  "disposition_ir_model",
  "disposition_model_common",
+ "disposition_svg_model",
  "disposition_taffy_model",
  "emojis",
  "encre-css",
+ "kurbo",
  "serde",
  "taffy",
  "typed-builder",
@@ -1654,6 +1657,16 @@ dependencies = [
  "serde-saphyr",
  "urlencoding",
  "web-time",
+]
+
+[[package]]
+name = "disposition_svg_model"
+version = "0.0.3"
+dependencies = [
+ "disposition_ir_model",
+ "disposition_model_common",
+ "serde",
+ "utoipa",
 ]
 
 [[package]]
@@ -2905,6 +2918,17 @@ dependencies = [
  "html5ever",
  "indexmap",
  "selectors",
+]
+
+[[package]]
+name = "kurbo"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7564e90fe3c0d5771e1f0bc95322b21baaeaa0d9213fa6a0b61c99f8b17b3bfb"
+dependencies = [
+ "arrayvec",
+ "euclid",
+ "smallvec 1.15.1",
 ]
 
 [[package]]

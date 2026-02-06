@@ -168,8 +168,8 @@ impl InputDiagram<'static> {
                100% { stroke-dashoffset: 228; }\n\
              }\n\
              @keyframes stroke-dashoffset-move-response {\n  \
-               0%   { stroke-dashoffset: 0; }\n  \
-               100% { stroke-dashoffset: -248; }\n\
+               0%   { stroke-dashoffset: -248; }\n  \
+               100% { stroke-dashoffset: 0; }\n\
              }",
         ));
 
@@ -664,7 +664,13 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                 .into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(vec![], vec![(ThemeAttr::StrokeWidth, "2")]),
+                css_class_partials(
+                    vec![],
+                    vec![
+                        (ThemeAttr::StrokeWidth, "2"),
+                        (ThemeAttr::Visibility, "visible"),
+                    ],
+                ),
             )]
             .into_iter()
             .collect(),
@@ -676,7 +682,13 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                 .into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(vec![], vec![(ThemeAttr::StrokeWidth, "2")]),
+                css_class_partials(
+                    vec![],
+                    vec![
+                        (ThemeAttr::StrokeWidth, "2"),
+                        (ThemeAttr::Visibility, "visible"),
+                    ],
+                ),
             )]
             .into_iter()
             .collect(),
@@ -688,7 +700,13 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                 .into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(vec![], vec![(ThemeAttr::StrokeWidth, "2")]),
+                css_class_partials(
+                    vec![],
+                    vec![
+                        (ThemeAttr::StrokeWidth, "2"),
+                        (ThemeAttr::Visibility, "visible"),
+                    ],
+                ),
             )]
             .into_iter()
             .collect(),
@@ -700,7 +718,13 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                 .into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(vec![], vec![(ThemeAttr::StrokeWidth, "2")]),
+                css_class_partials(
+                    vec![],
+                    vec![
+                        (ThemeAttr::StrokeWidth, "2"),
+                        (ThemeAttr::Visibility, "visible"),
+                    ],
+                ),
             )]
             .into_iter()
             .collect(),

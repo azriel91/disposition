@@ -32,9 +32,9 @@ use crate::edge::EdgeGroup;
 ///   edge_t_github_user_repo__t_aws_ecr_repo__push:
 ///     - from: t_github_user_repo
 ///       to: t_aws_ecr_repo
-///   edge_t_aws_ecr_repo__t_aws_ecs_service__push:
+///   edge_t_aws_ecr_repo__t_aws_ecs_cluster__push:
 ///     - from: t_aws_ecr_repo
-///       to: t_aws_ecs_service
+///       to: t_aws_ecs_cluster
 /// ```
 #[cfg_attr(
     all(feature = "openapi", not(feature = "test")),

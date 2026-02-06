@@ -6,7 +6,7 @@ use std::{
 use dioxus::{
     hooks::{use_memo, use_signal},
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Props},
-    signals::{Memo, ReadSignal, ReadableExt, ReadableVecExt, Signal, WritableExt},
+    signals::{Memo, ReadableExt, ReadableVecExt, Signal},
 };
 use disposition::{
     input_ir_model::IrDiagramAndIssues,
@@ -16,13 +16,15 @@ use disposition::{
         IrDiagram,
     },
     model_common::Map,
+    svg_model::SvgElements,
     taffy_model::{
         taffy::{self, PrintTree},
         DimensionAndLod, TaffyNodeMappings,
     },
 };
 use disposition_input_ir_rt::{
-    InputDiagramMerger, InputToIrDiagramMapper, IrToTaffyBuilder, TaffyToSvgMapper,
+    InputDiagramMerger, InputToIrDiagramMapper, IrToTaffyBuilder, SvgElementsToSvgMapper,
+    TaffyToSvgElementsMapper,
 };
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -30,148 +32,217 @@ use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
 use web_time::Instant;
 
-use crate::components::{InputDiagramDiv, IrDiagramDiv, TaffyNodeMappingsDiv};
+use crate::components::{InputDiagramDiv, IrDiagramDiv, SvgElementsDiv, TaffyNodeMappingsDiv};
 
 #[component]
+#[allow(clippy::type_complexity)] // Maybe reduce complexity for `Memo<_>` types when we refactor this.
 pub fn DispositionEditor() -> Element {
-    let mut status_messages: Signal<Vec<String>> = use_signal(Vec::new);
     let input_diagram_string = use_signal(|| String::from(""));
-    let input_diagram: Memo<Option<InputDiagram<'static>>> = use_memo(move || {
-        let mut status_messages = status_messages.write();
 
-        // Clear this on input; there's currently no other input mechanism, so we don't
-        // clear it in subsequent signals.
-        status_messages.clear();
-
+    // Parse input diagram string into InputDiagram
+    let input_diagram: Memo<Result<InputDiagram<'static>, Vec<String>>> = use_memo(move || {
         let input_diagram_string = &*input_diagram_string.read();
         if input_diagram_string.is_empty() {
-            status_messages.push(String::from("ℹ️ Enter input diagram"));
-
-            None
+            Err(vec![String::from("ℹ️ Enter input diagram")])
         } else {
             let deserialize_start = Instant::now();
-            match serde_saphyr::from_str(input_diagram_string) {
+            let input_diagram = serde_saphyr::from_str(input_diagram_string).map_err(|error| {
+                vec![
+                    String::from("⚠️ Error parsing input diagram"),
+                    error.to_string(),
+                ]
+            });
+
+            let deserialize_duration_ms =
+                Instant::now().duration_since(deserialize_start).as_millis();
+            info!("`input_diagram` deserialization took {deserialize_duration_ms} ms.");
+
+            input_diagram
+        }
+    });
+
+    // Map InputDiagram to IrDiagram
+    // Ok variant contains (diagram, warnings), Err variant contains errors
+    let ir_diagram: Memo<Result<(IrDiagram<'static>, Vec<String>), Vec<String>>> =
+        use_memo(move || {
+            let input_diagram = &*input_diagram.read();
+            match input_diagram {
                 Ok(input_diagram) => {
-                    let deserialize_duration_ms =
-                        Instant::now().duration_since(deserialize_start).as_millis();
-                    info!("`input_diagram` deserialization took {deserialize_duration_ms} ms.");
-                    Some(input_diagram)
+                    let input_diagram_merge_start = Instant::now();
+                    let input_diagram_merged =
+                        InputDiagramMerger::merge(InputDiagram::base(), input_diagram);
+                    let input_diagram_merge_duration_ms = Instant::now()
+                        .duration_since(input_diagram_merge_start)
+                        .as_millis();
+                    info!("`InputDiagramMerger::merge` took {input_diagram_merge_duration_ms} ms.");
+
+                    let input_to_ir_map_start = Instant::now();
+                    let input_diagram_and_issues =
+                        InputToIrDiagramMapper::map(&input_diagram_merged);
+                    let input_to_ir_map_duration_ms = Instant::now()
+                        .duration_since(input_to_ir_map_start)
+                        .as_millis();
+                    info!("`InputToIrDiagramMapper::map` took {input_to_ir_map_duration_ms} ms.");
+                    let IrDiagramAndIssues { diagram, issues } = input_diagram_and_issues;
+
+                    let warnings = if !issues.is_empty() {
+                        let mut msgs = vec![String::from(
+                            "⚠️ Issues mapping input diagram to IR diagram",
+                        )];
+                        msgs.extend(issues.into_iter().map(|issue| issue.to_string()));
+                        msgs
+                    } else {
+                        vec![]
+                    };
+
+                    Ok((diagram, warnings))
                 }
-                Err(error) => {
-                    status_messages.push(String::from("⚠️ Error parsing input diagram"));
-                    status_messages.push(error.to_string());
-                    None
-                }
+                Err(_) => Err(vec![]), // Previous step failed, nothing to do
             }
-        }
-    });
-    let mut ir_diagram_string = use_memo(|| String::from(""));
-    let ir_diagram: Memo<Option<IrDiagram<'static>>> = use_memo(move || {
-        let mut status_messages = status_messages.write();
+        });
 
-        let input_diagram = input_diagram.read().cloned();
-        match input_diagram {
-            Some(input_diagram) => {
-                let input_diagram_merge_start = Instant::now();
-                let input_diagram_merged =
-                    InputDiagramMerger::merge(InputDiagram::base(), &input_diagram);
-                let input_diagram_merge_duration_ms = Instant::now()
-                    .duration_since(input_diagram_merge_start)
-                    .as_millis();
-                info!("`InputDiagramMerger::merge` took {input_diagram_merge_duration_ms} ms.");
-
-                let input_to_ir_map_start = Instant::now();
-                let input_diagram_and_issues = InputToIrDiagramMapper::map(&input_diagram_merged);
-                let input_to_ir_map_duration_ms = Instant::now()
-                    .duration_since(input_to_ir_map_start)
-                    .as_millis();
-                info!("`InputToIrDiagramMapper::map` took {input_to_ir_map_duration_ms} ms.");
-                let IrDiagramAndIssues { diagram, issues } = input_diagram_and_issues;
-
-                if !issues.is_empty() {
-                    status_messages.push(String::from(
-                        "⚠️ Issues mapping input diagram to IR diagram",
-                    ));
-                    issues.into_iter().for_each(|issue| {
-                        status_messages.push(issue.to_string());
-                    });
-                }
-
-                let mut ir_diagram_string = ir_diagram_string.write();
-                ir_diagram_string.clear();
-                let serialization_result =
-                    serde_saphyr::to_fmt_writer(&mut *ir_diagram_string, &diagram);
-
-                let (Ok(()) | Err(())) = serialization_result.map_err(|error| {
-                    status_messages.push(String::from("⚠️ Error serializing IR diagram"));
-                    status_messages.push(error.to_string());
-                });
-
-                Some(diagram)
-            }
-            None => {
-                ir_diagram_string.write().clear();
-                None
-            }
-        }
-    });
-    let mut taffy_node_mappings_string = use_memo(|| String::from(""));
-    let taffy_node_mappings: Memo<Option<TaffyNodeMappings<'static>>> = use_memo(move || {
-        let mut status_messages = status_messages.write();
-
+    // Serialize IrDiagram to string
+    let ir_diagram_string: Memo<String> = use_memo(move || {
         let ir_diagram = &*ir_diagram.read();
         match ir_diagram {
-            Some(ir_diagram) => {
-                let ir_to_taffy_builder = IrToTaffyBuilder::builder()
-                    .with_ir_diagram(ir_diagram)
-                    .with_dimension_and_lods(vec![DimensionAndLod::default_no_limit()])
-                    .build();
-
-                let taffy_node_mappings_iter_result = ir_to_taffy_builder.build();
-                match taffy_node_mappings_iter_result {
-                    Ok(mut taffy_node_mappings_iter) => {
-                        let taffy_node_mappings_start = Instant::now();
-                        let taffy_node_mappings = taffy_node_mappings_iter.next()?;
-                        let taffy_node_mappings_duration_ms = Instant::now()
-                            .duration_since(taffy_node_mappings_start)
-                            .as_millis();
-                        info!("`taffy_node_mappings` generation took {taffy_node_mappings_duration_ms} ms.");
-
-                        let mut taffy_node_mappings_string = taffy_node_mappings_string.write();
-                        taffy_node_mappings_string.clear();
-                        taffy_tree_fmt(&mut taffy_node_mappings_string, &taffy_node_mappings);
-                        Some(taffy_node_mappings)
-                    }
-                    Err(error) => {
-                        status_messages.push(String::from("⚠️ Error serializing IR diagram"));
-                        status_messages.push(error.to_string());
-                        None
-                    }
+            Ok((diagram, _)) => {
+                let mut buffer = String::new();
+                match serde_saphyr::to_fmt_writer(&mut buffer, diagram) {
+                    Ok(()) => buffer,
+                    Err(error) => format!("⚠️ Error serializing IR diagram: {}", error),
                 }
             }
-            None => {
-                taffy_node_mappings_string.write().clear();
-                None
-            }
+            Err(_) => String::new(),
         }
     });
-    let svg: Memo<String> = use_memo(move || {
-        let ir_diagram = ir_diagram.read();
-        let taffy_node_mappings = &*taffy_node_mappings.read();
-        ir_diagram
-            .as_ref()
-            .zip(taffy_node_mappings.clone())
-            .map(|(ir_diagram, taffy_node_mappings)| {
-                let svg_generation_start = Instant::now();
-                let svg = TaffyToSvgMapper::map(ir_diagram, taffy_node_mappings);
-                let svg_generation_duration_ms = Instant::now()
-                    .duration_since(svg_generation_start)
-                    .as_millis();
-                info!("`svg` generation took {svg_generation_duration_ms} ms.");
 
-                svg
-            })
-            .unwrap_or_default()
+    // Build TaffyNodeMappings from IrDiagram
+    let taffy_node_mappings: Memo<Result<TaffyNodeMappings<'static>, Vec<String>>> = use_memo(
+        move || {
+            let ir_diagram = &*ir_diagram.read();
+            match ir_diagram {
+                Ok((ir_diagram, _)) => {
+                    let ir_to_taffy_builder = IrToTaffyBuilder::builder()
+                        .with_ir_diagram(ir_diagram)
+                        .with_dimension_and_lods(vec![DimensionAndLod::default_no_limit()])
+                        .build();
+
+                    let taffy_node_mappings_iter_result = ir_to_taffy_builder.build();
+                    match taffy_node_mappings_iter_result {
+                        Ok(mut taffy_node_mappings_iter) => {
+                            let taffy_node_mappings_start = Instant::now();
+                            match taffy_node_mappings_iter.next() {
+                                Some(taffy_node_mappings) => {
+                                    let taffy_node_mappings_duration_ms = Instant::now()
+                                        .duration_since(taffy_node_mappings_start)
+                                        .as_millis();
+                                    info!("`taffy_node_mappings` generation took {taffy_node_mappings_duration_ms} ms.");
+                                    Ok(taffy_node_mappings)
+                                }
+                                None => {
+                                    Err(vec![String::from("⚠️ No taffy node mappings generated")])
+                                }
+                            }
+                        }
+                        Err(error) => Err(vec![
+                            String::from("⚠️ Error building taffy tree"),
+                            error.to_string(),
+                        ]),
+                    }
+                }
+                Err(_) => Err(vec![]), // Previous step failed
+            }
+        },
+    );
+
+    // Format TaffyNodeMappings to string
+    let taffy_node_mappings_string: Memo<String> = use_memo(move || {
+        let taffy_node_mappings = &*taffy_node_mappings.read();
+        match taffy_node_mappings {
+            Ok(taffy_node_mappings) => {
+                let mut buffer = String::new();
+                taffy_tree_fmt(&mut buffer, taffy_node_mappings);
+                buffer
+            }
+            Err(_) => String::new(),
+        }
+    });
+
+    // Map to SvgElements
+    let svg_elements: Memo<Result<SvgElements, Vec<String>>> = use_memo(move || {
+        let ir_diagram = &*ir_diagram.read();
+        let taffy_node_mappings = &*taffy_node_mappings.read();
+
+        match (ir_diagram, taffy_node_mappings) {
+            (Ok((ir_diagram, _)), Ok(taffy_node_mappings)) => {
+                let svg_elements_map_start = Instant::now();
+                let svg_elements = TaffyToSvgElementsMapper::map(ir_diagram, taffy_node_mappings);
+                let svg_elements_map_duration_ms = Instant::now()
+                    .duration_since(svg_elements_map_start)
+                    .as_millis();
+                info!("`TaffyToSvgElementsMapper::map` took {svg_elements_map_duration_ms} ms.");
+                Ok(svg_elements)
+            }
+            _ => Err(vec![]), // Previous steps failed
+        }
+    });
+
+    // Serialize SvgElements to string
+    let svg_elements_string: Memo<String> = use_memo(move || {
+        let svg_elements = &*svg_elements.read();
+        match svg_elements {
+            Ok(svg_elements) => {
+                let mut buffer = String::new();
+                match serde_saphyr::to_fmt_writer(&mut buffer, svg_elements) {
+                    Ok(()) => buffer,
+                    Err(error) => format!("⚠️ Error serializing SVG elements: {}", error),
+                }
+            }
+            Err(_) => String::new(),
+        }
+    });
+
+    // Generate final SVG string
+    let svg: Memo<String> = use_memo(move || {
+        let svg_elements = &*svg_elements.read();
+        let svg_generation_start = Instant::now();
+        let svg = match svg_elements {
+            Ok(svg_elements) => SvgElementsToSvgMapper::map(svg_elements),
+            Err(_) => String::new(),
+        };
+        let svg_generation_duration_ms = Instant::now()
+            .duration_since(svg_generation_start)
+            .as_millis();
+        info!("`svg` generation took {svg_generation_duration_ms} ms.");
+        svg
+    });
+
+    // Collect all status messages from the processing pipeline
+    let status_messages: Memo<Vec<String>> = use_memo(move || {
+        let mut messages = Vec::new();
+
+        // Collect from input_diagram
+        if let Err(errors) = &*input_diagram.read() {
+            messages.extend(errors.iter().cloned());
+        }
+
+        // Collect from ir_diagram (both warnings and errors)
+        match &*ir_diagram.read() {
+            Ok((_, warnings)) => messages.extend(warnings.iter().cloned()),
+            Err(errors) => messages.extend(errors.iter().cloned()),
+        }
+
+        // Collect from taffy_node_mappings
+        if let Err(errors) = &*taffy_node_mappings.read() {
+            messages.extend(errors.iter().cloned());
+        }
+
+        // Collect from svg_elements
+        if let Err(errors) = &*svg_elements.read() {
+            messages.extend(errors.iter().cloned());
+        }
+
+        messages
     });
 
     rsx! {
@@ -193,8 +264,8 @@ pub fn DispositionEditor() -> Element {
                 DispositionDataDivs {
                     input_diagram_string,
                     ir_diagram_string,
-                    ir_diagram,
                     taffy_node_mappings_string,
+                    svg_elements_string,
                 }
                 DispositionStatusMessageDiv {
                     status_messages,
@@ -311,8 +382,8 @@ fn taffy_tree_node_fmt(
 fn DispositionDataDivs(
     input_diagram_string: Signal<String>,
     ir_diagram_string: Memo<String>,
-    ir_diagram: Memo<Option<IrDiagram<'static>>>,
     taffy_node_mappings_string: Memo<String>,
+    svg_elements_string: Memo<String>,
 ) -> Element {
     rsx! {
         div {
@@ -329,12 +400,13 @@ fn DispositionDataDivs(
             InputDiagramDiv { input_diagram_string }
             IrDiagramDiv { ir_diagram_string }
             TaffyNodeMappingsDiv { taffy_node_mappings_string }
+            SvgElementsDiv { svg_elements_string }
         }
     }
 }
 
 #[component]
-fn DispositionStatusMessageDiv(status_messages: ReadSignal<Vec<String>>) -> Element {
+fn DispositionStatusMessageDiv(status_messages: Memo<Vec<String>>) -> Element {
     rsx! {
         div {
             id: "disposition_status_message_div",
@@ -360,7 +432,7 @@ fn DispositionStatusMessageDiv(status_messages: ReadSignal<Vec<String>>) -> Elem
 }
 
 #[component]
-fn DispositionStatusMessage(status_messages: ReadSignal<Vec<String>>) -> Element {
+fn DispositionStatusMessage(status_messages: Memo<Vec<String>>) -> Element {
     rsx! {
         div {
             id: "disposition_status_message",
