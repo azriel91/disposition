@@ -1,7 +1,8 @@
 use std::fmt::Write;
 
 use disposition_ir_model::{
-    edge::{Edge, EdgeGroups},
+    edge::EdgeGroups,
+    entity::EntityTypes,
     layout::NodeLayout,
     node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
@@ -127,8 +128,11 @@ impl TaffyToSvgElementsMapper {
             .collect();
 
         // Build edge information
-        let svg_edge_infos =
-            Self::build_svg_edge_infos(&ir_diagram.edge_groups, &svg_node_info_map);
+        let svg_edge_infos = Self::build_svg_edge_infos(
+            &ir_diagram.edge_groups,
+            &ir_diagram.entity_types,
+            &svg_node_info_map,
+        );
 
         // Clone tailwind_classes and css from ir_diagram into SvgElements
         let tailwind_classes = ir_diagram.tailwind_classes.clone();
@@ -724,14 +728,12 @@ impl TaffyToSvgElementsMapper {
     /// source and target nodes.
     fn build_svg_edge_infos<'id>(
         edge_groups: &EdgeGroups<'id>,
+        entity_types: &EntityTypes<'id>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
     ) -> Vec<SvgEdgeInfo<'id>> {
         let mut svg_edge_infos = Vec::new();
 
         edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
-            // Check if this edge group has bidirectional edges (A->B and B->A)
-            let bidirectional_pairs = Self::find_bidirectional_pairs(edge_group.as_slice());
-
             edge_group
                 .iter()
                 .enumerate()
@@ -746,21 +748,48 @@ impl TaffyToSvgElementsMapper {
                         return;
                     };
 
-                    // Check if this edge is part of a bidirectional pair
-                    let is_forward_of_bidirectional =
-                        bidirectional_pairs.contains(&(&edge.from, &edge.to));
-                    let is_reverse_of_bidirectional =
-                        bidirectional_pairs.contains(&(&edge.to, &edge.from));
-
-                    let path = Self::build_edge_path(
-                        from_info,
-                        to_info,
-                        is_forward_of_bidirectional && !is_reverse_of_bidirectional,
-                        is_reverse_of_bidirectional,
-                    );
-                    let path_d = path.to_svg();
-
                     let edge_id = Self::generate_edge_id(edge_group_id, edge_index);
+
+                    let edge_type = entity_types
+                        .get(&*edge_id)
+                        .map(|entity_types_for_edge| {
+                            if [
+                                EntityType::DependencyEdgeSequenceForwardDefault,
+                                EntityType::DependencyEdgeCyclicForwardDefault,
+                                EntityType::InteractionEdgeSequenceForwardDefault,
+                                EntityType::InteractionEdgeCyclicForwardDefault,
+                            ]
+                            .iter()
+                            .any(|entity_type_edge_forward| {
+                                entity_types_for_edge.contains(entity_type_edge_forward)
+                            }) {
+                                EdgeType::Unpaired
+                            } else if [
+                                EntityType::DependencyEdgeSymmetricForwardDefault,
+                                EntityType::InteractionEdgeSymmetricForwardDefault,
+                            ]
+                            .iter()
+                            .any(|entity_type_edge_forward| {
+                                entity_types_for_edge.contains(entity_type_edge_forward)
+                            }) {
+                                EdgeType::PairRequest
+                            } else if [
+                                EntityType::DependencyEdgeSymmetricReverseDefault,
+                                EntityType::InteractionEdgeSymmetricReverseDefault,
+                            ]
+                            .iter()
+                            .any(|entity_type_edge_reverse| {
+                                entity_types_for_edge.contains(entity_type_edge_reverse)
+                            }) {
+                                EdgeType::PairResponse
+                            } else {
+                                EdgeType::Unpaired
+                            }
+                        })
+                        .unwrap_or(EdgeType::Unpaired);
+
+                    let path = Self::build_edge_path(from_info, to_info, edge_type);
+                    let path_d = path.to_svg();
 
                     svg_edge_infos.push(SvgEdgeInfo::new(
                         edge_id,
@@ -773,33 +802,6 @@ impl TaffyToSvgElementsMapper {
         });
 
         svg_edge_infos
-    }
-
-    /// Finds pairs of edges that form bidirectional connections (A->B and
-    /// B->A).
-    ///
-    /// Returns a set of (from, to) pairs where the reverse also exists.
-    ///
-    /// TODO: Symmetric edge groups with only one node will have two `from` and
-    /// `to` pairs which are the node itself, and the second pair needs its edge
-    /// reversed.
-    fn find_bidirectional_pairs<'a, 'id>(
-        edges: &'a [Edge<'id>],
-    ) -> Set<(&'a NodeId<'id>, &'a NodeId<'id>)> {
-        let mut pairs = Set::new();
-
-        edges.iter().for_each(|edge| {
-            // Check if the reverse edge exists
-            let has_reverse = edges
-                .iter()
-                .any(|other| other.from == edge.to && other.to == edge.from);
-
-            if has_reverse {
-                pairs.insert((&edge.from, &edge.to));
-            }
-        });
-
-        pairs
     }
 
     /// Generates an edge ID from the edge group ID and edge index.
@@ -820,8 +822,7 @@ impl TaffyToSvgElementsMapper {
     fn build_edge_path(
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
-        is_forward_bidirectional: bool,
-        is_reverse_bidirectional: bool,
+        edge_type: EdgeType,
     ) -> BezPath {
         // Constants for edge layout
 
@@ -843,6 +844,7 @@ impl TaffyToSvgElementsMapper {
         if from_info.node_id == to_info.node_id {
             return Self::build_self_loop_path(
                 from_info,
+                edge_type,
                 SELF_LOOP_X_OFFSET_RATIO,
                 SELF_LOOP_Y_EXTENSION_RATIO,
                 SELF_LOOP_X_EXTENSION_RATIO,
@@ -863,9 +865,14 @@ impl TaffyToSvgElementsMapper {
         let (mut end_x, mut end_y) = Self::get_face_center(to_info, to_face);
 
         // Apply bidirectional offset
-        if is_forward_bidirectional || is_reverse_bidirectional {
-            let offset_direction = if is_reverse_bidirectional { 1.0 } else { -1.0 };
+        if edge_type == EdgeType::PairRequest || edge_type == EdgeType::PairResponse {
+            let offset_direction = if edge_type == EdgeType::PairResponse {
+                1.0
+            } else {
+                -1.0
+            };
 
+            // Move start point down if this is the `PairRequest` edge.
             match from_face {
                 Face::Right | Face::Left => {
                     start_y +=
@@ -876,6 +883,7 @@ impl TaffyToSvgElementsMapper {
                 }
             }
 
+            // Move end point down if this is the `PairResponse` edge.
             match to_face {
                 Face::Right | Face::Left => {
                     end_y +=
@@ -903,6 +911,7 @@ impl TaffyToSvgElementsMapper {
     /// down, curves left, and returns to the bottom of the same node.
     fn build_self_loop_path(
         node_info: &SvgNodeInfo,
+        edge_type: EdgeType,
         x_offset_ratio: f32,
         y_extension_ratio: f32,
         x_extension_ratio: f32,
@@ -936,12 +945,18 @@ impl TaffyToSvgElementsMapper {
         // Paths have to be built in reverse to get them to render in the correct
         // direction in the SVG.
         let mut path = BezPath::new();
-        // path.move_to(start);
-        // path.curve_to(start, ctrl1, mid);
-        // path.curve_to(mid, ctrl3, end);
-        path.move_to(end);
-        path.curve_to(end, ctrl3, mid);
-        path.curve_to(mid, ctrl1, start);
+        match edge_type {
+            EdgeType::Unpaired | EdgeType::PairRequest => {
+                path.move_to(end);
+                path.curve_to(end, ctrl3, mid);
+                path.curve_to(mid, ctrl1, start);
+            }
+            EdgeType::PairResponse => {
+                path.move_to(start);
+                path.curve_to(start, ctrl1, mid);
+                path.curve_to(mid, ctrl3, end);
+            }
+        }
 
         path
     }
@@ -1175,6 +1190,21 @@ enum Face {
     Bottom,
     Left,
     Right,
+}
+
+/// Whether an edge represents an unpaired forward edge, or the request or
+/// response of a pair of edges.
+///
+/// When two edges are paired, then their paths are offset from the midpoint of
+/// the face of the node they are connected to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EdgeType {
+    /// Forward direction of an unpaired edge.
+    Unpaired,
+    /// Request direction of a pair of edges.
+    PairRequest,
+    /// Response direction of a pair of edges.
+    PairResponse,
 }
 
 #[derive(Clone, Copy, Debug)]
