@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use disposition_ir_model::{
     edge::EdgeGroups,
-    entity::EntityTypes,
+    entity::{EntityTailwindClasses, EntityTypes},
     layout::NodeLayout,
     node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
@@ -87,6 +87,11 @@ impl TaffyToSvgElementsMapper {
             },
         );
 
+        // Clone `tailwind_classes` from `ir_diagram`, and append to each entity
+        // additional tailwind classes e.g. for translating process nodes when
+        // collapsing / expanding them.
+        let tailwind_classes = ir_diagram.tailwind_classes.clone();
+
         // Build an `SvgNodeInfo` for each node in the order specified by
         // `node_ordering`.
         let svg_node_info_build_context = SvgNodeInfoBuildContext {
@@ -97,9 +102,9 @@ impl TaffyToSvgElementsMapper {
             process_steps_heights: &process_steps_heights,
             svg_process_infos: &svg_process_infos,
         };
-        let (svg_node_infos, additional_tailwind_classes) = ir_diagram.node_ordering.iter().fold(
-            (Vec::new(), Map::new()),
-            |(mut svg_node_infos, mut additional_tailwind_classes), (node_id, &tab_index)| {
+        let (svg_node_infos, tailwind_classes) = ir_diagram.node_ordering.iter().fold(
+            (Vec::new(), tailwind_classes),
+            |(mut svg_node_infos, mut entity_tailwind_classes), (node_id, &tab_index)| {
                 if let Some(taffy_node_ids) = node_id_to_taffy.get(node_id).copied() {
                     let taffy_node_id = taffy_node_ids.wrapper_taffy_node_id();
 
@@ -108,7 +113,7 @@ impl TaffyToSvgElementsMapper {
                             svg_node_info_build_context,
                             taffy_node_id,
                             taffy_node_layout,
-                            &mut additional_tailwind_classes,
+                            &mut entity_tailwind_classes,
                             node_id,
                             tab_index,
                         );
@@ -117,7 +122,7 @@ impl TaffyToSvgElementsMapper {
                     }
                 }
 
-                (svg_node_infos, additional_tailwind_classes)
+                (svg_node_infos, entity_tailwind_classes)
             },
         );
 
@@ -135,7 +140,6 @@ impl TaffyToSvgElementsMapper {
         );
 
         // Clone tailwind_classes and css from ir_diagram into SvgElements
-        let tailwind_classes = ir_diagram.tailwind_classes.clone();
         let css = ir_diagram.css.clone();
 
         SvgElements::new(
@@ -144,7 +148,6 @@ impl TaffyToSvgElementsMapper {
             svg_node_infos,
             svg_edge_infos,
             svg_process_infos,
-            additional_tailwind_classes,
             tailwind_classes,
             css,
         )
@@ -211,7 +214,7 @@ impl TaffyToSvgElementsMapper {
         svg_node_info_build_context: SvgNodeInfoBuildContext<'ctx, 'id>,
         taffy_node_id: taffy::NodeId,
         taffy_node_layout: &taffy::Layout,
-        additional_tailwind_classes: &mut Map<NodeId<'id>, String>,
+        entity_tailwind_classes: &mut EntityTailwindClasses<'id>,
         node_id: &NodeId<'id>,
         tab_index: u32,
     ) -> SvgNodeInfo<'id> {
@@ -270,7 +273,14 @@ impl TaffyToSvgElementsMapper {
             &path_d_collapsed,
         );
 
-        additional_tailwind_classes.insert(node_id.clone(), translate_classes);
+        if let Some(tailwind_classes) =
+            entity_tailwind_classes.get_mut(AsRef::<Id<'_>>::as_ref(node_id))
+        {
+            tailwind_classes.push(' ');
+            tailwind_classes.push_str(&translate_classes);
+        } else {
+            entity_tailwind_classes.insert(node_id.clone().into_inner(), translate_classes);
+        }
 
         let text_spans: Vec<SvgTextSpan> = entity_highlighted_spans
             .get(node_id.as_ref())

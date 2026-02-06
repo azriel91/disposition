@@ -19,7 +19,6 @@ impl SvgElementsToSvgMapper {
             svg_node_infos,
             svg_edge_infos,
             svg_process_infos: _,
-            additional_tailwind_classes,
             tailwind_classes,
             css,
         } = svg_elements;
@@ -39,26 +38,13 @@ impl SvgElementsToSvgMapper {
             let tab_index = svg_node_info.tab_index;
             let path_d = &svg_node_info.path_d_collapsed;
 
-            // Build class attribute combining existing tailwind classes and translate
-            // classes from additional_tailwind_classes (keyed by node ID)
-            let translate_classes = additional_tailwind_classes
-                .get(node_id)
-                .map(|s| s.as_str())
-                .unwrap_or("");
-
             let class_attr = {
-                let existing_classes = tailwind_classes
+                let tailwind_classes = tailwind_classes
                     .get(node_id.as_ref())
-                    .map(|s| s.as_str())
-                    .unwrap_or("");
+                    .cloned()
+                    .unwrap_or_default();
 
-                let combined = if existing_classes.is_empty() {
-                    translate_classes.to_string()
-                } else {
-                    format!("{existing_classes}\n{translate_classes}")
-                };
-
-                Self::class_attr_escaped(combined)
+                Self::class_attr_escaped(tailwind_classes)
             };
 
             // Start group element with id, tabindex, and optional class
@@ -103,7 +89,6 @@ impl SvgElementsToSvgMapper {
         // generation.
         let escaped_classes: Vec<String> = tailwind_classes
             .values()
-            .chain(additional_tailwind_classes.values())
             .map(|classes| Self::escape_ids_in_brackets(classes))
             .collect();
         let tailwind_classes_iter = escaped_classes.iter().map(String::as_str);
