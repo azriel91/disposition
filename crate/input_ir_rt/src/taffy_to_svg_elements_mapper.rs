@@ -901,7 +901,8 @@ impl TaffyToSvgElementsMapper {
         // upper bound on the path length so the trailing gap fully hides the
         // edge during the invisible phase of the animation.
         let bbox = path.bounding_box();
-        let trailing_gap = (bbox.width() + bbox.height()).max(params.visible_segments_length);
+        let trailing_gap =
+            (2.0 * (bbox.width() + bbox.height())).max(params.visible_segments_length);
 
         // Build the dasharray string with segments in the correct order.
         let dasharray =
@@ -927,7 +928,7 @@ impl TaffyToSvgElementsMapper {
         // - end_offset:   shifts visible segments entirely past the path
         let visible_length = params.visible_segments_length;
         let start_offset = -visible_length;
-        let end_offset = visible_length + trailing_gap;
+        let end_offset = visible_length + visible_length + trailing_gap;
 
         // Build the CSS @keyframes rule, omitting duplicate percentage entries
         // at 0% and 100% when they coincide with start_pct / end_pct.
