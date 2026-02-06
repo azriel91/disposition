@@ -120,10 +120,6 @@ theme_default:
       stroke_style: "dashed"
       stroke_width: "2"
       animate: "[stroke-dashoffset-move_2s_linear_infinite]"
-    stroke_dashed_animated_request:
-      animate: "[stroke-dashoffset-move-request_2s_linear_infinite]"
-    stroke_dashed_animated_response:
-      animate: "[stroke-dashoffset-move-response_2s_linear_infinite]"
 
   # The keys in this map can be:
   #
@@ -227,14 +223,12 @@ theme_types_styles:
       style_aliases_applied: [shade_dark]
       shape_color: "violet"
       stroke_width: "2"
-      stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
       visibility: "invisible"
   type_interaction_edge_cyclic_default:
     edge_defaults:
       style_aliases_applied: [shade_dark]
       shape_color: "violet"
       stroke_width: "2"
-      stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
       visibility: "invisible"
   type_interaction_edge_symmetric_default:
     edge_defaults:
@@ -245,19 +239,13 @@ theme_types_styles:
 
   # thing_interactions - edges
   type_interaction_edge_sequence_forward_default:
-    edge_defaults:
-      style_aliases_applied: [stroke_dashed_animated_request]
+    edge_defaults: {}
   type_interaction_edge_cyclic_forward_default:
-    edge_defaults:
-      style_aliases_applied: [stroke_dashed_animated_request]
+    edge_defaults: {}
   type_interaction_edge_symmetric_forward_default:
-    edge_defaults:
-      style_aliases_applied: [stroke_dashed_animated_request]
-      stroke_style: "dasharray:0,80,12,2,4,2,2,2,1,2,1,120"
+    edge_defaults: {}
   type_interaction_edge_symmetric_reverse_default:
-    edge_defaults:
-      style_aliases_applied: [stroke_dashed_animated_response]
-      stroke_style: "dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80"
+    edge_defaults: {}
 
 # When a tag is focused, things and edges associated with the tag are highlighted.
 #
@@ -284,12 +272,4 @@ css: |-
   @keyframes stroke-dashoffset-move {
     0%   { stroke-dasharray: 3; stroke-dashoffset: 30; }
     100% { stroke-dasharray: 3; stroke-dashoffset: 0; }
-  }
-  @keyframes stroke-dashoffset-move-request {
-    0%   { stroke-dashoffset: 0; }
-    100% { stroke-dashoffset: 228; }
-  }
-  @keyframes stroke-dashoffset-move-response {
-    0%   { stroke-dashoffset: -248; }
-    100% { stroke-dashoffset: 0; }
   }

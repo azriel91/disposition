@@ -7,12 +7,12 @@ use disposition_ir_model::{
     node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
 };
-use disposition_model_common::{edge::EdgeGroupId, entity::EntityType, Id, Map, Set};
+use disposition_model_common::{edge::EdgeGroupId, entity::EntityType, theme::Css, Id, Map, Set};
 use disposition_svg_model::{SvgEdgeInfo, SvgElements, SvgNodeInfo, SvgProcessInfo, SvgTextSpan};
 use disposition_taffy_model::{
     EntityHighlightedSpans, NodeContext, NodeToTaffyNodeIds, TaffyNodeMappings, TEXT_LINE_HEIGHT,
 };
-use kurbo::{BezPath, Point};
+use kurbo::{BezPath, Point, Shape};
 use taffy::TaffyTree;
 
 /// Maps the IR diagram and `TaffyNodeMappings` to SVG elements.
@@ -102,7 +102,7 @@ impl TaffyToSvgElementsMapper {
             process_steps_heights: &process_steps_heights,
             svg_process_infos: &svg_process_infos,
         };
-        let (svg_node_infos, tailwind_classes) = ir_diagram.node_ordering.iter().fold(
+        let (svg_node_infos, mut tailwind_classes) = ir_diagram.node_ordering.iter().fold(
             (Vec::new(), tailwind_classes),
             |(mut svg_node_infos, mut entity_tailwind_classes), (node_id, &tab_index)| {
                 if let Some(taffy_node_ids) = node_id_to_taffy.get(node_id).copied() {
@@ -132,15 +132,18 @@ impl TaffyToSvgElementsMapper {
             .map(|info| (&info.node_id, info))
             .collect();
 
-        // Build edge information
+        // Clone css from ir_diagram; edge animation CSS will be appended.
+        let mut css = ir_diagram.css.clone();
+
+        // Build edge information and compute animation data for interaction
+        // edges.
         let svg_edge_infos = Self::build_svg_edge_infos(
             &ir_diagram.edge_groups,
             &ir_diagram.entity_types,
             &svg_node_info_map,
+            &mut tailwind_classes,
+            &mut css,
         );
-
-        // Clone tailwind_classes and css from ir_diagram into SvgElements
-        let css = ir_diagram.css.clone();
 
         SvgElements::new(
             svg_width,
@@ -740,10 +743,14 @@ impl TaffyToSvgElementsMapper {
         edge_groups: &EdgeGroups<'id>,
         entity_types: &EntityTypes<'id>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        tailwind_classes: &mut EntityTailwindClasses<'id>,
+        css: &mut Css,
     ) -> Vec<SvgEdgeInfo<'id>> {
         let mut svg_edge_infos = Vec::new();
 
         edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
+            let edge_count = edge_group.len();
+
             edge_group
                 .iter()
                 .enumerate()
@@ -801,6 +808,47 @@ impl TaffyToSvgElementsMapper {
                     let path = Self::build_edge_path(from_info, to_info, edge_type);
                     let path_d = path.to_svg();
 
+                    // Compute animation for interaction edges.
+                    let is_interaction_edge = entity_types
+                        .get(&*edge_id)
+                        .map(|types| INTERACTION_EDGE_TYPES.iter().any(|t| types.contains(t)))
+                        .unwrap_or(false);
+
+                    if is_interaction_edge {
+                        let is_reverse = edge_type == EdgeType::PairResponse;
+
+                        let edge_anim = Self::compute_edge_animation(
+                            &edge_id, &path, is_reverse, edge_index, edge_count,
+                        );
+
+                        // Append dasharray and animate tailwind classes to this
+                        // edge's existing classes.
+                        let edge_id_owned: Id<'id> = Id::try_from(edge_id.as_str().to_owned())
+                            .expect("edge ID should be valid");
+                        let existing = tailwind_classes
+                            .get(&edge_id_owned)
+                            .cloned()
+                            .unwrap_or_default();
+                        let animation_classes = format!(
+                            "[stroke-dasharray:{}]\nanimate-[{}_{}s_linear_infinite]",
+                            edge_anim.dasharray,
+                            edge_anim.animation_name,
+                            format_duration(edge_anim.total_duration_secs),
+                        );
+                        let combined = if existing.is_empty() {
+                            animation_classes
+                        } else {
+                            format!("{existing}\n{animation_classes}")
+                        };
+                        tailwind_classes.insert(edge_id_owned, combined);
+
+                        // Append CSS keyframes.
+                        if !css.is_empty() {
+                            css.push('\n');
+                        }
+                        css.push_str(&edge_anim.keyframe_css);
+                    }
+
                     svg_edge_infos.push(SvgEdgeInfo::new(
                         edge_id,
                         edge_group_id.clone(),
@@ -823,6 +871,96 @@ impl TaffyToSvgElementsMapper {
         Id::try_from(edge_id_str)
             .expect("edge ID should be valid")
             .into()
+    }
+
+    /// Computes the stroke-dasharray, CSS keyframes, and animation name for an
+    /// interaction edge.
+    ///
+    /// # Parameters
+    ///
+    /// * `edge_id` - Unique edge identifier, used to derive the animation name.
+    /// * `path` - The edge's `BezPath`, used to derive the trailing gap size.
+    /// * `is_reverse` - When `true` the visible segments are ordered smallest
+    ///   to largest (response direction).
+    /// * `edge_index` - Zero-based index of this edge within its edge group.
+    /// * `edge_count` - Total number of edges in the edge group.
+    fn compute_edge_animation(
+        edge_id: &disposition_ir_model::edge::EdgeId<'_>,
+        path: &BezPath,
+        is_reverse: bool,
+        edge_index: usize,
+        edge_count: usize,
+    ) -> EdgeAnimation {
+        let params = EdgeAnimationParams::default();
+
+        // Generate the decreasing visible segment lengths using a geometric
+        // series.
+        let segments = compute_dasharray_segments(&params);
+
+        // Use the bounding box diagonal (width + height) as a conservative
+        // upper bound on the path length so the trailing gap fully hides the
+        // edge during the invisible phase of the animation.
+        let bbox = path.bounding_box();
+        let trailing_gap = (bbox.width() + bbox.height()).max(params.visible_segments_length);
+
+        // Build the dasharray string with segments in the correct order.
+        let dasharray =
+            build_dasharray_string(&segments, params.gap_width, trailing_gap, is_reverse);
+
+        // Derive a unique animation name from the edge ID by replacing
+        // underscores with hyphens (tailwind translates underscores to spaces
+        // inside arbitrary values).
+        let animation_name = format!("{}--stroke-dashoffset", edge_id.as_str().replace('_', "-"));
+
+        // Total animation cycle: every edge gets one move slot, plus a shared
+        // pause at the end.
+        let total_duration_secs =
+            edge_count as f64 * params.move_duration_secs + params.pause_duration_secs;
+
+        // Keyframe percentages for this edge's slot within the cycle.
+        let start_pct = edge_index as f64 * params.move_duration_secs / total_duration_secs * 100.0;
+        let end_pct =
+            (edge_index as f64 + 1.0) * params.move_duration_secs / total_duration_secs * 100.0;
+
+        // stroke-dashoffset values:
+        // - start_offset: shifts visible segments entirely before the path
+        // - end_offset:   shifts visible segments entirely past the path
+        let visible_length = params.visible_segments_length;
+        let start_offset = -visible_length;
+        let end_offset = visible_length + trailing_gap;
+
+        // Build the CSS @keyframes rule, omitting duplicate percentage entries
+        // at 0% and 100% when they coincide with start_pct / end_pct.
+        let mut keyframe_css = format!("@keyframes {} {{\n", animation_name);
+
+        if start_pct > 0.0 {
+            let _ = write!(
+                keyframe_css,
+                "  0% {{ stroke-dashoffset: {start_offset:.1}; }}\n"
+            );
+        }
+        let _ = write!(
+            keyframe_css,
+            "  {start_pct:.1}% {{ stroke-dashoffset: {start_offset:.1}; }}\n"
+        );
+        let _ = write!(
+            keyframe_css,
+            "  {end_pct:.1}% {{ stroke-dashoffset: {end_offset:.1}; }}\n"
+        );
+        if end_pct < 100.0 {
+            let _ = write!(
+                keyframe_css,
+                "  100% {{ stroke-dashoffset: {end_offset:.1}; }}\n"
+            );
+        }
+        keyframe_css.push('}');
+
+        EdgeAnimation {
+            dasharray,
+            keyframe_css,
+            animation_name,
+            total_duration_secs,
+        }
     }
 
     /// Builds the SVG path `d` attribute for an edge between two nodes.
@@ -1190,6 +1328,143 @@ impl TaffyToSvgElementsMapper {
             Face::Left => (-distance, 0.0),
             Face::Right => (distance, 0.0),
         }
+    }
+}
+
+/// The interaction edge entity types that should receive computed animations.
+const INTERACTION_EDGE_TYPES: [EntityType; 4] = [
+    EntityType::InteractionEdgeSequenceForwardDefault,
+    EntityType::InteractionEdgeCyclicForwardDefault,
+    EntityType::InteractionEdgeSymmetricForwardDefault,
+    EntityType::InteractionEdgeSymmetricReverseDefault,
+];
+
+/// Parameters for edge stroke-dasharray animation generation.
+///
+/// These control how the decreasing visible segments in the dasharray are
+/// computed and how the CSS keyframe animation is timed.
+struct EdgeAnimationParams {
+    /// Total length of visible segments plus inter-segment gaps.
+    ///
+    /// This does **not** include the trailing gap used to hide the edge.
+    visible_segments_length: f64,
+    /// Constant gap width between adjacent visible segments.
+    gap_width: f64,
+    /// Number of visible segments in the dasharray.
+    segment_count: usize,
+    /// Geometric ratio for each successive segment (0 < ratio < 1).
+    ///
+    /// Each segment is `ratio` times the length of the previous one,
+    /// producing a visually decreasing pattern.
+    segment_ratio: f64,
+    /// Duration in seconds for one edge's visible segments to animate across
+    /// the path.
+    move_duration_secs: f64,
+    /// Duration in seconds to pause (all edges invisible) before the
+    /// animation cycle restarts.
+    pause_duration_secs: f64,
+}
+
+impl Default for EdgeAnimationParams {
+    fn default() -> Self {
+        Self {
+            visible_segments_length: 100.0,
+            gap_width: 2.0,
+            segment_count: 8,
+            segment_ratio: 0.6,
+            move_duration_secs: 2.0,
+            pause_duration_secs: 1.0,
+        }
+    }
+}
+
+/// Result of computing edge animation data.
+struct EdgeAnimation {
+    /// The stroke-dasharray value string, e.g. `"30.0,2.0,20.0,...,400.0"`.
+    dasharray: String,
+    /// The CSS `@keyframes` rule for this edge.
+    keyframe_css: String,
+    /// Unique animation name for the keyframes rule.
+    animation_name: String,
+    /// Total animation cycle duration in seconds.
+    total_duration_secs: f64,
+}
+
+/// Generates the visible segment lengths using a geometric series.
+///
+/// Given `n` segments with ratio `r`, the first segment length `a` is
+/// computed so that:
+///
+/// ```text
+/// a + a*r + a*r^2 + ... + a*r^(n-1) + (n-1)*gap = visible_segments_length
+/// ```
+///
+/// Each successive segment is `r` times the previous, producing a visually
+/// decreasing pattern (e.g. long dash, medium dash, short dash, ...).
+fn compute_dasharray_segments(params: &EdgeAnimationParams) -> Vec<f64> {
+    let n = params.segment_count;
+    let r = params.segment_ratio;
+    let g = params.gap_width;
+    let total = params.visible_segments_length;
+
+    // Space available for visible segments after subtracting inter-segment gaps.
+    let available = total - (n as f64 - 1.0) * g;
+    assert!(
+        available > 0.0,
+        "visible_segments_length ({total}) must be larger than the total gap \
+         space ({} * {g} = {})",
+        n - 1,
+        (n as f64 - 1.0) * g,
+    );
+
+    // Sum of geometric series: a * (1 - r^n) / (1 - r)
+    let weight_sum = (1.0 - r.powi(n as i32)) / (1.0 - r);
+    let first = available / weight_sum;
+
+    (0..n)
+        .map(|i| (first * r.powi(i as i32)).max(0.5))
+        .collect()
+}
+
+/// Builds the stroke-dasharray value string from visible segments.
+///
+/// For forward edges the segments are in decreasing order (largest first).
+/// For reverse edges the segments are in increasing order (smallest first),
+/// producing a visual "building up" effect for the response direction.
+///
+/// The trailing gap is appended at the end so the edge is hidden during the
+/// invisible portion of the animation cycle.
+fn build_dasharray_string(
+    segments: &[f64],
+    gap_width: f64,
+    trailing_gap: f64,
+    is_reverse: bool,
+) -> String {
+    let ordered: Vec<f64> = if is_reverse {
+        segments.iter().copied().rev().collect()
+    } else {
+        segments.to_vec()
+    };
+
+    let mut parts = Vec::with_capacity(ordered.len() * 2 + 1);
+    for (i, seg) in ordered.iter().enumerate() {
+        if i > 0 {
+            parts.push(format!("{gap_width:.1}"));
+        }
+        parts.push(format!("{seg:.1}"));
+    }
+    parts.push(format!("{trailing_gap:.1}"));
+
+    parts.join(",")
+}
+
+/// Formats a duration in seconds for use in CSS, removing unnecessary trailing
+/// zeros.
+fn format_duration(secs: f64) -> String {
+    if secs.fract() == 0.0 {
+        format!("{}", secs as u64)
+    } else {
+        format!("{:.1}", secs)
     }
 }
 
