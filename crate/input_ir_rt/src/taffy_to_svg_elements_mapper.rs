@@ -748,6 +748,33 @@ impl TaffyToSvgElementsMapper {
     ) -> Vec<SvgEdgeInfo<'id>> {
         let mut svg_edge_infos = Vec::new();
 
+        // The keyframe percentages of an edge's animation should be proportional to the
+        // length of the edge within the total length of all edges in its edge group.
+        //
+        // So we need to precompute the total length of all edges in each edge group,
+        // and pass that in when computing the keyframe percentages.
+        //
+        // If we only computed the edge's keyframe percentages based on its index within
+        // the edge group, the line would be animated faster because it would travel a
+        // larger distance in the same amount of time, whereas it is easier to
+        // understand if we got each edge to be animated at the same speed (which means
+        // increasing the amount of time for that edge's animation).
+        //
+        // Algorithm:
+        //
+        // 1. Compute the total length of all edges in each edge group using the edge's
+        //    `bounding_box` as an approximation, then sum them.
+        // 2. The `total_animation_time` should be a constant
+        //    `seconds_per_distance_units * total_length`.
+        // 3. The `start_pct` ("request start") will be `preceding_edge_lengths_sum /
+        //    total_length`.
+        // 4. The `end_pct` ("request end") will be `(preceding_edge_lengths_sum +
+        //    current_edge_length) / total_length`.
+        // 5. The `duration` for each edge's animation will be the `total_animation_time
+        //    * (edge_length / total_length)`.
+
+        // TODO: implement constant-speed algorithm
+
         edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
             let edge_count = edge_group.len();
 
