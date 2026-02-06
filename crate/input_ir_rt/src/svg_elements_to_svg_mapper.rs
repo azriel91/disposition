@@ -27,10 +27,33 @@ impl SvgElementsToSvgMapper {
         let mut styles_buffer = String::with_capacity(2048);
 
         // Add default text styles
-        writeln!(&mut styles_buffer, "text {{ font-family: 'Noto Sans Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace; font-size: {TEXT_FONT_SIZE}px; line-height: {TEXT_LINE_HEIGHT}px; }}").unwrap();
+        writeln!(
+            &mut styles_buffer,
+            "text {{ \
+                font-family: 'Noto Sans Mono', \
+                    ui-monospace, \
+                    SFMono-Regular, \
+                    Menlo, \
+                    Monaco, \
+                    Consolas, \
+                    'Liberation Mono', \
+                    monospace; \
+                font-size: {TEXT_FONT_SIZE}px; \
+                line-height: {TEXT_LINE_HEIGHT}px; \
+            }}"
+        )
+        .unwrap();
 
         // Add default font
-        writeln!(&mut styles_buffer, "@font-face {{ font-family: 'Noto Sans Mono'; src: url(data:application/x-font-ttf;base64,{}) format('truetype'); }}", BASE64_STANDARD.encode(NOTO_SANS_MONO_TTF)).unwrap();
+        writeln!(
+            &mut styles_buffer,
+            "@font-face {{ \
+                font-family: 'Noto Sans Mono'; \
+                src: url(data:application/x-font-ttf;base64,{}) format('truetype'); \
+            }}",
+            BASE64_STANDARD.encode(NOTO_SANS_MONO_TTF)
+        )
+        .unwrap();
 
         // Render nodes
         Self::render_nodes(&mut content_buffer, svg_node_infos, tailwind_classes);
