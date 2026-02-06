@@ -811,7 +811,11 @@ impl TaffyToSvgElementsMapper {
                     // Compute animation for interaction edges.
                     let is_interaction_edge = entity_types
                         .get(&*edge_id)
-                        .map(|types| INTERACTION_EDGE_TYPES.iter().any(|t| types.contains(t)))
+                        .map(|edge_entity_types| {
+                            edge_entity_types
+                                .iter()
+                                .any(EntityType::is_interaction_edge_type)
+                        })
                         .unwrap_or(false);
 
                     if is_interaction_edge {
@@ -1327,14 +1331,6 @@ impl TaffyToSvgElementsMapper {
         }
     }
 }
-
-/// The interaction edge entity types that should receive computed animations.
-const INTERACTION_EDGE_TYPES: [EntityType; 4] = [
-    EntityType::InteractionEdgeSequenceForwardDefault,
-    EntityType::InteractionEdgeCyclicForwardDefault,
-    EntityType::InteractionEdgeSymmetricForwardDefault,
-    EntityType::InteractionEdgeSymmetricReverseDefault,
-];
 
 /// Parameters for edge stroke-dasharray animation generation.
 ///

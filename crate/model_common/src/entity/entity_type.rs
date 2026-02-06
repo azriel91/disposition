@@ -238,6 +238,29 @@ impl EntityType {
             None
         }
     }
+
+    /// Returns `true` if this is an `Interaction*` variant.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use disposition_model_common::entity::EntityType;
+    ///
+    /// assert!(EntityType::InteractionEdgeSequenceForwardDefault.is_interaction_edge_type());
+    /// assert!(!EntityType::ThingDefault.is_interaction_edge_type());
+    /// ```
+    pub fn is_interaction_edge_type(&self) -> bool {
+        match self {
+            EntityType::InteractionEdgeSequenceDefault
+            | EntityType::InteractionEdgeCyclicDefault
+            | EntityType::InteractionEdgeSymmetricDefault
+            | EntityType::InteractionEdgeSequenceForwardDefault
+            | EntityType::InteractionEdgeCyclicForwardDefault
+            | EntityType::InteractionEdgeSymmetricForwardDefault
+            | EntityType::InteractionEdgeSymmetricReverseDefault => true,
+            _ => false,
+        }
+    }
 }
 
 impl From<Id<'static>> for EntityType {
