@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use disposition_ir_model::{
-    edge::EdgeGroups,
+    edge::{EdgeGroups, EdgeId},
     entity::{EntityTailwindClasses, EntityTypes},
     layout::NodeLayout,
     node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
@@ -863,11 +863,8 @@ impl TaffyToSvgElementsMapper {
     }
 
     /// Generates an edge ID from the edge group ID and edge index.
-    fn generate_edge_id(
-        edge_group_id: &EdgeGroupId<'_>,
-        edge_index: usize,
-    ) -> disposition_ir_model::edge::EdgeId<'static> {
-        let edge_id_str = format!("{}__{}", edge_group_id.as_str(), edge_index);
+    fn generate_edge_id(edge_group_id: &EdgeGroupId<'_>, edge_index: usize) -> EdgeId<'static> {
+        let edge_id_str = format!("{edge_group_id}__{edge_index}");
         Id::try_from(edge_id_str)
             .expect("edge ID should be valid")
             .into()
@@ -885,7 +882,7 @@ impl TaffyToSvgElementsMapper {
     /// * `edge_index` - Zero-based index of this edge within its edge group.
     /// * `edge_count` - Total number of edges in the edge group.
     fn compute_edge_animation(
-        edge_id: &disposition_ir_model::edge::EdgeId<'_>,
+        edge_id: &EdgeId<'_>,
         path: &BezPath,
         is_reverse: bool,
         edge_index: usize,
