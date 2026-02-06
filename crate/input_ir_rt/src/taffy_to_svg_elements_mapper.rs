@@ -966,7 +966,7 @@ impl TaffyToSvgElementsMapper {
 
     /// Builds the SVG path `d` attribute for an edge between two nodes.
     ///
-    /// The path is a curved Bézier curve that connects the appropriate faces
+    /// The path is a curved bezier curve that connects the appropriate faces
     /// of the source and target nodes based on their relative positions.
     fn build_edge_path(
         from_info: &SvgNodeInfo,
@@ -1286,7 +1286,7 @@ impl TaffyToSvgElementsMapper {
             && inner.y + inner.height_collapsed <= outer.y + outer.height_collapsed
     }
 
-    /// Builds a curved Bézier path between two points with control points
+    /// Builds a curved bezier path between two points with control points
     /// based on the faces being connected.
     fn build_curved_edge_path(
         start_x: f32,
