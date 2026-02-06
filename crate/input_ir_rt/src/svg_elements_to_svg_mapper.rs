@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use disposition_ir_model::entity::EntityTailwindClasses;
-use disposition_svg_model::{SvgEdgeInfo, SvgElements};
+use disposition_svg_model::{SvgEdgeInfo, SvgElements, SvgNodeInfo};
 use disposition_taffy_model::{TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
 
 use crate::NOTO_SANS_MONO_TTF;
@@ -33,52 +33,7 @@ impl SvgElementsToSvgMapper {
         writeln!(&mut styles_buffer, "@font-face {{ font-family: 'Noto Sans Mono'; src: url(data:application/x-font-ttf;base64,{}) format('truetype'); }}", BASE64_STANDARD.encode(NOTO_SANS_MONO_TTF)).unwrap();
 
         // Render nodes
-        svg_node_infos.iter().for_each(|svg_node_info| {
-            let node_id = &svg_node_info.node_id;
-            let tab_index = svg_node_info.tab_index;
-            let path_d = &svg_node_info.path_d_collapsed;
-
-            let class_attr = {
-                let tailwind_classes = tailwind_classes
-                    .get(node_id.as_ref())
-                    .cloned()
-                    .unwrap_or_default();
-
-                Self::class_attr_escaped(tailwind_classes)
-            };
-
-            // Start group element with id, tabindex, and optional class
-            write!(
-                content_buffer,
-                r#"<g id="{node_id}"{class_attr} tabindex="{tab_index}">"#
-            )
-            .unwrap();
-
-            // Add path element with corner radii
-            write!(content_buffer, r#"<path d="{path_d}" />"#).unwrap();
-
-            // Add text elements for highlighted spans
-            svg_node_info.text_spans.iter().for_each(|span| {
-                let text_x = span.x;
-                let text_y = span.y;
-                let text_content = &span.text;
-
-                // zero stroke-width because we want the tailwind classes from `<g>` to
-                // apply to the `<path>`, but not to the `<text>`
-                write!(
-                    content_buffer,
-                    "<text \
-                        x=\"{text_x}\" \
-                        y=\"{text_y}\" \
-                        stroke-width=\"0\" \
-                    >{text_content}</text>"
-                )
-                .unwrap();
-            });
-
-            // Close group element
-            content_buffer.push_str("</g>");
-        });
+        Self::render_nodes(&mut content_buffer, svg_node_infos, tailwind_classes);
 
         // Render edges
         Self::render_edges(&mut content_buffer, svg_edge_infos, tailwind_classes);
@@ -142,14 +97,82 @@ impl SvgElementsToSvgMapper {
         buffer
     }
 
+    /// Writes nodes to the SVG content buffer.
+    ///
+    /// These will be rendered as the following elements (some attributes
+    /// omitted):
+    ///
+    /// ```svg
+    /// <g id="{node_id}" ..>
+    ///   <!-- background rectangle -->
+    ///   <path d="{path_d}" .. />
+    ///
+    ///   <!-- node text -->
+    ///   <text .. >{line_1}</text>
+    ///   <text .. >{line_2}</text>
+    /// </g>
+    /// ```
+    fn render_nodes(
+        content_buffer: &mut String,
+        svg_node_infos: &[SvgNodeInfo<'_>],
+        tailwind_classes: &EntityTailwindClasses<'_>,
+    ) {
+        svg_node_infos.iter().for_each(|svg_node_info| {
+            let node_id = &svg_node_info.node_id;
+            let tab_index = svg_node_info.tab_index;
+            let path_d = &svg_node_info.path_d_collapsed;
+
+            let class_attr = {
+                let tailwind_classes = tailwind_classes
+                    .get(node_id.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+
+                Self::class_attr_escaped(tailwind_classes)
+            };
+
+            // Start group element with id, tabindex, and optional class
+            write!(
+                content_buffer,
+                r#"<g id="{node_id}"{class_attr} tabindex="{tab_index}">"#
+            )
+            .unwrap();
+
+            // Add path element with corner radii
+            write!(content_buffer, r#"<path d="{path_d}" />"#).unwrap();
+
+            // Add text elements for highlighted spans
+            svg_node_info.text_spans.iter().for_each(|span| {
+                let text_x = span.x;
+                let text_y = span.y;
+                let text_content = &span.text;
+
+                // zero stroke-width because we want the tailwind classes from `<g>` to
+                // apply to the `<path>`, but not to the `<text>`
+                write!(
+                    content_buffer,
+                    "<text \
+                        x=\"{text_x}\" \
+                        y=\"{text_y}\" \
+                        stroke-width=\"0\" \
+                    >{text_content}</text>"
+                )
+                .unwrap();
+            });
+
+            // Close group element
+            content_buffer.push_str("</g>");
+        });
+    }
+
     /// Writes edges to the SVG content buffer.
     ///
     /// These will be rendered as the following elements (some attributes
     /// omitted):
     ///
     /// ```svg
-    /// <g id="{edge_id}">
-    ///   <path d="{path_d}" />
+    /// <g id="{edge_id}" .. >
+    ///   <path d="{path_d}" .. />
     /// </g>
     /// ```
     fn render_edges(
