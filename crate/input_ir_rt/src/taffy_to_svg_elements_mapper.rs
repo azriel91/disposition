@@ -1472,7 +1472,7 @@ impl Default for EdgeAnimationParams {
             gap_width: 2.0,
             segment_count: 8,
             segment_ratio: 0.6,
-            pause_duration_secs: 0.7,
+            pause_duration_secs: 0.5,
         }
     }
 }
