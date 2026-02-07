@@ -862,8 +862,10 @@ impl TaffyToSvgElementsMapper {
                 .sum::<f64>();
             let edge_group_visible_segments_length_total =
                 edge_path_infos.len() as f64 * visible_segments_length;
+            let edge_group_path_or_visible_segments_length_max =
+                edge_group_visible_segments_length_total.max(edge_group_path_length_total);
             let edge_group_animation_duration_total_s = SECONDS_PER_PIXEL
-                * edge_group_visible_segments_length_total
+                * edge_group_path_or_visible_segments_length_max
                 + edge_animation_params.pause_duration_secs;
 
             let (edge_animation_infos, _preceding_visible_segments_lengths) =
@@ -911,7 +913,7 @@ impl TaffyToSvgElementsMapper {
                     if is_interaction_edge {
                         let edge_anim = Self::compute_edge_animation(
                             edge_animation_params,
-                            edge_group_path_length_total,
+                            edge_group_path_or_visible_segments_length_max,
                             edge_group_animation_duration_total_s,
                             &edge_animation_info,
                         );
@@ -986,7 +988,7 @@ impl TaffyToSvgElementsMapper {
     ///   end of the animation.
     fn compute_edge_animation(
         params: EdgeAnimationParams,
-        edge_group_path_length_total: f64,
+        edge_group_path_or_visible_segments_length_max: f64,
         edge_group_animation_duration_total_s: f64,
         edge_animation_info: &EdgeAnimationInfo<'_, '_>,
     ) -> EdgeAnimation {
@@ -1021,9 +1023,11 @@ impl TaffyToSvgElementsMapper {
         let animation_name = format!("{}--stroke-dashoffset", edge_id.as_str().replace('_', "-"));
 
         // Keyframe percentages for this edge's slot within the cycle.
-        let start_pct = preceding_visible_segments_lengths / edge_group_path_length_total * 100.0;
+        let start_pct = preceding_visible_segments_lengths
+            / edge_group_path_or_visible_segments_length_max
+            * 100.0;
         let end_pct = (preceding_visible_segments_lengths + visible_segments_length)
-            / edge_group_path_length_total
+            / edge_group_path_or_visible_segments_length_max
             * 100.0;
 
         // stroke-dashoffset values:
