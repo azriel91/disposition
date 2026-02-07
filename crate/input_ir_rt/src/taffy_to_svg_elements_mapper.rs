@@ -1004,7 +1004,7 @@ impl TaffyToSvgElementsMapper {
 
         // Generate the decreasing visible segment lengths using a geometric
         // series.
-        let segments = compute_dasharray_segments(&params);
+        let segments = compute_dasharray_segments(&params, is_reverse);
         let visible_segments_length = params.visible_segments_length;
 
         // Use the path length so the trailing gap fully hides the
@@ -1029,17 +1029,8 @@ impl TaffyToSvgElementsMapper {
         // stroke-dashoffset values:
         // - start_offset: shifts visible segments entirely before the path
         // - end_offset:   shifts visible segments entirely past the path
-        let start_offset = if is_reverse {
-            0.0
-        } else {
-            // -visible_segments_length
-            -trailing_gap
-        };
-        let end_offset = if is_reverse {
-            path_length
-        } else {
-            visible_segments_length
-        };
+        let start_offset = -trailing_gap;
+        let end_offset = visible_segments_length;
 
         // Build the CSS @keyframes rule, omitting duplicate percentage entries
         // at 0% and 100% when they coincide with start_pct / end_pct.
@@ -1502,7 +1493,7 @@ struct EdgeAnimation {
 ///
 /// Each successive segment is `r` times the previous, producing a visually
 /// decreasing pattern (e.g. long dash, medium dash, short dash, ...).
-fn compute_dasharray_segments(params: &EdgeAnimationParams) -> Vec<f64> {
+fn compute_dasharray_segments(params: &EdgeAnimationParams, is_reverse: bool) -> Vec<f64> {
     let n = params.segment_count;
     let r = params.segment_ratio;
     let g = params.gap_width;
@@ -1522,9 +1513,15 @@ fn compute_dasharray_segments(params: &EdgeAnimationParams) -> Vec<f64> {
     let weight_sum = (1.0 - r.powi(n as i32)) / (1.0 - r);
     let first = available / weight_sum;
 
-    (0..n)
-        .map(|i| (first * r.powi(i as i32)).max(0.5))
-        .collect()
+    match is_reverse {
+        false => (0..n)
+            .map(|i| (first * r.powi(i as i32)).max(0.5))
+            .collect(),
+        true => (0..n)
+            .rev()
+            .map(|i| (first * r.powi(i as i32)).max(0.5))
+            .collect(),
+    }
 }
 
 /// Builds the stroke-dasharray value string from visible segments.
