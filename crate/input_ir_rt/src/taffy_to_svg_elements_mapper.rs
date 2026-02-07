@@ -1034,29 +1034,30 @@ impl TaffyToSvgElementsMapper {
 
         // Build the CSS @keyframes rule, omitting duplicate percentage entries
         // at 0% and 100% when they coincide with start_pct / end_pct.
-        let mut keyframe_css = format!("@keyframes {} {{\n", animation_name);
+        let mut keyframe_css = format!("@keyframes {} {{ ", animation_name);
 
         if start_pct > 0.0 {
             let _ = write!(
                 keyframe_css,
-                "  0% {{ stroke-dashoffset: {start_offset:.1}; }}\n"
+                "0% {{ stroke-dashoffset: {start_offset:.1}; }} "
             );
         }
         let _ = write!(
             keyframe_css,
-            "  {start_pct:.1}% {{ stroke-dashoffset: {start_offset:.1}; }}\n"
+            "{start_pct:.1}% {{ stroke-dashoffset: {start_offset:.1}; }} "
         );
         let _ = write!(
             keyframe_css,
-            "  {end_pct:.1}% {{ stroke-dashoffset: {end_offset:.1}; }}\n"
+            "{end_pct:.1}% {{ stroke-dashoffset: {end_offset:.1}; }} "
         );
         if end_pct < 100.0 {
             let _ = write!(
                 keyframe_css,
-                "  100% {{ stroke-dashoffset: {end_offset:.1}; }}\n"
+                "100% {{ stroke-dashoffset: {end_offset:.1}; }} "
             );
         }
         keyframe_css.push('}');
+        keyframe_css.push('\n');
 
         EdgeAnimation {
             dasharray,
