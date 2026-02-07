@@ -998,16 +998,18 @@ impl TaffyToSvgElementsMapper {
             path_length,
             preceding_visible_segments_lengths,
         } = edge_animation_info;
+        let path_length = *path_length;
 
         let is_reverse = *edge_type == EdgeType::PairResponse;
 
         // Generate the decreasing visible segment lengths using a geometric
         // series.
         let segments = compute_dasharray_segments(&params);
+        let visible_segments_length = params.visible_segments_length;
 
         // Use the path length so the trailing gap fully hides the
         // edge during the invisible phase of the animation.
-        let trailing_gap = path_length.max(params.visible_segments_length);
+        let trailing_gap = path_length.max(visible_segments_length);
 
         // Build the dasharray string with segments in the correct order.
         let dasharray =
@@ -1020,16 +1022,24 @@ impl TaffyToSvgElementsMapper {
 
         // Keyframe percentages for this edge's slot within the cycle.
         let start_pct = preceding_visible_segments_lengths / edge_group_path_length_total * 100.0;
-        let end_pct = (preceding_visible_segments_lengths + params.visible_segments_length)
+        let end_pct = (preceding_visible_segments_lengths + visible_segments_length)
             / edge_group_path_length_total
             * 100.0;
 
         // stroke-dashoffset values:
         // - start_offset: shifts visible segments entirely before the path
         // - end_offset:   shifts visible segments entirely past the path
-        let visible_length = params.visible_segments_length;
-        let start_offset = -visible_length;
-        let end_offset = visible_length + visible_length + trailing_gap;
+        let start_offset = if is_reverse {
+            0.0
+        } else {
+            // -visible_segments_length
+            -trailing_gap
+        };
+        let end_offset = if is_reverse {
+            path_length
+        } else {
+            visible_segments_length
+        };
 
         // Build the CSS @keyframes rule, omitting duplicate percentage entries
         // at 0% and 100% when they coincide with start_pct / end_pct.
