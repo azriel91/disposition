@@ -250,16 +250,16 @@ impl EntityType {
     /// assert!(!EntityType::ThingDefault.is_interaction_edge_type());
     /// ```
     pub fn is_interaction_edge_type(&self) -> bool {
-        match self {
+        matches!(
+            self,
             EntityType::InteractionEdgeSequenceDefault
-            | EntityType::InteractionEdgeCyclicDefault
-            | EntityType::InteractionEdgeSymmetricDefault
-            | EntityType::InteractionEdgeSequenceForwardDefault
-            | EntityType::InteractionEdgeCyclicForwardDefault
-            | EntityType::InteractionEdgeSymmetricForwardDefault
-            | EntityType::InteractionEdgeSymmetricReverseDefault => true,
-            _ => false,
-        }
+                | EntityType::InteractionEdgeCyclicDefault
+                | EntityType::InteractionEdgeSymmetricDefault
+                | EntityType::InteractionEdgeSequenceForwardDefault
+                | EntityType::InteractionEdgeCyclicForwardDefault
+                | EntityType::InteractionEdgeSymmetricForwardDefault
+                | EntityType::InteractionEdgeSymmetricReverseDefault
+        )
     }
 }
 
