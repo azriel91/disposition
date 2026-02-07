@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use disposition_ir_model::{
-    edge::{EdgeGroups, EdgeId},
+    edge::{Edge, EdgeGroups, EdgeId},
     entity::{EntityTailwindClasses, EntityTypes},
     layout::NodeLayout,
     node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
@@ -773,23 +773,22 @@ impl TaffyToSvgElementsMapper {
         // 5. The `duration` for each edge's animation will be the `total_animation_time
         //    * (edge_length / total_length)`.
 
-        // TODO: implement constant-speed algorithm
+        /// 1 second per 100 pixels
+        const SECONDS_PER_PIXEL: f64 = 1.0 / 100.0;
 
         edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
-            let edge_count = edge_group.len();
-
-            edge_group
+            let edge_path_infos = edge_group
                 .iter()
                 .enumerate()
-                .for_each(|(edge_index, edge)| {
+                .filter_map(|(edge_index, edge)| {
                     // Skip edges where either node is not found
                     let Some(from_info) = svg_node_info_map.get(&edge.from) else {
                         // TODO: warn user that they probably got a Node ID wrong.
-                        return;
+                        return None;
                     };
                     let Some(to_info) = svg_node_info_map.get(&edge.to) else {
                         // TODO: warn user that they probably got a Node ID wrong.
-                        return;
+                        return None;
                     };
 
                     let edge_id = Self::generate_edge_id(edge_group_id, edge_index);
@@ -833,11 +832,75 @@ impl TaffyToSvgElementsMapper {
                         .unwrap_or(EdgeType::Unpaired);
 
                     let path = Self::build_edge_path(from_info, to_info, edge_type);
-                    let path_d = path.to_svg();
+                    let path_length = {
+                        // not sure what this is, but I assume it means 1 pixel accuracy
+                        let accuracy = 1.0;
+                        path.perimeter(accuracy)
+                    };
 
+                    let edge_path_info = EdgePathInfo {
+                        edge_id,
+                        edge,
+                        edge_type,
+                        path,
+                        path_length,
+                    };
+
+                    Some(edge_path_info)
+                })
+                .collect::<Vec<EdgePathInfo>>();
+
+            // Rough total length of all edges in the group
+            //
+            // This is rough because it just uses path bounding box width and height instead
+            // of actual path length.
+            let edge_animation_params = EdgeAnimationParams::default();
+            let visible_segments_length = edge_animation_params.visible_segments_length;
+            let edge_group_path_length_total = edge_path_infos
+                .iter()
+                .map(|edge_path_info| edge_path_info.path_length)
+                .sum::<f64>();
+            let edge_group_visible_segments_length_total =
+                edge_path_infos.len() as f64 * visible_segments_length;
+            let edge_group_animation_duration_total_s = SECONDS_PER_PIXEL
+                * edge_group_visible_segments_length_total
+                + edge_animation_params.pause_duration_secs;
+
+            let (edge_animation_infos, _preceding_visible_segments_lengths) =
+                edge_path_infos.into_iter().fold(
+                    (Vec::new(), 0.0),
+                    |(mut edge_animation_infos, preceding_visible_segments_lengths),
+                     edge_path_info| {
+                        let EdgePathInfo {
+                            edge_id,
+                            edge,
+                            edge_type,
+                            path,
+                            path_length,
+                        } = edge_path_info;
+
+                        edge_animation_infos.push(EdgeAnimationInfo {
+                            edge_id,
+                            edge,
+                            edge_type,
+                            path,
+                            path_length,
+                            preceding_visible_segments_lengths,
+                        });
+
+                        (
+                            edge_animation_infos,
+                            preceding_visible_segments_lengths + visible_segments_length,
+                        )
+                    },
+                );
+
+            edge_animation_infos
+                .into_iter()
+                .for_each(|edge_animation_info| {
                     // Compute animation for interaction edges.
                     let is_interaction_edge = entity_types
-                        .get(&*edge_id)
+                        .get(AsRef::<Id<'_>>::as_ref(&edge_animation_info.edge_id))
                         .map(|edge_entity_types| {
                             edge_entity_types
                                 .iter()
@@ -846,15 +909,17 @@ impl TaffyToSvgElementsMapper {
                         .unwrap_or(false);
 
                     if is_interaction_edge {
-                        let is_reverse = edge_type == EdgeType::PairResponse;
-
                         let edge_anim = Self::compute_edge_animation(
-                            &edge_id, &path, is_reverse, edge_index, edge_count,
+                            edge_animation_params,
+                            edge_group_path_length_total,
+                            edge_group_animation_duration_total_s,
+                            &edge_animation_info,
                         );
 
                         // Append dasharray and animate tailwind classes to this
                         // edge's existing classes.
-                        let edge_id_owned: Id<'id> = edge_id.clone().into_inner();
+                        let edge_id_owned: Id<'id> =
+                            edge_animation_info.edge_id.clone().into_inner();
                         let existing = tailwind_classes
                             .get(&edge_id_owned)
                             .cloned()
@@ -863,7 +928,7 @@ impl TaffyToSvgElementsMapper {
                             "[stroke-dasharray:{}]\nanimate-[{}_{}s_linear_infinite]",
                             edge_anim.dasharray,
                             edge_anim.animation_name,
-                            format_duration(edge_anim.total_duration_secs),
+                            format_duration(edge_anim.edge_animation_duration_s),
                         );
                         let combined = if existing.is_empty() {
                             animation_classes
@@ -878,6 +943,17 @@ impl TaffyToSvgElementsMapper {
                         }
                         css.push_str(&edge_anim.keyframe_css);
                     }
+
+                    let EdgeAnimationInfo {
+                        edge_id,
+                        edge,
+                        edge_type: _,
+                        path,
+                        path_length: _,
+                        preceding_visible_segments_lengths: _,
+                    } = edge_animation_info;
+
+                    let path_d = path.to_svg();
 
                     svg_edge_infos.push(SvgEdgeInfo::new(
                         edge_id,
@@ -905,31 +981,33 @@ impl TaffyToSvgElementsMapper {
     ///
     /// # Parameters
     ///
-    /// * `edge_id` - Unique edge identifier, used to derive the animation name.
-    /// * `path` - The edge's `BezPath`, used to derive the trailing gap size.
-    /// * `is_reverse` - When `true` the visible segments are ordered smallest
-    ///   to largest (response direction).
-    /// * `edge_index` - Zero-based index of this edge within its edge group.
-    /// * `edge_count` - Total number of edges in the edge group.
+    /// * `edge_group_animation_duration_total_s`: Duration of the animation for
+    ///   the edges for the entire edge group, which excludes the pause at the
+    ///   end of the animation.
     fn compute_edge_animation(
-        edge_id: &EdgeId<'_>,
-        path: &BezPath,
-        is_reverse: bool,
-        edge_index: usize,
-        edge_count: usize,
+        params: EdgeAnimationParams,
+        edge_group_path_length_total: f64,
+        edge_group_animation_duration_total_s: f64,
+        edge_animation_info: &EdgeAnimationInfo<'_, '_>,
     ) -> EdgeAnimation {
-        let params = EdgeAnimationParams::default();
+        let EdgeAnimationInfo {
+            edge_id,
+            edge: _,
+            edge_type,
+            path: _,
+            path_length,
+            preceding_visible_segments_lengths,
+        } = edge_animation_info;
+
+        let is_reverse = *edge_type == EdgeType::PairResponse;
 
         // Generate the decreasing visible segment lengths using a geometric
         // series.
         let segments = compute_dasharray_segments(&params);
 
-        // Use the bounding box diagonal (width + height) as a conservative
-        // upper bound on the path length so the trailing gap fully hides the
+        // Use the path length so the trailing gap fully hides the
         // edge during the invisible phase of the animation.
-        let bbox = path.bounding_box();
-        let trailing_gap =
-            (2.0 * (bbox.width() + bbox.height())).max(params.visible_segments_length);
+        let trailing_gap = path_length.max(params.visible_segments_length);
 
         // Build the dasharray string with segments in the correct order.
         let dasharray =
@@ -940,15 +1018,11 @@ impl TaffyToSvgElementsMapper {
         // inside arbitrary values).
         let animation_name = format!("{}--stroke-dashoffset", edge_id.as_str().replace('_', "-"));
 
-        // Total animation cycle: every edge gets one move slot, plus a shared
-        // pause at the end.
-        let total_duration_secs =
-            edge_count as f64 * params.move_duration_secs + params.pause_duration_secs;
-
         // Keyframe percentages for this edge's slot within the cycle.
-        let start_pct = edge_index as f64 * params.move_duration_secs / total_duration_secs * 100.0;
-        let end_pct =
-            (edge_index as f64 + 1.0) * params.move_duration_secs / total_duration_secs * 100.0;
+        let start_pct = preceding_visible_segments_lengths / edge_group_path_length_total * 100.0;
+        let end_pct = (preceding_visible_segments_lengths + params.visible_segments_length)
+            / edge_group_path_length_total
+            * 100.0;
 
         // stroke-dashoffset values:
         // - start_offset: shifts visible segments entirely before the path
@@ -987,7 +1061,7 @@ impl TaffyToSvgElementsMapper {
             dasharray,
             keyframe_css,
             animation_name,
-            total_duration_secs,
+            edge_animation_duration_s: edge_group_animation_duration_total_s,
         }
     }
 
@@ -1363,6 +1437,7 @@ impl TaffyToSvgElementsMapper {
 ///
 /// These control how the decreasing visible segments in the dasharray are
 /// computed and how the CSS keyframe animation is timed.
+#[derive(Clone, Copy, Debug)]
 struct EdgeAnimationParams {
     /// Total length of visible segments plus inter-segment gaps.
     ///
@@ -1377,9 +1452,6 @@ struct EdgeAnimationParams {
     /// Each segment is `ratio` times the length of the previous one,
     /// producing a visually decreasing pattern.
     segment_ratio: f64,
-    /// Duration in seconds for one edge's visible segments to animate across
-    /// the path.
-    move_duration_secs: f64,
     /// Duration in seconds to pause (all edges invisible) before the
     /// animation cycle restarts.
     pause_duration_secs: f64,
@@ -1392,7 +1464,6 @@ impl Default for EdgeAnimationParams {
             gap_width: 2.0,
             segment_count: 8,
             segment_ratio: 0.6,
-            move_duration_secs: 2.0,
             pause_duration_secs: 1.0,
         }
     }
@@ -1407,7 +1478,7 @@ struct EdgeAnimation {
     /// Unique animation name for the keyframes rule.
     animation_name: String,
     /// Total animation cycle duration in seconds.
-    total_duration_secs: f64,
+    edge_animation_duration_s: f64,
 }
 
 /// Generates the visible segment lengths using a geometric series.
@@ -1510,6 +1581,33 @@ enum EdgeType {
     PairRequest,
     /// Response direction of a pair of edges.
     PairResponse,
+}
+
+/// Intermediate data for computing `SvgEdgeInfo`s.
+///
+/// This is collated because the sum of all path lengths in an edge group are
+/// needed to compute the animation keyframe percentages for each edge.
+#[derive(Clone, Debug)]
+struct EdgePathInfo<'edge, 'id> {
+    edge_id: EdgeId<'id>,
+    edge: &'edge Edge<'id>,
+    edge_type: EdgeType,
+    path: BezPath,
+    path_length: f64,
+}
+
+/// Intermediate data for computing `SvgEdgeInfo`s.
+///
+/// This is collated because the sum of all path lengths in an edge group are
+/// needed to compute the animation keyframe percentages for each edge.
+#[derive(Clone, Debug)]
+struct EdgeAnimationInfo<'edge, 'id> {
+    edge_id: EdgeId<'id>,
+    edge: &'edge Edge<'id>,
+    edge_type: EdgeType,
+    path: BezPath,
+    path_length: f64,
+    preceding_visible_segments_lengths: f64,
 }
 
 #[derive(Clone, Copy, Debug)]
