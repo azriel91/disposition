@@ -774,7 +774,7 @@ impl TaffyToSvgElementsMapper {
         //    * (edge_length / total_length)`.
 
         /// 1 second per 100 pixels
-        const SECONDS_PER_PIXEL: f64 = 1.0 / 100.0;
+        const SECONDS_PER_PIXEL: f64 = 0.8 / 100.0;
 
         edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
             let edge_path_infos = edge_group
@@ -1470,7 +1470,7 @@ impl Default for EdgeAnimationParams {
             gap_width: 2.0,
             segment_count: 8,
             segment_ratio: 0.6,
-            pause_duration_secs: 1.0,
+            pause_duration_secs: 0.7,
         }
     }
 }
