@@ -1,5 +1,6 @@
 use disposition::{
     ir_model::IrDiagram,
+    model_common::{id, Id},
     taffy_model::{taffy::TaffyError, DimensionAndLod},
 };
 use disposition_input_ir_rt::{IrToTaffyBuilder, TaffyToSvgElementsMapper};
@@ -41,28 +42,19 @@ fn test_example_ir_mapping_to_svg_elements() -> Result<(), TaffyError> {
                 );
             }
 
-            // Verify additional tailwind classes were generated (now a Map keyed by NodeId)
-            assert!(
-                !svg_elements.additional_tailwind_classes.is_empty(),
-                "Expected additional_tailwind_classes to be non-empty"
-            );
-
-            // Verify each node has corresponding tailwind classes in the map
-            svg_elements.svg_node_infos.iter().for_each(|svg_node_info| {
-                assert!(
-                    svg_elements.additional_tailwind_classes.contains_key(&svg_node_info.node_id),
-                    "Expected additional_tailwind_classes to contain key for node {}",
-                    svg_node_info.node_id
-                );
-            });
+            // Verify process nodes have tailwind classes for translation appended to their entity tailwind classes.
+            let Some(proc_app_dev_tailwind_classes) = svg_elements.tailwind_classes.get(&id!("proc_app_dev")) else {
+                panic!("Expected tailwind classes for process node 'proc_app_dev'");
+            };
+            assert!(proc_app_dev_tailwind_classes.contains("translate-x-"), "Expected process node to have 'translate-x-' tailwind class");
+            assert!(proc_app_dev_tailwind_classes.contains("[&>path]:[d:path('"), "Expected process node to have '[&>path]:[d:path('] tailwind class");
 
             eprintln!(
-                "\n------------------------\nSvgElements:\n  svg_width: {}\n  svg_height: {}\n  node_count: {}\n  process_info_count: {}\n  tailwind_class_count: {}\n-----------------------\n",
+                "\n------------------------\nSvgElements:\n  svg_width: {}\n  svg_height: {}\n  node_count: {}\n  process_info_count: {}\n-----------------------\n",
                 svg_elements.svg_width,
                 svg_elements.svg_height,
                 svg_elements.svg_node_infos.len(),
                 svg_elements.svg_process_infos.len(),
-                svg_elements.additional_tailwind_classes.len()
             );
         });
 

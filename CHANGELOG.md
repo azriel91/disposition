@@ -4,9 +4,11 @@
 
 * Support `InputDiagram` merging. ([#10][#10])
 * Add edges to diagram. ([#11][#11])
+* Animate edges evenly by generating CSS animation keyframes. ([#12][#12])
 
 [#10]: https://github.com/azriel91/disposition/pull/10
 [#11]: https://github.com/azriel91/disposition/pull/11
+[#12]: https://github.com/azriel91/disposition/pull/12
 
 
 ## 0.0.3 (2026-01-20)

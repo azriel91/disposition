@@ -26,6 +26,7 @@ SVG diagram generator.
 * [x] Interactive highlighting.
 * [x] CSS only interactivity.
 * [x] Edges between nodes.
+* [x] Edge animations representing requests/responses.
 * [ ] Arrows on edges.
 * [ ] Circle as node shape.
 * [ ] Dependencies between process steps.

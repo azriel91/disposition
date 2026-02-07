@@ -1213,16 +1213,11 @@ tailwind_classes:
     [&>text]:fill-neutral-900
     peer-[:focus-within]/proc_app_dev_step_repository_clone:visible
     peer-[:focus-within]/proc_app_release_step_pull_request_open:visible
-  edge_ix_t_localhost__t_github_user_repo__pull__0: |
-    [stroke-dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-  edge_ix_t_localhost__t_github_user_repo__pull__1: |
-    [stroke-dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80]
-    animate-[stroke-dashoffset-move-response_2s_linear_infinite]
+  edge_ix_t_localhost__t_github_user_repo__pull__0: ""
+  edge_ix_t_localhost__t_github_user_repo__pull__1: ""
 
   edge_ix_t_localhost__t_github_user_repo__push: |
     invisible
-    [stroke-dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
     stroke-2
     hover:fill-violet-600
     fill-violet-700
@@ -1234,12 +1229,9 @@ tailwind_classes:
     active:stroke-violet-950
     [&>text]:fill-neutral-950
     peer-[:focus-within]/proc_app_release_step_tag_and_push:visible
-  edge_ix_t_localhost__t_github_user_repo__push__0: |
-    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-
+  edge_ix_t_localhost__t_github_user_repo__push__0: ""
   edge_ix_t_localhost__t_localhost__within: |
     invisible
-    [stroke-dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
     stroke-2
     hover:fill-violet-600
     fill-violet-700
@@ -1252,9 +1244,7 @@ tailwind_classes:
     [&>text]:fill-neutral-950
     peer-[:focus-within]/proc_app_dev_step_project_build:visible
     peer-[:focus-within]/proc_app_release_step_crate_version_update:visible
-  edge_ix_t_localhost__t_localhost__within__0: |
-    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-
+  edge_ix_t_localhost__t_localhost__within__0: ""
   edge_ix_t_github_user_repo__t_github_user_repo__within: |
     invisible
     stroke-2
@@ -1268,16 +1258,11 @@ tailwind_classes:
     active:stroke-violet-950
     [&>text]:fill-neutral-950
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:visible
-  edge_ix_t_github_user_repo__t_github_user_repo__within__0: |
-    [stroke-dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
-    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-  edge_ix_t_github_user_repo__t_github_user_repo__within__1: |
-    [stroke-dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80]
-    animate-[stroke-dashoffset-move-response_2s_linear_infinite]
+  edge_ix_t_github_user_repo__t_github_user_repo__within__0: ""
+  edge_ix_t_github_user_repo__t_github_user_repo__within__1: ""
 
   edge_ix_t_github_user_repo__t_aws_ecr_repo__push: |
     invisible
-    [stroke-dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
     stroke-2
     hover:fill-violet-600
     fill-violet-700
@@ -1289,12 +1274,9 @@ tailwind_classes:
     active:stroke-violet-950
     [&>text]:fill-neutral-950
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:visible
-  edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: |
-    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
-
+  edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: ""
   edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push: |
     invisible
-    [stroke-dasharray:0,80,12,2,4,2,2,2,1,2,1,120]
     stroke-2
     hover:fill-violet-600
     fill-violet-700
@@ -1306,8 +1288,7 @@ tailwind_classes:
     active:stroke-violet-950
     [&>text]:fill-neutral-950
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:visible
-  edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0: |
-    animate-[stroke-dashoffset-move-request_2s_linear_infinite]
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0: ""
 
 # Layout configuration for nodes.
 node_layouts:
@@ -1832,12 +1813,4 @@ css: |-
   @keyframes stroke-dashoffset-move {
     0%   { stroke-dasharray: 3; stroke-dashoffset: 30; }
     100% { stroke-dasharray: 3; stroke-dashoffset: 0; }
-  }
-  @keyframes stroke-dashoffset-move-request {
-    0%   { stroke-dashoffset: 0; }
-    100% { stroke-dashoffset: 228; }
-  }
-  @keyframes stroke-dashoffset-move-response {
-    0%   { stroke-dashoffset: 0; }
-    100% { stroke-dashoffset: -248; }
   }

@@ -162,14 +162,6 @@ impl InputDiagram<'static> {
             "@keyframes stroke-dashoffset-move {\n  \
                0%   { stroke-dasharray: 3; stroke-dashoffset: 30; }\n  \
                100% { stroke-dasharray: 3; stroke-dashoffset: 0; }\n\
-             }\n\
-             @keyframes stroke-dashoffset-move-request {\n  \
-               0%   { stroke-dashoffset: 0; }\n  \
-               100% { stroke-dashoffset: 228; }\n\
-             }\n\
-             @keyframes stroke-dashoffset-move-response {\n  \
-               0%   { stroke-dashoffset: -248; }\n  \
-               100% { stroke-dashoffset: 0; }\n\
              }",
         ));
 
@@ -431,28 +423,6 @@ fn base_style_aliases() -> StyleAliases<'static> {
                         "[stroke-dashoffset-move_2s_linear_infinite]",
                     ),
                 ],
-            ),
-        ),
-        // stroke_dashed_animated_request
-        (
-            StyleAlias::StrokeDashedAnimatedRequest,
-            css_class_partials(
-                vec![],
-                vec![(
-                    ThemeAttr::Animate,
-                    "[stroke-dashoffset-move-request_2s_linear_infinite]",
-                )],
-            ),
-        ),
-        // stroke_dashed_animated_response
-        (
-            StyleAlias::StrokeDashedAnimatedResponse,
-            css_class_partials(
-                vec![],
-                vec![(
-                    ThemeAttr::Animate,
-                    "[stroke-dashoffset-move-response_2s_linear_infinite]",
-                )],
             ),
         ),
     ]
@@ -739,10 +709,6 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                     vec![
                         (ThemeAttr::ShapeColor, "violet"),
                         (ThemeAttr::StrokeWidth, "2"),
-                        (
-                            ThemeAttr::StrokeStyle,
-                            "dasharray:0,80,12,2,4,2,2,2,1,2,1,120",
-                        ),
                         (ThemeAttr::Visibility, "invisible"),
                     ],
                 ),
@@ -760,10 +726,6 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                     vec![
                         (ThemeAttr::ShapeColor, "violet"),
                         (ThemeAttr::StrokeWidth, "2"),
-                        (
-                            ThemeAttr::StrokeStyle,
-                            "dasharray:0,80,12,2,4,2,2,2,1,2,1,120",
-                        ),
                         (ThemeAttr::Visibility, "invisible"),
                     ],
                 ),
@@ -795,7 +757,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                 .into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(vec![StyleAlias::StrokeDashedAnimatedRequest], vec![]),
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
@@ -807,7 +769,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                 .into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(vec![StyleAlias::StrokeDashedAnimatedRequest], vec![]),
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
@@ -819,13 +781,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                 .into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(
-                    vec![StyleAlias::StrokeDashedAnimatedRequest],
-                    vec![(
-                        ThemeAttr::StrokeStyle,
-                        "dasharray:0,80,12,2,4,2,2,2,1,2,1,120",
-                    )],
-                ),
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
@@ -837,13 +793,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                 .into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(
-                    vec![StyleAlias::StrokeDashedAnimatedResponse],
-                    vec![(
-                        ThemeAttr::StrokeStyle,
-                        "dasharray:0,120,1,2,1,2,2,2,4,2,8,2,20,80",
-                    )],
-                ),
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),

@@ -38,11 +38,6 @@ pub struct SvgElements<'id> {
     /// The map preserves insertion order, which corresponds to process order
     /// in the diagram.
     pub svg_process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>>,
-    /// Additional tailwind classes generated during element mapping.
-    ///
-    /// These are the translate classes and other dynamically generated classes
-    /// that need to be included in CSS generation, keyed by node ID.
-    pub additional_tailwind_classes: Map<NodeId<'id>, String>,
     /// Computed Tailwind CSS classes for interactive visibility behaviour.
     ///
     /// These classes control visibility, colors, animations, and interactions
@@ -57,14 +52,12 @@ pub struct SvgElements<'id> {
 
 impl<'id> SvgElements<'id> {
     /// Creates a new `SvgElements`.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         svg_width: f32,
         svg_height: f32,
         svg_node_infos: Vec<SvgNodeInfo<'id>>,
         svg_edge_infos: Vec<SvgEdgeInfo<'id>>,
         svg_process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>>,
-        additional_tailwind_classes: Map<NodeId<'id>, String>,
         tailwind_classes: EntityTailwindClasses<'id>,
         css: Css,
     ) -> Self {
@@ -74,7 +67,6 @@ impl<'id> SvgElements<'id> {
             svg_node_infos,
             svg_edge_infos,
             svg_process_infos,
-            additional_tailwind_classes,
             tailwind_classes,
             css,
         }
