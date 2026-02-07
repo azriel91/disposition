@@ -3,7 +3,6 @@ use std::fmt::Write;
 use disposition_ir_model::{
     edge::{Edge, EdgeGroups, EdgeId},
     entity::{EntityTailwindClasses, EntityTypes},
-    layout::NodeLayout,
     node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
 };
@@ -372,21 +371,24 @@ impl TaffyToSvgElementsMapper {
             })
             .for_each(|(process_id, process_step_ids)| {
                 // Calculate total height of all steps
-                let mut total_height = process_step_ids
-                    .iter()
-                    .filter_map(|process_step_id| node_id_to_taffy.get(process_step_id))
-                    .copied()
-                    .map(NodeToTaffyNodeIds::wrapper_taffy_node_id)
-                    .filter_map(|taffy_node_id| taffy_tree.layout(taffy_node_id).ok())
-                    .map(|layout| layout.size.height.min(layout.content_size.height))
-                    .sum::<f32>();
-
-                // Include the gap between the process name and the steps
-                if let Some(NodeLayout::Flex(flex_layout)) =
-                    ir_diagram.node_layouts.get(process_id.as_ref())
+                let total_height = if let Some(node_to_taffy_node_ids) =
+                    node_id_to_taffy.get(process_id.as_ref())
                 {
-                    total_height += flex_layout.gap * (process_step_ids.len() + 1) as f32;
-                }
+                    let text_taffy_node_id = node_to_taffy_node_ids.text_taffy_node_id();
+                    let wrapper_taffy_node_id = node_to_taffy_node_ids.wrapper_taffy_node_id();
+                    let process_node_text_height = taffy_tree
+                        .layout(text_taffy_node_id)
+                        .map(|layout| layout.size.height.min(layout.content_size.height))
+                        .unwrap_or(0.0);
+                    let process_node_total_height = taffy_tree
+                        .layout(wrapper_taffy_node_id)
+                        .map(|layout| layout.size.height.min(layout.content_size.height))
+                        .unwrap_or(0.0);
+
+                    process_node_total_height - process_node_text_height
+                } else {
+                    0.0
+                };
 
                 process_steps_height.push(ProcessStepsHeight {
                     process_id,
