@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::EntityHighlightedSpan;
 
-/// `syntect` highlighted spans of entity descriptions.
+/// Highlighted spans of entity descriptions.
+///
+/// Originally this held the `syntect` highlighted spans, but the performance
+/// was too slow so currently there is no highlighting.
 ///
 /// This is computed in `IrToTaffyBuilder`.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
