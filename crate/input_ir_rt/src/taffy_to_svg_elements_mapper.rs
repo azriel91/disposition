@@ -915,9 +915,9 @@ impl TaffyToSvgElementsMapper {
                     if is_interaction_edge {
                         let edge_anim = Self::compute_edge_animation(
                             edge_animation_params,
+                            &edge_animation_info,
                             edge_group_path_or_visible_segments_length_max,
                             edge_group_animation_duration_total_s,
-                            &edge_animation_info,
                         );
 
                         // Append dasharray and animate tailwind classes to this
@@ -985,14 +985,21 @@ impl TaffyToSvgElementsMapper {
     ///
     /// # Parameters
     ///
+    /// * `edge_animation_params`: Parameters for edge `stroke-dasharray`
+    ///   animation generation.
+    /// * `edge_animation_info`: Path information about this edge, used to
+    ///   compute timing and offset values.
+    /// * `edge_group_path_or_visible_segments_length_max`: Combined length of
+    ///   the paths or visible segments in thie edge group (whichever is
+    ///   bigger).
     /// * `edge_group_animation_duration_total_s`: Duration of the animation for
-    ///   the edges for the entire edge group, which excludes the pause at the
+    ///   the edges for the entire edge group, which includes the pause at the
     ///   end of the animation.
     fn compute_edge_animation(
-        params: EdgeAnimationParams,
+        edge_animation_params: EdgeAnimationParams,
+        edge_animation_info: &EdgeAnimationInfo<'_, '_>,
         edge_group_path_or_visible_segments_length_max: f64,
         edge_group_animation_duration_total_s: f64,
-        edge_animation_info: &EdgeAnimationInfo<'_, '_>,
     ) -> EdgeAnimation {
         let EdgeAnimationInfo {
             edge_id,
@@ -1008,16 +1015,20 @@ impl TaffyToSvgElementsMapper {
 
         // Generate the decreasing visible segment lengths using a geometric
         // series.
-        let segments = compute_dasharray_segments(&params, is_reverse);
-        let visible_segments_length = params.visible_segments_length;
+        let segments = compute_dasharray_segments(edge_animation_params, is_reverse);
+        let visible_segments_length = edge_animation_params.visible_segments_length;
 
         // Use the path length so the trailing gap fully hides the
         // edge during the invisible phase of the animation.
         let trailing_gap = path_length.max(visible_segments_length);
 
         // Build the dasharray string with segments in the correct order.
-        let dasharray =
-            build_dasharray_string(&segments, params.gap_width, trailing_gap, is_reverse);
+        let dasharray = build_dasharray_string(
+            &segments,
+            edge_animation_params.gap_width,
+            trailing_gap,
+            is_reverse,
+        );
 
         // Derive a unique animation name from the edge ID by replacing
         // underscores with hyphens (tailwind translates underscores to spaces
@@ -1441,7 +1452,7 @@ impl TaffyToSvgElementsMapper {
     }
 }
 
-/// Parameters for edge stroke-dasharray animation generation.
+/// Parameters for edge `stroke-dasharray` animation generation.
 ///
 /// These control how the decreasing visible segments in the dasharray are
 /// computed and how the CSS keyframe animation is timed.
@@ -1500,20 +1511,23 @@ struct EdgeAnimation {
 ///
 /// Each successive segment is `r` times the previous, producing a visually
 /// decreasing pattern (e.g. long dash, medium dash, short dash, ...).
-fn compute_dasharray_segments(params: &EdgeAnimationParams, is_reverse: bool) -> Vec<f64> {
-    let n = params.segment_count;
-    let r = params.segment_ratio;
-    let g = params.gap_width;
-    let total = params.visible_segments_length;
+fn compute_dasharray_segments(
+    edge_animation_params: EdgeAnimationParams,
+    is_reverse: bool,
+) -> Vec<f64> {
+    let n = edge_animation_params.segment_count;
+    let r = edge_animation_params.segment_ratio;
+    let gap = edge_animation_params.gap_width;
+    let visible_segments_length = edge_animation_params.visible_segments_length;
 
     // Space available for visible segments after subtracting inter-segment gaps.
-    let available = total - (n as f64 - 1.0) * g;
+    let available = visible_segments_length - (n as f64 - 1.0) * gap;
     assert!(
         available > 0.0,
-        "visible_segments_length ({total}) must be larger than the total gap \
-         space ({} * {g} = {})",
+        "visible_segments_length ({visible_segments_length}) must be larger than the total gap \
+         space ({} * {gap} = {})",
         n - 1,
-        (n as f64 - 1.0) * g,
+        (n as f64 - 1.0) * gap,
     );
 
     // Sum of geometric series: a * (1 - r^n) / (1 - r)
