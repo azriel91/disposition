@@ -14,3 +14,16 @@ pub(crate) struct ProcessStepsHeight<'id> {
     /// Total height of all process steps belonging to this process.
     pub(crate) total_height: f32,
 }
+
+/// Computes the cumulative height of steps from all processes before the
+/// given process index.
+pub(crate) fn predecessors_cumulative_height(
+    process_steps_heights: &[ProcessStepsHeight],
+    process_index: usize,
+) -> f32 {
+    process_steps_heights
+        .iter()
+        .take(process_index)
+        .map(|p| p.total_height)
+        .sum()
+}

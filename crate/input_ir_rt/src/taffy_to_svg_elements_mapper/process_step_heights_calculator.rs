@@ -14,7 +14,7 @@ impl ProcessStepHeightsCalculator {
     ///
     /// Returns a vector of ProcessInfo in the order processes appear in
     /// node_ordering.
-    pub fn process_step_heights_calculate<'id>(
+    pub fn calculate<'id>(
         ir_diagram: &IrDiagram<'id>,
         taffy_tree: &TaffyTree<NodeContext>,
         node_id_to_taffy: &Map<NodeId<'id>, NodeToTaffyNodeIds>,
