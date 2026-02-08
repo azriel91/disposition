@@ -6,13 +6,20 @@ use disposition_ir_model::{
     node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
 };
-use disposition_model_common::{edge::EdgeGroupId, entity::EntityType, theme::Css, Id, Map, Set};
+use disposition_model_common::{edge::EdgeGroupId, entity::EntityType, theme::Css, Id, Map};
 use disposition_svg_model::{SvgEdgeInfo, SvgElements, SvgNodeInfo, SvgProcessInfo, SvgTextSpan};
 use disposition_taffy_model::{
-    EntityHighlightedSpans, NodeContext, NodeToTaffyNodeIds, TaffyNodeMappings, TEXT_LINE_HEIGHT,
+    EntityHighlightedSpans, NodeContext, TaffyNodeMappings, TEXT_LINE_HEIGHT,
 };
 use kurbo::{BezPath, Point, Shape};
 use taffy::TaffyTree;
+
+use crate::taffy_to_svg_elements_mapper::process_step_heights_calculator::ProcessStepHeightsCalculator;
+
+use self::process_step_heights::ProcessStepsHeight;
+
+mod process_step_heights;
+mod process_step_heights_calculator;
 
 /// Maps the IR diagram and `TaffyNodeMappings` to SVG elements.
 ///
@@ -48,8 +55,11 @@ impl TaffyToSvgElementsMapper {
         let default_shape = NodeShape::Rect(NodeShapeRect::new());
 
         // First, collect process information for y-coordinate calculations
-        let process_steps_heights =
-            Self::process_step_heights_calculate(ir_diagram, taffy_tree, node_id_to_taffy);
+        let process_steps_heights = ProcessStepHeightsCalculator::process_step_heights_calculate(
+            ir_diagram,
+            taffy_tree,
+            node_id_to_taffy,
+        );
 
         // Build process_infos map from process_steps_heights
         // We need to compute the actual values for each process node
@@ -337,67 +347,6 @@ impl TaffyToSvgElementsMapper {
             (x_acc, y_acc)
         };
         (x, y)
-    }
-
-    /// Collects information about process nodes and their steps for
-    /// y-coordinate calculations.
-    ///
-    /// Returns a vector of ProcessInfo in the order processes appear in
-    /// node_ordering.
-    fn process_step_heights_calculate<'id>(
-        ir_diagram: &IrDiagram<'id>,
-        taffy_tree: &TaffyTree<NodeContext>,
-        node_id_to_taffy: &Map<NodeId<'id>, NodeToTaffyNodeIds>,
-    ) -> Vec<ProcessStepsHeight<'id>> {
-        let mut process_steps_height = Vec::new();
-
-        // Iterate through node_ordering to find process nodes in order
-        ir_diagram
-            .node_hierarchy
-            .iter()
-            .filter_map(|(node_id, children)| {
-                let is_process = ir_diagram
-                    .entity_types
-                    .get(node_id.as_ref())
-                    .is_some_and(|types| types.contains(&EntityType::ProcessDefault));
-                if is_process {
-                    Some((
-                        node_id.clone(),
-                        children.keys().cloned().collect::<Set<NodeId<'_>>>(),
-                    ))
-                } else {
-                    None
-                }
-            })
-            .for_each(|(process_id, process_step_ids)| {
-                // Calculate total height of all steps
-                let total_height = if let Some(node_to_taffy_node_ids) =
-                    node_id_to_taffy.get(process_id.as_ref())
-                {
-                    let text_taffy_node_id = node_to_taffy_node_ids.text_taffy_node_id();
-                    let wrapper_taffy_node_id = node_to_taffy_node_ids.wrapper_taffy_node_id();
-                    let process_node_text_height = taffy_tree
-                        .layout(text_taffy_node_id)
-                        .map(|layout| layout.size.height.min(layout.content_size.height))
-                        .unwrap_or(0.0);
-                    let process_node_total_height = taffy_tree
-                        .layout(wrapper_taffy_node_id)
-                        .map(|layout| layout.size.height.min(layout.content_size.height))
-                        .unwrap_or(0.0);
-
-                    process_node_total_height - process_node_text_height
-                } else {
-                    0.0
-                };
-
-                process_steps_height.push(ProcessStepsHeight {
-                    process_id,
-                    process_step_ids,
-                    total_height,
-                });
-            });
-
-        process_steps_height
     }
 
     /// Finds the process ID that a given node belongs to (if any).
@@ -1654,18 +1603,4 @@ struct SvgNodeInfoBuildContext<'ctx, 'id> {
     default_shape: &'ctx NodeShape,
     process_steps_heights: &'ctx [ProcessStepsHeight<'id>],
     svg_process_infos: &'ctx Map<NodeId<'id>, SvgProcessInfo<'id>>,
-}
-
-/// Heights for all steps within a process for y-coordinate calculations.
-///
-/// These are used to collapse processes to reduce the number of steps
-/// displayed.
-#[derive(Debug)]
-struct ProcessStepsHeight<'id> {
-    /// The node ID of the process.
-    process_id: NodeId<'id>,
-    /// List of process step node IDs belonging to this process.
-    process_step_ids: Set<NodeId<'id>>,
-    /// Total height of all process steps belonging to this process.
-    total_height: f32,
 }
