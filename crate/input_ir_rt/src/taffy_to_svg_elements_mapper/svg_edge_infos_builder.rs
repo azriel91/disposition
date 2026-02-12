@@ -280,7 +280,6 @@ impl SvgEdgeInfosBuilder {
         let arrow_head_animation_name = &edge_anim.arrow_head_animation_name;
         let arrow_head_classes = format!(
             "[offset-path:path('{forward_path_svg}')]\n\
-             [offset-rotate]:[auto]\n\
              [stroke-dasharray:none]\n\
              animate-[{arrow_head_animation_name}_{animation_duration}s_linear_infinite]"
         );
