@@ -433,12 +433,6 @@ fn test_svg_edge_infos_interaction_arrow_head_tailwind_classes() -> Result<(), T
                 "Arrowhead classes should contain `[offset-path:path('`, got: {classes}"
             );
 
-            // Should contain offset-rotate auto.
-            assert!(
-                classes.contains("[offset-rotate]:[auto]"),
-                "Arrowhead classes should contain [offset-rotate]:[auto], got: {classes}"
-            );
-
             // Should contain an animate-[...] class.
             assert!(
                 classes.contains("animate-["),

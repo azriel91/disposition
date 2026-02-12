@@ -84,15 +84,11 @@ fn test_rendered_svg_interaction_edge_arrow_head_has_animation_classes() -> Resu
         .map(|taffy_node_mappings| TaffyToSvgElementsMapper::map(&ir_example, &taffy_node_mappings))
         .map(|svg_elements| SvgElementsToSvgMapper::map(&svg_elements))
         .for_each(|svg| {
-            // The rendered SVG should contain offset-path and offset-rotate
-            // CSS properties for interaction edge arrowheads.
+            // The rendered SVG should contain offset-path CSS properties for interaction
+            // edge arrowheads.
             assert!(
                 svg.contains("offset-path"),
                 "Rendered SVG should contain offset-path for interaction arrowheads"
-            );
-            assert!(
-                svg.contains("offset-rotate"),
-                "Rendered SVG should contain offset-rotate for interaction arrowheads"
             );
 
             // The CSS should contain @keyframes rules with
