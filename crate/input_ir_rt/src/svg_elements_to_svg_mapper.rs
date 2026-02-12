@@ -246,7 +246,7 @@ impl SvgElementsToSvgMapper {
             // animation tailwind classes under the key
             // `{edge_id}__arrow_head`.  For dependency edges no such entry
             // exists, so we fall back to a plain `arrow_head` class.
-            let arrow_head_entity_key = format!("{}_arrow_head", edge_id.as_str());
+            let arrow_head_entity_key = format!("{edge_id}_arrow_head");
             let arrow_head_class_attr = if let Ok(arrow_head_id) =
                 disposition_model_common::Id::try_from(arrow_head_entity_key)
             {
