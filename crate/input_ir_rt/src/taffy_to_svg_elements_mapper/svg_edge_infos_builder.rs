@@ -288,8 +288,7 @@ impl SvgEdgeInfosBuilder {
         let arrow_head_entity_id_str = format!("{}_arrow_head", edge_path_info.edge_id.as_str());
         let arrow_head_entity_id: Id<'id> = Id::try_from(arrow_head_entity_id_str)
             .expect("arrow head entity ID should be valid")
-            .into_static()
-            .into();
+            .into_static();
         tailwind_classes.insert(arrow_head_entity_id, arrow_head_classes);
 
         // Append CSS keyframes for both edge stroke and arrowhead.
