@@ -57,10 +57,12 @@ impl EdgeAnimationCalculator {
             is_reverse,
         );
 
-        // Derive a unique animation name from the edge ID by replacing
+        // Derive unique animation names from the edge ID by replacing
         // underscores with hyphens (tailwind translates underscores to spaces
         // inside arbitrary values).
-        let animation_name = format!("{}--stroke-dashoffset", edge_id.as_str().replace('_', "-"));
+        let edge_id_with_hyphens = edge_id.as_str().replace('_', "-");
+        let animation_name = format!("{edge_id_with_hyphens}--stroke-dashoffset");
+        let arrow_head_animation_name = format!("{edge_id_with_hyphens}--arrow-head-offset");
 
         // Keyframe percentages for this edge's slot within the cycle.
         let start_pct = preceding_visible_segments_lengths
@@ -69,6 +71,35 @@ impl EdgeAnimationCalculator {
         let end_pct = (preceding_visible_segments_lengths + visible_segments_length)
             / edge_group_path_or_visible_segments_length_max
             * 100.0;
+
+        let (arrow_head_start_pct, arrow_head_end_pct) = if path_length > visible_segments_length {
+            (start_pct, end_pct)
+        } else {
+            // When the path is shorter than the visible segments, then in order for the
+            // arrow head to be at the tip of the arrow body, the start and end percentages
+            // need to be adjusted by *half* the extra visible segments length.
+            //
+            // Both `start_pct` and `end_pct` need to be adjusted by the same amount so that
+            // the arrow head speed is the same as the arrow body speed.
+            //
+            // Originally I thought it would be one of:
+            //
+            // * `start_pct` has no adjustment, `end_pct` needed `+ path_length`.
+            // * `start_pct` had `+ visible_segments_extra_length` (not half), `end_pct`
+            //   also `+ visible_segments_extra_length`.
+            let visible_segments_extra_length_half = (visible_segments_length - path_length) / 2.0;
+            let arrow_head_start_pct = (preceding_visible_segments_lengths
+                + visible_segments_extra_length_half)
+                / edge_group_path_or_visible_segments_length_max
+                * 100.0;
+            let arrow_head_end_pct = (preceding_visible_segments_lengths
+                + visible_segments_extra_length_half
+                + path_length)
+                / edge_group_path_or_visible_segments_length_max
+                * 100.0;
+
+            (arrow_head_start_pct, arrow_head_end_pct)
+        };
 
         // stroke-dashoffset values:
         // - start_offset: shifts visible segments entirely before the path
@@ -103,11 +134,46 @@ impl EdgeAnimationCalculator {
         keyframe_css.push('}');
         keyframe_css.push('\n');
 
+        // Build the arrowhead @keyframes rule.
+        //
+        // The arrowhead should be invisible (opacity: 0) outside its active
+        // window and visible (opacity: 1) during it.  While visible it
+        // travels along the offset-path from 0% to 100%.
+        let mut arrow_head_keyframe_css = format!("@keyframes {arrow_head_animation_name} {{ ");
+
+        // we travel as fast as the path length plus the length the arrow that is
+        // negatively offset.
+        let arrow_head_end_offset = path_length + path_length.min(visible_segments_length);
+        if arrow_head_start_pct > 0.0 {
+            let _ = write!(
+                arrow_head_keyframe_css,
+                "0% {{ opacity: 0.0; offset-distance: 0px; }} "
+            );
+        }
+        let _ = write!(
+            arrow_head_keyframe_css,
+            "{arrow_head_start_pct:.1}% {{ opacity: 1.0; offset-distance: 0px; }} "
+        );
+        let _ = write!(
+            arrow_head_keyframe_css,
+            "{arrow_head_end_pct:.1}% {{ opacity: 0.0; offset-distance: {arrow_head_end_offset:.1}px; }} "
+        );
+        if arrow_head_end_pct < 100.0 {
+            let _ = write!(
+                arrow_head_keyframe_css,
+                "100% {{ opacity: 0.0; offset-distance: {arrow_head_end_offset:.1}px; }} "
+            );
+        }
+        arrow_head_keyframe_css.push('}');
+        arrow_head_keyframe_css.push('\n');
+
         EdgeAnimation {
             dasharray,
             keyframe_css,
             animation_name,
             edge_animation_duration_s: edge_group_animation_duration_total_s,
+            arrow_head_keyframe_css,
+            arrow_head_animation_name,
         }
     }
 

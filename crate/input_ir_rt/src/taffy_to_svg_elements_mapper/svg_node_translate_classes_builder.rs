@@ -4,9 +4,9 @@ use disposition_ir_model::node::{NodeId, NodeShape};
 use disposition_model_common::Map;
 use disposition_svg_model::SvgProcessInfo;
 
-use super::{
+use crate::taffy_to_svg_elements_mapper::{
     process_step_heights::{self, ProcessStepsHeight},
-    SvgNodeRectPathBuilder,
+    StringCharReplacer, SvgNodeRectPathBuilder,
 };
 
 /// Builds translate-x and translate-y tailwind classes for nodes.
@@ -77,7 +77,7 @@ impl SvgNodeTranslateClassesBuilder {
         writeln!(&mut classes, "translate-y-[{y}px]").unwrap();
 
         let mut path_d = path_d_collapsed.to_string();
-        Self::char_replace_inplace(&mut path_d, ' ', '_');
+        StringCharReplacer::replace_inplace(&mut path_d, ' ', '_');
         writeln!(&mut classes, "[&>path]:[d:path('{path_d}')]").unwrap();
 
         classes
@@ -110,7 +110,7 @@ impl SvgNodeTranslateClassesBuilder {
 
         // Build path d attribute with collapsed height
         let mut path_d_collapsed_escaped = path_d_collapsed.to_string();
-        Self::char_replace_inplace(&mut path_d_collapsed_escaped, ' ', '_');
+        StringCharReplacer::replace_inplace(&mut path_d_collapsed_escaped, ' ', '_');
         writeln!(
             &mut classes,
             "[&>path]:[d:path('{path_d_collapsed_escaped}')]"
@@ -127,7 +127,7 @@ impl SvgNodeTranslateClassesBuilder {
 
             // Build path d attribute with expanded height
             let mut path_d_expanded_escaped = path_d_expanded.to_string();
-            Self::char_replace_inplace(&mut path_d_expanded_escaped, ' ', '_');
+            StringCharReplacer::replace_inplace(&mut path_d_expanded_escaped, ' ', '_');
 
             writeln!(
                 &mut classes,
@@ -184,35 +184,5 @@ impl SvgNodeTranslateClassesBuilder {
         });
 
         classes
-    }
-
-    /// Replaces all occurrences of `from` byte with `to` byte in the given
-    /// string, mutating it in place.
-    ///
-    /// # Safety
-    ///
-    /// This is safe because:
-    ///
-    /// * Both `from` and `to` must be ASCII bytes (single-byte UTF-8)
-    /// * Replacing one ASCII byte with another ASCII byte preserves UTF-8
-    ///   validity
-    ///
-    /// # Panics
-    ///
-    /// Panics in debug mode if either `from` or `to` is not ASCII.
-    fn char_replace_inplace(s: &mut str, from: char, to: char) {
-        debug_assert!(from.is_ascii(), "`from` byte must be ASCII");
-        debug_assert!(to.is_ascii(), "`to` byte must be ASCII");
-
-        // SAFETY: Replacing ASCII with ASCII preserves UTF-8 validity
-        // because ASCII bytes are always single-byte UTF-8 sequences
-        // and never appear as continuation bytes in multi-byte sequences.
-        unsafe {
-            s.as_bytes_mut().iter_mut().for_each(|byte| {
-                if *byte == from as u8 {
-                    *byte = to as u8;
-                }
-            });
-        }
     }
 }

@@ -10,9 +10,9 @@ use kurbo::Shape;
 use disposition_ir_model::entity::EntityTailwindClasses;
 use disposition_model_common::edge::EdgeGroupId;
 
-use super::{
+use crate::taffy_to_svg_elements_mapper::{
     edge_model::{EdgeAnimationParams, EdgePathInfo, EdgeType},
-    EdgeAnimationCalculator, EdgePathBuilder,
+    ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilder, StringCharReplacer,
 };
 
 /// Builds [`SvgEdgeInfo`]s for all edges in the diagram from edge groups and
@@ -60,7 +60,7 @@ impl SvgEdgeInfosBuilder {
         // 5. The `duration` for each edge's animation will be the `total_animation_time
         //    * (edge_length / total_length)`.
 
-        /// 1 second per 100 pixels
+        /// 0.8 seconds per 100 pixels
         const SECONDS_PER_PIXEL: f64 = 0.8 / 100.0;
 
         edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
@@ -120,12 +120,23 @@ impl SvgEdgeInfosBuilder {
 
                 let path_d = path.to_svg();
 
+                // Compute arrowhead path.
+                let arrow_head_path_d = if is_interaction_edge {
+                    // Origin-centred V-shape; CSS offset-path handles
+                    // positioning and rotation.
+                    ArrowHeadBuilder::build_origin_arrow_head()
+                } else {
+                    // Positioned V-shape at the `to` node end of the edge.
+                    ArrowHeadBuilder::build_static_arrow_head(&path)
+                };
+
                 svg_edge_infos.push(SvgEdgeInfo::new(
                     edge_id,
                     edge_group_id.clone(),
                     edge.from.clone(),
                     edge.to.clone(),
                     path_d,
+                    arrow_head_path_d,
                 ));
             });
         });
@@ -253,11 +264,40 @@ impl SvgEdgeInfosBuilder {
         };
         tailwind_classes.insert(edge_id_owned, combined);
 
-        // Append CSS keyframes.
+        // Build arrowhead tailwind classes.
+        //
+        // The arrowhead element needs:
+        //   1. [offset-path]:[path('...')] – the forward edge path
+        //   2. [offset-rotate]:[auto]
+        //   3. animate-[{arrow_animation_name}_{duration}s_linear_infinite]
+        // TODO: do we need this?
+        let forward_path = edge_path_info.path.reverse_subpaths();
+        let mut forward_path_svg = forward_path.to_svg();
+        // Escape underscores for use inside the tailwind arbitrary value
+        // (encre-css transforms these to spaces in the actual CSS value).
+        StringCharReplacer::replace_inplace(&mut forward_path_svg, ' ', '_');
+
+        let arrow_head_animation_name = &edge_anim.arrow_head_animation_name;
+        let arrow_head_classes = format!(
+            "[offset-path:path('{forward_path_svg}')]\n\
+             [offset-rotate]:[auto]\n\
+             [stroke-dasharray:none]\n\
+             animate-[{arrow_head_animation_name}_{animation_duration}s_linear_infinite]"
+        );
+
+        let arrow_head_entity_id_str = format!("{}_arrow_head", edge_path_info.edge_id.as_str());
+        let arrow_head_entity_id: Id<'id> = Id::try_from(arrow_head_entity_id_str)
+            .expect("arrow head entity ID should be valid")
+            .into_static()
+            .into();
+        tailwind_classes.insert(arrow_head_entity_id, arrow_head_classes);
+
+        // Append CSS keyframes for both edge stroke and arrowhead.
         if !css.is_empty() {
             css.push('\n');
         }
         css.push_str(&edge_anim.keyframe_css);
+        css.push_str(&edge_anim.arrow_head_keyframe_css);
     }
 
     /// Generates an edge ID from the edge group ID and edge index.

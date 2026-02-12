@@ -79,10 +79,14 @@ impl Default for EdgeAnimationParams {
 pub(super) struct EdgeAnimation {
     /// The stroke-dasharray value string, e.g. `"30.0,2.0,20.0,...,400.0"`.
     pub(super) dasharray: String,
-    /// The CSS `@keyframes` rule for this edge.
+    /// The CSS `@keyframes` rule for this edge's stroke-dashoffset animation.
     pub(super) keyframe_css: String,
-    /// Unique animation name for the keyframes rule.
+    /// Unique animation name for the stroke-dashoffset keyframes rule.
     pub(super) animation_name: String,
     /// Total animation cycle duration in seconds.
     pub(super) edge_animation_duration_s: f64,
+    /// The CSS `@keyframes` rule for the arrowhead offset + opacity animation.
+    pub(super) arrow_head_keyframe_css: String,
+    /// Unique animation name for the arrowhead keyframes rule.
+    pub(super) arrow_head_animation_name: String,
 }

@@ -7,10 +7,12 @@ use disposition_svg_model::{SvgElements, SvgProcessInfo};
 use disposition_taffy_model::TaffyNodeMappings;
 
 use self::{
+    arrow_head_builder::ArrowHeadBuilder,
     edge_animation_calculator::EdgeAnimationCalculator,
     edge_path_builder::EdgePathBuilder,
     process_step_heights::ProcessStepsHeight,
     process_step_heights_calculator::ProcessStepHeightsCalculator,
+    string_char_replacer::StringCharReplacer,
     svg_edge_infos_builder::SvgEdgeInfosBuilder,
     svg_node_build_context::{SvgNodeInfoBuildContext, SvgProcessInfoBuildContext},
     svg_node_info_builder::SvgNodeInfoBuilder,
@@ -19,11 +21,13 @@ use self::{
     svg_process_info_builder::SvgProcessInfoBuilder,
 };
 
+mod arrow_head_builder;
 mod edge_animation_calculator;
 mod edge_model;
 mod edge_path_builder;
 mod process_step_heights;
 mod process_step_heights_calculator;
+mod string_char_replacer;
 mod svg_edge_infos_builder;
 mod svg_node_build_context;
 mod svg_node_info_builder;
