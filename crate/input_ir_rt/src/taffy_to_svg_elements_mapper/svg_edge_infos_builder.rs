@@ -266,11 +266,12 @@ impl SvgEdgeInfosBuilder {
 
         // Build arrowhead tailwind classes.
         //
+        // For some reason the CSS path needs the *forward* edge path, even though the
+        // SVG path is reversed.
+        //
         // The arrowhead element needs:
-        //   1. [offset-path]:[path('...')] – the forward edge path
-        //   2. [offset-rotate]:[auto]
-        //   3. animate-[{arrow_animation_name}_{duration}s_linear_infinite]
-        // TODO: do we need this?
+        //   1. `[offset-path:path('...')]` – the forward edge path
+        //   2. `animate-[{arrow_animation_name}_{duration}s_linear_infinite]`
         let forward_path = edge_path_info.path.reverse_subpaths();
         let mut forward_path_svg = forward_path.to_svg();
         // Escape underscores for use inside the tailwind arbitrary value
