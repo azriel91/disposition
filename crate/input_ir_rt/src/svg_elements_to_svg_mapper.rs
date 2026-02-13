@@ -196,8 +196,15 @@ impl SvgElementsToSvgMapper {
     /// ```svg
     /// <g id="{edge_id}" .. >
     ///   <path d="{path_d}" .. />
+    ///   <g class="arrow_head" .. >
+    ///     <path d="{arrow_head_path_d}" .. />
+    ///   </g>
     /// </g>
     /// ```
+    ///
+    /// For interaction edges the arrowhead `<path>` also carries
+    /// `offset-path`, `offset-rotate`, and animation tailwind classes
+    /// looked up via the `{edge_id}__arrow_head` entity key.
     fn render_edges(
         content_buffer: &mut String,
         svg_edge_infos: &[SvgEdgeInfo<'_>],
@@ -207,6 +214,7 @@ impl SvgElementsToSvgMapper {
             let edge_id = &svg_edge_info.edge_id;
             let edge_group_id = &svg_edge_info.edge_group_id;
             let path_d = &svg_edge_info.path_d;
+            let arrow_head_path_d = &svg_edge_info.arrow_head_path_d;
 
             // Build class attribute from tailwind_classes for the edge
             // First check for edge-specific classes, then fall back to edge group classes
@@ -232,9 +240,34 @@ impl SvgElementsToSvgMapper {
                 Self::class_attr_escaped(combined)
             };
 
-            // Render edge as a group with a path
+            // Build class attribute for the arrowhead element.
             //
-            // The path has fill="none" since edges are stroked lines, not filled shapes
+            // For interaction edges the builder stores offset-path and
+            // animation tailwind classes under the key
+            // `{edge_id}__arrow_head`.  For dependency edges no such entry
+            // exists, so we fall back to a plain `arrow_head` class.
+            let arrow_head_entity_key = format!("{edge_id}_arrow_head");
+            let arrow_head_class_attr = if let Ok(arrow_head_id) =
+                disposition_model_common::Id::try_from(arrow_head_entity_key)
+            {
+                let extra = tailwind_classes
+                    .get(&arrow_head_id)
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+                if extra.is_empty() {
+                    Self::class_attr_escaped("arrow_head".to_string())
+                } else {
+                    Self::class_attr_escaped(format!("arrow_head\n{extra}"))
+                }
+            } else {
+                Self::class_attr_escaped("arrow_head".to_string())
+            };
+
+            // Render edge as a group with a path and an arrowhead path
+            //
+            // The edge path has fill="none" since edges are stroked lines,
+            // not filled shapes.  The arrowhead is a closed V-shape that
+            // inherits stroke/fill from the <g>.
             write!(
                 content_buffer,
                 "<g \
@@ -245,6 +278,13 @@ impl SvgElementsToSvgMapper {
                         d=\"{path_d}\" \
                         fill=\"none\" \
                     />\
+                    <g \
+                        {arrow_head_class_attr} \
+                    >\
+                        <path \
+                            d=\"{arrow_head_path_d}\" \
+                        />\
+                    </g>
                 </g>"
             )
             .unwrap();

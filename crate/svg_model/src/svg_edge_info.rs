@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// * The `<path>` element's coordinates and its `d` attribute.
 /// * Tailwind classes to define its styling and visibility.
+/// * The arrowhead `<path>` element's `d` attribute.
 #[cfg_attr(
     all(feature = "openapi", not(feature = "test")),
     derive(utoipa::ToSchema)
@@ -24,6 +25,13 @@ pub struct SvgEdgeInfo<'id> {
     pub to_node_id: NodeId<'id>,
     /// The SVG path `d` attribute for rendering the edge curve.
     pub path_d: String,
+    /// The SVG path `d` attribute for the arrowhead.
+    ///
+    /// For dependency edges this is a positioned closed V-shape at the `to`
+    /// node end of the edge. For interaction edges this is an
+    /// origin-centred V-shape that is animated along the edge path via CSS
+    /// `offset-path`.
+    pub arrow_head_path_d: String,
 }
 
 impl<'id> SvgEdgeInfo<'id> {
@@ -34,6 +42,7 @@ impl<'id> SvgEdgeInfo<'id> {
         from_node_id: NodeId<'id>,
         to_node_id: NodeId<'id>,
         path_d: String,
+        arrow_head_path_d: String,
     ) -> Self {
         Self {
             edge_id,
@@ -41,6 +50,7 @@ impl<'id> SvgEdgeInfo<'id> {
             from_node_id,
             to_node_id,
             path_d,
+            arrow_head_path_d,
         }
     }
 }

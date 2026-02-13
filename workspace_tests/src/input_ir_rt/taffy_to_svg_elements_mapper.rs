@@ -7,6 +7,27 @@ use disposition_input_ir_rt::{IrToTaffyBuilder, TaffyToSvgElementsMapper};
 
 use crate::input_ir_rt::EXAMPLE_IR;
 
+/// Helper: build `SvgElements` from the example IR fixture.
+fn build_svg_elements_from_example_ir(
+) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
+    let ir_example = serde_saphyr::from_str::<IrDiagram>(EXAMPLE_IR).unwrap();
+    let ir_to_taffy_builder = IrToTaffyBuilder::builder()
+        .with_ir_diagram(&ir_example)
+        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
+        .build();
+    let taffy_results: Vec<_> = ir_to_taffy_builder
+        .build()
+        .expect("Expected `taffy_node_mappings` to be built.")
+        .collect();
+    taffy_results
+        .into_iter()
+        .map(move |taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(&ir_example, &taffy_node_mappings)
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+}
+
 #[test]
 fn test_example_ir_mapping_to_svg_elements() -> Result<(), TaffyError> {
     let ir_example = serde_saphyr::from_str::<IrDiagram>(EXAMPLE_IR).unwrap();
@@ -281,6 +302,255 @@ fn test_svg_edge_infos_edge_group_id_preserved() -> Result<(), TaffyError> {
             }
         });
 
+    Ok(())
+}
+
+#[test]
+fn test_svg_edge_infos_arrow_head_path_d_non_empty() -> Result<(), TaffyError> {
+    for svg_elements in build_svg_elements_from_example_ir() {
+        for edge_info in &svg_elements.svg_edge_infos {
+            assert!(
+                !edge_info.arrow_head_path_d.is_empty(),
+                "arrow_head_path_d should not be empty for edge {:?}",
+                edge_info.edge_id
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn test_svg_edge_infos_dependency_arrow_head_is_positioned() -> Result<(), TaffyError> {
+    for svg_elements in build_svg_elements_from_example_ir() {
+        // Dependency edges have IDs starting with "edge_dep_".
+        let dep_edges: Vec<_> = svg_elements
+            .svg_edge_infos
+            .iter()
+            .filter(|e| e.edge_id.as_str().starts_with("edge_dep_"))
+            .collect();
+
+        assert!(
+            !dep_edges.is_empty(),
+            "Expected at least one dependency edge in EXAMPLE_IR"
+        );
+
+        for edge_info in &dep_edges {
+            let d = &edge_info.arrow_head_path_d;
+            // A positioned arrowhead is a closed V-shape: it should start
+            // with 'M' (moveto) and contain 'Z' (closepath).
+            assert!(
+                d.starts_with('M'),
+                "Dependency arrowhead should start with 'M', got: {d}"
+            );
+            assert!(
+                d.contains('Z') || d.contains('z'),
+                "Dependency arrowhead should be a closed path (contain 'Z'), got: {d}"
+            );
+            // It should contain line-to commands (L or l) for the V wings.
+            assert!(
+                d.contains('L') || d.contains('l'),
+                "Dependency arrowhead should contain line-to commands, got: {d}"
+            );
+
+            // The arrowhead path coordinates should NOT be at the origin.
+            // Parse the first M command to verify it is positioned in the
+            // SVG canvas (not at 0,0).
+            // We just check that the path is non-trivially positioned by
+            // verifying it is not exactly the origin-centred template.
+            assert!(
+                d != "M-8,-4L0,0L-8,4Z",
+                "Dependency arrowhead should be positioned, not origin-centred"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn test_svg_edge_infos_interaction_arrow_head_is_origin_centred() -> Result<(), TaffyError> {
+    for svg_elements in build_svg_elements_from_example_ir() {
+        // Interaction edges have IDs starting with "edge_ix_".
+        let ix_edges: Vec<_> = svg_elements
+            .svg_edge_infos
+            .iter()
+            .filter(|e| e.edge_id.as_str().starts_with("edge_ix_"))
+            .collect();
+
+        assert!(
+            !ix_edges.is_empty(),
+            "Expected at least one interaction edge in EXAMPLE_IR"
+        );
+
+        // All interaction edges should share the same origin-centred
+        // arrowhead path.
+        let first_d = &ix_edges[0].arrow_head_path_d;
+        for edge_info in &ix_edges {
+            assert_eq!(
+                &edge_info.arrow_head_path_d, first_d,
+                "All interaction arrowheads should use the same origin-centred path"
+            );
+        }
+
+        // The origin-centred V-shape should be a closed path.
+        assert!(
+            first_d.starts_with('M'),
+            "Interaction arrowhead should start with 'M', got: {first_d}"
+        );
+        assert!(
+            first_d.contains('Z') || first_d.contains('z'),
+            "Interaction arrowhead should be closed (contain 'Z'), got: {first_d}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn test_svg_edge_infos_interaction_arrow_head_tailwind_classes() -> Result<(), TaffyError> {
+    for svg_elements in build_svg_elements_from_example_ir() {
+        let ix_edges: Vec<_> = svg_elements
+            .svg_edge_infos
+            .iter()
+            .filter(|e| e.edge_id.as_str().starts_with("edge_ix_"))
+            .collect();
+
+        for edge_info in &ix_edges {
+            // The arrowhead entity ID is `{edge_id}__arrow_head` (with
+            // underscores, since `Id` only allows [a-zA-Z0-9_]).
+            let arrow_head_key_str = format!("{}_arrow_head", edge_info.edge_id.as_str());
+            let arrow_head_key =
+                Id::try_from(arrow_head_key_str.clone()).expect("arrow head ID should be valid");
+
+            let classes = svg_elements
+                .tailwind_classes
+                .get(&arrow_head_key)
+                .unwrap_or_else(|| {
+                    panic!("Expected tailwind classes for arrowhead entity '{arrow_head_key_str}'")
+                });
+
+            // Should contain offset-path with a path(...) value.
+            assert!(
+                classes.contains("[offset-path:path('"),
+                "Arrowhead classes should contain `[offset-path:path('`, got: {classes}"
+            );
+
+            // Should contain an animate-[...] class.
+            assert!(
+                classes.contains("animate-["),
+                "Arrowhead classes should contain an animate-[] class, got: {classes}"
+            );
+
+            // The animation name should contain "--arrow-head-offset".
+            assert!(
+                classes.contains("--arrow-head-offset"),
+                "Arrowhead animation name should contain '--arrow-head-offset', got: {classes}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn test_svg_edge_infos_interaction_arrow_head_css_keyframes() -> Result<(), TaffyError> {
+    for svg_elements in build_svg_elements_from_example_ir() {
+        let ix_edges: Vec<_> = svg_elements
+            .svg_edge_infos
+            .iter()
+            .filter(|e| e.edge_id.as_str().starts_with("edge_ix_"))
+            .collect();
+
+        for edge_info in &ix_edges {
+            let edge_id_with_hyphens = edge_info.edge_id.as_str().replace('_', "-");
+            let expected_animation_name = format!("{edge_id_with_hyphens}--arrow-head-offset");
+
+            // The CSS should contain an @keyframes rule for this arrowhead.
+            assert!(
+                svg_elements.css.contains(&expected_animation_name),
+                "CSS should contain @keyframes for '{expected_animation_name}'"
+            );
+
+            // The keyframes should reference offset-distance and opacity.
+            // Find the keyframes block for this animation.
+            let keyframes_prefix = format!("@keyframes {expected_animation_name}");
+            assert!(
+                svg_elements.css.contains(&keyframes_prefix),
+                "CSS should contain '{keyframes_prefix}'"
+            );
+
+            // Check that the keyframes contain the expected properties.
+            let css = &svg_elements.css;
+            let start_idx = css
+                .find(&keyframes_prefix)
+                .expect("keyframes prefix must exist");
+            let block = &css[start_idx..];
+            let end_idx = block.find('}').expect("keyframes must have closing brace");
+            let keyframes_block = &block[..=end_idx];
+
+            assert!(
+                keyframes_block.contains("opacity:"),
+                "Arrow head keyframes should contain opacity, got: {keyframes_block}"
+            );
+            assert!(
+                keyframes_block.contains("offset-distance:"),
+                "Arrow head keyframes should contain offset-distance, got: {keyframes_block}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn test_svg_edge_infos_dependency_no_arrow_head_animation_classes() -> Result<(), TaffyError> {
+    for svg_elements in build_svg_elements_from_example_ir() {
+        let dep_edges: Vec<_> = svg_elements
+            .svg_edge_infos
+            .iter()
+            .filter(|e| e.edge_id.as_str().starts_with("edge_dep_"))
+            .collect();
+
+        for edge_info in &dep_edges {
+            // Dependency edges should NOT have arrowhead animation tailwind
+            // classes – there should be no entity key for them.
+            let arrow_head_key_str = format!("{}_arrow_head", edge_info.edge_id.as_str());
+            if let Ok(arrow_head_key) = Id::try_from(arrow_head_key_str) {
+                assert!(
+                    svg_elements.tailwind_classes.get(&arrow_head_key).is_none(),
+                    "Dependency edge {:?} should NOT have arrowhead animation tailwind classes",
+                    edge_info.edge_id
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn test_svg_edge_infos_self_loop_arrow_head() -> Result<(), TaffyError> {
+    for svg_elements in build_svg_elements_from_example_ir() {
+        // Self-loop edges (from == to) should still have arrowheads.
+        let self_loops: Vec<_> = svg_elements
+            .svg_edge_infos
+            .iter()
+            .filter(|edge| edge.from_node_id == edge.to_node_id)
+            .collect();
+
+        assert!(
+            !self_loops.is_empty(),
+            "Expected at least one self-loop edge in EXAMPLE_IR"
+        );
+
+        for edge in &self_loops {
+            assert!(
+                !edge.arrow_head_path_d.is_empty(),
+                "Self-loop edge {:?} should have a non-empty arrow_head_path_d",
+                edge.edge_id
+            );
+            assert!(
+                edge.arrow_head_path_d.contains('Z') || edge.arrow_head_path_d.contains('z'),
+                "Self-loop arrowhead should be a closed path for edge {:?}",
+                edge.edge_id
+            );
+        }
+    }
     Ok(())
 }
 
