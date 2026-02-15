@@ -26,8 +26,7 @@ use serde::{Deserialize, Serialize};
     all(feature = "openapi", not(feature = "test")),
     derive(utoipa::ToSchema)
 )]
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
-#[derive(Default)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum EdgeAnimationActive {
     /// Animations are always running on interaction edges.
     #[default]
@@ -36,4 +35,3 @@ pub enum EdgeAnimationActive {
     /// `:focus-within`.
     OnProcessStepFocus,
 }
-
