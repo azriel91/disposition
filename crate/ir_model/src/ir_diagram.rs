@@ -6,6 +6,7 @@ use crate::{
     entity::{EntityDescs, EntityTailwindClasses, EntityTypes},
     layout::NodeLayouts,
     node::{NodeCopyText, NodeHierarchy, NodeNames, NodeOrdering, NodeShapes},
+    process::ProcessStepEntities,
 };
 
 /// The intermediate representation of a diagram.
@@ -159,6 +160,15 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "NodeShapes::is_empty")]
     pub node_shapes: NodeShapes<'id>,
 
+    /// Map from process step node IDs to the entity IDs they interact with.
+    ///
+    /// Each process step can reference one or more entities (typically edge
+    /// group IDs from `thing_interactions`) that are activated when the step
+    /// is focused. This is used to conditionally attach CSS animations to
+    /// edges based on which process step currently has focus.
+    #[serde(default, skip_serializing_if = "ProcessStepEntities::is_empty")]
+    pub process_step_entities: ProcessStepEntities<'id>,
+
     /// Additional CSS to place in the SVG's inline `<styles>` section.
     ///
     /// Allows for custom CSS rules such as keyframe animations that
@@ -190,6 +200,7 @@ impl<'id> IrDiagram<'id> {
             tailwind_classes: self.tailwind_classes.into_static(),
             node_layouts: self.node_layouts.into_static(),
             node_shapes: self.node_shapes.into_static(),
+            process_step_entities: self.process_step_entities.into_static(),
             css: self.css,
         }
     }

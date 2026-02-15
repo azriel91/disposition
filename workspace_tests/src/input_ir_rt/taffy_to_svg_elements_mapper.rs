@@ -3,7 +3,7 @@ use disposition::{
     model_common::{id, Id},
     taffy_model::{taffy::TaffyError, DimensionAndLod},
 };
-use disposition_input_ir_rt::{IrToTaffyBuilder, TaffyToSvgElementsMapper};
+use disposition_input_ir_rt::{EdgeAnimationActive, IrToTaffyBuilder, TaffyToSvgElementsMapper};
 
 use crate::input_ir_rt::EXAMPLE_IR;
 
@@ -22,7 +22,11 @@ fn build_svg_elements_from_example_ir(
     taffy_results
         .into_iter()
         .map(move |taffy_node_mappings| {
-            TaffyToSvgElementsMapper::map(&ir_example, &taffy_node_mappings)
+            TaffyToSvgElementsMapper::map(
+                &ir_example,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
         })
         .collect::<Vec<_>>()
         .into_iter()
@@ -38,7 +42,13 @@ fn test_example_ir_mapping_to_svg_elements() -> Result<(), TaffyError> {
     ir_to_taffy_builder
         .build()
         .expect("Expected `taffy_node_mappings` to be built.")
-        .map(|taffy_node_mappings| TaffyToSvgElementsMapper::map(&ir_example, &taffy_node_mappings))
+        .map(|taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &ir_example,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
         .for_each(|svg_elements| {
             // Verify SVG dimensions are set
             assert!(svg_elements.svg_width > 0.0);
@@ -92,7 +102,13 @@ fn test_svg_elements_node_info_structure() -> Result<(), TaffyError> {
     ir_to_taffy_builder
         .build()
         .expect("Expected `taffy_node_mappings` to be built.")
-        .map(|taffy_node_mappings| TaffyToSvgElementsMapper::map(&ir_example, &taffy_node_mappings))
+        .map(|taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &ir_example,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
         .for_each(|svg_elements| {
             // Check that all nodes from ir_diagram.node_ordering are present
             let svg_node_ids: Vec<_> = svg_elements
@@ -135,7 +151,13 @@ fn test_svg_edge_infos_are_generated() -> Result<(), TaffyError> {
     ir_to_taffy_builder
         .build()
         .expect("Expected `taffy_node_mappings` to be built.")
-        .map(|taffy_node_mappings| TaffyToSvgElementsMapper::map(&ir_example, &taffy_node_mappings))
+        .map(|taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &ir_example,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
         .for_each(|svg_elements| {
             // Verify we have edge infos generated
             assert!(
@@ -183,7 +205,13 @@ fn test_svg_edge_infos_self_loop() -> Result<(), TaffyError> {
     ir_to_taffy_builder
         .build()
         .expect("Expected `taffy_node_mappings` to be built.")
-        .map(|taffy_node_mappings| TaffyToSvgElementsMapper::map(&ir_example, &taffy_node_mappings))
+        .map(|taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &ir_example,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
         .for_each(|svg_elements| {
             // Find self-loop edges (from == to)
             let self_loops: Vec<_> = svg_elements
@@ -223,7 +251,13 @@ fn test_svg_edge_infos_bidirectional() -> Result<(), TaffyError> {
     ir_to_taffy_builder
         .build()
         .expect("Expected `taffy_node_mappings` to be built.")
-        .map(|taffy_node_mappings| TaffyToSvgElementsMapper::map(&ir_example, &taffy_node_mappings))
+        .map(|taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &ir_example,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
         .for_each(|svg_elements| {
             // Look for bidirectional edges (A->B and B->A in same edge group)
             // EXAMPLE_IR has t_localhost <-> t_github_user_repo bidirectional edges
@@ -279,7 +313,13 @@ fn test_svg_edge_infos_edge_group_id_preserved() -> Result<(), TaffyError> {
     ir_to_taffy_builder
         .build()
         .expect("Expected `taffy_node_mappings` to be built.")
-        .map(|taffy_node_mappings| TaffyToSvgElementsMapper::map(&ir_example, &taffy_node_mappings))
+        .map(|taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &ir_example,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
         .for_each(|svg_elements| {
             // Verify that edge_group_id is properly set for all edges
             for edge_info in &svg_elements.svg_edge_infos {
@@ -564,7 +604,13 @@ fn test_process_infos_map_structure() -> Result<(), TaffyError> {
     ir_to_taffy_builder
         .build()
         .expect("Expected `taffy_node_mappings` to be built.")
-        .map(|taffy_node_mappings| TaffyToSvgElementsMapper::map(&ir_example, &taffy_node_mappings))
+        .map(|taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &ir_example,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
         .for_each(|svg_elements| {
             // Verify process_infos is keyed by process node ID
             for (process_id, process_info) in &svg_elements.svg_process_infos {

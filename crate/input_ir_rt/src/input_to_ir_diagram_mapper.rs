@@ -25,6 +25,7 @@ use disposition_ir_model::{
         NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering, NodeShape,
         NodeShapeRect, NodeShapes,
     },
+    process::ProcessStepEntities,
     IrDiagram,
 };
 use disposition_model_common::{
@@ -124,6 +125,9 @@ impl InputToIrDiagramMapper {
             processes,
         );
 
+        // 12. Build ProcessStepEntities from step_thing_interactions
+        let process_step_entities = Self::build_process_step_entities(processes);
+
         let diagram = IrDiagram {
             nodes,
             node_copy_text,
@@ -136,6 +140,7 @@ impl InputToIrDiagramMapper {
             tailwind_classes,
             node_layouts,
             node_shapes,
+            process_step_entities,
             css: css.clone(),
         };
 
@@ -1579,6 +1584,29 @@ impl InputToIrDiagramMapper {
         });
 
         node_classes.chain(edge_group_and_edge_classes).collect()
+    }
+
+    /// Build [`ProcessStepEntities`] from the process step thing interactions.
+    ///
+    /// For each process step, collects the edge group IDs it interacts with
+    /// and stores them as `Id`s keyed by the process step's `NodeId`.
+    fn build_process_step_entities<'id>(processes: &Processes<'id>) -> ProcessStepEntities<'id> {
+        processes
+            .iter()
+            .flat_map(|(_process_id, process_diagram)| {
+                process_diagram
+                    .step_thing_interactions
+                    .iter()
+                    .map(|(step_id, edge_group_ids)| {
+                        let node_id = NodeId::from(step_id.as_ref().clone());
+                        let entity_ids: Vec<Id<'id>> = edge_group_ids
+                            .iter()
+                            .map(|edge_group_id| edge_group_id.as_ref().clone())
+                            .collect();
+                        (node_id, entity_ids)
+                    })
+            })
+            .collect()
     }
 
     /// Build a map of process step ID to (process ID, edge IDs they interact

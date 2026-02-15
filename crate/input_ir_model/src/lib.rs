@@ -7,10 +7,13 @@ pub use utoipa;
 
 #[cfg(all(feature = "openapi", not(feature = "test")))]
 pub use crate::api_doc::ApiDoc;
-pub use crate::ir_diagram_and_issues::IrDiagramAndIssues;
+pub use crate::{
+    edge_animation_active::EdgeAnimationActive, ir_diagram_and_issues::IrDiagramAndIssues,
+};
 
 pub mod issue;
 
 #[cfg(all(feature = "openapi", not(feature = "test")))]
 mod api_doc;
+mod edge_animation_active;
 mod ir_diagram_and_issues;

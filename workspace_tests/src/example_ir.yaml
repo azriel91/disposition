@@ -1808,6 +1808,25 @@ node_shapes:
       radius_bottom_left: 4.0
       radius_bottom_right: 4.0
 
+# Map from process step node IDs to the entity IDs they interact with.
+process_step_entities:
+  proc_app_dev_step_repository_clone:
+    - edge_ix_t_localhost__t_github_user_repo__pull
+  proc_app_dev_step_project_build:
+    - edge_ix_t_localhost__t_localhost__within
+  proc_app_release_step_crate_version_update:
+    - edge_ix_t_localhost__t_localhost__within
+  proc_app_release_step_pull_request_open:
+    - edge_ix_t_localhost__t_github_user_repo__pull
+  proc_app_release_step_tag_and_push:
+    - edge_ix_t_localhost__t_github_user_repo__push
+  proc_app_release_step_gh_actions_build:
+    - edge_ix_t_github_user_repo__t_github_user_repo__within
+  proc_app_release_step_gh_actions_publish:
+    - edge_ix_t_github_user_repo__t_aws_ecr_repo__push
+  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:
+    - edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push
+
 # Additional CSS for animations.
 css: |-
   @keyframes stroke-dashoffset-move {
