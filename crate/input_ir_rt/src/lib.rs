@@ -1,5 +1,7 @@
 //! Logic to map `disposition` input model to intermediate representation.
 
+pub use disposition_input_ir_model::EdgeAnimationActive;
+
 pub use crate::{
     input_diagram_merger::InputDiagramMerger, input_to_ir_diagram_mapper::InputToIrDiagramMapper,
     ir_to_taffy_builder::IrToTaffyBuilder, svg_elements_to_svg_mapper::SvgElementsToSvgMapper,

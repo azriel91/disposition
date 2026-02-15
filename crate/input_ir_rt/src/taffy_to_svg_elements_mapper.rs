@@ -1,3 +1,4 @@
+use disposition_input_ir_model::EdgeAnimationActive;
 use disposition_ir_model::{
     node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
@@ -45,6 +46,7 @@ impl TaffyToSvgElementsMapper {
     pub fn map<'id>(
         ir_diagram: &IrDiagram<'id>,
         taffy_node_mappings: &TaffyNodeMappings<'id>,
+        edge_animation_active: EdgeAnimationActive,
     ) -> SvgElements<'id> {
         let TaffyNodeMappings {
             taffy_tree,
@@ -163,6 +165,8 @@ impl TaffyToSvgElementsMapper {
             &svg_node_info_map,
             &mut tailwind_classes,
             &mut css,
+            edge_animation_active,
+            &ir_diagram.process_step_entities,
         );
 
         SvgElements::new(
