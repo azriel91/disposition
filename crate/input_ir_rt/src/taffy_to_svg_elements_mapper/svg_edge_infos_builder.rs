@@ -45,7 +45,7 @@ impl SvgEdgeInfosBuilder {
         let entity_to_process_steps: Map<&Id<'id>, Vec<&NodeId<'id>>> = process_step_entities
             .iter()
             .fold(Map::new(), |mut acc, (process_step_node_id, entity_ids)| {
-                entity_ids.into_iter().for_each(|entity_id| {
+                entity_ids.iter().for_each(|entity_id| {
                     acc.entry(entity_id).or_default().push(process_step_node_id);
                 });
                 acc
@@ -124,16 +124,17 @@ impl SvgEdgeInfosBuilder {
                     .unwrap_or(false);
 
                 if is_interaction_edge {
-                    Self::css_animation_append(
+                    let css_animation_append_params = CssAnimationAppendParams {
                         tailwind_classes,
                         css,
                         edge_animation_params,
                         edge_group_path_or_visible_segments_length_max,
                         edge_group_animation_duration_total_s,
-                        &edge_path_info,
+                        edge_path_info: &edge_path_info,
                         edge_animation_active,
                         associated_process_steps,
-                    );
+                    };
+                    Self::css_animation_append(css_animation_append_params);
                 }
 
                 let EdgePathInfo {
@@ -255,16 +256,19 @@ impl SvgEdgeInfosBuilder {
             .collect::<Vec<EdgePathInfo>>()
     }
 
-    fn css_animation_append<'edge, 'id>(
-        tailwind_classes: &mut EntityTailwindClasses<'id>,
-        css: &mut Css,
-        edge_animation_params: EdgeAnimationParams,
-        edge_group_path_or_visible_segments_length_max: f64,
-        edge_group_animation_duration_total_s: f64,
-        edge_path_info: &EdgePathInfo<'edge, 'id>,
-        edge_animation_active: EdgeAnimationActive,
-        associated_process_steps: &[&NodeId<'id>],
+    fn css_animation_append<'f, 'edge, 'id>(
+        css_animation_append_params: CssAnimationAppendParams<'f, 'edge, 'id>,
     ) {
+        let CssAnimationAppendParams {
+            tailwind_classes,
+            css,
+            edge_animation_params,
+            edge_group_path_or_visible_segments_length_max,
+            edge_group_animation_duration_total_s,
+            edge_path_info,
+            edge_animation_active,
+            associated_process_steps,
+        } = css_animation_append_params;
         let edge_anim = EdgeAnimationCalculator::calculate(
             edge_animation_params,
             edge_path_info,
@@ -293,14 +297,12 @@ impl SvgEdgeInfosBuilder {
                     ));
                 }
                 EdgeAnimationActive::OnProcessStepFocus => {
-                    associated_process_steps
-                        .into_iter()
-                        .for_each(|process_step_id| {
-                            classes.push_str(&format!(
-                                "\ngroup-has-[#{process_step_id}:focus-within]:\
+                    associated_process_steps.iter().for_each(|process_step_id| {
+                        classes.push_str(&format!(
+                            "\ngroup-has-[#{process_step_id}:focus-within]:\
                                 animate-[{animation_name}_{animation_duration}s_linear_infinite]"
-                            ));
-                        });
+                        ));
+                    });
                 }
             }
             classes
@@ -340,7 +342,7 @@ impl SvgEdgeInfosBuilder {
                 )),
                 EdgeAnimationActive::OnProcessStepFocus => {
                     associated_process_steps
-                        .into_iter()
+                        .iter()
                         .for_each(|process_step_id| {
                             classes.push_str(&format!(
                                 "\ngroup-has-[#{process_step_id}:focus-within]:\
@@ -373,4 +375,15 @@ impl SvgEdgeInfosBuilder {
             .expect("edge ID should be valid")
             .into()
     }
+}
+
+struct CssAnimationAppendParams<'f, 'edge, 'id> {
+    tailwind_classes: &'f mut EntityTailwindClasses<'id>,
+    css: &'f mut Css,
+    edge_animation_params: EdgeAnimationParams,
+    edge_group_path_or_visible_segments_length_max: f64,
+    edge_group_animation_duration_total_s: f64,
+    edge_path_info: &'f EdgePathInfo<'edge, 'id>,
+    edge_animation_active: EdgeAnimationActive,
+    associated_process_steps: &'f [&'f NodeId<'id>],
 }

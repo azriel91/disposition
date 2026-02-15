@@ -27,16 +27,13 @@ use serde::{Deserialize, Serialize};
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Default)]
 pub enum EdgeAnimationActive {
     /// Animations are always running on interaction edges.
+    #[default]
     Always,
     /// Animations are only active when a related process step has
     /// `:focus-within`.
     OnProcessStepFocus,
 }
 
-impl Default for EdgeAnimationActive {
-    fn default() -> Self {
-        Self::Always
-    }
-}
