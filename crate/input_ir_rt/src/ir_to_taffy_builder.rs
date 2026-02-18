@@ -6,7 +6,7 @@ use disposition_ir_model::{
     node::{NodeHierarchy, NodeId, NodeInbuilt, NodeNames},
     IrDiagram,
 };
-use disposition_model_common::Map;
+use disposition_model_common::{Id, Map};
 use disposition_taffy_model::{
     taffy::{
         self,
@@ -418,7 +418,7 @@ impl IrToTaffyBuilder<'_> {
         node_hierarchy.iter().fold(
             Map::<EntityType, Vec<taffy::NodeId>>::new(),
             |mut entity_type_to_nodes, (node_id, child_hierarchy)| {
-                let node_id: &disposition_model_common::Id = node_id.as_ref();
+                let node_id: &Id = node_id.as_ref();
                 let entity_type = entity_types
                     .get(node_id)
                     .and_then(|entity_types| entity_types.first())
@@ -461,58 +461,17 @@ impl IrToTaffyBuilder<'_> {
 
                     taffy_text_node_id
                 } else {
-                    let TaffyWrapperNodeStyles {
-                        wrapper_style,
-                        text_style,
-                        child_container_style,
-                    } = Self::taffy_wrapper_node_styles(node_layouts, node_id);
-                    let taffy_text_node_id = taffy_tree
-                        .new_leaf_with_context(
-                            text_style,
-                            NodeContext {
-                                entity_id: node_id.clone(),
-                                entity_type: entity_type.clone(),
-                            },
-                        )
-                        .unwrap_or_else(|e| {
-                            panic!("Expected to create text leaf node for {node_id}. Error: {e}")
-                        });
-                    let taffy_node_build_context = TaffyNodeBuildContext {
+                    Self::build_taffy_nodes_for_node_with_child_hierarchy(
                         nodes,
                         taffy_tree,
                         node_layouts,
-                        node_hierarchy: child_hierarchy,
                         entity_types,
                         node_id_to_taffy,
                         taffy_id_to_node,
-                    };
-                    let taffy_children_ids =
-                        Self::build_taffy_child_nodes_for_node(taffy_node_build_context);
-                    let taffy_children_container_id = taffy_tree
-                        .new_with_children(child_container_style, &taffy_children_ids)
-                        .unwrap_or_else(|e| {
-                            panic!("Expected to create text leaf node for {node_id}. Error: {e}")
-                        });
-
-                    let wrapper_node_id = taffy_tree
-                        .new_with_children(
-                            wrapper_style,
-                            &[taffy_text_node_id, taffy_children_container_id],
-                        )
-                        .unwrap_or_else(|e| {
-                            panic!("Expected to create wrapper node for {node_id}. Error: {e}")
-                        });
-
-                    node_id_to_taffy.insert(
-                        NodeId::from(node_id.clone()),
-                        NodeToTaffyNodeIds::Wrapper {
-                            wrapper_node_id,
-                            text_node_id: taffy_text_node_id,
-                        },
-                    );
-                    taffy_id_to_node.insert(wrapper_node_id, NodeId::from(node_id.clone()));
-
-                    wrapper_node_id
+                        child_hierarchy,
+                        node_id,
+                        entity_type,
+                    )
                 };
 
                 entity_type_to_nodes
@@ -542,7 +501,7 @@ impl IrToTaffyBuilder<'_> {
         node_hierarchy
             .iter()
             .map(|(node_id, child_hierarchy)| {
-                let node_id: &disposition_model_common::Id = node_id.as_ref();
+                let node_id: &Id = node_id.as_ref();
                 let entity_type = entity_types
                     .get(node_id)
                     .and_then(|entity_types| entity_types.first())
@@ -573,61 +532,85 @@ impl IrToTaffyBuilder<'_> {
 
                     taffy_text_node_id
                 } else {
-                    let TaffyWrapperNodeStyles {
-                        wrapper_style,
-                        text_style,
-                        child_container_style,
-                    } = Self::taffy_wrapper_node_styles(node_layouts, node_id);
-                    let taffy_text_node_id = taffy_tree
-                        .new_leaf_with_context(
-                            text_style,
-                            NodeContext {
-                                entity_id: node_id.clone(),
-                                entity_type: entity_type.clone(),
-                            },
-                        )
-                        .unwrap_or_else(|e| {
-                            panic!("Expected to create text leaf node for {node_id}. Error: {e}")
-                        });
-                    let taffy_node_build_context = TaffyNodeBuildContext {
+                    Self::build_taffy_nodes_for_node_with_child_hierarchy(
                         nodes,
                         taffy_tree,
                         node_layouts,
-                        node_hierarchy: child_hierarchy,
                         entity_types,
                         node_id_to_taffy,
                         taffy_id_to_node,
-                    };
-                    let taffy_children_ids =
-                        Self::build_taffy_child_nodes_for_node(taffy_node_build_context);
-                    let taffy_children_container_id = taffy_tree
-                        .new_with_children(child_container_style, &taffy_children_ids)
-                        .unwrap_or_else(|e| {
-                            panic!("Expected to create text leaf node for {node_id}. Error: {e}")
-                        });
-
-                    let wrapper_node_id = taffy_tree
-                        .new_with_children(
-                            wrapper_style,
-                            &[taffy_text_node_id, taffy_children_container_id],
-                        )
-                        .unwrap_or_else(|e| {
-                            panic!("Expected to create wrapper node for {node_id}. Error: {e}")
-                        });
-
-                    node_id_to_taffy.insert(
-                        NodeId::from(node_id.clone()),
-                        NodeToTaffyNodeIds::Wrapper {
-                            wrapper_node_id,
-                            text_node_id: taffy_text_node_id,
-                        },
-                    );
-                    taffy_id_to_node.insert(wrapper_node_id, NodeId::from(node_id.clone()));
-
-                    wrapper_node_id
+                        child_hierarchy,
+                        node_id,
+                        entity_type,
+                    )
                 }
             })
             .collect::<Vec<taffy::NodeId>>()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_taffy_nodes_for_node_with_child_hierarchy(
+        nodes: &NodeNames<'static>,
+        taffy_tree: &mut TaffyTree<NodeContext>,
+        node_layouts: &NodeLayouts<'static>,
+        entity_types: &EntityTypes<'static>,
+        node_id_to_taffy: &mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
+        taffy_id_to_node: &mut Map<taffy::NodeId, NodeId<'static>>,
+        child_hierarchy: &NodeHierarchy<'static>,
+        node_id: &Id<'static>,
+        entity_type: &EntityType,
+    ) -> taffy::NodeId {
+        let TaffyWrapperNodeStyles {
+            wrapper_style,
+            text_style,
+            child_container_style,
+        } = Self::taffy_wrapper_node_styles(node_layouts, node_id);
+        let taffy_text_node_id = taffy_tree
+            .new_leaf_with_context(
+                text_style,
+                NodeContext {
+                    entity_id: node_id.clone(),
+                    entity_type: entity_type.clone(),
+                },
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create text leaf node for {node_id}. Error: {e}")
+            });
+        let taffy_node_build_context = TaffyNodeBuildContext {
+            nodes,
+            taffy_tree,
+            node_layouts,
+            node_hierarchy: child_hierarchy,
+            entity_types,
+            node_id_to_taffy,
+            taffy_id_to_node,
+        };
+        let taffy_children_ids = Self::build_taffy_child_nodes_for_node(taffy_node_build_context);
+        let taffy_children_container_id = taffy_tree
+            .new_with_children(child_container_style, &taffy_children_ids)
+            .unwrap_or_else(|e| {
+                panic!("Expected to create text leaf node for {node_id}. Error: {e}")
+            });
+
+        let wrapper_node_id = taffy_tree
+            .new_with_children(
+                wrapper_style,
+                &[taffy_text_node_id, taffy_children_container_id],
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create wrapper node for {node_id}. Error: {e}")
+            });
+
+        node_id_to_taffy.insert(
+            NodeId::from(node_id.clone()),
+            NodeToTaffyNodeIds::Wrapper {
+                wrapper_node_id,
+                text_node_id: taffy_text_node_id,
+            },
+        );
+        taffy_id_to_node.insert(wrapper_node_id, NodeId::from(node_id.clone()));
+
+        wrapper_node_id
     }
 
     /// Adds a container node to the `TaffyTree` and returns its ID.
@@ -657,7 +640,7 @@ impl IrToTaffyBuilder<'_> {
     /// Returns the `taffy::Style` for container nodes.
     fn taffy_container_style(
         node_layouts: &NodeLayouts,
-        node_id: &disposition_model_common::Id,
+        node_id: &Id,
         max_size: Size<taffy::Dimension>,
     ) -> Style {
         node_layouts
@@ -703,7 +686,7 @@ impl IrToTaffyBuilder<'_> {
     /// Returns the `taffy::Style` for a wrapper node and its text node.
     fn taffy_wrapper_node_styles(
         node_layouts: &NodeLayouts,
-        node_id: &disposition_model_common::Id,
+        node_id: &Id,
     ) -> TaffyWrapperNodeStyles {
         node_layouts
             .get(node_id)
