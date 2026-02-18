@@ -1048,7 +1048,7 @@ impl InputToIrDiagramMapper {
             .map(|(node_id, _name)| {
                 let id: Id<'id> = node_id.as_ref().clone();
                 let (radius_top_left, radius_top_right, radius_bottom_left, radius_bottom_right) =
-                    Self::resolve_radius(
+                    Self::resolve_rect_radius(
                         Some(&id),
                         entity_types,
                         theme_default,
@@ -1068,7 +1068,7 @@ impl InputToIrDiagramMapper {
     }
 
     /// Resolve corner radius values for a node from the theme.
-    fn resolve_radius<'id>(
+    fn resolve_rect_radius<'id>(
         node_id: Option<&Id<'id>>,
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
