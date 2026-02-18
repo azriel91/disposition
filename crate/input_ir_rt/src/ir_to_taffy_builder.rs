@@ -437,29 +437,14 @@ impl IrToTaffyBuilder<'_> {
                 }
 
                 let wrapper_node_id = if child_hierarchy.is_empty() {
-                    let taffy_style =
-                        Self::taffy_container_style(node_layouts, node_id, Size::auto());
-                    let taffy_text_node_id = taffy_tree
-                        .new_leaf_with_context(
-                            taffy_style,
-                            NodeContext {
-                                entity_id: node_id.clone(),
-                                entity_type: entity_type.clone(),
-                            },
-                        )
-                        .unwrap_or_else(|e| {
-                            panic!("Expected to create text leaf node for {node_id}. Error: {e}")
-                        });
-
-                    node_id_to_taffy.insert(
-                        NodeId::from(node_id.clone()),
-                        NodeToTaffyNodeIds::Leaf {
-                            text_node_id: taffy_text_node_id,
-                        },
-                    );
-                    taffy_id_to_node.insert(taffy_text_node_id, NodeId::from(node_id.clone()));
-
-                    taffy_text_node_id
+                    Self::build_taffy_nodes_for_node_without_child_hierarchy(
+                        taffy_tree,
+                        node_layouts,
+                        node_id_to_taffy,
+                        taffy_id_to_node,
+                        node_id,
+                        entity_type,
+                    )
                 } else {
                     Self::build_taffy_nodes_for_node_with_child_hierarchy(
                         nodes,
@@ -508,29 +493,14 @@ impl IrToTaffyBuilder<'_> {
                     .unwrap_or_else(|| panic!("`entity_type` not found for {node_id}"));
 
                 if child_hierarchy.is_empty() {
-                    let taffy_style =
-                        Self::taffy_container_style(node_layouts, node_id, Size::auto());
-                    let taffy_text_node_id = taffy_tree
-                        .new_leaf_with_context(
-                            taffy_style,
-                            NodeContext {
-                                entity_id: node_id.clone(),
-                                entity_type: entity_type.clone(),
-                            },
-                        )
-                        .unwrap_or_else(|e| {
-                            panic!("Expected to create text leaf node for {node_id}. Error: {e}")
-                        });
-
-                    node_id_to_taffy.insert(
-                        NodeId::from(node_id.clone()),
-                        NodeToTaffyNodeIds::Leaf {
-                            text_node_id: taffy_text_node_id,
-                        },
-                    );
-                    taffy_id_to_node.insert(taffy_text_node_id, NodeId::from(node_id.clone()));
-
-                    taffy_text_node_id
+                    Self::build_taffy_nodes_for_node_without_child_hierarchy(
+                        taffy_tree,
+                        node_layouts,
+                        node_id_to_taffy,
+                        taffy_id_to_node,
+                        node_id,
+                        entity_type,
+                    )
                 } else {
                     Self::build_taffy_nodes_for_node_with_child_hierarchy(
                         nodes,
@@ -546,6 +516,38 @@ impl IrToTaffyBuilder<'_> {
                 }
             })
             .collect::<Vec<taffy::NodeId>>()
+    }
+
+    fn build_taffy_nodes_for_node_without_child_hierarchy(
+        taffy_tree: &mut TaffyTree<NodeContext>,
+        node_layouts: &NodeLayouts<'static>,
+        node_id_to_taffy: &mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
+        taffy_id_to_node: &mut Map<taffy::NodeId, NodeId<'static>>,
+        node_id: &Id<'static>,
+        entity_type: &EntityType,
+    ) -> taffy::NodeId {
+        let taffy_style = Self::taffy_container_style(node_layouts, node_id, Size::auto());
+        let taffy_text_node_id = taffy_tree
+            .new_leaf_with_context(
+                taffy_style,
+                NodeContext {
+                    entity_id: node_id.clone(),
+                    entity_type: entity_type.clone(),
+                },
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create text leaf node for {node_id}. Error: {e}")
+            });
+
+        node_id_to_taffy.insert(
+            NodeId::from(node_id.clone()),
+            NodeToTaffyNodeIds::Leaf {
+                text_node_id: taffy_text_node_id,
+            },
+        );
+        taffy_id_to_node.insert(taffy_text_node_id, NodeId::from(node_id.clone()));
+
+        taffy_text_node_id
     }
 
     #[allow(clippy::too_many_arguments)]
