@@ -469,11 +469,11 @@ theme_default:
     circle_sm:
       circle_radius: "4.0"
     circle_md:
-      circle_radius: "6.0"
-    circle_lg:
       circle_radius: "8.0"
-    circle_xl:
+    circle_lg:
       circle_radius: "12.0"
+    circle_xl:
+      circle_radius: "16.0"
     padding_none:
       padding: "0.0"
       gap: "0.0"

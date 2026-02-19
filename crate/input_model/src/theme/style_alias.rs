@@ -32,11 +32,11 @@ pub enum StyleAlias<'id> {
     CircleXs,
     /// Small circle (radius 4 units).
     CircleSm,
-    /// Medium circle (radius 6 units).
+    /// Medium circle (radius 8 units).
     CircleMd,
-    /// Large circle (radius 8 units).
+    /// Large circle (radius 12 units).
     CircleLg,
-    /// Extra large circle (radius 12 units).
+    /// Extra large circle (radius 16 units).
     CircleXl,
     /// No padding.
     PaddingNone,
