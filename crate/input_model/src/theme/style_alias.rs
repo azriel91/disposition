@@ -28,6 +28,16 @@ use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 )]
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum StyleAlias<'id> {
+    /// Extra small circle (radius 2 units).
+    CircleXs,
+    /// Small circle (radius 4 units).
+    CircleSm,
+    /// Medium circle (radius 6 units).
+    CircleMd,
+    /// Large circle (radius 8 units).
+    CircleLg,
+    /// Extra large circle (radius 12 units).
+    CircleXl,
     /// No padding.
     PaddingNone,
     /// Tight padding (2 units).
@@ -88,6 +98,11 @@ impl<'id> StyleAlias<'id> {
     /// ```
     pub fn as_str(&self) -> &str {
         match self {
+            StyleAlias::CircleXs => "circle_xs",
+            StyleAlias::CircleSm => "circle_sm",
+            StyleAlias::CircleMd => "circle_md",
+            StyleAlias::CircleLg => "circle_lg",
+            StyleAlias::CircleXl => "circle_xl",
             StyleAlias::PaddingNone => "padding_none",
             StyleAlias::PaddingTight => "padding_tight",
             StyleAlias::PaddingNormal => "padding_normal",
@@ -137,6 +152,11 @@ impl<'id> StyleAlias<'id> {
     /// This clones the inner `Id` if it's a `Custom` variant.
     pub fn into_static(self) -> StyleAlias<'static> {
         match self {
+            StyleAlias::CircleXs => StyleAlias::CircleXs,
+            StyleAlias::CircleSm => StyleAlias::CircleSm,
+            StyleAlias::CircleMd => StyleAlias::CircleMd,
+            StyleAlias::CircleLg => StyleAlias::CircleLg,
+            StyleAlias::CircleXl => StyleAlias::CircleXl,
             StyleAlias::PaddingNone => StyleAlias::PaddingNone,
             StyleAlias::PaddingTight => StyleAlias::PaddingTight,
             StyleAlias::PaddingNormal => StyleAlias::PaddingNormal,
@@ -165,6 +185,11 @@ impl<'id> StyleAlias<'id> {
 impl<'id> From<Id<'id>> for StyleAlias<'id> {
     fn from(id: Id<'id>) -> Self {
         match id.as_str() {
+            "circle_xs" => StyleAlias::CircleXs,
+            "circle_sm" => StyleAlias::CircleSm,
+            "circle_md" => StyleAlias::CircleMd,
+            "circle_lg" => StyleAlias::CircleLg,
+            "circle_xl" => StyleAlias::CircleXl,
             "padding_none" => StyleAlias::PaddingNone,
             "padding_tight" => StyleAlias::PaddingTight,
             "padding_normal" => StyleAlias::PaddingNormal,
@@ -221,7 +246,8 @@ impl Visitor<'_> for StyleAliasVisitor {
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str(
-            "a style alias name such as `padding_none`, `padding_tight`, `padding_normal`, \
+            "a style alias name such as `circle_xs`, `circle_sm`, `circle_md`, `circle_lg`, \
+             `circle_xl`, `padding_none`, `padding_tight`, `padding_normal`, \
              `padding_wide`, `rounded_xs`, `rounded_sm`, `rounded_md`, `rounded_lg`, \
              `rounded_xl`, `rounded_2xl`, `rounded_3xl`, `rounded_4xl`, `fill_pale`, \
              `shade_pale`, `shade_light`, `shade_medium`, `shade_dark`, \
@@ -235,6 +261,11 @@ impl Visitor<'_> for StyleAliasVisitor {
         E: serde::de::Error,
     {
         let style_alias = match value {
+            "circle_xs" => StyleAlias::CircleXs,
+            "circle_sm" => StyleAlias::CircleSm,
+            "circle_md" => StyleAlias::CircleMd,
+            "circle_lg" => StyleAlias::CircleLg,
+            "circle_xl" => StyleAlias::CircleXl,
             "padding_none" => StyleAlias::PaddingNone,
             "padding_tight" => StyleAlias::PaddingTight,
             "padding_normal" => StyleAlias::PaddingNormal,
