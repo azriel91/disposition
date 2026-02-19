@@ -1,7 +1,9 @@
+use std::borrow::Cow;
+
 use disposition_ir_model::node::NodeId;
 use serde::{Deserialize, Serialize};
 
-use crate::SvgTextSpan;
+use crate::{SvgNodeInfoCircle, SvgTextSpan};
 
 /// Information to render SVG elements for a node.
 ///
@@ -12,6 +14,7 @@ use crate::SvgTextSpan;
 /// * Tailwind classes to define colours to use.
 /// * Tailwind classes to define the `<path>`'s `d` attribute and height.
 /// * The node label to place in the `<text>` element.
+/// * Optional circle shape information.
 #[cfg_attr(
     all(feature = "openapi", not(feature = "test")),
     derive(utoipa::ToSchema)
@@ -43,6 +46,18 @@ pub struct SvgNodeInfo<'id> {
     pub process_id: Option<NodeId<'id>>,
     /// Text spans to render within this node.
     pub text_spans: Vec<SvgTextSpan>,
+    /// Circle shape information, if this node has a circle shape.
+    ///
+    /// When present, the node's background `<path>` should have its
+    /// fill and stroke opacity set to 0 (using `wrapper_tailwind_classes`),
+    /// and a separate `<path>` element should be rendered for the circle.
+    pub circle: Option<SvgNodeInfoCircle>,
+    /// Extra tailwind classes for the wrapper `<path>` element when a circle
+    /// is present.
+    ///
+    /// Typically set to `"[fill-opacity:0.0] [stroke-opacity:0.0]"` to make
+    /// the rectangular background invisible so only the circle is visible.
+    pub wrapper_tailwind_classes: Option<Cow<'static, str>>,
 }
 
 impl<'id> SvgNodeInfo<'id> {
@@ -69,6 +84,39 @@ impl<'id> SvgNodeInfo<'id> {
             path_d_collapsed,
             process_id,
             text_spans,
+            circle: None,
+            wrapper_tailwind_classes: None,
+        }
+    }
+
+    /// Creates a new `SvgNodeInfo` with circle shape information.
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_circle(
+        node_id: NodeId<'id>,
+        tab_index: u32,
+        x: f32,
+        y: f32,
+        width: f32,
+        height_collapsed: f32,
+        path_d_collapsed: String,
+        process_id: Option<NodeId<'id>>,
+        text_spans: Vec<SvgTextSpan>,
+        circle: SvgNodeInfoCircle,
+    ) -> Self {
+        Self {
+            node_id,
+            tab_index,
+            x,
+            y,
+            width,
+            height_collapsed,
+            path_d_collapsed,
+            process_id,
+            text_spans,
+            circle: Some(circle),
+            wrapper_tailwind_classes: Some(Cow::Borrowed(
+                "[fill-opacity:0.0] [stroke-opacity:0.0]",
+            )),
         }
     }
 }
