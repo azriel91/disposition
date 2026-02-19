@@ -180,7 +180,7 @@ theme_types_styles:
       stroke_width: "2"
   type_process_step_default:
     node_defaults:
-      style_aliases_applied: [rounded_sm, shade_medium]
+      style_aliases_applied: [circle_lg, rounded_sm, shade_medium]
       stroke_style: "solid"
       shape_color: "sky"
       stroke_width: "2"

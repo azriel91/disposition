@@ -586,7 +586,11 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             [(
                 IdOrDefaults::NodeDefaults,
                 css_class_partials(
-                    vec![StyleAlias::RoundedSm, StyleAlias::ShadeMedium],
+                    vec![
+                        StyleAlias::CircleLg,
+                        StyleAlias::RoundedSm,
+                        StyleAlias::ShadeMedium,
+                    ],
                     vec![
                         (ThemeAttr::StrokeStyle, "solid"),
                         (ThemeAttr::ShapeColor, "sky"),
