@@ -29,12 +29,20 @@ impl SvgNodeRectPathBuilder {
     /// * `height`: The height of the rectangle
     /// * `node_shape`: The shape configuration containing corner radii
     pub fn build(width: f32, height: f32, node_shape: &NodeShape) -> String {
-        let NodeShape::Rect(rect) = node_shape;
-
-        let r_tl = rect.radius_top_left;
-        let r_tr = rect.radius_top_right;
-        let r_bl = rect.radius_bottom_left;
-        let r_br = rect.radius_bottom_right;
+        let (r_tl, r_tr, r_bl, r_br) = match node_shape {
+            NodeShape::Rect(rect) => (
+                rect.radius_top_left,
+                rect.radius_top_right,
+                rect.radius_bottom_left,
+                rect.radius_bottom_right,
+            ),
+            // Circle nodes still get a rectangular background path (made
+            // invisible via wrapper_tailwind_classes); the actual circle is
+            // rendered as a separate `<path>` element.
+            //
+            // Still use rounded corners for the wrapper node.
+            NodeShape::Circle(_) => (4.0, 4.0, 4.0, 4.0),
+        };
 
         let h = height;
 
