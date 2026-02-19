@@ -128,20 +128,15 @@ impl TaffyToSvgElementsMapper {
             (Vec::new(), tailwind_classes),
             |(mut svg_node_infos, mut entity_tailwind_classes), (node_id, &tab_index)| {
                 if let Some(taffy_node_ids) = node_id_to_taffy.get(node_id).copied() {
-                    let taffy_node_id = taffy_node_ids.wrapper_taffy_node_id();
+                    let svg_node_info = SvgNodeInfoBuilder::build(
+                        svg_node_info_build_context,
+                        taffy_node_ids,
+                        &mut entity_tailwind_classes,
+                        node_id,
+                        tab_index,
+                    );
 
-                    if let Ok(taffy_node_layout) = taffy_tree.layout(taffy_node_id) {
-                        let svg_node_info = SvgNodeInfoBuilder::build(
-                            svg_node_info_build_context,
-                            taffy_node_id,
-                            taffy_node_layout,
-                            &mut entity_tailwind_classes,
-                            node_id,
-                            tab_index,
-                        );
-
-                        svg_node_infos.push(svg_node_info);
-                    }
+                    svg_node_infos.push(svg_node_info);
                 }
 
                 (svg_node_infos, entity_tailwind_classes)
