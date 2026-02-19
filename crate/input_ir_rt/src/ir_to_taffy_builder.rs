@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use disposition_ir_model::{
     entity::{EntityDescs, EntityType, EntityTypes},
     layout::{NodeLayout, NodeLayouts},
-    node::{NodeHierarchy, NodeId, NodeInbuilt, NodeNames},
+    node::{NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeShape, NodeShapes},
     IrDiagram,
 };
 use disposition_model_common::{Id, Map};
@@ -109,7 +109,7 @@ impl IrToTaffyBuilder<'_> {
             entity_types,
             tailwind_classes: _,
             node_layouts,
-            node_shapes: _,
+            node_shapes,
             process_step_entities: _,
             css: _,
         } = ir_diagram;
@@ -126,6 +126,7 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy,
             entity_types,
+            node_shapes,
             node_id_to_taffy: &mut node_id_to_taffy,
             taffy_id_to_node: &mut taffy_id_to_node,
         };
@@ -234,6 +235,17 @@ impl IrToTaffyBuilder<'_> {
                     NodeToTaffyNodeIds::Leaf { text_node_id }
                     | NodeToTaffyNodeIds::Wrapper {
                         wrapper_node_id: _,
+                        text_node_id,
+                    }
+                    | NodeToTaffyNodeIds::LeafWithCircle {
+                        wrapper_node_id: _,
+                        circle_node_id: _,
+                        text_node_id,
+                    }
+                    | NodeToTaffyNodeIds::WrapperCircle {
+                        wrapper_node_id: _,
+                        label_wrapper_node_id: _,
+                        circle_node_id: _,
                         text_node_id,
                     } => {
                         let Ok(layout) = taffy_tree.layout(text_node_id) else {
@@ -411,6 +423,7 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy,
             entity_types,
+            node_shapes,
             node_id_to_taffy,
             taffy_id_to_node,
         } = taffy_node_build_context;
@@ -440,6 +453,7 @@ impl IrToTaffyBuilder<'_> {
                     Self::build_taffy_nodes_for_node_without_child_hierarchy(
                         taffy_tree,
                         node_layouts,
+                        node_shapes,
                         node_id_to_taffy,
                         taffy_id_to_node,
                         node_id,
@@ -450,6 +464,7 @@ impl IrToTaffyBuilder<'_> {
                         nodes,
                         taffy_tree,
                         node_layouts,
+                        node_shapes,
                         entity_types,
                         node_id_to_taffy,
                         taffy_id_to_node,
@@ -479,6 +494,7 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy,
             entity_types,
+            node_shapes,
             node_id_to_taffy,
             taffy_id_to_node,
         } = taffy_node_build_context;
@@ -496,6 +512,7 @@ impl IrToTaffyBuilder<'_> {
                     Self::build_taffy_nodes_for_node_without_child_hierarchy(
                         taffy_tree,
                         node_layouts,
+                        node_shapes,
                         node_id_to_taffy,
                         taffy_id_to_node,
                         node_id,
@@ -506,6 +523,7 @@ impl IrToTaffyBuilder<'_> {
                         nodes,
                         taffy_tree,
                         node_layouts,
+                        node_shapes,
                         entity_types,
                         node_id_to_taffy,
                         taffy_id_to_node,
@@ -521,33 +539,109 @@ impl IrToTaffyBuilder<'_> {
     fn build_taffy_nodes_for_node_without_child_hierarchy(
         taffy_tree: &mut TaffyTree<NodeContext>,
         node_layouts: &NodeLayouts<'static>,
+        node_shapes: &NodeShapes<'static>,
         node_id_to_taffy: &mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
         taffy_id_to_node: &mut Map<taffy::NodeId, NodeId<'static>>,
         node_id: &Id<'static>,
         entity_type: &EntityType,
     ) -> taffy::NodeId {
-        let taffy_style = Self::taffy_container_style(node_layouts, node_id, Size::auto());
-        let taffy_text_node_id = taffy_tree
-            .new_leaf_with_context(
-                taffy_style,
-                NodeContext {
-                    entity_id: node_id.clone(),
-                    entity_type: entity_type.clone(),
-                },
-            )
-            .unwrap_or_else(|e| {
-                panic!("Expected to create text leaf node for {node_id}. Error: {e}")
-            });
+        let ir_node_id = NodeId::from(node_id.clone());
+        let node_shape = node_shapes
+            .get(&ir_node_id)
+            .unwrap_or_else(|| panic!("There was no node shape for {ir_node_id}."));
+        match node_shape {
+            NodeShape::Rect(_node_shape_rect) => {
+                let taffy_style = Self::taffy_container_style(node_layouts, node_id, Size::auto());
+                let taffy_text_node_id = taffy_tree
+                    .new_leaf_with_context(
+                        taffy_style,
+                        NodeContext {
+                            entity_id: node_id.clone(),
+                            entity_type: entity_type.clone(),
+                        },
+                    )
+                    .unwrap_or_else(|e| {
+                        panic!("Expected to create text leaf node for {node_id}. Error: {e}")
+                    });
 
-        node_id_to_taffy.insert(
-            NodeId::from(node_id.clone()),
-            NodeToTaffyNodeIds::Leaf {
-                text_node_id: taffy_text_node_id,
-            },
-        );
-        taffy_id_to_node.insert(taffy_text_node_id, NodeId::from(node_id.clone()));
+                node_id_to_taffy.insert(
+                    ir_node_id.clone(),
+                    NodeToTaffyNodeIds::Leaf {
+                        text_node_id: taffy_text_node_id,
+                    },
+                );
+                taffy_id_to_node.insert(taffy_text_node_id, ir_node_id);
 
-        taffy_text_node_id
+                taffy_text_node_id
+            }
+            NodeShape::Circle(node_shape_circle) => {
+                // Circle leaf:
+                //
+                // ```yaml
+                // label_wrapper_node: # flex row
+                //   - circle_node
+                //   - text_node
+                // ```
+                let circle_radius = node_shape_circle.radius();
+                let circle_diameter = circle_radius * 2.0;
+
+                let circle_node_id = taffy_tree
+                    .new_leaf(Style {
+                        size: Size {
+                            width: taffy::style::Dimension::length(circle_diameter),
+                            height: taffy::style::Dimension::length(circle_diameter),
+                        },
+                        flex_shrink: 0.0,
+                        ..Default::default()
+                    })
+                    .unwrap_or_else(|e| {
+                        panic!("Expected to create circle leaf node for {node_id}. Error: {e}")
+                    });
+
+                let text_style = Style::default();
+                let taffy_text_node_id = taffy_tree
+                    .new_leaf_with_context(
+                        text_style,
+                        NodeContext {
+                            entity_id: node_id.clone(),
+                            entity_type: entity_type.clone(),
+                        },
+                    )
+                    .unwrap_or_else(|e| {
+                        panic!("Expected to create text leaf node for {node_id}. Error: {e}")
+                    });
+
+                let label_wrapper_style =
+                    Self::taffy_container_style(node_layouts, node_id, Size::auto());
+
+                // Override to flex row for circle + text side by side
+                let label_wrapper_style = Style {
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Row,
+                    align_items: Some(AlignItems::Center),
+                    gap: Size::length(4.0),
+                    ..label_wrapper_style
+                };
+
+                let wrapper_node_id = taffy_tree
+                    .new_with_children(label_wrapper_style, &[circle_node_id, taffy_text_node_id])
+                    .unwrap_or_else(|e| {
+                        panic!("Expected to create label wrapper node for {node_id}. Error: {e}")
+                    });
+
+                node_id_to_taffy.insert(
+                    ir_node_id.clone(),
+                    NodeToTaffyNodeIds::LeafWithCircle {
+                        wrapper_node_id,
+                        circle_node_id,
+                        text_node_id: taffy_text_node_id,
+                    },
+                );
+                taffy_id_to_node.insert(wrapper_node_id, ir_node_id);
+
+                wrapper_node_id
+            }
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -555,6 +649,7 @@ impl IrToTaffyBuilder<'_> {
         nodes: &NodeNames<'static>,
         taffy_tree: &mut TaffyTree<NodeContext>,
         node_layouts: &NodeLayouts<'static>,
+        node_shapes: &NodeShapes<'static>,
         entity_types: &EntityTypes<'static>,
         node_id_to_taffy: &mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
         taffy_id_to_node: &mut Map<taffy::NodeId, NodeId<'static>>,
@@ -562,6 +657,8 @@ impl IrToTaffyBuilder<'_> {
         node_id: &Id<'static>,
         entity_type: &EntityType,
     ) -> taffy::NodeId {
+        let ir_node_id = NodeId::from(node_id.clone());
+
         let TaffyWrapperNodeStyles {
             wrapper_style,
             text_style,
@@ -584,6 +681,7 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy: child_hierarchy,
             entity_types,
+            node_shapes,
             node_id_to_taffy,
             taffy_id_to_node,
         };
@@ -591,28 +689,98 @@ impl IrToTaffyBuilder<'_> {
         let taffy_children_container_id = taffy_tree
             .new_with_children(child_container_style, &taffy_children_ids)
             .unwrap_or_else(|e| {
-                panic!("Expected to create text leaf node for {node_id}. Error: {e}")
+                panic!("Expected to create child container node for {node_id}. Error: {e}")
             });
 
-        let wrapper_node_id = taffy_tree
-            .new_with_children(
-                wrapper_style,
-                &[taffy_text_node_id, taffy_children_container_id],
-            )
-            .unwrap_or_else(|e| {
-                panic!("Expected to create wrapper node for {node_id}. Error: {e}")
-            });
+        let node_shape = node_shapes
+            .get(&ir_node_id)
+            .unwrap_or_else(|| panic!("There was no node shape for {ir_node_id}."));
 
-        node_id_to_taffy.insert(
-            NodeId::from(node_id.clone()),
-            NodeToTaffyNodeIds::Wrapper {
-                wrapper_node_id,
-                text_node_id: taffy_text_node_id,
-            },
-        );
-        taffy_id_to_node.insert(wrapper_node_id, NodeId::from(node_id.clone()));
+        match node_shape {
+            NodeShape::Rect(_node_shape_rect) => {
+                let wrapper_node_id = taffy_tree
+                    .new_with_children(
+                        wrapper_style,
+                        &[taffy_text_node_id, taffy_children_container_id],
+                    )
+                    .unwrap_or_else(|e| {
+                        panic!("Expected to create wrapper node for {node_id}. Error: {e}")
+                    });
 
-        wrapper_node_id
+                node_id_to_taffy.insert(
+                    ir_node_id.clone(),
+                    NodeToTaffyNodeIds::Wrapper {
+                        wrapper_node_id,
+                        text_node_id: taffy_text_node_id,
+                    },
+                );
+                taffy_id_to_node.insert(wrapper_node_id, ir_node_id);
+
+                wrapper_node_id
+            }
+            NodeShape::Circle(node_shape_circle) => {
+                // Circle wrapper:
+                //
+                // ```yaml
+                // wrapper_node:
+                //   - label_wrapper_node: # flex row
+                //     - circle_node
+                //     - text_node
+                //   - child_container
+                // ```
+                let circle_radius = node_shape_circle.radius();
+                let circle_diameter = circle_radius * 2.0;
+
+                let circle_node_id = taffy_tree
+                    .new_leaf(Style {
+                        size: Size {
+                            width: taffy::style::Dimension::length(circle_diameter),
+                            height: taffy::style::Dimension::length(circle_diameter),
+                        },
+                        flex_shrink: 0.0,
+                        ..Default::default()
+                    })
+                    .unwrap_or_else(|e| {
+                        panic!("Expected to create circle leaf node for {node_id}. Error: {e}")
+                    });
+
+                let label_wrapper_style = Style {
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Row,
+                    align_items: Some(AlignItems::Center),
+                    gap: Size::length(4.0),
+                    ..Default::default()
+                };
+
+                let label_wrapper_node_id = taffy_tree
+                    .new_with_children(label_wrapper_style, &[circle_node_id, taffy_text_node_id])
+                    .unwrap_or_else(|e| {
+                        panic!("Expected to create label wrapper node for {node_id}. Error: {e}")
+                    });
+
+                let wrapper_node_id = taffy_tree
+                    .new_with_children(
+                        wrapper_style,
+                        &[label_wrapper_node_id, taffy_children_container_id],
+                    )
+                    .unwrap_or_else(|e| {
+                        panic!("Expected to create wrapper node for {node_id}. Error: {e}")
+                    });
+
+                node_id_to_taffy.insert(
+                    ir_node_id.clone(),
+                    NodeToTaffyNodeIds::WrapperCircle {
+                        wrapper_node_id,
+                        label_wrapper_node_id,
+                        circle_node_id,
+                        text_node_id: taffy_text_node_id,
+                    },
+                );
+                taffy_id_to_node.insert(wrapper_node_id, ir_node_id);
+
+                wrapper_node_id
+            }
+        }
     }
 
     /// Adds a container node to the `TaffyTree` and returns its ID.
@@ -1000,6 +1168,7 @@ struct TaffyNodeBuildContext<'ctx> {
     node_layouts: &'ctx NodeLayouts<'static>,
     node_hierarchy: &'ctx NodeHierarchy<'static>,
     entity_types: &'ctx EntityTypes<'static>,
+    node_shapes: &'ctx NodeShapes<'static>,
     node_id_to_taffy: &'ctx mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
     taffy_id_to_node: &'ctx mut Map<taffy::NodeId, NodeId<'static>>,
 }
