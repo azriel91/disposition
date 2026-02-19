@@ -188,6 +188,31 @@ impl InputDiagram<'static> {
 
 fn base_style_aliases() -> StyleAliases<'static> {
     [
+        // circle_xs
+        (
+            StyleAlias::CircleXs,
+            css_class_partials(vec![], vec![(ThemeAttr::CircleRadius, "2.0")]),
+        ),
+        // circle_sm
+        (
+            StyleAlias::CircleSm,
+            css_class_partials(vec![], vec![(ThemeAttr::CircleRadius, "4.0")]),
+        ),
+        // circle_md
+        (
+            StyleAlias::CircleMd,
+            css_class_partials(vec![], vec![(ThemeAttr::CircleRadius, "6.0")]),
+        ),
+        // circle_lg
+        (
+            StyleAlias::CircleLg,
+            css_class_partials(vec![], vec![(ThemeAttr::CircleRadius, "8.0")]),
+        ),
+        // circle_xl
+        (
+            StyleAlias::CircleXl,
+            css_class_partials(vec![], vec![(ThemeAttr::CircleRadius, "12.0")]),
+        ),
         // padding_none
         (
             StyleAlias::PaddingNone,
