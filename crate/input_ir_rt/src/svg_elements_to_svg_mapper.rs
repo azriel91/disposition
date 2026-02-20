@@ -170,11 +170,8 @@ impl SvgElementsToSvgMapper {
             // If a circle is present, apply wrapper_tailwind_classes to make the
             // rect path invisible, and render the circle path separately.
             write!(content_buffer, r#"<path d="{path_d}" class="wrapper"#).unwrap();
-            match svg_node_info.wrapper_tailwind_classes.as_ref() {
-                Some(wrapper_tw) => {
-                    write!(content_buffer, " {wrapper_tw}").unwrap();
-                }
-                None => {}
+            if let Some(wrapper_tw) = svg_node_info.wrapper_tailwind_classes.as_ref() {
+                write!(content_buffer, " {wrapper_tw}").unwrap();
             }
             write!(content_buffer, r#"" />"#).unwrap();
 
