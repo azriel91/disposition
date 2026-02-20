@@ -9,6 +9,10 @@ use crate::taffy_to_svg_elements_mapper::{
     StringCharReplacer, SvgNodeRectPathBuilder,
 };
 
+/// Tailwind qualifier class for the SVG element representing the wrapper taffy
+/// node's coordinates.
+const TW_QUALIFIER_NODE_WRAPPER: &str = "[&>path.wrapper]";
+
 /// Builds translate-x and translate-y tailwind classes for nodes.
 ///
 /// * Process nodes will have classes that collapse depending on focus on them
@@ -78,7 +82,14 @@ impl SvgNodeTranslateClassesBuilder {
 
         let mut path_d = path_d_collapsed.to_string();
         StringCharReplacer::replace_inplace(&mut path_d, ' ', '_');
-        writeln!(&mut classes, "[&>path]:[d:path('{path_d}')]").unwrap();
+
+        // The `d` attribute only applies to the wrapper `<path>`, not the `<path>`
+        // representing the circle.
+        writeln!(
+            &mut classes,
+            "{TW_QUALIFIER_NODE_WRAPPER}:[d:path('{path_d}')]"
+        )
+        .unwrap();
 
         classes
     }
@@ -113,7 +124,7 @@ impl SvgNodeTranslateClassesBuilder {
         StringCharReplacer::replace_inplace(&mut path_d_collapsed_escaped, ' ', '_');
         writeln!(
             &mut classes,
-            "[&>path]:[d:path('{path_d_collapsed_escaped}')]"
+            "{TW_QUALIFIER_NODE_WRAPPER}:[d:path('{path_d_collapsed_escaped}')]"
         )
         .unwrap();
 
@@ -131,7 +142,7 @@ impl SvgNodeTranslateClassesBuilder {
 
             writeln!(
                 &mut classes,
-                "group-has-[#{process_id}:focus-within]:[&>path]:[d:path('{path_d_expanded_escaped}')]"
+                "group-has-[#{process_id}:focus-within]:{TW_QUALIFIER_NODE_WRAPPER}:[d:path('{path_d_expanded_escaped}')]"
             )
             .unwrap();
 
@@ -139,7 +150,7 @@ impl SvgNodeTranslateClassesBuilder {
             process_step_ids.iter().for_each(|process_step_id| {
                 writeln!(
                     &mut classes,
-                    "group-has-[#{process_step_id}:focus-within]:[&>path]:[d:path('{path_d_expanded_escaped}')]"
+                    "group-has-[#{process_step_id}:focus-within]:{TW_QUALIFIER_NODE_WRAPPER}:[d:path('{path_d_expanded_escaped}')]"
                 )
                 .unwrap();
             });
