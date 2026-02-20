@@ -7,12 +7,14 @@
 * Animate edges evenly by generating CSS animation keyframes. ([#12][#12])
 * Add arrow heads to edges. ([#13][#13])
 * Allow edge animations to begin on process step focus. ([#14][#14])
+* Add support for circle node shapes. ([#15][#15])
 
 [#10]: https://github.com/azriel91/disposition/pull/10
 [#11]: https://github.com/azriel91/disposition/pull/11
 [#12]: https://github.com/azriel91/disposition/pull/12
 [#13]: https://github.com/azriel91/disposition/pull/13
 [#14]: https://github.com/azriel91/disposition/pull/14
+[#15]: https://github.com/azriel91/disposition/pull/15
 
 
 ## 0.0.3 (2026-01-20)
