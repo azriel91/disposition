@@ -8,6 +8,7 @@ use utoipa::OpenApi;
     crate::SvgElements,
     crate::SvgEdgeInfo,
     crate::SvgNodeInfo,
+    crate::SvgNodeInfoCircle,
     crate::SvgProcessInfo,
     crate::SvgTextSpan
 )))]

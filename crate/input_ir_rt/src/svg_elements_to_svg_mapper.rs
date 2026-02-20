@@ -69,7 +69,12 @@ impl SvgElementsToSvgMapper {
             .values()
             .map(|classes| Self::escape_ids_in_brackets(classes))
             .collect();
-        let tailwind_classes_iter = escaped_classes.iter().map(String::as_str);
+        let tailwind_classes_iter = escaped_classes.iter().map(String::as_str).chain(
+            svg_node_infos
+                .iter()
+                .flat_map(|svg_node_info| svg_node_info.wrapper_tailwind_classes.iter())
+                .map(|wrapper_tailwind_classes| wrapper_tailwind_classes.as_ref()),
+        );
         let generated_css =
             encre_css::generate(tailwind_classes_iter, &encre_css::Config::default())
                 .replace("&", "&amp;");
@@ -161,8 +166,20 @@ impl SvgElementsToSvgMapper {
             )
             .unwrap();
 
-            // Add path element with corner radii
-            write!(content_buffer, r#"<path d="{path_d}" />"#).unwrap();
+            // Add path element with corner radii.
+            // If a circle is present, apply wrapper_tailwind_classes to make the
+            // rect path invisible, and render the circle path separately.
+            write!(content_buffer, r#"<path d="{path_d}" class="wrapper"#).unwrap();
+            if let Some(wrapper_tw) = svg_node_info.wrapper_tailwind_classes.as_ref() {
+                write!(content_buffer, " {wrapper_tw}").unwrap();
+            }
+            write!(content_buffer, r#"" />"#).unwrap();
+
+            // Add circle path element if present
+            if let Some(ref circle) = svg_node_info.circle {
+                let circle_path_d = &circle.path_d;
+                write!(content_buffer, r#"<path d="{circle_path_d}" />"#).unwrap();
+            }
 
             // Add text elements for highlighted spans
             svg_node_info.text_spans.iter().for_each(|span| {

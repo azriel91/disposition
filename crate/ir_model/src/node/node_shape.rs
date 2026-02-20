@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::node::NodeShapeRect;
+use crate::node::{NodeShapeCircle, NodeShapeRect};
 
 /// The shape of a node in the diagram.
 ///
@@ -24,6 +24,7 @@ use crate::node::NodeShapeRect;
 ///       radius_top_right: 8.0
 ///       radius_bottom_left: 8.0
 ///       radius_bottom_right: 8.0
+///
 ///   # Leaf node with no corner radius
 ///   t_aws_iam_ecs_policy:
 ///     rect:
@@ -31,6 +32,11 @@ use crate::node::NodeShapeRect;
 ///       radius_top_right: 0.0
 ///       radius_bottom_left: 0.0
 ///       radius_bottom_right: 0.0
+///
+///   # Circle node with default radius
+///   proc_app_deploy_step_repo_clone:
+///     circle:
+///       radius: 1.0
 /// ```
 #[cfg_attr(
     all(feature = "openapi", not(feature = "test")),
@@ -41,6 +47,8 @@ use crate::node::NodeShapeRect;
 pub enum NodeShape {
     /// Rectangular shape with optional corner radii.
     Rect(NodeShapeRect),
+    /// Circular shape with a radius.
+    Circle(NodeShapeCircle),
 }
 
 impl Default for NodeShape {
@@ -52,5 +60,11 @@ impl Default for NodeShape {
 impl From<NodeShapeRect> for NodeShape {
     fn from(rect: NodeShapeRect) -> Self {
         NodeShape::Rect(rect)
+    }
+}
+
+impl From<NodeShapeCircle> for NodeShape {
+    fn from(circle: NodeShapeCircle) -> Self {
+        NodeShape::Circle(circle)
     }
 }

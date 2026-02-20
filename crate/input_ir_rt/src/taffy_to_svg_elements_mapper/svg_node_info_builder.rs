@@ -1,10 +1,10 @@
 use disposition_ir_model::{node::NodeId, IrDiagram};
 use disposition_model_common::{entity::EntityType, Map};
-use disposition_svg_model::{SvgNodeInfo, SvgProcessInfo, SvgTextSpan};
-use disposition_taffy_model::NodeContext;
+use disposition_svg_model::{SvgNodeInfo, SvgNodeInfoCircle, SvgProcessInfo, SvgTextSpan};
+use disposition_taffy_model::{NodeContext, NodeToTaffyNodeIds};
 use taffy::TaffyTree;
 
-use disposition_ir_model::entity::EntityTailwindClasses;
+use disposition_ir_model::{entity::EntityTailwindClasses, node::NodeShape};
 
 use super::{
     svg_node_build_context::SvgNodeInfoBuildContext, SvgNodeRectPathBuilder,
@@ -19,8 +19,7 @@ impl SvgNodeInfoBuilder {
     /// Returns the [`SvgNodeInfo`] for the given IR node.
     pub(super) fn build<'ctx, 'id>(
         svg_node_info_build_context: SvgNodeInfoBuildContext<'ctx, 'id>,
-        taffy_node_id: taffy::NodeId,
-        taffy_node_layout: &taffy::Layout,
+        taffy_node_ids: NodeToTaffyNodeIds,
         entity_tailwind_classes: &mut EntityTailwindClasses<'id>,
         node_id: &NodeId<'id>,
         tab_index: u32,
@@ -40,15 +39,23 @@ impl SvgNodeInfoBuilder {
             .map(|types| types.contains(&EntityType::ProcessDefault))
             .unwrap_or(false);
 
-        let (x, y) =
-            Self::node_absolute_xy_coordinates(taffy_tree, taffy_node_id, taffy_node_layout);
+        let wrapper_taffy_node_id = taffy_node_ids.wrapper_taffy_node_id();
+        let wrapper_taffy_node_layout = taffy_tree
+            .layout(wrapper_taffy_node_id)
+            .unwrap_or_else(|e| panic!("Expected taffy layout to exist for {node_id}. Error: {e}"));
+
+        let (x, y) = Self::node_absolute_xy_coordinates(
+            taffy_tree,
+            wrapper_taffy_node_id,
+            wrapper_taffy_node_layout,
+        );
         let process_id = Self::find_process_id(node_id, ir_diagram, svg_process_infos);
 
-        let width = taffy_node_layout.size.width;
-        let height_expanded = taffy_node_layout
+        let width = wrapper_taffy_node_layout.size.width;
+        let height_expanded = wrapper_taffy_node_layout
             .size
             .height
-            .min(taffy_node_layout.content_size.height);
+            .min(wrapper_taffy_node_layout.content_size.height);
         let height_collapsed = {
             let mut node_height = height_expanded;
 
@@ -99,17 +106,64 @@ impl SvgNodeInfoBuilder {
             })
             .unwrap_or_default();
 
-        SvgNodeInfo::new(
-            node_id.clone(),
-            tab_index,
-            x,
-            y,
-            width,
-            height_collapsed,
-            path_d_collapsed,
-            process_id,
-            text_spans,
-        )
+        // Check if this node has a circle shape and compute circle info
+        let circle_info = match node_shape {
+            NodeShape::Circle(circle_shape) => {
+                let radius = circle_shape.radius();
+
+                // Look up the taffy node IDs for this node to find the circle taffy node
+                let (circle_abs_x, circle_abs_y) = {
+                    let circle_taffy_node_id = taffy_node_ids.circle_taffy_node_id().unwrap_or_else(|| panic!("Expected `circle_taffy_node_id` to exist for {node_id} as it has a `NodeShape::Circle`."));
+
+                    let circle_taffy_node_layout =
+                        taffy_tree.layout(circle_taffy_node_id).unwrap_or_else(|e| {
+                            panic!("Expected layout to exist for {node_id}. Error: {e}");
+                        });
+
+                    Self::node_absolute_xy_coordinates(
+                        taffy_tree,
+                        circle_taffy_node_id,
+                        circle_taffy_node_layout,
+                    )
+                };
+
+                // Circle center relative to the node's position
+                let cx = circle_abs_x - x + radius;
+                let cy = circle_abs_y - y + radius;
+
+                let path_d = SvgNodeInfoCircle::build_path_d(cx, cy, radius);
+
+                Some(SvgNodeInfoCircle::new(path_d, cx, cy, radius))
+            }
+            NodeShape::Rect(_node_shape_rect) => None,
+        };
+
+        if let Some(circle) = circle_info {
+            SvgNodeInfo::with_circle(
+                node_id.clone(),
+                tab_index,
+                x,
+                y,
+                width,
+                height_collapsed,
+                path_d_collapsed,
+                process_id,
+                text_spans,
+                circle,
+            )
+        } else {
+            SvgNodeInfo::new(
+                node_id.clone(),
+                tab_index,
+                x,
+                y,
+                width,
+                height_collapsed,
+                path_d_collapsed,
+                process_id,
+                text_spans,
+            )
+        }
     }
 
     /// Calculates the absolute x and y coordinates of a node.

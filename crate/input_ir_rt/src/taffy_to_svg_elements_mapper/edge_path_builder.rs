@@ -4,6 +4,24 @@ use kurbo::{BezPath, Point};
 
 use super::edge_model::{EdgeType, NodeFace};
 
+/// Represents the connection geometry for an edge endpoint on a node.
+/// Either the standard rectangular face, or a circle perimeter point.
+#[derive(Clone, Copy, Debug)]
+enum NodeEdgeGeometry {
+    /// Standard rectangular face connection.
+    Rect,
+    /// Circle connection: the edge should connect to the perimeter of the
+    /// circle at the point closest to the other endpoint.
+    Circle {
+        /// Absolute x of the circle center.
+        cx: f32,
+        /// Absolute y of the circle center.
+        cy: f32,
+        /// Radius of the circle.
+        radius: f32,
+    },
+}
+
 // Constants for edge layout
 
 /// Percentage of the node's width to offset the edge's x coordinate
@@ -44,6 +62,10 @@ impl EdgePathBuilder {
                 SELF_LOOP_X_EXTENSION_RATIO,
             );
         }
+
+        // Determine circle geometry for from/to nodes
+        let from_geom = Self::node_edge_geometry(from_info);
+        let to_geom = Self::node_edge_geometry(to_info);
 
         // Determine which faces to use based on relative positions
         let (from_face, to_face) = Self::select_edge_faces(from_info, to_info);
@@ -89,6 +111,19 @@ impl EdgePathBuilder {
             }
         }
 
+        // If either node has a circle, snap the connection point to the circle
+        // perimeter instead of the rectangular face center.
+        if let NodeEdgeGeometry::Circle { cx, cy, radius } = from_geom {
+            let (sx, sy) = Self::circle_perimeter_point(cx, cy, radius, end_x, end_y);
+            start_x = sx;
+            start_y = sy;
+        }
+        if let NodeEdgeGeometry::Circle { cx, cy, radius } = to_geom {
+            let (ex, ey) = Self::circle_perimeter_point(cx, cy, radius, start_x, start_y);
+            end_x = ex;
+            end_y = ey;
+        }
+
         // Build curved path
         Self::build_curved_edge_path(
             start_x,
@@ -99,6 +134,48 @@ impl EdgePathBuilder {
             to_face,
             CURVE_CONTROL_RATIO,
         )
+    }
+
+    /// Returns the edge connection geometry for a node.
+    ///
+    /// If the node has a circle, returns `NodeEdgeGeometry::Circle` with
+    /// the circle's absolute center and radius. Otherwise returns
+    /// `NodeEdgeGeometry::Rect`.
+    fn node_edge_geometry(node_info: &SvgNodeInfo) -> NodeEdgeGeometry {
+        if let Some(ref circle) = node_info.circle {
+            NodeEdgeGeometry::Circle {
+                cx: node_info.x + circle.cx,
+                cy: node_info.y + circle.cy,
+                radius: circle.radius,
+            }
+        } else {
+            NodeEdgeGeometry::Rect
+        }
+    }
+
+    /// Returns the point on a circle's perimeter closest to a target point.
+    ///
+    /// Given a circle at `(cx, cy)` with `radius`, computes the point on
+    /// its perimeter that lies on the line from the center to
+    /// `(target_x, target_y)`.
+    fn circle_perimeter_point(
+        cx: f32,
+        cy: f32,
+        radius: f32,
+        target_x: f32,
+        target_y: f32,
+    ) -> (f32, f32) {
+        let dx = target_x - cx;
+        let dy = target_y - cy;
+        let dist = (dx * dx + dy * dy).sqrt();
+
+        if dist < f32::EPSILON {
+            // Target is at the center; default to rightward
+            (cx + radius, cy)
+        } else {
+            let ratio = radius / dist;
+            (cx + dx * ratio, cy + dy * ratio)
+        }
     }
 
     /// Builds a self-loop path that goes from the bottom of a node, extends

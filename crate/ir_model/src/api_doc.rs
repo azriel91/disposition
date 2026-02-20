@@ -26,6 +26,9 @@ use utoipa::OpenApi;
         crate::edge::Edge,
         crate::edge::EdgeGroup,
         crate::edge::EdgeGroups,
+        crate::node::NodeShape,
+        crate::node::NodeShapeCircle,
+        crate::node::NodeShapeRect,
         // Layout types
         crate::layout::FlexDirection,
         crate::layout::FlexLayout,

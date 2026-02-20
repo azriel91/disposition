@@ -13,6 +13,16 @@ theme_default:
   #
   # i.e. a `StyleAlias` enum, with a final variant of `Custom(String)`.
   style_aliases:
+    circle_xs:
+      circle_radius: "2.0"
+    circle_sm:
+      circle_radius: "4.0"
+    circle_md:
+      circle_radius: "8.0"
+    circle_lg:
+      circle_radius: "12.0"
+    circle_xl:
+      circle_radius: "16.0"
     padding_none:
       padding: "0.0"
       gap: "0.0"
@@ -170,7 +180,7 @@ theme_types_styles:
       stroke_width: "2"
   type_process_step_default:
     node_defaults:
-      style_aliases_applied: [rounded_sm, shade_medium]
+      style_aliases_applied: [circle_lg, rounded_sm, shade_medium]
       stroke_style: "solid"
       shape_color: "sky"
       stroke_width: "2"

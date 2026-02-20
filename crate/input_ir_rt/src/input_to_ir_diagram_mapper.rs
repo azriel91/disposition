@@ -23,7 +23,7 @@ use disposition_ir_model::{
     layout::{FlexDirection, FlexLayout, NodeLayout, NodeLayouts},
     node::{
         NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering, NodeShape,
-        NodeShapeRect, NodeShapes,
+        NodeShapeCircle, NodeShapeRect, NodeShapes,
     },
     process::ProcessStepEntities,
     IrDiagram,
@@ -1047,28 +1047,102 @@ impl InputToIrDiagramMapper {
             .iter()
             .map(|(node_id, _name)| {
                 let id: Id<'id> = node_id.as_ref().clone();
-                let (radius_top_left, radius_top_right, radius_bottom_left, radius_bottom_right) =
-                    Self::resolve_radius(
+
+                // First, check if this node has a circle radius configured.
+                let circle_radius = Self::resolve_circle_radius(
+                    Some(&id),
+                    entity_types,
+                    theme_default,
+                    theme_types_styles,
+                );
+
+                let shape = if let Some(radius) = circle_radius {
+                    NodeShape::Circle(NodeShapeCircle::with_radius(radius))
+                } else {
+                    let (
+                        radius_top_left,
+                        radius_top_right,
+                        radius_bottom_left,
+                        radius_bottom_right,
+                    ) = Self::resolve_rect_radius(
                         Some(&id),
                         entity_types,
                         theme_default,
                         theme_types_styles,
                     );
 
-                let shape = NodeShape::Rect(NodeShapeRect {
-                    radius_top_left,
-                    radius_top_right,
-                    radius_bottom_left,
-                    radius_bottom_right,
-                });
+                    NodeShape::Rect(NodeShapeRect {
+                        radius_top_left,
+                        radius_top_right,
+                        radius_bottom_left,
+                        radius_bottom_right,
+                    })
+                };
 
                 (node_id.clone(), shape)
             })
             .collect()
     }
 
+    /// Resolve the circle radius for a node from the theme.
+    ///
+    /// Returns `Some(radius)` if a `ThemeAttr::CircleRadius` is configured
+    /// for this node, or `None` if the node should use a rectangular shape.
+    fn resolve_circle_radius<'id>(
+        node_id: Option<&Id<'id>>,
+        entity_types: &EntityTypes<'id>,
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+    ) -> Option<f32> {
+        let mut state: Option<f32> = None;
+
+        if let Some(id) = node_id {
+            Self::resolve_theme_attr(
+                id,
+                entity_types,
+                theme_default,
+                theme_types_styles,
+                &mut state,
+                Self::apply_circle_radius_from_partials,
+                |state| *state,
+            )
+        } else {
+            None
+        }
+    }
+
+    /// Apply circle radius from `CssClassPartials`, checking both direct
+    /// attributes and style aliases.
+    fn apply_circle_radius_from_partials<'id>(
+        partials: &CssClassPartials<'id>,
+        style_aliases: &StyleAliases<'id>,
+        state: &mut Option<f32>,
+    ) {
+        // First, check style_aliases_applied (lower priority within this partials)
+        partials
+            .style_aliases_applied()
+            .iter()
+            .filter_map(|alias| style_aliases.get(alias))
+            .for_each(|alias_partials| Self::extract_circle_radius_from_map(alias_partials, state));
+
+        // Then, check direct attributes (higher priority within this partials)
+        Self::extract_circle_radius_from_map(partials, state);
+    }
+
+    /// Extract circle radius value from a map of `ThemeAttr` to `String`.
+    fn extract_circle_radius_from_map<'id>(
+        partials: &CssClassPartials<'id>,
+        state: &mut Option<f32>,
+    ) {
+        if let Some(value) = partials.get(&ThemeAttr::CircleRadius)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            *state = Some(v);
+        }
+    }
+
     /// Resolve corner radius values for a node from the theme.
-    fn resolve_radius<'id>(
+    fn resolve_rect_radius<'id>(
         node_id: Option<&Id<'id>>,
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,

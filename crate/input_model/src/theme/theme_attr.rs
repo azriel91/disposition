@@ -350,6 +350,11 @@ pub enum ThemeAttr {
     ///
     /// [cursor style]: https://tailwindcss.com/docs/cursor
     Cursor,
+    /// Radius for a circle node shape, e.g. `"6.0"`.
+    ///
+    /// When present, the node will be rendered as a circle with the given
+    /// radius instead of a rectangle.
+    CircleRadius,
     /// Extra classes to attach as is.
     Extra,
     /// Colour for element background/arrow head for all states, e.g. `"slate"`.
