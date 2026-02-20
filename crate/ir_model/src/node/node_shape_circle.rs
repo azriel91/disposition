@@ -69,7 +69,9 @@ impl NodeShapeCircle {
 
 impl Default for NodeShapeCircle {
     fn default() -> Self {
-        Self { radius: radius_default() }
+        Self {
+            radius: radius_default(),
+        }
     }
 }
 
