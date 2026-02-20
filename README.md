@@ -28,7 +28,7 @@ SVG diagram generator.
 * [x] Edges between nodes.
 * [x] Edge animations representing requests/responses.
 * [x] Arrows on edges.
-* [ ] Circle as node shape.
+* [x] Circle as node shape.
 * [ ] Dependencies between process steps.
 * [ ] Tooltips.
 * [ ] Images in nodes.
