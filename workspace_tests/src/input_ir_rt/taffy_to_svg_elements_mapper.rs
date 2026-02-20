@@ -78,7 +78,7 @@ fn test_example_ir_mapping_to_svg_elements() -> Result<(), TaffyError> {
                 panic!("Expected tailwind classes for process node 'proc_app_dev'");
             };
             assert!(proc_app_dev_tailwind_classes.contains("translate-x-"), "Expected process node to have 'translate-x-' tailwind class");
-            assert!(proc_app_dev_tailwind_classes.contains("[&>path]:[d:path('"), "Expected process node to have '[&>path]:[d:path('] tailwind class");
+            assert!(proc_app_dev_tailwind_classes.contains("[&>path.wrapper]:[d:path('"), "Expected process node to have '[&>path.wrapper]:[d:path('] tailwind class");
 
             eprintln!(
                 "\n------------------------\nSvgElements:\n  svg_width: {}\n  svg_height: {}\n  node_count: {}\n  process_info_count: {}\n-----------------------\n",

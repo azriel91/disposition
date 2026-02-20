@@ -1748,17 +1748,11 @@ node_shapes:
       radius_bottom_left: 4.0
       radius_bottom_right: 4.0
   proc_app_dev_step_repository_clone:
-    rect:
-      radius_top_left: 4.0
-      radius_top_right: 4.0
-      radius_bottom_left: 4.0
-      radius_bottom_right: 4.0
+    circle:
+      radius: 12.0
   proc_app_dev_step_project_build:
-    rect:
-      radius_top_left: 4.0
-      radius_top_right: 4.0
-      radius_bottom_left: 4.0
-      radius_bottom_right: 4.0
+    circle:
+      radius: 12.0
   proc_app_release:
     rect:
       radius_top_left: 4.0
@@ -1766,35 +1760,20 @@ node_shapes:
       radius_bottom_left: 4.0
       radius_bottom_right: 4.0
   proc_app_release_step_crate_version_update:
-    rect:
-      radius_top_left: 4.0
-      radius_top_right: 4.0
-      radius_bottom_left: 4.0
-      radius_bottom_right: 4.0
+    circle:
+      radius: 12.0
   proc_app_release_step_pull_request_open:
-    rect:
-      radius_top_left: 4.0
-      radius_top_right: 4.0
-      radius_bottom_left: 4.0
-      radius_bottom_right: 4.0
+    circle:
+      radius: 12.0
   proc_app_release_step_tag_and_push:
-    rect:
-      radius_top_left: 4.0
-      radius_top_right: 4.0
-      radius_bottom_left: 4.0
-      radius_bottom_right: 4.0
+    circle:
+      radius: 12.0
   proc_app_release_step_gh_actions_build:
-    rect:
-      radius_top_left: 4.0
-      radius_top_right: 4.0
-      radius_bottom_left: 4.0
-      radius_bottom_right: 4.0
+    circle:
+      radius: 12.0
   proc_app_release_step_gh_actions_publish:
-    rect:
-      radius_top_left: 4.0
-      radius_top_right: 4.0
-      radius_bottom_left: 4.0
-      radius_bottom_right: 4.0
+    circle:
+      radius: 12.0
   proc_i12e_region_tier_app_deploy:
     rect:
       radius_top_left: 4.0
@@ -1802,11 +1781,8 @@ node_shapes:
       radius_bottom_left: 4.0
       radius_bottom_right: 4.0
   proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:
-    rect:
-      radius_top_left: 4.0
-      radius_top_right: 4.0
-      radius_bottom_left: 4.0
-      radius_bottom_right: 4.0
+    circle:
+      radius: 12.0
 
 # Map from process step node IDs to the entity IDs they interact with.
 process_step_entities:
