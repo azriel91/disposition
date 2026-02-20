@@ -258,6 +258,32 @@ impl IrToTaffyBuilder<'_> {
                         (layout, node_context)
                     }
                 };
+                let text_label_offset = match taffy_node_ids {
+                    NodeToTaffyNodeIds::Leaf { .. } | NodeToTaffyNodeIds::Wrapper { .. } => 0.0f32,
+                    NodeToTaffyNodeIds::LeafWithCircle {
+                        wrapper_node_id: _,
+                        circle_node_id,
+                        text_node_id: _,
+                    }
+                    | NodeToTaffyNodeIds::WrapperCircle {
+                        wrapper_node_id: _,
+                        label_wrapper_node_id: _,
+                        circle_node_id,
+                        text_node_id: _,
+                    } => taffy_tree
+                        .layout(circle_node_id)
+                        .map(|circle_node_layout| {
+                            // This could be:
+                            //
+                            // ```rust
+                            // circle_node_layout.size.width + gap
+                            // ```
+                            //
+                            // but we don't have the gap value
+                            layout.location.x - circle_node_layout.location.x
+                        })
+                        .unwrap_or_default(),
+                };
 
                 let entity_id = &node_context.entity_id;
 
@@ -297,7 +323,7 @@ impl IrToTaffyBuilder<'_> {
                 //
                 // The half a character width (at each end) is added to the node's width in
                 // `line_width_measure`.
-                let text_leftmost_x = padding_left + 0.5 * char_width;
+                let text_leftmost_x = text_label_offset + padding_left + 0.5 * char_width;
 
                 let highlighted_spans: Vec<EntityHighlightedSpan> = {
                     wrapped_lines
