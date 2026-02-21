@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.0.3"
+version = "0.0.4"
 authors = ["Azriel Hoh <azriel91@gmail.com>"]
 edition = "2024"
 homepage = "https://azriel.im/disposition"
@@ -66,14 +66,14 @@ test = [
 
 [workspace.dependencies]
 # disposition crates
-disposition = { path = ".", version = "0.0.3" }
-disposition_input_ir_model = { path = "crate/input_ir_model", version = "0.0.3" }
-disposition_input_ir_rt = { path = "crate/input_ir_rt", version = "0.0.3" }
-disposition_input_model = { path = "crate/input_model", version = "0.0.3" }
-disposition_ir_model = { path = "crate/ir_model", version = "0.0.3" }
-disposition_model_common = { path = "crate/model_common", version = "0.0.3" }
-disposition_svg_model = { path = "crate/svg_model", version = "0.0.3" }
-disposition_taffy_model = { path = "crate/taffy_model", version = "0.0.3" }
+disposition = { path = ".", version = "0.0.4" }
+disposition_input_ir_model = { path = "crate/input_ir_model", version = "0.0.4" }
+disposition_input_ir_rt = { path = "crate/input_ir_rt", version = "0.0.4" }
+disposition_input_model = { path = "crate/input_model", version = "0.0.4" }
+disposition_ir_model = { path = "crate/ir_model", version = "0.0.4" }
+disposition_model_common = { path = "crate/model_common", version = "0.0.4" }
+disposition_svg_model = { path = "crate/svg_model", version = "0.0.4" }
+disposition_taffy_model = { path = "crate/taffy_model", version = "0.0.4" }
 
 # external crates
 base64 = "0.22.1"

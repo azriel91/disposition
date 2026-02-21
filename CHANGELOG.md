@@ -1,6 +1,6 @@
 # Changelog
 
-## unreleased
+## 0.0.4 (2026-02-22)
 
 * Support `InputDiagram` merging. ([#10][#10])
 * Add edges to diagram. ([#11][#11])
