@@ -24,7 +24,7 @@ pub fn Navbar() -> Element {
             ",
             Link {
                 class: "font-bold",
-                to: Route::Home {},
+                to: Route::Home { url_hash: String::new() },
                 "📐 disposition"
             }
             Link {

@@ -1,6 +1,6 @@
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Props},
-    signals::{Signal, WritableExt},
+    signals::{ReadableExt, Signal, WritableExt},
 };
 
 #[component]
@@ -38,7 +38,8 @@ pub fn InputDiagramDiv(input_diagram_string: Signal<String>) -> Element {
                     p-2
                     font-mono
                     text-nowrap
-                "
+                ",
+                value: input_diagram_string.read().as_str(),
             }
         }
     }

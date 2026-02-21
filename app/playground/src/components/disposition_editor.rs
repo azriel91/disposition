@@ -6,7 +6,8 @@ use std::{
 use dioxus::{
     hooks::{use_memo, use_signal},
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Props},
-    signals::{Memo, ReadableExt, ReadableVecExt, Signal},
+    router::navigator,
+    signals::{Memo, ReadSignal, ReadableExt, ReadableVecExt, Signal, WritableExt},
 };
 use disposition::{
     input_ir_model::IrDiagramAndIssues,
@@ -32,12 +33,33 @@ use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
 use web_time::Instant;
 
-use crate::components::{InputDiagramDiv, IrDiagramDiv, SvgElementsDiv, TaffyNodeMappingsDiv};
+use crate::{
+    components::{InputDiagramDiv, IrDiagramDiv, SvgElementsDiv, TaffyNodeMappingsDiv},
+    route::Route,
+};
 
 #[component]
 #[allow(clippy::type_complexity)] // Maybe reduce complexity for `Memo<_>` types when we refactor this.
-pub fn DispositionEditor() -> Element {
-    let input_diagram_string = use_signal(|| String::from(""));
+pub fn DispositionEditor(url_hash: ReadSignal<String>) -> Element {
+    let mut input_diagram_string = use_signal(&*url_hash);
+
+    // Change the `input_diagram_string` signal when the url hash changes
+    use_memo(move || {
+        let url_hash = &*url_hash.read();
+        if *input_diagram_string.peek() != url_hash.as_str() {
+            input_diagram_string.set(url_hash.clone());
+        }
+    });
+
+    // Change the url hash when the `input_diagram_string` changes
+    use_memo(move || {
+        let input_diagram_string = &*input_diagram_string.read();
+        if input_diagram_string != url_hash.peek().as_str() {
+            navigator().replace(Route::Home {
+                url_hash: input_diagram_string.clone(),
+            });
+        }
+    });
 
     // Parse input diagram string into InputDiagram
     let input_diagram: Memo<Result<InputDiagram<'static>, Vec<String>>> = use_memo(move || {
