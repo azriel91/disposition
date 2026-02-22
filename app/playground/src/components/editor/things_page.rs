@@ -11,7 +11,12 @@ use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
-use disposition::input_model::{thing::ThingHierarchy, InputDiagram};
+use disposition::input_model::{
+    edge::EdgeKind,
+    theme::{IdOrDefaults, ThemeStyles},
+    thing::ThingHierarchy,
+    InputDiagram,
+};
 
 use super::datalists::list_ids;
 
@@ -453,7 +458,7 @@ fn rename_thing(
         theme_types_styles,
         theme_thing_dependencies_styles,
         theme_tag_things_focus,
-        css,
+        css: _,
     } = &mut *input_diagram;
     if let Ok(thing_id_old) = Id::new(thing_id_old)
         .map(Id::into_static)
@@ -478,6 +483,108 @@ fn rename_thing(
             let _thing_hierarchy_replace_result =
                 thing_hierarchy_with_id.replace_index(thing_index, thing_id_new.clone());
         }
+
+        // thing_dependencies: rename ThingIds inside EdgeKind values.
+        thing_dependencies.values_mut().for_each(|edge_kind| {
+            rename_thing_in_edge_kind(edge_kind, &thing_id_old, &thing_id_new);
+        });
+
+        // thing_interactions: same structure as thing_dependencies.
+        thing_interactions.values_mut().for_each(|edge_kind| {
+            rename_thing_in_edge_kind(edge_kind, &thing_id_old, &thing_id_new);
+        });
+
+        // processes: ProcessDiagram fields do not contain ThingId — skip.
+        let _ = processes;
+
+        // tags: TagNames keys are TagId, not ThingId — skip.
+        let _ = tags;
+
+        // tag_things: rename ThingIds in each Set<ThingId> value.
+        tag_things.values_mut().for_each(|thing_ids| {
+            if let Some(index) = thing_ids.get_index_of(&thing_id_old) {
+                let _result = thing_ids.replace_index(index, thing_id_new.clone());
+            }
+        });
+
+        // entity_descs / entity_tooltips / entity_types: keys are Id, which
+        // may refer to a ThingId.
+        let id_old = thing_id_old.clone().into_inner();
+        let id_new = thing_id_new.clone().into_inner();
+        if let Some(index) = entity_descs.get_index_of(&id_old) {
+            let _result = entity_descs.replace_index(index, id_new.clone());
+        }
+        if let Some(index) = entity_tooltips.get_index_of(&id_old) {
+            let _result = entity_tooltips.replace_index(index, id_new.clone());
+        }
+        if let Some(index) = entity_types.get_index_of(&id_old) {
+            let _result = entity_types.replace_index(index, id_new.clone());
+        }
+
+        // theme_default: rename in base_styles and process_step_selected_styles.
+        rename_thing_in_theme_styles(&mut theme_default.base_styles, &thing_id_old, &thing_id_new);
+        rename_thing_in_theme_styles(
+            &mut theme_default.process_step_selected_styles,
+            &thing_id_old,
+            &thing_id_new,
+        );
+
+        // theme_types_styles: rename in each ThemeStyles value.
+        theme_types_styles.values_mut().for_each(|theme_styles| {
+            rename_thing_in_theme_styles(theme_styles, &thing_id_old, &thing_id_new);
+        });
+
+        // theme_thing_dependencies_styles: rename in both ThemeStyles fields.
+        rename_thing_in_theme_styles(
+            &mut theme_thing_dependencies_styles.things_included_styles,
+            &thing_id_old,
+            &thing_id_new,
+        );
+        rename_thing_in_theme_styles(
+            &mut theme_thing_dependencies_styles.things_excluded_styles,
+            &thing_id_old,
+            &thing_id_new,
+        );
+
+        // theme_tag_things_focus: rename in each ThemeStyles value.
+        theme_tag_things_focus
+            .values_mut()
+            .for_each(|theme_styles| {
+                rename_thing_in_theme_styles(theme_styles, &thing_id_old, &thing_id_new);
+            });
+    }
+}
+
+/// Replaces occurrences of `thing_id_old` with `thing_id_new` inside an
+/// [`EdgeKind`] (which wraps a `Vec<ThingId>`).
+fn rename_thing_in_edge_kind(
+    edge_kind: &mut EdgeKind<'static>,
+    thing_id_old: &ThingId<'static>,
+    thing_id_new: &ThingId<'static>,
+) {
+    let things = match edge_kind {
+        EdgeKind::Cyclic(things) | EdgeKind::Sequence(things) | EdgeKind::Symmetric(things) => {
+            things
+        }
+    };
+    things.iter_mut().for_each(|thing_id| {
+        if thing_id == thing_id_old {
+            *thing_id = thing_id_new.clone();
+        }
+    });
+}
+
+/// Replaces an [`IdOrDefaults::Id`] key that matches `thing_id_old` with
+/// `thing_id_new` inside a [`ThemeStyles`] map.
+fn rename_thing_in_theme_styles(
+    theme_styles: &mut ThemeStyles<'static>,
+    thing_id_old: &ThingId<'static>,
+    thing_id_new: &ThingId<'static>,
+) {
+    let key_old = IdOrDefaults::Id(thing_id_old.clone().into_inner());
+    if let Some(index) = theme_styles.get_index_of(&key_old) {
+        let key_new = IdOrDefaults::Id(thing_id_new.clone().into_inner());
+        let _result = theme_styles.replace_index(index, key_new);
     }
 }
 
