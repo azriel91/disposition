@@ -1,4 +1,4 @@
-use crate::Route;
+use crate::{editor_state::EditorState, Route};
 use dioxus::prelude::{
     component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Link, Outlet,
 };
@@ -24,7 +24,7 @@ pub fn Navbar() -> Element {
             ",
             Link {
                 class: "font-bold",
-                to: Route::Home { url_hash: String::new() },
+                to: Route::Home { editor_state: EditorState::default() },
                 "📐 disposition"
             }
             Link {

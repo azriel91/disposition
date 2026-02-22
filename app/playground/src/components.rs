@@ -6,7 +6,6 @@
 
 pub use self::{
     disposition_editor::DispositionEditor,
-    input_diagram_div::InputDiagramDiv,
     ir_diagram_div::IrDiagramDiv,
     svg_elements_div::SvgElementsDiv,
     tab_group::{TabDetails, TabGroup},
@@ -14,6 +13,7 @@ pub use self::{
 };
 
 mod disposition_editor;
+pub mod editor;
 mod input_diagram_div;
 mod ir_diagram_div;
 mod svg_elements_div;

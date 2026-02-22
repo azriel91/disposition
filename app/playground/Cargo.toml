@@ -17,6 +17,7 @@ license.workspace = true
 dioxus = { workspace = true, features = ["router"] }
 disposition = { workspace = true }
 disposition_input_ir_rt = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 serde-saphyr = { workspace = true }
 urlencoding = { workspace = true }
 

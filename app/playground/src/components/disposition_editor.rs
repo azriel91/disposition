@@ -35,97 +35,131 @@ use web_time::Instant;
 
 use crate::{
     components::{
-        InputDiagramDiv, IrDiagramDiv, SvgElementsDiv, TabDetails, TabGroup, TaffyNodeMappingsDiv,
+        editor::{
+            EditorDataLists, ProcessesPage, TagsPage, TextPage, ThemeBaseStylesPage,
+            ThemeDependenciesStylesPage, ThemeProcessStepStylesPage, ThemeStyleAliasesPage,
+            ThemeTagsFocusPage, ThemeTypesStylesPage, ThingDependenciesPage, ThingInteractionsPage,
+            ThingsPage,
+        },
+        IrDiagramDiv, SvgElementsDiv, TabDetails, TabGroup, TaffyNodeMappingsDiv,
     },
+    editor_state::{EditorPage, EditorPageOrGroup, EditorState},
     route::Route,
 };
 
+/// CSS classes for top-level editor page tabs.
+const TAB_CLASS: &str = "\
+    cursor-pointer \
+    select-none \
+    px-3 py-1.5 \
+    text-sm \
+    font-semibold \
+    rounded-t \
+    transition-colors \
+    duration-150\
+";
+
+const TAB_ACTIVE: &str = "text-blue-400 border-b-2 border-blue-400";
+const TAB_INACTIVE: &str = "text-gray-400 hover:text-gray-200";
+
+/// CSS classes for theme sub-tabs (smaller, nested).
+const SUB_TAB_CLASS: &str = "\
+    cursor-pointer \
+    select-none \
+    px-2 py-1 \
+    text-xs \
+    font-semibold \
+    rounded-t \
+    transition-colors \
+    duration-150\
+";
+
 #[component]
-#[allow(clippy::type_complexity)] // Maybe reduce complexity for `Memo<_>` types when we refactor this.
-pub fn DispositionEditor(url_hash: ReadSignal<String>) -> Element {
-    let mut input_diagram_string = use_signal(&*url_hash);
+#[allow(clippy::type_complexity)]
+pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
+    // ── Signals ──────────────────────────────────────────────────────────
 
-    // Change the `input_diagram_string` signal when the url hash changes
+    // The InputDiagram being edited, as a read-write signal.
+    let mut input_diagram: Signal<InputDiagram<'static>> =
+        use_signal(|| editor_state.read().input_diagram.clone());
+
+    // The active editor page.
+    let mut active_page: Signal<EditorPage> = use_signal(|| editor_state.read().page.clone());
+
+    // ── Sync: incoming EditorState prop -> local signals ──────────────────
+
     use_memo(move || {
-        let url_hash = &*url_hash.read();
-        if *input_diagram_string.peek() != url_hash.as_str() {
-            input_diagram_string.set(url_hash.clone());
+        let state = editor_state.read();
+        if *input_diagram.peek() != state.input_diagram {
+            input_diagram.set(state.input_diagram.clone());
+        }
+        if *active_page.peek() != state.page {
+            active_page.set(state.page.clone());
         }
     });
 
-    // Change the url hash when the `input_diagram_string` changes
+    // ── Sync: local signals -> URL hash (EditorState) ────────────────────
+
     use_memo(move || {
-        let input_diagram_string = &*input_diagram_string.read();
-        if input_diagram_string != url_hash.peek().as_str() {
+        let diagram = input_diagram.read().clone();
+        let page = active_page.read().clone();
+
+        let current_state = editor_state.peek().clone();
+        if current_state.input_diagram != diagram || current_state.page != page {
             navigator().replace(Route::Home {
-                url_hash: input_diagram_string.clone(),
+                editor_state: EditorState {
+                    page,
+                    input_diagram: diagram,
+                },
             });
         }
     });
 
-    // Parse input diagram string into InputDiagram
-    let input_diagram: Memo<Result<InputDiagram<'static>, Vec<String>>> = use_memo(move || {
-        let input_diagram_string = &*input_diagram_string.read();
-        if input_diagram_string.is_empty() {
-            Err(vec![String::from("ℹ️ Enter input diagram")])
-        } else {
-            let deserialize_start = Instant::now();
-            let input_diagram = serde_saphyr::from_str(input_diagram_string).map_err(|error| {
-                vec![
-                    String::from("⚠️ Error parsing input diagram"),
-                    error.to_string(),
-                ]
-            });
+    // ── InputDiagram as a Memo for read-only consumers ──────────────────
 
-            let deserialize_duration_ms =
-                Instant::now().duration_since(deserialize_start).as_millis();
-            info!("`input_diagram` deserialization took {deserialize_duration_ms} ms.");
+    let input_diagram_memo: Memo<InputDiagram<'static>> =
+        use_memo(move || input_diagram.read().clone());
 
-            input_diagram
-        }
-    });
+    // ── SVG generation pipeline (unchanged logic) ────────────────────────
 
-    // Map InputDiagram to IrDiagram
-    // Ok variant contains (diagram, warnings), Err variant contains errors
     let ir_diagram: Memo<Result<(IrDiagram<'static>, Vec<String>), Vec<String>>> =
         use_memo(move || {
-            let input_diagram = &*input_diagram.read();
-            match input_diagram {
-                Ok(input_diagram) => {
-                    let input_diagram_merge_start = Instant::now();
-                    let input_diagram_merged =
-                        InputDiagramMerger::merge(InputDiagram::base(), input_diagram);
-                    let input_diagram_merge_duration_ms = Instant::now()
-                        .duration_since(input_diagram_merge_start)
-                        .as_millis();
-                    info!("`InputDiagramMerger::merge` took {input_diagram_merge_duration_ms} ms.");
-
-                    let input_to_ir_map_start = Instant::now();
-                    let input_diagram_and_issues =
-                        InputToIrDiagramMapper::map(&input_diagram_merged);
-                    let input_to_ir_map_duration_ms = Instant::now()
-                        .duration_since(input_to_ir_map_start)
-                        .as_millis();
-                    info!("`InputToIrDiagramMapper::map` took {input_to_ir_map_duration_ms} ms.");
-                    let IrDiagramAndIssues { diagram, issues } = input_diagram_and_issues;
-
-                    let warnings = if !issues.is_empty() {
-                        let mut msgs = vec![String::from(
-                            "⚠️ Issues mapping input diagram to IR diagram",
-                        )];
-                        msgs.extend(issues.into_iter().map(|issue| issue.to_string()));
-                        msgs
-                    } else {
-                        vec![]
-                    };
-
-                    Ok((diagram, warnings))
-                }
-                Err(_) => Err(vec![]), // Previous step failed, nothing to do
+            let diagram = input_diagram.read();
+            if diagram.things.is_empty()
+                && diagram.thing_dependencies.is_empty()
+                && diagram.thing_interactions.is_empty()
+            {
+                return Err(vec![String::from("ℹ️ Add things to get started")]);
             }
+
+            let input_diagram_merge_start = Instant::now();
+            let input_diagram_merged = InputDiagramMerger::merge(InputDiagram::base(), &*diagram);
+            let input_diagram_merge_duration_ms = Instant::now()
+                .duration_since(input_diagram_merge_start)
+                .as_millis();
+            info!("`InputDiagramMerger::merge` took {input_diagram_merge_duration_ms} ms.");
+
+            let input_to_ir_map_start = Instant::now();
+            let input_diagram_and_issues = InputToIrDiagramMapper::map(&input_diagram_merged);
+            let input_to_ir_map_duration_ms = Instant::now()
+                .duration_since(input_to_ir_map_start)
+                .as_millis();
+            info!("`InputToIrDiagramMapper::map` took {input_to_ir_map_duration_ms} ms.");
+
+            let IrDiagramAndIssues { diagram, issues } = input_diagram_and_issues;
+            let warnings = if !issues.is_empty() {
+                let mut msgs = vec![String::from(
+                    "⚠️ Issues mapping input diagram to IR diagram",
+                )];
+                msgs.extend(issues.into_iter().map(|issue| issue.to_string()));
+                msgs
+            } else {
+                vec![]
+            };
+
+            Ok((diagram, warnings))
         });
 
-    // Serialize IrDiagram to string
     let ir_diagram_string: Memo<String> = use_memo(move || {
         let ir_diagram = &*ir_diagram.read();
         match ir_diagram {
@@ -140,7 +174,6 @@ pub fn DispositionEditor(url_hash: ReadSignal<String>) -> Element {
         }
     });
 
-    // Build TaffyNodeMappings from IrDiagram
     let taffy_node_mappings: Memo<Result<TaffyNodeMappings<'static>, Vec<String>>> = use_memo(
         move || {
             let ir_diagram = &*ir_diagram.read();
@@ -174,12 +207,11 @@ pub fn DispositionEditor(url_hash: ReadSignal<String>) -> Element {
                         ]),
                     }
                 }
-                Err(_) => Err(vec![]), // Previous step failed
+                Err(_) => Err(vec![]),
             }
         },
     );
 
-    // Format TaffyNodeMappings to string
     let taffy_node_mappings_string: Memo<String> = use_memo(move || {
         let taffy_node_mappings = &*taffy_node_mappings.read();
         match taffy_node_mappings {
@@ -192,7 +224,6 @@ pub fn DispositionEditor(url_hash: ReadSignal<String>) -> Element {
         }
     });
 
-    // Map to SvgElements
     let svg_elements: Memo<Result<SvgElements, Vec<String>>> = use_memo(move || {
         let ir_diagram = &*ir_diagram.read();
         let taffy_node_mappings = &*taffy_node_mappings.read();
@@ -211,11 +242,10 @@ pub fn DispositionEditor(url_hash: ReadSignal<String>) -> Element {
                 info!("`TaffyToSvgElementsMapper::map` took {svg_elements_map_duration_ms} ms.");
                 Ok(svg_elements)
             }
-            _ => Err(vec![]), // Previous steps failed
+            _ => Err(vec![]),
         }
     });
 
-    // Serialize SvgElements to string
     let svg_elements_string: Memo<String> = use_memo(move || {
         let svg_elements = &*svg_elements.read();
         match svg_elements {
@@ -230,7 +260,6 @@ pub fn DispositionEditor(url_hash: ReadSignal<String>) -> Element {
         }
     });
 
-    // Generate final SVG string
     let svg: Memo<String> = use_memo(move || {
         let svg_elements = &*svg_elements.read();
         let svg_generation_start = Instant::now();
@@ -245,35 +274,29 @@ pub fn DispositionEditor(url_hash: ReadSignal<String>) -> Element {
         svg
     });
 
-    // Collect all status messages from the processing pipeline
+    // Collect all status messages.
     let status_messages: Memo<Vec<String>> = use_memo(move || {
         let mut messages = Vec::new();
 
-        // Collect from input_diagram
-        if let Err(errors) = &*input_diagram.read() {
-            messages.extend(errors.iter().cloned());
-        }
-
-        // Collect from ir_diagram (both warnings and errors)
         match &*ir_diagram.read() {
             Ok((_, warnings)) => messages.extend(warnings.iter().cloned()),
             Err(errors) => messages.extend(errors.iter().cloned()),
         }
-
-        // Collect from taffy_node_mappings
         if let Err(errors) = &*taffy_node_mappings.read() {
             messages.extend(errors.iter().cloned());
         }
-
-        // Collect from svg_elements
         if let Err(errors) = &*svg_elements.read() {
             messages.extend(errors.iter().cloned());
         }
-
         messages
     });
 
+    // ── Render ───────────────────────────────────────────────────────────
+
     rsx! {
+        // Hidden datalist elements available to all pages.
+        EditorDataLists { input_diagram: input_diagram_memo }
+
         div {
             id: "disposition_editor",
             class: "
@@ -282,33 +305,214 @@ pub fn DispositionEditor(url_hash: ReadSignal<String>) -> Element {
                 lg:flex-row
                 gap-2
             ",
+
+            // ── Left column: editor tabs + status + intermediates ────
             div {
                 class: "
                     flex-1
                     flex
                     flex-col
                     gap-2
+                    min-w-0
                 ",
-                DispositionDataDivs {
-                    input_diagram_string,
-                    ir_diagram_string,
-                    taffy_node_mappings_string,
-                    svg_elements_string,
+
+                // ── Top-level tab bar ────────────────────────────────
+                EditorTabBar {
+                    active_page,
                 }
-                DispositionStatusMessageDiv {
-                    status_messages,
+
+                // ── Active page content ──────────────────────────────
+                div {
+                    class: "
+                        flex-1
+                        flex
+                        flex-col
+                        overflow-y-auto
+                        max-h-[70vh]
+                        pr-1
+                    ",
+                    EditorPageContent {
+                        active_page,
+                        input_diagram,
+                    }
+                }
+
+                // ── Status messages ──────────────────────────────────
+                DispositionStatusMessageDiv { status_messages }
+
+                // ── Intermediate data tabs ───────────────────────────
+                TabGroup {
+                    group_name: "intermediate_tabs",
+                    default_checked: 0usize,
+                    tabs: vec![
+                        TabDetails {
+                            label: String::from("IR Diagram"),
+                            content: rsx! { IrDiagramDiv { ir_diagram_string } },
+                        },
+                        TabDetails {
+                            label: String::from("Taffy Node Mappings"),
+                            content: rsx! { TaffyNodeMappingsDiv { taffy_node_mappings_string } },
+                        },
+                        TabDetails {
+                            label: String::from("SVG Elements"),
+                            content: rsx! { SvgElementsDiv { svg_elements_string } },
+                        },
+                    ],
                 }
             }
+
+            // ── Right column: SVG preview ────────────────────────────
             object {
                 class: "
                     flex-1
                 ",
-                type: "image/svg+xml",
+                r#type: "image/svg+xml",
                 data: format!("data:image/svg+xml,{}", urlencoding::encode(svg().as_str())),
             }
         }
     }
 }
+
+// ===========================================================================
+// Editor tab bar
+// ===========================================================================
+
+/// Renders the top-level tab bar and, when a Theme page is active, a nested
+/// sub-tab bar.
+#[component]
+fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
+    let current = active_page.read().clone();
+
+    rsx! {
+        div {
+            class: "flex flex-col",
+
+            // ── Top-level tabs ───────────────────────────────────────
+            div {
+                class: "
+                    flex
+                    flex-row
+                    flex-wrap
+                    gap-1
+                    border-b
+                    border-gray-700
+                    mb-1
+                ",
+
+                for entry in EditorPage::TOP_LEVEL.iter() {
+                    {
+                        let is_active = entry.contains(&current);
+                        let css = format!(
+                            "{TAB_CLASS} {}",
+                            if is_active { TAB_ACTIVE } else { TAB_INACTIVE }
+                        );
+                        let entry_clone = entry.clone();
+
+                        rsx! {
+                            span {
+                                key: "{entry.label()}",
+                                class: "{css}",
+                                onclick: {
+                                    let entry = entry_clone.clone();
+                                    move |_| {
+                                        match &entry {
+                                            EditorPageOrGroup::Page(p) => {
+                                                active_page.set(p.clone());
+                                            }
+                                            EditorPageOrGroup::ThemeGroup => {
+                                                // If already on a theme page, stay there;
+                                                // otherwise default to StyleAliases.
+                                                if !active_page.peek().is_theme() {
+                                                    active_page.set(EditorPage::ThemeStyleAliases);
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "{entry.label()}"
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Theme sub-tabs (only visible when a Theme page is active) ──
+            if current.is_theme() {
+                div {
+                    class: "
+                        flex
+                        flex-row
+                        flex-wrap
+                        gap-1
+                        border-b
+                        border-gray-700
+                        mb-1
+                        pl-2
+                    ",
+
+                    for sub in EditorPage::THEME_SUB_PAGES.iter() {
+                        {
+                            let is_active = current == *sub;
+                            let css = format!(
+                                "{SUB_TAB_CLASS} {}",
+                                if is_active { TAB_ACTIVE } else { TAB_INACTIVE }
+                            );
+                            let sub_clone = sub.clone();
+
+                            rsx! {
+                                span {
+                                    key: "{sub.label()}",
+                                    class: "{css}",
+                                    onclick: {
+                                        let sub_page = sub_clone.clone();
+                                        move |_| {
+                                            active_page.set(sub_page.clone());
+                                        }
+                                    },
+                                    "{sub.label()}"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ===========================================================================
+// Editor page content dispatcher
+// ===========================================================================
+
+/// Renders the content of the currently active editor page.
+#[component]
+fn EditorPageContent(
+    active_page: Signal<EditorPage>,
+    input_diagram: Signal<InputDiagram<'static>>,
+) -> Element {
+    let page = active_page.read().clone();
+
+    match page {
+        EditorPage::Things => rsx! { ThingsPage { input_diagram } },
+        EditorPage::ThingDependencies => rsx! { ThingDependenciesPage { input_diagram } },
+        EditorPage::ThingInteractions => rsx! { ThingInteractionsPage { input_diagram } },
+        EditorPage::Processes => rsx! { ProcessesPage { input_diagram } },
+        EditorPage::Tags => rsx! { TagsPage { input_diagram } },
+        EditorPage::ThemeStyleAliases => rsx! { ThemeStyleAliasesPage { input_diagram } },
+        EditorPage::ThemeBaseStyles => rsx! { ThemeBaseStylesPage { input_diagram } },
+        EditorPage::ThemeProcessStepStyles => rsx! { ThemeProcessStepStylesPage { input_diagram } },
+        EditorPage::ThemeTypesStyles => rsx! { ThemeTypesStylesPage { input_diagram } },
+        EditorPage::ThemeDependenciesStyles => {
+            rsx! { ThemeDependenciesStylesPage { input_diagram } }
+        }
+        EditorPage::ThemeTagsFocus => rsx! { ThemeTagsFocusPage { input_diagram } },
+        EditorPage::Text => rsx! { TextPage { input_diagram } },
+    }
+}
+
+// ===========================================================================
+// Taffy tree formatting (unchanged)
+// ===========================================================================
 
 /// Writes a string representation of a Taffy tree to a buffer.
 ///
@@ -373,14 +577,6 @@ fn taffy_tree_node_fmt(
         height = layout.size.height,
         content_width = layout.content_size.width,
         content_height = layout.content_size.height,
-
-        // `border: l:{bl} r:{br} t:{bt} b:{bb}`
-        //
-        // bl = layout.border.left,
-        // br = layout.border.right,
-        // bt = layout.border.top,
-        // bb = layout.border.bottom,
-
         pl = layout.padding.left,
         pr = layout.padding.right,
         pt = layout.padding.top,
@@ -406,47 +602,9 @@ fn taffy_tree_node_fmt(
         });
 }
 
-#[component]
-fn DispositionDataDivs(
-    input_diagram_string: Signal<String>,
-    ir_diagram_string: Memo<String>,
-    taffy_node_mappings_string: Memo<String>,
-    svg_elements_string: Memo<String>,
-) -> Element {
-    rsx! {
-        div {
-            id: "disposition_data_divs",
-            class: "
-                w-full
-                flex
-                flex-col
-                items-center
-                justify-center
-                [&>*]:w-full
-                lg:[&>*]:min-w-190
-            ",
-            InputDiagramDiv { input_diagram_string }
-            TabGroup {
-                group_name: "intermediate_tabs",
-                default_checked: 0usize,
-                tabs: vec![
-                    TabDetails {
-                        label: String::from("IR Diagram"),
-                        content: rsx! { IrDiagramDiv { ir_diagram_string } },
-                    },
-                    TabDetails {
-                        label: String::from("Taffy Node Mappings"),
-                        content: rsx! { TaffyNodeMappingsDiv { taffy_node_mappings_string } },
-                    },
-                    TabDetails {
-                        label: String::from("SVG Elements"),
-                        content: rsx! { SvgElementsDiv { svg_elements_string } },
-                    },
-                ],
-            }
-        }
-    }
-}
+// ===========================================================================
+// Status message components (unchanged)
+// ===========================================================================
 
 #[component]
 fn DispositionStatusMessageDiv(status_messages: Memo<Vec<String>>) -> Element {

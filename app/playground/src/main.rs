@@ -10,6 +10,7 @@ use dioxus::{
 use crate::route::Route;
 
 mod components;
+mod editor_state;
 mod route;
 mod views;
 

@@ -4,11 +4,13 @@ use dioxus::{
     signals::ReadSignal,
 };
 
+use crate::editor_state::EditorState;
+
 /// The Home page component that will be rendered when the current route is
 /// `[Route::Home]`
 #[component]
-pub fn Home(url_hash: ReadSignal<String>) -> Element {
+pub fn Home(editor_state: ReadSignal<EditorState>) -> Element {
     rsx! {
-        DispositionEditor { url_hash }
+        DispositionEditor { editor_state }
     }
 }

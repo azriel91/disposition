@@ -339,8 +339,8 @@ impl SvgElementsToSvgMapper {
     ///
     /// Only underscores that are part of an ID selector (starting with `#`) are
     /// escaped. For example:
-    /// - `group-has-[#some_id:focus]` → `group-has-[#some&#95;id:focus]`
-    /// - `peer/some-peer:animate-[animation-name_2s_linear_infinite]` →
+    /// - `group-has-[#some_id:focus]` -> `group-has-[#some&#95;id:focus]`
+    /// - `peer/some-peer:animate-[animation-name_2s_linear_infinite]` ->
     ///   unchanged
     ///
     /// # Examples
