@@ -8,13 +8,18 @@
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
     monospace;
     --color-blue-300: oklch(80.9% 0.105 251.813);
+    --color-blue-400: oklch(70.7% 0.165 254.624);
+    --color-gray-200: oklch(92.8% 0.006 264.531);
     --color-gray-300: oklch(87.2% 0.01 258.338);
+    --color-gray-400: oklch(70.7% 0.022 261.325);
+    --color-gray-700: oklch(37.3% 0.034 259.733);
     --color-gray-800: oklch(27.8% 0.033 256.848);
     --spacing: 0.25rem;
     --text-sm: 0.875rem;
     --text-sm--line-height: calc(1.25 / 0.875);
     --text-lg: 1.125rem;
     --text-lg--line-height: calc(1.75 / 1.125);
+    --font-weight-semibold: 600;
     --font-weight-bold: 700;
     --radius-lg: 0.5rem;
     --default-transition-duration: 150ms;
@@ -169,8 +174,25 @@
   }
 }
 @layer utilities {
+  .visible {
+    visibility: visible;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
   .relative {
     position: relative;
+  }
+  .static {
+    position: static;
   }
   .container {
     width: 100%;
@@ -199,6 +221,12 @@
   .flex {
     display: flex;
   }
+  .hidden {
+    display: none;
+  }
+  .table {
+    display: table;
+  }
   .min-h-50 {
     min-height: calc(var(--spacing) * 50);
   }
@@ -208,6 +236,15 @@
   .flex-1 {
     flex: 1;
   }
+  .border-collapse {
+    border-collapse: collapse;
+  }
+  .cursor-pointer {
+    cursor: pointer;
+  }
+  .resize {
+    resize: both;
+  }
   .list-inside {
     list-style-position: inside;
   }
@@ -216,6 +253,9 @@
   }
   .flex-col {
     flex-direction: column;
+  }
+  .flex-row {
+    flex-direction: row;
   }
   .items-center {
     align-items: center;
@@ -243,14 +283,34 @@
     border-style: var(--tw-border-style);
     border-width: 2px;
   }
+  .border-b {
+    border-bottom-style: var(--tw-border-style);
+    border-bottom-width: 1px;
+  }
+  .border-b-2 {
+    border-bottom-style: var(--tw-border-style);
+    border-bottom-width: 2px;
+  }
   .border-gray-300 {
     border-color: var(--color-gray-300);
+  }
+  .border-gray-700 {
+    border-color: var(--color-gray-700);
+  }
+  .border-transparent {
+    border-color: transparent;
   }
   .bg-gray-800 {
     background-color: var(--color-gray-800);
   }
   .p-2 {
     padding: calc(var(--spacing) * 2);
+  }
+  .px-4 {
+    padding-inline: calc(var(--spacing) * 4);
+  }
+  .py-2 {
+    padding-block: calc(var(--spacing) * 2);
   }
   .font-mono {
     font-family: var(--font-mono);
@@ -267,15 +327,192 @@
     --tw-font-weight: var(--font-weight-bold);
     font-weight: var(--font-weight-bold);
   }
+  .font-semibold {
+    --tw-font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-semibold);
+  }
   .text-nowrap {
     text-wrap: nowrap;
+  }
+  .text-wrap {
+    text-wrap: wrap;
   }
   .text-gray-300 {
     color: var(--color-gray-300);
   }
+  .text-gray-400 {
+    color: var(--color-gray-400);
+  }
+  .underline {
+    text-decoration-line: underline;
+  }
+  .outline {
+    outline-style: var(--tw-outline-style);
+    outline-width: 1px;
+  }
+  .transition-colors {
+    transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+  }
+  .duration-150 {
+    --tw-duration: 150ms;
+    transition-duration: 150ms;
+  }
+  .select-none {
+    -webkit-user-select: none;
+    user-select: none;
+  }
   .select-text {
     -webkit-user-select: text;
     user-select: text;
+  }
+  .group-\[\:has\(\#ir_diagram\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#ir diagram:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#ir-diagram\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#ir-diagram:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#svg_elements\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#svg elements:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#svg-elements\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#svg-elements:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#tab-0\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#tab-0:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#tab-1\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#tab-1:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#tab-2\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#tab-2:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#tab-3\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#tab-3:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#tab-4\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#tab-4:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#tab-5\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#tab-5:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#tab-6\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#tab-6:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#tab-7\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#tab-7:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#tab-N\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#tab-N:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#taffy_node_mappings\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#taffy node mappings:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#taffy-node-mappings\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#taffy-node-mappings:checked)) *) {
+      display: flex;
+    }
+  }
+  .group-\[\:has\(\#\{id\}\:checked\)\]\:flex {
+    &:is(:where(.group):is(:has(#{id}:checked)) *) {
+      display: flex;
+    }
+  }
+  .peer-has-checked\/tab_0\:visible {
+    &:is(:where(.peer\/tab_0):has(*:checked) ~ *) {
+      visibility: visible;
+    }
+  }
+  .peer-has-checked\/tab_0\:flex {
+    &:is(:where(.peer\/tab_0):has(*:checked) ~ *) {
+      display: flex;
+    }
+  }
+  .peer-has-checked\/tab_1\:visible {
+    &:is(:where(.peer\/tab_1):has(*:checked) ~ *) {
+      visibility: visible;
+    }
+  }
+  .peer-has-checked\/tab_1\:flex {
+    &:is(:where(.peer\/tab_1):has(*:checked) ~ *) {
+      display: flex;
+    }
+  }
+  .peer-has-checked\/tab_2\:visible {
+    &:is(:where(.peer\/tab_2):has(*:checked) ~ *) {
+      visibility: visible;
+    }
+  }
+  .peer-has-checked\/tab_2\:flex {
+    &:is(:where(.peer\/tab_2):has(*:checked) ~ *) {
+      display: flex;
+    }
+  }
+  .peer-has-checked\/tab_3\:visible {
+    &:is(:where(.peer\/tab_3):has(*:checked) ~ *) {
+      visibility: visible;
+    }
+  }
+  .peer-has-checked\/tab_3\:flex {
+    &:is(:where(.peer\/tab_3):has(*:checked) ~ *) {
+      display: flex;
+    }
+  }
+  .peer-has-checked\/tab_4\:visible {
+    &:is(:where(.peer\/tab_4):has(*:checked) ~ *) {
+      visibility: visible;
+    }
+  }
+  .peer-has-checked\/tab_4\:flex {
+    &:is(:where(.peer\/tab_4):has(*:checked) ~ *) {
+      display: flex;
+    }
+  }
+  .hover\:text-gray-200 {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--color-gray-200);
+      }
+    }
+  }
+  .has-\[\:checked\]\:border-blue-400 {
+    &:has(*:is(:checked)) {
+      border-color: var(--color-blue-400);
+    }
+  }
+  .has-\[\:checked\]\:text-blue-400 {
+    &:has(*:is(:checked)) {
+      color: var(--color-blue-400);
+    }
   }
   .lg\:flex-row {
     @media (width >= 64rem) {
@@ -326,6 +563,11 @@
   syntax: "*";
   inherits: false;
 }
+@property --tw-outline-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
 @property --tw-duration {
   syntax: "*";
   inherits: false;
@@ -335,6 +577,7 @@
     *, ::before, ::after, ::backdrop {
       --tw-border-style: solid;
       --tw-font-weight: initial;
+      --tw-outline-style: solid;
       --tw-duration: initial;
     }
   }

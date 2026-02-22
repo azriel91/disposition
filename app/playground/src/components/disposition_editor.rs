@@ -34,7 +34,9 @@ use std::time::Instant;
 use web_time::Instant;
 
 use crate::{
-    components::{InputDiagramDiv, IrDiagramDiv, SvgElementsDiv, TaffyNodeMappingsDiv},
+    components::{
+        InputDiagramDiv, IrDiagramDiv, SvgElementsDiv, TabDetails, TabGroup, TaffyNodeMappingsDiv,
+    },
     route::Route,
 };
 
@@ -424,9 +426,24 @@ fn DispositionDataDivs(
                 lg:[&>*]:min-w-190
             ",
             InputDiagramDiv { input_diagram_string }
-            IrDiagramDiv { ir_diagram_string }
-            TaffyNodeMappingsDiv { taffy_node_mappings_string }
-            SvgElementsDiv { svg_elements_string }
+            TabGroup {
+                group_name: "intermediate_tabs",
+                default_checked: 0usize,
+                tabs: vec![
+                    TabDetails {
+                        label: String::from("IR Diagram"),
+                        content: rsx! { IrDiagramDiv { ir_diagram_string } },
+                    },
+                    TabDetails {
+                        label: String::from("Taffy Node Mappings"),
+                        content: rsx! { TaffyNodeMappingsDiv { taffy_node_mappings_string } },
+                    },
+                    TabDetails {
+                        label: String::from("SVG Elements"),
+                        content: rsx! { SvgElementsDiv { svg_elements_string } },
+                    },
+                ],
+            }
         }
     }
 }
