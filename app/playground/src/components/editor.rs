@@ -17,6 +17,7 @@ pub use self::{
     things_page::ThingsPage,
 };
 
+pub(crate) mod common;
 pub mod datalists;
 mod processes_page;
 mod tags_page;

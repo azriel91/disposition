@@ -9,11 +9,14 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::{
-    input_model::{tag::TagId, thing::ThingId, InputDiagram},
-    model_common::{Id, Set},
+    input_model::{theme::TagIdOrDefaults, thing::ThingId, InputDiagram},
+    model_common::Set,
 };
 
-use super::datalists::list_ids;
+use crate::components::editor::{
+    common::{parse_tag_id, parse_thing_id, rename_id_in_theme_styles},
+    datalists::list_ids,
+};
 
 /// CSS classes shared by section headings.
 const SECTION_HEADING: &str = "text-sm font-bold text-gray-300 mt-4 mb-1";
@@ -337,18 +340,6 @@ fn TagThingsCard(
 }
 
 // ---------------------------------------------------------------------------
-// ID parsers
-// ---------------------------------------------------------------------------
-
-fn parse_tag_id(s: &str) -> Option<TagId<'static>> {
-    Id::new(s).ok().map(|id| TagId::from(id.into_static()))
-}
-
-fn parse_thing_id(s: &str) -> Option<ThingId<'static>> {
-    Id::new(s).ok().map(|id| ThingId::from(id.into_static()))
-}
-
-// ---------------------------------------------------------------------------
 // Mutation helpers: tag names
 // ---------------------------------------------------------------------------
 
@@ -384,10 +375,88 @@ fn rename_tag(mut diag: Signal<InputDiagram<'static>>, old_id: &str, new_id: &st
         Some(id) => id,
         None => return,
     };
-    let mut d = diag.write();
-    if let Some(name) = d.tags.swap_remove(&old) {
-        d.tags.insert(new, name);
+
+    let mut input_diagram = diag.write();
+    let InputDiagram {
+        things: _,
+        thing_copy_text: _,
+        thing_hierarchy: _,
+        thing_dependencies: _,
+        thing_interactions: _,
+        processes: _,
+        tags,
+        tag_things,
+        entity_descs,
+        entity_tooltips,
+        entity_types,
+        theme_default,
+        theme_types_styles,
+        theme_thing_dependencies_styles,
+        theme_tag_things_focus,
+        css: _,
+    } = &mut *input_diagram;
+
+    // tags: rename TagId key.
+    if let Some(index) = tags.get_index_of(&old) {
+        let _result = tags.replace_index(index, new.clone());
     }
+
+    // tag_things: rename TagId key.
+    if let Some(index) = tag_things.get_index_of(&old) {
+        let _result = tag_things.replace_index(index, new.clone());
+    }
+
+    // entity_descs / entity_tooltips / entity_types: keys are Id, which
+    // may refer to a TagId.
+    let id_old = old.clone().into_inner();
+    let id_new = new.clone().into_inner();
+    if let Some(index) = entity_descs.get_index_of(&id_old) {
+        let _result = entity_descs.replace_index(index, id_new.clone());
+    }
+    if let Some(index) = entity_tooltips.get_index_of(&id_old) {
+        let _result = entity_tooltips.replace_index(index, id_new.clone());
+    }
+    if let Some(index) = entity_types.get_index_of(&id_old) {
+        let _result = entity_types.replace_index(index, id_new.clone());
+    }
+
+    // theme_default: rename in base_styles and process_step_selected_styles.
+    rename_id_in_theme_styles(&mut theme_default.base_styles, &id_old, &id_new);
+    rename_id_in_theme_styles(
+        &mut theme_default.process_step_selected_styles,
+        &id_old,
+        &id_new,
+    );
+
+    // theme_types_styles: rename in each ThemeStyles value.
+    theme_types_styles.values_mut().for_each(|theme_styles| {
+        rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
+    });
+
+    // theme_thing_dependencies_styles: rename in both ThemeStyles fields.
+    rename_id_in_theme_styles(
+        &mut theme_thing_dependencies_styles.things_included_styles,
+        &id_old,
+        &id_new,
+    );
+    rename_id_in_theme_styles(
+        &mut theme_thing_dependencies_styles.things_excluded_styles,
+        &id_old,
+        &id_new,
+    );
+
+    // theme_tag_things_focus: rename TagIdOrDefaults::Custom key and
+    // rename in each ThemeStyles value.
+    let tag_key_old = TagIdOrDefaults::Custom(old.clone());
+    if let Some(index) = theme_tag_things_focus.get_index_of(&tag_key_old) {
+        let tag_key_new = TagIdOrDefaults::Custom(new.clone());
+        let _result = theme_tag_things_focus.replace_index(index, tag_key_new);
+    }
+    theme_tag_things_focus
+        .values_mut()
+        .for_each(|theme_styles| {
+            rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
+        });
 }
 
 fn update_tag_name(mut diag: Signal<InputDiagram<'static>>, id: &str, name: &str) {

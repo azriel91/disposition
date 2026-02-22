@@ -9,16 +9,14 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::{
-    input_model::{
-        edge::EdgeKind,
-        theme::{IdOrDefaults, ThemeStyles},
-        thing::ThingId,
-        InputDiagram,
-    },
-    model_common::{edge::EdgeGroupId, Id},
+    input_model::{edge::EdgeKind, thing::ThingId, InputDiagram},
+    model_common::edge::EdgeGroupId,
 };
 
-use super::datalists::list_ids;
+use crate::components::editor::{
+    common::{parse_edge_group_id, parse_thing_id, rename_id_in_theme_styles},
+    datalists::list_ids,
+};
 
 /// CSS classes shared by section headings.
 const SECTION_HEADING: &str = "text-sm font-bold text-gray-300 mt-4 mb-1";
@@ -384,14 +382,6 @@ fn parts_to_edge_kind(label: &str, thing_strs: &[String]) -> Option<EdgeKind<'st
     }
 }
 
-fn parse_thing_id(s: &str) -> Option<ThingId<'static>> {
-    Id::new(s).ok().map(|id| ThingId::from(id.into_static()))
-}
-
-fn parse_edge_group_id(s: &str) -> Option<EdgeGroupId<'static>> {
-    EdgeGroupId::new(s).ok().map(|id| id.into_static())
-}
-
 // ---------------------------------------------------------------------------
 // Mutation helpers
 // ---------------------------------------------------------------------------
@@ -572,20 +562,6 @@ fn rename_edge_group(mut diag: Signal<InputDiagram<'static>>, old_id: &str, new_
         .for_each(|theme_styles| {
             rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
         });
-}
-
-/// Replaces an [`IdOrDefaults::Id`] key that matches `id_old` with `id_new`
-/// inside a [`ThemeStyles`] map.
-fn rename_id_in_theme_styles(
-    theme_styles: &mut ThemeStyles<'static>,
-    id_old: &Id<'static>,
-    id_new: &Id<'static>,
-) {
-    let key_old = IdOrDefaults::Id(id_old.clone());
-    if let Some(index) = theme_styles.get_index_of(&key_old) {
-        let key_new = IdOrDefaults::Id(id_new.clone());
-        let _result = theme_styles.replace_index(index, key_new);
-    }
 }
 
 fn change_edge_kind(

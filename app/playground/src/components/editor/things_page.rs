@@ -11,14 +11,12 @@ use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
-use disposition::input_model::{
-    edge::EdgeKind,
-    theme::{IdOrDefaults, ThemeStyles},
-    thing::ThingHierarchy,
-    InputDiagram,
-};
+use disposition::input_model::{edge::EdgeKind, thing::ThingHierarchy, InputDiagram};
 
-use super::datalists::list_ids;
+use crate::components::editor::{
+    common::{parse_id, parse_thing_id, rename_id_in_theme_styles},
+    datalists::list_ids,
+};
 
 /// CSS classes shared by all section headings inside editor pages.
 const SECTION_HEADING: &str = "text-sm font-bold text-gray-300 mt-4 mb-1";
@@ -399,17 +397,6 @@ fn KeyValueRow(
 
 use disposition::{input_model::thing::ThingId, model_common::Id};
 
-/// Try to construct a `ThingId<'static>` from a string, returning `None` if
-/// the string is not a valid identifier.
-fn parse_thing_id(s: &str) -> Option<ThingId<'static>> {
-    Id::new(s).ok().map(|id| ThingId::from(id.into_static()))
-}
-
-/// Try to construct an `Id<'static>` from a string.
-fn parse_id(s: &str) -> Option<Id<'static>> {
-    Id::new(s).ok().map(|id| id.into_static())
-}
-
 fn add_thing_row(mut input_diagram: Signal<InputDiagram<'static>>) {
     // Find a unique placeholder ID.
     let mut n = input_diagram.read().things.len();
@@ -522,35 +509,35 @@ fn rename_thing(
         }
 
         // theme_default: rename in base_styles and process_step_selected_styles.
-        rename_thing_in_theme_styles(&mut theme_default.base_styles, &thing_id_old, &thing_id_new);
-        rename_thing_in_theme_styles(
+        rename_id_in_theme_styles(&mut theme_default.base_styles, &id_old, &id_new);
+        rename_id_in_theme_styles(
             &mut theme_default.process_step_selected_styles,
-            &thing_id_old,
-            &thing_id_new,
+            &id_old,
+            &id_new,
         );
 
         // theme_types_styles: rename in each ThemeStyles value.
         theme_types_styles.values_mut().for_each(|theme_styles| {
-            rename_thing_in_theme_styles(theme_styles, &thing_id_old, &thing_id_new);
+            rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
         });
 
         // theme_thing_dependencies_styles: rename in both ThemeStyles fields.
-        rename_thing_in_theme_styles(
+        rename_id_in_theme_styles(
             &mut theme_thing_dependencies_styles.things_included_styles,
-            &thing_id_old,
-            &thing_id_new,
+            &id_old,
+            &id_new,
         );
-        rename_thing_in_theme_styles(
+        rename_id_in_theme_styles(
             &mut theme_thing_dependencies_styles.things_excluded_styles,
-            &thing_id_old,
-            &thing_id_new,
+            &id_old,
+            &id_new,
         );
 
         // theme_tag_things_focus: rename in each ThemeStyles value.
         theme_tag_things_focus
             .values_mut()
             .for_each(|theme_styles| {
-                rename_thing_in_theme_styles(theme_styles, &thing_id_old, &thing_id_new);
+                rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
             });
     }
 }
@@ -572,20 +559,6 @@ fn rename_thing_in_edge_kind(
             *thing_id = thing_id_new.clone();
         }
     });
-}
-
-/// Replaces an [`IdOrDefaults::Id`] key that matches `thing_id_old` with
-/// `thing_id_new` inside a [`ThemeStyles`] map.
-fn rename_thing_in_theme_styles(
-    theme_styles: &mut ThemeStyles<'static>,
-    thing_id_old: &ThingId<'static>,
-    thing_id_new: &ThingId<'static>,
-) {
-    let key_old = IdOrDefaults::Id(thing_id_old.clone().into_inner());
-    if let Some(index) = theme_styles.get_index_of(&key_old) {
-        let key_new = IdOrDefaults::Id(thing_id_new.clone().into_inner());
-        let _result = theme_styles.replace_index(index, key_new);
-    }
 }
 
 fn thing_hierarchy_recursive_search<'f, 'id>(

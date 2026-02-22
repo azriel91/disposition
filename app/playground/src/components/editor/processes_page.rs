@@ -13,14 +13,16 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::{
-    input_model::{
-        process::{ProcessDiagram, ProcessId, ProcessStepId},
-        InputDiagram,
-    },
-    model_common::{edge::EdgeGroupId, Id},
+    input_model::{process::ProcessDiagram, InputDiagram},
+    model_common::edge::EdgeGroupId,
 };
 
-use super::datalists::list_ids;
+use crate::components::editor::{
+    common::{
+        parse_edge_group_id, parse_process_id, parse_process_step_id, rename_id_in_theme_styles,
+    },
+    datalists::list_ids,
+};
 
 /// CSS classes shared by section headings.
 const SECTION_HEADING: &str = "text-sm font-bold text-gray-300 mt-4 mb-1";
@@ -295,11 +297,10 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                                     placeholder: "step_id",
                                     value: "{step_id}",
                                     onchange: {
-                                        let pid2 = pid.clone();
+                                        let pid_clone = pid.clone();
                                         let old_sid = step_id.clone();
-                                        let label = step_label.clone();
                                         move |evt: dioxus::events::FormEvent| {
-                                            rename_step(input_diagram, &pid2, &old_sid, &evt.value(), &label);
+                                            rename_step(input_diagram, &pid_clone, &old_sid, &evt.value());
                                         }
                                     },
                                 }
@@ -309,10 +310,10 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                                     placeholder: "Step label",
                                     value: "{step_label}",
                                     oninput: {
-                                        let pid2 = pid.clone();
+                                        let pid_clone = pid.clone();
                                         let sid = step_id.clone();
                                         move |evt: dioxus::events::FormEvent| {
-                                            update_step_label(input_diagram, &pid2, &sid, &evt.value());
+                                            update_step_label(input_diagram, &pid_clone, &sid, &evt.value());
                                         }
                                     },
                                 }
@@ -320,10 +321,10 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                                 span {
                                     class: REMOVE_BTN,
                                     onclick: {
-                                        let pid2 = pid.clone();
+                                        let pid_clone = pid.clone();
                                         let sid = step_id.clone();
                                         move |_| {
-                                            remove_step(input_diagram, &pid2, &sid);
+                                            remove_step(input_diagram, &pid_clone, &sid);
                                         }
                                     },
                                     "✕"
@@ -506,24 +507,6 @@ fn StepInteractionCard(
 }
 
 // ---------------------------------------------------------------------------
-// ID parsers
-// ---------------------------------------------------------------------------
-
-fn parse_process_id(s: &str) -> Option<ProcessId<'static>> {
-    Id::new(s).ok().map(|id| ProcessId::from(id.into_static()))
-}
-
-fn parse_process_step_id(s: &str) -> Option<ProcessStepId<'static>> {
-    Id::new(s)
-        .ok()
-        .map(|id| ProcessStepId::from(id.into_static()))
-}
-
-fn parse_edge_group_id(s: &str) -> Option<EdgeGroupId<'static>> {
-    EdgeGroupId::new(s).ok().map(|id| id.into_static())
-}
-
-// ---------------------------------------------------------------------------
 // Mutation helpers: processes
 // ---------------------------------------------------------------------------
 
@@ -561,10 +544,77 @@ fn rename_process(mut diag: Signal<InputDiagram<'static>>, old_id: &str, new_id:
         Some(id) => id,
         None => return,
     };
-    let mut d = diag.write();
-    if let Some(proc_diag) = d.processes.swap_remove(&old) {
-        d.processes.insert(new, proc_diag);
+
+    let mut input_diagram = diag.write();
+    let InputDiagram {
+        things: _,
+        thing_copy_text: _,
+        thing_hierarchy: _,
+        thing_dependencies: _,
+        thing_interactions: _,
+        processes,
+        tags: _,
+        tag_things: _,
+        entity_descs,
+        entity_tooltips,
+        entity_types,
+        theme_default,
+        theme_types_styles,
+        theme_thing_dependencies_styles,
+        theme_tag_things_focus,
+        css: _,
+    } = &mut *input_diagram;
+
+    // processes: rename ProcessId key.
+    if let Some(index) = processes.get_index_of(&old) {
+        let _result = processes.replace_index(index, new.clone());
     }
+
+    // entity_descs / entity_tooltips / entity_types: keys are Id, which
+    // may refer to a ProcessId.
+    let id_old = old.clone().into_inner();
+    let id_new = new.clone().into_inner();
+    if let Some(index) = entity_descs.get_index_of(&id_old) {
+        let _result = entity_descs.replace_index(index, id_new.clone());
+    }
+    if let Some(index) = entity_tooltips.get_index_of(&id_old) {
+        let _result = entity_tooltips.replace_index(index, id_new.clone());
+    }
+    if let Some(index) = entity_types.get_index_of(&id_old) {
+        let _result = entity_types.replace_index(index, id_new.clone());
+    }
+
+    // theme_default: rename in base_styles and process_step_selected_styles.
+    rename_id_in_theme_styles(&mut theme_default.base_styles, &id_old, &id_new);
+    rename_id_in_theme_styles(
+        &mut theme_default.process_step_selected_styles,
+        &id_old,
+        &id_new,
+    );
+
+    // theme_types_styles: rename in each ThemeStyles value.
+    theme_types_styles.values_mut().for_each(|theme_styles| {
+        rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
+    });
+
+    // theme_thing_dependencies_styles: rename in both ThemeStyles fields.
+    rename_id_in_theme_styles(
+        &mut theme_thing_dependencies_styles.things_included_styles,
+        &id_old,
+        &id_new,
+    );
+    rename_id_in_theme_styles(
+        &mut theme_thing_dependencies_styles.things_excluded_styles,
+        &id_old,
+        &id_new,
+    );
+
+    // theme_tag_things_focus: rename in each ThemeStyles value.
+    theme_tag_things_focus
+        .values_mut()
+        .for_each(|theme_styles| {
+            rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
+        });
 }
 
 fn update_process_name(mut diag: Signal<InputDiagram<'static>>, id: &str, name: &str) {
@@ -640,12 +690,11 @@ fn rename_step(
     process_id: &str,
     old_step_id: &str,
     new_step_id: &str,
-    current_label: &str,
 ) {
     if old_step_id == new_step_id {
         return;
     }
-    let pid = match parse_process_id(process_id) {
+    let _pid = match parse_process_id(process_id) {
         Some(id) => id,
         None => return,
     };
@@ -657,10 +706,88 @@ fn rename_step(
         Some(id) => id,
         None => return,
     };
-    if let Some(proc) = diag.write().processes.get_mut(&pid) {
-        proc.steps.swap_remove(&old);
-        proc.steps.insert(new, current_label.to_owned());
+
+    let mut input_diagram = diag.write();
+    let InputDiagram {
+        things: _,
+        thing_copy_text: _,
+        thing_hierarchy: _,
+        thing_dependencies: _,
+        thing_interactions: _,
+        processes,
+        tags: _,
+        tag_things: _,
+        entity_descs,
+        entity_tooltips,
+        entity_types,
+        theme_default,
+        theme_types_styles,
+        theme_thing_dependencies_styles,
+        theme_tag_things_focus,
+        css: _,
+    } = &mut *input_diagram;
+
+    // processes: rename ProcessStepId in steps and step_thing_interactions
+    // for all processes (the step ID may appear in any process).
+    processes.values_mut().for_each(|proc_diagram| {
+        // steps: rename ProcessStepId key.
+        if let Some(index) = proc_diagram.steps.get_index_of(&old) {
+            let _result = proc_diagram.steps.replace_index(index, new.clone());
+        }
+
+        // step_thing_interactions: rename ProcessStepId key.
+        if let Some(index) = proc_diagram.step_thing_interactions.get_index_of(&old) {
+            let _result = proc_diagram
+                .step_thing_interactions
+                .replace_index(index, new.clone());
+        }
+    });
+
+    // entity_descs / entity_tooltips / entity_types: keys are Id, which
+    // may refer to a ProcessStepId.
+    let id_old = old.clone().into_inner();
+    let id_new = new.clone().into_inner();
+    if let Some(index) = entity_descs.get_index_of(&id_old) {
+        let _result = entity_descs.replace_index(index, id_new.clone());
     }
+    if let Some(index) = entity_tooltips.get_index_of(&id_old) {
+        let _result = entity_tooltips.replace_index(index, id_new.clone());
+    }
+    if let Some(index) = entity_types.get_index_of(&id_old) {
+        let _result = entity_types.replace_index(index, id_new.clone());
+    }
+
+    // theme_default: rename in base_styles and process_step_selected_styles.
+    rename_id_in_theme_styles(&mut theme_default.base_styles, &id_old, &id_new);
+    rename_id_in_theme_styles(
+        &mut theme_default.process_step_selected_styles,
+        &id_old,
+        &id_new,
+    );
+
+    // theme_types_styles: rename in each ThemeStyles value.
+    theme_types_styles.values_mut().for_each(|theme_styles| {
+        rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
+    });
+
+    // theme_thing_dependencies_styles: rename in both ThemeStyles fields.
+    rename_id_in_theme_styles(
+        &mut theme_thing_dependencies_styles.things_included_styles,
+        &id_old,
+        &id_new,
+    );
+    rename_id_in_theme_styles(
+        &mut theme_thing_dependencies_styles.things_excluded_styles,
+        &id_old,
+        &id_new,
+    );
+
+    // theme_tag_things_focus: rename in each ThemeStyles value.
+    theme_tag_things_focus
+        .values_mut()
+        .for_each(|theme_styles| {
+            rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
+        });
 }
 
 fn update_step_label(
