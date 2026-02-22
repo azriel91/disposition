@@ -9,7 +9,12 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::{
-    input_model::{edge::EdgeKind, thing::ThingId, InputDiagram},
+    input_model::{
+        edge::EdgeKind,
+        theme::{IdOrDefaults, ThemeStyles},
+        thing::ThingId,
+        InputDiagram,
+    },
     model_common::{edge::EdgeGroupId, Id},
 };
 
@@ -243,7 +248,7 @@ fn EdgeGroupCard(
                         let old_id = edge_id.clone();
                         move |evt: dioxus::events::FormEvent| {
                             let new_id = evt.value();
-                            rename_edge_group(input_diagram, target, &old_id, &new_id);
+                            rename_edge_group(input_diagram, &old_id, &new_id);
                         }
                     },
                 }
@@ -391,18 +396,6 @@ fn parse_edge_group_id(s: &str) -> Option<EdgeGroupId<'static>> {
 // Mutation helpers
 // ---------------------------------------------------------------------------
 
-fn get_edge_kind(
-    diag: &InputDiagram<'static>,
-    target: MapTarget,
-    edge_id: &str,
-) -> Option<EdgeKind<'static>> {
-    let eid = parse_edge_group_id(edge_id)?;
-    match target {
-        MapTarget::Dependencies => diag.thing_dependencies.get(&eid).cloned(),
-        MapTarget::Interactions => diag.thing_interactions.get(&eid).cloned(),
-    }
-}
-
 fn set_edge_kind(
     diag: &mut InputDiagram<'static>,
     target: MapTarget,
@@ -477,30 +470,122 @@ fn remove_edge_group(mut diag: Signal<InputDiagram<'static>>, target: MapTarget,
     }
 }
 
-fn rename_edge_group(
-    mut diag: Signal<InputDiagram<'static>>,
-    target: MapTarget,
-    old_id: &str,
-    new_id: &str,
-) {
+fn rename_edge_group(mut diag: Signal<InputDiagram<'static>>, old_id: &str, new_id: &str) {
     if old_id == new_id {
         return;
     }
-    let old = match parse_edge_group_id(old_id) {
+    let edge_id_old = match parse_edge_group_id(old_id) {
         Some(id) => id,
         None => return,
     };
-    let new = match parse_edge_group_id(new_id) {
+    let edge_id_new = match parse_edge_group_id(new_id) {
         Some(id) => id,
         None => return,
     };
-    let kind = match get_edge_kind(&diag.read(), target, old_id) {
-        Some(k) => k,
-        None => return,
-    };
-    let mut d = diag.write();
-    remove_edge_group_by_id(&mut d, target, &old);
-    set_edge_kind(&mut d, target, &new, kind);
+
+    let mut input_diagram = diag.write();
+    let InputDiagram {
+        things: _,
+        thing_copy_text: _,
+        thing_hierarchy: _,
+        thing_dependencies,
+        thing_interactions,
+        processes,
+        tags: _,
+        tag_things: _,
+        entity_descs,
+        entity_tooltips,
+        entity_types,
+        theme_default,
+        theme_types_styles,
+        theme_thing_dependencies_styles,
+        theme_tag_things_focus,
+        css: _,
+    } = &mut *input_diagram;
+
+    // thing_dependencies: rename EdgeGroupId key.
+    if let Some(index) = thing_dependencies.get_index_of(&edge_id_old) {
+        let _result = thing_dependencies.replace_index(index, edge_id_new.clone());
+    }
+
+    // thing_interactions: rename EdgeGroupId key.
+    if let Some(index) = thing_interactions.get_index_of(&edge_id_old) {
+        let _result = thing_interactions.replace_index(index, edge_id_new.clone());
+    }
+
+    // processes: rename EdgeGroupId in step_thing_interactions values.
+    processes.values_mut().for_each(|process_diagram| {
+        process_diagram
+            .step_thing_interactions
+            .values_mut()
+            .for_each(|edge_group_ids| {
+                for edge_group_id in edge_group_ids.iter_mut() {
+                    if edge_group_id == &edge_id_old {
+                        *edge_group_id = edge_id_new.clone();
+                    }
+                }
+            });
+    });
+
+    // entity_descs / entity_tooltips / entity_types: keys are Id, which
+    // may refer to an EdgeGroupId.
+    let id_old = edge_id_old.clone().into_inner();
+    let id_new = edge_id_new.clone().into_inner();
+    if let Some(index) = entity_descs.get_index_of(&id_old) {
+        let _result = entity_descs.replace_index(index, id_new.clone());
+    }
+    if let Some(index) = entity_tooltips.get_index_of(&id_old) {
+        let _result = entity_tooltips.replace_index(index, id_new.clone());
+    }
+    if let Some(index) = entity_types.get_index_of(&id_old) {
+        let _result = entity_types.replace_index(index, id_new.clone());
+    }
+
+    // theme_default: rename in base_styles and process_step_selected_styles.
+    rename_id_in_theme_styles(&mut theme_default.base_styles, &id_old, &id_new);
+    rename_id_in_theme_styles(
+        &mut theme_default.process_step_selected_styles,
+        &id_old,
+        &id_new,
+    );
+
+    // theme_types_styles: rename in each ThemeStyles value.
+    theme_types_styles.values_mut().for_each(|theme_styles| {
+        rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
+    });
+
+    // theme_thing_dependencies_styles: rename in both ThemeStyles fields.
+    rename_id_in_theme_styles(
+        &mut theme_thing_dependencies_styles.things_included_styles,
+        &id_old,
+        &id_new,
+    );
+    rename_id_in_theme_styles(
+        &mut theme_thing_dependencies_styles.things_excluded_styles,
+        &id_old,
+        &id_new,
+    );
+
+    // theme_tag_things_focus: rename in each ThemeStyles value.
+    theme_tag_things_focus
+        .values_mut()
+        .for_each(|theme_styles| {
+            rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
+        });
+}
+
+/// Replaces an [`IdOrDefaults::Id`] key that matches `id_old` with `id_new`
+/// inside a [`ThemeStyles`] map.
+fn rename_id_in_theme_styles(
+    theme_styles: &mut ThemeStyles<'static>,
+    id_old: &Id<'static>,
+    id_new: &Id<'static>,
+) {
+    let key_old = IdOrDefaults::Id(id_old.clone());
+    if let Some(index) = theme_styles.get_index_of(&key_old) {
+        let key_new = IdOrDefaults::Id(id_new.clone());
+        let _result = theme_styles.replace_index(index, key_new);
+    }
 }
 
 fn change_edge_kind(
