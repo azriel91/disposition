@@ -7,7 +7,10 @@ use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{Memo, ReadableExt},
 };
-use disposition::input_model::InputDiagram;
+use disposition::{
+    input_model::{theme::StyleAlias, InputDiagram},
+    model_common::Set,
+};
 
 /// Well-known datalist element IDs that editor pages can reference via
 /// `<input list="...">`.
@@ -27,35 +30,6 @@ pub mod list_ids {
     /// Built-in + user-defined `StyleAlias` values.
     pub const STYLE_ALIASES: &str = "style_aliases";
 }
-
-/// Built-in [`StyleAlias`] variant names (snake_case, matching YAML keys).
-const BUILTIN_STYLE_ALIASES: &[&str] = &[
-    "circle_xs",
-    "circle_sm",
-    "circle_md",
-    "circle_lg",
-    "circle_xl",
-    "padding_none",
-    "padding_tight",
-    "padding_normal",
-    "padding_wide",
-    "rounded_xs",
-    "rounded_sm",
-    "rounded_md",
-    "rounded_lg",
-    "rounded_xl",
-    "rounded_2xl",
-    "rounded_3xl",
-    "rounded_4xl",
-    "fill_pale",
-    "shade_pale",
-    "shade_light",
-    "shade_medium",
-    "shade_dark",
-    "stroke_dashed_animated",
-    "stroke_dashed_animated_request",
-    "stroke_dashed_animated_response",
-];
 
 /// Renders all `<datalist>` elements derived from the current
 /// [`InputDiagram`].
@@ -112,16 +86,25 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
         .collect();
 
     // Style aliases = builtins + user-defined custom aliases.
-    let mut style_alias_values: Vec<String> = BUILTIN_STYLE_ALIASES
-        .iter()
-        .map(|s| (*s).to_owned())
-        .collect();
-    for alias in diagram.theme_default.style_aliases.keys() {
-        let alias_str = alias.as_str().to_owned();
-        if !style_alias_values.contains(&alias_str) {
-            style_alias_values.push(alias_str);
-        }
-    }
+    let style_alias_values = {
+        let input_diagram_base = InputDiagram::base();
+        let base_style_aliases = input_diagram_base
+            .theme_default
+            .style_aliases
+            .keys()
+            .into_iter();
+        let input_diagram_style_aliases = diagram.theme_default.style_aliases.keys().into_iter();
+
+        base_style_aliases.chain(input_diagram_style_aliases).fold(
+            Set::<StyleAlias>::new(),
+            |mut style_alias_values, style_alias| {
+                if !(style_alias_values.contains(style_alias)) {
+                    style_alias_values.insert(style_alias.clone());
+                }
+                style_alias_values
+            },
+        )
+    };
 
     rsx! {
         // ── thing_ids ────────────────────────────────────────────────
