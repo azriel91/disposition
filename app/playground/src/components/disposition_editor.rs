@@ -43,7 +43,7 @@ use crate::{
         },
         IrDiagramDiv, SvgElementsDiv, TabDetails, TabGroup, TaffyNodeMappingsDiv,
     },
-    editor_state::{EditorPage, EditorPageOrGroup, EditorState},
+    editor_state::{EditorPage, EditorPageOrGroup, EditorState, ThingsPageUiState},
     route::Route,
 };
 
@@ -86,6 +86,10 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
     // The active editor page.
     let mut active_page: Signal<EditorPage> = use_signal(|| editor_state.read().page.clone());
 
+    // UI state for the Things page (collapsed sections).
+    let mut things_ui_state: Signal<ThingsPageUiState> =
+        use_signal(|| editor_state.read().things_ui.clone());
+
     // ── Sync: incoming EditorState prop -> local signals ──────────────────
 
     use_memo(move || {
@@ -96,6 +100,9 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         if *active_page.peek() != state.page {
             active_page.set(state.page.clone());
         }
+        if *things_ui_state.peek() != state.things_ui {
+            things_ui_state.set(state.things_ui.clone());
+        }
     });
 
     // ── Sync: local signals -> URL hash (EditorState) ────────────────────
@@ -103,13 +110,18 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
     use_memo(move || {
         let diagram = input_diagram.read().clone();
         let page = active_page.read().clone();
+        let things_ui = things_ui_state.read().clone();
 
         let current_state = editor_state.peek().clone();
-        if current_state.input_diagram != diagram || current_state.page != page {
+        if current_state.input_diagram != diagram
+            || current_state.page != page
+            || current_state.things_ui != things_ui
+        {
             navigator().replace(Route::Home {
                 editor_state: EditorState {
                     page,
                     input_diagram: diagram,
+                    things_ui,
                 },
             });
         }
@@ -334,6 +346,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                     EditorPageContent {
                         active_page,
                         input_diagram,
+                        things_ui_state,
                     }
                 }
 
@@ -489,11 +502,12 @@ fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
 fn EditorPageContent(
     active_page: Signal<EditorPage>,
     input_diagram: Signal<InputDiagram<'static>>,
+    things_ui_state: Signal<ThingsPageUiState>,
 ) -> Element {
     let page = active_page.read().clone();
 
     match page {
-        EditorPage::Things => rsx! { ThingsPage { input_diagram } },
+        EditorPage::Things => rsx! { ThingsPage { input_diagram, things_ui_state } },
         EditorPage::ThingDependencies => rsx! { ThingDependenciesPage { input_diagram } },
         EditorPage::ThingInteractions => rsx! { ThingInteractionsPage { input_diagram } },
         EditorPage::Processes => rsx! { ProcessesPage { input_diagram } },

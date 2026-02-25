@@ -8,14 +8,18 @@
 //! - `thing_hierarchy`: recursive nesting of things
 
 use dioxus::{
+    hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::{edge::EdgeKind, thing::ThingHierarchy, InputDiagram};
 
-use crate::components::editor::{
-    common::{parse_id, parse_thing_id, rename_id_in_theme_styles},
-    datalists::list_ids,
+use crate::{
+    components::editor::{
+        common::{parse_id, parse_thing_id, rename_id_in_theme_styles},
+        datalists::list_ids,
+    },
+    editor_state::ThingsPageUiState,
 };
 
 /// CSS classes shared by all section headings inside editor pages.
@@ -58,12 +62,61 @@ const ADD_BTN: &str = "\
     select-none\
 ";
 
+/// CSS classes for the drag handle grip (⠿ dots).
+const DRAG_HANDLE: &str = "\
+    text-gray-600 \
+    hover:text-gray-400 \
+    cursor-grab \
+    active:cursor-grabbing \
+    select-none \
+    leading-none \
+    text-sm \
+    px-0.5 \
+    flex \
+    items-center\
+";
+
+/// CSS classes for the collapse/expand toggle bar.
+const COLLAPSE_BAR: &str = "\
+    flex \
+    flex-col \
+    justify-center \
+    items-center \
+    cursor-pointer \
+    py-1 \
+    text-gray-500 \
+    hover:text-gray-300 \
+    bg-gray-800/50 \
+    rounded \
+    my-1 \
+    select-none \
+    gap-0.5\
+";
+
+/// Number of rows shown when a section is collapsed.
+const COLLAPSE_THRESHOLD: usize = 4;
+
 /// The **Things** editor page.
 ///
 /// Renders editable rows for each `ThingId` in the diagram's `things` map, as
 /// well as associated copy-text, descriptions, tooltips, and hierarchy.
 #[component]
-pub fn ThingsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
+pub fn ThingsPage(
+    input_diagram: Signal<InputDiagram<'static>>,
+    things_ui_state: Signal<ThingsPageUiState>,
+) -> Element {
+    // Drag-and-drop state: tracks the index currently being dragged per section.
+    let thing_drag_idx: Signal<Option<usize>> = use_signal(|| None);
+    let copy_text_drag_idx: Signal<Option<usize>> = use_signal(|| None);
+    let desc_drag_idx: Signal<Option<usize>> = use_signal(|| None);
+    let tooltip_drag_idx: Signal<Option<usize>> = use_signal(|| None);
+
+    // Drop-target state: tracks which row is being hovered over per section.
+    let thing_drop_target: Signal<Option<usize>> = use_signal(|| None);
+    let copy_text_drop_target: Signal<Option<usize>> = use_signal(|| None);
+    let desc_drop_target: Signal<Option<usize>> = use_signal(|| None);
+    let tooltip_drop_target: Signal<Option<usize>> = use_signal(|| None);
+
     let diagram = input_diagram.read();
 
     // Snapshot current thing keys + values so we can iterate without holding
@@ -103,6 +156,69 @@ pub fn ThingsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     // event handlers).
     drop(diagram);
 
+    // Read collapsed states.
+    let ui = things_ui_state.read();
+    let thing_names_collapsed = ui.thing_names_collapsed;
+    let copy_text_collapsed = ui.copy_text_collapsed;
+    let entity_descs_collapsed = ui.entity_descs_collapsed;
+    let entity_tooltips_collapsed = ui.entity_tooltips_collapsed;
+    drop(ui);
+
+    // Determine which entries are visible for each section.
+    let thing_names_collapsible = thing_entries.len() > COLLAPSE_THRESHOLD;
+    let copy_text_collapsible = copy_text_entries.len() > COLLAPSE_THRESHOLD;
+    let entity_descs_collapsible = desc_entries.len() > COLLAPSE_THRESHOLD;
+    let entity_tooltips_collapsible = tooltip_entries.len() > COLLAPSE_THRESHOLD;
+
+    let visible_things: Vec<(usize, &(String, String))> =
+        if thing_names_collapsible && thing_names_collapsed {
+            thing_entries
+                .iter()
+                .enumerate()
+                .take(COLLAPSE_THRESHOLD)
+                .collect()
+        } else {
+            thing_entries.iter().enumerate().collect()
+        };
+
+    let visible_copy_text: Vec<(usize, &(String, String))> =
+        if copy_text_collapsible && copy_text_collapsed {
+            copy_text_entries
+                .iter()
+                .enumerate()
+                .take(COLLAPSE_THRESHOLD)
+                .collect()
+        } else {
+            copy_text_entries.iter().enumerate().collect()
+        };
+
+    let visible_descs: Vec<(usize, &(String, String))> =
+        if entity_descs_collapsible && entity_descs_collapsed {
+            desc_entries
+                .iter()
+                .enumerate()
+                .take(COLLAPSE_THRESHOLD)
+                .collect()
+        } else {
+            desc_entries.iter().enumerate().collect()
+        };
+
+    let visible_tooltips: Vec<(usize, &(String, String))> =
+        if entity_tooltips_collapsible && entity_tooltips_collapsed {
+            tooltip_entries
+                .iter()
+                .enumerate()
+                .take(COLLAPSE_THRESHOLD)
+                .collect()
+        } else {
+            tooltip_entries.iter().enumerate().collect()
+        };
+
+    let thing_count = thing_entries.len();
+    let copy_text_count = copy_text_entries.len();
+    let desc_count = desc_entries.len();
+    let tooltip_count = tooltip_entries.len();
+
     rsx! {
         div {
             class: "flex flex-col gap-2",
@@ -114,16 +230,36 @@ pub fn ThingsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 "Map of ThingId -> display label."
             }
 
-            for (id, name) in thing_entries.iter() {
+            for (idx, (id, name)) in visible_things.iter() {
                 {
                     let id = id.clone();
                     let name = name.clone();
+                    let idx = *idx;
                     rsx! {
                         ThingNameRow {
                             key: "{id}",
                             input_diagram,
                             thing_id: id,
                             thing_name: name,
+                            index: idx,
+                            drag_index: thing_drag_idx,
+                            drop_target: thing_drop_target,
+                        }
+                    }
+                }
+            }
+
+            // Collapse bar for Thing Names
+            if thing_names_collapsible {
+                {
+                    rsx! {
+                        CollapseBar {
+                            collapsed: thing_names_collapsed,
+                            total: thing_count,
+                            visible: if thing_names_collapsed { COLLAPSE_THRESHOLD } else { thing_count },
+                            on_toggle: move |_| {
+                                things_ui_state.write().thing_names_collapsed = !thing_names_collapsed;
+                            },
                         }
                     }
                 }
@@ -145,10 +281,11 @@ pub fn ThingsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 "Optional clipboard text per ThingId (defaults to display label)."
             }
 
-            for (id, text) in copy_text_entries.iter() {
+            for (idx, (id, text)) in visible_copy_text.iter() {
                 {
                     let id = id.clone();
                     let text = text.clone();
+                    let idx = *idx;
                     rsx! {
                         KeyValueRow {
                             key: "ct_{id}",
@@ -157,6 +294,25 @@ pub fn ThingsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                             entry_value: text,
                             id_list: list_ids::THING_IDS,
                             on_change: OnChangeTarget::CopyText,
+                            index: idx,
+                            drag_index: copy_text_drag_idx,
+                            drop_target: copy_text_drop_target,
+                        }
+                    }
+                }
+            }
+
+            // Collapse bar for Copy Text
+            if copy_text_collapsible {
+                {
+                    rsx! {
+                        CollapseBar {
+                            collapsed: copy_text_collapsed,
+                            total: copy_text_count,
+                            visible: if copy_text_collapsed { COLLAPSE_THRESHOLD } else { copy_text_count },
+                            on_toggle: move |_| {
+                                things_ui_state.write().copy_text_collapsed = !copy_text_collapsed;
+                            },
                         }
                     }
                 }
@@ -177,10 +333,11 @@ pub fn ThingsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 "Descriptions rendered next to entities in the diagram."
             }
 
-            for (id, desc) in desc_entries.iter() {
+            for (idx, (id, desc)) in visible_descs.iter() {
                 {
                     let id = id.clone();
                     let desc = desc.clone();
+                    let idx = *idx;
                     rsx! {
                         KeyValueRow {
                             key: "desc_{id}",
@@ -189,6 +346,25 @@ pub fn ThingsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                             entry_value: desc,
                             id_list: list_ids::ENTITY_IDS,
                             on_change: OnChangeTarget::EntityDesc,
+                            index: idx,
+                            drag_index: desc_drag_idx,
+                            drop_target: desc_drop_target,
+                        }
+                    }
+                }
+            }
+
+            // Collapse bar for Entity Descriptions
+            if entity_descs_collapsible {
+                {
+                    rsx! {
+                        CollapseBar {
+                            collapsed: entity_descs_collapsed,
+                            total: desc_count,
+                            visible: if entity_descs_collapsed { COLLAPSE_THRESHOLD } else { desc_count },
+                            on_toggle: move |_| {
+                                things_ui_state.write().entity_descs_collapsed = !entity_descs_collapsed;
+                            },
                         }
                     }
                 }
@@ -209,10 +385,11 @@ pub fn ThingsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 "Tooltip text (markdown) shown on hover."
             }
 
-            for (id, tip) in tooltip_entries.iter() {
+            for (idx, (id, tip)) in visible_tooltips.iter() {
                 {
                     let id = id.clone();
                     let tip = tip.clone();
+                    let idx = *idx;
                     rsx! {
                         KeyValueRow {
                             key: "tip_{id}",
@@ -221,6 +398,25 @@ pub fn ThingsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                             entry_value: tip,
                             id_list: list_ids::ENTITY_IDS,
                             on_change: OnChangeTarget::EntityTooltip,
+                            index: idx,
+                            drag_index: tooltip_drag_idx,
+                            drop_target: tooltip_drop_target,
+                        }
+                    }
+                }
+            }
+
+            // Collapse bar for Entity Tooltips
+            if entity_tooltips_collapsible {
+                {
+                    rsx! {
+                        CollapseBar {
+                            collapsed: entity_tooltips_collapsed,
+                            total: tooltip_count,
+                            visible: if entity_tooltips_collapsed { COLLAPSE_THRESHOLD } else { tooltip_count },
+                            on_toggle: move |_| {
+                                things_ui_state.write().entity_tooltips_collapsed = !entity_tooltips_collapsed;
+                            },
                         }
                     }
                 }
@@ -268,6 +464,77 @@ pub fn ThingsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 }
 
 // ---------------------------------------------------------------------------
+// Collapse bar component
+// ---------------------------------------------------------------------------
+
+/// A clickable bar that toggles between collapsed and expanded states.
+///
+/// When collapsed the text is on top with a wide V-shaped down chevron below.
+/// When expanded the up chevron is on top with the text below.
+#[component]
+fn CollapseBar(
+    collapsed: bool,
+    total: usize,
+    visible: usize,
+    on_toggle: dioxus::prelude::EventHandler<dioxus::events::MouseEvent>,
+) -> Element {
+    let hidden = total.saturating_sub(visible);
+    let label = if collapsed {
+        format!("··· {hidden} more")
+    } else {
+        String::from("···")
+    };
+
+    // Wide V chevron: a small rotated square border.
+    // Collapsed = points down (below text), Expanded = points up (above text).
+    let chevron_down_style = "\
+        display: inline-block; \
+        width: 10px; \
+        height: 10px; \
+        border-left: 2px solid currentColor; \
+        border-bottom: 2px solid currentColor; \
+        transform: rotate(-45deg); \
+        margin-bottom: 4px;\
+    ";
+    let chevron_up_style = "\
+        display: inline-block; \
+        width: 10px; \
+        height: 10px; \
+        border-left: 2px solid currentColor; \
+        border-bottom: 2px solid currentColor; \
+        transform: rotate(135deg); \
+        margin-top: 4px;\
+    ";
+
+    rsx! {
+        div {
+            class: COLLAPSE_BAR,
+            onclick: move |evt| on_toggle.call(evt),
+
+            if collapsed {
+                // Text on top, V arrow below
+                span {
+                    class: "text-xs tracking-widest",
+                    "{label}"
+                }
+                span {
+                    style: "{chevron_down_style}",
+                }
+            } else {
+                // ^ arrow on top, text below
+                span {
+                    style: "{chevron_up_style}",
+                }
+                span {
+                    class: "text-xs tracking-widest",
+                    "{label}"
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Helper components
 // ---------------------------------------------------------------------------
 
@@ -277,10 +544,41 @@ fn ThingNameRow(
     input_diagram: Signal<InputDiagram<'static>>,
     thing_id: String,
     thing_name: String,
+    index: usize,
+    drag_index: Signal<Option<usize>>,
+    drop_target: Signal<Option<usize>>,
 ) -> Element {
+    let row_style = drag_row_style(drag_index, drop_target, index);
+
     rsx! {
         div {
             class: ROW_CLASS,
+            style: "{row_style}",
+            draggable: "true",
+            ondragstart: move |_| {
+                drag_index.set(Some(index));
+            },
+            ondragover: move |evt| {
+                evt.prevent_default();
+                drop_target.set(Some(index));
+            },
+            ondrop: move |evt| {
+                evt.prevent_default();
+                if let Some(from) = *drag_index.read() {
+                    if from != index {
+                        move_thing(input_diagram, from, index);
+                    }
+                }
+                drag_index.set(None);
+                drop_target.set(None);
+            },
+            ondragend: move |_| {
+                drag_index.set(None);
+                drop_target.set(None);
+            },
+
+            // Drag handle
+            DragHandle {}
 
             // ThingId input
             input {
@@ -343,10 +641,41 @@ fn KeyValueRow(
     entry_value: String,
     id_list: &'static str,
     on_change: OnChangeTarget,
+    index: usize,
+    drag_index: Signal<Option<usize>>,
+    drop_target: Signal<Option<usize>>,
 ) -> Element {
+    let row_style = drag_row_style(drag_index, drop_target, index);
+
     rsx! {
         div {
             class: ROW_CLASS,
+            style: "{row_style}",
+            draggable: "true",
+            ondragstart: move |_| {
+                drag_index.set(Some(index));
+            },
+            ondragover: move |evt| {
+                evt.prevent_default();
+                drop_target.set(Some(index));
+            },
+            ondrop: move |evt| {
+                evt.prevent_default();
+                if let Some(from) = *drag_index.read() {
+                    if from != index {
+                        move_kv_entry(input_diagram, on_change, from, index);
+                    }
+                }
+                drag_index.set(None);
+                drop_target.set(None);
+            },
+            ondragend: move |_| {
+                drag_index.set(None);
+                drop_target.set(None);
+            },
+
+            // Drag handle
+            DragHandle {}
 
             input {
                 class: INPUT_CLASS,
@@ -387,6 +716,60 @@ fn KeyValueRow(
                 },
                 "✕"
             }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Drag handle component
+// ---------------------------------------------------------------------------
+
+/// Computes the inline `style` string for a draggable row.
+///
+/// - The row being dragged gets reduced opacity.
+/// - The row being hovered over gets a blue top or bottom border to indicate
+///   where the dragged item will land.
+fn drag_row_style(
+    drag_index: Signal<Option<usize>>,
+    drop_target: Signal<Option<usize>>,
+    index: usize,
+) -> String {
+    let drag_src = *drag_index.read();
+    let is_dragging = drag_src.map_or(false, |i| i == index);
+    let is_target = drop_target.read().map_or(false, |i| i == index);
+
+    let mut style = String::new();
+    if is_dragging {
+        style.push_str("opacity: 0.4;");
+    }
+    if is_target {
+        if let Some(from) = drag_src {
+            if from != index {
+                if from < index {
+                    // Dragging downward → line below this row
+                    style.push_str("border-bottom: 2px solid #60a5fa;");
+                } else {
+                    // Dragging upward → line above this row
+                    style.push_str("border-top: 2px solid #60a5fa;");
+                }
+            }
+        }
+    }
+    style
+}
+
+/// A grip-dots drag handle (⠿) that visually indicates a row is draggable.
+///
+/// The actual drag-and-drop behaviour is handled by the parent row's
+/// `draggable` / `ondragstart` / `ondragover` / `ondrop` / `ondragend`
+/// attributes; this component is purely visual.
+#[component]
+fn DragHandle() -> Element {
+    rsx! {
+        span {
+            class: DRAG_HANDLE,
+            title: "Drag to reorder",
+            "⠿"
         }
     }
 }
@@ -481,10 +864,10 @@ fn rename_thing(
             rename_thing_in_edge_kind(edge_kind, &thing_id_old, &thing_id_new);
         });
 
-        // processes: ProcessDiagram fields do not contain ThingId — skip.
+        // processes: ProcessDiagram fields do not contain ThingId -- skip.
         let _ = processes;
 
-        // tags: TagNames keys are TagId, not ThingId — skip.
+        // tags: TagNames keys are TagId, not ThingId -- skip.
         let _ = tags;
 
         // tag_things: rename ThingIds in each Set<ThingId> value.
@@ -737,5 +1120,27 @@ fn remove_kv_entry(
                     .swap_remove(&entity_id);
             }
         }
+    }
+}
+
+// ── Reorder helpers ─────────────────────────────────────────────────────
+
+/// Moves a thing entry from one index to another in the `things` map.
+fn move_thing(mut input_diagram: Signal<InputDiagram<'static>>, from: usize, to: usize) {
+    input_diagram.write().things.move_index(from, to);
+}
+
+/// Moves a key-value entry from one index to another in the target map.
+fn move_kv_entry(
+    mut input_diagram: Signal<InputDiagram<'static>>,
+    target: OnChangeTarget,
+    from: usize,
+    to: usize,
+) {
+    let mut d = input_diagram.write();
+    match target {
+        OnChangeTarget::CopyText => d.thing_copy_text.move_index(from, to),
+        OnChangeTarget::EntityDesc => d.entity_descs.move_index(from, to),
+        OnChangeTarget::EntityTooltip => d.entity_tooltips.move_index(from, to),
     }
 }

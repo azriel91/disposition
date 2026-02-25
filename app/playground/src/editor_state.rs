@@ -28,6 +28,46 @@ pub struct EditorState {
     /// The input diagram being edited.
     #[serde(default)]
     pub input_diagram: InputDiagram<'static>,
+
+    /// UI state for the Things editor page (collapsed sections).
+    #[serde(default, skip_serializing_if = "ThingsPageUiState::is_default")]
+    pub things_ui: ThingsPageUiState,
+}
+
+/// UI state for the Things editor page.
+///
+/// Tracks which sections are collapsed so the state can be persisted in the
+/// URL hash and restored on reload. Sections with more than 4 entries are
+/// eligible for collapsing.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ThingsPageUiState {
+    /// Whether the "Thing Names" section is collapsed.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub thing_names_collapsed: bool,
+    /// Whether the "Thing Copy Text" section is collapsed.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub copy_text_collapsed: bool,
+    /// Whether the "Entity Descriptions" section is collapsed.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub entity_descs_collapsed: bool,
+    /// Whether the "Entity Tooltips" section is collapsed.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub entity_tooltips_collapsed: bool,
+}
+
+/// Helper for `skip_serializing_if` on `bool` fields.
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
+impl ThingsPageUiState {
+    /// Returns `true` when all fields are at their default (expanded) values.
+    ///
+    /// Used by `EditorState`'s `skip_serializing_if` so the field is omitted
+    /// from the URL hash when nothing is collapsed.
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
 }
 
 /// Identifies which editor page (tab) is currently active.
