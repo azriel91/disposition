@@ -26,7 +26,13 @@ use crate::{
 const SECTION_HEADING: &str = "text-sm font-bold text-gray-300 mt-4 mb-1";
 
 /// CSS classes shared by the outer wrapper of a key-value row.
-const ROW_CLASS: &str = "flex flex-row gap-2 items-center mb-1";
+const ROW_CLASS: &str = "\
+    flex flex-row gap-2 items-center \
+    pb-2 \
+    border-t-2 border-t-transparent \
+    border-b-2 border-b-transparent \
+    has-[.drag#95;handle:active]:opacity-40\
+";
 
 /// CSS classes for text inputs.
 const INPUT_CLASS: &str = "\
@@ -95,6 +101,22 @@ const COLLAPSE_BAR: &str = "\
 
 /// Number of rows shown when a section is collapsed.
 const COLLAPSE_THRESHOLD: usize = 4;
+
+/// A container for multiple draggable [`KeyValueRow`]s (or [`ThingNameRow`]s).
+///
+/// Uses `group/key-value-rows` so that child rows can react to an active drag
+/// via `group-active/key-value-rows:_` utilities. Does **not** use `gap` on
+/// the flex container -- each row carries its own `pb-2` instead, so there are
+/// no dead-zones between rows where a drop would be missed.
+#[component]
+fn KeyValueRowContainer(children: Element) -> Element {
+    rsx! {
+        div {
+            class: "flex flex-col group/key-value-rows",
+            {children}
+        }
+    }
+}
 
 /// The **Things** editor page.
 ///
@@ -230,20 +252,22 @@ pub fn ThingsPage(
                 "Map of ThingId -> display label."
             }
 
-            for (idx, (id, name)) in visible_things.iter() {
-                {
-                    let id = id.clone();
-                    let name = name.clone();
-                    let idx = *idx;
-                    rsx! {
-                        ThingNameRow {
-                            key: "{id}",
-                            input_diagram,
-                            thing_id: id,
-                            thing_name: name,
-                            index: idx,
-                            drag_index: thing_drag_idx,
-                            drop_target: thing_drop_target,
+            KeyValueRowContainer {
+                for (idx, (id, name)) in visible_things.iter() {
+                    {
+                        let id = id.clone();
+                        let name = name.clone();
+                        let idx = *idx;
+                        rsx! {
+                            ThingNameRow {
+                                    key: "{id}",
+                                    input_diagram,
+                                    thing_id: id,
+                                    thing_name: name,
+                                    index: idx,
+                                    drag_index: thing_drag_idx,
+                                    drop_target: thing_drop_target,
+                                }
                         }
                     }
                 }
@@ -281,22 +305,24 @@ pub fn ThingsPage(
                 "Optional clipboard text per ThingId (defaults to display label)."
             }
 
-            for (idx, (id, text)) in visible_copy_text.iter() {
-                {
-                    let id = id.clone();
-                    let text = text.clone();
-                    let idx = *idx;
-                    rsx! {
-                        KeyValueRow {
-                            key: "ct_{id}",
-                            input_diagram,
-                            entry_id: id,
-                            entry_value: text,
-                            id_list: list_ids::THING_IDS,
-                            on_change: OnChangeTarget::CopyText,
-                            index: idx,
-                            drag_index: copy_text_drag_idx,
-                            drop_target: copy_text_drop_target,
+            KeyValueRowContainer {
+                for (idx, (id, text)) in visible_copy_text.iter() {
+                    {
+                        let id = id.clone();
+                        let text = text.clone();
+                        let idx = *idx;
+                        rsx! {
+                            KeyValueRow {
+                                key: "ct_{id}",
+                                input_diagram,
+                                entry_id: id,
+                                entry_value: text,
+                                id_list: list_ids::THING_IDS,
+                                on_change: OnChangeTarget::CopyText,
+                                index: idx,
+                                drag_index: copy_text_drag_idx,
+                                drop_target: copy_text_drop_target,
+                            }
                         }
                     }
                 }
@@ -333,22 +359,24 @@ pub fn ThingsPage(
                 "Descriptions rendered next to entities in the diagram."
             }
 
-            for (idx, (id, desc)) in visible_descs.iter() {
-                {
-                    let id = id.clone();
-                    let desc = desc.clone();
-                    let idx = *idx;
-                    rsx! {
-                        KeyValueRow {
-                            key: "desc_{id}",
-                            input_diagram,
-                            entry_id: id,
-                            entry_value: desc,
-                            id_list: list_ids::ENTITY_IDS,
-                            on_change: OnChangeTarget::EntityDesc,
-                            index: idx,
-                            drag_index: desc_drag_idx,
-                            drop_target: desc_drop_target,
+            KeyValueRowContainer {
+                for (idx, (id, desc)) in visible_descs.iter() {
+                    {
+                        let id = id.clone();
+                        let desc = desc.clone();
+                        let idx = *idx;
+                        rsx! {
+                            KeyValueRow {
+                                key: "desc_{id}",
+                                input_diagram,
+                                entry_id: id,
+                                entry_value: desc,
+                                id_list: list_ids::ENTITY_IDS,
+                                on_change: OnChangeTarget::EntityDesc,
+                                index: idx,
+                                drag_index: desc_drag_idx,
+                                drop_target: desc_drop_target,
+                            }
                         }
                     }
                 }
@@ -385,22 +413,24 @@ pub fn ThingsPage(
                 "Tooltip text (markdown) shown on hover."
             }
 
-            for (idx, (id, tip)) in visible_tooltips.iter() {
-                {
-                    let id = id.clone();
-                    let tip = tip.clone();
-                    let idx = *idx;
-                    rsx! {
-                        KeyValueRow {
-                            key: "tip_{id}",
-                            input_diagram,
-                            entry_id: id,
-                            entry_value: tip,
-                            id_list: list_ids::ENTITY_IDS,
-                            on_change: OnChangeTarget::EntityTooltip,
-                            index: idx,
-                            drag_index: tooltip_drag_idx,
-                            drop_target: tooltip_drop_target,
+            KeyValueRowContainer {
+                for (idx, (id, tip)) in visible_tooltips.iter() {
+                    {
+                        let id = id.clone();
+                        let tip = tip.clone();
+                        let idx = *idx;
+                        rsx! {
+                            KeyValueRow {
+                                key: "tip_{id}",
+                                input_diagram,
+                                entry_id: id,
+                                entry_value: tip,
+                                id_list: list_ids::ENTITY_IDS,
+                                on_change: OnChangeTarget::EntityTooltip,
+                                index: idx,
+                                drag_index: tooltip_drag_idx,
+                                drop_target: tooltip_drop_target,
+                            }
                         }
                     }
                 }
@@ -548,12 +578,11 @@ fn ThingNameRow(
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
 ) -> Element {
-    let row_style = drag_row_style(drag_index, drop_target, index);
+    let border_class = drag_row_border_class(drag_index, drop_target, index);
 
     rsx! {
         div {
-            class: ROW_CLASS,
-            style: "{row_style}",
+            class: "{ROW_CLASS} {border_class}",
             draggable: "true",
             ondragstart: move |_| {
                 drag_index.set(Some(index));
@@ -645,12 +674,13 @@ fn KeyValueRow(
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
 ) -> Element {
-    let row_style = drag_row_style(drag_index, drop_target, index);
+    // TODO: it appears the class isn't updated during dragging, maybe signals
+    // aren't run. So the rows don't get the border styling.
+    let border_class = drag_row_border_class(drag_index, drop_target, index);
 
     rsx! {
         div {
-            class: ROW_CLASS,
-            style: "{row_style}",
+            class: "{ROW_CLASS} {border_class}",
             draggable: "true",
             ondragstart: move |_| {
                 drag_index.set(Some(index));
@@ -720,42 +750,34 @@ fn KeyValueRow(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Drag handle component
-// ---------------------------------------------------------------------------
-
-/// Computes the inline `style` string for a draggable row.
+/// Returns a Tailwind border-color class for the drop-target indicator.
 ///
-/// - The row being dragged gets reduced opacity.
-/// - The row being hovered over gets a blue top or bottom border to indicate
-///   where the dragged item will land.
-fn drag_row_style(
+/// - When this row is the drop target and the drag source is above, the bottom
+///   border turns blue (`border-b-blue-400`).
+/// - When the drag source is below, the top border turns blue
+///   (`border-t-blue-400`).
+/// - Otherwise returns an empty string (the base transparent borders in
+///   [`ROW_CLASS`] remain invisible).
+fn drag_row_border_class(
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
     index: usize,
-) -> String {
+) -> &'static str {
     let drag_src = *drag_index.read();
-    let is_dragging = drag_src.map_or(false, |i| i == index);
     let is_target = drop_target.read().map_or(false, |i| i == index);
 
-    let mut style = String::new();
-    if is_dragging {
-        style.push_str("opacity: 0.4;");
-    }
     if is_target {
         if let Some(from) = drag_src {
             if from != index {
                 if from < index {
-                    // Dragging downward → line below this row
-                    style.push_str("border-bottom: 2px solid #60a5fa;");
+                    return "border-b-blue-400";
                 } else {
-                    // Dragging upward → line above this row
-                    style.push_str("border-top: 2px solid #60a5fa;");
+                    return "border-t-blue-400";
                 }
             }
         }
     }
-    style
+    ""
 }
 
 /// A grip-dots drag handle (⠿) that visually indicates a row is draggable.

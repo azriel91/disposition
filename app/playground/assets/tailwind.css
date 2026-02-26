@@ -294,9 +294,6 @@
   .transform {
     transform: var(--tw-rotate-x,) var(--tw-rotate-y,) var(--tw-rotate-z,) var(--tw-skew-x,) var(--tw-skew-y,);
   }
-  .cursor-default {
-    cursor: default;
-  }
   .cursor-grab {
     cursor: grab;
   }
@@ -363,6 +360,10 @@
     border-style: var(--tw-border-style);
     border-width: 2px;
   }
+  .border-t-2 {
+    border-top-style: var(--tw-border-style);
+    border-top-width: 2px;
+  }
   .border-b {
     border-bottom-style: var(--tw-border-style);
     border-bottom-width: 1px;
@@ -388,6 +389,18 @@
   }
   .border-transparent {
     border-color: transparent;
+  }
+  .border-t-blue-400 {
+    border-top-color: var(--color-blue-400);
+  }
+  .border-t-transparent {
+    border-top-color: transparent;
+  }
+  .border-b-blue-400 {
+    border-bottom-color: var(--color-blue-400);
+  }
+  .border-b-transparent {
+    border-bottom-color: transparent;
   }
   .bg-gray-800 {
     background-color: var(--color-gray-800);
@@ -442,6 +455,9 @@
   }
   .pr-1 {
     padding-right: calc(var(--spacing) * 1);
+  }
+  .pb-2 {
+    padding-bottom: calc(var(--spacing) * 2);
   }
   .pl-2 {
     padding-left: calc(var(--spacing) * 2);
@@ -509,9 +525,6 @@
   }
   .text-gray-600 {
     color: var(--color-gray-600);
-  }
-  .text-gray-700 {
-    color: var(--color-gray-700);
   }
   .text-red-300 {
     color: var(--color-red-300);
@@ -633,6 +646,33 @@
       }
     }
   }
+  .group-active\/key-value-rows\:hover\:border-t-blue-400 {
+    &:is(:where(.group\/key-value-rows):active *) {
+      &:hover {
+        @media (hover: hover) {
+          border-top-color: var(--color-blue-400);
+        }
+      }
+    }
+  }
+  .group-has-\[\.drag_handle\:active\]\/key-value-rows\:hover\:border-t-blue-400 {
+    &:is(:where(.group\/key-value-rows):has(*:is(.drag handle:active)) *) {
+      &:hover {
+        @media (hover: hover) {
+          border-top-color: var(--color-blue-400);
+        }
+      }
+    }
+  }
+  .group-has-\[\:active\]\/key-value-rows\:hover\:border-t-blue-400 {
+    &:is(:where(.group\/key-value-rows):has(*:is(:active)) *) {
+      &:hover {
+        @media (hover: hover) {
+          border-top-color: var(--color-blue-400);
+        }
+      }
+    }
+  }
   .focus\:border-blue-400 {
     &:focus {
       border-color: var(--color-blue-400);
@@ -647,6 +687,16 @@
   .active\:cursor-grabbing {
     &:active {
       cursor: grabbing;
+    }
+  }
+  .has-\[\.drag_handle\:active\]\:opacity-40 {
+    &:has(*:is(.drag handle:active)) {
+      opacity: 40%;
+    }
+  }
+  .has-\[\:active\]\:opacity-40 {
+    &:has(*:is(:active)) {
+      opacity: 40%;
     }
   }
   .has-\[\:checked\]\:border-blue-400 {
