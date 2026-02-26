@@ -50,6 +50,22 @@ const INPUT_CLASS: &str = "\
     focus:outline-none\
 ";
 
+const ID_INPUT_CLASS: &str = "\
+    flex-1 \
+    rounded \
+    border \
+    border-gray-600 \
+    bg-gray-800 \
+    text-gray-200 \
+    px-2 py-1 \
+    text-sm \
+    font-mono \
+    focus:border-blue-400 \
+    focus:outline-none \
+    invalid:bg-red-950 \
+    invalid:border-red-400\
+";
+
 /// CSS classes for the small "remove" button.
 const REMOVE_BTN: &str = "\
     text-red-400 \
@@ -614,11 +630,12 @@ fn ThingNameRow(
 
             // ThingId input
             input {
-                class: INPUT_CLASS,
+                class: ID_INPUT_CLASS,
                 style: "max-width:14rem",
                 list: list_ids::THING_IDS,
                 placeholder: "thing_id",
                 value: "{thing_id}",
+                pattern: "^[a-zA-Z_][a-zA-Z0-9_]*$",
                 onchange: {
                     let old_id = thing_id.clone();
                     move |evt: dioxus::events::FormEvent| {
@@ -709,7 +726,7 @@ fn KeyValueRow(
             DragHandle {}
 
             input {
-                class: INPUT_CLASS,
+                class: ID_INPUT_CLASS,
                 style: "max-width:14rem",
                 list: "{id_list}",
                 placeholder: "id",

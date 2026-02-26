@@ -10,6 +10,8 @@
     --color-red-300: oklch(80.8% 0.114 19.571);
     --color-red-400: oklch(70.4% 0.191 22.216);
     --color-red-700: oklch(50.5% 0.213 27.518);
+    --color-red-800: oklch(44.4% 0.177 26.899);
+    --color-red-900: oklch(39.6% 0.141 25.723);
     --color-red-950: oklch(25.8% 0.092 26.042);
     --color-yellow-100: oklch(97.3% 0.071 103.193);
     --color-yellow-600: oklch(68.1% 0.162 75.834);
@@ -647,6 +649,26 @@
   .group-\[\:has\(\#tab-N\:checked\)\]\:flex {
     &:is(:where(.group):is(:has(#tab-N:checked)) *) {
       display: flex;
+    }
+  }
+  .invalid\:border-red-400 {
+    &:invalid {
+      border-color: var(--color-red-400);
+    }
+  }
+  .invalid\:bg-red-800 {
+    &:invalid {
+      background-color: var(--color-red-800);
+    }
+  }
+  .invalid\:bg-red-900 {
+    &:invalid {
+      background-color: var(--color-red-900);
+    }
+  }
+  .invalid\:bg-red-950 {
+    &:invalid {
+      background-color: var(--color-red-950);
     }
   }
   .hover\:bg-yellow-600 {
