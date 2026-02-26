@@ -516,29 +516,31 @@ fn CollapseBar(
         String::from("···")
     };
 
-    // Wide V chevron: a small rotated square border.
+    // Wide V chevron: a small rotated square border using Tailwind classes.
     // Collapsed = points down (below text), Expanded = points up (above text).
-    let chevron_down_style = "\
-        display: inline-block; \
-        width: 10px; \
-        height: 10px; \
-        border-left: 2px solid currentColor; \
-        border-bottom: 2px solid currentColor; \
-        transform: rotate(-45deg); \
-        margin-bottom: 4px;\
+    let chevron_down_class = "\
+        inline-block \
+        w-2.5 \
+        h-2.5 \
+        border-l-2 \
+        border-b-2 \
+        border-current \
+        -rotate-45 \
+        mb-1\
     ";
-    let chevron_up_style = "\
-        display: inline-block; \
-        width: 10px; \
-        height: 10px; \
-        border-left: 2px solid currentColor; \
-        border-bottom: 2px solid currentColor; \
-        transform: rotate(135deg); \
-        margin-top: 4px;\
+    let chevron_up_class = "\
+        inline-block \
+        w-2.5 \
+        h-2.5 \
+        border-l-2 \
+        border-b-2 \
+        border-current \
+        rotate-135 \
+        mt-1\
     ";
 
     rsx! {
-        div {
+        button {
             class: COLLAPSE_BAR,
             onclick: move |evt| on_toggle.call(evt),
 
@@ -549,12 +551,12 @@ fn CollapseBar(
                     "{label}"
                 }
                 span {
-                    style: "{chevron_down_style}",
+                    class: "{chevron_down_class}",
                 }
             } else {
                 // ^ arrow on top, text below
                 span {
-                    style: "{chevron_up_style}",
+                    class: "{chevron_up_class}",
                 }
                 span {
                     class: "text-xs tracking-widest",
