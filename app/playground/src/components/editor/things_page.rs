@@ -28,10 +28,11 @@ const SECTION_HEADING: &str = "text-sm font-bold text-gray-300 mt-4 mb-1";
 /// CSS classes shared by the outer wrapper of a key-value row.
 const ROW_CLASS: &str = "\
     flex flex-row gap-2 items-center \
-    pb-2 \
-    border-t-2 border-t-transparent \
-    border-b-2 border-b-transparent \
-    has-[.drag#95;handle:active]:opacity-40\
+    pt-1 \
+    pb-1 \
+    border-t-1 \
+    border-b-1 \
+    has-[:active]:opacity-40\
 ";
 
 /// CSS classes for text inputs.
@@ -674,8 +675,6 @@ fn KeyValueRow(
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
 ) -> Element {
-    // TODO: it appears the class isn't updated during dragging, maybe signals
-    // aren't run. So the rows don't get the border styling.
     let border_class = drag_row_border_class(drag_index, drop_target, index);
 
     rsx! {
@@ -750,14 +749,18 @@ fn KeyValueRow(
     }
 }
 
-/// Returns a Tailwind border-color class for the drop-target indicator.
+/// Returns Tailwind border-color classes for the drop-target indicator.
+///
+/// Always returns **both** `border-t-*` and `border-b-*` colour classes so
+/// that there is never a cascade conflict with a competing colour class on
+/// the same element (Tailwind v4 orders utilities by property, not by the
+/// order they appear in the `class` attribute).
 ///
 /// - When this row is the drop target and the drag source is above, the bottom
-///   border turns blue (`border-b-blue-400`).
+///   border turns blue (`border-b-blue-400`) and the top stays transparent.
 /// - When the drag source is below, the top border turns blue
-///   (`border-t-blue-400`).
-/// - Otherwise returns an empty string (the base transparent borders in
-///   [`ROW_CLASS`] remain invisible).
+///   (`border-t-blue-400`) and the bottom stays transparent.
+/// - Otherwise both borders are transparent.
 fn drag_row_border_class(
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
@@ -770,14 +773,14 @@ fn drag_row_border_class(
         if let Some(from) = drag_src {
             if from != index {
                 if from < index {
-                    return "border-b-blue-400";
+                    return "border-t-transparent border-b-blue-400";
                 } else {
-                    return "border-t-blue-400";
+                    return "border-t-blue-400 border-b-transparent";
                 }
             }
         }
     }
-    ""
+    "border-t-transparent border-b-transparent"
 }
 
 /// A grip-dots drag handle (⠿) that visually indicates a row is draggable.

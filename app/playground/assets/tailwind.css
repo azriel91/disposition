@@ -360,11 +360,19 @@
     border-style: var(--tw-border-style);
     border-width: 2px;
   }
+  .border-t-1 {
+    border-top-style: var(--tw-border-style);
+    border-top-width: 1px;
+  }
   .border-t-2 {
     border-top-style: var(--tw-border-style);
     border-top-width: 2px;
   }
   .border-b {
+    border-bottom-style: var(--tw-border-style);
+    border-bottom-width: 1px;
+  }
+  .border-b-1 {
     border-bottom-style: var(--tw-border-style);
     border-bottom-width: 1px;
   }
@@ -453,8 +461,17 @@
   .py-2 {
     padding-block: calc(var(--spacing) * 2);
   }
+  .pt-1 {
+    padding-top: calc(var(--spacing) * 1);
+  }
+  .pt-2 {
+    padding-top: calc(var(--spacing) * 2);
+  }
   .pr-1 {
     padding-right: calc(var(--spacing) * 1);
+  }
+  .pb-1 {
+    padding-bottom: calc(var(--spacing) * 1);
   }
   .pb-2 {
     padding-bottom: calc(var(--spacing) * 2);
@@ -646,33 +663,6 @@
       }
     }
   }
-  .group-active\/key-value-rows\:hover\:border-t-blue-400 {
-    &:is(:where(.group\/key-value-rows):active *) {
-      &:hover {
-        @media (hover: hover) {
-          border-top-color: var(--color-blue-400);
-        }
-      }
-    }
-  }
-  .group-has-\[\.drag_handle\:active\]\/key-value-rows\:hover\:border-t-blue-400 {
-    &:is(:where(.group\/key-value-rows):has(*:is(.drag handle:active)) *) {
-      &:hover {
-        @media (hover: hover) {
-          border-top-color: var(--color-blue-400);
-        }
-      }
-    }
-  }
-  .group-has-\[\:active\]\/key-value-rows\:hover\:border-t-blue-400 {
-    &:is(:where(.group\/key-value-rows):has(*:is(:active)) *) {
-      &:hover {
-        @media (hover: hover) {
-          border-top-color: var(--color-blue-400);
-        }
-      }
-    }
-  }
   .focus\:border-blue-400 {
     &:focus {
       border-color: var(--color-blue-400);
@@ -689,9 +679,36 @@
       cursor: grabbing;
     }
   }
-  .has-\[\.drag_handle\:active\]\:opacity-40 {
-    &:has(*:is(.drag handle:active)) {
-      opacity: 40%;
+  .active\:rounded-lg {
+    &:active {
+      border-radius: var(--radius-lg);
+    }
+  }
+  .active\:border-2 {
+    &:active {
+      border-style: var(--tw-border-style);
+      border-width: 2px;
+    }
+  }
+  .active\:border-blue-400 {
+    &:active {
+      border-color: var(--color-blue-400);
+    }
+  }
+  .has-\[\:active\]\:rounded-lg {
+    &:has(*:is(:active)) {
+      border-radius: var(--radius-lg);
+    }
+  }
+  .has-\[\:active\]\:border-2 {
+    &:has(*:is(:active)) {
+      border-style: var(--tw-border-style);
+      border-width: 2px;
+    }
+  }
+  .has-\[\:active\]\:border-blue-400 {
+    &:has(*:is(:active)) {
+      border-color: var(--color-blue-400);
     }
   }
   .has-\[\:active\]\:opacity-40 {
@@ -707,6 +724,22 @@
   .has-\[\:checked\]\:text-blue-400 {
     &:has(*:is(:checked)) {
       color: var(--color-blue-400);
+    }
+  }
+  .has-\[\:focus-within\]\:rounded-lg {
+    &:has(*:is(:focus-within)) {
+      border-radius: var(--radius-lg);
+    }
+  }
+  .has-\[\:focus-within\]\:border-2 {
+    &:has(*:is(:focus-within)) {
+      border-style: var(--tw-border-style);
+      border-width: 2px;
+    }
+  }
+  .has-\[\:focus-within\]\:border-blue-400 {
+    &:has(*:is(:focus-within)) {
+      border-color: var(--color-blue-400);
     }
   }
   .lg\:flex-row {
