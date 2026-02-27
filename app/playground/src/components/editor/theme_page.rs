@@ -10,6 +10,7 @@
 //! - Tag-things focus styles (`theme_tag_things_focus`)
 //! - Additional CSS (`css`)
 
+mod style_aliases_section;
 mod tag_focus_section;
 mod types_styles_section;
 
@@ -18,7 +19,7 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::{
-    theme::{TagIdOrDefaults, ThemeStyles},
+    theme::{CssClassPartials, StyleAlias, TagIdOrDefaults, ThemeAttr, ThemeStyles},
     InputDiagram,
 };
 
@@ -30,25 +31,55 @@ use crate::components::editor::{
     theme_styles_editor::{ThemeStylesEditor, ThemeStylesTarget},
 };
 
-use self::{tag_focus_section::TagFocusSection, types_styles_section::TypesStylesSection};
+use self::{
+    style_aliases_section::StyleAliasesSection, tag_focus_section::TagFocusSection,
+    types_styles_section::TypesStylesSection,
+};
 
 // === Style Aliases sub-page === //
+
+/// Look up the `snake_case` name for a `ThemeAttr`.
+fn theme_attr_name(attr: &ThemeAttr) -> &'static str {
+    crate::components::editor::theme_styles_editor::THEME_ATTRS
+        .iter()
+        .find(|(_, a)| a == attr)
+        .map(|(name, _)| *name)
+        .unwrap_or("unknown")
+}
 
 /// The **Theme: Style Aliases** editor sub-page.
 ///
 /// Edits `theme_default.style_aliases` -- a map from `StyleAlias` to
-/// `CssClassPartials`. Because the `CssClassPartials` structure is complex
-/// (containing `style_aliases_applied` and a flat map of `ThemeAttr` to value),
-/// we present each alias entry as an editable YAML snippet for now, with the
-/// alias name as a text input.
+/// `CssClassPartials`. Each style alias entry gets its own card with
+/// editable alias name, applied aliases, and theme attribute key-value pairs.
 #[component]
 pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
-    let yaml = {
-        let input_diagram = input_diagram.read();
-        serde_saphyr::to_string(&input_diagram.theme_default.style_aliases)
-            .unwrap_or_default()
-            .trim()
-            .to_owned()
+    // Snapshot the entries so we can drop the borrow before event handlers.
+    let entries: Vec<(String, Vec<String>, Vec<(String, String)>)> = {
+        let diagram = input_diagram.read();
+        diagram
+            .theme_default
+            .style_aliases
+            .iter()
+            .map(
+                |(alias, css_partials): (&StyleAlias<'static>, &CssClassPartials<'static>)| {
+                    let key_str = alias.as_str().to_owned();
+                    let aliases: Vec<String> = css_partials
+                        .style_aliases_applied
+                        .iter()
+                        .map(|a: &StyleAlias<'static>| a.as_str().to_owned())
+                        .collect();
+                    let attrs: Vec<(String, String)> = css_partials
+                        .partials
+                        .iter()
+                        .map(|(attr, val): (&ThemeAttr, &String)| {
+                            (theme_attr_name(attr).to_owned(), val.clone())
+                        })
+                        .collect();
+                    (key_str, aliases, attrs)
+                },
+            )
+            .collect()
     };
 
     rsx! {
@@ -59,18 +90,50 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
             p {
                 class: LABEL_CLASS,
                 "Style aliases group common CSS class partials under a single name. \
-                 Edit as YAML."
+                 Each card below corresponds to one alias definition."
             }
 
-            textarea {
-                class: TEXTAREA_CLASS,
-                value: "{yaml}",
-                oninput: move |evt| {
-                    let text = evt.value();
-                    if let Ok(aliases) = serde_saphyr::from_str(&text) {
-                        input_diagram.write().theme_default.style_aliases = aliases;
+            for (idx, (alias_key, aliases, attrs)) in entries.iter().enumerate() {
+                {
+                    let alias_key = alias_key.clone();
+                    let aliases = aliases.clone();
+                    let attrs = attrs.clone();
+                    rsx! {
+                        StyleAliasesSection {
+                            key: "alias_{idx}_{alias_key}",
+                            input_diagram,
+                            alias_key,
+                            style_aliases_applied: aliases,
+                            theme_attrs: attrs,
+                        }
                     }
+                }
+            }
+
+            div {
+                class: ADD_BTN,
+                onclick: move |_| {
+                    let mut diagram = input_diagram.write();
+                    // Find a custom alias name that doesn't exist yet.
+                    let mut n = 1u32;
+                    let new_alias = loop {
+                        let candidate = format!("custom_alias_{n}");
+                        if let Ok(id) = disposition::model_common::Id::new(&candidate) {
+                            let alias =
+                                StyleAlias::from(id.into_static()).into_static();
+                            if !diagram.theme_default.style_aliases.contains_key(&alias)
+                            {
+                                break alias;
+                            }
+                        }
+                        n += 1;
+                    };
+                    diagram
+                        .theme_default
+                        .style_aliases
+                        .insert(new_alias, CssClassPartials::default());
                 },
+                "+ Add style alias"
             }
         }
     }
