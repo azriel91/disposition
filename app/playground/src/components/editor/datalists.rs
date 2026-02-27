@@ -91,9 +91,8 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
         let base_style_aliases = input_diagram_base
             .theme_default
             .style_aliases
-            .keys()
-            .into_iter();
-        let input_diagram_style_aliases = diagram.theme_default.style_aliases.keys().into_iter();
+            .keys();
+        let input_diagram_style_aliases = diagram.theme_default.style_aliases.keys();
 
         base_style_aliases.chain(input_diagram_style_aliases).fold(
             Set::<StyleAlias>::new(),

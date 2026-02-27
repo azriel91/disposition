@@ -23,18 +23,16 @@ pub fn drag_row_border_class(
     index: usize,
 ) -> &'static str {
     let drag_src = *drag_index.read();
-    let is_target = drop_target.read().map_or(false, |i| i == index);
+    let is_target = drop_target.read().is_some_and(|i| i == index);
 
-    if is_target {
-        if let Some(from) = drag_src {
-            if from != index {
+    if is_target
+        && let Some(from) = drag_src
+            && from != index {
                 if from < index {
                     return "border-t-transparent border-b-blue-400";
                 } else {
                     return "border-t-blue-400 border-b-transparent";
                 }
             }
-        }
-    }
     "border-t-transparent border-b-transparent"
 }

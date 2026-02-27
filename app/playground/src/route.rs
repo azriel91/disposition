@@ -16,6 +16,7 @@ use crate::{
 /// router. If that pattern is matched, the components for that route will be
 /// rendered.
 #[derive(Debug, Clone, Routable, PartialEq)]
+#[allow(clippy::large_enum_variant)] // TODO: `EditorState` is large (1328 bytes), we need to box things inside it.
 pub enum Route {
     // The layout attribute defines a wrapper for all routes under the layout. Layouts are great
     // for wrapping many routes with a common UI like a navbar.

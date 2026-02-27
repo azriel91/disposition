@@ -32,12 +32,11 @@ impl ThingsPageOps {
         let mut n = input_diagram.read().things.len();
         loop {
             let candidate = format!("thing_{n}");
-            if let Some(thing_id) = parse_thing_id(&candidate) {
-                if !input_diagram.read().things.contains_key(&thing_id) {
+            if let Some(thing_id) = parse_thing_id(&candidate)
+                && !input_diagram.read().things.contains_key(&thing_id) {
                     input_diagram.write().things.insert(thing_id, String::new());
                     break;
                 }
-            }
             n += 1;
         }
     }
@@ -48,11 +47,10 @@ impl ThingsPageOps {
         thing_id_str: &str,
         name: &str,
     ) {
-        if let Some(thing_id) = parse_thing_id(thing_id_str) {
-            if let Some(entry) = input_diagram.write().things.get_mut(&thing_id) {
+        if let Some(thing_id) = parse_thing_id(thing_id_str)
+            && let Some(entry) = input_diagram.write().things.get_mut(&thing_id) {
                 *entry = name.to_owned();
             }
-        }
     }
 
     /// Renames a thing across all maps in the [`InputDiagram`].
@@ -188,15 +186,14 @@ impl ThingsPageOps {
         let mut n = input_diagram.read().thing_copy_text.len();
         loop {
             let candidate = format!("thing_{n}");
-            if let Some(thing_id) = parse_thing_id(&candidate) {
-                if !input_diagram.read().thing_copy_text.contains_key(&thing_id) {
+            if let Some(thing_id) = parse_thing_id(&candidate)
+                && !input_diagram.read().thing_copy_text.contains_key(&thing_id) {
                     input_diagram
                         .write()
                         .thing_copy_text
                         .insert(thing_id, String::new());
                     break;
                 }
-            }
             n += 1;
         }
     }
@@ -206,12 +203,11 @@ impl ThingsPageOps {
         let mut n = input_diagram.read().entity_descs.len();
         loop {
             let candidate = format!("entity_{n}");
-            if let Some(id) = parse_id(&candidate) {
-                if !input_diagram.read().entity_descs.contains_key(&id) {
+            if let Some(id) = parse_id(&candidate)
+                && !input_diagram.read().entity_descs.contains_key(&id) {
                     input_diagram.write().entity_descs.insert(id, String::new());
                     break;
                 }
-            }
             n += 1;
         }
     }
@@ -221,15 +217,14 @@ impl ThingsPageOps {
         let mut n = input_diagram.read().entity_tooltips.len();
         loop {
             let candidate = format!("entity_{n}");
-            if let Some(id) = parse_id(&candidate) {
-                if !input_diagram.read().entity_tooltips.contains_key(&id) {
+            if let Some(id) = parse_id(&candidate)
+                && !input_diagram.read().entity_tooltips.contains_key(&id) {
                     input_diagram
                         .write()
                         .entity_tooltips
                         .insert(id, String::new());
                     break;
                 }
-            }
             n += 1;
         }
     }
@@ -305,25 +300,22 @@ impl ThingsPageOps {
     ) {
         match target {
             OnChangeTarget::CopyText => {
-                if let Some(thing_id) = parse_thing_id(id_str) {
-                    if let Some(entry) = input_diagram.write().thing_copy_text.get_mut(&thing_id) {
+                if let Some(thing_id) = parse_thing_id(id_str)
+                    && let Some(entry) = input_diagram.write().thing_copy_text.get_mut(&thing_id) {
                         *entry = value.to_owned();
                     }
-                }
             }
             OnChangeTarget::EntityDesc => {
-                if let Some(entity_id) = parse_id(id_str) {
-                    if let Some(entry) = input_diagram.write().entity_descs.get_mut(&entity_id) {
+                if let Some(entity_id) = parse_id(id_str)
+                    && let Some(entry) = input_diagram.write().entity_descs.get_mut(&entity_id) {
                         *entry = value.to_owned();
                     }
-                }
             }
             OnChangeTarget::EntityTooltip => {
-                if let Some(entity_id) = parse_id(id_str) {
-                    if let Some(entry) = input_diagram.write().entity_tooltips.get_mut(&entity_id) {
+                if let Some(entity_id) = parse_id(id_str)
+                    && let Some(entry) = input_diagram.write().entity_tooltips.get_mut(&entity_id) {
                         *entry = value.to_owned();
                     }
-                }
             }
         }
     }

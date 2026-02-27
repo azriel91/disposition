@@ -125,15 +125,14 @@ impl ProcessesPageOps {
         let mut n = input_diagram.read().processes.len();
         loop {
             let candidate = format!("proc_{n}");
-            if let Some(process_id) = parse_process_id(&candidate) {
-                if !input_diagram.read().processes.contains_key(&process_id) {
+            if let Some(process_id) = parse_process_id(&candidate)
+                && !input_diagram.read().processes.contains_key(&process_id) {
                     input_diagram
                         .write()
                         .processes
                         .insert(process_id, ProcessDiagram::default());
                     break;
                 }
-            }
             n += 1;
         }
     }
@@ -185,15 +184,14 @@ impl ProcessesPageOps {
         process_id_str: &str,
         name: &str,
     ) {
-        if let Some(process_id) = parse_process_id(process_id_str) {
-            if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
+        if let Some(process_id) = parse_process_id(process_id_str)
+            && let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
                 process_diagram.name = if name.is_empty() {
                     None
                 } else {
                     Some(name.to_owned())
                 };
             }
-        }
     }
 
     /// Updates the description for an existing process.
@@ -202,15 +200,14 @@ impl ProcessesPageOps {
         process_id_str: &str,
         desc: &str,
     ) {
-        if let Some(process_id) = parse_process_id(process_id_str) {
-            if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
+        if let Some(process_id) = parse_process_id(process_id_str)
+            && let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
                 process_diagram.desc = if desc.is_empty() {
                     None
                 } else {
                     Some(desc.to_owned())
                 };
             }
-        }
     }
 }
 
@@ -445,8 +442,8 @@ impl ProcessCardOps {
         let mut n = process_diagram.steps.len();
         loop {
             let candidate = format!("{process_id_str}_step_{n}");
-            if let Some(step_id) = parse_process_step_id(&candidate) {
-                if !process_diagram.steps.contains_key(&step_id) {
+            if let Some(step_id) = parse_process_step_id(&candidate)
+                && !process_diagram.steps.contains_key(&step_id) {
                     drop(input_diagram_read);
                     if let Some(process_diagram) =
                         input_diagram.write().processes.get_mut(&process_id)
@@ -455,7 +452,6 @@ impl ProcessCardOps {
                     }
                     break;
                 }
-            }
             n += 1;
         }
     }
@@ -549,11 +545,10 @@ impl ProcessCardOps {
             Some(step_id) => step_id,
             None => return,
         };
-        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
-            if let Some(entry) = process_diagram.steps.get_mut(&step_id) {
+        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id)
+            && let Some(entry) = process_diagram.steps.get_mut(&step_id) {
                 *entry = label.to_owned();
             }
-        }
     }
 
     // ── Step interaction helpers ─────────────────────────────────────
@@ -592,8 +587,8 @@ impl ProcessCardOps {
                 let mut n = process_diagram.step_thing_interactions.len();
                 loop {
                     let candidate = format!("{process_id_str}_step_{n}");
-                    if let Some(step_id) = parse_process_step_id(&candidate) {
-                        if !process_diagram
+                    if let Some(step_id) = parse_process_step_id(&candidate)
+                        && !process_diagram
                             .step_thing_interactions
                             .contains_key(&step_id)
                         {
@@ -607,7 +602,6 @@ impl ProcessCardOps {
                             }
                             return;
                         }
-                    }
                     n += 1;
                 }
             }
@@ -844,14 +838,11 @@ impl StepInteractionCardOps {
             Some(edge_group_id) => edge_group_id,
             None => return,
         };
-        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
-            if let Some(edge_group_ids) = process_diagram.step_thing_interactions.get_mut(&step_id)
-            {
-                if idx < edge_group_ids.len() {
+        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id)
+            && let Some(edge_group_ids) = process_diagram.step_thing_interactions.get_mut(&step_id)
+                && idx < edge_group_ids.len() {
                     edge_group_ids[idx] = edge_group_id_new;
                 }
-            }
-        }
     }
 
     /// Removes an edge group from a step interaction by index.
@@ -869,14 +860,11 @@ impl StepInteractionCardOps {
             Some(step_id) => step_id,
             None => return,
         };
-        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
-            if let Some(edge_group_ids) = process_diagram.step_thing_interactions.get_mut(&step_id)
-            {
-                if idx < edge_group_ids.len() {
+        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id)
+            && let Some(edge_group_ids) = process_diagram.step_thing_interactions.get_mut(&step_id)
+                && idx < edge_group_ids.len() {
                     edge_group_ids.remove(idx);
                 }
-            }
-        }
     }
 
     /// Adds an edge group to a step interaction, using the first existing
@@ -910,11 +898,10 @@ impl StepInteractionCardOps {
             None => return,
         };
 
-        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
-            if let Some(edge_group_ids) = process_diagram.step_thing_interactions.get_mut(&step_id)
+        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id)
+            && let Some(edge_group_ids) = process_diagram.step_thing_interactions.get_mut(&step_id)
             {
                 edge_group_ids.push(edge_group_id_new);
             }
-        }
     }
 }

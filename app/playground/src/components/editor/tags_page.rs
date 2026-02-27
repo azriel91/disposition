@@ -134,12 +134,11 @@ impl TagsPageOps {
         let mut n = input_diagram.read().tags.len();
         loop {
             let candidate = format!("tag_{n}");
-            if let Some(tag_id) = parse_tag_id(&candidate) {
-                if !input_diagram.read().tags.contains_key(&tag_id) {
+            if let Some(tag_id) = parse_tag_id(&candidate)
+                && !input_diagram.read().tags.contains_key(&tag_id) {
                     input_diagram.write().tags.insert(tag_id, String::new());
                     break;
                 }
-            }
             n += 1;
         }
     }
@@ -210,11 +209,10 @@ impl TagsPageOps {
         tag_id_str: &str,
         name: &str,
     ) {
-        if let Some(tag_id) = parse_tag_id(tag_id_str) {
-            if let Some(entry) = input_diagram.write().tags.get_mut(&tag_id) {
+        if let Some(tag_id) = parse_tag_id(tag_id_str)
+            && let Some(entry) = input_diagram.write().tags.get_mut(&tag_id) {
                 *entry = name.to_owned();
             }
-        }
     }
 
     // ── Tag things helpers ───────────────────────────────────────────
@@ -238,13 +236,12 @@ impl TagsPageOps {
                 let mut n = input_diagram_read.tag_things.len();
                 loop {
                     let candidate = format!("tag_{n}");
-                    if let Some(tag_id) = parse_tag_id(&candidate) {
-                        if !input_diagram_read.tag_things.contains_key(&tag_id) {
+                    if let Some(tag_id) = parse_tag_id(&candidate)
+                        && !input_diagram_read.tag_things.contains_key(&tag_id) {
                             drop(input_diagram_read);
                             input_diagram.write().tag_things.insert(tag_id, Set::new());
                             break;
                         }
-                    }
                     n += 1;
                 }
             }
@@ -329,11 +326,10 @@ impl TagsPageOps {
         };
 
         let mut input_diagram = input_diagram.write();
-        if let Some(things) = input_diagram.tag_things.get_mut(&tag_id) {
-            if idx < things.len() {
+        if let Some(things) = input_diagram.tag_things.get_mut(&tag_id)
+            && idx < things.len() {
                 things.swap_remove_index(idx);
             }
-        }
     }
 
     /// Adds a thing to a tag's thing set.

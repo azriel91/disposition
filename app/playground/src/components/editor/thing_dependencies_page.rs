@@ -428,8 +428,8 @@ impl EdgeGroupCardOps {
         let mut n = Self::edge_group_count(&input_diagram.read(), target);
         loop {
             let candidate = format!("edge_{n}");
-            if let Some(edge_group_id) = parse_edge_group_id(&candidate) {
-                if !Self::edge_group_contains(&input_diagram.read(), target, &edge_group_id) {
+            if let Some(edge_group_id) = parse_edge_group_id(&candidate)
+                && !Self::edge_group_contains(&input_diagram.read(), target, &edge_group_id) {
                     Self::edge_kind_set(
                         &mut input_diagram.write(),
                         target,
@@ -438,7 +438,6 @@ impl EdgeGroupCardOps {
                     );
                     break;
                 }
-            }
             n += 1;
         }
     }

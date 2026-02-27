@@ -42,11 +42,10 @@ pub fn KeyValueRow(
             },
             ondrop: move |evt| {
                 evt.prevent_default();
-                if let Some(from) = *drag_index.read() {
-                    if from != index {
+                if let Some(from) = *drag_index.read()
+                    && from != index {
                         ThingsPageOps::kv_entry_move(input_diagram, on_change, from, index);
                     }
-                }
                 drag_index.set(None);
                 drop_target.set(None);
             },

@@ -43,11 +43,10 @@ pub fn ThingNameRow(
             },
             ondrop: move |evt| {
                 evt.prevent_default();
-                if let Some(from) = *drag_index.read() {
-                    if from != index {
+                if let Some(from) = *drag_index.read()
+                    && from != index {
                         ThingsPageOps::thing_move(input_diagram, from, index);
                     }
-                }
                 drag_index.set(None);
                 drop_target.set(None);
             },

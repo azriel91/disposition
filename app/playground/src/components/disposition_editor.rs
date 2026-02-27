@@ -117,7 +117,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
             }
 
             let input_diagram_merge_start = Instant::now();
-            let input_diagram_merged = InputDiagramMerger::merge(InputDiagram::base(), &*diagram);
+            let input_diagram_merged = InputDiagramMerger::merge(InputDiagram::base(), &diagram);
             let input_diagram_merge_duration_ms = Instant::now()
                 .duration_since(input_diagram_merge_start)
                 .as_millis();
