@@ -20,11 +20,14 @@ Rust SVG diagram generation library with a dioxus web frontend.
 7. Each public type usually has its own module, e.g. `NodeId` would be in `node_id.rs`.
 8. "Data model" types are usually separate from "logic" types -- so data models can be published without publishing logic. Sometimes logic modules contain supporting data types to pass parameters.
 9. Try and keep functions under 200 lines by extracting logic / components with meaningful names.
+10. Avoid non-ascii characters, e.g. "—". Use "--" for elaboration or "`param`: description" in parameter documentation.
+11. Section comments should be written as `// === Section Name === //` instead of a 3 line comment.
+12. Unless a type / component is small, it should be placed in its own module -- often a submodule of the current module.
 
 
 ## Additional Context
 
-1. When editing the `disposition_playground` crate, see <@agent/dioxus.md> for working with dioxus `0.7`.
+1. When editing the `disposition_playground` crate, see <@agent/dioxus.md> if you need context on working wtih dioxus `0.7`.
 
 
 ## Tests
