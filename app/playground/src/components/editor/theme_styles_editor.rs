@@ -22,6 +22,8 @@ pub(crate) mod css_class_partials_card;
 pub(crate) mod css_class_partials_card_aliases;
 pub(crate) mod css_class_partials_card_attrs;
 pub(crate) mod css_class_partials_card_header;
+pub(crate) mod css_class_partials_snapshot;
+pub(crate) mod theme_attr_entry;
 
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
@@ -37,7 +39,10 @@ use disposition::{
 
 use crate::components::editor::common::{parse_entity_type_id, parse_tag_id_or_defaults, ADD_BTN};
 
-use self::css_class_partials_card::CssClassPartialsCard;
+use self::{
+    css_class_partials_card::CssClassPartialsCard,
+    css_class_partials_snapshot::CssClassPartialsSnapshot, theme_attr_entry::ThemeAttrEntry,
+};
 
 // === Constants === //
 
@@ -127,11 +132,6 @@ pub(crate) const ID_OR_DEFAULTS_BUILTINS: &[(&str, &str)] = &[
     ("node_excluded_defaults", "Node Excluded Defaults"),
     ("edge_defaults", "Edge Defaults"),
 ];
-
-// === Snapshot type alias (avoids clippy::type_complexity) === //
-
-/// `(key, style_aliases_applied, Vec<(attr_name, attr_value)>)` snapshot.
-type EntrySnapshot = (String, Vec<String>, Vec<(String, String)>);
 
 // === Helpers === //
 
@@ -254,12 +254,7 @@ impl ThemeStylesTarget {
             Self::TypesStyles { entity_type_key } => {
                 let type_id = parse_entity_type_id(entity_type_key)?;
                 // Use entry API to insert default if missing.
-                Some(
-                    diagram
-                        .theme_types_styles
-                        .entry(type_id)
-                        .or_default(),
-                )
+                Some(diagram.theme_types_styles.entry(type_id).or_default())
             }
             Self::DependenciesIncluded => Some(
                 &mut diagram
@@ -273,12 +268,7 @@ impl ThemeStylesTarget {
             ),
             Self::TagFocus { tag_key } => {
                 let tag = parse_tag_id_or_defaults(tag_key)?;
-                Some(
-                    diagram
-                        .theme_tag_things_focus
-                        .entry(tag)
-                        .or_default(),
-                )
+                Some(diagram.theme_tag_things_focus.entry(tag).or_default())
             }
         }
     }
@@ -326,24 +316,29 @@ pub fn ThemeStylesEditor(
     };
 
     // Snapshot the entries so we can drop the borrow before event handlers.
-    let entries: Vec<EntrySnapshot> = theme_styles
+    let entries: Vec<CssClassPartialsSnapshot> = theme_styles
         .iter()
         .map(
             |(key, css_partials): (&IdOrDefaults<'static>, &CssClassPartials<'static>)| {
-                let key_str = key.as_str().to_owned();
-                let aliases: Vec<String> = css_partials
+                let entry_key = key.as_str().to_owned();
+                let style_aliases_applied: Vec<String> = css_partials
                     .style_aliases_applied
                     .iter()
                     .map(|a: &StyleAlias<'static>| a.as_str().to_owned())
                     .collect();
-                let attrs: Vec<(String, String)> = css_partials
+                let theme_attrs: Vec<ThemeAttrEntry> = css_partials
                     .partials
                     .iter()
-                    .map(|(attr, val): (&ThemeAttr, &String)| {
-                        (theme_attr_name(attr).to_owned(), val.clone())
+                    .map(|(attr, val): (&ThemeAttr, &String)| ThemeAttrEntry {
+                        attr_name: theme_attr_name(attr).to_owned(),
+                        attr_value: val.clone(),
                     })
                     .collect();
-                (key_str, aliases, attrs)
+                CssClassPartialsSnapshot {
+                    entry_key,
+                    style_aliases_applied,
+                    theme_attrs,
+                }
             },
         )
         .collect();
@@ -355,19 +350,19 @@ pub fn ThemeStylesEditor(
 
             for (idx, entry) in entries.iter().enumerate() {
                 {
-                    let key = entry.0.clone();
-                    let aliases = entry.1.clone();
-                    let attrs = entry.2.clone();
+                    let entry_key = entry.entry_key.clone();
+                    let style_aliases = entry.style_aliases_applied.clone();
+                    let theme_attrs = entry.theme_attrs.clone();
                     let target = target.clone();
                     rsx! {
                         CssClassPartialsCard {
-                            key: "entry_{idx}_{key}",
+                            key: "entry_{idx}_{entry_key}",
                             input_diagram,
                             target,
                             entry_index: idx,
-                            entry_key: key,
-                            style_aliases: aliases,
-                            theme_attrs: attrs,
+                            entry_key,
+                            style_aliases,
+                            theme_attrs,
                         }
                     }
                 }

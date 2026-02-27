@@ -18,7 +18,7 @@ use crate::components::editor::{
         ADD_BTN, CARD_CLASS, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS,
     },
     datalists::list_ids,
-    theme_styles_editor::{parse_theme_attr, THEME_ATTRS},
+    theme_styles_editor::{parse_theme_attr, theme_attr_entry::ThemeAttrEntry, THEME_ATTRS},
 };
 
 // === Helpers === //
@@ -45,7 +45,7 @@ pub fn StyleAliasesSection(
     input_diagram: Signal<InputDiagram<'static>>,
     alias_key: String,
     style_aliases_applied: Vec<String>,
-    theme_attrs: Vec<(String, String)>,
+    theme_attrs: Vec<ThemeAttrEntry>,
 ) -> Element {
     rsx! {
         div {
@@ -288,7 +288,7 @@ fn StyleAliasesSectionAliasRow(
 fn StyleAliasesSectionAttrs(
     input_diagram: Signal<InputDiagram<'static>>,
     alias_key: String,
-    theme_attrs: Vec<(String, String)>,
+    theme_attrs: Vec<ThemeAttrEntry>,
 ) -> Element {
     rsx! {
         div {
@@ -299,10 +299,10 @@ fn StyleAliasesSectionAttrs(
                 "Attributes"
             }
 
-            for (attr_idx, (attr_name, attr_value)) in theme_attrs.iter().enumerate() {
+            for (attr_idx, theme_attr_entry) in theme_attrs.iter().enumerate() {
                 {
-                    let attr_name = attr_name.clone();
-                    let attr_value = attr_value.clone();
+                    let attr_name = theme_attr_entry.attr_name.clone();
+                    let attr_value = theme_attr_entry.attr_value.clone();
                     let key = alias_key.clone();
                     rsx! {
                         StyleAliasesSectionAttrRow {

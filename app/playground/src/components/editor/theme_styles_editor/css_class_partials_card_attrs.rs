@@ -14,7 +14,10 @@ use disposition::input_model::InputDiagram;
 
 use crate::components::editor::{
     common::{ADD_BTN, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS},
-    theme_styles_editor::{parse_id_or_defaults, parse_theme_attr, ThemeStylesTarget, THEME_ATTRS},
+    theme_styles_editor::{
+        parse_id_or_defaults, parse_theme_attr, theme_attr_entry::ThemeAttrEntry,
+        ThemeStylesTarget, THEME_ATTRS,
+    },
 };
 
 // === CssClassPartialsCardAttrs === //
@@ -29,7 +32,7 @@ pub fn CssClassPartialsCardAttrs(
     input_diagram: Signal<InputDiagram<'static>>,
     target: ThemeStylesTarget,
     entry_key: String,
-    theme_attrs: Vec<(String, String)>,
+    theme_attrs: Vec<ThemeAttrEntry>,
 ) -> Element {
     rsx! {
         div {
@@ -40,10 +43,10 @@ pub fn CssClassPartialsCardAttrs(
                 "Attributes"
             }
 
-            for (attr_idx, (attr_name, attr_value)) in theme_attrs.iter().enumerate() {
+            for (attr_idx, theme_attr_entry) in theme_attrs.iter().enumerate() {
                 {
-                    let attr_name = attr_name.clone();
-                    let attr_value = attr_value.clone();
+                    let attr_name = theme_attr_entry.attr_name.clone();
+                    let attr_value = theme_attr_entry.attr_value.clone();
                     let key = entry_key.clone();
                     let target = target.clone();
                     rsx! {

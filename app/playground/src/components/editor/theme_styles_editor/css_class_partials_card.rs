@@ -14,7 +14,8 @@ use crate::components::editor::{
     theme_styles_editor::{
         css_class_partials_card_aliases::CssClassPartialsCardAliases,
         css_class_partials_card_attrs::CssClassPartialsCardAttrs,
-        css_class_partials_card_header::CssClassPartialsCardHeader, ThemeStylesTarget,
+        css_class_partials_card_header::CssClassPartialsCardHeader,
+        theme_attr_entry::ThemeAttrEntry, ThemeStylesTarget,
     },
 };
 
@@ -35,7 +36,7 @@ pub fn CssClassPartialsCard(
     entry_index: usize,
     entry_key: String,
     style_aliases: Vec<String>,
-    theme_attrs: Vec<(String, String)>,
+    theme_attrs: Vec<ThemeAttrEntry>,
 ) -> Element {
     rsx! {
         div {

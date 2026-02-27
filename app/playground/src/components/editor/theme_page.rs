@@ -23,6 +23,10 @@ use disposition::input_model::{
     InputDiagram,
 };
 
+use crate::components::editor::theme_styles_editor::{
+    css_class_partials_snapshot::CssClassPartialsSnapshot, theme_attr_entry::ThemeAttrEntry,
+};
+
 use crate::components::editor::{
     common::{
         parse_entity_type_id, parse_tag_id_or_defaults, ADD_BTN, CARD_CLASS, LABEL_CLASS,
@@ -55,7 +59,7 @@ fn theme_attr_name(attr: &ThemeAttr) -> &'static str {
 #[component]
 pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     // Snapshot the entries so we can drop the borrow before event handlers.
-    let entries: Vec<(String, Vec<String>, Vec<(String, String)>)> = {
+    let entries: Vec<CssClassPartialsSnapshot> = {
         let diagram = input_diagram.read();
         diagram
             .theme_default
@@ -63,20 +67,25 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
             .iter()
             .map(
                 |(alias, css_partials): (&StyleAlias<'static>, &CssClassPartials<'static>)| {
-                    let key_str = alias.as_str().to_owned();
-                    let aliases: Vec<String> = css_partials
+                    let entry_key = alias.as_str().to_owned();
+                    let style_aliases_applied: Vec<String> = css_partials
                         .style_aliases_applied
                         .iter()
                         .map(|a: &StyleAlias<'static>| a.as_str().to_owned())
                         .collect();
-                    let attrs: Vec<(String, String)> = css_partials
+                    let theme_attrs: Vec<ThemeAttrEntry> = css_partials
                         .partials
                         .iter()
-                        .map(|(attr, val): (&ThemeAttr, &String)| {
-                            (theme_attr_name(attr).to_owned(), val.clone())
+                        .map(|(attr, val): (&ThemeAttr, &String)| ThemeAttrEntry {
+                            attr_name: theme_attr_name(attr).to_owned(),
+                            attr_value: val.clone(),
                         })
                         .collect();
-                    (key_str, aliases, attrs)
+                    CssClassPartialsSnapshot {
+                        entry_key,
+                        style_aliases_applied,
+                        theme_attrs,
+                    }
                 },
             )
             .collect()
@@ -93,18 +102,18 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                  Each card below corresponds to one alias definition."
             }
 
-            for (idx, (alias_key, aliases, attrs)) in entries.iter().enumerate() {
+            for (idx, entry) in entries.iter().enumerate() {
                 {
-                    let alias_key = alias_key.clone();
-                    let aliases = aliases.clone();
-                    let attrs = attrs.clone();
+                    let alias_key = entry.entry_key.clone();
+                    let style_aliases_applied = entry.style_aliases_applied.clone();
+                    let theme_attrs = entry.theme_attrs.clone();
                     rsx! {
                         StyleAliasesSection {
                             key: "alias_{idx}_{alias_key}",
                             input_diagram,
                             alias_key,
-                            style_aliases_applied: aliases,
-                            theme_attrs: attrs,
+                            style_aliases_applied,
+                            theme_attrs,
                         }
                     }
                 }
