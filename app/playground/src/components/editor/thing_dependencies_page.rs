@@ -29,7 +29,7 @@ use crate::components::editor::{
 struct EdgeGroupEntry {
     edge_group_id: String,
     kind_label: String,
-    things: Vec<String>,
+    things: Vec<ThingId<'static>>,
 }
 
 /// The **Thing Dependencies** editor page.
@@ -314,27 +314,27 @@ impl EdgeGroupCardOps {
 
     /// Decompose an `EdgeKind` into a label string and a list of thing ID
     /// strings.
-    fn edge_kind_to_parts(edge_kind: &EdgeKind<'_>) -> (&'static str, Vec<String>) {
+    fn edge_kind_to_parts(edge_kind: &EdgeKind<'_>) -> (&'static str, Vec<ThingId<'static>>) {
         match edge_kind {
             EdgeKind::Cyclic(things) => (
                 "cyclic",
                 things
                     .iter()
-                    .map(|thing_id| thing_id.as_str().to_owned())
+                    .map(|thing_id| ThingId::from(thing_id.clone().into_inner().into_static()))
                     .collect(),
             ),
             EdgeKind::Sequence(things) => (
                 "sequence",
                 things
                     .iter()
-                    .map(|thing_id| thing_id.as_str().to_owned())
+                    .map(|thing_id| ThingId::from(thing_id.clone().into_inner().into_static()))
                     .collect(),
             ),
             EdgeKind::Symmetric(things) => (
                 "symmetric",
                 things
                     .iter()
-                    .map(|thing_id| thing_id.as_str().to_owned())
+                    .map(|thing_id| ThingId::from(thing_id.clone().into_inner().into_static()))
                     .collect(),
             ),
         }
@@ -342,7 +342,10 @@ impl EdgeGroupCardOps {
 
     /// Reconstruct an `EdgeKind<'static>` from a label and a list of thing ID
     /// strings.
-    fn edge_kind_from_parts(kind_label: &str, thing_strs: &[String]) -> Option<EdgeKind<'static>> {
+    fn edge_kind_from_parts(
+        kind_label: &str,
+        thing_strs: &[ThingId<'static>],
+    ) -> Option<EdgeKind<'static>> {
         let things: Vec<ThingId<'static>> = thing_strs
             .iter()
             .filter_map(|s| parse_thing_id(s))
@@ -519,7 +522,7 @@ impl EdgeGroupCardOps {
         target: MapTarget,
         edge_group_id_str: &str,
         kind_label_new: &str,
-        current_things: &[String],
+        current_things: &[ThingId<'static>],
     ) {
         let edge_group_id = match parse_edge_group_id(edge_group_id_str) {
             Some(edge_group_id) => edge_group_id,
