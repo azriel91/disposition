@@ -462,10 +462,14 @@ impl IrToTaffyBuilder<'_> {
             Map::<EntityType, Vec<taffy::NodeId>>::new(),
             |mut entity_type_to_nodes, (node_id, child_hierarchy)| {
                 let node_id: &Id = node_id.as_ref();
-                let entity_type = entity_types
+                let Some(entity_type) = entity_types
                     .get(node_id)
                     .and_then(|entity_types| entity_types.first())
-                    .unwrap_or_else(|| panic!("`entity_type` not found for {node_id}"));
+                else {
+                    // Skip nodes without an entity type -- probably something extra in the
+                    // hierarchy without a node name.
+                    return entity_type_to_nodes;
+                };
 
                 if matches!(entity_type, EntityType::ProcessDefault) {
                     match processes_included {
@@ -531,14 +535,18 @@ impl IrToTaffyBuilder<'_> {
 
         node_hierarchy
             .iter()
-            .map(|(node_id, child_hierarchy)| {
+            .filter_map(|(node_id, child_hierarchy)| {
                 let node_id: &Id = node_id.as_ref();
-                let entity_type = entity_types
+                let Some(entity_type) = entity_types
                     .get(node_id)
                     .and_then(|entity_types| entity_types.first())
-                    .unwrap_or_else(|| panic!("`entity_type` not found for {node_id}"));
+                else {
+                    // Skip nodes without an entity type -- probably something extra in the
+                    // hierarchy without a node name.
+                    return None;
+                };
 
-                if child_hierarchy.is_empty() {
+                let taffy_node_id = if child_hierarchy.is_empty() {
                     Self::build_taffy_nodes_for_node_without_child_hierarchy(
                         taffy_tree,
                         node_layouts,
@@ -561,7 +569,9 @@ impl IrToTaffyBuilder<'_> {
                         node_id,
                         entity_type,
                     )
-                }
+                };
+
+                Some(taffy_node_id)
             })
             .collect::<Vec<taffy::NodeId>>()
     }
