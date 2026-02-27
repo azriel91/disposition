@@ -1,27 +1,25 @@
-use std::{
-    fmt::Write,
-    hash::{DefaultHasher, Hasher},
-};
+//! Disposition editor component.
+//!
+//! The main editor component wiring together the tab bar, page content,
+//! status messages, and SVG preview.
+
+mod disposition_status_message_div;
+mod editor_page_content;
+mod editor_tab_bar;
+mod taffy_tree_fmt;
 
 use dioxus::{
     hooks::{use_memo, use_signal},
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Props},
     router::navigator,
-    signals::{Memo, ReadSignal, ReadableExt, ReadableVecExt, Signal, WritableExt},
+    signals::{Memo, ReadSignal, ReadableExt, Signal, WritableExt},
 };
 use disposition::{
     input_ir_model::IrDiagramAndIssues,
     input_model::InputDiagram,
-    ir_model::{
-        node::{NodeId, NodeInbuilt},
-        IrDiagram,
-    },
-    model_common::Map,
+    ir_model::IrDiagram,
     svg_model::SvgElements,
-    taffy_model::{
-        taffy::{self, PrintTree},
-        DimensionAndLod, TaffyNodeMappings,
-    },
+    taffy_model::{DimensionAndLod, TaffyNodeMappings},
 };
 use disposition_input_ir_rt::{
     EdgeAnimationActive, InputDiagramMerger, InputToIrDiagramMapper, IrToTaffyBuilder,
@@ -35,49 +33,23 @@ use web_time::Instant;
 
 use crate::{
     components::{
-        editor::{
-            EditorDataLists, ProcessesPage, TagsPage, TextPage, ThemeBaseStylesPage,
-            ThemeDependenciesStylesPage, ThemeProcessStepStylesPage, ThemeStyleAliasesPage,
-            ThemeTagsFocusPage, ThemeTypesStylesPage, ThingDependenciesPage, ThingInteractionsPage,
-            ThingsPage,
-        },
-        IrDiagramDiv, SvgElementsDiv, TabDetails, TabGroup, TaffyNodeMappingsDiv,
+        editor::EditorDataLists, IrDiagramDiv, SvgElementsDiv, TabDetails, TabGroup,
+        TaffyNodeMappingsDiv,
     },
-    editor_state::{EditorPage, EditorPageOrGroup, EditorState, ThingsPageUiState},
+    editor_state::{EditorPage, EditorState, ThingsPageUiState},
     route::Route,
 };
 
-/// CSS classes for top-level editor page tabs.
-const TAB_CLASS: &str = "\
-    cursor-pointer \
-    select-none \
-    px-3 py-1.5 \
-    text-sm \
-    font-semibold \
-    rounded-t \
-    transition-colors \
-    duration-150\
-";
-
-const TAB_ACTIVE: &str = "text-blue-400 border-b-2 border-blue-400";
-const TAB_INACTIVE: &str = "text-gray-400 hover:text-gray-200";
-
-/// CSS classes for theme sub-tabs (smaller, nested).
-const SUB_TAB_CLASS: &str = "\
-    cursor-pointer \
-    select-none \
-    px-2 py-1 \
-    text-xs \
-    font-semibold \
-    rounded-t \
-    transition-colors \
-    duration-150\
-";
+use self::{
+    disposition_status_message_div::DispositionStatusMessageDiv,
+    editor_page_content::EditorPageContent, editor_tab_bar::EditorTabBar,
+    taffy_tree_fmt::TaffyTreeFmt,
+};
 
 #[component]
 #[allow(clippy::type_complexity)]
 pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
-    // ── Signals ──────────────────────────────────────────────────────────
+    // === Signals === //
 
     // The InputDiagram being edited, as a read-write signal.
     let mut input_diagram: Signal<InputDiagram<'static>> =
@@ -90,7 +62,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
     let mut things_ui_state: Signal<ThingsPageUiState> =
         use_signal(|| editor_state.read().things_ui.clone());
 
-    // ── Sync: incoming EditorState prop -> local signals ──────────────────
+    // === Sync: incoming EditorState prop -> local signals === //
 
     use_memo(move || {
         let state = editor_state.read();
@@ -105,7 +77,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         }
     });
 
-    // ── Sync: local signals -> URL hash (EditorState) ────────────────────
+    // === Sync: local signals -> URL hash (EditorState) === //
 
     use_memo(move || {
         let diagram = input_diagram.read().clone();
@@ -127,12 +99,12 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         }
     });
 
-    // ── InputDiagram as a Memo for read-only consumers ──────────────────
+    // === InputDiagram as a Memo for read-only consumers === //
 
     let input_diagram_memo: Memo<InputDiagram<'static>> =
         use_memo(move || input_diagram.read().clone());
 
-    // ── SVG generation pipeline (unchanged logic) ────────────────────────
+    // === SVG generation pipeline === //
 
     let ir_diagram: Memo<Result<(IrDiagram<'static>, Vec<String>), Vec<String>>> =
         use_memo(move || {
@@ -229,7 +201,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         match taffy_node_mappings {
             Ok(taffy_node_mappings) => {
                 let mut buffer = String::new();
-                taffy_tree_fmt(&mut buffer, taffy_node_mappings);
+                TaffyTreeFmt::fmt(&mut buffer, taffy_node_mappings);
                 buffer
             }
             Err(_) => String::new(),
@@ -303,7 +275,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         messages
     });
 
-    // ── Render ───────────────────────────────────────────────────────────
+    // === Render === //
 
     rsx! {
         // Hidden datalist elements available to all pages.
@@ -318,7 +290,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 gap-2
             ",
 
-            // ── Left column: editor tabs + status + intermediates ────
+            // === Left column: editor tabs + status + intermediates === //
             div {
                 class: "
                     flex-1
@@ -328,12 +300,10 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                     min-w-0
                 ",
 
-                // ── Top-level tab bar ────────────────────────────────
                 EditorTabBar {
                     active_page,
                 }
 
-                // ── Active page content ──────────────────────────────
                 div {
                     class: "
                         flex-1
@@ -350,10 +320,8 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                     }
                 }
 
-                // ── Status messages ──────────────────────────────────
                 DispositionStatusMessageDiv { status_messages }
 
-                // ── Intermediate data tabs ───────────────────────────
                 TabGroup {
                     group_name: "intermediate_tabs",
                     default_checked: 0usize,
@@ -374,316 +342,13 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 }
             }
 
-            // ── Right column: SVG preview ────────────────────────────
+            // === Right column: SVG preview === //
             object {
                 class: "
                     flex-1
                 ",
                 r#type: "image/svg+xml",
                 data: format!("data:image/svg+xml,{}", urlencoding::encode(svg().as_str())),
-            }
-        }
-    }
-}
-
-// ===========================================================================
-// Editor tab bar
-// ===========================================================================
-
-/// Renders the top-level tab bar and, when a Theme page is active, a nested
-/// sub-tab bar.
-#[component]
-fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
-    let current = active_page.read().clone();
-
-    rsx! {
-        div {
-            class: "flex flex-col",
-
-            // ── Top-level tabs ───────────────────────────────────────
-            div {
-                class: "
-                    flex
-                    flex-row
-                    flex-wrap
-                    gap-1
-                    border-b
-                    border-gray-700
-                    mb-1
-                ",
-
-                for entry in EditorPage::TOP_LEVEL.iter() {
-                    {
-                        let is_active = entry.contains(&current);
-                        let css = format!(
-                            "{TAB_CLASS} {}",
-                            if is_active { TAB_ACTIVE } else { TAB_INACTIVE }
-                        );
-                        let entry_clone = entry.clone();
-
-                        rsx! {
-                            span {
-                                key: "{entry.label()}",
-                                class: "{css}",
-                                onclick: {
-                                    let entry = entry_clone.clone();
-                                    move |_| {
-                                        match &entry {
-                                            EditorPageOrGroup::Page(p) => {
-                                                active_page.set(p.clone());
-                                            }
-                                            EditorPageOrGroup::ThemeGroup => {
-                                                // If already on a theme page, stay there;
-                                                // otherwise default to StyleAliases.
-                                                if !active_page.peek().is_theme() {
-                                                    active_page.set(EditorPage::ThemeStyleAliases);
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                                "{entry.label()}"
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ── Theme sub-tabs (only visible when a Theme page is active) ──
-            if current.is_theme() {
-                div {
-                    class: "
-                        flex
-                        flex-row
-                        flex-wrap
-                        gap-1
-                        border-b
-                        border-gray-700
-                        mb-1
-                        pl-2
-                    ",
-
-                    for sub in EditorPage::THEME_SUB_PAGES.iter() {
-                        {
-                            let is_active = current == *sub;
-                            let css = format!(
-                                "{SUB_TAB_CLASS} {}",
-                                if is_active { TAB_ACTIVE } else { TAB_INACTIVE }
-                            );
-                            let sub_clone = sub.clone();
-
-                            rsx! {
-                                span {
-                                    key: "{sub.label()}",
-                                    class: "{css}",
-                                    onclick: {
-                                        let sub_page = sub_clone.clone();
-                                        move |_| {
-                                            active_page.set(sub_page.clone());
-                                        }
-                                    },
-                                    "{sub.label()}"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ===========================================================================
-// Editor page content dispatcher
-// ===========================================================================
-
-/// Renders the content of the currently active editor page.
-#[component]
-fn EditorPageContent(
-    active_page: Signal<EditorPage>,
-    input_diagram: Signal<InputDiagram<'static>>,
-    things_ui_state: Signal<ThingsPageUiState>,
-) -> Element {
-    let page = active_page.read().clone();
-
-    match page {
-        EditorPage::Things => rsx! { ThingsPage { input_diagram, things_ui_state } },
-        EditorPage::ThingDependencies => rsx! { ThingDependenciesPage { input_diagram } },
-        EditorPage::ThingInteractions => rsx! { ThingInteractionsPage { input_diagram } },
-        EditorPage::Processes => rsx! { ProcessesPage { input_diagram } },
-        EditorPage::Tags => rsx! { TagsPage { input_diagram } },
-        EditorPage::ThemeStyleAliases => rsx! { ThemeStyleAliasesPage { input_diagram } },
-        EditorPage::ThemeBaseStyles => rsx! { ThemeBaseStylesPage { input_diagram } },
-        EditorPage::ThemeProcessStepStyles => rsx! { ThemeProcessStepStylesPage { input_diagram } },
-        EditorPage::ThemeTypesStyles => rsx! { ThemeTypesStylesPage { input_diagram } },
-        EditorPage::ThemeDependenciesStyles => {
-            rsx! { ThemeDependenciesStylesPage { input_diagram } }
-        }
-        EditorPage::ThemeTagsFocus => rsx! { ThemeTagsFocusPage { input_diagram } },
-        EditorPage::Text => rsx! { TextPage { input_diagram } },
-    }
-}
-
-// ===========================================================================
-// Taffy tree formatting (unchanged)
-// ===========================================================================
-
-/// Writes a string representation of a Taffy tree to a buffer.
-///
-/// This is copied and modified from the `taffy::TaffyTree::print_tree` method:
-///
-/// <https://github.com/DioxusLabs/taffy/blob/v0.9.2/src/util/print.rs#L5>
-///
-/// then adapted to print the disposition diagram node ID.
-fn taffy_tree_fmt(buffer: &mut String, taffy_node_mappings: &TaffyNodeMappings) {
-    let TaffyNodeMappings {
-        taffy_tree,
-        node_inbuilt_to_taffy,
-        node_id_to_taffy: _,
-        entity_highlighted_spans: _,
-        taffy_id_to_node,
-    } = taffy_node_mappings;
-    let root_taffy_node_id = node_inbuilt_to_taffy
-        .get(&NodeInbuilt::Root)
-        .copied()
-        .expect("Expected root taffy node to exist.");
-    writeln!(buffer, "TREE").expect("Failed to write taffy tree to buffer");
-    taffy_tree_node_fmt(
-        buffer,
-        taffy_tree,
-        taffy_id_to_node,
-        root_taffy_node_id,
-        false,
-        String::new(),
-    );
-}
-
-/// Recursive function that prints each node in the tree
-fn taffy_tree_node_fmt(
-    buffer: &mut String,
-    tree: &impl PrintTree,
-    taffy_id_to_node: &Map<taffy::NodeId, NodeId>,
-    taffy_node_id: taffy::NodeId,
-    has_sibling: bool,
-    lines_string: String,
-) {
-    let layout = &tree.get_final_layout(taffy_node_id);
-    let display = taffy_id_to_node
-        .get(&taffy_node_id)
-        .map(|node_id| node_id.as_str())
-        .unwrap_or_else(|| tree.get_debug_label(taffy_node_id));
-    let num_children = tree.child_count(taffy_node_id);
-
-    let fork_string = if has_sibling {
-        "├── "
-    } else {
-        "└── "
-    };
-    writeln!(
-        buffer,
-        "{lines}{fork} {display} [x: {x:<4} y: {y:<4} w: {width:<4} h: {height:<4} content_w: {content_width:<4} content_h: {content_height:<4}, padding: l:{pl} r:{pr} t:{pt} b:{pb}]",
-        lines = lines_string,
-        fork = fork_string,
-        display = display,
-        x = layout.location.x,
-        y = layout.location.y,
-        width = layout.size.width,
-        height = layout.size.height,
-        content_width = layout.content_size.width,
-        content_height = layout.content_size.height,
-        pl = layout.padding.left,
-        pr = layout.padding.right,
-        pt = layout.padding.top,
-        pb = layout.padding.bottom,
-    )
-    .expect("Failed to write taffy tree to buffer");
-    let bar = if has_sibling { "│   " } else { "    " };
-    let new_string = lines_string + bar;
-
-    // Recurse into children
-    tree.child_ids(taffy_node_id)
-        .enumerate()
-        .for_each(|(index, child)| {
-            let has_sibling = index < num_children - 1;
-            taffy_tree_node_fmt(
-                buffer,
-                tree,
-                taffy_id_to_node,
-                child,
-                has_sibling,
-                new_string.clone(),
-            );
-        });
-}
-
-// ===========================================================================
-// Status message components (unchanged)
-// ===========================================================================
-
-#[component]
-fn DispositionStatusMessageDiv(status_messages: Memo<Vec<String>>) -> Element {
-    rsx! {
-        div {
-            id: "disposition_status_message_div",
-            class: "
-                w-full
-                flex
-                flex-col
-                gap-1
-            ",
-            h3 {
-                class: "
-                    text-sm
-                    font-bold
-                    text-gray-300
-                ",
-                "Status Message"
-            }
-            DispositionStatusMessage {
-                status_messages,
-            }
-        }
-    }
-}
-
-#[component]
-fn DispositionStatusMessage(status_messages: Memo<Vec<String>>) -> Element {
-    rsx! {
-        div {
-            id: "disposition_status_message",
-            class: "
-                rounded-lg
-                border
-                border-gray-300
-                bg-gray-800
-                font-mono
-                p-2
-                select-text
-            ",
-            ul {
-                class: "
-                    list-disc
-                    list-inside
-                ",
-                for message in status_messages.iter() {
-                    {
-                        let mut hasher = DefaultHasher::new();
-                        hasher.write(message.as_bytes());
-                        let key = hasher.finish();
-
-                        rsx! {
-                            li {
-                                key: "{key}",
-                                class: "
-                                    text-sm
-                                    text-gray-300
-                                ",
-                                "{message}"
-                            }
-                        }
-
-                    }
-                }
             }
         }
     }
