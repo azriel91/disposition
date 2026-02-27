@@ -1,15 +1,10 @@
-use std::{borrow::Cow, fmt::Write};
-
 use disposition_input_ir_model::IrDiagramAndIssues;
 use disposition_input_model::{
     edge::EdgeKind,
     entity::EntityTypes,
-    process::{ProcessDiagram, ProcessId, ProcessStepId, Processes},
-    tag::{TagNames, TagThings},
-    theme::{
-        CssClassPartials, IdOrDefaults, StyleAliases, TagIdOrDefaults, ThemeAttr, ThemeDefault,
-        ThemeTagThingsFocus, ThemeTypesStyles,
-    },
+    process::Processes,
+    tag::TagNames,
+    theme::{ThemeDefault, ThemeTypesStyles},
     thing::{
         ThingCopyText, ThingDependencies, ThingHierarchy as InputThingHierarchy, ThingInteractions,
         ThingNames,
@@ -18,13 +13,10 @@ use disposition_input_model::{
 };
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeGroups},
-    entity::{EntityTailwindClasses, EntityType, EntityTypeId},
+    entity::EntityType,
     enum_iterator,
     layout::{FlexDirection, FlexLayout, NodeLayout, NodeLayouts},
-    node::{
-        NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering, NodeShape,
-        NodeShapeCircle, NodeShapeRect, NodeShapes,
-    },
+    node::{NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering, NodeShapes},
     process::ProcessStepEntities,
     IrDiagram,
 };
@@ -34,11 +26,17 @@ use disposition_model_common::{
     Id, Map, Set,
 };
 
+use self::{
+    tailwind_classes_builder::TailwindClassesBuilder, theme_attr_resolver::ThemeAttrResolver,
+};
+
+mod tailwind_class_state;
+mod tailwind_classes_builder;
+mod theme_attr_resolver;
+
 /// Maps an input diagram to an intermediate representation diagram.
 #[derive(Clone, Copy, Debug)]
 pub struct InputToIrDiagramMapper;
-
-const CLASSES_BUFFER_WRITE_FAIL: &str = "Failed to write string to buffer";
 
 impl InputToIrDiagramMapper {
     /// Maps an input diagram to an intermediate representation diagram.
@@ -113,7 +111,7 @@ impl InputToIrDiagramMapper {
             Self::build_node_shapes(&nodes, &ir_entity_types, theme_default, theme_types_styles);
 
         // 11. Build TailwindClasses from theme
-        let tailwind_classes = Self::build_tailwind_classes(
+        let tailwind_classes = TailwindClassesBuilder::build(
             &nodes,
             &edge_groups,
             &ir_entity_types,
@@ -153,6 +151,8 @@ impl InputToIrDiagramMapper {
         // This will validate the ID format and create a Cow::Owned internally.
         Id::try_from(s).expect("valid ID string")
     }
+
+    // === Node Names === //
 
     /// Build NodeNames from things, tags, processes, and process steps.
     fn build_node_names<'id>(
@@ -196,6 +196,8 @@ impl InputToIrDiagramMapper {
             .collect()
     }
 
+    // === Node Copy Text === //
+
     /// Build NodeCopyText from thing_copy_text.
     fn build_node_copy_text<'id>(thing_copy_text: &ThingCopyText<'id>) -> NodeCopyText<'id> {
         thing_copy_text
@@ -206,6 +208,8 @@ impl InputToIrDiagramMapper {
             })
             .collect()
     }
+
+    // === Node Hierarchy === //
 
     /// Build NodeHierarchy from tags, processes (with steps), and
     /// thing_hierarchy.
@@ -257,6 +261,8 @@ impl InputToIrDiagramMapper {
             })
             .collect()
     }
+
+    // === Node Ordering === //
 
     /// Build NodeOrdering from things, tags, and processes.
     ///
@@ -383,6 +389,8 @@ impl InputToIrDiagramMapper {
         });
     }
 
+    // === Edge Groups === //
+
     /// Build EdgeGroups from thing_dependencies and thing_interactions.
     fn build_edge_groups<'id>(
         thing_dependencies: &ThingDependencies<'id>,
@@ -471,6 +479,8 @@ impl InputToIrDiagramMapper {
         EdgeGroup::from(edges)
     }
 
+    // === Entity Descs / Tooltips === //
+
     /// Build EntityDescs from input entity_descs.
     fn build_entity_descs<'id>(input_entity_descs: &EntityDescs<'id>) -> EntityDescs<'id> {
         // Copy existing entity descs
@@ -490,6 +500,8 @@ impl InputToIrDiagramMapper {
             .map(|(id, tooltip)| (id.clone(), tooltip.clone()))
             .collect()
     }
+
+    // === Entity Types === //
 
     /// Build EntityTypes with defaults for each node type.
     fn build_entity_types<'id>(
@@ -743,6 +755,8 @@ impl InputToIrDiagramMapper {
         })
     }
 
+    // === Node Layouts === //
+
     /// Build NodeLayouts from node_hierarchy and theme data.
     fn build_node_layouts<'id>(
         node_hierarchy: &NodeHierarchy<'id>,
@@ -887,20 +901,21 @@ impl InputToIrDiagramMapper {
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
     ) -> NodeLayout {
-        // Containers don't have entity types, so we only resolve from NodeDefaults
-        let (padding_top, padding_right, padding_bottom, padding_left) = Self::resolve_padding(
-            Some(container_id),
-            entity_types,
-            theme_default,
-            theme_types_styles,
-        );
-        let (margin_top, margin_right, margin_bottom, margin_left) = Self::resolve_margin(
-            Some(container_id),
-            entity_types,
-            theme_default,
-            theme_types_styles,
-        );
-        let gap = Self::resolve_gap(
+        let (padding_top, padding_right, padding_bottom, padding_left) =
+            ThemeAttrResolver::resolve_padding(
+                Some(container_id),
+                entity_types,
+                theme_default,
+                theme_types_styles,
+            );
+        let (margin_top, margin_right, margin_bottom, margin_left) =
+            ThemeAttrResolver::resolve_margin(
+                Some(container_id),
+                entity_types,
+                theme_default,
+                theme_types_styles,
+            );
+        let gap = ThemeAttrResolver::resolve_gap(
             Some(container_id),
             entity_types,
             theme_default,
@@ -933,10 +948,25 @@ impl InputToIrDiagramMapper {
     ) -> NodeLayout {
         let id: Id<'id> = node_id.as_ref().clone();
         let (padding_top, padding_right, padding_bottom, padding_left) =
-            Self::resolve_padding(Some(&id), entity_types, theme_default, theme_types_styles);
+            ThemeAttrResolver::resolve_padding(
+                Some(&id),
+                entity_types,
+                theme_default,
+                theme_types_styles,
+            );
         let (margin_top, margin_right, margin_bottom, margin_left) =
-            Self::resolve_margin(Some(&id), entity_types, theme_default, theme_types_styles);
-        let gap = Self::resolve_gap(Some(&id), entity_types, theme_default, theme_types_styles);
+            ThemeAttrResolver::resolve_margin(
+                Some(&id),
+                entity_types,
+                theme_default,
+                theme_types_styles,
+            );
+        let gap = ThemeAttrResolver::resolve_gap(
+            Some(&id),
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        );
 
         NodeLayout::Flex(FlexLayout {
             direction,
@@ -974,10 +1004,10 @@ impl InputToIrDiagramMapper {
             .filter(|(node_id, _)| !is_tag(node_id) && !is_process(node_id))
             .flat_map(|(node_id, children)| {
                 let layout = if children.is_empty() {
-                    // Leaf node - no layout needed
+                    // Leaf node -- no layout needed
                     NodeLayout::None
                 } else {
-                    // Container node - use flex layout
+                    // Container node -- use flex layout
                     // Direction alternates based on depth: column at even depths, row at odd
                     // depths
                     let direction = if depth.is_multiple_of(2) {
@@ -1028,9 +1058,7 @@ impl InputToIrDiagramMapper {
             });
     }
 
-    // =========================================================================
-    // Node Shape Building
-    // =========================================================================
+    // === Node Shapes === //
 
     /// Build NodeShapes for all nodes from theme data.
     ///
@@ -1047,618 +1075,18 @@ impl InputToIrDiagramMapper {
             .iter()
             .map(|(node_id, _name)| {
                 let id: Id<'id> = node_id.as_ref().clone();
-
-                // First, check if this node has a circle radius configured.
-                let circle_radius = Self::resolve_circle_radius(
-                    Some(&id),
+                let shape = ThemeAttrResolver::resolve_node_shape(
+                    &id,
                     entity_types,
                     theme_default,
                     theme_types_styles,
                 );
-
-                let shape = if let Some(radius) = circle_radius {
-                    NodeShape::Circle(NodeShapeCircle::with_radius(radius))
-                } else {
-                    let (
-                        radius_top_left,
-                        radius_top_right,
-                        radius_bottom_left,
-                        radius_bottom_right,
-                    ) = Self::resolve_rect_radius(
-                        Some(&id),
-                        entity_types,
-                        theme_default,
-                        theme_types_styles,
-                    );
-
-                    NodeShape::Rect(NodeShapeRect {
-                        radius_top_left,
-                        radius_top_right,
-                        radius_bottom_left,
-                        radius_bottom_right,
-                    })
-                };
-
                 (node_id.clone(), shape)
             })
             .collect()
     }
 
-    /// Resolve the circle radius for a node from the theme.
-    ///
-    /// Returns `Some(radius)` if a `ThemeAttr::CircleRadius` is configured
-    /// for this node, or `None` if the node should use a rectangular shape.
-    fn resolve_circle_radius<'id>(
-        node_id: Option<&Id<'id>>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-    ) -> Option<f32> {
-        let mut state: Option<f32> = None;
-
-        if let Some(id) = node_id {
-            Self::resolve_theme_attr(
-                id,
-                entity_types,
-                theme_default,
-                theme_types_styles,
-                &mut state,
-                Self::apply_circle_radius_from_partials,
-                |state| *state,
-            )
-        } else {
-            None
-        }
-    }
-
-    /// Apply circle radius from `CssClassPartials`, checking both direct
-    /// attributes and style aliases.
-    fn apply_circle_radius_from_partials<'id>(
-        partials: &CssClassPartials<'id>,
-        style_aliases: &StyleAliases<'id>,
-        state: &mut Option<f32>,
-    ) {
-        // First, check style_aliases_applied (lower priority within this partials)
-        partials
-            .style_aliases_applied()
-            .iter()
-            .filter_map(|alias| style_aliases.get(alias))
-            .for_each(|alias_partials| Self::extract_circle_radius_from_map(alias_partials, state));
-
-        // Then, check direct attributes (higher priority within this partials)
-        Self::extract_circle_radius_from_map(partials, state);
-    }
-
-    /// Extract circle radius value from a map of `ThemeAttr` to `String`.
-    fn extract_circle_radius_from_map<'id>(
-        partials: &CssClassPartials<'id>,
-        state: &mut Option<f32>,
-    ) {
-        if let Some(value) = partials.get(&ThemeAttr::CircleRadius)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *state = Some(v);
-        }
-    }
-
-    /// Resolve corner radius values for a node from the theme.
-    fn resolve_rect_radius<'id>(
-        node_id: Option<&Id<'id>>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-    ) -> (f32, f32, f32, f32) {
-        let mut state = (None, None, None, None);
-
-        if let Some(id) = node_id {
-            Self::resolve_theme_attr(
-                id,
-                entity_types,
-                theme_default,
-                theme_types_styles,
-                &mut state,
-                Self::apply_radius_from_partials,
-                |state| {
-                    (
-                        state.0.unwrap_or(0.0),
-                        state.1.unwrap_or(0.0),
-                        state.2.unwrap_or(0.0),
-                        state.3.unwrap_or(0.0),
-                    )
-                },
-            )
-        } else {
-            (0.0, 0.0, 0.0, 0.0)
-        }
-    }
-
-    /// Apply radius values from CssClassPartials, checking both direct
-    /// attributes and style aliases.
-    fn apply_radius_from_partials<'id>(
-        partials: &CssClassPartials<'id>,
-        style_aliases: &StyleAliases<'id>,
-        state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
-    ) {
-        // First, check style_aliases_applied (lower priority within this partials)
-        partials
-            .style_aliases_applied()
-            .iter()
-            .filter_map(|alias| style_aliases.get(alias))
-            .for_each(|alias_partials| Self::extract_radius_from_map(alias_partials, state));
-
-        // Then, check direct attributes (higher priority within this partials)
-        Self::extract_radius_from_map(partials, state);
-    }
-
-    /// Extract radius values from a map of ThemeAttr to String.
-    fn extract_radius_from_map<'id>(
-        partials: &CssClassPartials<'id>,
-        state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
-    ) {
-        let (radius_top_left, radius_top_right, radius_bottom_left, radius_bottom_right) = state;
-
-        // Check specific radius attributes
-        if let Some(value) = partials.get(&ThemeAttr::RadiusTopLeft)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *radius_top_left = Some(v);
-        }
-        if let Some(value) = partials.get(&ThemeAttr::RadiusTopRight)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *radius_top_right = Some(v);
-        }
-        if let Some(value) = partials.get(&ThemeAttr::RadiusBottomLeft)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *radius_bottom_left = Some(v);
-        }
-        if let Some(value) = partials.get(&ThemeAttr::RadiusBottomRight)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *radius_bottom_right = Some(v);
-        }
-    }
-
-    /// Resolves a theme attribute value by traversing theme sources in priority
-    /// order:
-    ///
-    /// 1. `NodeDefaults` from `theme_default` (lowest priority)
-    /// 2. `EntityType`s applied to the node (in order, later overrides earlier)
-    /// 3. The `NodeId` itself from `theme_default` (highest priority)
-    ///
-    /// Within each level, `StyleAlias`es are applied first, then direct
-    /// attributes.
-    ///
-    /// # Parameters
-    /// - `state`: Mutable state that accumulates resolved values
-    /// - `apply_from_partials`: Closure that extracts values from
-    ///   `CssClassPartials` and applies them to state, considering style
-    ///   aliases
-    /// - `finalize`: Closure that converts the accumulated state into the final
-    ///   result with defaults
-    fn resolve_theme_attr<'id, State, Result>(
-        node_id: &Id<'id>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-        state: &mut State,
-        apply_from_partials: impl Fn(&CssClassPartials<'id>, &StyleAliases<'id>, &mut State),
-        finalize: impl FnOnce(&State) -> Result,
-    ) -> Result {
-        // 1. Start with NodeDefaults (lowest priority)
-        if let Some(node_defaults_partials) =
-            theme_default.base_styles.get(&IdOrDefaults::NodeDefaults)
-        {
-            apply_from_partials(node_defaults_partials, &theme_default.style_aliases, state);
-        }
-
-        // 2. Apply EntityTypes in order (later types override earlier ones)
-        if let Some(types) = entity_types.get(node_id) {
-            types
-                .iter()
-                .filter_map(|entity_type| {
-                    let type_id = EntityTypeId::from(entity_type.clone().into_id());
-                    theme_types_styles
-                        .get(&type_id)
-                        .and_then(|type_styles| type_styles.get(&IdOrDefaults::NodeDefaults))
-                })
-                .for_each(|type_partials| {
-                    apply_from_partials(type_partials, &theme_default.style_aliases, state);
-                });
-        }
-
-        // 3. Apply node ID itself (highest priority)
-        if let Some(node_partials) = theme_default
-            .base_styles
-            .get(&IdOrDefaults::Id(node_id.clone()))
-        {
-            apply_from_partials(node_partials, &theme_default.style_aliases, state);
-        }
-
-        finalize(state)
-    }
-
-    fn resolve_padding<'id>(
-        node_id: Option<&Id<'id>>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-    ) -> (f32, f32, f32, f32) {
-        let mut state = (None, None, None, None);
-
-        if let Some(id) = node_id {
-            Self::resolve_theme_attr(
-                id,
-                entity_types,
-                theme_default,
-                theme_types_styles,
-                &mut state,
-                Self::apply_padding_from_partials,
-                |state| {
-                    (
-                        state.0.unwrap_or(0.0),
-                        state.1.unwrap_or(0.0),
-                        state.2.unwrap_or(0.0),
-                        state.3.unwrap_or(0.0),
-                    )
-                },
-            )
-        } else {
-            (0.0, 0.0, 0.0, 0.0)
-        }
-    }
-
-    /// Apply padding values from CssClassPartials, checking both direct
-    /// attributes and style aliases.
-    fn apply_padding_from_partials<'id>(
-        partials: &CssClassPartials<'id>,
-        style_aliases: &StyleAliases<'id>,
-        state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
-    ) {
-        // First, check style_aliases_applied (lower priority within this partials)
-        partials
-            .style_aliases_applied()
-            .iter()
-            .filter_map(|alias| style_aliases.get(alias))
-            .for_each(|alias_partials| Self::extract_padding_from_map(alias_partials, state));
-
-        // Then, check direct attributes (higher priority within this partials)
-        Self::extract_padding_from_map(partials, state);
-    }
-
-    /// Extract padding values from a map of ThemeAttr to String.
-    fn extract_padding_from_map<'id>(
-        partials: &CssClassPartials<'id>,
-        state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
-    ) {
-        let (padding_top, padding_right, padding_bottom, padding_left) = state;
-
-        // Check compound Padding first (applies to all sides)
-        if let Some(value) = partials.get(&ThemeAttr::Padding)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *padding_top = Some(v);
-            *padding_right = Some(v);
-            *padding_bottom = Some(v);
-            *padding_left = Some(v);
-        }
-
-        // Check PaddingX (horizontal) - overrides Padding for left/right
-        if let Some(value) = partials.get(&ThemeAttr::PaddingX)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *padding_left = Some(v);
-            *padding_right = Some(v);
-        }
-
-        // Check PaddingY (vertical) - overrides Padding for top/bottom
-        if let Some(value) = partials.get(&ThemeAttr::PaddingY)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *padding_top = Some(v);
-            *padding_bottom = Some(v);
-        }
-
-        // Check specific padding attributes (highest specificity)
-        if let Some(value) = partials.get(&ThemeAttr::PaddingTop)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *padding_top = Some(v);
-        }
-        if let Some(value) = partials.get(&ThemeAttr::PaddingRight)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *padding_right = Some(v);
-        }
-        if let Some(value) = partials.get(&ThemeAttr::PaddingBottom)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *padding_bottom = Some(v);
-        }
-        if let Some(value) = partials.get(&ThemeAttr::PaddingLeft)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *padding_left = Some(v);
-        }
-    }
-
-    fn resolve_margin<'id>(
-        node_id: Option<&Id<'id>>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-    ) -> (f32, f32, f32, f32) {
-        let mut state = (None, None, None, None);
-
-        if let Some(id) = node_id {
-            Self::resolve_theme_attr(
-                id,
-                entity_types,
-                theme_default,
-                theme_types_styles,
-                &mut state,
-                Self::apply_margin_from_partials,
-                |state| {
-                    (
-                        state.0.unwrap_or(0.0),
-                        state.1.unwrap_or(0.0),
-                        state.2.unwrap_or(0.0),
-                        state.3.unwrap_or(0.0),
-                    )
-                },
-            )
-        } else {
-            (0.0, 0.0, 0.0, 0.0)
-        }
-    }
-
-    /// Apply margin values from CssClassPartials, checking both direct
-    /// attributes and style aliases.
-    fn apply_margin_from_partials<'id>(
-        partials: &CssClassPartials<'id>,
-        style_aliases: &StyleAliases<'id>,
-        state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
-    ) {
-        // First, check style_aliases_applied (lower priority within this partials)
-        partials
-            .style_aliases_applied()
-            .iter()
-            .filter_map(|alias| style_aliases.get(alias))
-            .for_each(|alias_partials| Self::extract_margin_from_map(alias_partials, state));
-
-        // Then, check direct attributes (higher priority within this partials)
-        Self::extract_margin_from_map(partials, state);
-    }
-
-    /// Extract margin values from a map of ThemeAttr to String.
-    fn extract_margin_from_map<'id>(
-        partials: &CssClassPartials<'id>,
-        state: &mut (Option<f32>, Option<f32>, Option<f32>, Option<f32>),
-    ) {
-        let (margin_top, margin_right, margin_bottom, margin_left) = state;
-
-        // Check compound Margin first (applies to all sides)
-        if let Some(value) = partials.get(&ThemeAttr::Margin)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *margin_top = Some(v);
-            *margin_right = Some(v);
-            *margin_bottom = Some(v);
-            *margin_left = Some(v);
-        }
-
-        // Check MarginX (horizontal) - overrides Margin for left/right
-        if let Some(value) = partials.get(&ThemeAttr::MarginX)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *margin_left = Some(v);
-            *margin_right = Some(v);
-        }
-
-        // Check MarginY (vertical) - overrides Margin for top/bottom
-        if let Some(value) = partials.get(&ThemeAttr::MarginY)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *margin_top = Some(v);
-            *margin_bottom = Some(v);
-        }
-
-        // Check specific margin attributes (highest specificity)
-        if let Some(value) = partials.get(&ThemeAttr::MarginTop)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *margin_top = Some(v);
-        }
-        if let Some(value) = partials.get(&ThemeAttr::MarginRight)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *margin_right = Some(v);
-        }
-        if let Some(value) = partials.get(&ThemeAttr::MarginBottom)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *margin_bottom = Some(v);
-        }
-        if let Some(value) = partials.get(&ThemeAttr::MarginLeft)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *margin_left = Some(v);
-        }
-    }
-
-    fn resolve_gap<'id>(
-        node_id: Option<&Id<'id>>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-    ) -> f32 {
-        let mut state = None;
-
-        if let Some(id) = node_id {
-            Self::resolve_theme_attr(
-                id,
-                entity_types,
-                theme_default,
-                theme_types_styles,
-                &mut state,
-                Self::apply_gap_from_partials,
-                |state| state.unwrap_or(0.0),
-            )
-        } else {
-            0.0
-        }
-    }
-
-    /// Apply gap value from CssClassPartials, checking both direct
-    /// and style aliases.
-    fn apply_gap_from_partials<'id>(
-        partials: &CssClassPartials<'id>,
-        style_aliases: &StyleAliases<'id>,
-        state: &mut Option<f32>,
-    ) {
-        // First, check style_aliases_applied (lower priority within this partials)
-        partials
-            .style_aliases_applied()
-            .iter()
-            .filter_map(|alias| style_aliases.get(alias))
-            .filter_map(|alias_partials| alias_partials.get(&ThemeAttr::Gap))
-            .filter_map(|value| value.parse::<f32>().ok())
-            .for_each(|v| *state = Some(v));
-
-        // Then, check direct attribute (higher priority within this partials)
-        if let Some(value) = partials.get(&ThemeAttr::Gap)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            *state = Some(v);
-        }
-    }
-
-    // =========================================================================
-    // Tailwind Classes Building
-    // =========================================================================
-
-    /// Build tailwind classes for all entities (nodes, edge groups, edges).
-    #[allow(clippy::too_many_arguments)]
-    fn build_tailwind_classes<'id>(
-        nodes: &NodeNames<'id>,
-        edge_groups: &EdgeGroups<'id>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-        theme_tag_things_focus: &ThemeTagThingsFocus<'id>,
-        tags: &TagNames<'id>,
-        tag_things: &TagThings<'id>,
-        processes: &Processes<'id>,
-    ) -> EntityTailwindClasses<'id> {
-        // Build a map of process step ID to (process ID, edge IDs they interact with)
-        let step_interactions = Self::build_step_interactions_map(processes);
-
-        // Build a map of edge group ID to process steps that interact with it
-        let edge_group_to_steps = Self::build_edge_group_to_steps_map(processes);
-
-        // Build a map of thing ID to process steps that interact with edges involving
-        // that thing
-        let thing_to_interaction_steps =
-            Self::build_thing_to_interaction_steps_map(edge_groups, &step_interactions);
-
-        // Build classes for each node
-        let node_classes = nodes.keys().map(|node_id| {
-            // Determine node kind
-            let is_tag = tags.contains_key(node_id);
-            let is_process = processes.contains_key(node_id);
-            let is_process_step = processes
-                .values()
-                .any(|process_diagram| process_diagram.steps.contains_key(node_id));
-
-            let classes = if is_tag {
-                Self::build_tag_tailwind_classes(
-                    node_id,
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                )
-            } else if is_process {
-                Self::build_process_tailwind_classes(
-                    node_id,
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                )
-            } else if is_process_step {
-                // Find the parent process diagram
-                let parent_process_id_and_diagram =
-                    processes.iter().find_map(|(process_id, process_diagram)| {
-                        if process_diagram.steps.contains_key(node_id) {
-                            Some((process_id, process_diagram))
-                        } else {
-                            None
-                        }
-                    });
-
-                Self::build_process_step_tailwind_classes(
-                    node_id,
-                    parent_process_id_and_diagram,
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                )
-            } else {
-                // Regular thing node
-                Self::build_thing_tailwind_classes(
-                    node_id,
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                    theme_tag_things_focus,
-                    tags,
-                    tag_things,
-                    &thing_to_interaction_steps,
-                )
-            };
-
-            (node_id.clone().into_inner(), classes)
-        });
-
-        // Build classes for edge groups and edges
-        let edge_group_and_edge_classes = edge_groups.iter().flat_map(|(edge_group_id, edges)| {
-            let edge_group_classes = {
-                // Get the process steps that interact with this edge group
-                let interaction_steps = edge_group_to_steps
-                    .get(edge_group_id)
-                    .cloned()
-                    .unwrap_or_default();
-
-                let classes = Self::build_edge_group_tailwind_classes(
-                    edge_group_id,
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                    &interaction_steps,
-                );
-
-                (edge_group_id.clone().into_inner(), classes)
-            };
-
-            let edge_classes = edges.iter().enumerate().map(move |(index, _edge)| {
-                let edge_id_str = format!("{edge_group_id}__{index}");
-                let edge_id = Self::id_from_string(edge_id_str);
-
-                // Check if this edge has a symmetric type (request or response)
-                let classes = Self::build_edge_tailwind_classes(
-                    &edge_id,
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                );
-                (edge_id, classes)
-            });
-
-            std::iter::once(edge_group_classes).chain(edge_classes)
-        });
-
-        node_classes.chain(edge_group_and_edge_classes).collect()
-    }
+    // === Process Step Entities === //
 
     /// Build [`ProcessStepEntities`] from the process step thing interactions.
     ///
@@ -1682,778 +1110,4 @@ impl InputToIrDiagramMapper {
             })
             .collect()
     }
-
-    /// Build a map of process step ID to (process ID, edge IDs they interact
-    /// with).
-    fn build_step_interactions_map<'f, 'id>(
-        processes: &'f Processes<'id>,
-    ) -> Map<&'f ProcessStepId<'id>, (&'f ProcessId<'id>, &'f Vec<EdgeGroupId<'id>>)> {
-        processes
-            .iter()
-            .flat_map(|(process_id, process_diagram)| {
-                process_diagram.step_thing_interactions.iter().map(
-                    move |(process_step_id, edge_group_ids)| {
-                        (process_step_id, (process_id, edge_group_ids))
-                    },
-                )
-            })
-            .collect()
-    }
-
-    /// Build a map of edge group ID to process steps that interact with it.
-    fn build_edge_group_to_steps_map<'f, 'id>(
-        processes: &'f Processes<'id>,
-    ) -> Map<&'f EdgeGroupId<'id>, Vec<&'f ProcessStepId<'id>>> {
-        processes
-            .values()
-            .flat_map(|process_diagram| {
-                process_diagram.step_thing_interactions.iter().flat_map(
-                    |(step_id, edge_group_ids)| {
-                        edge_group_ids
-                            .iter()
-                            .map(move |edge_group_id| (edge_group_id, step_id))
-                    },
-                )
-            })
-            .fold(
-                Map::<&EdgeGroupId<'id>, Vec<&ProcessStepId<'id>>>::new(),
-                |mut acc, (edge_group_id, step_id)| {
-                    acc.entry(edge_group_id).or_default().push(step_id);
-                    acc
-                },
-            )
-    }
-
-    /// Build a map of thing ID to process steps that interact with edges
-    /// involving that thing.
-    fn build_thing_to_interaction_steps_map<'f, 'id>(
-        edge_groups: &'f EdgeGroups<'id>,
-        step_interactions: &'f Map<
-            &'f ProcessStepId<'id>,
-            (&'f ProcessId<'id>, &'f Vec<EdgeGroupId<'id>>),
-        >,
-    ) -> Map<&'f NodeId<'id>, Set<&'f ProcessStepId<'id>>> {
-        // For each process step and its edge interactions
-        step_interactions
-            .iter()
-            .flat_map(|(process_step_id, (_process_id, edge_group_ids))| {
-                // For each edge group the step interacts with
-                edge_group_ids.iter().flat_map(move |edge_group_id| {
-                    edge_groups
-                        .get(edge_group_id)
-                        .into_iter()
-                        .flat_map(move |edges| {
-                            edges.iter().flat_map(move |edge| {
-                                // Add this step to both the from and to things
-                                [&edge.from, &edge.to]
-                                    .into_iter()
-                                    .map(move |node_id| (node_id, *process_step_id))
-                            })
-                        })
-                })
-            })
-            .fold(
-                Map::<&NodeId<'id>, Set<&ProcessStepId<'id>>>::new(),
-                |mut acc, (node_id, step_id)| {
-                    acc.entry(node_id).or_default().insert(step_id);
-                    acc
-                },
-            )
-    }
-
-    /// Build tailwind classes for a tag node.
-    fn build_tag_tailwind_classes<'id>(
-        id: &Id<'id>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-    ) -> String {
-        let mut state = TailwindClassState::default();
-
-        Self::resolve_tailwind_attrs(
-            id,
-            entity_types,
-            theme_default,
-            theme_types_styles,
-            IdOrDefaults::NodeDefaults,
-            &mut state,
-        );
-
-        let mut classes = String::new();
-        state.write_classes(&mut classes);
-
-        // Tags get peer/{id} class
-        writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);
-
-        classes
-    }
-
-    /// Build tailwind classes for a process node.
-    fn build_process_tailwind_classes<'id>(
-        id: &Id<'id>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-    ) -> String {
-        let mut state = TailwindClassState::default();
-
-        Self::resolve_tailwind_attrs(
-            id,
-            entity_types,
-            theme_default,
-            theme_types_styles,
-            IdOrDefaults::NodeDefaults,
-            &mut state,
-        );
-
-        let mut classes = String::new();
-        state.write_classes(&mut classes);
-
-        // Processes get `peer/{id}` class
-        writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);
-
-        classes
-    }
-
-    /// Build tailwind classes for a process step node.
-    fn build_process_step_tailwind_classes<'id>(
-        id: &Id<'id>,
-        parent_process_id_and_diagram: Option<(&ProcessId<'id>, &ProcessDiagram<'id>)>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-    ) -> String {
-        let mut state = TailwindClassState::default();
-
-        Self::resolve_tailwind_attrs(
-            id,
-            entity_types,
-            theme_default,
-            theme_types_styles,
-            IdOrDefaults::NodeDefaults,
-            &mut state,
-        );
-
-        let mut classes = String::new();
-        state.write_classes(&mut classes);
-
-        // Process steps get:
-        //
-        // * `group-has-[#{process_id}:focus-within]:visible`
-        // * one of `group-has-[#{process_step_id}:focus-within]:visible` for each of
-        //   the process steps (including itself).
-        //
-        // so that when a process or sibling steps are focused, all steps within the
-        // process are visible.
-        //
-        // These are the same for all steps in the process, so technically we could
-        // compute it just once.
-        //
-        // When a process step is selected, `thing`s receive styles
-        // `theme_default.process_step_selected_styles` -- see
-        // `build_thing_tailwind_classes`
-        if let Some((process_id, process_diagram)) = parent_process_id_and_diagram {
-            writeln!(
-                &mut classes,
-                "group-has-[#{process_id}:focus-within]:visible"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-
-            process_diagram.steps.keys().for_each(|process_step_id| {
-                writeln!(
-                    &mut classes,
-                    "group-has-[#{process_step_id}:focus-within]:visible"
-                )
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-            });
-        }
-
-        writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);
-
-        classes
-    }
-
-    /// Build tailwind classes for a regular thing node.
-    #[allow(clippy::too_many_arguments)]
-    fn build_thing_tailwind_classes<'f, 'id>(
-        node_id: &NodeId<'id>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-        theme_tag_things_focus: &ThemeTagThingsFocus<'id>,
-        tags: &TagNames<'id>,
-        tag_things: &TagThings<'id>,
-        thing_to_interaction_steps: &Map<&'f NodeId<'id>, Set<&'f ProcessStepId<'id>>>,
-    ) -> String {
-        let mut state = TailwindClassState::default();
-
-        Self::resolve_tailwind_attrs(
-            node_id.as_ref(),
-            entity_types,
-            theme_default,
-            theme_types_styles,
-            IdOrDefaults::NodeDefaults,
-            &mut state,
-        );
-
-        let mut classes = String::new();
-        state.write_classes(&mut classes);
-
-        // Add peer classes for each tag
-        tags.keys().for_each(|tag_id| {
-            let is_thing_in_tag = tag_things
-                .get(tag_id)
-                .is_some_and(|thing_ids| thing_ids.contains(node_id.as_ref()));
-
-            // Determine which IdOrDefaults key to use for styling
-            let style_key = if is_thing_in_tag {
-                IdOrDefaults::NodeDefaults
-            } else {
-                IdOrDefaults::NodeExcludedDefaults
-            };
-
-            // Build the tag focus state by:
-            // 1. Starting with the thing's colors
-            // 2. Applying TagDefaults styles
-            // 3. Applying tag-specific styles (overrides)
-            let mut tag_focus_state = TailwindClassState::default();
-            if let Some(shape_color) = state.attrs.get(&ThemeAttr::ShapeColor) {
-                tag_focus_state
-                    .attrs
-                    .insert(ThemeAttr::ShapeColor, shape_color.clone());
-            };
-            if let Some(fill_color) = state.attrs.get(&ThemeAttr::FillColor) {
-                tag_focus_state
-                    .attrs
-                    .insert(ThemeAttr::FillColor, fill_color.clone());
-            };
-            if let Some(stroke_color) = state.attrs.get(&ThemeAttr::StrokeColor) {
-                tag_focus_state
-                    .attrs
-                    .insert(ThemeAttr::StrokeColor, stroke_color.clone());
-            };
-
-            // Apply TagDefaults styles
-            if let Some(tag_defaults_styles) =
-                theme_tag_things_focus.get(&TagIdOrDefaults::TagDefaults)
-                && let Some(partials) = tag_defaults_styles.get(&style_key)
-            {
-                Self::apply_tailwind_from_partials(
-                    partials,
-                    &theme_default.style_aliases,
-                    &mut tag_focus_state,
-                );
-            }
-
-            // Apply tag-specific styles (override TagDefaults)
-            let tag_id_key = TagIdOrDefaults::Custom(tag_id.clone());
-            if let Some(tag_specific_styles) = theme_tag_things_focus.get(&tag_id_key)
-                && let Some(partials) = tag_specific_styles.get(&style_key)
-            {
-                Self::apply_tailwind_from_partials(
-                    partials,
-                    &theme_default.style_aliases,
-                    &mut tag_focus_state,
-                );
-            }
-
-            let peer_prefix = format!("peer-[:focus-within]/{tag_id}:");
-            tag_focus_state.write_peer_classes(&mut classes, &peer_prefix);
-        });
-
-        // Add peer classes for process steps that interact with edges involving this
-        // thing using styles from `theme_default.process_step_selected_styles`
-        if let Some(interaction_steps) = thing_to_interaction_steps.get(node_id) {
-            interaction_steps.iter().for_each(|step_id| {
-                // Build a state from the thing's current colors + process_step_selected_styles
-                let mut step_selected_state = TailwindClassState::default();
-
-                // Copy the thing's colors
-                if let Some(shape_color) = state.attrs.get(&ThemeAttr::ShapeColor) {
-                    step_selected_state
-                        .attrs
-                        .insert(ThemeAttr::ShapeColor, shape_color.clone());
-                };
-                if let Some(fill_color) = state.attrs.get(&ThemeAttr::FillColor) {
-                    step_selected_state
-                        .attrs
-                        .insert(ThemeAttr::FillColor, fill_color.clone());
-                };
-                if let Some(stroke_color) = state.attrs.get(&ThemeAttr::StrokeColor) {
-                    step_selected_state
-                        .attrs
-                        .insert(ThemeAttr::StrokeColor, stroke_color.clone());
-                };
-
-                [
-                    // lowest priority
-                    IdOrDefaults::NodeDefaults,
-                    IdOrDefaults::Id(node_id.clone().into_inner()),
-                    // highest priority
-                ]
-                .iter()
-                .filter_map(|id_or_defaults| {
-                    theme_default
-                        .process_step_selected_styles
-                        .get(id_or_defaults)
-                })
-                .for_each(|css_class_partials| {
-                    Self::apply_tailwind_from_partials(
-                        css_class_partials,
-                        &theme_default.style_aliases,
-                        &mut step_selected_state,
-                    );
-                });
-
-                let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
-                step_selected_state.write_peer_classes(&mut classes, &peer_prefix);
-            });
-        }
-
-        classes
-    }
-
-    /// Build tailwind classes for an edge group.
-    ///
-    /// # Parameters
-    ///
-    /// * `edge_group_id`: The ID of the edge group.
-    /// * `entity_types`: The entity types of the edge group.
-    /// * `theme_default`: The theme with styling information.
-    /// * `theme_types_styles`: Styles for each entity type.
-    /// * `interaction_process_step_ids`: The process step IDs that interact
-    ///   with this edge.
-    fn build_edge_group_tailwind_classes<'id>(
-        edge_group_id: &EdgeGroupId<'id>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-        interaction_process_step_ids: &[&ProcessStepId<'id>],
-    ) -> String {
-        let mut state = TailwindClassState::default();
-
-        Self::resolve_tailwind_attrs(
-            edge_group_id,
-            entity_types,
-            theme_default,
-            theme_types_styles,
-            IdOrDefaults::EdgeDefaults,
-            &mut state,
-        );
-
-        let mut classes = String::new();
-        state.write_classes(&mut classes);
-
-        // Add peer classes for each process step that interacts with this edge
-        // using styles from `theme_default.process_step_selected_styles.edge_defaults`
-        interaction_process_step_ids.iter().for_each(|step_id| {
-            // Build a state from the thing's current colors + process_step_selected_styles
-            let mut step_selected_state = TailwindClassState::default();
-
-            [
-                // lowest priority
-                IdOrDefaults::EdgeDefaults,
-                IdOrDefaults::Id(edge_group_id.clone().into_inner()),
-                // highest priority
-            ]
-            .iter()
-            .filter_map(|id_or_defaults| {
-                theme_default
-                    .process_step_selected_styles
-                    .get(id_or_defaults)
-            })
-            .for_each(|css_class_partials| {
-                Self::apply_tailwind_from_partials(
-                    css_class_partials,
-                    &theme_default.style_aliases,
-                    &mut step_selected_state,
-                );
-            });
-
-            let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
-            step_selected_state.write_peer_classes(&mut classes, &peer_prefix);
-        });
-
-        classes
-    }
-
-    /// Build tailwind classes for individual symmetric edges within an edge
-    /// group.
-    fn build_edge_tailwind_classes<'id>(
-        edge_id: &Id<'id>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-    ) -> String {
-        let mut state = TailwindClassState::default();
-
-        Self::resolve_tailwind_attrs(
-            edge_id,
-            entity_types,
-            theme_default,
-            theme_types_styles,
-            IdOrDefaults::EdgeDefaults,
-            &mut state,
-        );
-
-        let mut classes = String::new();
-        state.write_classes(&mut classes);
-        classes
-    }
-
-    /// Resolve tailwind attributes for a node.
-    ///
-    /// # Parameters
-    ///
-    /// * `entity_id`: Thing, process, process step, tag, or edge ID.
-    /// * `entity_types`: The entity types of the entity.
-    /// * `theme_default`: The theme defined for the diagram.
-    /// * `theme_types_styles`: The styles defined for entity types.
-    /// * `id_or_defaults_key`: `IdOrDefaults::NodeDefaults` or
-    ///   `IdOrDefaults::EdgeDefaults`.
-    /// * `state`: Tailwind class state to write the resolved classes to.
-    fn resolve_tailwind_attrs<'partials, 'tw_state, 'id>(
-        entity_id: &Id<'id>,
-        entity_types: &'partials EntityTypes<'id>,
-        theme_default: &'partials ThemeDefault<'id>,
-        theme_types_styles: &'partials ThemeTypesStyles<'id>,
-        id_or_defaults_key: IdOrDefaults<'id>,
-        state: &mut TailwindClassState<'tw_state>,
-    ) where
-        'partials: 'tw_state,
-    {
-        // 1. Start with NodeDefaults/EdgeDefaults (lowest priority)
-        if let Some(defaults_partials) = theme_default.base_styles.get(&id_or_defaults_key) {
-            Self::apply_tailwind_from_partials(
-                defaults_partials,
-                &theme_default.style_aliases,
-                state,
-            );
-        }
-
-        // 2. Apply EntityTypes in order (later types override earlier ones)
-        if let Some(types) = entity_types.get(entity_id) {
-            types
-                .iter()
-                .filter_map(|entity_type| {
-                    let type_id = EntityTypeId::from(entity_type.clone().into_id());
-                    theme_types_styles
-                        .get(&type_id)
-                        .and_then(|type_styles| type_styles.get(&id_or_defaults_key))
-                })
-                .for_each(|type_partials| {
-                    Self::apply_tailwind_from_partials(
-                        type_partials,
-                        &theme_default.style_aliases,
-                        state,
-                    );
-                });
-        }
-
-        // 3. Apply node ID itself (highest priority)
-        if let Some(node_partials) = theme_default
-            .base_styles
-            .get(&IdOrDefaults::Id(entity_id.clone()))
-        {
-            Self::apply_tailwind_from_partials(node_partials, &theme_default.style_aliases, state);
-        }
-    }
-
-    /// Apply tailwind attribute values from CssClassPartials.
-    fn apply_tailwind_from_partials<'partials, 'tw_state, 'id>(
-        partials: &'partials CssClassPartials<'id>,
-        style_aliases: &'partials StyleAliases<'id>,
-        state: &mut TailwindClassState<'tw_state>,
-    ) where
-        'partials: 'tw_state,
-    {
-        // First, check style_aliases_applied (lower priority within this partials)
-        partials
-            .style_aliases_applied()
-            .iter()
-            .filter_map(|alias| style_aliases.get(alias))
-            .for_each(|alias_partials| Self::extract_tailwind_from_map(alias_partials, state));
-
-        // Then, check direct attributes (higher priority within this partials)
-        Self::extract_tailwind_from_map(partials, state);
-    }
-
-    /// Extract tailwind attribute values from a CssClassPartials map.
-    fn extract_tailwind_from_map<'partials, 'tw_state, 'id>(
-        partials: &'partials CssClassPartials<'id>,
-        state: &mut TailwindClassState<'tw_state>,
-    ) where
-        'partials: 'tw_state,
-    {
-        partials.iter().for_each(|(theme_attr, value)| {
-            state.attrs.insert(*theme_attr, Cow::Borrowed(value));
-        });
-    }
-}
-
-/// State for accumulating resolved tailwind class attributes.
-///
-/// This struct holds a map of [`ThemeAttr`] to their resolved string values,
-/// which are then used to generate the appropriate tailwind CSS classes.
-#[derive(Default)]
-struct TailwindClassState<'tw_state> {
-    /// Map of theme attributes to their resolved values.
-    attrs: Map<ThemeAttr, Cow<'tw_state, str>>,
-}
-
-impl<'tw_state> TailwindClassState<'tw_state> {
-    /// Convert stroke style to stroke-dasharray value.
-    fn stroke_style_to_dasharray(style: &str) -> Option<&str> {
-        match style {
-            "solid" => Some("none"),
-            "dashed" => Some("3"),
-            "dotted" => Some("2"),
-            s if s.starts_with("dasharray:") => Some(&s["dasharray:".len()..]),
-            _ => None,
-        }
-    }
-
-    /// Get the resolved fill color for a state.
-    fn get_fill_color(&self, state: HighlightState) -> Option<&str> {
-        let (state_specific, base, shape) = match state {
-            HighlightState::Normal => (
-                ThemeAttr::FillColorNormal,
-                ThemeAttr::FillColor,
-                ThemeAttr::ShapeColor,
-            ),
-            HighlightState::Focus => (
-                ThemeAttr::FillColorFocus,
-                ThemeAttr::FillColor,
-                ThemeAttr::ShapeColor,
-            ),
-            HighlightState::Hover => (
-                ThemeAttr::FillColorHover,
-                ThemeAttr::FillColor,
-                ThemeAttr::ShapeColor,
-            ),
-            HighlightState::Active => (
-                ThemeAttr::FillColorActive,
-                ThemeAttr::FillColor,
-                ThemeAttr::ShapeColor,
-            ),
-        };
-
-        self.attrs
-            .get(&state_specific)
-            .or_else(|| self.attrs.get(&base))
-            .or_else(|| self.attrs.get(&shape))
-            .map(|c| c.as_ref())
-    }
-
-    /// Get the resolved fill shade for a state.
-    fn get_fill_shade(&self, state: HighlightState) -> Option<&str> {
-        let (state_specific, base) = match state {
-            HighlightState::Normal => (ThemeAttr::FillShadeNormal, ThemeAttr::FillShade),
-            HighlightState::Focus => (ThemeAttr::FillShadeFocus, ThemeAttr::FillShade),
-            HighlightState::Hover => (ThemeAttr::FillShadeHover, ThemeAttr::FillShade),
-            HighlightState::Active => (ThemeAttr::FillShadeActive, ThemeAttr::FillShade),
-        };
-
-        self.attrs
-            .get(&state_specific)
-            .or_else(|| self.attrs.get(&base))
-            .map(|c| c.as_ref())
-    }
-
-    /// Get the resolved stroke color for a state.
-    fn get_stroke_color(&self, state: HighlightState) -> Option<&str> {
-        let (state_specific, base, shape) = match state {
-            HighlightState::Normal => (
-                ThemeAttr::StrokeColorNormal,
-                ThemeAttr::StrokeColor,
-                ThemeAttr::ShapeColor,
-            ),
-            HighlightState::Focus => (
-                ThemeAttr::StrokeColorFocus,
-                ThemeAttr::StrokeColor,
-                ThemeAttr::ShapeColor,
-            ),
-            HighlightState::Hover => (
-                ThemeAttr::StrokeColorHover,
-                ThemeAttr::StrokeColor,
-                ThemeAttr::ShapeColor,
-            ),
-            HighlightState::Active => (
-                ThemeAttr::StrokeColorActive,
-                ThemeAttr::StrokeColor,
-                ThemeAttr::ShapeColor,
-            ),
-        };
-
-        self.attrs
-            .get(&state_specific)
-            .or_else(|| self.attrs.get(&base))
-            .or_else(|| self.attrs.get(&shape))
-            .map(|c| c.as_ref())
-    }
-
-    /// Get the resolved stroke shade for a state.
-    fn get_stroke_shade(&self, state: HighlightState) -> Option<&str> {
-        let (state_specific, base) = match state {
-            HighlightState::Normal => (ThemeAttr::StrokeShadeNormal, ThemeAttr::StrokeShade),
-            HighlightState::Focus => (ThemeAttr::StrokeShadeFocus, ThemeAttr::StrokeShade),
-            HighlightState::Hover => (ThemeAttr::StrokeShadeHover, ThemeAttr::StrokeShade),
-            HighlightState::Active => (ThemeAttr::StrokeShadeActive, ThemeAttr::StrokeShade),
-        };
-
-        self.attrs
-            .get(&state_specific)
-            .or_else(|| self.attrs.get(&base))
-            .map(|c| c.as_ref())
-    }
-
-    /// Write tailwind classes to the given string.
-    fn write_classes(&self, classes: &mut String) {
-        self.write_peer_classes(classes, "");
-    }
-
-    /// Write peer-prefixed classes to the given string for tag/step
-    /// highlighting.
-    ///
-    /// This method determines what classes to write based on the attributes
-    /// present in the state:
-    ///
-    /// - If only [`ThemeAttr::Opacity`] is set (no fill/stroke shade normals or
-    ///   animation), writes only the opacity class.
-    /// - If [`ThemeAttr::Animate`] or fill/stroke shade normals are set, writes
-    ///   the animation class (if present) followed by full fill/stroke peer
-    ///   classes.
-    fn write_peer_classes(&self, classes: &mut String, prefix: &str) {
-        // Visibility
-        if let Some(visibility) = self.attrs.get(&ThemeAttr::Visibility) {
-            writeln!(classes, "{prefix}{visibility}").expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-
-        // Stroke dasharray from stroke_style
-        if let Some(style) = self.attrs.get(&ThemeAttr::StrokeStyle)
-            && let Some(dasharray) = Self::stroke_style_to_dasharray(style)
-        {
-            writeln!(classes, "{prefix}[stroke-dasharray:{dasharray}]")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-
-        // Stroke width
-        if let Some(width) = self.attrs.get(&ThemeAttr::StrokeWidth) {
-            writeln!(classes, "{prefix}stroke-{width}").expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-
-        if let Some(opacity) = self.attrs.get(&ThemeAttr::Opacity) {
-            writeln!(classes, "{prefix}opacity-{opacity}").expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-        if let Some(animate) = self.attrs.get(&ThemeAttr::Animate) {
-            writeln!(classes, "{prefix}animate-{animate}").expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-
-        let fill_color_hover = self.get_fill_color(HighlightState::Hover);
-        let fill_shade_hover = self.get_fill_shade(HighlightState::Hover);
-        let fill_color_normal = self.get_fill_color(HighlightState::Normal);
-        let fill_shade_normal = self.get_fill_shade(HighlightState::Normal);
-        let fill_color_focus = self.get_fill_color(HighlightState::Focus);
-        let fill_shade_focus = self.get_fill_shade(HighlightState::Focus);
-        let fill_color_active = self.get_fill_color(HighlightState::Active);
-        let fill_shade_active = self.get_fill_shade(HighlightState::Active);
-
-        let stroke_color_hover = self.get_stroke_color(HighlightState::Hover);
-        let stroke_shade_hover = self.get_stroke_shade(HighlightState::Hover);
-        let stroke_color_normal = self.get_stroke_color(HighlightState::Normal);
-        let stroke_shade_normal = self.get_stroke_shade(HighlightState::Normal);
-        let stroke_color_focus = self.get_stroke_color(HighlightState::Focus);
-        let stroke_shade_focus = self.get_stroke_shade(HighlightState::Focus);
-        let stroke_color_active = self.get_stroke_color(HighlightState::Active);
-        let stroke_shade_active = self.get_stroke_shade(HighlightState::Active);
-
-        // Fill classes with peer prefix
-        if let Some((fill_color_hover, fill_shade_hover)) = fill_color_hover.zip(fill_shade_hover) {
-            writeln!(
-                classes,
-                "{prefix}hover:fill-{fill_color_hover}-{fill_shade_hover}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-        if let Some((fill_color_normal, fill_shade_normal)) =
-            fill_color_normal.zip(fill_shade_normal)
-        {
-            writeln!(
-                classes,
-                "{prefix}fill-{fill_color_normal}-{fill_shade_normal}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-        if let Some((fill_color_focus, fill_shade_focus)) = fill_color_focus.zip(fill_shade_focus) {
-            writeln!(
-                classes,
-                "{prefix}focus:fill-{fill_color_focus}-{fill_shade_focus}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-        if let Some((fill_color_active, fill_shade_active)) =
-            fill_color_active.zip(fill_shade_active)
-        {
-            writeln!(
-                classes,
-                "{prefix}active:fill-{fill_color_active}-{fill_shade_active}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-
-        // Stroke classes with peer prefix
-        if let Some((stroke_color_hover, stroke_shade_hover)) =
-            stroke_color_hover.zip(stroke_shade_hover)
-        {
-            writeln!(
-                classes,
-                "{prefix}hover:stroke-{stroke_color_hover}-{stroke_shade_hover}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-        if let Some((stroke_color_normal, stroke_shade_normal)) =
-            stroke_color_normal.zip(stroke_shade_normal)
-        {
-            writeln!(
-                classes,
-                "{prefix}stroke-{stroke_color_normal}-{stroke_shade_normal}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-        if let Some((stroke_color_focus, stroke_shade_focus)) =
-            stroke_color_focus.zip(stroke_shade_focus)
-        {
-            writeln!(
-                classes,
-                "{prefix}focus:stroke-{stroke_color_focus}-{stroke_shade_focus}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-        if let Some((stroke_color_active, stroke_shade_active)) =
-            stroke_color_active.zip(stroke_shade_active)
-        {
-            writeln!(
-                classes,
-                "{prefix}active:stroke-{stroke_color_active}-{stroke_shade_active}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-
-        // Text classes
-        let text_color = self.attrs.get(&ThemeAttr::TextColor).map(|c| c.as_ref());
-        let text_shade = self.attrs.get(&ThemeAttr::TextShade).map(|c| c.as_ref());
-        if let Some((text_color, text_shade)) = text_color.zip(text_shade) {
-            writeln!(classes, "[&>text]:fill-{text_color}-{text_shade}")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-    }
-}
-
-/// States for fill and stroke colors.
-#[derive(Clone, Copy)]
-enum HighlightState {
-    Normal,
-    Focus,
-    Hover,
-    Active,
 }
