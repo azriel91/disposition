@@ -23,6 +23,7 @@ Rust SVG diagram generation library with a dioxus web frontend.
 10. Avoid non-ascii characters, e.g. "—". Use "--" for elaboration or "`param`: description" in parameter documentation.
 11. Section comments should be written as `// === Section Name === //` instead of a 3 line comment.
 12. Unless a type / component is small, it should be placed in its own module -- often a submodule of the current module.
+13. A module and its submodules would be `foo.rs` and `foo/bar.rs`, not `foo/mod.rs` and `foo/bar.rs`.
 
 
 ## Additional Context
