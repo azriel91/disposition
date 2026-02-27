@@ -104,8 +104,8 @@ fn StyleAliasesSectionHeader(
                     let old_key = alias_key.clone();
                     move |evt: dioxus::events::FormEvent| {
                         let new_val = evt.value();
-                        if new_val != old_key {
-                            if let (Some(old_alias), Some(new_alias)) = (
+                        if new_val != old_key
+                            && let (Some(old_alias), Some(new_alias)) = (
                                 parse_style_alias(&old_key),
                                 parse_style_alias(&new_val),
                             ) {
@@ -114,8 +114,7 @@ fn StyleAliasesSectionHeader(
                                     .theme_default
                                     .style_aliases
                                     .contains_key(&new_alias)
-                                {
-                                    if let Some(idx) = diagram
+                                    && let Some(idx) = diagram
                                         .theme_default
                                         .style_aliases
                                         .get_index_of(&old_alias)
@@ -129,9 +128,7 @@ fn StyleAliasesSectionHeader(
                                                  checked for availability above",
                                             );
                                     }
-                                }
                             }
-                        }
                     }
                 },
             }
@@ -243,20 +240,17 @@ fn StyleAliasesSectionAliasRow(
                     let alias_idx = alias_index;
                     move |evt: dioxus::events::FormEvent| {
                         let new_val = evt.value();
-                        if let Some(parsed_key) = parse_style_alias(&key) {
-                            if let Ok(new_alias_id) = Id::new(&new_val) {
+                        if let Some(parsed_key) = parse_style_alias(&key)
+                            && let Ok(new_alias_id) = Id::new(&new_val) {
                                 let new_alias =
                                     StyleAlias::from(new_alias_id.into_static()).into_static();
                                 let mut diagram = input_diagram.write();
                                 if let Some(partials) =
                                     diagram.theme_default.style_aliases.get_mut(&parsed_key)
-                                {
-                                    if alias_idx < partials.style_aliases_applied.len() {
+                                    && alias_idx < partials.style_aliases_applied.len() {
                                         partials.style_aliases_applied[alias_idx] = new_alias;
                                     }
-                                }
                             }
-                        }
                     }
                 },
             }
@@ -271,11 +265,9 @@ fn StyleAliasesSectionAliasRow(
                             let mut diagram = input_diagram.write();
                             if let Some(partials) =
                                 diagram.theme_default.style_aliases.get_mut(&parsed_key)
-                            {
-                                if alias_idx < partials.style_aliases_applied.len() {
+                                && alias_idx < partials.style_aliases_applied.len() {
                                     partials.style_aliases_applied.remove(alias_idx);
                                 }
-                            }
                         }
                     }
                 },
@@ -382,9 +374,9 @@ fn StyleAliasesSectionAttrRow(
                         if let (Some(old_attr), Some(new_attr)) = (
                             parse_theme_attr(&old_attr_name),
                             parse_theme_attr(&new_attr_str),
-                        ) {
-                            if old_attr != new_attr {
-                                if let Some(parsed_key) = parse_style_alias(&key) {
+                        )
+                            && old_attr != new_attr
+                                && let Some(parsed_key) = parse_style_alias(&key) {
                                     let mut diagram = input_diagram.write();
                                     if let Some(partials) =
                                         diagram.theme_default.style_aliases.get_mut(&parsed_key)
@@ -395,8 +387,6 @@ fn StyleAliasesSectionAttrRow(
                                             .insert(new_attr, current_value.clone());
                                     }
                                 }
-                            }
-                        }
                     }
                 },
 
@@ -420,18 +410,15 @@ fn StyleAliasesSectionAttrRow(
                     let attr_name = attr_name.clone();
                     move |evt: dioxus::events::FormEvent| {
                         let new_val = evt.value();
-                        if let Some(attr) = parse_theme_attr(&attr_name) {
-                            if let Some(parsed_key) = parse_style_alias(&key) {
+                        if let Some(attr) = parse_theme_attr(&attr_name)
+                            && let Some(parsed_key) = parse_style_alias(&key) {
                                 let mut diagram = input_diagram.write();
                                 if let Some(partials) =
                                     diagram.theme_default.style_aliases.get_mut(&parsed_key)
-                                {
-                                    if let Some(v) = partials.partials.get_mut(&attr) {
+                                    && let Some(v) = partials.partials.get_mut(&attr) {
                                         *v = new_val;
                                     }
-                                }
                             }
-                        }
                     }
                 },
             }
@@ -443,8 +430,8 @@ fn StyleAliasesSectionAttrRow(
                     let key = alias_key.clone();
                     let attr_name = attr_name.clone();
                     move |_| {
-                        if let Some(attr) = parse_theme_attr(&attr_name) {
-                            if let Some(parsed_key) = parse_style_alias(&key) {
+                        if let Some(attr) = parse_theme_attr(&attr_name)
+                            && let Some(parsed_key) = parse_style_alias(&key) {
                                 let mut diagram = input_diagram.write();
                                 if let Some(partials) =
                                     diagram.theme_default.style_aliases.get_mut(&parsed_key)
@@ -452,7 +439,6 @@ fn StyleAliasesSectionAttrRow(
                                     partials.partials.shift_remove(&attr);
                                 }
                             }
-                        }
                     }
                 },
                 "x"

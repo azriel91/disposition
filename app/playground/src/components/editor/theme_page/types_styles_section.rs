@@ -49,14 +49,14 @@ pub fn TypesStylesSection(
                         let old_key = type_key.clone();
                         move |evt: dioxus::events::FormEvent| {
                             let new_val = evt.value();
-                            if new_val != old_key {
-                                if let (Some(old_id), Some(new_id)) = (
+                            if new_val != old_key
+                                && let (Some(old_id), Some(new_id)) = (
                                     parse_entity_type_id(&old_key),
                                     parse_entity_type_id(&new_val),
                                 ) {
                                     let mut diagram = input_diagram.write();
-                                    if !diagram.theme_types_styles.contains_key(&new_id) {
-                                        if let Some(idx) =
+                                    if !diagram.theme_types_styles.contains_key(&new_id)
+                                        && let Some(idx) =
                                             diagram.theme_types_styles.get_index_of(&old_id)
                                         {
                                             diagram
@@ -67,9 +67,7 @@ pub fn TypesStylesSection(
                                                      checked for availability above",
                                                 );
                                         }
-                                    }
                                 }
-                            }
                         }
                     },
                 }

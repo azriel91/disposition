@@ -251,11 +251,10 @@ pub fn ThemeTypesStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
                     let mut n = 1u32;
                     let new_key = loop {
                         let candidate = format!("type_custom_{n}");
-                        if let Some(type_id) = parse_entity_type_id(&candidate) {
-                            if !diagram.theme_types_styles.contains_key(&type_id) {
+                        if let Some(type_id) = parse_entity_type_id(&candidate)
+                            && !diagram.theme_types_styles.contains_key(&type_id) {
                                 break type_id;
                             }
-                        }
                         n += 1;
                     };
                     diagram
@@ -391,14 +390,13 @@ pub fn ThemeTagsFocusPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
                         let mut n = 1u32;
                         loop {
                             let candidate = format!("tag_custom_{n}");
-                            if let Some(tag_key) = parse_tag_id_or_defaults(&candidate) {
-                                if !diagram.theme_tag_things_focus.contains_key(&tag_key) {
+                            if let Some(tag_key) = parse_tag_id_or_defaults(&candidate)
+                                && !diagram.theme_tag_things_focus.contains_key(&tag_key) {
                                     diagram
                                         .theme_tag_things_focus
                                         .insert(tag_key, ThemeStyles::default());
                                     break;
                                 }
-                            }
                             n += 1;
                         }
                     }

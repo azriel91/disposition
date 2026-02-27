@@ -56,8 +56,8 @@ pub fn TagFocusSection(input_diagram: Signal<InputDiagram<'static>>, tag_key: St
                             let old_key = tag_key.clone();
                             move |evt: dioxus::events::FormEvent| {
                                 let new_val = evt.value();
-                                if new_val != old_key {
-                                    if let (Some(old_tag), Some(new_tag)) = (
+                                if new_val != old_key
+                                    && let (Some(old_tag), Some(new_tag)) = (
                                         parse_tag_id_or_defaults(&old_key),
                                         parse_tag_id_or_defaults(&new_val),
                                     ) {
@@ -65,8 +65,7 @@ pub fn TagFocusSection(input_diagram: Signal<InputDiagram<'static>>, tag_key: St
                                         if !diagram
                                             .theme_tag_things_focus
                                             .contains_key(&new_tag)
-                                        {
-                                            if let Some(idx) = diagram
+                                            && let Some(idx) = diagram
                                                 .theme_tag_things_focus
                                                 .get_index_of(&old_tag)
                                             {
@@ -78,9 +77,7 @@ pub fn TagFocusSection(input_diagram: Signal<InputDiagram<'static>>, tag_key: St
                                                          checked for availability above",
                                                     );
                                             }
-                                        }
                                     }
-                                }
                             }
                         },
                     }

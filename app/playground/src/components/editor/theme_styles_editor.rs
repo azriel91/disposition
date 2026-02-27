@@ -258,7 +258,7 @@ impl ThemeStylesTarget {
                     diagram
                         .theme_types_styles
                         .entry(type_id)
-                        .or_insert_with(ThemeStyles::default),
+                        .or_default(),
                 )
             }
             Self::DependenciesIncluded => Some(
@@ -277,7 +277,7 @@ impl ThemeStylesTarget {
                     diagram
                         .theme_tag_things_focus
                         .entry(tag)
-                        .or_insert_with(ThemeStyles::default),
+                        .or_default(),
                 )
             }
         }
