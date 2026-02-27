@@ -16,7 +16,10 @@ use dioxus::{
 };
 use disposition::input_model::InputDiagram;
 
-use crate::components::editor::common::{LABEL_CLASS, SECTION_HEADING, TEXTAREA_CLASS};
+use crate::components::editor::{
+    common::{LABEL_CLASS, SECTION_HEADING, TEXTAREA_CLASS},
+    theme_styles_editor::{ThemeStylesEditor, ThemeStylesTarget},
+};
 
 // ===========================================================================
 // Style Aliases sub-page
@@ -74,17 +77,9 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
 /// `CssClassPartials`. Entries can be `node_defaults`,
 /// `node_excluded_defaults`, `edge_defaults`, or specific entity IDs.
 ///
-/// Presented as a YAML editor with datalist hints for IDs.
+/// Uses the card-based [`ThemeStylesEditor`] component for rich editing.
 #[component]
 pub fn ThemeBaseStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
-    let yaml = {
-        let input_diagram = input_diagram.read();
-        serde_saphyr::to_string(&input_diagram.theme_default.base_styles)
-            .unwrap_or_default()
-            .trim()
-            .to_owned()
-    };
-
     rsx! {
         div {
             class: "flex flex-col gap-2",
@@ -93,19 +88,12 @@ pub fn ThemeBaseStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Elem
             p {
                 class: LABEL_CLASS,
                 "Default styles for entities when there is no user interaction. \
-                 Keys can be 'node_defaults', 'node_excluded_defaults', 'edge_defaults', or a specific entity ID. \
-                 Edit as YAML."
+                 Each card configures a 'node_defaults', 'edge_defaults', or specific entity ID."
             }
 
-            textarea {
-                class: TEXTAREA_CLASS,
-                value: "{yaml}",
-                oninput: move |evt| {
-                    let text = evt.value();
-                    if let Ok(styles) = serde_saphyr::from_str(&text) {
-                        input_diagram.write().theme_default.base_styles = styles;
-                    }
-                },
+            ThemeStylesEditor {
+                input_diagram,
+                target: ThemeStylesTarget::BaseStyles,
             }
         }
     }
@@ -118,16 +106,10 @@ pub fn ThemeBaseStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Elem
 /// The **Theme: Process Step Styles** editor sub-page.
 ///
 /// Edits `theme_default.process_step_selected_styles`.
+///
+/// Uses the card-based [`ThemeStylesEditor`] component for rich editing.
 #[component]
 pub fn ThemeProcessStepStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
-    let yaml = {
-        let input_diagram = input_diagram.read();
-        serde_saphyr::to_string(&input_diagram.theme_default.process_step_selected_styles)
-            .unwrap_or_default()
-            .trim()
-            .to_owned()
-    };
-
     rsx! {
         div {
             class: "flex flex-col gap-2",
@@ -136,18 +118,12 @@ pub fn ThemeProcessStepStylesPage(input_diagram: Signal<InputDiagram<'static>>) 
             p {
                 class: LABEL_CLASS,
                 "Styles applied to entities when a process step is selected/focused. \
-                 Edit as YAML."
+                 Each card configures a 'node_defaults', 'edge_defaults', or specific entity ID."
             }
 
-            textarea {
-                class: TEXTAREA_CLASS,
-                value: "{yaml}",
-                oninput: move |evt| {
-                    let text = evt.value();
-                    if let Ok(styles) = serde_saphyr::from_str(&text) {
-                        input_diagram.write().theme_default.process_step_selected_styles = styles;
-                    }
-                },
+            ThemeStylesEditor {
+                input_diagram,
+                target: ThemeStylesTarget::ProcessStepSelectedStyles,
             }
         }
     }

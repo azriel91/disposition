@@ -23,5 +23,6 @@ mod processes_page;
 mod tags_page;
 mod text_page;
 mod theme_page;
+pub(crate) mod theme_styles_editor;
 mod thing_dependencies_page;
 mod things_page;
