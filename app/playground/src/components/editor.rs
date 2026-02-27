@@ -1,8 +1,9 @@
 //! Rich editor pages for the disposition playground.
 //!
 //! Each sub-module implements one editor "page" (tab) that edits a subset of
-//! the [`InputDiagram`] fields. The [`datalists`] module provides shared
-//! `<datalist>` elements for autocomplete on ID fields.
+//! the [`InputDiagram`](disposition::input_model::InputDiagram) fields. The
+//! [`datalists`] module provides shared `<datalist>` elements for autocomplete
+//! on ID fields.
 
 pub use self::{
     datalists::EditorDataLists,

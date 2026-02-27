@@ -16,9 +16,7 @@ use disposition::{
     model_common::{edge::EdgeGroupId, entity::EntityTypeId, Id},
 };
 
-// ===========================================================================
-// Shared CSS constants
-// ===========================================================================
+// === Shared CSS constants === //
 
 /// CSS classes shared by all section headings inside editor pages.
 pub const SECTION_HEADING: &str = "text-sm font-bold text-gray-300 mt-4 mb-1";
@@ -141,7 +139,7 @@ pub const TEXTAREA_CLASS: &str = "\
     focus:outline-none\
 ";
 
-/// CSS classes for the drag handle grip (⠿ dots).
+/// CSS classes for the drag handle grip -- braille dots (`⠿`).
 pub const DRAG_HANDLE: &str = "\
     text-gray-600 \
     hover:text-gray-400 \
@@ -175,9 +173,7 @@ pub const COLLAPSE_BAR: &str = "\
 /// Helper label classes.
 pub const LABEL_CLASS: &str = "text-xs text-gray-500 mb-1";
 
-// ===========================================================================
-// ID parsers
-// ===========================================================================
+// === ID parsers === //
 
 /// Try to construct an `Id<'static>` from a string, returning `None` if the
 /// string is not a valid identifier.
@@ -242,9 +238,7 @@ pub fn parse_tag_id_or_defaults(s: &str) -> Option<TagIdOrDefaults<'static>> {
     }
 }
 
-// ===========================================================================
-// Theme style rename helper
-// ===========================================================================
+// === Theme style rename helper === //
 
 /// Replaces an [`IdOrDefaults::Id`] key that matches `id_old` with `id_new`
 /// inside a [`ThemeStyles`] map.
@@ -260,9 +254,7 @@ pub fn rename_id_in_theme_styles(
     }
 }
 
-// ===========================================================================
-// Shared rename-across-diagram helper
-// ===========================================================================
+// === Shared rename-across-diagram helper === //
 
 /// Renames an [`Id`] across all entity and theme maps in an
 /// [`InputDiagram`].
@@ -276,9 +268,9 @@ pub fn rename_id_in_theme_styles(
 ///
 /// # Parameters
 ///
-/// * `input_diagram` — mutable reference to the [`InputDiagram`] being edited.
-/// * `id_old` — the old [`Id`] being replaced.
-/// * `id_new` — the new [`Id`] to insert in its place.
+/// * `input_diagram`: mutable reference to the [`InputDiagram`] being edited.
+/// * `id_old`: the old [`Id`] being replaced.
+/// * `id_new`: the new [`Id`] to insert in its place.
 pub fn id_rename_in_input_diagram(
     input_diagram: &mut InputDiagram<'static>,
     id_old: &Id<'static>,

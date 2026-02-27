@@ -109,9 +109,7 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     }
 }
 
-// ===========================================================================
-// ProcessesPage mutation helpers
-// ===========================================================================
+// === ProcessesPage mutation helpers === //
 
 /// Mutation operations for the Processes editor page.
 ///
@@ -126,13 +124,14 @@ impl ProcessesPageOps {
         loop {
             let candidate = format!("proc_{n}");
             if let Some(process_id) = parse_process_id(&candidate)
-                && !input_diagram.read().processes.contains_key(&process_id) {
-                    input_diagram
-                        .write()
-                        .processes
-                        .insert(process_id, ProcessDiagram::default());
-                    break;
-                }
+                && !input_diagram.read().processes.contains_key(&process_id)
+            {
+                input_diagram
+                    .write()
+                    .processes
+                    .insert(process_id, ProcessDiagram::default());
+                break;
+            }
             n += 1;
         }
     }
@@ -185,13 +184,14 @@ impl ProcessesPageOps {
         name: &str,
     ) {
         if let Some(process_id) = parse_process_id(process_id_str)
-            && let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
-                process_diagram.name = if name.is_empty() {
-                    None
-                } else {
-                    Some(name.to_owned())
-                };
-            }
+            && let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id)
+        {
+            process_diagram.name = if name.is_empty() {
+                None
+            } else {
+                Some(name.to_owned())
+            };
+        }
     }
 
     /// Updates the description for an existing process.
@@ -201,19 +201,18 @@ impl ProcessesPageOps {
         desc: &str,
     ) {
         if let Some(process_id) = parse_process_id(process_id_str)
-            && let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
-                process_diagram.desc = if desc.is_empty() {
-                    None
-                } else {
-                    Some(desc.to_owned())
-                };
-            }
+            && let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id)
+        {
+            process_diagram.desc = if desc.is_empty() {
+                None
+            } else {
+                Some(desc.to_owned())
+            };
+        }
     }
 }
 
-// ===========================================================================
-// Process card component
-// ===========================================================================
+// === Process card component === //
 
 #[component]
 fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry) -> Element {
@@ -223,7 +222,7 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
         div {
             class: CARD_CLASS,
 
-            // ── Header: Process ID + Remove ──────────────────────────
+            // === Header: Process ID + Remove === //
             div {
                 class: ROW_CLASS_SIMPLE,
 
@@ -257,7 +256,7 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                 }
             }
 
-            // ── Name ─────────────────────────────────────────────────
+            // === Name === //
             div {
                 class: ROW_CLASS_SIMPLE,
 
@@ -278,7 +277,7 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                 }
             }
 
-            // ── Description ──────────────────────────────────────────
+            // === Description === //
             div {
                 class: ROW_CLASS_SIMPLE,
 
@@ -299,7 +298,7 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                 }
             }
 
-            // ── Steps ────────────────────────────────────────────────
+            // === Steps === //
             div {
                 class: "flex flex-col gap-1 pl-4",
 
@@ -374,13 +373,13 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                 }
             }
 
-            // ── Step Thing Interactions ───────────────────────────────
+            // === Step Thing Interactions === //
             div {
                 class: "flex flex-col gap-1 pl-4",
 
                 h4 {
                     class: "text-xs font-semibold text-gray-400 mt-1",
-                    "Step → Thing Interactions"
+                    "Step -> Thing Interactions"
                 }
 
                 for (step_id, edge_ids) in entry.step_interactions.iter() {
@@ -415,9 +414,7 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
     }
 }
 
-// ===========================================================================
-// ProcessCard mutation helpers
-// ===========================================================================
+// === ProcessCard mutation helpers === //
 
 /// Mutation operations for the process card component.
 ///
@@ -426,7 +423,7 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
 struct ProcessCardOps;
 
 impl ProcessCardOps {
-    // ── Step helpers ─────────────────────────────────────────────────
+    // === Step helpers === //
 
     /// Adds a new step to a process with a unique placeholder step ID.
     fn step_add(mut input_diagram: Signal<InputDiagram<'static>>, process_id_str: &str) {
@@ -443,15 +440,15 @@ impl ProcessCardOps {
         loop {
             let candidate = format!("{process_id_str}_step_{n}");
             if let Some(step_id) = parse_process_step_id(&candidate)
-                && !process_diagram.steps.contains_key(&step_id) {
-                    drop(input_diagram_read);
-                    if let Some(process_diagram) =
-                        input_diagram.write().processes.get_mut(&process_id)
-                    {
-                        process_diagram.steps.insert(step_id, String::new());
-                    }
-                    break;
+                && !process_diagram.steps.contains_key(&step_id)
+            {
+                drop(input_diagram_read);
+                if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id)
+                {
+                    process_diagram.steps.insert(step_id, String::new());
                 }
+                break;
+            }
             n += 1;
         }
     }
@@ -546,12 +543,13 @@ impl ProcessCardOps {
             None => return,
         };
         if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id)
-            && let Some(entry) = process_diagram.steps.get_mut(&step_id) {
-                *entry = label.to_owned();
-            }
+            && let Some(entry) = process_diagram.steps.get_mut(&step_id)
+        {
+            *entry = label.to_owned();
+        }
     }
 
-    // ── Step interaction helpers ─────────────────────────────────────
+    // === Step interaction helpers === //
 
     /// Adds a new step interaction mapping to a process.
     fn step_interaction_add(
@@ -591,17 +589,17 @@ impl ProcessCardOps {
                         && !process_diagram
                             .step_thing_interactions
                             .contains_key(&step_id)
+                    {
+                        drop(input_diagram_read);
+                        if let Some(process_diagram) =
+                            input_diagram.write().processes.get_mut(&process_id)
                         {
-                            drop(input_diagram_read);
-                            if let Some(process_diagram) =
-                                input_diagram.write().processes.get_mut(&process_id)
-                            {
-                                process_diagram
-                                    .step_thing_interactions
-                                    .insert(step_id, Vec::new());
-                            }
-                            return;
+                            process_diagram
+                                .step_thing_interactions
+                                .insert(step_id, Vec::new());
                         }
+                        return;
+                    }
                     n += 1;
                 }
             }
@@ -616,9 +614,7 @@ impl ProcessCardOps {
     }
 }
 
-// ===========================================================================
-// Step interaction card component
-// ===========================================================================
+// === Step interaction card component === //
 
 /// A card for one step's thing-interaction list.
 #[component]
@@ -748,9 +744,7 @@ fn StepInteractionCard(
     }
 }
 
-// ===========================================================================
-// StepInteractionCard mutation helpers
-// ===========================================================================
+// === StepInteractionCard mutation helpers === //
 
 /// Mutation operations for the step interaction card component.
 ///
@@ -840,9 +834,10 @@ impl StepInteractionCardOps {
         };
         if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id)
             && let Some(edge_group_ids) = process_diagram.step_thing_interactions.get_mut(&step_id)
-                && idx < edge_group_ids.len() {
-                    edge_group_ids[idx] = edge_group_id_new;
-                }
+            && idx < edge_group_ids.len()
+        {
+            edge_group_ids[idx] = edge_group_id_new;
+        }
     }
 
     /// Removes an edge group from a step interaction by index.
@@ -862,9 +857,10 @@ impl StepInteractionCardOps {
         };
         if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id)
             && let Some(edge_group_ids) = process_diagram.step_thing_interactions.get_mut(&step_id)
-                && idx < edge_group_ids.len() {
-                    edge_group_ids.remove(idx);
-                }
+            && idx < edge_group_ids.len()
+        {
+            edge_group_ids.remove(idx);
+        }
     }
 
     /// Adds an edge group to a step interaction, using the first existing
@@ -900,8 +896,8 @@ impl StepInteractionCardOps {
 
         if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id)
             && let Some(edge_group_ids) = process_diagram.step_thing_interactions.get_mut(&step_id)
-            {
-                edge_group_ids.push(edge_group_id_new);
-            }
+        {
+            edge_group_ids.push(edge_group_id_new);
+        }
     }
 }

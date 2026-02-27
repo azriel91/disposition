@@ -32,9 +32,7 @@ use crate::components::editor::{
 
 use self::{tag_focus_section::TagFocusSection, types_styles_section::TypesStylesSection};
 
-// ===========================================================================
-// Style Aliases sub-page
-// ===========================================================================
+// === Style Aliases sub-page === //
 
 /// The **Theme: Style Aliases** editor sub-page.
 ///
@@ -78,9 +76,7 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
     }
 }
 
-// ===========================================================================
-// Base Styles sub-page
-// ===========================================================================
+// === Base Styles sub-page === //
 
 /// The **Theme: Base Styles** editor sub-page.
 ///
@@ -110,9 +106,7 @@ pub fn ThemeBaseStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Elem
     }
 }
 
-// ===========================================================================
-// Process Step Selected Styles sub-page
-// ===========================================================================
+// === Process Step Selected Styles sub-page === //
 
 /// The **Theme: Process Step Styles** editor sub-page.
 ///
@@ -140,9 +134,7 @@ pub fn ThemeProcessStepStylesPage(input_diagram: Signal<InputDiagram<'static>>) 
     }
 }
 
-// ===========================================================================
-// Types Styles sub-page
-// ===========================================================================
+// === Types Styles sub-page === //
 
 /// The **Theme: Types Styles** editor sub-page.
 ///
@@ -213,9 +205,7 @@ pub fn ThemeTypesStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
     }
 }
 
-// ===========================================================================
-// Thing Dependencies Styles sub-page
-// ===========================================================================
+// === Thing Dependencies Styles sub-page === //
 
 /// The **Theme: Dependencies Styles** editor sub-page.
 ///
@@ -278,9 +268,7 @@ pub fn ThemeDependenciesStylesPage(input_diagram: Signal<InputDiagram<'static>>)
     }
 }
 
-// ===========================================================================
-// Tag Things Focus Styles sub-page
-// ===========================================================================
+// === Tag Things Focus Styles sub-page === //
 
 /// The **Theme: Tags Focus** editor sub-page.
 ///

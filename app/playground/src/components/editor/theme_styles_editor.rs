@@ -39,9 +39,7 @@ use crate::components::editor::common::{parse_entity_type_id, parse_tag_id_or_de
 
 use self::css_class_partials_card::CssClassPartialsCard;
 
-// ===========================================================================
-// Constants
-// ===========================================================================
+// === Constants === //
 
 /// All `ThemeAttr` variants paired with their `snake_case` serialisation name.
 ///
@@ -130,16 +128,12 @@ pub(crate) const ID_OR_DEFAULTS_BUILTINS: &[(&str, &str)] = &[
     ("edge_defaults", "Edge Defaults"),
 ];
 
-// ===========================================================================
-// Snapshot type alias (avoids clippy::type_complexity)
-// ===========================================================================
+// === Snapshot type alias (avoids clippy::type_complexity) === //
 
 /// `(key, style_aliases_applied, Vec<(attr_name, attr_value)>)` snapshot.
 type EntrySnapshot = (String, Vec<String>, Vec<(String, String)>);
 
-// ===========================================================================
-// Helpers
-// ===========================================================================
+// === Helpers === //
 
 /// Look up the `snake_case` name for a `ThemeAttr`.
 fn theme_attr_name(attr: &ThemeAttr) -> &'static str {
@@ -178,9 +172,7 @@ pub(crate) fn parse_theme_attr(s: &str) -> Option<ThemeAttr> {
         .map(|(_, attr)| *attr)
 }
 
-// ===========================================================================
-// ThemeStylesTarget
-// ===========================================================================
+// === ThemeStylesTarget === //
 
 /// Which field of [`InputDiagram`] this editor targets.
 ///
@@ -292,9 +284,7 @@ impl ThemeStylesTarget {
     }
 }
 
-// ===========================================================================
-// ThemeStylesEditor
-// ===========================================================================
+// === ThemeStylesEditor === //
 
 /// Card-based editor for a [`ThemeStyles`] map.
 ///

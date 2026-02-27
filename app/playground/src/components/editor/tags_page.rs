@@ -53,7 +53,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
         div {
             class: "flex flex-col gap-2",
 
-            // ── Tag Names ────────────────────────────────────────────
+            // === Tag Names === //
             h3 { class: SECTION_HEADING, "Tag Names" }
             p {
                 class: "text-xs text-gray-500 mb-1",
@@ -83,8 +83,8 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 "+ Add tag"
             }
 
-            // ── Tag Things ───────────────────────────────────────────
-            h3 { class: SECTION_HEADING, "Tag → Things" }
+            // === Tag Things === //
+            h3 { class: SECTION_HEADING, "Tag -> Things" }
             p {
                 class: "text-xs text-gray-500 mb-1",
                 "Things highlighted when each tag is focused."
@@ -110,15 +110,13 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 onclick: move |_| {
                     TagsPageOps::tag_things_entry_add(input_diagram);
                 },
-                "+ Add tag → things mapping"
+                "+ Add tag -> things mapping"
             }
         }
     }
 }
 
-// ===========================================================================
-// TagsPage mutation helpers
-// ===========================================================================
+// === TagsPage mutation helpers === //
 
 /// Mutation operations for the Tags editor page.
 ///
@@ -127,7 +125,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 struct TagsPageOps;
 
 impl TagsPageOps {
-    // ── Tag name helpers ─────────────────────────────────────────────
+    // === Tag name helpers === //
 
     /// Adds a new tag with a unique placeholder TagId.
     fn tag_add(mut input_diagram: Signal<InputDiagram<'static>>) {
@@ -135,10 +133,11 @@ impl TagsPageOps {
         loop {
             let candidate = format!("tag_{n}");
             if let Some(tag_id) = parse_tag_id(&candidate)
-                && !input_diagram.read().tags.contains_key(&tag_id) {
-                    input_diagram.write().tags.insert(tag_id, String::new());
-                    break;
-                }
+                && !input_diagram.read().tags.contains_key(&tag_id)
+            {
+                input_diagram.write().tags.insert(tag_id, String::new());
+                break;
+            }
             n += 1;
         }
     }
@@ -210,14 +209,15 @@ impl TagsPageOps {
         name: &str,
     ) {
         if let Some(tag_id) = parse_tag_id(tag_id_str)
-            && let Some(entry) = input_diagram.write().tags.get_mut(&tag_id) {
-                *entry = name.to_owned();
-            }
+            && let Some(entry) = input_diagram.write().tags.get_mut(&tag_id)
+        {
+            *entry = name.to_owned();
+        }
     }
 
-    // ── Tag things helpers ───────────────────────────────────────────
+    // === Tag things helpers === //
 
-    /// Adds a new tag→things entry, picking an unmapped tag or generating a
+    /// Adds a new tag->things entry, picking an unmapped tag or generating a
     /// placeholder.
     fn tag_things_entry_add(mut input_diagram: Signal<InputDiagram<'static>>) {
         let input_diagram_read = input_diagram.read();
@@ -237,25 +237,26 @@ impl TagsPageOps {
                 loop {
                     let candidate = format!("tag_{n}");
                     if let Some(tag_id) = parse_tag_id(&candidate)
-                        && !input_diagram_read.tag_things.contains_key(&tag_id) {
-                            drop(input_diagram_read);
-                            input_diagram.write().tag_things.insert(tag_id, Set::new());
-                            break;
-                        }
+                        && !input_diagram_read.tag_things.contains_key(&tag_id)
+                    {
+                        drop(input_diagram_read);
+                        input_diagram.write().tag_things.insert(tag_id, Set::new());
+                        break;
+                    }
                     n += 1;
                 }
             }
         }
     }
 
-    /// Removes a tag→things entry.
+    /// Removes a tag->things entry.
     fn tag_things_entry_remove(mut input_diagram: Signal<InputDiagram<'static>>, tag_id_str: &str) {
         if let Some(tag_id) = parse_tag_id(tag_id_str) {
             input_diagram.write().tag_things.swap_remove(&tag_id);
         }
     }
 
-    /// Renames the key of a tag→things entry.
+    /// Renames the key of a tag->things entry.
     fn tag_things_entry_rename(
         mut input_diagram: Signal<InputDiagram<'static>>,
         tag_id_old_str: &str,
@@ -327,9 +328,10 @@ impl TagsPageOps {
 
         let mut input_diagram = input_diagram.write();
         if let Some(things) = input_diagram.tag_things.get_mut(&tag_id)
-            && idx < things.len() {
-                things.swap_remove_index(idx);
-            }
+            && idx < things.len()
+        {
+            things.swap_remove_index(idx);
+        }
     }
 
     /// Adds a thing to a tag's thing set.
@@ -361,9 +363,7 @@ impl TagsPageOps {
     }
 }
 
-// ===========================================================================
-// Helper components
-// ===========================================================================
+// === Helper components === //
 
 /// A single editable row for a tag name (TagId -> display label).
 #[component]
@@ -432,7 +432,7 @@ fn TagThingsCard(
         div {
             class: CARD_CLASS,
 
-            // ── Header: TagId + Remove ───────────────────────────────
+            // === Header: TagId + Remove === //
             div {
                 class: ROW_CLASS_SIMPLE,
 
@@ -473,7 +473,7 @@ fn TagThingsCard(
                 }
             }
 
-            // ── Thing list ───────────────────────────────────────────
+            // === Thing list === //
             div {
                 class: "flex flex-col gap-1 pl-4",
 

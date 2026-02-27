@@ -7,7 +7,7 @@ use dioxus::{
 use crate::editor_state::EditorState;
 
 /// The Home page component that will be rendered when the current route is
-/// `[Route::Home]`
+/// [`Route::Home`]
 #[component]
 pub fn Home(editor_state: ReadSignal<EditorState>) -> Element {
     rsx! {

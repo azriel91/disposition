@@ -6,7 +6,7 @@ use dioxus::prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, r
 
 use crate::components::editor::common::DRAG_HANDLE;
 
-/// A grip-dots drag handle (⠿) that visually indicates a row is draggable.
+/// A grip-dots drag handle that visually indicates a row is draggable.
 ///
 /// The actual drag-and-drop behaviour is handled by the parent row's
 /// `draggable` / `ondragstart` / `ondragover` / `ondrop` / `ondragend`

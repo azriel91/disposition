@@ -145,9 +145,7 @@ pub fn ThingInteractionsPage(input_diagram: Signal<InputDiagram<'static>>) -> El
     }
 }
 
-// ===========================================================================
-// Shared types
-// ===========================================================================
+// === Shared types === //
 
 /// Which map inside `InputDiagram` we are editing.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -156,9 +154,7 @@ pub(crate) enum MapTarget {
     Interactions,
 }
 
-// ===========================================================================
-// Edge group card component
-// ===========================================================================
+// === Edge group card component === //
 
 /// A card for a single edge group (used by both dependencies and interactions).
 #[component]
@@ -175,7 +171,7 @@ fn EdgeGroupCard(
         div {
             class: CARD_CLASS,
 
-            // ── Header row: EdgeGroupId + Kind selector + Remove ─────
+            // === Header row: EdgeGroupId + Kind selector + Remove === //
             div {
                 class: ROW_CLASS_SIMPLE,
 
@@ -231,7 +227,7 @@ fn EdgeGroupCard(
                 }
             }
 
-            // ── Thing list ───────────────────────────────────────────
+            // === Thing list === //
             div {
                 class: "flex flex-col gap-1 pl-4",
 
@@ -305,9 +301,7 @@ fn EdgeGroupCard(
     }
 }
 
-// ===========================================================================
-// EdgeGroupCard helpers and mutation methods
-// ===========================================================================
+// === EdgeGroupCard helpers and mutation methods === //
 
 /// Mutation operations for the edge group card component.
 ///
@@ -316,7 +310,7 @@ fn EdgeGroupCard(
 struct EdgeGroupCardOps;
 
 impl EdgeGroupCardOps {
-    // ── EdgeKind conversion ──────────────────────────────────────────
+    // === EdgeKind conversion === //
 
     /// Decompose an `EdgeKind` into a label string and a list of thing ID
     /// strings.
@@ -362,7 +356,7 @@ impl EdgeGroupCardOps {
         }
     }
 
-    // ── Map-target helpers ───────────────────────────────────────────
+    // === Map-target helpers === //
 
     /// Sets the `EdgeKind` for a given `EdgeGroupId` in the target map.
     fn edge_kind_set(
@@ -421,7 +415,7 @@ impl EdgeGroupCardOps {
         }
     }
 
-    // ── Mutation helpers ─────────────────────────────────────────────
+    // === Mutation helpers === //
 
     /// Adds a new edge group with a unique placeholder ID.
     fn edge_group_add(mut input_diagram: Signal<InputDiagram<'static>>, target: MapTarget) {
@@ -429,15 +423,16 @@ impl EdgeGroupCardOps {
         loop {
             let candidate = format!("edge_{n}");
             if let Some(edge_group_id) = parse_edge_group_id(&candidate)
-                && !Self::edge_group_contains(&input_diagram.read(), target, &edge_group_id) {
-                    Self::edge_kind_set(
-                        &mut input_diagram.write(),
-                        target,
-                        &edge_group_id,
-                        EdgeKind::Sequence(Vec::new()),
-                    );
-                    break;
-                }
+                && !Self::edge_group_contains(&input_diagram.read(), target, &edge_group_id)
+            {
+                Self::edge_kind_set(
+                    &mut input_diagram.write(),
+                    target,
+                    &edge_group_id,
+                    EdgeKind::Sequence(Vec::new()),
+                );
+                break;
+            }
             n += 1;
         }
     }

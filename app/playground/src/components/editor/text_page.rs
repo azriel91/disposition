@@ -66,12 +66,12 @@ const REVERT_BTN: &str = "\
 /// ## Data-flow
 ///
 /// ```text
-/// InputDiagram signal  ──serialize──►  text_buffer signal
-///       ▲                                    │
-///       │                                    │ (user edits)
-///       │                                    ▼
-///       └──── if parse OK ◄── try deserialize
-///                                if parse ERR ──► show error + revert button
+/// InputDiagram signal  --serialize-->  text_buffer signal
+///       ^                                    |
+///       |                                    | (user edits)
+///       |                                    v
+///       +---- if parse OK <-- try deserialize
+///                                if parse ERR --> show error + revert button
 /// ```
 ///
 /// `last_good_yaml` tracks the most recent YAML string that was successfully
@@ -156,7 +156,7 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 },
             }
 
-            // ── Error banner + revert button ─────────────────────────
+            // === Error banner + revert button === //
             if let Some(err) = current_error {
                 div {
                     class: "flex flex-col gap-1",

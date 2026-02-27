@@ -29,7 +29,8 @@ pub enum Route {
         /// The editor state, serialized as YAML in the URL hash fragment.
         ///
         /// This captures the full editor state including the active page/tab
-        /// and the [`InputDiagram`] being edited.
+        /// and the [`InputDiagram`](disposition::input_model::InputDiagram)
+        /// being edited.
         editor_state: EditorState,
     },
     // The route attribute can include dynamic parameters that implement [`std::str::FromStr`] and

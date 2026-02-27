@@ -60,7 +60,7 @@ pub fn TabGroup(
         div {
             class: "group flex flex-col",
 
-            // ── Tab label row ────────────────────────────────────────
+            // === Tab label row === //
             div {
                 class: "
                     flex
@@ -110,7 +110,7 @@ pub fn TabGroup(
                 }
             }
 
-            // ── Tab panels ───────────────────────────────────────────
+            // === Tab panels === //
             for i in 0..tab_count {
                 {
                     let panel_class = TAB_PANEL_CLASSES[i];

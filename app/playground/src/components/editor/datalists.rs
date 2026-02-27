@@ -41,7 +41,7 @@ pub mod list_ids {
 pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
     let diagram = input_diagram.read();
 
-    // ── Collect IDs ──────────────────────────────────────────────────────
+    // === Collect IDs === //
 
     let thing_ids: Vec<String> = diagram
         .things
@@ -88,10 +88,7 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
     // Style aliases = builtins + user-defined custom aliases.
     let style_alias_values = {
         let input_diagram_base = InputDiagram::base();
-        let base_style_aliases = input_diagram_base
-            .theme_default
-            .style_aliases
-            .keys();
+        let base_style_aliases = input_diagram_base.theme_default.style_aliases.keys();
         let input_diagram_style_aliases = diagram.theme_default.style_aliases.keys();
 
         base_style_aliases.chain(input_diagram_style_aliases).fold(
@@ -106,7 +103,7 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
     };
 
     rsx! {
-        // ── thing_ids ────────────────────────────────────────────────
+        // === thing_ids === //
         datalist {
             id: list_ids::THING_IDS,
             for id in thing_ids.iter() {
@@ -114,7 +111,7 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
             }
         }
 
-        // ── edge_group_ids ───────────────────────────────────────────
+        // === edge_group_ids === //
         datalist {
             id: list_ids::EDGE_GROUP_IDS,
             for id in edge_group_ids.iter() {
@@ -122,7 +119,7 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
             }
         }
 
-        // ── tag_ids ──────────────────────────────────────────────────
+        // === tag_ids === //
         datalist {
             id: list_ids::TAG_IDS,
             for id in tag_ids.iter() {
@@ -130,7 +127,7 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
             }
         }
 
-        // ── process_ids ──────────────────────────────────────────────
+        // === process_ids === //
         datalist {
             id: list_ids::PROCESS_IDS,
             for id in process_ids.iter() {
@@ -138,7 +135,7 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
             }
         }
 
-        // ── process_step_ids ─────────────────────────────────────────
+        // === process_step_ids === //
         datalist {
             id: list_ids::PROCESS_STEP_IDS,
             for id in process_step_ids.iter() {
@@ -146,7 +143,7 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
             }
         }
 
-        // ── entity_ids (union) ───────────────────────────────────────
+        // === entity_ids (union) === //
         datalist {
             id: list_ids::ENTITY_IDS,
             for id in entity_ids.iter() {
@@ -154,7 +151,7 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
             }
         }
 
-        // ── style_aliases ────────────────────────────────────────────
+        // === style_aliases === //
         datalist {
             id: list_ids::STYLE_ALIASES,
             for alias in style_alias_values.iter() {

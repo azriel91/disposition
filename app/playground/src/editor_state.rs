@@ -2,8 +2,9 @@
 //!
 //! This module defines the [`EditorState`] struct, which captures the full
 //! state of the playground editor: both the [`InputDiagram`] being edited and
-//! the currently active editor page. The struct implements [`FromStr`] and
-//! [`Display`] so that `dioxus_router` can round-trip it through the URL hash
+//! the currently active editor page. The struct implements
+//! [`FromStr`](std::str::FromStr) and [`Display`](std::fmt::Display) so that
+//! `dioxus_router` can round-trip it through the URL hash
 //! fragment.
 
 use std::fmt;
@@ -13,11 +14,13 @@ use serde::{Deserialize, Serialize};
 
 /// Full state of the playground editor, persisted in the URL hash.
 ///
-/// When serialized (via [`Display`]), the struct is written as YAML.
-/// When deserialized (via [`FromStr`]), the YAML is parsed back.
+/// When serialized (via [`Display`](std::fmt::Display)), the struct is written
+/// as YAML. When deserialized (via [`FromStr`](std::str::FromStr)), the YAML
+/// is parsed back.
 ///
 /// For backward compatibility with older URLs that contain only a raw
-/// [`InputDiagram`] YAML (without the wrapping `EditorState`), [`FromStr`]
+/// [`InputDiagram`] YAML (without the wrapping `EditorState`),
+/// [`FromStr`](std::str::FromStr)
 /// will fall back to parsing the string as an `InputDiagram` directly.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EditorState {
@@ -80,11 +83,12 @@ pub enum EditorPage {
     /// Things: names, descriptions, copy-text, hierarchy.
     #[default]
     Things,
-    /// Thing dependencies: edge groups with [`EdgeKind`] variants.
+    /// Thing dependencies: edge groups with
+    /// [`EdgeKind`](disposition::input_model::edge::EdgeKind) variants.
     ThingDependencies,
     /// Thing interactions: edge groups representing runtime communication.
     ThingInteractions,
-    /// Processes: process diagrams with steps and step–thing-interaction
+    /// Processes: process diagrams with steps and step-thing-interaction
     /// mappings.
     Processes,
     /// Tags: tag names and the things associated with each tag.
@@ -189,9 +193,7 @@ impl EditorPageOrGroup {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Display / FromStr: used by dioxus_router for the URL hash fragment
-// ---------------------------------------------------------------------------
+// === Display / FromStr: used by dioxus_router for the URL hash fragment === //
 
 impl fmt::Display for EditorState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -216,9 +218,7 @@ impl std::str::FromStr for EditorState {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+// === Tests === //
 
 #[cfg(test)]
 mod tests {
