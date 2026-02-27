@@ -83,6 +83,8 @@ pub enum EditorPage {
     /// Things: names, descriptions, copy-text, hierarchy.
     #[default]
     Things,
+    /// Thing layout: interactive tree editor for `thing_hierarchy`.
+    ThingLayout,
     /// Thing dependencies: edge groups with
     /// [`EdgeGroup`](disposition::input_model::edge::EdgeGroup) entries.
     ThingDependencies,
@@ -123,6 +125,7 @@ impl EditorPage {
     /// single "Theme" parent tab).
     pub const TOP_LEVEL: &'static [EditorPageOrGroup] = &[
         EditorPageOrGroup::Page(Self::Things),
+        EditorPageOrGroup::Page(Self::ThingLayout),
         EditorPageOrGroup::Page(Self::ThingDependencies),
         EditorPageOrGroup::Page(Self::ThingInteractions),
         EditorPageOrGroup::Page(Self::Processes),
@@ -136,6 +139,7 @@ impl EditorPage {
     pub fn label(&self) -> &'static str {
         match self {
             Self::Things => "Things",
+            Self::ThingLayout => "Layout",
             Self::ThingDependencies => "Dependencies",
             Self::ThingInteractions => "Interactions",
             Self::Processes => "Processes",

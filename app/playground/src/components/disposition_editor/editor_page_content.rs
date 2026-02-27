@@ -12,7 +12,8 @@ use crate::{
     components::editor::{
         ProcessesPage, TagsPage, TextPage, ThemeBaseStylesPage, ThemeDependenciesStylesPage,
         ThemeProcessStepStylesPage, ThemeStyleAliasesPage, ThemeTagsFocusPage,
-        ThemeTypesStylesPage, ThingDependenciesPage, ThingInteractionsPage, ThingsPage,
+        ThemeTypesStylesPage, ThingDependenciesPage, ThingInteractionsPage, ThingLayoutPage,
+        ThingsPage,
     },
     editor_state::{EditorPage, ThingsPageUiState},
 };
@@ -28,6 +29,7 @@ pub fn EditorPageContent(
 
     match page {
         EditorPage::Things => rsx! { ThingsPage { input_diagram, things_ui_state } },
+        EditorPage::ThingLayout => rsx! { ThingLayoutPage { input_diagram } },
         EditorPage::ThingDependencies => rsx! { ThingDependenciesPage { input_diagram } },
         EditorPage::ThingInteractions => rsx! { ThingInteractionsPage { input_diagram } },
         EditorPage::Processes => rsx! { ProcessesPage { input_diagram } },

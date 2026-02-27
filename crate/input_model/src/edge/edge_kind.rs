@@ -46,7 +46,7 @@ impl EdgeKind {
     /// # Examples
     ///
     /// ```rust
-    /// use disposition::input_model::edge::EdgeKind;
+    /// use disposition_input_model::edge::EdgeKind;
     ///
     /// assert_eq!(EdgeKind::Cyclic.as_str(), "cyclic");
     /// assert_eq!(EdgeKind::Sequence.as_str(), "sequence");

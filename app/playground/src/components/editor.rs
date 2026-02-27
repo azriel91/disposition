@@ -15,6 +15,7 @@ pub use self::{
         ThemeStyleAliasesPage, ThemeTagsFocusPage, ThemeTypesStylesPage,
     },
     thing_dependencies_page::{ThingDependenciesPage, ThingInteractionsPage},
+    thing_layout_page::ThingLayoutPage,
     things_page::ThingsPage,
 };
 
@@ -26,4 +27,5 @@ mod text_page;
 mod theme_page;
 pub(crate) mod theme_styles_editor;
 mod thing_dependencies_page;
+mod thing_layout_page;
 mod things_page;
