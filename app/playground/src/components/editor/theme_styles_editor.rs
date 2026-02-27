@@ -5,7 +5,7 @@
 //! - [`ThemeStylesEditor`]: iterates over a `ThemeStyles` map and renders one
 //!   [`CssClassPartialsCard`] per entry, plus an "add" button.
 //! - [`CssClassPartialsCard`]: renders the key (`IdOrDefaults`) as a `<select>`
-//!   / text input, the `style_aliases_applied` list, and each `ThemeAttr →
+//!   / text input, the `style_aliases_applied` list, and each `ThemeAttr ->
 //!   value` pair with individual inputs.
 //!
 //! The [`ThemeStylesTarget`] enum tells the editor which field inside
@@ -17,6 +17,11 @@
 //! - `theme_thing_dependencies_styles.things_included_styles`
 //! - `theme_thing_dependencies_styles.things_excluded_styles`
 //! - `theme_tag_things_focus[tag_key]`
+
+pub(crate) mod css_class_partials_card;
+pub(crate) mod css_class_partials_card_aliases;
+pub(crate) mod css_class_partials_card_attrs;
+pub(crate) mod css_class_partials_card_header;
 
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
@@ -30,22 +35,19 @@ use disposition::{
     model_common::Id,
 };
 
-use crate::components::editor::{
-    common::{
-        ADD_BTN, CARD_CLASS, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS,
-    },
-    datalists::list_ids,
-};
+use crate::components::editor::common::{parse_entity_type_id, parse_tag_id_or_defaults, ADD_BTN};
 
-// ---------------------------------------------------------------------------
+use self::css_class_partials_card::CssClassPartialsCard;
+
+// ===========================================================================
 // Constants
-// ---------------------------------------------------------------------------
+// ===========================================================================
 
 /// All `ThemeAttr` variants paired with their `snake_case` serialisation name.
 ///
 /// `ThemeAttr` derives `Serialize` with `#[serde(rename_all = "snake_case")]`
 /// but exposes no iteration helper, so we maintain a static list.
-const THEME_ATTRS: &[(&str, ThemeAttr)] = &[
+pub(crate) const THEME_ATTRS: &[(&str, ThemeAttr)] = &[
     ("animate", ThemeAttr::Animate),
     ("cursor", ThemeAttr::Cursor),
     ("circle_radius", ThemeAttr::CircleRadius),
@@ -119,22 +121,25 @@ const THEME_ATTRS: &[(&str, ThemeAttr)] = &[
 ];
 
 /// Well-known keys for the `IdOrDefaults` select dropdown.
-const ID_OR_DEFAULTS_BUILTINS: &[(&str, &str)] = &[
+///
+/// Valid values: `"node_defaults"`, `"node_excluded_defaults"`,
+/// `"edge_defaults"`.
+pub(crate) const ID_OR_DEFAULTS_BUILTINS: &[(&str, &str)] = &[
     ("node_defaults", "Node Defaults"),
     ("node_excluded_defaults", "Node Excluded Defaults"),
     ("edge_defaults", "Edge Defaults"),
 ];
 
-// ---------------------------------------------------------------------------
+// ===========================================================================
 // Snapshot type alias (avoids clippy::type_complexity)
-// ---------------------------------------------------------------------------
+// ===========================================================================
 
 /// `(key, style_aliases_applied, Vec<(attr_name, attr_value)>)` snapshot.
 type EntrySnapshot = (String, Vec<String>, Vec<(String, String)>);
 
-// ---------------------------------------------------------------------------
+// ===========================================================================
 // Helpers
-// ---------------------------------------------------------------------------
+// ===========================================================================
 
 /// Look up the `snake_case` name for a `ThemeAttr`.
 fn theme_attr_name(attr: &ThemeAttr) -> &'static str {
@@ -146,7 +151,13 @@ fn theme_attr_name(attr: &ThemeAttr) -> &'static str {
 }
 
 /// Parse a string into an `IdOrDefaults`.
-fn parse_id_or_defaults(s: &str) -> Option<IdOrDefaults<'static>> {
+///
+/// Returns the matching built-in variant for `"node_defaults"`,
+/// `"node_excluded_defaults"`, and `"edge_defaults"`, otherwise attempts to
+/// parse as a custom `Id`.
+///
+/// Valid values: `"node_defaults"`, `"edge_defaults"`, `"app_server"`.
+pub(crate) fn parse_id_or_defaults(s: &str) -> Option<IdOrDefaults<'static>> {
     match s {
         "node_defaults" => Some(IdOrDefaults::NodeDefaults),
         "node_excluded_defaults" => Some(IdOrDefaults::NodeExcludedDefaults),
@@ -158,7 +169,9 @@ fn parse_id_or_defaults(s: &str) -> Option<IdOrDefaults<'static>> {
 }
 
 /// Parse a string into a `ThemeAttr` using the static table.
-fn parse_theme_attr(s: &str) -> Option<ThemeAttr> {
+///
+/// Valid values: `"fill_color"`, `"stroke_width"`, `"opacity"`.
+pub(crate) fn parse_theme_attr(s: &str) -> Option<ThemeAttr> {
     THEME_ATTRS
         .iter()
         .find(|(name, _)| *name == s)
@@ -166,7 +179,7 @@ fn parse_theme_attr(s: &str) -> Option<ThemeAttr> {
 }
 
 // ===========================================================================
-// Public: ThemeStylesTarget
+// ThemeStylesTarget
 // ===========================================================================
 
 /// Which field of [`InputDiagram`] this editor targets.
@@ -179,7 +192,7 @@ pub enum ThemeStylesTarget {
     BaseStyles,
     /// `theme_default.process_step_selected_styles`
     ProcessStepSelectedStyles,
-    /// `theme_types_styles[entity_type_key]` — styles for a particular entity
+    /// `theme_types_styles[entity_type_key]` -- styles for a particular entity
     /// type.
     TypesStyles {
         /// The `EntityTypeId` key as a string (e.g. `"type_organisation"`).
@@ -189,7 +202,7 @@ pub enum ThemeStylesTarget {
     DependenciesIncluded,
     /// `theme_thing_dependencies_styles.things_excluded_styles`
     DependenciesExcluded,
-    /// `theme_tag_things_focus[tag_key]` — styles for a particular tag (or
+    /// `theme_tag_things_focus[tag_key]` -- styles for a particular tag (or
     /// `tag_defaults`).
     TagFocus {
         /// The `TagIdOrDefaults` key as a string (e.g. `"tag_defaults"` or
@@ -202,8 +215,8 @@ impl ThemeStylesTarget {
     /// Read the [`ThemeStyles`] from the diagram.
     ///
     /// Returns `None` when the outer map key does not (yet) exist for
-    /// [`TypesStyles`] or [`TagFocus`] variants.
-    fn read<'diag>(
+    /// [`Self::TypesStyles`] or [`Self::TagFocus`] variants.
+    pub(crate) fn read<'diag>(
         &self,
         diagram: &'diag InputDiagram<'static>,
     ) -> Option<&'diag ThemeStyles<'static>> {
@@ -235,9 +248,9 @@ impl ThemeStylesTarget {
 
     /// Obtain a mutable reference to the [`ThemeStyles`] inside the diagram.
     ///
-    /// For [`TypesStyles`] and [`TagFocus`], the entry is inserted with a
-    /// default value if it does not yet exist.
-    fn write_mut<'diag>(
+    /// For [`Self::TypesStyles`] and [`Self::TagFocus`], the entry is inserted
+    /// with a default value if it does not yet exist.
+    pub(crate) fn write_mut<'diag>(
         &self,
         diagram: &'diag mut InputDiagram<'static>,
     ) -> Option<&'diag mut ThemeStyles<'static>> {
@@ -279,36 +292,13 @@ impl ThemeStylesTarget {
     }
 }
 
-/// Parse a string into an `EntityTypeId<'static>`.
-fn parse_entity_type_id(
-    s: &str,
-) -> Option<disposition::model_common::entity::EntityTypeId<'static>> {
-    use disposition::model_common::entity::EntityTypeId;
-    Id::new(s)
-        .ok()
-        .map(|id| EntityTypeId::from(id.into_static()))
-}
-
-/// Parse a string into a `TagIdOrDefaults<'static>`.
-fn parse_tag_id_or_defaults(
-    s: &str,
-) -> Option<disposition::input_model::theme::TagIdOrDefaults<'static>> {
-    use disposition::input_model::{tag::TagId, theme::TagIdOrDefaults};
-    match s {
-        "tag_defaults" => Some(TagIdOrDefaults::TagDefaults),
-        other => Id::new(other)
-            .ok()
-            .map(|id| TagIdOrDefaults::Custom(TagId::from(id.into_static()))),
-    }
-}
-
 // ===========================================================================
-// Public: ThemeStylesEditor
+// ThemeStylesEditor
 // ===========================================================================
 
 /// Card-based editor for a [`ThemeStyles`] map.
 ///
-/// Renders one [`CssClassPartialsCard`] per `IdOrDefaults → CssClassPartials`
+/// Renders one [`CssClassPartialsCard`] per `IdOrDefaults -> CssClassPartials`
 /// entry, plus an "+ Add entry" button at the bottom.
 #[component]
 pub fn ThemeStylesEditor(
@@ -393,6 +383,7 @@ pub fn ThemeStylesEditor(
                 }
             }
 
+            // === Add entry button === //
             div {
                 class: ADD_BTN,
                 onclick: {
@@ -424,444 +415,6 @@ pub fn ThemeStylesEditor(
                     }
                 },
                 "+ Add entry"
-            }
-        }
-    }
-}
-
-// ===========================================================================
-// CssClassPartialsCard
-// ===========================================================================
-
-/// A single card within the [`ThemeStylesEditor`].
-///
-/// Shows:
-/// 1. **Header** — key selector (select for built-ins, text for custom IDs) and
-///    a remove button.
-/// 2. **Style aliases** — list of applied aliases with remove buttons + add.
-/// 3. **Theme attributes** — key/value rows with remove buttons + add.
-#[component]
-fn CssClassPartialsCard(
-    input_diagram: Signal<InputDiagram<'static>>,
-    target: ThemeStylesTarget,
-    entry_index: usize,
-    entry_key: String,
-    style_aliases: Vec<String>,
-    theme_attrs: Vec<(String, String)>,
-) -> Element {
-    let is_builtin = matches!(
-        entry_key.as_str(),
-        "node_defaults" | "node_excluded_defaults" | "edge_defaults"
-    );
-
-    rsx! {
-        div {
-            class: CARD_CLASS,
-
-            // ── Header row: key + remove ─────────────────────────────
-            div {
-                class: ROW_CLASS_SIMPLE,
-
-                label {
-                    class: "text-xs text-gray-500 w-10 shrink-0",
-                    "Key"
-                }
-
-                if is_builtin {
-                    select {
-                        class: SELECT_CLASS,
-                        value: "{entry_key}",
-                        onchange: {
-                            let old_key = entry_key.clone();
-                            let target = target.clone();
-                            move |evt: dioxus::events::FormEvent| {
-                                let new_val = evt.value();
-                                if let (Some(old), Some(new)) = (
-                                    parse_id_or_defaults(&old_key),
-                                    parse_id_or_defaults(&new_val),
-                                )
-                                    && old != new
-                                {
-                                    let mut diagram = input_diagram.write();
-                                    let Some(styles) = target.write_mut(&mut diagram) else {
-                                        return;
-                                    };
-                                    if let Some(idx) = styles.get_index_of(&old) {
-                                        styles
-                                            .replace_index(idx, new)
-                                            .expect("Expected new key to be unique after equality check");
-                                    }
-                                }
-                            }
-                        },
-
-                        for (val, label) in ID_OR_DEFAULTS_BUILTINS.iter() {
-                            option {
-                                value: "{val}",
-                                selected: *val == entry_key.as_str(),
-                                "{label}"
-                            }
-                        }
-                    }
-                } else {
-                    input {
-                        class: INPUT_CLASS,
-                        style: "max-width:14rem",
-                        list: list_ids::ENTITY_IDS,
-                        placeholder: "entity_id",
-                        value: "{entry_key}",
-                        onchange: {
-                            let old_key = entry_key.clone();
-                            let target = target.clone();
-                            move |evt: dioxus::events::FormEvent| {
-                                let new_val = evt.value();
-                                if let (Some(old), Some(new)) = (
-                                    parse_id_or_defaults(&old_key),
-                                    parse_id_or_defaults(&new_val),
-                                )
-                                    && old != new
-                                {
-                                    let mut diagram = input_diagram.write();
-                                    let Some(styles) = target.write_mut(&mut diagram) else {
-                                        return;
-                                    };
-                                    if let Some(idx) = styles.get_index_of(&old) {
-                                        styles
-                                            .replace_index(idx, new)
-                                            .expect("Expected new key to be unique after equality check");
-                                    }
-                                }
-                            }
-                        },
-                    }
-                }
-
-                // Toggle to switch between builtin <select> and custom <input>.
-                label {
-                    class: "text-xs text-gray-500 ml-1 flex items-center gap-1 select-none cursor-pointer",
-                    title: "Toggle between built-in defaults and a custom entity ID",
-                    input {
-                        r#type: "checkbox",
-                        class: "accent-blue-500",
-                        checked: !is_builtin,
-                        onchange: {
-                            let old_key = entry_key.clone();
-                            let target = target.clone();
-                            move |evt: dioxus::events::FormEvent| {
-                                let wants_custom = evt.value() == "true";
-                                let new_key = if wants_custom {
-                                    // Switch from built-in to custom placeholder.
-                                    let mut n = 1u32;
-                                    loop {
-                                        let candidate = format!("custom_{n}");
-                                        if let Some(id) = parse_id_or_defaults(&candidate) {
-                                            let diagram = input_diagram.read();
-                                            let styles = target.read(&diagram);
-                                            if let Some(styles) = styles {
-                                                if !styles.contains_key(&id) {
-                                                    drop(diagram);
-                                                    break Some(id);
-                                                }
-                                            }
-                                            drop(diagram);
-                                        }
-                                        n += 1;
-                                    }
-                                } else {
-                                    // Switch from custom to first available built-in.
-                                    let diagram = input_diagram.read();
-                                    let styles = target.read(&diagram);
-                                    let key = styles.and_then(|styles| {
-                                        [
-                                            IdOrDefaults::NodeDefaults,
-                                            IdOrDefaults::NodeExcludedDefaults,
-                                            IdOrDefaults::EdgeDefaults,
-                                        ]
-                                        .into_iter()
-                                        .find(|k| !styles.contains_key(k))
-                                    });
-                                    drop(diagram);
-                                    key
-                                };
-                                if let Some(new) = new_key
-                                    && let Some(old) = parse_id_or_defaults(&old_key)
-                                {
-                                    let mut diagram = input_diagram.write();
-                                    let Some(styles) = target.write_mut(&mut diagram) else {
-                                        return;
-                                    };
-                                    if let Some(idx) = styles.get_index_of(&old) {
-                                        styles
-                                            .replace_index(idx, new)
-                                            .expect("Expected new key to be unique; checked for availability above");
-                                    }
-                                }
-                            }
-                        },
-                    }
-                    "ID"
-                }
-
-                span {
-                    class: REMOVE_BTN,
-                    onclick: {
-                        let key = entry_key.clone();
-                        let target = target.clone();
-                        move |_| {
-                            if let Some(parsed) = parse_id_or_defaults(&key) {
-                                let mut diagram = input_diagram.write();
-                                let Some(styles) = target.write_mut(&mut diagram) else {
-                                    return;
-                                };
-                                styles.shift_remove(&parsed);
-                            }
-                        }
-                    },
-                    "✕ Remove"
-                }
-            }
-
-            // ── Style aliases applied ────────────────────────────────
-            div {
-                class: "flex flex-col gap-1 pl-4",
-
-                label {
-                    class: LABEL_CLASS,
-                    "Style aliases applied"
-                }
-
-                for (alias_idx, alias_name) in style_aliases.iter().enumerate() {
-                    {
-                        let alias_name = alias_name.clone();
-                        let key = entry_key.clone();
-                        let target = target.clone();
-                        rsx! {
-                            div {
-                                key: "alias_{alias_idx}_{alias_name}",
-                                class: ROW_CLASS_SIMPLE,
-
-                                input {
-                                    class: INPUT_CLASS,
-                                    style: "max-width:12rem",
-                                    list: list_ids::STYLE_ALIASES,
-                                    placeholder: "style_alias",
-                                    value: "{alias_name}",
-                                    onchange: {
-                                        let key = key.clone();
-                                        let target = target.clone();
-                                        move |evt: dioxus::events::FormEvent| {
-                                            let new_val = evt.value();
-                                            if let Some(parsed_key) = parse_id_or_defaults(&key) {
-                                                // Parse the alias through serde round-trip:
-                                                // StyleAlias::from(Id) handles builtin matching.
-                                                if let Ok(new_alias_id) = Id::new(&new_val) {
-                                                    let new_alias = StyleAlias::from(new_alias_id.into_static()).into_static();
-                                                    let mut diagram = input_diagram.write();
-                                                    let Some(styles) = target.write_mut(&mut diagram) else {
-                                                        return;
-                                                    };
-                                                    if let Some(partials) = styles.get_mut(&parsed_key)
-                                                        && alias_idx < partials.style_aliases_applied.len()
-                                                    {
-                                                        partials.style_aliases_applied[alias_idx] = new_alias;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    },
-                                }
-
-                                span {
-                                    class: REMOVE_BTN,
-                                    onclick: {
-                                        let key = key.clone();
-                                        let target = target.clone();
-                                        move |_| {
-                                            if let Some(parsed_key) = parse_id_or_defaults(&key) {
-                                                let mut diagram = input_diagram.write();
-                                                let Some(styles) = target.write_mut(&mut diagram) else {
-                                                    return;
-                                                };
-                                                if let Some(partials) = styles.get_mut(&parsed_key)
-                                                    && alias_idx < partials.style_aliases_applied.len()
-                                                {
-                                                    partials.style_aliases_applied.remove(alias_idx);
-                                                }
-                                            }
-                                        }
-                                    },
-                                    "✕"
-                                }
-                            }
-                        }
-                    }
-                }
-
-                div {
-                    class: ADD_BTN,
-                    onclick: {
-                        let key = entry_key.clone();
-                        let target = target.clone();
-                        move |_| {
-                            if let Some(parsed_key) = parse_id_or_defaults(&key) {
-                                let mut diagram = input_diagram.write();
-                                let Some(styles) = target.write_mut(&mut diagram) else {
-                                    return;
-                                };
-                                if let Some(partials) = styles.get_mut(&parsed_key) {
-                                    // Default to `shade_light` as a sensible starting alias.
-                                    partials
-                                        .style_aliases_applied
-                                        .push(StyleAlias::ShadeLight);
-                                }
-                            }
-                        }
-                    },
-                    "+ Add alias"
-                }
-            }
-
-            // ── Theme attributes (partials map) ──────────────────────
-            div {
-                class: "flex flex-col gap-1 pl-4",
-
-                label {
-                    class: LABEL_CLASS,
-                    "Attributes"
-                }
-
-                for (attr_idx, (attr_name, attr_value)) in theme_attrs.iter().enumerate() {
-                    {
-                        let attr_name = attr_name.clone();
-                        let attr_value = attr_value.clone();
-                        let key = entry_key.clone();
-                        let target = target.clone();
-                        rsx! {
-                            div {
-                                key: "attr_{attr_idx}_{attr_name}",
-                                class: ROW_CLASS_SIMPLE,
-
-                                // Attribute name dropdown
-                                select {
-                                    class: SELECT_CLASS,
-                                    value: "{attr_name}",
-                                    onchange: {
-                                        let key = key.clone();
-                                        let old_attr_name = attr_name.clone();
-                                        let current_value = attr_value.clone();
-                                        let target = target.clone();
-                                        move |evt: dioxus::events::FormEvent| {
-                                            let new_attr_str = evt.value();
-                                            if let (Some(old_attr), Some(new_attr)) = (
-                                                parse_theme_attr(&old_attr_name),
-                                                parse_theme_attr(&new_attr_str),
-                                            )
-                                                && old_attr != new_attr
-                                                && let Some(parsed_key) = parse_id_or_defaults(&key)
-                                            {
-                                                let mut diagram = input_diagram.write();
-                                                let Some(styles) = target.write_mut(&mut diagram) else {
-                                                    return;
-                                                };
-                                                if let Some(partials) = styles.get_mut(&parsed_key) {
-                                                    partials.partials.shift_remove(&old_attr);
-                                                    partials.partials.insert(new_attr, current_value.clone());
-                                                }
-                                            }
-                                        }
-                                    },
-
-                                    for (name, _) in THEME_ATTRS.iter() {
-                                        option {
-                                            value: "{name}",
-                                            selected: *name == attr_name.as_str(),
-                                            "{name}"
-                                        }
-                                    }
-                                }
-
-                                // Attribute value
-                                input {
-                                    class: INPUT_CLASS,
-                                    style: "max-width:8rem",
-                                    placeholder: "value",
-                                    value: "{attr_value}",
-                                    onchange: {
-                                        let key = key.clone();
-                                        let attr_name = attr_name.clone();
-                                        let target = target.clone();
-                                        move |evt: dioxus::events::FormEvent| {
-                                            let new_val = evt.value();
-                                            if let Some(attr) = parse_theme_attr(&attr_name)
-                                                && let Some(parsed_key) = parse_id_or_defaults(&key)
-                                            {
-                                                let mut diagram = input_diagram.write();
-                                                let Some(styles) = target.write_mut(&mut diagram) else {
-                                                    return;
-                                                };
-                                                if let Some(partials) = styles.get_mut(&parsed_key)
-                                                    && let Some(v) = partials.partials.get_mut(&attr)
-                                                {
-                                                    *v = new_val;
-                                                }
-                                            }
-                                        }
-                                    },
-                                }
-
-                                span {
-                                    class: REMOVE_BTN,
-                                    onclick: {
-                                        let key = key.clone();
-                                        let attr_name = attr_name.clone();
-                                        let target = target.clone();
-                                        move |_| {
-                                            if let Some(attr) = parse_theme_attr(&attr_name)
-                                                && let Some(parsed_key) = parse_id_or_defaults(&key)
-                                            {
-                                                let mut diagram = input_diagram.write();
-                                                let Some(styles) = target.write_mut(&mut diagram) else {
-                                                    return;
-                                                };
-                                                if let Some(partials) = styles.get_mut(&parsed_key) {
-                                                    partials.partials.shift_remove(&attr);
-                                                }
-                                            }
-                                        }
-                                    },
-                                    "✕"
-                                }
-                            }
-                        }
-                    }
-                }
-
-                div {
-                    class: ADD_BTN,
-                    onclick: {
-                        let key = entry_key.clone();
-                        let target = target.clone();
-                        move |_| {
-                            if let Some(parsed_key) = parse_id_or_defaults(&key) {
-                                let mut diagram = input_diagram.write();
-                                let Some(styles) = target.write_mut(&mut diagram) else {
-                                    return;
-                                };
-                                if let Some(partials) = styles.get_mut(&parsed_key) {
-                                    // Find first ThemeAttr not yet present.
-                                    let new_attr = THEME_ATTRS
-                                        .iter()
-                                        .find(|(_, attr)| !partials.partials.contains_key(attr))
-                                        .map(|(_, attr)| *attr);
-                                    if let Some(attr) = new_attr {
-                                        partials.partials.insert(attr, String::new());
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "+ Add attribute"
-                }
             }
         }
     }

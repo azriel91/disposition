@@ -9,11 +9,11 @@ use disposition::{
     input_model::{
         process::{ProcessId, ProcessStepId},
         tag::TagId,
-        theme::{IdOrDefaults, ThemeStyles},
+        theme::{IdOrDefaults, TagIdOrDefaults, ThemeStyles},
         thing::ThingId,
         InputDiagram,
     },
-    model_common::{edge::EdgeGroupId, Id},
+    model_common::{edge::EdgeGroupId, entity::EntityTypeId, Id},
 };
 
 // ===========================================================================
@@ -215,6 +215,31 @@ pub fn parse_process_step_id(s: &str) -> Option<ProcessStepId<'static>> {
     Id::new(s)
         .ok()
         .map(|id| ProcessStepId::from(id.into_static()))
+}
+
+/// Try to construct an `EntityTypeId<'static>` from a string, returning
+/// `None` if the string is not a valid identifier.
+///
+/// Valid values: `"type_organisation"`, `"type_custom_1"`.
+pub fn parse_entity_type_id(s: &str) -> Option<EntityTypeId<'static>> {
+    Id::new(s)
+        .ok()
+        .map(|id| EntityTypeId::from(id.into_static()))
+}
+
+/// Parse a string into a `TagIdOrDefaults<'static>`.
+///
+/// Returns `TagIdOrDefaults::TagDefaults` for the literal `"tag_defaults"`,
+/// otherwise attempts to parse as a custom `TagId`.
+///
+/// Valid values: `"tag_defaults"`, `"tag_app_development"`.
+pub fn parse_tag_id_or_defaults(s: &str) -> Option<TagIdOrDefaults<'static>> {
+    match s {
+        "tag_defaults" => Some(TagIdOrDefaults::TagDefaults),
+        other => Id::new(other)
+            .ok()
+            .map(|id| TagIdOrDefaults::Custom(TagId::from(id.into_static()))),
+    }
 }
 
 // ===========================================================================

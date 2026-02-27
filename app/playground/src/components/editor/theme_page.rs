@@ -10,37 +10,27 @@
 //! - Tag-things focus styles (`theme_tag_things_focus`)
 //! - Additional CSS (`css`)
 
+mod tag_focus_section;
+mod types_styles_section;
+
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
-use disposition::{
-    input_model::{
-        theme::{TagIdOrDefaults, ThemeStyles},
-        InputDiagram,
-    },
-    model_common::{entity::EntityTypeId, Id},
+use disposition::input_model::{
+    theme::{TagIdOrDefaults, ThemeStyles},
+    InputDiagram,
 };
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Parse a string into an `EntityTypeId<'static>`.
-fn parse_entity_type_id(s: &str) -> Option<EntityTypeId<'static>> {
-    Id::new(s)
-        .ok()
-        .map(|id| EntityTypeId::from(id.into_static()))
-}
 
 use crate::components::editor::{
     common::{
-        ADD_BTN, CARD_CLASS, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE,
+        parse_entity_type_id, parse_tag_id_or_defaults, ADD_BTN, CARD_CLASS, LABEL_CLASS,
         SECTION_HEADING, TEXTAREA_CLASS,
     },
-    datalists::list_ids,
     theme_styles_editor::{ThemeStylesEditor, ThemeStylesTarget},
 };
+
+use self::{tag_focus_section::TagFocusSection, types_styles_section::TypesStylesSection};
 
 // ===========================================================================
 // Style Aliases sub-page
@@ -223,86 +213,6 @@ pub fn ThemeTypesStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
     }
 }
 
-/// A single entity-type section within [`ThemeTypesStylesPage`].
-///
-/// Shows a header with the type key (editable) and a remove button, then
-/// embeds a [`ThemeStylesEditor`] targeting that specific type key.
-#[component]
-fn TypesStylesSection(input_diagram: Signal<InputDiagram<'static>>, type_key: String) -> Element {
-    rsx! {
-        div {
-            class: CARD_CLASS,
-
-            // ── Header: type key + remove ────────────────────────────
-            div {
-                class: ROW_CLASS_SIMPLE,
-
-                label {
-                    class: "text-xs text-gray-500 w-20 shrink-0",
-                    "Entity Type"
-                }
-
-                input {
-                    class: INPUT_CLASS,
-                    style: "max-width:14rem",
-                    list: list_ids::ENTITY_IDS,
-                    placeholder: "type_id",
-                    value: "{type_key}",
-                    onchange: {
-                        let old_key = type_key.clone();
-                        move |evt: dioxus::events::FormEvent| {
-                            let new_val = evt.value();
-                            if new_val != old_key {
-                                if let (Some(old_id), Some(new_id)) = (
-                                    parse_entity_type_id(&old_key),
-                                    parse_entity_type_id(&new_val),
-                                ) {
-                                    let mut diagram = input_diagram.write();
-                                    if !diagram.theme_types_styles.contains_key(&new_id) {
-                                        if let Some(idx) =
-                                            diagram.theme_types_styles.get_index_of(&old_id)
-                                        {
-                                            diagram
-                                                .theme_types_styles
-                                                .replace_index(idx, new_id)
-                                                .expect(
-                                                    "Expected new key to be unique; \
-                                                     checked for availability above",
-                                                );
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                }
-
-                span {
-                    class: REMOVE_BTN,
-                    onclick: {
-                        let key = type_key.clone();
-                        move |_| {
-                            if let Some(type_id) = parse_entity_type_id(&key) {
-                                let mut diagram = input_diagram.write();
-                                diagram.theme_types_styles.shift_remove(&type_id);
-                            }
-                        }
-                    },
-                    "✕ Remove type"
-                }
-            }
-
-            // ── Inner ThemeStyles editor ─────────────────────────────
-            ThemeStylesEditor {
-                input_diagram,
-                target: ThemeStylesTarget::TypesStyles {
-                    entity_type_key: type_key.clone(),
-                },
-            }
-        }
-    }
-}
-
 // ===========================================================================
 // Thing Dependencies Styles sub-page
 // ===========================================================================
@@ -327,7 +237,7 @@ pub fn ThemeDependenciesStylesPage(input_diagram: Signal<InputDiagram<'static>>)
                  Configure separate styles for included and excluded things."
             }
 
-            // ── things_included_styles ───────────────────────────────
+            // === things_included_styles === //
             div {
                 class: CARD_CLASS,
 
@@ -346,7 +256,7 @@ pub fn ThemeDependenciesStylesPage(input_diagram: Signal<InputDiagram<'static>>)
                 }
             }
 
-            // ── things_excluded_styles ───────────────────────────────
+            // === things_excluded_styles === //
             div {
                 class: CARD_CLASS,
 
@@ -430,10 +340,7 @@ pub fn ThemeTagsFocusPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
                         let mut n = 1u32;
                         loop {
                             let candidate = format!("tag_custom_{n}");
-                            if let Ok(id) = Id::new(&candidate) {
-                                use disposition::input_model::tag::TagId;
-                                let tag_key =
-                                    TagIdOrDefaults::Custom(TagId::from(id.into_static()));
+                            if let Some(tag_key) = parse_tag_id_or_defaults(&candidate) {
                                 if !diagram.theme_tag_things_focus.contains_key(&tag_key) {
                                     diagram
                                         .theme_tag_things_focus
@@ -448,7 +355,7 @@ pub fn ThemeTagsFocusPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
                 "+ Add tag entry"
             }
 
-            // ── Additional CSS ───────────────────────────────────────
+            // === Additional CSS === //
             h3 { class: SECTION_HEADING, "Additional CSS" }
             p {
                 class: LABEL_CLASS,
@@ -478,108 +385,5 @@ pub fn ThemeTagsFocusPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
                 }
             }
         }
-    }
-}
-
-/// A single tag-focus section within [`ThemeTagsFocusPage`].
-///
-/// Shows a header with the tag key (select for `tag_defaults`, text input for
-/// custom tags) and a remove button, then embeds a [`ThemeStylesEditor`]
-/// targeting that specific tag key.
-#[component]
-fn TagFocusSection(input_diagram: Signal<InputDiagram<'static>>, tag_key: String) -> Element {
-    let is_defaults = tag_key == "tag_defaults";
-
-    rsx! {
-        div {
-            class: CARD_CLASS,
-
-            // ── Header: tag key + remove ─────────────────────────────
-            div {
-                class: ROW_CLASS_SIMPLE,
-
-                label {
-                    class: "text-xs text-gray-500 w-14 shrink-0",
-                    "Tag"
-                }
-
-                if is_defaults {
-                    span {
-                        class: "text-sm font-mono text-gray-300 px-2 py-1",
-                        "tag_defaults"
-                    }
-                } else {
-                    input {
-                        class: INPUT_CLASS,
-                        style: "max-width:14rem",
-                        list: list_ids::TAG_IDS,
-                        placeholder: "tag_id",
-                        value: "{tag_key}",
-                        onchange: {
-                            let old_key = tag_key.clone();
-                            move |evt: dioxus::events::FormEvent| {
-                                let new_val = evt.value();
-                                if new_val != old_key {
-                                    if let (Some(old_tag), Some(new_tag)) = (
-                                        parse_tag_key(&old_key),
-                                        parse_tag_key(&new_val),
-                                    ) {
-                                        let mut diagram = input_diagram.write();
-                                        if !diagram.theme_tag_things_focus.contains_key(&new_tag)
-                                        {
-                                            if let Some(idx) = diagram
-                                                .theme_tag_things_focus
-                                                .get_index_of(&old_tag)
-                                            {
-                                                diagram
-                                                    .theme_tag_things_focus
-                                                    .replace_index(idx, new_tag)
-                                                    .expect(
-                                                        "Expected new key to be unique; \
-                                                         checked for availability above",
-                                                    );
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                    }
-                }
-
-                span {
-                    class: REMOVE_BTN,
-                    onclick: {
-                        let key = tag_key.clone();
-                        move |_| {
-                            if let Some(parsed) = parse_tag_key(&key) {
-                                let mut diagram = input_diagram.write();
-                                diagram.theme_tag_things_focus.shift_remove(&parsed);
-                            }
-                        }
-                    },
-                    "✕ Remove tag"
-                }
-            }
-
-            // ── Inner ThemeStyles editor ─────────────────────────────
-            ThemeStylesEditor {
-                input_diagram,
-                target: ThemeStylesTarget::TagFocus {
-                    tag_key: tag_key.clone(),
-                },
-            }
-        }
-    }
-}
-
-/// Parse a string into a `TagIdOrDefaults`.
-fn parse_tag_key(s: &str) -> Option<TagIdOrDefaults<'static>> {
-    use disposition::input_model::tag::TagId;
-    match s {
-        "tag_defaults" => Some(TagIdOrDefaults::TagDefaults),
-        other => Id::new(other)
-            .ok()
-            .map(|id| TagIdOrDefaults::Custom(TagId::from(id.into_static()))),
     }
 }
