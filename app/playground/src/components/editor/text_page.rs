@@ -77,6 +77,11 @@ const REVERT_BTN: &str = "\
 /// `last_good_yaml` tracks the most recent YAML string that was successfully
 /// deserialized. If the user's edits break parsing, they can click "Revert"
 /// to restore the text buffer to that last-good value.
+///
+/// A `self_update` flag is used to break the cyclic propagation: when the
+/// textarea's `oninput` handler sets `input_diagram`, the flag is raised so
+/// that the `use_memo` that watches `input_diagram` knows the change
+/// originated here and skips re-serializing back into the text buffer.
 #[component]
 pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     // The YAML text that is currently shown in the textarea.
@@ -96,13 +101,35 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     // Current parse error (if any).
     let mut parse_error: Signal<Option<String>> = use_signal(|| None);
 
+    // Flag: when `true`, the most recent `input_diagram` change was caused by
+    // *this* component's `oninput` handler. The `use_memo` below checks this
+    // flag and skips re-serialization when the change originated locally,
+    // preventing the cycle:
+    //
+    //   user types -> oninput sets input_diagram
+    //              -> use_memo fires -> re-serializes -> overwrites text_buffer
+    //
+    // The flag is reset after the memo observes it.
+    let mut self_update: Signal<bool> = use_signal(|| false);
+
     // When the InputDiagram changes from *outside* this page (e.g. another
-    // editor tab modified it), we re-serialize into the text buffer -- but only
-    // when the text buffer currently represents a valid (i.e. non-errored)
-    // state, so we don't stomp over the user's in-progress edits that have a
-    // parse error.
+    // editor tab modified it, or the URL round-trips the state), we
+    // re-serialize into the text buffer -- but only when:
+    //
+    // 1. The change did NOT originate from this component (`self_update` is false).
+    // 2. The text buffer currently represents a valid (i.e. non-errored) state, so
+    //    we don't stomp over the user's in-progress edits that have a parse error.
     use_memo(move || {
         let d = input_diagram.read();
+
+        // If the change came from our own oninput handler, just clear the flag
+        // and skip re-serialization -- the text_buffer already has the user's
+        // text.
+        if *self_update.peek() {
+            self_update.set(false);
+            return;
+        }
+
         if parse_error.peek().is_none() {
             let yaml = serde_saphyr::to_string(&*d)
                 .unwrap_or_default()
@@ -145,6 +172,11 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                             // record this as the last good YAML.
                             parse_error.set(None);
                             last_good_yaml.set(new_text);
+
+                            // Raise the flag *before* setting input_diagram so
+                            // that the use_memo sees it and skips
+                            // re-serialization.
+                            self_update.set(true);
                             input_diagram.set(diagram);
                         }
                         Err(e) => {
