@@ -27,6 +27,8 @@ pub mod list_ids {
     pub const PROCESS_STEP_IDS: &str = "process_step_ids";
     /// Union of thing, edge-group, tag, process, and process-step IDs.
     pub const ENTITY_IDS: &str = "entity_ids";
+    /// Union of base theme and user-defined `EntityTypeId` values.
+    pub const ENTITY_TYPE_IDS: &str = "entity_type_ids";
     /// Built-in + user-defined `StyleAlias` values.
     pub const STYLE_ALIASES: &str = "style_aliases";
 }
@@ -84,6 +86,26 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
         .chain(process_step_ids.iter())
         .cloned()
         .collect();
+
+    // Entity type IDs = base theme types + user-defined types.
+    let entity_type_ids = {
+        let input_diagram_base = InputDiagram::base();
+        let base_entity_type_ids = input_diagram_base.theme_types_styles.keys();
+        let input_diagram_entity_type_ids = diagram.theme_types_styles.keys();
+
+        base_entity_type_ids
+            .chain(input_diagram_entity_type_ids)
+            .fold(
+                Set::<String>::new(),
+                |mut entity_type_ids, entity_type_id| {
+                    let id_str = entity_type_id.as_str().to_owned();
+                    if !(entity_type_ids.contains(&id_str)) {
+                        entity_type_ids.insert(id_str);
+                    }
+                    entity_type_ids
+                },
+            )
+    };
 
     // Style aliases = builtins + user-defined custom aliases.
     let style_alias_values = {
@@ -147,6 +169,14 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
         datalist {
             id: list_ids::ENTITY_IDS,
             for id in entity_ids.iter() {
+                option { value: "{id}" }
+            }
+        }
+
+        // === entity_type_ids === //
+        datalist {
+            id: list_ids::ENTITY_TYPE_IDS,
+            for id in entity_type_ids.iter() {
                 option { value: "{id}" }
             }
         }

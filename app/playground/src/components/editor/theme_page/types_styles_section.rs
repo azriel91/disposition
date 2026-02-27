@@ -42,7 +42,7 @@ pub fn TypesStylesSection(
                 input {
                     class: INPUT_CLASS,
                     style: "max-width:14rem",
-                    list: list_ids::ENTITY_IDS,
+                    list: list_ids::ENTITY_TYPE_IDS,
                     placeholder: "type_id",
                     value: "{type_key}",
                     onchange: {
