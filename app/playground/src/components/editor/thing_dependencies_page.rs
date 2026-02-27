@@ -23,7 +23,7 @@ use disposition::{
 use crate::components::editor::{
     common::{
         id_rename_in_input_diagram, parse_edge_group_id, parse_thing_id, ADD_BTN, CARD_CLASS,
-        INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SECTION_HEADING, SELECT_CLASS,
+        INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SECTION_HEADING, SELECT_CLASS,
     },
     datalists::list_ids,
 };
@@ -177,11 +177,10 @@ fn EdgeGroupCard(
         div {
             class: CARD_CLASS,
 
-            // === Header row: EdgeGroupId + Kind selector + Remove === //
+            // === EdgeGroupId + Remove === //
             div {
                 class: ROW_CLASS_SIMPLE,
 
-                // Edge group ID
                 input {
                     class: INPUT_CLASS,
                     style: "max-width:16rem",
@@ -197,7 +196,24 @@ fn EdgeGroupCard(
                     },
                 }
 
-                // EdgeKind selector
+                span {
+                    class: REMOVE_BTN,
+                    onclick: {
+                        let edge_group_id = edge_group_id.clone();
+                        move |_| {
+                            EdgeGroupCardOps::edge_group_remove(input_diagram, target, &edge_group_id);
+                        }
+                    },
+                    "✕ Remove"
+                }
+            }
+
+            // === kind === //
+            div {
+                class: "flex flex-col items-start gap-1 pl-4",
+
+                label { class: LABEL_CLASS, "kind" }
+
                 select {
                     class: SELECT_CLASS,
                     value: "{edge_kind}",
@@ -221,23 +237,13 @@ fn EdgeGroupCard(
                     option { value: "sequence", "Sequence" }
                     option { value: "symmetric", "Symmetric" }
                 }
-
-                // Remove edge group
-                span {
-                    class: REMOVE_BTN,
-                    onclick: {
-                        let edge_group_id = edge_group_id.clone();
-                        move |_| {
-                            EdgeGroupCardOps::edge_group_remove(input_diagram, target, &edge_group_id);
-                        }
-                    },
-                    "✕ Remove"
-                }
             }
 
-            // === Thing list === //
+            // === things === //
             div {
                 class: "flex flex-col gap-1 pl-4",
+
+                label { class: LABEL_CLASS, "things" }
 
                 for (idx, thing_id) in things.iter().enumerate() {
                     {
