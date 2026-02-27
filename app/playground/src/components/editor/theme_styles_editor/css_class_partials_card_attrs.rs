@@ -10,12 +10,12 @@ use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{Signal, WritableExt},
 };
-use disposition::input_model::InputDiagram;
+use disposition::input_model::{theme::ThemeAttr, InputDiagram};
 
 use crate::components::editor::{
     common::{ADD_BTN, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS},
     theme_styles_editor::{
-        parse_id_or_defaults, parse_theme_attr, theme_attr_entry::ThemeAttrEntry,
+        parse_id_or_defaults, parse_theme_attr, theme_attr_entry::ThemeAttrEntry, theme_attr_name,
         ThemeStylesTarget, THEME_ATTRS,
     },
 };
@@ -45,17 +45,18 @@ pub fn CssClassPartialsCardAttrs(
 
             for (attr_idx, theme_attr_entry) in theme_attrs.iter().enumerate() {
                 {
-                    let attr_name = theme_attr_entry.attr_name.clone();
+                    let theme_attr = theme_attr_entry.theme_attr;
                     let attr_value = theme_attr_entry.attr_value.clone();
                     let key = entry_key.clone();
                     let target = target.clone();
+                    let attr_name = theme_attr_name(&theme_attr);
                     rsx! {
                         CssClassPartialsCardAttrRow {
                             key: "attr_{attr_idx}_{attr_name}",
                             input_diagram,
                             target,
                             entry_key: key,
-                            attr_name,
+                            theme_attr,
                             attr_value,
                         }
                     }
@@ -103,9 +104,11 @@ fn CssClassPartialsCardAttrRow(
     input_diagram: Signal<InputDiagram<'static>>,
     target: ThemeStylesTarget,
     entry_key: String,
-    attr_name: String,
+    theme_attr: ThemeAttr,
     attr_value: String,
 ) -> Element {
+    let attr_name = theme_attr_name(&theme_attr);
+
     rsx! {
         div {
             class: ROW_CLASS_SIMPLE,
@@ -116,15 +119,12 @@ fn CssClassPartialsCardAttrRow(
                 value: "{attr_name}",
                 onchange: {
                     let key = entry_key.clone();
-                    let old_attr_name = attr_name.clone();
+                    let old_attr = theme_attr;
                     let current_value = attr_value.clone();
                     let target = target.clone();
                     move |evt: dioxus::events::FormEvent| {
                         let new_attr_str = evt.value();
-                        if let (Some(old_attr), Some(new_attr)) = (
-                            parse_theme_attr(&old_attr_name),
-                            parse_theme_attr(&new_attr_str),
-                        )
+                        if let Some(new_attr) = parse_theme_attr(&new_attr_str)
                             && old_attr != new_attr
                             && let Some(parsed_key) = parse_id_or_defaults(&key)
                         {
@@ -145,7 +145,7 @@ fn CssClassPartialsCardAttrRow(
                 for (name, _) in THEME_ATTRS.iter() {
                     option {
                         value: "{name}",
-                        selected: *name == attr_name.as_str(),
+                        selected: *name == attr_name,
                         "{name}"
                     }
                 }
@@ -159,13 +159,11 @@ fn CssClassPartialsCardAttrRow(
                 value: "{attr_value}",
                 onchange: {
                     let key = entry_key.clone();
-                    let attr_name = attr_name.clone();
+                    let attr = theme_attr;
                     let target = target.clone();
                     move |evt: dioxus::events::FormEvent| {
                         let new_val = evt.value();
-                        if let Some(attr) = parse_theme_attr(&attr_name)
-                            && let Some(parsed_key) = parse_id_or_defaults(&key)
-                        {
+                        if let Some(parsed_key) = parse_id_or_defaults(&key) {
                             let mut diagram = input_diagram.write();
                             let Some(styles) = target.write_mut(&mut diagram) else {
                                 return;
@@ -185,12 +183,10 @@ fn CssClassPartialsCardAttrRow(
                 class: REMOVE_BTN,
                 onclick: {
                     let key = entry_key.clone();
-                    let attr_name = attr_name.clone();
+                    let attr = theme_attr;
                     let target = target.clone();
                     move |_| {
-                        if let Some(attr) = parse_theme_attr(&attr_name)
-                            && let Some(parsed_key) = parse_id_or_defaults(&key)
-                        {
+                        if let Some(parsed_key) = parse_id_or_defaults(&key) {
                             let mut diagram = input_diagram.write();
                             let Some(styles) = target.write_mut(&mut diagram) else {
                                 return;

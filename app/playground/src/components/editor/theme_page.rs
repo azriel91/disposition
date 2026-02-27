@@ -19,7 +19,7 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::{
-    theme::{CssClassPartials, StyleAlias, TagIdOrDefaults, ThemeAttr, ThemeStyles},
+    theme::{CssClassPartials, StyleAlias, TagIdOrDefaults, ThemeStyles},
     InputDiagram,
 };
 
@@ -41,15 +41,6 @@ use self::{
 };
 
 // === Style Aliases sub-page === //
-
-/// Look up the `snake_case` name for a `ThemeAttr`.
-fn theme_attr_name(attr: &ThemeAttr) -> &'static str {
-    crate::components::editor::theme_styles_editor::THEME_ATTRS
-        .iter()
-        .find(|(_, a)| a == attr)
-        .map(|(name, _)| *name)
-        .unwrap_or("unknown")
-}
 
 /// The **Theme: Style Aliases** editor sub-page.
 ///
@@ -76,8 +67,8 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                     let theme_attrs: Vec<ThemeAttrEntry> = css_partials
                         .partials
                         .iter()
-                        .map(|(attr, val): (&ThemeAttr, &String)| ThemeAttrEntry {
-                            attr_name: theme_attr_name(attr).to_owned(),
+                        .map(|(attr, val)| ThemeAttrEntry {
+                            theme_attr: *attr,
                             attr_value: val.clone(),
                         })
                         .collect();

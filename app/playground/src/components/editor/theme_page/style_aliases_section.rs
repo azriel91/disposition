@@ -9,7 +9,10 @@ use dioxus::{
     signals::{Signal, WritableExt},
 };
 use disposition::{
-    input_model::{theme::StyleAlias, InputDiagram},
+    input_model::{
+        theme::{StyleAlias, ThemeAttr},
+        InputDiagram,
+    },
     model_common::Id,
 };
 
@@ -18,7 +21,9 @@ use crate::components::editor::{
         ADD_BTN, CARD_CLASS, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS,
     },
     datalists::list_ids,
-    theme_styles_editor::{parse_theme_attr, theme_attr_entry::ThemeAttrEntry, THEME_ATTRS},
+    theme_styles_editor::{
+        parse_theme_attr, theme_attr_entry::ThemeAttrEntry, theme_attr_name, THEME_ATTRS,
+    },
 };
 
 // === Helpers === //
@@ -301,15 +306,16 @@ fn StyleAliasesSectionAttrs(
 
             for (attr_idx, theme_attr_entry) in theme_attrs.iter().enumerate() {
                 {
-                    let attr_name = theme_attr_entry.attr_name.clone();
+                    let theme_attr = theme_attr_entry.theme_attr;
                     let attr_value = theme_attr_entry.attr_value.clone();
                     let key = alias_key.clone();
+                    let attr_name = theme_attr_name(&theme_attr);
                     rsx! {
                         StyleAliasesSectionAttrRow {
                             key: "attr_{attr_idx}_{attr_name}",
                             input_diagram,
                             alias_key: key,
-                            attr_name,
+                            theme_attr,
                             attr_value,
                         }
                     }
@@ -354,9 +360,11 @@ fn StyleAliasesSectionAttrs(
 fn StyleAliasesSectionAttrRow(
     input_diagram: Signal<InputDiagram<'static>>,
     alias_key: String,
-    attr_name: String,
+    theme_attr: ThemeAttr,
     attr_value: String,
 ) -> Element {
+    let attr_name = theme_attr_name(&theme_attr);
+
     rsx! {
         div {
             class: ROW_CLASS_SIMPLE,
@@ -367,33 +375,30 @@ fn StyleAliasesSectionAttrRow(
                 value: "{attr_name}",
                 onchange: {
                     let key = alias_key.clone();
-                    let old_attr_name = attr_name.clone();
+                    let old_attr = theme_attr;
                     let current_value = attr_value.clone();
                     move |evt: dioxus::events::FormEvent| {
                         let new_attr_str = evt.value();
-                        if let (Some(old_attr), Some(new_attr)) = (
-                            parse_theme_attr(&old_attr_name),
-                            parse_theme_attr(&new_attr_str),
-                        )
+                        if let Some(new_attr) = parse_theme_attr(&new_attr_str)
                             && old_attr != new_attr
-                                && let Some(parsed_key) = parse_style_alias(&key) {
-                                    let mut diagram = input_diagram.write();
-                                    if let Some(partials) =
-                                        diagram.theme_default.style_aliases.get_mut(&parsed_key)
-                                    {
-                                        partials.partials.shift_remove(&old_attr);
-                                        partials
-                                            .partials
-                                            .insert(new_attr, current_value.clone());
-                                    }
+                            && let Some(parsed_key) = parse_style_alias(&key) {
+                                let mut diagram = input_diagram.write();
+                                if let Some(partials) =
+                                    diagram.theme_default.style_aliases.get_mut(&parsed_key)
+                                {
+                                    partials.partials.shift_remove(&old_attr);
+                                    partials
+                                        .partials
+                                        .insert(new_attr, current_value.clone());
                                 }
+                            }
                     }
                 },
 
                 for (name, _) in THEME_ATTRS.iter() {
                     option {
                         value: "{name}",
-                        selected: *name == attr_name.as_str(),
+                        selected: *name == attr_name,
                         "{name}"
                     }
                 }
@@ -407,18 +412,17 @@ fn StyleAliasesSectionAttrRow(
                 value: "{attr_value}",
                 onchange: {
                     let key = alias_key.clone();
-                    let attr_name = attr_name.clone();
+                    let attr = theme_attr;
                     move |evt: dioxus::events::FormEvent| {
                         let new_val = evt.value();
-                        if let Some(attr) = parse_theme_attr(&attr_name)
-                            && let Some(parsed_key) = parse_style_alias(&key) {
-                                let mut diagram = input_diagram.write();
-                                if let Some(partials) =
-                                    diagram.theme_default.style_aliases.get_mut(&parsed_key)
-                                    && let Some(v) = partials.partials.get_mut(&attr) {
-                                        *v = new_val;
-                                    }
-                            }
+                        if let Some(parsed_key) = parse_style_alias(&key) {
+                            let mut diagram = input_diagram.write();
+                            if let Some(partials) =
+                                diagram.theme_default.style_aliases.get_mut(&parsed_key)
+                                && let Some(v) = partials.partials.get_mut(&attr) {
+                                    *v = new_val;
+                                }
+                        }
                     }
                 },
             }
@@ -428,17 +432,16 @@ fn StyleAliasesSectionAttrRow(
                 class: REMOVE_BTN,
                 onclick: {
                     let key = alias_key.clone();
-                    let attr_name = attr_name.clone();
+                    let attr = theme_attr;
                     move |_| {
-                        if let Some(attr) = parse_theme_attr(&attr_name)
-                            && let Some(parsed_key) = parse_style_alias(&key) {
-                                let mut diagram = input_diagram.write();
-                                if let Some(partials) =
-                                    diagram.theme_default.style_aliases.get_mut(&parsed_key)
-                                {
-                                    partials.partials.shift_remove(&attr);
-                                }
+                        if let Some(parsed_key) = parse_style_alias(&key) {
+                            let mut diagram = input_diagram.write();
+                            if let Some(partials) =
+                                diagram.theme_default.style_aliases.get_mut(&parsed_key)
+                            {
+                                partials.partials.shift_remove(&attr);
                             }
+                        }
                     }
                 },
                 "x"

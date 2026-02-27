@@ -136,7 +136,7 @@ pub(crate) const ID_OR_DEFAULTS_BUILTINS: &[(&str, &str)] = &[
 // === Helpers === //
 
 /// Look up the `snake_case` name for a `ThemeAttr`.
-fn theme_attr_name(attr: &ThemeAttr) -> &'static str {
+pub(crate) fn theme_attr_name(attr: &ThemeAttr) -> &'static str {
     THEME_ATTRS
         .iter()
         .find(|(_, a)| a == attr)
@@ -330,7 +330,7 @@ pub fn ThemeStylesEditor(
                     .partials
                     .iter()
                     .map(|(attr, val): (&ThemeAttr, &String)| ThemeAttrEntry {
-                        attr_name: theme_attr_name(attr).to_owned(),
+                        theme_attr: *attr,
                         attr_value: val.clone(),
                     })
                     .collect();
