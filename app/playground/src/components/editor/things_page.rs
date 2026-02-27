@@ -12,109 +12,24 @@ use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
-use disposition::input_model::{edge::EdgeKind, thing::ThingHierarchy, InputDiagram};
+use disposition::{
+    input_model::{edge::EdgeKind, thing::ThingHierarchy, InputDiagram},
+    model_common::Id,
+};
 
 use crate::{
     components::editor::{
-        common::{parse_id, parse_thing_id, rename_id_in_theme_styles},
+        common::{
+            id_rename_in_input_diagram, parse_id, parse_thing_id, ADD_BTN, COLLAPSE_BAR,
+            DRAG_HANDLE, ID_INPUT_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS, SECTION_HEADING,
+            TEXTAREA_CLASS,
+        },
         datalists::list_ids,
     },
     editor_state::ThingsPageUiState,
 };
 
-/// CSS classes shared by all section headings inside editor pages.
-const SECTION_HEADING: &str = "text-sm font-bold text-gray-300 mt-4 mb-1";
-
-/// CSS classes shared by the outer wrapper of a key-value row.
-const ROW_CLASS: &str = "\
-    flex flex-row gap-2 items-center \
-    pt-1 \
-    pb-1 \
-    border-t-1 \
-    border-b-1 \
-    has-[:active]:opacity-40\
-";
-
-/// CSS classes for text inputs.
-const INPUT_CLASS: &str = "\
-    flex-1 \
-    rounded \
-    border \
-    border-gray-600 \
-    bg-gray-800 \
-    text-gray-200 \
-    px-2 py-1 \
-    text-sm \
-    font-mono \
-    focus:border-blue-400 \
-    focus:outline-none\
-";
-
-const ID_INPUT_CLASS: &str = "\
-    flex-1 \
-    rounded \
-    border \
-    border-gray-600 \
-    bg-gray-800 \
-    text-gray-200 \
-    px-2 py-1 \
-    text-sm \
-    font-mono \
-    focus:border-blue-400 \
-    focus:outline-none \
-    invalid:bg-red-950 \
-    invalid:border-red-400\
-";
-
-/// CSS classes for the small "remove" button.
-const REMOVE_BTN: &str = "\
-    text-red-400 \
-    hover:text-red-300 \
-    text-xs \
-    cursor-pointer \
-    px-1\
-";
-
-/// CSS classes for the "add" button.
-const ADD_BTN: &str = "\
-    mt-1 \
-    text-sm \
-    text-blue-400 \
-    hover:text-blue-300 \
-    cursor-pointer \
-    select-none\
-";
-
-/// CSS classes for the drag handle grip (⠿ dots).
-const DRAG_HANDLE: &str = "\
-    text-gray-600 \
-    hover:text-gray-400 \
-    cursor-grab \
-    active:cursor-grabbing \
-    select-none \
-    leading-none \
-    text-sm \
-    px-0.5 \
-    flex \
-    items-center\
-";
-
-/// CSS classes for the collapse/expand toggle bar.
-const COLLAPSE_BAR: &str = "\
-    flex \
-    flex-col \
-    justify-center \
-    items-center \
-    cursor-pointer \
-    py-1 \
-    text-gray-500 \
-    hover:text-gray-300 \
-    bg-gray-800/50 \
-    rounded \
-    my-1 \
-    select-none \
-    gap-0.5\
-";
+use disposition::input_model::thing::ThingId;
 
 /// Number of rows shown when a section is collapsed.
 const COLLAPSE_THRESHOLD: usize = 4;
@@ -123,7 +38,7 @@ const COLLAPSE_THRESHOLD: usize = 4;
 ///
 /// Uses `group/key-value-rows` so that child rows can react to an active drag
 /// via `group-active/key-value-rows:_` utilities. Does **not** use `gap` on
-/// the flex container -- each row carries its own `pb-2` instead, so there are
+/// the flex container -- each row carries its own padding instead, so there are
 /// no dead-zones between rows where a drop would be missed.
 #[component]
 fn KeyValueRowContainer(children: Element) -> Element {
@@ -310,7 +225,7 @@ pub fn ThingsPage(
             div {
                 class: ADD_BTN,
                 onclick: move |_| {
-                    add_thing_row(input_diagram);
+                    ThingsPageOps::thing_add(input_diagram);
                 },
                 "+ Add thing"
             }
@@ -364,7 +279,7 @@ pub fn ThingsPage(
             div {
                 class: ADD_BTN,
                 onclick: move |_| {
-                    add_copy_text_row(input_diagram);
+                    ThingsPageOps::copy_text_add(input_diagram);
                 },
                 "+ Add copy text"
             }
@@ -418,7 +333,7 @@ pub fn ThingsPage(
             div {
                 class: ADD_BTN,
                 onclick: move |_| {
-                    add_entity_desc_row(input_diagram);
+                    ThingsPageOps::entity_desc_add(input_diagram);
                 },
                 "+ Add description"
             }
@@ -472,7 +387,7 @@ pub fn ThingsPage(
             div {
                 class: ADD_BTN,
                 onclick: move |_| {
-                    add_entity_tooltip_row(input_diagram);
+                    ThingsPageOps::entity_tooltip_add(input_diagram);
                 },
                 "+ Add tooltip"
             }
@@ -484,20 +399,7 @@ pub fn ThingsPage(
                 "Recursive nesting of things. Edit as YAML."
             }
             textarea {
-                class: "\
-                    w-full \
-                    min-h-24 \
-                    rounded \
-                    border \
-                    border-gray-600 \
-                    bg-gray-800 \
-                    text-gray-200 \
-                    p-2 \
-                    font-mono \
-                    text-sm \
-                    focus:border-blue-400 \
-                    focus:outline-none\
-                ",
+                class: TEXTAREA_CLASS,
                 value: "{hierarchy_yaml}",
                 oninput: move |evt| {
                     let text = evt.value();
@@ -510,9 +412,368 @@ pub fn ThingsPage(
     }
 }
 
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// ThingsPage mutation helpers
+// ===========================================================================
+
+/// Mutation operations for the Things editor page.
+///
+/// Grouped here so that related functions are discoverable when sorted by
+/// name, per the project's `noun_verb` naming convention.
+struct ThingsPageOps;
+
+impl ThingsPageOps {
+    /// Adds a new thing row with a unique placeholder ID.
+    fn thing_add(mut input_diagram: Signal<InputDiagram<'static>>) {
+        let mut n = input_diagram.read().things.len();
+        loop {
+            let candidate = format!("thing_{n}");
+            if let Some(thing_id) = parse_thing_id(&candidate) {
+                if !input_diagram.read().things.contains_key(&thing_id) {
+                    input_diagram.write().things.insert(thing_id, String::new());
+                    break;
+                }
+            }
+            n += 1;
+        }
+    }
+
+    /// Updates the display name for an existing thing.
+    fn thing_name_update(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        thing_id_str: &str,
+        name: &str,
+    ) {
+        if let Some(thing_id) = parse_thing_id(thing_id_str) {
+            if let Some(entry) = input_diagram.write().things.get_mut(&thing_id) {
+                *entry = name.to_owned();
+            }
+        }
+    }
+
+    /// Renames a thing across all maps in the [`InputDiagram`].
+    fn thing_rename(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        thing_id_old_str: &str,
+        thing_id_new_str: &str,
+    ) {
+        if thing_id_old_str == thing_id_new_str {
+            return;
+        }
+        let mut input_diagram_ref = input_diagram.write();
+
+        if let Ok(thing_id_old) = Id::new(thing_id_old_str)
+            .map(Id::into_static)
+            .map(ThingId::from)
+            && let Ok(thing_id_new) = Id::new(thing_id_new_str)
+                .map(Id::into_static)
+                .map(ThingId::from)
+        {
+            // things: rename ThingId key.
+            if let Some(thing_index) = input_diagram_ref.things.get_index_of(&thing_id_old) {
+                let _result = input_diagram_ref
+                    .things
+                    .replace_index(thing_index, thing_id_new.clone());
+            }
+
+            // thing_copy_text: rename ThingId key.
+            if let Some(thing_index) = input_diagram_ref
+                .thing_copy_text
+                .get_index_of(&thing_id_old)
+            {
+                let _result = input_diagram_ref
+                    .thing_copy_text
+                    .replace_index(thing_index, thing_id_new.clone());
+            }
+
+            // thing_hierarchy: recursive rename.
+            if let Some((thing_hierarchy_with_id, thing_index)) =
+                Self::thing_hierarchy_recursive_search(
+                    &mut input_diagram_ref.thing_hierarchy,
+                    &thing_id_old,
+                )
+            {
+                let _result =
+                    thing_hierarchy_with_id.replace_index(thing_index, thing_id_new.clone());
+            }
+
+            // thing_dependencies: rename ThingIds inside EdgeKind values.
+            input_diagram_ref
+                .thing_dependencies
+                .values_mut()
+                .for_each(|edge_kind| {
+                    Self::thing_rename_in_edge_kind(edge_kind, &thing_id_old, &thing_id_new);
+                });
+
+            // thing_interactions: same structure as thing_dependencies.
+            input_diagram_ref
+                .thing_interactions
+                .values_mut()
+                .for_each(|edge_kind| {
+                    Self::thing_rename_in_edge_kind(edge_kind, &thing_id_old, &thing_id_new);
+                });
+
+            // tag_things: rename ThingIds in each Set<ThingId> value.
+            input_diagram_ref
+                .tag_things
+                .values_mut()
+                .for_each(|thing_ids| {
+                    if let Some(index) = thing_ids.get_index_of(&thing_id_old) {
+                        let _result = thing_ids.replace_index(index, thing_id_new.clone());
+                    }
+                });
+
+            // Shared rename across entity_descs, entity_tooltips, entity_types,
+            // and all theme style maps.
+            let id_old = thing_id_old.into_inner();
+            let id_new = thing_id_new.into_inner();
+            id_rename_in_input_diagram(&mut input_diagram_ref, &id_old, &id_new);
+        }
+    }
+
+    /// Replaces occurrences of `thing_id_old` with `thing_id_new` inside an
+    /// [`EdgeKind`] (which wraps a `Vec<ThingId>`).
+    fn thing_rename_in_edge_kind(
+        edge_kind: &mut EdgeKind<'static>,
+        thing_id_old: &ThingId<'static>,
+        thing_id_new: &ThingId<'static>,
+    ) {
+        let things = match edge_kind {
+            EdgeKind::Cyclic(things) | EdgeKind::Sequence(things) | EdgeKind::Symmetric(things) => {
+                things
+            }
+        };
+        things.iter_mut().for_each(|thing_id| {
+            if thing_id == thing_id_old {
+                *thing_id = thing_id_new.clone();
+            }
+        });
+    }
+
+    /// Searches recursively through a [`ThingHierarchy`] for a given
+    /// [`ThingId`] key, returning a mutable reference to the containing map
+    /// and the index within it.
+    fn thing_hierarchy_recursive_search<'f, 'id>(
+        thing_hierarchy: &'f mut ThingHierarchy<'id>,
+        thing_id: &'f ThingId<'id>,
+    ) -> Option<(&'f mut ThingHierarchy<'id>, usize)> {
+        if let Some(thing_index) = thing_hierarchy.get_index_of(thing_id) {
+            Some((thing_hierarchy, thing_index))
+        } else {
+            thing_hierarchy
+                .values_mut()
+                .find_map(|thing_hierarchy_child| {
+                    Self::thing_hierarchy_recursive_search(thing_hierarchy_child, thing_id)
+                })
+        }
+    }
+
+    /// Removes a thing from the `things` map.
+    fn thing_remove(mut input_diagram: Signal<InputDiagram<'static>>, thing_id_str: &str) {
+        if let Some(thing_id) = parse_thing_id(thing_id_str) {
+            input_diagram.write().things.swap_remove(&thing_id);
+        }
+    }
+
+    /// Moves a thing entry from one index to another in the `things` map.
+    fn thing_move(mut input_diagram: Signal<InputDiagram<'static>>, from: usize, to: usize) {
+        input_diagram.write().things.move_index(from, to);
+    }
+
+    // ── Copy text helpers ────────────────────────────────────────────
+
+    /// Adds a new copy-text row with a unique placeholder ThingId.
+    fn copy_text_add(mut input_diagram: Signal<InputDiagram<'static>>) {
+        let mut n = input_diagram.read().thing_copy_text.len();
+        loop {
+            let candidate = format!("thing_{n}");
+            if let Some(thing_id) = parse_thing_id(&candidate) {
+                if !input_diagram.read().thing_copy_text.contains_key(&thing_id) {
+                    input_diagram
+                        .write()
+                        .thing_copy_text
+                        .insert(thing_id, String::new());
+                    break;
+                }
+            }
+            n += 1;
+        }
+    }
+
+    /// Adds a new entity description row with a unique placeholder Id.
+    fn entity_desc_add(mut input_diagram: Signal<InputDiagram<'static>>) {
+        let mut n = input_diagram.read().entity_descs.len();
+        loop {
+            let candidate = format!("entity_{n}");
+            if let Some(id) = parse_id(&candidate) {
+                if !input_diagram.read().entity_descs.contains_key(&id) {
+                    input_diagram.write().entity_descs.insert(id, String::new());
+                    break;
+                }
+            }
+            n += 1;
+        }
+    }
+
+    /// Adds a new entity tooltip row with a unique placeholder Id.
+    fn entity_tooltip_add(mut input_diagram: Signal<InputDiagram<'static>>) {
+        let mut n = input_diagram.read().entity_tooltips.len();
+        loop {
+            let candidate = format!("entity_{n}");
+            if let Some(id) = parse_id(&candidate) {
+                if !input_diagram.read().entity_tooltips.contains_key(&id) {
+                    input_diagram
+                        .write()
+                        .entity_tooltips
+                        .insert(id, String::new());
+                    break;
+                }
+            }
+            n += 1;
+        }
+    }
+
+    // ── Key-value (copy-text / desc / tooltip) mutation helpers ──────
+
+    /// Renames the key of a key-value entry in the target map.
+    fn kv_entry_rename(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        target: OnChangeTarget,
+        id_old_str: &str,
+        id_new_str: &str,
+        current_value: &str,
+    ) {
+        if id_old_str == id_new_str {
+            return;
+        }
+        match target {
+            OnChangeTarget::CopyText => {
+                let thing_id_old = match parse_thing_id(id_old_str) {
+                    Some(id) => id,
+                    None => return,
+                };
+                let thing_id_new = match parse_thing_id(id_new_str) {
+                    Some(id) => id,
+                    None => return,
+                };
+                let mut input_diagram = input_diagram.write();
+                input_diagram.thing_copy_text.swap_remove(&thing_id_old);
+                input_diagram
+                    .thing_copy_text
+                    .insert(thing_id_new, current_value.to_owned());
+            }
+            OnChangeTarget::EntityDesc => {
+                let id_old = match parse_id(id_old_str) {
+                    Some(id) => id,
+                    None => return,
+                };
+                let id_new = match parse_id(id_new_str) {
+                    Some(id) => id,
+                    None => return,
+                };
+                let mut input_diagram = input_diagram.write();
+                input_diagram.entity_descs.swap_remove(&id_old);
+                input_diagram
+                    .entity_descs
+                    .insert(id_new, current_value.to_owned());
+            }
+            OnChangeTarget::EntityTooltip => {
+                let id_old = match parse_id(id_old_str) {
+                    Some(id) => id,
+                    None => return,
+                };
+                let id_new = match parse_id(id_new_str) {
+                    Some(id) => id,
+                    None => return,
+                };
+                let mut input_diagram = input_diagram.write();
+                input_diagram.entity_tooltips.swap_remove(&id_old);
+                input_diagram
+                    .entity_tooltips
+                    .insert(id_new, current_value.to_owned());
+            }
+        }
+    }
+
+    /// Updates the value of a key-value entry in the target map.
+    fn kv_entry_update(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        target: OnChangeTarget,
+        id_str: &str,
+        value: &str,
+    ) {
+        match target {
+            OnChangeTarget::CopyText => {
+                if let Some(thing_id) = parse_thing_id(id_str) {
+                    if let Some(entry) = input_diagram.write().thing_copy_text.get_mut(&thing_id) {
+                        *entry = value.to_owned();
+                    }
+                }
+            }
+            OnChangeTarget::EntityDesc => {
+                if let Some(entity_id) = parse_id(id_str) {
+                    if let Some(entry) = input_diagram.write().entity_descs.get_mut(&entity_id) {
+                        *entry = value.to_owned();
+                    }
+                }
+            }
+            OnChangeTarget::EntityTooltip => {
+                if let Some(entity_id) = parse_id(id_str) {
+                    if let Some(entry) = input_diagram.write().entity_tooltips.get_mut(&entity_id) {
+                        *entry = value.to_owned();
+                    }
+                }
+            }
+        }
+    }
+
+    /// Removes a key-value entry from the target map.
+    fn kv_entry_remove(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        target: OnChangeTarget,
+        id_str: &str,
+    ) {
+        match target {
+            OnChangeTarget::CopyText => {
+                if let Some(thing_id) = parse_thing_id(id_str) {
+                    input_diagram.write().thing_copy_text.swap_remove(&thing_id);
+                }
+            }
+            OnChangeTarget::EntityDesc => {
+                if let Some(entity_id) = parse_id(id_str) {
+                    input_diagram.write().entity_descs.swap_remove(&entity_id);
+                }
+            }
+            OnChangeTarget::EntityTooltip => {
+                if let Some(entity_id) = parse_id(id_str) {
+                    input_diagram
+                        .write()
+                        .entity_tooltips
+                        .swap_remove(&entity_id);
+                }
+            }
+        }
+    }
+
+    /// Moves a key-value entry from one index to another in the target map.
+    fn kv_entry_move(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        target: OnChangeTarget,
+        from: usize,
+        to: usize,
+    ) {
+        let mut input_diagram = input_diagram.write();
+        match target {
+            OnChangeTarget::CopyText => input_diagram.thing_copy_text.move_index(from, to),
+            OnChangeTarget::EntityDesc => input_diagram.entity_descs.move_index(from, to),
+            OnChangeTarget::EntityTooltip => input_diagram.entity_tooltips.move_index(from, to),
+        }
+    }
+}
+
+// ===========================================================================
 // Collapse bar component
-// ---------------------------------------------------------------------------
+// ===========================================================================
 
 /// A clickable bar that toggles between collapsed and expanded states.
 ///
@@ -583,9 +844,9 @@ fn CollapseBar(
     }
 }
 
-// ---------------------------------------------------------------------------
+// ===========================================================================
 // Helper components
-// ---------------------------------------------------------------------------
+// ===========================================================================
 
 /// A single editable row for a thing name (ThingId -> display label).
 #[component]
@@ -614,7 +875,7 @@ fn ThingNameRow(
                 evt.prevent_default();
                 if let Some(from) = *drag_index.read() {
                     if from != index {
-                        move_thing(input_diagram, from, index);
+                        ThingsPageOps::thing_move(input_diagram, from, index);
                     }
                 }
                 drag_index.set(None);
@@ -637,10 +898,10 @@ fn ThingNameRow(
                 value: "{thing_id}",
                 pattern: "^[a-zA-Z_][a-zA-Z0-9_]*$",
                 onchange: {
-                    let old_id = thing_id.clone();
+                    let thing_id_old = thing_id.clone();
                     move |evt: dioxus::events::FormEvent| {
-                        let new_id_str = evt.value();
-                        rename_thing(input_diagram, &old_id, &new_id_str);
+                        let thing_id_new = evt.value();
+                        ThingsPageOps::thing_rename(input_diagram, &thing_id_old, &thing_id_new);
                     }
                 },
             }
@@ -651,10 +912,10 @@ fn ThingNameRow(
                 placeholder: "Display name",
                 value: "{thing_name}",
                 oninput: {
-                    let id = thing_id.clone();
+                    let thing_id = thing_id.clone();
                     move |evt: dioxus::events::FormEvent| {
-                        let new_name = evt.value();
-                        update_thing_name(input_diagram, &id, &new_name);
+                        let name = evt.value();
+                        ThingsPageOps::thing_name_update(input_diagram, &thing_id, &name);
                     }
                 },
             }
@@ -663,9 +924,9 @@ fn ThingNameRow(
             span {
                 class: REMOVE_BTN,
                 onclick: {
-                    let id = thing_id.clone();
+                    let thing_id = thing_id.clone();
                     move |_| {
-                        remove_thing(input_diagram, &id);
+                        ThingsPageOps::thing_remove(input_diagram, &thing_id);
                     }
                 },
                 "✕"
@@ -711,7 +972,7 @@ fn KeyValueRow(
                 evt.prevent_default();
                 if let Some(from) = *drag_index.read() {
                     if from != index {
-                        move_kv_entry(input_diagram, on_change, from, index);
+                        ThingsPageOps::kv_entry_move(input_diagram, on_change, from, index);
                     }
                 }
                 drag_index.set(None);
@@ -732,11 +993,17 @@ fn KeyValueRow(
                 placeholder: "id",
                 value: "{entry_id}",
                 onchange: {
-                    let old_id = entry_id.clone();
+                    let id_old = entry_id.clone();
                     let value = entry_value.clone();
                     move |evt: dioxus::events::FormEvent| {
-                        let new_id = evt.value();
-                        rename_kv_entry(input_diagram, on_change, &old_id, &new_id, &value);
+                        let id_new = evt.value();
+                        ThingsPageOps::kv_entry_rename(
+                            input_diagram,
+                            on_change,
+                            &id_old,
+                            &id_new,
+                            &value,
+                        );
                     }
                 },
             }
@@ -746,10 +1013,15 @@ fn KeyValueRow(
                 placeholder: "value",
                 value: "{entry_value}",
                 oninput: {
-                    let id = entry_id.clone();
+                    let entry_id = entry_id.clone();
                     move |evt: dioxus::events::FormEvent| {
                         let new_value = evt.value();
-                        update_kv_value(input_diagram, on_change, &id, &new_value);
+                        ThingsPageOps::kv_entry_update(
+                            input_diagram,
+                            on_change,
+                            &entry_id,
+                            &new_value,
+                        );
                     }
                 },
             }
@@ -757,9 +1029,9 @@ fn KeyValueRow(
             span {
                 class: REMOVE_BTN,
                 onclick: {
-                    let id = entry_id.clone();
+                    let entry_id = entry_id.clone();
                     move |_| {
-                        remove_kv_entry(input_diagram, on_change, &id);
+                        ThingsPageOps::kv_entry_remove(input_diagram, on_change, &entry_id);
                     }
                 },
                 "✕"
@@ -815,376 +1087,5 @@ fn DragHandle() -> Element {
             title: "Drag to reorder",
             "⠿"
         }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Mutation helpers
-// ---------------------------------------------------------------------------
-
-use disposition::{input_model::thing::ThingId, model_common::Id};
-
-fn add_thing_row(mut input_diagram: Signal<InputDiagram<'static>>) {
-    // Find a unique placeholder ID.
-    let mut n = input_diagram.read().things.len();
-    loop {
-        let candidate = format!("thing_{n}");
-        if let Some(tid) = parse_thing_id(&candidate) {
-            if !input_diagram.read().things.contains_key(&tid) {
-                input_diagram.write().things.insert(tid, String::new());
-                break;
-            }
-        }
-        n += 1;
-    }
-}
-
-fn update_thing_name(mut input_diagram: Signal<InputDiagram<'static>>, id: &str, name: &str) {
-    if let Some(tid) = parse_thing_id(id) {
-        if let Some(entry) = input_diagram.write().things.get_mut(&tid) {
-            *entry = name.to_owned();
-        }
-    }
-}
-
-fn rename_thing(
-    mut input_diagram: Signal<InputDiagram<'static>>,
-    thing_id_old: &str,
-    thing_id_new: &str,
-) {
-    let mut input_diagram = input_diagram.write();
-    if thing_id_old == thing_id_new {
-        return;
-    }
-    let InputDiagram {
-        things,
-        thing_copy_text,
-        thing_hierarchy,
-        thing_dependencies,
-        thing_interactions,
-        processes,
-        tags,
-        tag_things,
-        entity_descs,
-        entity_tooltips,
-        entity_types,
-        theme_default,
-        theme_types_styles,
-        theme_thing_dependencies_styles,
-        theme_tag_things_focus,
-        css: _,
-    } = &mut *input_diagram;
-    if let Ok(thing_id_old) = Id::new(thing_id_old)
-        .map(Id::into_static)
-        .map(ThingId::from)
-        && let Ok(thing_id_new) = Id::new(thing_id_new)
-            .map(Id::into_static)
-            .map(ThingId::from)
-    {
-        // Note: Results here are ignored -- we may want to be stricter here, e.g. try
-        // replacing in all fields, and if any fail, revert.
-        if let Some(thing_index) = things.get_index_of(&thing_id_old) {
-            let _thing_names_replace_result =
-                things.replace_index(thing_index, thing_id_new.clone());
-        }
-        if let Some(thing_index) = thing_copy_text.get_index_of(&thing_id_old) {
-            let _thing_copy_text_replace_result =
-                thing_copy_text.replace_index(thing_index, thing_id_new.clone());
-        }
-        if let Some((thing_hierarchy_with_id, thing_index)) =
-            thing_hierarchy_recursive_search(thing_hierarchy, &thing_id_old)
-        {
-            let _thing_hierarchy_replace_result =
-                thing_hierarchy_with_id.replace_index(thing_index, thing_id_new.clone());
-        }
-
-        // thing_dependencies: rename ThingIds inside EdgeKind values.
-        thing_dependencies.values_mut().for_each(|edge_kind| {
-            rename_thing_in_edge_kind(edge_kind, &thing_id_old, &thing_id_new);
-        });
-
-        // thing_interactions: same structure as thing_dependencies.
-        thing_interactions.values_mut().for_each(|edge_kind| {
-            rename_thing_in_edge_kind(edge_kind, &thing_id_old, &thing_id_new);
-        });
-
-        // processes: ProcessDiagram fields do not contain ThingId -- skip.
-        let _ = processes;
-
-        // tags: TagNames keys are TagId, not ThingId -- skip.
-        let _ = tags;
-
-        // tag_things: rename ThingIds in each Set<ThingId> value.
-        tag_things.values_mut().for_each(|thing_ids| {
-            if let Some(index) = thing_ids.get_index_of(&thing_id_old) {
-                let _result = thing_ids.replace_index(index, thing_id_new.clone());
-            }
-        });
-
-        // entity_descs / entity_tooltips / entity_types: keys are Id, which
-        // may refer to a ThingId.
-        let id_old = thing_id_old.clone().into_inner();
-        let id_new = thing_id_new.clone().into_inner();
-        if let Some(index) = entity_descs.get_index_of(&id_old) {
-            let _result = entity_descs.replace_index(index, id_new.clone());
-        }
-        if let Some(index) = entity_tooltips.get_index_of(&id_old) {
-            let _result = entity_tooltips.replace_index(index, id_new.clone());
-        }
-        if let Some(index) = entity_types.get_index_of(&id_old) {
-            let _result = entity_types.replace_index(index, id_new.clone());
-        }
-
-        // theme_default: rename in base_styles and process_step_selected_styles.
-        rename_id_in_theme_styles(&mut theme_default.base_styles, &id_old, &id_new);
-        rename_id_in_theme_styles(
-            &mut theme_default.process_step_selected_styles,
-            &id_old,
-            &id_new,
-        );
-
-        // theme_types_styles: rename in each ThemeStyles value.
-        theme_types_styles.values_mut().for_each(|theme_styles| {
-            rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
-        });
-
-        // theme_thing_dependencies_styles: rename in both ThemeStyles fields.
-        rename_id_in_theme_styles(
-            &mut theme_thing_dependencies_styles.things_included_styles,
-            &id_old,
-            &id_new,
-        );
-        rename_id_in_theme_styles(
-            &mut theme_thing_dependencies_styles.things_excluded_styles,
-            &id_old,
-            &id_new,
-        );
-
-        // theme_tag_things_focus: rename in each ThemeStyles value.
-        theme_tag_things_focus
-            .values_mut()
-            .for_each(|theme_styles| {
-                rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
-            });
-    }
-}
-
-/// Replaces occurrences of `thing_id_old` with `thing_id_new` inside an
-/// [`EdgeKind`] (which wraps a `Vec<ThingId>`).
-fn rename_thing_in_edge_kind(
-    edge_kind: &mut EdgeKind<'static>,
-    thing_id_old: &ThingId<'static>,
-    thing_id_new: &ThingId<'static>,
-) {
-    let things = match edge_kind {
-        EdgeKind::Cyclic(things) | EdgeKind::Sequence(things) | EdgeKind::Symmetric(things) => {
-            things
-        }
-    };
-    things.iter_mut().for_each(|thing_id| {
-        if thing_id == thing_id_old {
-            *thing_id = thing_id_new.clone();
-        }
-    });
-}
-
-fn thing_hierarchy_recursive_search<'f, 'id>(
-    thing_hierarchy: &'f mut ThingHierarchy<'id>,
-    thing_id: &'f ThingId<'id>,
-) -> Option<(&'f mut ThingHierarchy<'id>, usize)> {
-    if let Some(thing_index) = thing_hierarchy.get_index_of(thing_id) {
-        Some((thing_hierarchy, thing_index))
-    } else {
-        thing_hierarchy
-            .values_mut()
-            .find_map(|thing_hierarchy_child| {
-                thing_hierarchy_recursive_search(thing_hierarchy_child, thing_id)
-            })
-    }
-}
-
-fn remove_thing(mut input_diagram: Signal<InputDiagram<'static>>, id: &str) {
-    if let Some(thing_id) = parse_thing_id(id) {
-        input_diagram.write().things.swap_remove(&thing_id);
-    }
-}
-
-// ── Generic key-value helpers for copy-text / descs / tooltips ───────────
-
-fn add_copy_text_row(mut input_diagram: Signal<InputDiagram<'static>>) {
-    let mut n = input_diagram.read().thing_copy_text.len();
-    loop {
-        let candidate = format!("thing_{n}");
-        if let Some(tid) = parse_thing_id(&candidate) {
-            if !input_diagram.read().thing_copy_text.contains_key(&tid) {
-                input_diagram
-                    .write()
-                    .thing_copy_text
-                    .insert(tid, String::new());
-                break;
-            }
-        }
-        n += 1;
-    }
-}
-
-fn add_entity_desc_row(mut diag: Signal<InputDiagram<'static>>) {
-    let mut n = diag.read().entity_descs.len();
-    loop {
-        let candidate = format!("entity_{n}");
-        if let Some(id) = parse_id(&candidate) {
-            if !diag.read().entity_descs.contains_key(&id) {
-                diag.write().entity_descs.insert(id, String::new());
-                break;
-            }
-        }
-        n += 1;
-    }
-}
-
-fn add_entity_tooltip_row(mut diag: Signal<InputDiagram<'static>>) {
-    let mut n = diag.read().entity_tooltips.len();
-    loop {
-        let candidate = format!("entity_{n}");
-        if let Some(id) = parse_id(&candidate) {
-            if !diag.read().entity_tooltips.contains_key(&id) {
-                diag.write().entity_tooltips.insert(id, String::new());
-                break;
-            }
-        }
-        n += 1;
-    }
-}
-
-fn rename_kv_entry(
-    mut diag: Signal<InputDiagram<'static>>,
-    target: OnChangeTarget,
-    old_id: &str,
-    new_id: &str,
-    current_value: &str,
-) {
-    if old_id == new_id {
-        return;
-    }
-    match target {
-        OnChangeTarget::CopyText => {
-            let old = match parse_thing_id(old_id) {
-                Some(id) => id,
-                None => return,
-            };
-            let new = match parse_thing_id(new_id) {
-                Some(id) => id,
-                None => return,
-            };
-            let mut d = diag.write();
-            d.thing_copy_text.swap_remove(&old);
-            d.thing_copy_text.insert(new, current_value.to_owned());
-        }
-        OnChangeTarget::EntityDesc => {
-            let old = match parse_id(old_id) {
-                Some(id) => id,
-                None => return,
-            };
-            let new = match parse_id(new_id) {
-                Some(id) => id,
-                None => return,
-            };
-            let mut d = diag.write();
-            d.entity_descs.swap_remove(&old);
-            d.entity_descs.insert(new, current_value.to_owned());
-        }
-        OnChangeTarget::EntityTooltip => {
-            let old = match parse_id(old_id) {
-                Some(id) => id,
-                None => return,
-            };
-            let new = match parse_id(new_id) {
-                Some(id) => id,
-                None => return,
-            };
-            let mut d = diag.write();
-            d.entity_tooltips.swap_remove(&old);
-            d.entity_tooltips.insert(new, current_value.to_owned());
-        }
-    }
-}
-
-fn update_kv_value(
-    mut input_diagram: Signal<InputDiagram<'static>>,
-    target: OnChangeTarget,
-    id: &str,
-    value: &str,
-) {
-    match target {
-        OnChangeTarget::CopyText => {
-            if let Some(thing_id) = parse_thing_id(id) {
-                if let Some(entry) = input_diagram.write().thing_copy_text.get_mut(&thing_id) {
-                    *entry = value.to_owned();
-                }
-            }
-        }
-        OnChangeTarget::EntityDesc => {
-            if let Some(entity_id) = parse_id(id) {
-                if let Some(entry) = input_diagram.write().entity_descs.get_mut(&entity_id) {
-                    *entry = value.to_owned();
-                }
-            }
-        }
-        OnChangeTarget::EntityTooltip => {
-            if let Some(entity_id) = parse_id(id) {
-                if let Some(entry) = input_diagram.write().entity_tooltips.get_mut(&entity_id) {
-                    *entry = value.to_owned();
-                }
-            }
-        }
-    }
-}
-
-fn remove_kv_entry(
-    mut input_diagram: Signal<InputDiagram<'static>>,
-    target: OnChangeTarget,
-    id: &str,
-) {
-    match target {
-        OnChangeTarget::CopyText => {
-            if let Some(thing_id) = parse_thing_id(id) {
-                input_diagram.write().thing_copy_text.swap_remove(&thing_id);
-            }
-        }
-        OnChangeTarget::EntityDesc => {
-            if let Some(entity_id) = parse_id(id) {
-                input_diagram.write().entity_descs.swap_remove(&entity_id);
-            }
-        }
-        OnChangeTarget::EntityTooltip => {
-            if let Some(entity_id) = parse_id(id) {
-                input_diagram
-                    .write()
-                    .entity_tooltips
-                    .swap_remove(&entity_id);
-            }
-        }
-    }
-}
-
-// ── Reorder helpers ─────────────────────────────────────────────────────
-
-/// Moves a thing entry from one index to another in the `things` map.
-fn move_thing(mut input_diagram: Signal<InputDiagram<'static>>, from: usize, to: usize) {
-    input_diagram.write().things.move_index(from, to);
-}
-
-/// Moves a key-value entry from one index to another in the target map.
-fn move_kv_entry(
-    mut input_diagram: Signal<InputDiagram<'static>>,
-    target: OnChangeTarget,
-    from: usize,
-    to: usize,
-) {
-    let mut d = input_diagram.write();
-    match target {
-        OnChangeTarget::CopyText => d.thing_copy_text.move_index(from, to),
-        OnChangeTarget::EntityDesc => d.entity_descs.move_index(from, to),
-        OnChangeTarget::EntityTooltip => d.entity_tooltips.move_index(from, to),
     }
 }

@@ -3,6 +3,9 @@
 //! Allows editing `thing_dependencies` -- a map from `EdgeGroupId` to
 //! `EdgeKind` (Cyclic / Sequence / Symmetric), where each variant contains a
 //! list of `ThingId`s.
+//!
+//! Also provides `ThingInteractionsPage` which shares the same card component
+//! and mutation helpers via [`MapTarget`].
 
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
@@ -14,75 +17,12 @@ use disposition::{
 };
 
 use crate::components::editor::{
-    common::{parse_edge_group_id, parse_thing_id, rename_id_in_theme_styles},
+    common::{
+        id_rename_in_input_diagram, parse_edge_group_id, parse_thing_id, ADD_BTN, CARD_CLASS,
+        INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SECTION_HEADING, SELECT_CLASS,
+    },
     datalists::list_ids,
 };
-
-/// CSS classes shared by section headings.
-const SECTION_HEADING: &str = "text-sm font-bold text-gray-300 mt-4 mb-1";
-
-/// CSS classes for a card-like container for each edge group.
-const CARD_CLASS: &str = "\
-    rounded-lg \
-    border \
-    border-gray-700 \
-    bg-gray-900 \
-    p-3 \
-    mb-2 \
-    flex \
-    flex-col \
-    gap-2\
-";
-
-/// CSS classes for text inputs.
-const INPUT_CLASS: &str = "\
-    flex-1 \
-    rounded \
-    border \
-    border-gray-600 \
-    bg-gray-800 \
-    text-gray-200 \
-    px-2 py-1 \
-    text-sm \
-    font-mono \
-    focus:border-blue-400 \
-    focus:outline-none\
-";
-
-/// CSS classes for a select / dropdown.
-const SELECT_CLASS: &str = "\
-    rounded \
-    border \
-    border-gray-600 \
-    bg-gray-800 \
-    text-gray-200 \
-    px-2 py-1 \
-    text-sm \
-    focus:border-blue-400 \
-    focus:outline-none\
-";
-
-/// CSS classes for the small "remove" button.
-const REMOVE_BTN: &str = "\
-    text-red-400 \
-    hover:text-red-300 \
-    text-xs \
-    cursor-pointer \
-    px-1\
-";
-
-/// CSS classes for the "add" button.
-const ADD_BTN: &str = "\
-    mt-1 \
-    text-sm \
-    text-blue-400 \
-    hover:text-blue-300 \
-    cursor-pointer \
-    select-none\
-";
-
-/// Row-level flex layout.
-const ROW_CLASS: &str = "flex flex-row gap-2 items-center";
 
 /// Serialised snapshot of one edge group entry for rendering.
 #[derive(Clone, PartialEq)]
@@ -100,10 +40,10 @@ pub fn ThingDependenciesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
     let entries: Vec<EdgeGroupEntry> = diagram
         .thing_dependencies
         .iter()
-        .map(|(id, kind)| {
-            let (kind_label, things) = edge_kind_to_parts(kind);
+        .map(|(edge_group_id, edge_kind)| {
+            let (kind_label, things) = EdgeGroupCardOps::edge_kind_to_parts(edge_kind);
             EdgeGroupEntry {
-                edge_group_id: id.as_str().to_owned(),
+                edge_group_id: edge_group_id.as_str().to_owned(),
                 kind_label: kind_label.to_owned(),
                 things,
             }
@@ -139,7 +79,7 @@ pub fn ThingDependenciesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
             div {
                 class: ADD_BTN,
                 onclick: move |_| {
-                    add_edge_group(input_diagram, MapTarget::Dependencies);
+                    EdgeGroupCardOps::edge_group_add(input_diagram, MapTarget::Dependencies);
                 },
                 "+ Add dependency edge group"
             }
@@ -158,10 +98,10 @@ pub fn ThingInteractionsPage(input_diagram: Signal<InputDiagram<'static>>) -> El
     let entries: Vec<EdgeGroupEntry> = diagram
         .thing_interactions
         .iter()
-        .map(|(id, kind)| {
-            let (kind_label, things) = edge_kind_to_parts(kind);
+        .map(|(edge_group_id, edge_kind)| {
+            let (kind_label, things) = EdgeGroupCardOps::edge_kind_to_parts(edge_kind);
             EdgeGroupEntry {
-                edge_group_id: id.as_str().to_owned(),
+                edge_group_id: edge_group_id.as_str().to_owned(),
                 kind_label: kind_label.to_owned(),
                 things,
             }
@@ -197,7 +137,7 @@ pub fn ThingInteractionsPage(input_diagram: Signal<InputDiagram<'static>>) -> El
             div {
                 class: ADD_BTN,
                 onclick: move |_| {
-                    add_edge_group(input_diagram, MapTarget::Interactions);
+                    EdgeGroupCardOps::edge_group_add(input_diagram, MapTarget::Interactions);
                 },
                 "+ Add interaction edge group"
             }
@@ -205,9 +145,9 @@ pub fn ThingInteractionsPage(input_diagram: Signal<InputDiagram<'static>>) -> El
     }
 }
 
-// ---------------------------------------------------------------------------
-// Shared card component
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Shared types
+// ===========================================================================
 
 /// Which map inside `InputDiagram` we are editing.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -216,6 +156,10 @@ pub(crate) enum MapTarget {
     Interactions,
 }
 
+// ===========================================================================
+// Edge group card component
+// ===========================================================================
+
 /// A card for a single edge group (used by both dependencies and interactions).
 #[component]
 fn EdgeGroupCard(
@@ -223,7 +167,7 @@ fn EdgeGroupCard(
     entry: EdgeGroupEntry,
     target: MapTarget,
 ) -> Element {
-    let edge_id = entry.edge_group_id.clone();
+    let edge_group_id = entry.edge_group_id.clone();
     let kind_label = entry.kind_label.clone();
     let things = entry.things.clone();
 
@@ -233,7 +177,7 @@ fn EdgeGroupCard(
 
             // ── Header row: EdgeGroupId + Kind selector + Remove ─────
             div {
-                class: ROW_CLASS,
+                class: ROW_CLASS_SIMPLE,
 
                 // Edge group ID
                 input {
@@ -241,12 +185,12 @@ fn EdgeGroupCard(
                     style: "max-width:16rem",
                     list: list_ids::EDGE_GROUP_IDS,
                     placeholder: "edge_group_id",
-                    value: "{edge_id}",
+                    value: "{edge_group_id}",
                     onchange: {
-                        let old_id = edge_id.clone();
+                        let edge_group_id_old = edge_group_id.clone();
                         move |evt: dioxus::events::FormEvent| {
-                            let new_id = evt.value();
-                            rename_edge_group(input_diagram, &old_id, &new_id);
+                            let edge_group_id_new = evt.value();
+                            EdgeGroupCardOps::edge_group_rename(input_diagram, &edge_group_id_old, &edge_group_id_new);
                         }
                     },
                 }
@@ -256,11 +200,17 @@ fn EdgeGroupCard(
                     class: SELECT_CLASS,
                     value: "{kind_label}",
                     onchange: {
-                        let eid = edge_id.clone();
+                        let edge_group_id = edge_group_id.clone();
                         let current_things = things.clone();
                         move |evt: dioxus::events::FormEvent| {
-                            let new_kind = evt.value();
-                            change_edge_kind(input_diagram, target, &eid, &new_kind, &current_things);
+                            let kind_label_new = evt.value();
+                            EdgeGroupCardOps::edge_kind_change(
+                                input_diagram,
+                                target,
+                                &edge_group_id,
+                                &kind_label_new,
+                                &current_things,
+                            );
                         }
                     },
                     option { value: "cyclic", "Cyclic" }
@@ -272,9 +222,9 @@ fn EdgeGroupCard(
                 span {
                     class: REMOVE_BTN,
                     onclick: {
-                        let eid = edge_id.clone();
+                        let edge_group_id = edge_group_id.clone();
                         move |_| {
-                            remove_edge_group(input_diagram, target, &eid);
+                            EdgeGroupCardOps::edge_group_remove(input_diagram, target, &edge_group_id);
                         }
                     },
                     "✕ Remove"
@@ -288,11 +238,11 @@ fn EdgeGroupCard(
                 for (idx, thing_id) in things.iter().enumerate() {
                     {
                         let thing_id = thing_id.clone();
-                        let eid = edge_id.clone();
+                        let edge_group_id = edge_group_id.clone();
                         rsx! {
                             div {
-                                key: "{eid}_{idx}",
-                                class: ROW_CLASS,
+                                key: "{edge_group_id}_{idx}",
+                                class: ROW_CLASS_SIMPLE,
 
                                 span {
                                     class: "text-xs text-gray-500 w-6 text-right",
@@ -306,10 +256,16 @@ fn EdgeGroupCard(
                                     placeholder: "thing_id",
                                     value: "{thing_id}",
                                     onchange: {
-                                        let eid2 = eid.clone();
+                                        let edge_group_id = edge_group_id.clone();
                                         move |evt: dioxus::events::FormEvent| {
-                                            let new_val = evt.value();
-                                            update_thing_in_edge(input_diagram, target, &eid2, idx, &new_val);
+                                            let thing_id_new = evt.value();
+                                            EdgeGroupCardOps::edge_thing_update(
+                                                input_diagram,
+                                                target,
+                                                &edge_group_id,
+                                                idx,
+                                                &thing_id_new,
+                                            );
                                         }
                                     },
                                 }
@@ -317,9 +273,14 @@ fn EdgeGroupCard(
                                 span {
                                     class: REMOVE_BTN,
                                     onclick: {
-                                        let eid2 = eid.clone();
+                                        let edge_group_id = edge_group_id.clone();
                                         move |_| {
-                                            remove_thing_from_edge(input_diagram, target, &eid2, idx);
+                                            EdgeGroupCardOps::edge_thing_remove(
+                                                input_diagram,
+                                                target,
+                                                &edge_group_id,
+                                                idx,
+                                            );
                                         }
                                     },
                                     "✕"
@@ -332,9 +293,9 @@ fn EdgeGroupCard(
                 div {
                     class: ADD_BTN,
                     onclick: {
-                        let eid = edge_id.clone();
+                        let edge_group_id = edge_group_id.clone();
                         move |_| {
-                            add_thing_to_edge(input_diagram, target, &eid);
+                            EdgeGroupCardOps::edge_thing_add(input_diagram, target, &edge_group_id);
                         }
                     },
                     "+ Add thing"
@@ -344,329 +305,344 @@ fn EdgeGroupCard(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// EdgeGroupCard helpers and mutation methods
+// ===========================================================================
 
-/// Decompose an `EdgeKind` into a label string and a list of thing ID strings.
-fn edge_kind_to_parts(kind: &EdgeKind<'_>) -> (&'static str, Vec<String>) {
-    match kind {
-        EdgeKind::Cyclic(things) => (
-            "cyclic",
-            things.iter().map(|t| t.as_str().to_owned()).collect(),
-        ),
-        EdgeKind::Sequence(things) => (
-            "sequence",
-            things.iter().map(|t| t.as_str().to_owned()).collect(),
-        ),
-        EdgeKind::Symmetric(things) => (
-            "symmetric",
-            things.iter().map(|t| t.as_str().to_owned()).collect(),
-        ),
-    }
-}
+/// Mutation operations for the edge group card component.
+///
+/// Grouped here so that related functions are discoverable when sorted by
+/// name, per the project's `noun_verb` naming convention.
+struct EdgeGroupCardOps;
 
-/// Reconstruct an `EdgeKind<'static>` from a label and a list of thing ID
-/// strings.
-fn parts_to_edge_kind(label: &str, thing_strs: &[String]) -> Option<EdgeKind<'static>> {
-    let things: Vec<ThingId<'static>> = thing_strs
-        .iter()
-        .filter_map(|s| parse_thing_id(s))
-        .collect();
+impl EdgeGroupCardOps {
+    // ── EdgeKind conversion ──────────────────────────────────────────
 
-    match label {
-        "cyclic" => Some(EdgeKind::Cyclic(things)),
-        "sequence" => Some(EdgeKind::Sequence(things)),
-        "symmetric" => Some(EdgeKind::Symmetric(things)),
-        _ => None,
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Mutation helpers
-// ---------------------------------------------------------------------------
-
-fn set_edge_kind(
-    diag: &mut InputDiagram<'static>,
-    target: MapTarget,
-    edge_id: &EdgeGroupId<'static>,
-    kind: EdgeKind<'static>,
-) {
-    match target {
-        MapTarget::Dependencies => {
-            diag.thing_dependencies.insert(edge_id.clone(), kind);
-        }
-        MapTarget::Interactions => {
-            diag.thing_interactions.insert(edge_id.clone(), kind);
+    /// Decompose an `EdgeKind` into a label string and a list of thing ID
+    /// strings.
+    fn edge_kind_to_parts(edge_kind: &EdgeKind<'_>) -> (&'static str, Vec<String>) {
+        match edge_kind {
+            EdgeKind::Cyclic(things) => (
+                "cyclic",
+                things
+                    .iter()
+                    .map(|thing_id| thing_id.as_str().to_owned())
+                    .collect(),
+            ),
+            EdgeKind::Sequence(things) => (
+                "sequence",
+                things
+                    .iter()
+                    .map(|thing_id| thing_id.as_str().to_owned())
+                    .collect(),
+            ),
+            EdgeKind::Symmetric(things) => (
+                "symmetric",
+                things
+                    .iter()
+                    .map(|thing_id| thing_id.as_str().to_owned())
+                    .collect(),
+            ),
         }
     }
-}
 
-fn remove_edge_group_by_id(
-    diag: &mut InputDiagram<'static>,
-    target: MapTarget,
-    edge_id: &EdgeGroupId<'static>,
-) {
-    match target {
-        MapTarget::Dependencies => {
-            diag.thing_dependencies.swap_remove(edge_id);
+    /// Reconstruct an `EdgeKind<'static>` from a label and a list of thing ID
+    /// strings.
+    fn edge_kind_from_parts(kind_label: &str, thing_strs: &[String]) -> Option<EdgeKind<'static>> {
+        let things: Vec<ThingId<'static>> = thing_strs
+            .iter()
+            .filter_map(|s| parse_thing_id(s))
+            .collect();
+
+        match kind_label {
+            "cyclic" => Some(EdgeKind::Cyclic(things)),
+            "sequence" => Some(EdgeKind::Sequence(things)),
+            "symmetric" => Some(EdgeKind::Symmetric(things)),
+            _ => None,
         }
-        MapTarget::Interactions => {
-            diag.thing_interactions.swap_remove(edge_id);
-        }
     }
-}
 
-fn edge_group_count(diag: &InputDiagram<'static>, target: MapTarget) -> usize {
-    match target {
-        MapTarget::Dependencies => diag.thing_dependencies.len(),
-        MapTarget::Interactions => diag.thing_interactions.len(),
-    }
-}
+    // ── Map-target helpers ───────────────────────────────────────────
 
-fn edge_group_contains(
-    diag: &InputDiagram<'static>,
-    target: MapTarget,
-    edge_id: &EdgeGroupId<'static>,
-) -> bool {
-    match target {
-        MapTarget::Dependencies => diag.thing_dependencies.contains_key(edge_id),
-        MapTarget::Interactions => diag.thing_interactions.contains_key(edge_id),
-    }
-}
-
-fn add_edge_group(mut diag: Signal<InputDiagram<'static>>, target: MapTarget) {
-    let mut n = edge_group_count(&diag.read(), target);
-    loop {
-        let candidate = format!("edge_{n}");
-        if let Some(eid) = parse_edge_group_id(&candidate) {
-            if !edge_group_contains(&diag.read(), target, &eid) {
-                set_edge_kind(
-                    &mut diag.write(),
-                    target,
-                    &eid,
-                    EdgeKind::Sequence(Vec::new()),
-                );
-                break;
+    /// Sets the `EdgeKind` for a given `EdgeGroupId` in the target map.
+    fn edge_kind_set(
+        input_diagram: &mut InputDiagram<'static>,
+        target: MapTarget,
+        edge_group_id: &EdgeGroupId<'static>,
+        edge_kind: EdgeKind<'static>,
+    ) {
+        match target {
+            MapTarget::Dependencies => {
+                input_diagram
+                    .thing_dependencies
+                    .insert(edge_group_id.clone(), edge_kind);
+            }
+            MapTarget::Interactions => {
+                input_diagram
+                    .thing_interactions
+                    .insert(edge_group_id.clone(), edge_kind);
             }
         }
-        n += 1;
-    }
-}
-
-fn remove_edge_group(mut diag: Signal<InputDiagram<'static>>, target: MapTarget, id: &str) {
-    if let Some(eid) = parse_edge_group_id(id) {
-        remove_edge_group_by_id(&mut diag.write(), target, &eid);
-    }
-}
-
-fn rename_edge_group(mut diag: Signal<InputDiagram<'static>>, old_id: &str, new_id: &str) {
-    if old_id == new_id {
-        return;
-    }
-    let edge_id_old = match parse_edge_group_id(old_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let edge_id_new = match parse_edge_group_id(new_id) {
-        Some(id) => id,
-        None => return,
-    };
-
-    let mut input_diagram = diag.write();
-    let InputDiagram {
-        things: _,
-        thing_copy_text: _,
-        thing_hierarchy: _,
-        thing_dependencies,
-        thing_interactions,
-        processes,
-        tags: _,
-        tag_things: _,
-        entity_descs,
-        entity_tooltips,
-        entity_types,
-        theme_default,
-        theme_types_styles,
-        theme_thing_dependencies_styles,
-        theme_tag_things_focus,
-        css: _,
-    } = &mut *input_diagram;
-
-    // thing_dependencies: rename EdgeGroupId key.
-    if let Some(index) = thing_dependencies.get_index_of(&edge_id_old) {
-        let _result = thing_dependencies.replace_index(index, edge_id_new.clone());
     }
 
-    // thing_interactions: rename EdgeGroupId key.
-    if let Some(index) = thing_interactions.get_index_of(&edge_id_old) {
-        let _result = thing_interactions.replace_index(index, edge_id_new.clone());
+    /// Removes an edge group by ID from the target map.
+    fn edge_group_remove_by_id(
+        input_diagram: &mut InputDiagram<'static>,
+        target: MapTarget,
+        edge_group_id: &EdgeGroupId<'static>,
+    ) {
+        match target {
+            MapTarget::Dependencies => {
+                input_diagram.thing_dependencies.swap_remove(edge_group_id);
+            }
+            MapTarget::Interactions => {
+                input_diagram.thing_interactions.swap_remove(edge_group_id);
+            }
+        }
     }
 
-    // processes: rename EdgeGroupId in step_thing_interactions values.
-    processes.values_mut().for_each(|process_diagram| {
-        process_diagram
-            .step_thing_interactions
-            .values_mut()
-            .for_each(|edge_group_ids| {
-                for edge_group_id in edge_group_ids.iter_mut() {
-                    if edge_group_id == &edge_id_old {
-                        *edge_group_id = edge_id_new.clone();
-                    }
+    /// Returns the number of edge groups in the target map.
+    fn edge_group_count(input_diagram: &InputDiagram<'static>, target: MapTarget) -> usize {
+        match target {
+            MapTarget::Dependencies => input_diagram.thing_dependencies.len(),
+            MapTarget::Interactions => input_diagram.thing_interactions.len(),
+        }
+    }
+
+    /// Returns whether the target map contains the given edge group ID.
+    fn edge_group_contains(
+        input_diagram: &InputDiagram<'static>,
+        target: MapTarget,
+        edge_group_id: &EdgeGroupId<'static>,
+    ) -> bool {
+        match target {
+            MapTarget::Dependencies => input_diagram.thing_dependencies.contains_key(edge_group_id),
+            MapTarget::Interactions => input_diagram.thing_interactions.contains_key(edge_group_id),
+        }
+    }
+
+    // ── Mutation helpers ─────────────────────────────────────────────
+
+    /// Adds a new edge group with a unique placeholder ID.
+    fn edge_group_add(mut input_diagram: Signal<InputDiagram<'static>>, target: MapTarget) {
+        let mut n = Self::edge_group_count(&input_diagram.read(), target);
+        loop {
+            let candidate = format!("edge_{n}");
+            if let Some(edge_group_id) = parse_edge_group_id(&candidate) {
+                if !Self::edge_group_contains(&input_diagram.read(), target, &edge_group_id) {
+                    Self::edge_kind_set(
+                        &mut input_diagram.write(),
+                        target,
+                        &edge_group_id,
+                        EdgeKind::Sequence(Vec::new()),
+                    );
+                    break;
                 }
+            }
+            n += 1;
+        }
+    }
+
+    /// Removes an edge group from the target map.
+    fn edge_group_remove(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        target: MapTarget,
+        edge_group_id_str: &str,
+    ) {
+        if let Some(edge_group_id) = parse_edge_group_id(edge_group_id_str) {
+            Self::edge_group_remove_by_id(&mut input_diagram.write(), target, &edge_group_id);
+        }
+    }
+
+    /// Renames an edge group across all maps in the [`InputDiagram`].
+    fn edge_group_rename(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        edge_group_id_old_str: &str,
+        edge_group_id_new_str: &str,
+    ) {
+        if edge_group_id_old_str == edge_group_id_new_str {
+            return;
+        }
+        let edge_group_id_old = match parse_edge_group_id(edge_group_id_old_str) {
+            Some(edge_group_id) => edge_group_id,
+            None => return,
+        };
+        let edge_group_id_new = match parse_edge_group_id(edge_group_id_new_str) {
+            Some(edge_group_id) => edge_group_id,
+            None => return,
+        };
+
+        let mut input_diagram_ref = input_diagram.write();
+
+        // thing_dependencies: rename EdgeGroupId key.
+        if let Some(index) = input_diagram_ref
+            .thing_dependencies
+            .get_index_of(&edge_group_id_old)
+        {
+            let _result = input_diagram_ref
+                .thing_dependencies
+                .replace_index(index, edge_group_id_new.clone());
+        }
+
+        // thing_interactions: rename EdgeGroupId key.
+        if let Some(index) = input_diagram_ref
+            .thing_interactions
+            .get_index_of(&edge_group_id_old)
+        {
+            let _result = input_diagram_ref
+                .thing_interactions
+                .replace_index(index, edge_group_id_new.clone());
+        }
+
+        // processes: rename EdgeGroupId in step_thing_interactions values.
+        input_diagram_ref
+            .processes
+            .values_mut()
+            .for_each(|process_diagram| {
+                process_diagram
+                    .step_thing_interactions
+                    .values_mut()
+                    .for_each(|edge_group_ids| {
+                        for edge_group_id in edge_group_ids.iter_mut() {
+                            if edge_group_id == &edge_group_id_old {
+                                *edge_group_id = edge_group_id_new.clone();
+                            }
+                        }
+                    });
             });
-    });
 
-    // entity_descs / entity_tooltips / entity_types: keys are Id, which
-    // may refer to an EdgeGroupId.
-    let id_old = edge_id_old.clone().into_inner();
-    let id_new = edge_id_new.clone().into_inner();
-    if let Some(index) = entity_descs.get_index_of(&id_old) {
-        let _result = entity_descs.replace_index(index, id_new.clone());
-    }
-    if let Some(index) = entity_tooltips.get_index_of(&id_old) {
-        let _result = entity_tooltips.replace_index(index, id_new.clone());
-    }
-    if let Some(index) = entity_types.get_index_of(&id_old) {
-        let _result = entity_types.replace_index(index, id_new.clone());
+        // Shared rename across entity_descs, entity_tooltips, entity_types,
+        // and all theme style maps.
+        let id_old = edge_group_id_old.into_inner();
+        let id_new = edge_group_id_new.into_inner();
+        id_rename_in_input_diagram(&mut input_diagram_ref, &id_old, &id_new);
     }
 
-    // theme_default: rename in base_styles and process_step_selected_styles.
-    rename_id_in_theme_styles(&mut theme_default.base_styles, &id_old, &id_new);
-    rename_id_in_theme_styles(
-        &mut theme_default.process_step_selected_styles,
-        &id_old,
-        &id_new,
-    );
-
-    // theme_types_styles: rename in each ThemeStyles value.
-    theme_types_styles.values_mut().for_each(|theme_styles| {
-        rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
-    });
-
-    // theme_thing_dependencies_styles: rename in both ThemeStyles fields.
-    rename_id_in_theme_styles(
-        &mut theme_thing_dependencies_styles.things_included_styles,
-        &id_old,
-        &id_new,
-    );
-    rename_id_in_theme_styles(
-        &mut theme_thing_dependencies_styles.things_excluded_styles,
-        &id_old,
-        &id_new,
-    );
-
-    // theme_tag_things_focus: rename in each ThemeStyles value.
-    theme_tag_things_focus
-        .values_mut()
-        .for_each(|theme_styles| {
-            rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
-        });
-}
-
-fn change_edge_kind(
-    mut diag: Signal<InputDiagram<'static>>,
-    target: MapTarget,
-    edge_id: &str,
-    new_kind_label: &str,
-    current_things: &[String],
-) {
-    let eid = match parse_edge_group_id(edge_id) {
-        Some(id) => id,
-        None => return,
-    };
-    if let Some(kind) = parts_to_edge_kind(new_kind_label, current_things) {
-        set_edge_kind(&mut diag.write(), target, &eid, kind);
-    }
-}
-
-fn update_thing_in_edge(
-    mut diag: Signal<InputDiagram<'static>>,
-    target: MapTarget,
-    edge_id: &str,
-    idx: usize,
-    new_thing_str: &str,
-) {
-    let eid = match parse_edge_group_id(edge_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let new_thing = match parse_thing_id(new_thing_str) {
-        Some(t) => t,
-        None => return,
-    };
-
-    let mut d = diag.write();
-    let kind = match target {
-        MapTarget::Dependencies => d.thing_dependencies.get_mut(&eid),
-        MapTarget::Interactions => d.thing_interactions.get_mut(&eid),
-    };
-    if let Some(kind) = kind {
-        let things = match kind {
-            EdgeKind::Cyclic(t) | EdgeKind::Sequence(t) | EdgeKind::Symmetric(t) => t,
+    /// Changes the edge kind (cyclic / sequence / symmetric) for an edge
+    /// group, preserving the current thing list.
+    fn edge_kind_change(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        target: MapTarget,
+        edge_group_id_str: &str,
+        kind_label_new: &str,
+        current_things: &[String],
+    ) {
+        let edge_group_id = match parse_edge_group_id(edge_group_id_str) {
+            Some(edge_group_id) => edge_group_id,
+            None => return,
         };
-        if idx < things.len() {
-            things[idx] = new_thing;
+        if let Some(edge_kind) = Self::edge_kind_from_parts(kind_label_new, current_things) {
+            Self::edge_kind_set(
+                &mut input_diagram.write(),
+                target,
+                &edge_group_id,
+                edge_kind,
+            );
         }
     }
-}
 
-fn remove_thing_from_edge(
-    mut diag: Signal<InputDiagram<'static>>,
-    target: MapTarget,
-    edge_id: &str,
-    idx: usize,
-) {
-    let eid = match parse_edge_group_id(edge_id) {
-        Some(id) => id,
-        None => return,
-    };
-
-    let mut d = diag.write();
-    let kind = match target {
-        MapTarget::Dependencies => d.thing_dependencies.get_mut(&eid),
-        MapTarget::Interactions => d.thing_interactions.get_mut(&eid),
-    };
-    if let Some(kind) = kind {
-        let things = match kind {
-            EdgeKind::Cyclic(t) | EdgeKind::Sequence(t) | EdgeKind::Symmetric(t) => t,
+    /// Updates a single thing within an edge group at the given index.
+    fn edge_thing_update(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        target: MapTarget,
+        edge_group_id_str: &str,
+        idx: usize,
+        thing_id_new_str: &str,
+    ) {
+        let edge_group_id = match parse_edge_group_id(edge_group_id_str) {
+            Some(edge_group_id) => edge_group_id,
+            None => return,
         };
-        if idx < things.len() {
-            things.remove(idx);
+        let thing_id_new = match parse_thing_id(thing_id_new_str) {
+            Some(thing_id) => thing_id,
+            None => return,
+        };
+
+        let mut input_diagram = input_diagram.write();
+        let edge_kind = match target {
+            MapTarget::Dependencies => input_diagram.thing_dependencies.get_mut(&edge_group_id),
+            MapTarget::Interactions => input_diagram.thing_interactions.get_mut(&edge_group_id),
+        };
+        if let Some(edge_kind) = edge_kind {
+            let things = match edge_kind {
+                EdgeKind::Cyclic(things)
+                | EdgeKind::Sequence(things)
+                | EdgeKind::Symmetric(things) => things,
+            };
+            if idx < things.len() {
+                things[idx] = thing_id_new;
+            }
         }
     }
-}
 
-fn add_thing_to_edge(mut diag: Signal<InputDiagram<'static>>, target: MapTarget, edge_id: &str) {
-    let eid = match parse_edge_group_id(edge_id) {
-        Some(id) => id,
-        None => return,
-    };
-
-    // Find any existing thing ID as a placeholder, or use an empty-ish
-    // fallback.
-    let placeholder = {
-        let d = diag.read();
-        d.things
-            .keys()
-            .next()
-            .map(|t| t.as_str().to_owned())
-            .unwrap_or_else(|| "thing_0".to_owned())
-    };
-    let new_thing = match parse_thing_id(&placeholder) {
-        Some(t) => t,
-        None => return,
-    };
-
-    let mut d = diag.write();
-    let kind = match target {
-        MapTarget::Dependencies => d.thing_dependencies.get_mut(&eid),
-        MapTarget::Interactions => d.thing_interactions.get_mut(&eid),
-    };
-    if let Some(kind) = kind {
-        let things = match kind {
-            EdgeKind::Cyclic(t) | EdgeKind::Sequence(t) | EdgeKind::Symmetric(t) => t,
+    /// Removes a thing from an edge group by index.
+    fn edge_thing_remove(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        target: MapTarget,
+        edge_group_id_str: &str,
+        idx: usize,
+    ) {
+        let edge_group_id = match parse_edge_group_id(edge_group_id_str) {
+            Some(edge_group_id) => edge_group_id,
+            None => return,
         };
-        things.push(new_thing);
+
+        let mut input_diagram = input_diagram.write();
+        let edge_kind = match target {
+            MapTarget::Dependencies => input_diagram.thing_dependencies.get_mut(&edge_group_id),
+            MapTarget::Interactions => input_diagram.thing_interactions.get_mut(&edge_group_id),
+        };
+        if let Some(edge_kind) = edge_kind {
+            let things = match edge_kind {
+                EdgeKind::Cyclic(things)
+                | EdgeKind::Sequence(things)
+                | EdgeKind::Symmetric(things) => things,
+            };
+            if idx < things.len() {
+                things.remove(idx);
+            }
+        }
+    }
+
+    /// Adds a thing to an edge group, using the first existing thing ID as a
+    /// placeholder.
+    fn edge_thing_add(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        target: MapTarget,
+        edge_group_id_str: &str,
+    ) {
+        let edge_group_id = match parse_edge_group_id(edge_group_id_str) {
+            Some(edge_group_id) => edge_group_id,
+            None => return,
+        };
+
+        // Find any existing thing ID as a placeholder.
+        let placeholder = {
+            let input_diagram = input_diagram.read();
+            input_diagram
+                .things
+                .keys()
+                .next()
+                .map(|thing_id| thing_id.as_str().to_owned())
+                .unwrap_or_else(|| "thing_0".to_owned())
+        };
+        let thing_id_new = match parse_thing_id(&placeholder) {
+            Some(thing_id) => thing_id,
+            None => return,
+        };
+
+        let mut input_diagram = input_diagram.write();
+        let edge_kind = match target {
+            MapTarget::Dependencies => input_diagram.thing_dependencies.get_mut(&edge_group_id),
+            MapTarget::Interactions => input_diagram.thing_interactions.get_mut(&edge_group_id),
+        };
+        if let Some(edge_kind) = edge_kind {
+            let things = match edge_kind {
+                EdgeKind::Cyclic(things)
+                | EdgeKind::Sequence(things)
+                | EdgeKind::Symmetric(things) => things,
+            };
+            things.push(thing_id_new);
+        }
     }
 }

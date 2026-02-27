@@ -14,62 +14,12 @@ use disposition::{
 };
 
 use crate::components::editor::{
-    common::{parse_tag_id, parse_thing_id, rename_id_in_theme_styles},
+    common::{
+        id_rename_in_input_diagram, parse_tag_id, parse_thing_id, ADD_BTN, CARD_CLASS, INPUT_CLASS,
+        REMOVE_BTN, ROW_CLASS_SIMPLE, SECTION_HEADING,
+    },
     datalists::list_ids,
 };
-
-/// CSS classes shared by section headings.
-const SECTION_HEADING: &str = "text-sm font-bold text-gray-300 mt-4 mb-1";
-
-/// CSS classes for a card-like container.
-const CARD_CLASS: &str = "\
-    rounded-lg \
-    border \
-    border-gray-700 \
-    bg-gray-900 \
-    p-3 \
-    mb-2 \
-    flex \
-    flex-col \
-    gap-2\
-";
-
-/// CSS classes for text inputs.
-const INPUT_CLASS: &str = "\
-    flex-1 \
-    rounded \
-    border \
-    border-gray-600 \
-    bg-gray-800 \
-    text-gray-200 \
-    px-2 py-1 \
-    text-sm \
-    font-mono \
-    focus:border-blue-400 \
-    focus:outline-none\
-";
-
-/// CSS classes for the small "remove" button.
-const REMOVE_BTN: &str = "\
-    text-red-400 \
-    hover:text-red-300 \
-    text-xs \
-    cursor-pointer \
-    px-1\
-";
-
-/// CSS classes for the "add" button.
-const ADD_BTN: &str = "\
-    mt-1 \
-    text-sm \
-    text-blue-400 \
-    hover:text-blue-300 \
-    cursor-pointer \
-    select-none\
-";
-
-/// Row-level flex layout.
-const ROW_CLASS: &str = "flex flex-row gap-2 items-center";
 
 /// The **Tags** editor page.
 ///
@@ -84,7 +34,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let tag_entries: Vec<(String, String)> = diagram
         .tags
         .iter()
-        .map(|(id, name)| (id.as_str().to_owned(), name.clone()))
+        .map(|(tag_id, name)| (tag_id.as_str().to_owned(), name.clone()))
         .collect();
 
     // Snapshot tag -> things associations.
@@ -110,16 +60,16 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 "Map of TagId to display label."
             }
 
-            for (id, name) in tag_entries.iter() {
+            for (tag_id, tag_name) in tag_entries.iter() {
                 {
-                    let id = id.clone();
-                    let name = name.clone();
+                    let tag_id = tag_id.clone();
+                    let tag_name = tag_name.clone();
                     rsx! {
                         TagNameRow {
-                            key: "{id}",
+                            key: "{tag_id}",
                             input_diagram,
-                            tag_id: id,
-                            tag_name: name,
+                            tag_id,
+                            tag_name,
                         }
                     }
                 }
@@ -128,7 +78,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
             div {
                 class: ADD_BTN,
                 onclick: move |_| {
-                    add_tag(input_diagram);
+                    TagsPageOps::tag_add(input_diagram);
                 },
                 "+ Add tag"
             }
@@ -158,7 +108,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
             div {
                 class: ADD_BTN,
                 onclick: move |_| {
-                    add_tag_things_entry(input_diagram);
+                    TagsPageOps::tag_things_entry_add(input_diagram);
                 },
                 "+ Add tag → things mapping"
             }
@@ -166,9 +116,258 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tag name row
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// TagsPage mutation helpers
+// ===========================================================================
+
+/// Mutation operations for the Tags editor page.
+///
+/// Grouped here so that related functions are discoverable when sorted by
+/// name, per the project's `noun_verb` naming convention.
+struct TagsPageOps;
+
+impl TagsPageOps {
+    // ── Tag name helpers ─────────────────────────────────────────────
+
+    /// Adds a new tag with a unique placeholder TagId.
+    fn tag_add(mut input_diagram: Signal<InputDiagram<'static>>) {
+        let mut n = input_diagram.read().tags.len();
+        loop {
+            let candidate = format!("tag_{n}");
+            if let Some(tag_id) = parse_tag_id(&candidate) {
+                if !input_diagram.read().tags.contains_key(&tag_id) {
+                    input_diagram.write().tags.insert(tag_id, String::new());
+                    break;
+                }
+            }
+            n += 1;
+        }
+    }
+
+    /// Removes a tag from the `tags` map.
+    fn tag_remove(mut input_diagram: Signal<InputDiagram<'static>>, tag_id_str: &str) {
+        if let Some(tag_id) = parse_tag_id(tag_id_str) {
+            input_diagram.write().tags.swap_remove(&tag_id);
+        }
+    }
+
+    /// Renames a tag across all maps in the [`InputDiagram`].
+    fn tag_rename(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        tag_id_old_str: &str,
+        tag_id_new_str: &str,
+    ) {
+        if tag_id_old_str == tag_id_new_str {
+            return;
+        }
+        let tag_id_old = match parse_tag_id(tag_id_old_str) {
+            Some(tag_id) => tag_id,
+            None => return,
+        };
+        let tag_id_new = match parse_tag_id(tag_id_new_str) {
+            Some(tag_id) => tag_id,
+            None => return,
+        };
+
+        let mut input_diagram_ref = input_diagram.write();
+
+        // tags: rename TagId key.
+        if let Some(index) = input_diagram_ref.tags.get_index_of(&tag_id_old) {
+            let _result = input_diagram_ref
+                .tags
+                .replace_index(index, tag_id_new.clone());
+        }
+
+        // tag_things: rename TagId key.
+        if let Some(index) = input_diagram_ref.tag_things.get_index_of(&tag_id_old) {
+            let _result = input_diagram_ref
+                .tag_things
+                .replace_index(index, tag_id_new.clone());
+        }
+
+        // theme_tag_things_focus: rename TagIdOrDefaults::Custom key.
+        let tag_key_old = TagIdOrDefaults::Custom(tag_id_old.clone());
+        if let Some(index) = input_diagram_ref
+            .theme_tag_things_focus
+            .get_index_of(&tag_key_old)
+        {
+            let tag_key_new = TagIdOrDefaults::Custom(tag_id_new.clone());
+            let _result = input_diagram_ref
+                .theme_tag_things_focus
+                .replace_index(index, tag_key_new);
+        }
+
+        // Shared rename across entity_descs, entity_tooltips, entity_types,
+        // and all theme style maps.
+        let id_old = tag_id_old.into_inner();
+        let id_new = tag_id_new.into_inner();
+        id_rename_in_input_diagram(&mut input_diagram_ref, &id_old, &id_new);
+    }
+
+    /// Updates the display name for an existing tag.
+    fn tag_name_update(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        tag_id_str: &str,
+        name: &str,
+    ) {
+        if let Some(tag_id) = parse_tag_id(tag_id_str) {
+            if let Some(entry) = input_diagram.write().tags.get_mut(&tag_id) {
+                *entry = name.to_owned();
+            }
+        }
+    }
+
+    // ── Tag things helpers ───────────────────────────────────────────
+
+    /// Adds a new tag→things entry, picking an unmapped tag or generating a
+    /// placeholder.
+    fn tag_things_entry_add(mut input_diagram: Signal<InputDiagram<'static>>) {
+        let input_diagram_read = input_diagram.read();
+        let tag_id = input_diagram_read
+            .tags
+            .keys()
+            .find(|tag_id| !input_diagram_read.tag_things.contains_key(*tag_id))
+            .cloned();
+
+        match tag_id {
+            Some(tag_id) => {
+                drop(input_diagram_read);
+                input_diagram.write().tag_things.insert(tag_id, Set::new());
+            }
+            None => {
+                let mut n = input_diagram_read.tag_things.len();
+                loop {
+                    let candidate = format!("tag_{n}");
+                    if let Some(tag_id) = parse_tag_id(&candidate) {
+                        if !input_diagram_read.tag_things.contains_key(&tag_id) {
+                            drop(input_diagram_read);
+                            input_diagram.write().tag_things.insert(tag_id, Set::new());
+                            break;
+                        }
+                    }
+                    n += 1;
+                }
+            }
+        }
+    }
+
+    /// Removes a tag→things entry.
+    fn tag_things_entry_remove(mut input_diagram: Signal<InputDiagram<'static>>, tag_id_str: &str) {
+        if let Some(tag_id) = parse_tag_id(tag_id_str) {
+            input_diagram.write().tag_things.swap_remove(&tag_id);
+        }
+    }
+
+    /// Renames the key of a tag→things entry.
+    fn tag_things_entry_rename(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        tag_id_old_str: &str,
+        tag_id_new_str: &str,
+        current_things: &[String],
+    ) {
+        if tag_id_old_str == tag_id_new_str {
+            return;
+        }
+        let tag_id_old = match parse_tag_id(tag_id_old_str) {
+            Some(tag_id) => tag_id,
+            None => return,
+        };
+        let tag_id_new = match parse_tag_id(tag_id_new_str) {
+            Some(tag_id) => tag_id,
+            None => return,
+        };
+        let things: Set<ThingId<'static>> = current_things
+            .iter()
+            .filter_map(|s| parse_thing_id(s))
+            .collect();
+        let mut input_diagram = input_diagram.write();
+        input_diagram.tag_things.swap_remove(&tag_id_old);
+        input_diagram.tag_things.insert(tag_id_new, things);
+    }
+
+    /// Updates a single thing within a tag's thing set at the given index.
+    fn tag_things_thing_update(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        tag_id_str: &str,
+        idx: usize,
+        thing_id_new_str: &str,
+    ) {
+        let tag_id = match parse_tag_id(tag_id_str) {
+            Some(tag_id) => tag_id,
+            None => return,
+        };
+        let thing_id_new = match parse_thing_id(thing_id_new_str) {
+            Some(thing_id) => thing_id,
+            None => return,
+        };
+
+        let mut input_diagram = input_diagram.write();
+        if let Some(things) = input_diagram.tag_things.get_mut(&tag_id) {
+            // `Set` (IndexSet) does not support indexed mutation directly.
+            // Rebuild the set with the replacement at the given position.
+            let mut things_new = Set::with_capacity(things.len());
+            for (i, existing) in things.iter().enumerate() {
+                if i == idx {
+                    things_new.insert(thing_id_new.clone());
+                } else {
+                    things_new.insert(existing.clone());
+                }
+            }
+            *things = things_new;
+        }
+    }
+
+    /// Removes a thing from a tag's thing set by index.
+    fn tag_things_thing_remove(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        tag_id_str: &str,
+        idx: usize,
+    ) {
+        let tag_id = match parse_tag_id(tag_id_str) {
+            Some(tag_id) => tag_id,
+            None => return,
+        };
+
+        let mut input_diagram = input_diagram.write();
+        if let Some(things) = input_diagram.tag_things.get_mut(&tag_id) {
+            if idx < things.len() {
+                things.swap_remove_index(idx);
+            }
+        }
+    }
+
+    /// Adds a thing to a tag's thing set.
+    fn tag_things_thing_add(mut input_diagram: Signal<InputDiagram<'static>>, tag_id_str: &str) {
+        let tag_id = match parse_tag_id(tag_id_str) {
+            Some(tag_id) => tag_id,
+            None => return,
+        };
+
+        // Pick the first thing ID as a placeholder.
+        let placeholder = {
+            let input_diagram = input_diagram.read();
+            input_diagram
+                .things
+                .keys()
+                .next()
+                .map(|thing_id| thing_id.as_str().to_owned())
+                .unwrap_or_else(|| "thing_0".to_owned())
+        };
+        let thing_id_new = match parse_thing_id(&placeholder) {
+            Some(thing_id) => thing_id,
+            None => return,
+        };
+
+        let mut input_diagram = input_diagram.write();
+        if let Some(things) = input_diagram.tag_things.get_mut(&tag_id) {
+            things.insert(thing_id_new);
+        }
+    }
+}
+
+// ===========================================================================
+// Helper components
+// ===========================================================================
 
 /// A single editable row for a tag name (TagId -> display label).
 #[component]
@@ -179,7 +378,7 @@ fn TagNameRow(
 ) -> Element {
     rsx! {
         div {
-            class: ROW_CLASS,
+            class: ROW_CLASS_SIMPLE,
 
             // TagId input
             input {
@@ -189,10 +388,10 @@ fn TagNameRow(
                 placeholder: "tag_id",
                 value: "{tag_id}",
                 onchange: {
-                    let old_id = tag_id.clone();
+                    let tag_id_old = tag_id.clone();
                     move |evt: dioxus::events::FormEvent| {
-                        let new_id_str = evt.value();
-                        rename_tag(input_diagram, &old_id, &new_id_str);
+                        let tag_id_new = evt.value();
+                        TagsPageOps::tag_rename(input_diagram, &tag_id_old, &tag_id_new);
                     }
                 },
             }
@@ -203,10 +402,10 @@ fn TagNameRow(
                 placeholder: "Display name",
                 value: "{tag_name}",
                 oninput: {
-                    let id = tag_id.clone();
+                    let tag_id = tag_id.clone();
                     move |evt: dioxus::events::FormEvent| {
-                        let new_name = evt.value();
-                        update_tag_name(input_diagram, &id, &new_name);
+                        let name = evt.value();
+                        TagsPageOps::tag_name_update(input_diagram, &tag_id, &name);
                     }
                 },
             }
@@ -215,9 +414,9 @@ fn TagNameRow(
             span {
                 class: REMOVE_BTN,
                 onclick: {
-                    let id = tag_id.clone();
+                    let tag_id = tag_id.clone();
                     move |_| {
-                        remove_tag(input_diagram, &id);
+                        TagsPageOps::tag_remove(input_diagram, &tag_id);
                     }
                 },
                 "✕"
@@ -225,10 +424,6 @@ fn TagNameRow(
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Tag things card
-// ---------------------------------------------------------------------------
 
 /// A card for one tag's associated things.
 #[component]
@@ -243,7 +438,7 @@ fn TagThingsCard(
 
             // ── Header: TagId + Remove ───────────────────────────────
             div {
-                class: ROW_CLASS,
+                class: ROW_CLASS_SIMPLE,
 
                 label {
                     class: "text-xs text-gray-500 w-12",
@@ -257,10 +452,15 @@ fn TagThingsCard(
                     placeholder: "tag_id",
                     value: "{tag_id}",
                     onchange: {
-                        let old_id = tag_id.clone();
+                        let tag_id_old = tag_id.clone();
                         let current_things = things.clone();
                         move |evt: dioxus::events::FormEvent| {
-                            rename_tag_things_entry(input_diagram, &old_id, &evt.value(), &current_things);
+                            TagsPageOps::tag_things_entry_rename(
+                                input_diagram,
+                                &tag_id_old,
+                                &evt.value(),
+                                &current_things,
+                            );
                         }
                     },
                 }
@@ -268,9 +468,9 @@ fn TagThingsCard(
                 span {
                     class: REMOVE_BTN,
                     onclick: {
-                        let id = tag_id.clone();
+                        let tag_id = tag_id.clone();
                         move |_| {
-                            remove_tag_things_entry(input_diagram, &id);
+                            TagsPageOps::tag_things_entry_remove(input_diagram, &tag_id);
                         }
                     },
                     "✕ Remove"
@@ -284,11 +484,11 @@ fn TagThingsCard(
                 for (idx, thing_id) in things.iter().enumerate() {
                     {
                         let thing_id = thing_id.clone();
-                        let tid = tag_id.clone();
+                        let tag_id = tag_id.clone();
                         rsx! {
                             div {
-                                key: "{tid}_{idx}",
-                                class: ROW_CLASS,
+                                key: "{tag_id}_{idx}",
+                                class: ROW_CLASS_SIMPLE,
 
                                 span {
                                     class: "text-xs text-gray-500 w-6 text-right",
@@ -302,9 +502,14 @@ fn TagThingsCard(
                                     placeholder: "thing_id",
                                     value: "{thing_id}",
                                     onchange: {
-                                        let tid2 = tid.clone();
+                                        let tag_id = tag_id.clone();
                                         move |evt: dioxus::events::FormEvent| {
-                                            update_thing_in_tag(input_diagram, &tid2, idx, &evt.value());
+                                            TagsPageOps::tag_things_thing_update(
+                                                input_diagram,
+                                                &tag_id,
+                                                idx,
+                                                &evt.value(),
+                                            );
                                         }
                                     },
                                 }
@@ -312,9 +517,13 @@ fn TagThingsCard(
                                 span {
                                     class: REMOVE_BTN,
                                     onclick: {
-                                        let tid2 = tid.clone();
+                                        let tag_id = tag_id.clone();
                                         move |_| {
-                                            remove_thing_from_tag(input_diagram, &tid2, idx);
+                                            TagsPageOps::tag_things_thing_remove(
+                                                input_diagram,
+                                                &tag_id,
+                                                idx,
+                                            );
                                         }
                                     },
                                     "✕"
@@ -327,281 +536,14 @@ fn TagThingsCard(
                 div {
                     class: ADD_BTN,
                     onclick: {
-                        let tid = tag_id.clone();
+                        let tag_id = tag_id.clone();
                         move |_| {
-                            add_thing_to_tag(input_diagram, &tid);
+                            TagsPageOps::tag_things_thing_add(input_diagram, &tag_id);
                         }
                     },
                     "+ Add thing"
                 }
             }
         }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Mutation helpers: tag names
-// ---------------------------------------------------------------------------
-
-fn add_tag(mut diag: Signal<InputDiagram<'static>>) {
-    let mut n = diag.read().tags.len();
-    loop {
-        let candidate = format!("tag_{n}");
-        if let Some(tid) = parse_tag_id(&candidate) {
-            if !diag.read().tags.contains_key(&tid) {
-                diag.write().tags.insert(tid, String::new());
-                break;
-            }
-        }
-        n += 1;
-    }
-}
-
-fn remove_tag(mut diag: Signal<InputDiagram<'static>>, id: &str) {
-    if let Some(tid) = parse_tag_id(id) {
-        diag.write().tags.swap_remove(&tid);
-    }
-}
-
-fn rename_tag(mut diag: Signal<InputDiagram<'static>>, old_id: &str, new_id: &str) {
-    if old_id == new_id {
-        return;
-    }
-    let old = match parse_tag_id(old_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let new = match parse_tag_id(new_id) {
-        Some(id) => id,
-        None => return,
-    };
-
-    let mut input_diagram = diag.write();
-    let InputDiagram {
-        things: _,
-        thing_copy_text: _,
-        thing_hierarchy: _,
-        thing_dependencies: _,
-        thing_interactions: _,
-        processes: _,
-        tags,
-        tag_things,
-        entity_descs,
-        entity_tooltips,
-        entity_types,
-        theme_default,
-        theme_types_styles,
-        theme_thing_dependencies_styles,
-        theme_tag_things_focus,
-        css: _,
-    } = &mut *input_diagram;
-
-    // tags: rename TagId key.
-    if let Some(index) = tags.get_index_of(&old) {
-        let _result = tags.replace_index(index, new.clone());
-    }
-
-    // tag_things: rename TagId key.
-    if let Some(index) = tag_things.get_index_of(&old) {
-        let _result = tag_things.replace_index(index, new.clone());
-    }
-
-    // entity_descs / entity_tooltips / entity_types: keys are Id, which
-    // may refer to a TagId.
-    let id_old = old.clone().into_inner();
-    let id_new = new.clone().into_inner();
-    if let Some(index) = entity_descs.get_index_of(&id_old) {
-        let _result = entity_descs.replace_index(index, id_new.clone());
-    }
-    if let Some(index) = entity_tooltips.get_index_of(&id_old) {
-        let _result = entity_tooltips.replace_index(index, id_new.clone());
-    }
-    if let Some(index) = entity_types.get_index_of(&id_old) {
-        let _result = entity_types.replace_index(index, id_new.clone());
-    }
-
-    // theme_default: rename in base_styles and process_step_selected_styles.
-    rename_id_in_theme_styles(&mut theme_default.base_styles, &id_old, &id_new);
-    rename_id_in_theme_styles(
-        &mut theme_default.process_step_selected_styles,
-        &id_old,
-        &id_new,
-    );
-
-    // theme_types_styles: rename in each ThemeStyles value.
-    theme_types_styles.values_mut().for_each(|theme_styles| {
-        rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
-    });
-
-    // theme_thing_dependencies_styles: rename in both ThemeStyles fields.
-    rename_id_in_theme_styles(
-        &mut theme_thing_dependencies_styles.things_included_styles,
-        &id_old,
-        &id_new,
-    );
-    rename_id_in_theme_styles(
-        &mut theme_thing_dependencies_styles.things_excluded_styles,
-        &id_old,
-        &id_new,
-    );
-
-    // theme_tag_things_focus: rename TagIdOrDefaults::Custom key and
-    // rename in each ThemeStyles value.
-    let tag_key_old = TagIdOrDefaults::Custom(old.clone());
-    if let Some(index) = theme_tag_things_focus.get_index_of(&tag_key_old) {
-        let tag_key_new = TagIdOrDefaults::Custom(new.clone());
-        let _result = theme_tag_things_focus.replace_index(index, tag_key_new);
-    }
-    theme_tag_things_focus
-        .values_mut()
-        .for_each(|theme_styles| {
-            rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
-        });
-}
-
-fn update_tag_name(mut diag: Signal<InputDiagram<'static>>, id: &str, name: &str) {
-    if let Some(tid) = parse_tag_id(id) {
-        if let Some(entry) = diag.write().tags.get_mut(&tid) {
-            *entry = name.to_owned();
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Mutation helpers: tag things
-// ---------------------------------------------------------------------------
-
-fn add_tag_things_entry(mut diag: Signal<InputDiagram<'static>>) {
-    // Pick a tag that doesn't already have an entry, or generate a placeholder.
-    let d = diag.read();
-    let tag_id = d
-        .tags
-        .keys()
-        .find(|tid| !d.tag_things.contains_key(*tid))
-        .cloned();
-
-    match tag_id {
-        Some(tid) => {
-            drop(d);
-            diag.write().tag_things.insert(tid, Set::new());
-        }
-        None => {
-            let mut n = d.tag_things.len();
-            loop {
-                let candidate = format!("tag_{n}");
-                if let Some(tid) = parse_tag_id(&candidate) {
-                    if !d.tag_things.contains_key(&tid) {
-                        drop(d);
-                        diag.write().tag_things.insert(tid, Set::new());
-                        break;
-                    }
-                }
-                n += 1;
-            }
-        }
-    }
-}
-
-fn remove_tag_things_entry(mut diag: Signal<InputDiagram<'static>>, tag_id: &str) {
-    if let Some(tid) = parse_tag_id(tag_id) {
-        diag.write().tag_things.swap_remove(&tid);
-    }
-}
-
-fn rename_tag_things_entry(
-    mut diag: Signal<InputDiagram<'static>>,
-    old_id: &str,
-    new_id: &str,
-    current_things: &[String],
-) {
-    if old_id == new_id {
-        return;
-    }
-    let old = match parse_tag_id(old_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let new = match parse_tag_id(new_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let things: Set<ThingId<'static>> = current_things
-        .iter()
-        .filter_map(|s| parse_thing_id(s))
-        .collect();
-    let mut d = diag.write();
-    d.tag_things.swap_remove(&old);
-    d.tag_things.insert(new, things);
-}
-
-fn update_thing_in_tag(
-    mut diag: Signal<InputDiagram<'static>>,
-    tag_id: &str,
-    idx: usize,
-    new_thing_str: &str,
-) {
-    let tid = match parse_tag_id(tag_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let new_thing = match parse_thing_id(new_thing_str) {
-        Some(t) => t,
-        None => return,
-    };
-
-    let mut d = diag.write();
-    if let Some(things) = d.tag_things.get_mut(&tid) {
-        // `Set` (IndexSet) does not support indexed mutation directly.
-        // Rebuild the set with the replacement at the given position.
-        let mut new_set = Set::with_capacity(things.len());
-        for (i, existing) in things.iter().enumerate() {
-            if i == idx {
-                new_set.insert(new_thing.clone());
-            } else {
-                new_set.insert(existing.clone());
-            }
-        }
-        *things = new_set;
-    }
-}
-
-fn remove_thing_from_tag(mut diag: Signal<InputDiagram<'static>>, tag_id: &str, idx: usize) {
-    let tid = match parse_tag_id(tag_id) {
-        Some(id) => id,
-        None => return,
-    };
-
-    let mut d = diag.write();
-    if let Some(things) = d.tag_things.get_mut(&tid) {
-        // IndexSet supports `swap_remove_index`.
-        if idx < things.len() {
-            things.swap_remove_index(idx);
-        }
-    }
-}
-
-fn add_thing_to_tag(mut diag: Signal<InputDiagram<'static>>, tag_id: &str) {
-    let tid = match parse_tag_id(tag_id) {
-        Some(id) => id,
-        None => return,
-    };
-
-    // Pick the first thing ID as a placeholder.
-    let placeholder = {
-        let d = diag.read();
-        d.things
-            .keys()
-            .next()
-            .map(|t| t.as_str().to_owned())
-            .unwrap_or_else(|| "thing_0".to_owned())
-    };
-    let new_thing = match parse_thing_id(&placeholder) {
-        Some(t) => t,
-        None => return,
-    };
-
-    let mut d = diag.write();
-    if let Some(things) = d.tag_things.get_mut(&tid) {
-        things.insert(new_thing);
     }
 }

@@ -16,27 +16,7 @@ use dioxus::{
 };
 use disposition::input_model::InputDiagram;
 
-/// CSS classes shared by section headings.
-const SECTION_HEADING: &str = "text-sm font-bold text-gray-300 mt-4 mb-1";
-
-/// CSS classes for textareas.
-const TEXTAREA_CLASS: &str = "\
-    w-full \
-    min-h-24 \
-    rounded \
-    border \
-    border-gray-600 \
-    bg-gray-800 \
-    text-gray-200 \
-    p-2 \
-    font-mono \
-    text-sm \
-    focus:border-blue-400 \
-    focus:outline-none\
-";
-
-/// Helper label classes.
-const LABEL_CLASS: &str = "text-xs text-gray-500 mb-1";
+use crate::components::editor::common::{LABEL_CLASS, SECTION_HEADING, TEXTAREA_CLASS};
 
 // ===========================================================================
 // Style Aliases sub-page
@@ -52,8 +32,8 @@ const LABEL_CLASS: &str = "text-xs text-gray-500 mb-1";
 #[component]
 pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let yaml = {
-        let d = input_diagram.read();
-        serde_saphyr::to_string(&d.theme_default.style_aliases)
+        let input_diagram = input_diagram.read();
+        serde_saphyr::to_string(&input_diagram.theme_default.style_aliases)
             .unwrap_or_default()
             .trim()
             .to_owned()
@@ -98,8 +78,8 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
 #[component]
 pub fn ThemeBaseStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let yaml = {
-        let d = input_diagram.read();
-        serde_saphyr::to_string(&d.theme_default.base_styles)
+        let input_diagram = input_diagram.read();
+        serde_saphyr::to_string(&input_diagram.theme_default.base_styles)
             .unwrap_or_default()
             .trim()
             .to_owned()
@@ -141,8 +121,8 @@ pub fn ThemeBaseStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Elem
 #[component]
 pub fn ThemeProcessStepStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let yaml = {
-        let d = input_diagram.read();
-        serde_saphyr::to_string(&d.theme_default.process_step_selected_styles)
+        let input_diagram = input_diagram.read();
+        serde_saphyr::to_string(&input_diagram.theme_default.process_step_selected_styles)
             .unwrap_or_default()
             .trim()
             .to_owned()
@@ -183,8 +163,8 @@ pub fn ThemeProcessStepStylesPage(input_diagram: Signal<InputDiagram<'static>>) 
 #[component]
 pub fn ThemeTypesStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let yaml = {
-        let d = input_diagram.read();
-        serde_saphyr::to_string(&d.theme_types_styles)
+        let input_diagram = input_diagram.read();
+        serde_saphyr::to_string(&input_diagram.theme_types_styles)
             .unwrap_or_default()
             .trim()
             .to_owned()
@@ -227,8 +207,8 @@ pub fn ThemeTypesStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
 #[component]
 pub fn ThemeDependenciesStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let yaml = {
-        let d = input_diagram.read();
-        serde_saphyr::to_string(&d.theme_thing_dependencies_styles)
+        let input_diagram = input_diagram.read();
+        serde_saphyr::to_string(&input_diagram.theme_thing_dependencies_styles)
             .unwrap_or_default()
             .trim()
             .to_owned()
@@ -272,8 +252,8 @@ pub fn ThemeDependenciesStylesPage(input_diagram: Signal<InputDiagram<'static>>)
 #[component]
 pub fn ThemeTagsFocusPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let yaml = {
-        let d = input_diagram.read();
-        serde_saphyr::to_string(&d.theme_tag_things_focus)
+        let input_diagram = input_diagram.read();
+        serde_saphyr::to_string(&input_diagram.theme_tag_things_focus)
             .unwrap_or_default()
             .trim()
             .to_owned()
@@ -311,8 +291,8 @@ pub fn ThemeTagsFocusPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
 
             {
                 let css_yaml = {
-                    let d2 = input_diagram.read();
-                    serde_saphyr::to_string(&d2.css)
+                    let input_diagram = input_diagram.read();
+                    serde_saphyr::to_string(&input_diagram.css)
                         .unwrap_or_default()
                         .trim()
                         .to_owned()

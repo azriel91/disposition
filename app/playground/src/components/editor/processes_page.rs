@@ -19,75 +19,12 @@ use disposition::{
 
 use crate::components::editor::{
     common::{
-        parse_edge_group_id, parse_process_id, parse_process_step_id, rename_id_in_theme_styles,
+        id_rename_in_input_diagram, parse_edge_group_id, parse_process_id, parse_process_step_id,
+        ADD_BTN, CARD_CLASS, INNER_CARD_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE,
+        SECTION_HEADING, TEXTAREA_CLASS,
     },
     datalists::list_ids,
 };
-
-/// CSS classes shared by section headings.
-const SECTION_HEADING: &str = "text-sm font-bold text-gray-300 mt-4 mb-1";
-
-/// CSS classes for a card-like container for each process.
-const CARD_CLASS: &str = "\
-    rounded-lg \
-    border \
-    border-gray-700 \
-    bg-gray-900 \
-    p-3 \
-    mb-2 \
-    flex \
-    flex-col \
-    gap-2\
-";
-
-/// CSS classes for a nested card (steps within a process).
-const INNER_CARD_CLASS: &str = "\
-    rounded \
-    border \
-    border-gray-700 \
-    bg-gray-850 \
-    p-2 \
-    flex \
-    flex-col \
-    gap-1\
-";
-
-/// CSS classes for text inputs.
-const INPUT_CLASS: &str = "\
-    flex-1 \
-    rounded \
-    border \
-    border-gray-600 \
-    bg-gray-800 \
-    text-gray-200 \
-    px-2 py-1 \
-    text-sm \
-    font-mono \
-    focus:border-blue-400 \
-    focus:outline-none\
-";
-
-/// CSS classes for the small "remove" button.
-const REMOVE_BTN: &str = "\
-    text-red-400 \
-    hover:text-red-300 \
-    text-xs \
-    cursor-pointer \
-    px-1\
-";
-
-/// CSS classes for the "add" button.
-const ADD_BTN: &str = "\
-    mt-1 \
-    text-sm \
-    text-blue-400 \
-    hover:text-blue-300 \
-    cursor-pointer \
-    select-none\
-";
-
-/// Row-level flex layout.
-const ROW_CLASS: &str = "flex flex-row gap-2 items-center";
 
 /// Snapshot of a single process for rendering.
 #[derive(Clone, PartialEq)]
@@ -107,27 +44,29 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let entries: Vec<ProcessEntry> = diagram
         .processes
         .iter()
-        .map(|(pid, proc)| {
-            let steps: Vec<(String, String)> = proc
+        .map(|(process_id, process_diagram)| {
+            let steps: Vec<(String, String)> = process_diagram
                 .steps
                 .iter()
-                .map(|(sid, label)| (sid.as_str().to_owned(), label.clone()))
+                .map(|(step_id, label)| (step_id.as_str().to_owned(), label.clone()))
                 .collect();
 
-            let step_interactions: Vec<(String, Vec<String>)> = proc
+            let step_interactions: Vec<(String, Vec<String>)> = process_diagram
                 .step_thing_interactions
                 .iter()
-                .map(|(sid, edge_ids)| {
-                    let eids: Vec<String> =
-                        edge_ids.iter().map(|e| e.as_str().to_owned()).collect();
-                    (sid.as_str().to_owned(), eids)
+                .map(|(step_id, edge_group_ids)| {
+                    let edge_ids: Vec<String> = edge_group_ids
+                        .iter()
+                        .map(|edge_group_id| edge_group_id.as_str().to_owned())
+                        .collect();
+                    (step_id.as_str().to_owned(), edge_ids)
                 })
                 .collect();
 
             ProcessEntry {
-                process_id: pid.as_str().to_owned(),
-                name: proc.name.clone().unwrap_or_default(),
-                desc: proc.desc.clone().unwrap_or_default(),
+                process_id: process_id.as_str().to_owned(),
+                name: process_diagram.name.clone().unwrap_or_default(),
+                desc: process_diagram.desc.clone().unwrap_or_default(),
                 steps,
                 step_interactions,
             }
@@ -162,7 +101,7 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
             div {
                 class: ADD_BTN,
                 onclick: move |_| {
-                    add_process(input_diagram);
+                    ProcessesPageOps::process_add(input_diagram);
                 },
                 "+ Add process"
             }
@@ -170,13 +109,118 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     }
 }
 
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// ProcessesPage mutation helpers
+// ===========================================================================
+
+/// Mutation operations for the Processes editor page.
+///
+/// Grouped here so that related functions are discoverable when sorted by
+/// name, per the project's `noun_verb` naming convention.
+struct ProcessesPageOps;
+
+impl ProcessesPageOps {
+    /// Adds a new process with a unique placeholder ProcessId.
+    fn process_add(mut input_diagram: Signal<InputDiagram<'static>>) {
+        let mut n = input_diagram.read().processes.len();
+        loop {
+            let candidate = format!("proc_{n}");
+            if let Some(process_id) = parse_process_id(&candidate) {
+                if !input_diagram.read().processes.contains_key(&process_id) {
+                    input_diagram
+                        .write()
+                        .processes
+                        .insert(process_id, ProcessDiagram::default());
+                    break;
+                }
+            }
+            n += 1;
+        }
+    }
+
+    /// Removes a process from the `processes` map.
+    fn process_remove(mut input_diagram: Signal<InputDiagram<'static>>, process_id_str: &str) {
+        if let Some(process_id) = parse_process_id(process_id_str) {
+            input_diagram.write().processes.swap_remove(&process_id);
+        }
+    }
+
+    /// Renames a process across all maps in the [`InputDiagram`].
+    fn process_rename(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        process_id_old_str: &str,
+        process_id_new_str: &str,
+    ) {
+        if process_id_old_str == process_id_new_str {
+            return;
+        }
+        let process_id_old = match parse_process_id(process_id_old_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        let process_id_new = match parse_process_id(process_id_new_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+
+        let mut input_diagram_ref = input_diagram.write();
+
+        // processes: rename ProcessId key.
+        if let Some(index) = input_diagram_ref.processes.get_index_of(&process_id_old) {
+            let _result = input_diagram_ref
+                .processes
+                .replace_index(index, process_id_new.clone());
+        }
+
+        // Shared rename across entity_descs, entity_tooltips, entity_types,
+        // and all theme style maps.
+        let id_old = process_id_old.into_inner();
+        let id_new = process_id_new.into_inner();
+        id_rename_in_input_diagram(&mut input_diagram_ref, &id_old, &id_new);
+    }
+
+    /// Updates the display name for an existing process.
+    fn process_name_update(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        process_id_str: &str,
+        name: &str,
+    ) {
+        if let Some(process_id) = parse_process_id(process_id_str) {
+            if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
+                process_diagram.name = if name.is_empty() {
+                    None
+                } else {
+                    Some(name.to_owned())
+                };
+            }
+        }
+    }
+
+    /// Updates the description for an existing process.
+    fn process_desc_update(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        process_id_str: &str,
+        desc: &str,
+    ) {
+        if let Some(process_id) = parse_process_id(process_id_str) {
+            if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
+                process_diagram.desc = if desc.is_empty() {
+                    None
+                } else {
+                    Some(desc.to_owned())
+                };
+            }
+        }
+    }
+}
+
+// ===========================================================================
 // Process card component
-// ---------------------------------------------------------------------------
+// ===========================================================================
 
 #[component]
 fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry) -> Element {
-    let pid_str = entry.process_id.clone();
+    let process_id = entry.process_id.clone();
 
     rsx! {
         div {
@@ -184,7 +228,7 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
 
             // ── Header: Process ID + Remove ──────────────────────────
             div {
-                class: ROW_CLASS,
+                class: ROW_CLASS_SIMPLE,
 
                 label {
                     class: "text-xs text-gray-500 w-20",
@@ -195,11 +239,11 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                     style: "max-width:16rem",
                     list: list_ids::PROCESS_IDS,
                     placeholder: "process_id",
-                    value: "{pid_str}",
+                    value: "{process_id}",
                     onchange: {
-                        let old_id = pid_str.clone();
+                        let process_id_old = process_id.clone();
                         move |evt: dioxus::events::FormEvent| {
-                            rename_process(input_diagram, &old_id, &evt.value());
+                            ProcessesPageOps::process_rename(input_diagram, &process_id_old, &evt.value());
                         }
                     },
                 }
@@ -207,9 +251,9 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                 span {
                     class: REMOVE_BTN,
                     onclick: {
-                        let id = pid_str.clone();
+                        let process_id = process_id.clone();
                         move |_| {
-                            remove_process(input_diagram, &id);
+                            ProcessesPageOps::process_remove(input_diagram, &process_id);
                         }
                     },
                     "✕ Remove"
@@ -218,7 +262,7 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
 
             // ── Name ─────────────────────────────────────────────────
             div {
-                class: ROW_CLASS,
+                class: ROW_CLASS_SIMPLE,
 
                 label {
                     class: "text-xs text-gray-500 w-20",
@@ -229,9 +273,9 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                     placeholder: "Display name",
                     value: "{entry.name}",
                     oninput: {
-                        let id = pid_str.clone();
+                        let process_id = process_id.clone();
                         move |evt: dioxus::events::FormEvent| {
-                            update_process_name(input_diagram, &id, &evt.value());
+                            ProcessesPageOps::process_name_update(input_diagram, &process_id, &evt.value());
                         }
                     },
                 }
@@ -239,33 +283,20 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
 
             // ── Description ──────────────────────────────────────────
             div {
-                class: ROW_CLASS,
+                class: ROW_CLASS_SIMPLE,
 
                 label {
                     class: "text-xs text-gray-500 w-20",
                     "Description"
                 }
                 textarea {
-                    class: "\
-                        flex-1 \
-                        rounded \
-                        border \
-                        border-gray-600 \
-                        bg-gray-800 \
-                        text-gray-200 \
-                        px-2 py-1 \
-                        text-sm \
-                        font-mono \
-                        min-h-12 \
-                        focus:border-blue-400 \
-                        focus:outline-none\
-                    ",
+                    class: TEXTAREA_CLASS,
                     placeholder: "Process description (markdown)",
                     value: "{entry.desc}",
                     oninput: {
-                        let id = pid_str.clone();
+                        let process_id = process_id.clone();
                         move |evt: dioxus::events::FormEvent| {
-                            update_process_desc(input_diagram, &id, &evt.value());
+                            ProcessesPageOps::process_desc_update(input_diagram, &process_id, &evt.value());
                         }
                     },
                 }
@@ -284,11 +315,11 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                     {
                         let step_id = step_id.clone();
                         let step_label = step_label.clone();
-                        let pid = pid_str.clone();
+                        let process_id = process_id.clone();
                         rsx! {
                             div {
-                                key: "{pid}_{step_id}",
-                                class: ROW_CLASS,
+                                key: "{process_id}_{step_id}",
+                                class: ROW_CLASS_SIMPLE,
 
                                 input {
                                     class: INPUT_CLASS,
@@ -297,10 +328,10 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                                     placeholder: "step_id",
                                     value: "{step_id}",
                                     onchange: {
-                                        let pid_clone = pid.clone();
-                                        let old_sid = step_id.clone();
+                                        let process_id = process_id.clone();
+                                        let step_id_old = step_id.clone();
                                         move |evt: dioxus::events::FormEvent| {
-                                            rename_step(input_diagram, &pid_clone, &old_sid, &evt.value());
+                                            ProcessCardOps::step_rename(input_diagram, &process_id, &step_id_old, &evt.value());
                                         }
                                     },
                                 }
@@ -310,10 +341,10 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                                     placeholder: "Step label",
                                     value: "{step_label}",
                                     oninput: {
-                                        let pid_clone = pid.clone();
-                                        let sid = step_id.clone();
+                                        let process_id = process_id.clone();
+                                        let step_id = step_id.clone();
                                         move |evt: dioxus::events::FormEvent| {
-                                            update_step_label(input_diagram, &pid_clone, &sid, &evt.value());
+                                            ProcessCardOps::step_label_update(input_diagram, &process_id, &step_id, &evt.value());
                                         }
                                     },
                                 }
@@ -321,10 +352,10 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                                 span {
                                     class: REMOVE_BTN,
                                     onclick: {
-                                        let pid_clone = pid.clone();
-                                        let sid = step_id.clone();
+                                        let process_id = process_id.clone();
+                                        let step_id = step_id.clone();
                                         move |_| {
-                                            remove_step(input_diagram, &pid_clone, &sid);
+                                            ProcessCardOps::step_remove(input_diagram, &process_id, &step_id);
                                         }
                                     },
                                     "✕"
@@ -337,9 +368,9 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                 div {
                     class: ADD_BTN,
                     onclick: {
-                        let pid = pid_str.clone();
+                        let process_id = process_id.clone();
                         move |_| {
-                            add_step(input_diagram, &pid);
+                            ProcessCardOps::step_add(input_diagram, &process_id);
                         }
                     },
                     "+ Add step"
@@ -359,12 +390,12 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                     {
                         let step_id = step_id.clone();
                         let edge_ids = edge_ids.clone();
-                        let pid = pid_str.clone();
+                        let process_id = process_id.clone();
                         rsx! {
                             StepInteractionCard {
-                                key: "{pid}_sti_{step_id}",
+                                key: "{process_id}_sti_{step_id}",
                                 input_diagram,
-                                process_id: pid,
+                                process_id,
                                 step_id,
                                 edge_ids,
                             }
@@ -375,9 +406,9 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                 div {
                     class: ADD_BTN,
                     onclick: {
-                        let pid = pid_str.clone();
+                        let process_id = process_id.clone();
                         move |_| {
-                            add_step_interaction(input_diagram, &pid);
+                            ProcessCardOps::step_interaction_add(input_diagram, &process_id);
                         }
                     },
                     "+ Add step interaction mapping"
@@ -387,9 +418,213 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
     }
 }
 
-// ---------------------------------------------------------------------------
-// Step interaction card
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// ProcessCard mutation helpers
+// ===========================================================================
+
+/// Mutation operations for the process card component.
+///
+/// Grouped here so that related functions are discoverable when sorted by
+/// name, per the project's `noun_verb` naming convention.
+struct ProcessCardOps;
+
+impl ProcessCardOps {
+    // ── Step helpers ─────────────────────────────────────────────────
+
+    /// Adds a new step to a process with a unique placeholder step ID.
+    fn step_add(mut input_diagram: Signal<InputDiagram<'static>>, process_id_str: &str) {
+        let process_id = match parse_process_id(process_id_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        let input_diagram_read = input_diagram.read();
+        let process_diagram = match input_diagram_read.processes.get(&process_id) {
+            Some(process_diagram) => process_diagram,
+            None => return,
+        };
+        let mut n = process_diagram.steps.len();
+        loop {
+            let candidate = format!("{process_id_str}_step_{n}");
+            if let Some(step_id) = parse_process_step_id(&candidate) {
+                if !process_diagram.steps.contains_key(&step_id) {
+                    drop(input_diagram_read);
+                    if let Some(process_diagram) =
+                        input_diagram.write().processes.get_mut(&process_id)
+                    {
+                        process_diagram.steps.insert(step_id, String::new());
+                    }
+                    break;
+                }
+            }
+            n += 1;
+        }
+    }
+
+    /// Removes a step from a process.
+    fn step_remove(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        process_id_str: &str,
+        step_id_str: &str,
+    ) {
+        let process_id = match parse_process_id(process_id_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        let step_id = match parse_process_step_id(step_id_str) {
+            Some(step_id) => step_id,
+            None => return,
+        };
+        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
+            process_diagram.steps.swap_remove(&step_id);
+        }
+    }
+
+    /// Renames a step across all processes and shared maps in the
+    /// [`InputDiagram`].
+    fn step_rename(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        process_id_str: &str,
+        step_id_old_str: &str,
+        step_id_new_str: &str,
+    ) {
+        if step_id_old_str == step_id_new_str {
+            return;
+        }
+        let _process_id = match parse_process_id(process_id_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        let step_id_old = match parse_process_step_id(step_id_old_str) {
+            Some(step_id) => step_id,
+            None => return,
+        };
+        let step_id_new = match parse_process_step_id(step_id_new_str) {
+            Some(step_id) => step_id,
+            None => return,
+        };
+
+        let mut input_diagram_ref = input_diagram.write();
+
+        // processes: rename ProcessStepId in steps and step_thing_interactions
+        // for all processes (the step ID may appear in any process).
+        input_diagram_ref
+            .processes
+            .values_mut()
+            .for_each(|process_diagram| {
+                if let Some(index) = process_diagram.steps.get_index_of(&step_id_old) {
+                    let _result = process_diagram
+                        .steps
+                        .replace_index(index, step_id_new.clone());
+                }
+
+                if let Some(index) = process_diagram
+                    .step_thing_interactions
+                    .get_index_of(&step_id_old)
+                {
+                    let _result = process_diagram
+                        .step_thing_interactions
+                        .replace_index(index, step_id_new.clone());
+                }
+            });
+
+        // Shared rename across entity_descs, entity_tooltips, entity_types,
+        // and all theme style maps.
+        let id_old = step_id_old.into_inner();
+        let id_new = step_id_new.into_inner();
+        id_rename_in_input_diagram(&mut input_diagram_ref, &id_old, &id_new);
+    }
+
+    /// Updates the label for an existing step.
+    fn step_label_update(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        process_id_str: &str,
+        step_id_str: &str,
+        label: &str,
+    ) {
+        let process_id = match parse_process_id(process_id_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        let step_id = match parse_process_step_id(step_id_str) {
+            Some(step_id) => step_id,
+            None => return,
+        };
+        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
+            if let Some(entry) = process_diagram.steps.get_mut(&step_id) {
+                *entry = label.to_owned();
+            }
+        }
+    }
+
+    // ── Step interaction helpers ─────────────────────────────────────
+
+    /// Adds a new step interaction mapping to a process.
+    fn step_interaction_add(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        process_id_str: &str,
+    ) {
+        let process_id = match parse_process_id(process_id_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        let input_diagram_read = input_diagram.read();
+        let process_diagram = match input_diagram_read.processes.get(&process_id) {
+            Some(process_diagram) => process_diagram,
+            None => return,
+        };
+
+        // Pick the first step that doesn't already have an interaction mapping,
+        // or fall back to a placeholder.
+        let step_id = process_diagram
+            .steps
+            .keys()
+            .find(|step_id| {
+                !process_diagram
+                    .step_thing_interactions
+                    .contains_key(*step_id)
+            })
+            .cloned();
+
+        let step_id = match step_id {
+            Some(step_id) => step_id,
+            None => {
+                // All steps already have mappings; generate a placeholder.
+                let mut n = process_diagram.step_thing_interactions.len();
+                loop {
+                    let candidate = format!("{process_id_str}_step_{n}");
+                    if let Some(step_id) = parse_process_step_id(&candidate) {
+                        if !process_diagram
+                            .step_thing_interactions
+                            .contains_key(&step_id)
+                        {
+                            drop(input_diagram_read);
+                            if let Some(process_diagram) =
+                                input_diagram.write().processes.get_mut(&process_id)
+                            {
+                                process_diagram
+                                    .step_thing_interactions
+                                    .insert(step_id, Vec::new());
+                            }
+                            return;
+                        }
+                    }
+                    n += 1;
+                }
+            }
+        };
+
+        drop(input_diagram_read);
+        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
+            process_diagram
+                .step_thing_interactions
+                .insert(step_id, Vec::new());
+        }
+    }
+}
+
+// ===========================================================================
+// Step interaction card component
+// ===========================================================================
 
 /// A card for one step's thing-interaction list.
 #[component]
@@ -405,7 +640,7 @@ fn StepInteractionCard(
 
             // Step ID + remove
             div {
-                class: ROW_CLASS,
+                class: ROW_CLASS_SIMPLE,
 
                 input {
                     class: INPUT_CLASS,
@@ -414,11 +649,17 @@ fn StepInteractionCard(
                     placeholder: "step_id",
                     value: "{step_id}",
                     onchange: {
-                        let pid = process_id.clone();
-                        let old_sid = step_id.clone();
-                        let eids = edge_ids.clone();
+                        let process_id = process_id.clone();
+                        let step_id_old = step_id.clone();
+                        let edge_ids = edge_ids.clone();
                         move |evt: dioxus::events::FormEvent| {
-                            rename_step_interaction(input_diagram, &pid, &old_sid, &evt.value(), &eids);
+                            StepInteractionCardOps::step_interaction_rename(
+                                input_diagram,
+                                &process_id,
+                                &step_id_old,
+                                &evt.value(),
+                                &edge_ids,
+                            );
                         }
                     },
                 }
@@ -426,10 +667,10 @@ fn StepInteractionCard(
                 span {
                     class: REMOVE_BTN,
                     onclick: {
-                        let pid = process_id.clone();
-                        let sid = step_id.clone();
+                        let process_id = process_id.clone();
+                        let step_id = step_id.clone();
                         move |_| {
-                            remove_step_interaction(input_diagram, &pid, &sid);
+                            StepInteractionCardOps::step_interaction_remove(input_diagram, &process_id, &step_id);
                         }
                     },
                     "✕"
@@ -440,15 +681,15 @@ fn StepInteractionCard(
             div {
                 class: "flex flex-col gap-1 pl-4",
 
-                for (idx, eid) in edge_ids.iter().enumerate() {
+                for (idx, edge_group_id) in edge_ids.iter().enumerate() {
                     {
-                        let eid = eid.clone();
-                        let pid = process_id.clone();
-                        let sid = step_id.clone();
+                        let edge_group_id = edge_group_id.clone();
+                        let process_id = process_id.clone();
+                        let step_id = step_id.clone();
                         rsx! {
                             div {
-                                key: "{pid}_{sid}_{idx}",
-                                class: ROW_CLASS,
+                                key: "{process_id}_{step_id}_{idx}",
+                                class: ROW_CLASS_SIMPLE,
 
                                 span {
                                     class: "text-xs text-gray-500 w-6 text-right",
@@ -460,13 +701,17 @@ fn StepInteractionCard(
                                     style: "max-width:14rem",
                                     list: list_ids::EDGE_GROUP_IDS,
                                     placeholder: "edge_group_id",
-                                    value: "{eid}",
+                                    value: "{edge_group_id}",
                                     onchange: {
-                                        let pid2 = pid.clone();
-                                        let sid2 = sid.clone();
+                                        let process_id = process_id.clone();
+                                        let step_id = step_id.clone();
                                         move |evt: dioxus::events::FormEvent| {
-                                            update_edge_in_step_interaction(
-                                                input_diagram, &pid2, &sid2, idx, &evt.value(),
+                                            StepInteractionCardOps::step_interaction_edge_update(
+                                                input_diagram,
+                                                &process_id,
+                                                &step_id,
+                                                idx,
+                                                &evt.value(),
                                             );
                                         }
                                     },
@@ -475,11 +720,14 @@ fn StepInteractionCard(
                                 span {
                                     class: REMOVE_BTN,
                                     onclick: {
-                                        let pid2 = pid.clone();
-                                        let sid2 = sid.clone();
+                                        let process_id = process_id.clone();
+                                        let step_id = step_id.clone();
                                         move |_| {
-                                            remove_edge_from_step_interaction(
-                                                input_diagram, &pid2, &sid2, idx,
+                                            StepInteractionCardOps::step_interaction_edge_remove(
+                                                input_diagram,
+                                                &process_id,
+                                                &step_id,
+                                                idx,
                                             );
                                         }
                                     },
@@ -493,10 +741,10 @@ fn StepInteractionCard(
                 div {
                     class: ADD_BTN,
                     onclick: {
-                        let pid = process_id.clone();
-                        let sid = step_id.clone();
+                        let process_id = process_id.clone();
+                        let step_id = step_id.clone();
                         move |_| {
-                            add_edge_to_step_interaction(input_diagram, &pid, &sid);
+                            StepInteractionCardOps::step_interaction_edge_add(input_diagram, &process_id, &step_id);
                         }
                     },
                     "+ Add edge group"
@@ -506,493 +754,167 @@ fn StepInteractionCard(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Mutation helpers: processes
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// StepInteractionCard mutation helpers
+// ===========================================================================
 
-fn add_process(mut diag: Signal<InputDiagram<'static>>) {
-    let mut n = diag.read().processes.len();
-    loop {
-        let candidate = format!("proc_{n}");
-        if let Some(pid) = parse_process_id(&candidate) {
-            if !diag.read().processes.contains_key(&pid) {
-                diag.write()
-                    .processes
-                    .insert(pid, ProcessDiagram::default());
-                break;
-            }
-        }
-        n += 1;
-    }
-}
+/// Mutation operations for the step interaction card component.
+///
+/// Grouped here so that related functions are discoverable when sorted by
+/// name, per the project's `noun_verb` naming convention.
+struct StepInteractionCardOps;
 
-fn remove_process(mut diag: Signal<InputDiagram<'static>>, id: &str) {
-    if let Some(pid) = parse_process_id(id) {
-        diag.write().processes.swap_remove(&pid);
-    }
-}
-
-fn rename_process(mut diag: Signal<InputDiagram<'static>>, old_id: &str, new_id: &str) {
-    if old_id == new_id {
-        return;
-    }
-    let old = match parse_process_id(old_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let new = match parse_process_id(new_id) {
-        Some(id) => id,
-        None => return,
-    };
-
-    let mut input_diagram = diag.write();
-    let InputDiagram {
-        things: _,
-        thing_copy_text: _,
-        thing_hierarchy: _,
-        thing_dependencies: _,
-        thing_interactions: _,
-        processes,
-        tags: _,
-        tag_things: _,
-        entity_descs,
-        entity_tooltips,
-        entity_types,
-        theme_default,
-        theme_types_styles,
-        theme_thing_dependencies_styles,
-        theme_tag_things_focus,
-        css: _,
-    } = &mut *input_diagram;
-
-    // processes: rename ProcessId key.
-    if let Some(index) = processes.get_index_of(&old) {
-        let _result = processes.replace_index(index, new.clone());
-    }
-
-    // entity_descs / entity_tooltips / entity_types: keys are Id, which
-    // may refer to a ProcessId.
-    let id_old = old.clone().into_inner();
-    let id_new = new.clone().into_inner();
-    if let Some(index) = entity_descs.get_index_of(&id_old) {
-        let _result = entity_descs.replace_index(index, id_new.clone());
-    }
-    if let Some(index) = entity_tooltips.get_index_of(&id_old) {
-        let _result = entity_tooltips.replace_index(index, id_new.clone());
-    }
-    if let Some(index) = entity_types.get_index_of(&id_old) {
-        let _result = entity_types.replace_index(index, id_new.clone());
-    }
-
-    // theme_default: rename in base_styles and process_step_selected_styles.
-    rename_id_in_theme_styles(&mut theme_default.base_styles, &id_old, &id_new);
-    rename_id_in_theme_styles(
-        &mut theme_default.process_step_selected_styles,
-        &id_old,
-        &id_new,
-    );
-
-    // theme_types_styles: rename in each ThemeStyles value.
-    theme_types_styles.values_mut().for_each(|theme_styles| {
-        rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
-    });
-
-    // theme_thing_dependencies_styles: rename in both ThemeStyles fields.
-    rename_id_in_theme_styles(
-        &mut theme_thing_dependencies_styles.things_included_styles,
-        &id_old,
-        &id_new,
-    );
-    rename_id_in_theme_styles(
-        &mut theme_thing_dependencies_styles.things_excluded_styles,
-        &id_old,
-        &id_new,
-    );
-
-    // theme_tag_things_focus: rename in each ThemeStyles value.
-    theme_tag_things_focus
-        .values_mut()
-        .for_each(|theme_styles| {
-            rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
-        });
-}
-
-fn update_process_name(mut diag: Signal<InputDiagram<'static>>, id: &str, name: &str) {
-    if let Some(pid) = parse_process_id(id) {
-        if let Some(proc) = diag.write().processes.get_mut(&pid) {
-            proc.name = if name.is_empty() {
-                None
-            } else {
-                Some(name.to_owned())
-            };
-        }
-    }
-}
-
-fn update_process_desc(mut diag: Signal<InputDiagram<'static>>, id: &str, desc: &str) {
-    if let Some(pid) = parse_process_id(id) {
-        if let Some(proc) = diag.write().processes.get_mut(&pid) {
-            proc.desc = if desc.is_empty() {
-                None
-            } else {
-                Some(desc.to_owned())
-            };
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Mutation helpers: steps
-// ---------------------------------------------------------------------------
-
-fn add_step(mut diag: Signal<InputDiagram<'static>>, process_id: &str) {
-    let pid = match parse_process_id(process_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let d = diag.read();
-    let proc = match d.processes.get(&pid) {
-        Some(p) => p,
-        None => return,
-    };
-    let mut n = proc.steps.len();
-    loop {
-        let candidate = format!("{process_id}_step_{n}");
-        if let Some(sid) = parse_process_step_id(&candidate) {
-            if !proc.steps.contains_key(&sid) {
-                drop(d);
-                if let Some(proc) = diag.write().processes.get_mut(&pid) {
-                    proc.steps.insert(sid, String::new());
-                }
-                break;
-            }
-        }
-        n += 1;
-    }
-}
-
-fn remove_step(mut diag: Signal<InputDiagram<'static>>, process_id: &str, step_id: &str) {
-    let pid = match parse_process_id(process_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let sid = match parse_process_step_id(step_id) {
-        Some(id) => id,
-        None => return,
-    };
-    if let Some(proc) = diag.write().processes.get_mut(&pid) {
-        proc.steps.swap_remove(&sid);
-    }
-}
-
-fn rename_step(
-    mut diag: Signal<InputDiagram<'static>>,
-    process_id: &str,
-    old_step_id: &str,
-    new_step_id: &str,
-) {
-    if old_step_id == new_step_id {
-        return;
-    }
-    let _pid = match parse_process_id(process_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let old = match parse_process_step_id(old_step_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let new = match parse_process_step_id(new_step_id) {
-        Some(id) => id,
-        None => return,
-    };
-
-    let mut input_diagram = diag.write();
-    let InputDiagram {
-        things: _,
-        thing_copy_text: _,
-        thing_hierarchy: _,
-        thing_dependencies: _,
-        thing_interactions: _,
-        processes,
-        tags: _,
-        tag_things: _,
-        entity_descs,
-        entity_tooltips,
-        entity_types,
-        theme_default,
-        theme_types_styles,
-        theme_thing_dependencies_styles,
-        theme_tag_things_focus,
-        css: _,
-    } = &mut *input_diagram;
-
-    // processes: rename ProcessStepId in steps and step_thing_interactions
-    // for all processes (the step ID may appear in any process).
-    processes.values_mut().for_each(|proc_diagram| {
-        // steps: rename ProcessStepId key.
-        if let Some(index) = proc_diagram.steps.get_index_of(&old) {
-            let _result = proc_diagram.steps.replace_index(index, new.clone());
-        }
-
-        // step_thing_interactions: rename ProcessStepId key.
-        if let Some(index) = proc_diagram.step_thing_interactions.get_index_of(&old) {
-            let _result = proc_diagram
+impl StepInteractionCardOps {
+    /// Removes a step interaction mapping from a process.
+    fn step_interaction_remove(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        process_id_str: &str,
+        step_id_str: &str,
+    ) {
+        let process_id = match parse_process_id(process_id_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        let step_id = match parse_process_step_id(step_id_str) {
+            Some(step_id) => step_id,
+            None => return,
+        };
+        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
+            process_diagram
                 .step_thing_interactions
-                .replace_index(index, new.clone());
-        }
-    });
-
-    // entity_descs / entity_tooltips / entity_types: keys are Id, which
-    // may refer to a ProcessStepId.
-    let id_old = old.clone().into_inner();
-    let id_new = new.clone().into_inner();
-    if let Some(index) = entity_descs.get_index_of(&id_old) {
-        let _result = entity_descs.replace_index(index, id_new.clone());
-    }
-    if let Some(index) = entity_tooltips.get_index_of(&id_old) {
-        let _result = entity_tooltips.replace_index(index, id_new.clone());
-    }
-    if let Some(index) = entity_types.get_index_of(&id_old) {
-        let _result = entity_types.replace_index(index, id_new.clone());
-    }
-
-    // theme_default: rename in base_styles and process_step_selected_styles.
-    rename_id_in_theme_styles(&mut theme_default.base_styles, &id_old, &id_new);
-    rename_id_in_theme_styles(
-        &mut theme_default.process_step_selected_styles,
-        &id_old,
-        &id_new,
-    );
-
-    // theme_types_styles: rename in each ThemeStyles value.
-    theme_types_styles.values_mut().for_each(|theme_styles| {
-        rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
-    });
-
-    // theme_thing_dependencies_styles: rename in both ThemeStyles fields.
-    rename_id_in_theme_styles(
-        &mut theme_thing_dependencies_styles.things_included_styles,
-        &id_old,
-        &id_new,
-    );
-    rename_id_in_theme_styles(
-        &mut theme_thing_dependencies_styles.things_excluded_styles,
-        &id_old,
-        &id_new,
-    );
-
-    // theme_tag_things_focus: rename in each ThemeStyles value.
-    theme_tag_things_focus
-        .values_mut()
-        .for_each(|theme_styles| {
-            rename_id_in_theme_styles(theme_styles, &id_old, &id_new);
-        });
-}
-
-fn update_step_label(
-    mut diag: Signal<InputDiagram<'static>>,
-    process_id: &str,
-    step_id: &str,
-    label: &str,
-) {
-    let pid = match parse_process_id(process_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let sid = match parse_process_step_id(step_id) {
-        Some(id) => id,
-        None => return,
-    };
-    if let Some(proc) = diag.write().processes.get_mut(&pid) {
-        if let Some(entry) = proc.steps.get_mut(&sid) {
-            *entry = label.to_owned();
+                .swap_remove(&step_id);
         }
     }
-}
 
-// ---------------------------------------------------------------------------
-// Mutation helpers: step thing interactions
-// ---------------------------------------------------------------------------
+    /// Renames the step key of a step interaction mapping.
+    fn step_interaction_rename(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        process_id_str: &str,
+        step_id_old_str: &str,
+        step_id_new_str: &str,
+        edge_id_strs: &[String],
+    ) {
+        if step_id_old_str == step_id_new_str {
+            return;
+        }
+        let process_id = match parse_process_id(process_id_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        let step_id_old = match parse_process_step_id(step_id_old_str) {
+            Some(step_id) => step_id,
+            None => return,
+        };
+        let step_id_new = match parse_process_step_id(step_id_new_str) {
+            Some(step_id) => step_id,
+            None => return,
+        };
+        let edge_group_ids: Vec<EdgeGroupId<'static>> = edge_id_strs
+            .iter()
+            .filter_map(|s| parse_edge_group_id(s))
+            .collect();
+        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
+            process_diagram
+                .step_thing_interactions
+                .swap_remove(&step_id_old);
+            process_diagram
+                .step_thing_interactions
+                .insert(step_id_new, edge_group_ids);
+        }
+    }
 
-fn add_step_interaction(mut diag: Signal<InputDiagram<'static>>, process_id: &str) {
-    let pid = match parse_process_id(process_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let d = diag.read();
-    let proc = match d.processes.get(&pid) {
-        Some(p) => p,
-        None => return,
-    };
-
-    // Pick the first step that doesn't already have an interaction mapping,
-    // or fall back to a placeholder.
-    let step_id = proc
-        .steps
-        .keys()
-        .find(|sid| !proc.step_thing_interactions.contains_key(*sid))
-        .cloned();
-
-    let step_id = match step_id {
-        Some(sid) => sid,
-        None => {
-            // All steps already have mappings; generate a placeholder.
-            let mut n = proc.step_thing_interactions.len();
-            loop {
-                let candidate = format!("{process_id}_step_{n}");
-                if let Some(sid) = parse_process_step_id(&candidate) {
-                    if !proc.step_thing_interactions.contains_key(&sid) {
-                        drop(d);
-                        if let Some(proc) = diag.write().processes.get_mut(&pid) {
-                            proc.step_thing_interactions.insert(sid, Vec::new());
-                        }
-                        return;
-                    }
+    /// Updates a single edge group ID within a step interaction at the given
+    /// index.
+    fn step_interaction_edge_update(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        process_id_str: &str,
+        step_id_str: &str,
+        idx: usize,
+        edge_group_id_new_str: &str,
+    ) {
+        let process_id = match parse_process_id(process_id_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        let step_id = match parse_process_step_id(step_id_str) {
+            Some(step_id) => step_id,
+            None => return,
+        };
+        let edge_group_id_new = match parse_edge_group_id(edge_group_id_new_str) {
+            Some(edge_group_id) => edge_group_id,
+            None => return,
+        };
+        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
+            if let Some(edge_group_ids) = process_diagram.step_thing_interactions.get_mut(&step_id)
+            {
+                if idx < edge_group_ids.len() {
+                    edge_group_ids[idx] = edge_group_id_new;
                 }
-                n += 1;
-            }
-        }
-    };
-
-    drop(d);
-    if let Some(proc) = diag.write().processes.get_mut(&pid) {
-        proc.step_thing_interactions.insert(step_id, Vec::new());
-    }
-}
-
-fn remove_step_interaction(
-    mut diag: Signal<InputDiagram<'static>>,
-    process_id: &str,
-    step_id: &str,
-) {
-    let pid = match parse_process_id(process_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let sid = match parse_process_step_id(step_id) {
-        Some(id) => id,
-        None => return,
-    };
-    if let Some(proc) = diag.write().processes.get_mut(&pid) {
-        proc.step_thing_interactions.swap_remove(&sid);
-    }
-}
-
-fn rename_step_interaction(
-    mut diag: Signal<InputDiagram<'static>>,
-    process_id: &str,
-    old_step_id: &str,
-    new_step_id: &str,
-    edge_ids: &[String],
-) {
-    if old_step_id == new_step_id {
-        return;
-    }
-    let pid = match parse_process_id(process_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let old = match parse_process_step_id(old_step_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let new = match parse_process_step_id(new_step_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let eids: Vec<EdgeGroupId<'static>> = edge_ids
-        .iter()
-        .filter_map(|s| parse_edge_group_id(s))
-        .collect();
-    if let Some(proc) = diag.write().processes.get_mut(&pid) {
-        proc.step_thing_interactions.swap_remove(&old);
-        proc.step_thing_interactions.insert(new, eids);
-    }
-}
-
-fn update_edge_in_step_interaction(
-    mut diag: Signal<InputDiagram<'static>>,
-    process_id: &str,
-    step_id: &str,
-    idx: usize,
-    new_edge_str: &str,
-) {
-    let pid = match parse_process_id(process_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let sid = match parse_process_step_id(step_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let new_eid = match parse_edge_group_id(new_edge_str) {
-        Some(id) => id,
-        None => return,
-    };
-    if let Some(proc) = diag.write().processes.get_mut(&pid) {
-        if let Some(eids) = proc.step_thing_interactions.get_mut(&sid) {
-            if idx < eids.len() {
-                eids[idx] = new_eid;
             }
         }
     }
-}
 
-fn remove_edge_from_step_interaction(
-    mut diag: Signal<InputDiagram<'static>>,
-    process_id: &str,
-    step_id: &str,
-    idx: usize,
-) {
-    let pid = match parse_process_id(process_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let sid = match parse_process_step_id(step_id) {
-        Some(id) => id,
-        None => return,
-    };
-    if let Some(proc) = diag.write().processes.get_mut(&pid) {
-        if let Some(eids) = proc.step_thing_interactions.get_mut(&sid) {
-            if idx < eids.len() {
-                eids.remove(idx);
+    /// Removes an edge group from a step interaction by index.
+    fn step_interaction_edge_remove(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        process_id_str: &str,
+        step_id_str: &str,
+        idx: usize,
+    ) {
+        let process_id = match parse_process_id(process_id_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        let step_id = match parse_process_step_id(step_id_str) {
+            Some(step_id) => step_id,
+            None => return,
+        };
+        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
+            if let Some(edge_group_ids) = process_diagram.step_thing_interactions.get_mut(&step_id)
+            {
+                if idx < edge_group_ids.len() {
+                    edge_group_ids.remove(idx);
+                }
             }
         }
     }
-}
 
-fn add_edge_to_step_interaction(
-    mut diag: Signal<InputDiagram<'static>>,
-    process_id: &str,
-    step_id: &str,
-) {
-    let pid = match parse_process_id(process_id) {
-        Some(id) => id,
-        None => return,
-    };
-    let sid = match parse_process_step_id(step_id) {
-        Some(id) => id,
-        None => return,
-    };
+    /// Adds an edge group to a step interaction, using the first existing
+    /// interaction edge group ID as a placeholder.
+    fn step_interaction_edge_add(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        process_id_str: &str,
+        step_id_str: &str,
+    ) {
+        let process_id = match parse_process_id(process_id_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        let step_id = match parse_process_step_id(step_id_str) {
+            Some(step_id) => step_id,
+            None => return,
+        };
 
-    // Pick the first edge group id from thing_interactions as a placeholder.
-    let placeholder = {
-        let d = diag.read();
-        d.thing_interactions
-            .keys()
-            .next()
-            .map(|e| e.as_str().to_owned())
-            .unwrap_or_else(|| "edge_0".to_owned())
-    };
-    let new_eid = match parse_edge_group_id(&placeholder) {
-        Some(id) => id,
-        None => return,
-    };
+        // Pick the first edge group id from thing_interactions as a placeholder.
+        let placeholder = {
+            let input_diagram = input_diagram.read();
+            input_diagram
+                .thing_interactions
+                .keys()
+                .next()
+                .map(|edge_group_id| edge_group_id.as_str().to_owned())
+                .unwrap_or_else(|| "edge_0".to_owned())
+        };
+        let edge_group_id_new = match parse_edge_group_id(&placeholder) {
+            Some(edge_group_id) => edge_group_id,
+            None => return,
+        };
 
-    if let Some(proc) = diag.write().processes.get_mut(&pid) {
-        if let Some(eids) = proc.step_thing_interactions.get_mut(&sid) {
-            eids.push(new_eid);
+        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
+            if let Some(edge_group_ids) = process_diagram.step_thing_interactions.get_mut(&step_id)
+            {
+                edge_group_ids.push(edge_group_id_new);
+            }
         }
     }
 }
