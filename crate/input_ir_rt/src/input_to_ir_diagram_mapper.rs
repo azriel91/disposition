@@ -1,13 +1,13 @@
 use disposition_input_ir_model::IrDiagramAndIssues;
 use disposition_input_model::{
-    edge::EdgeKind,
+    edge::{EdgeGroup as InputEdgeGroup, EdgeKind},
     entity::EntityTypes,
     process::Processes,
     tag::TagNames,
     theme::{ThemeDefault, ThemeTypesStyles},
     thing::{
-        ThingCopyText, ThingDependencies, ThingHierarchy as InputThingHierarchy, ThingInteractions,
-        ThingNames,
+        ThingCopyText, ThingDependencies, ThingHierarchy as InputThingHierarchy, ThingId,
+        ThingInteractions, ThingNames,
     },
     InputDiagram,
 };
@@ -397,26 +397,43 @@ impl InputToIrDiagramMapper {
         thing_interactions: &ThingInteractions<'id>,
     ) -> EdgeGroups<'id> {
         // Process thing_dependencies
-        let dependency_entries = thing_dependencies.iter().map(|(edge_group_id, edge_kind)| {
-            (edge_group_id.clone(), Self::edge_kind_to_edges(edge_kind))
-        });
+        let dependency_entries =
+            thing_dependencies
+                .iter()
+                .map(|(edge_group_id, input_edge_group)| {
+                    (
+                        edge_group_id.clone(),
+                        Self::input_edge_group_to_edges(input_edge_group),
+                    )
+                });
 
         // Process thing_interactions (only add if not already present from
         // dependencies)
         let interaction_entries = thing_interactions
             .iter()
             .filter(|(edge_group_id, _)| !thing_dependencies.contains_key(edge_group_id))
-            .map(|(edge_group_id, edge_kind)| {
-                (edge_group_id.clone(), Self::edge_kind_to_edges(edge_kind))
+            .map(|(edge_group_id, input_edge_group)| {
+                (
+                    edge_group_id.clone(),
+                    Self::input_edge_group_to_edges(input_edge_group),
+                )
             });
 
         dependency_entries.chain(interaction_entries).collect()
     }
 
-    /// Convert an EdgeKind to a list of Edges.
-    fn edge_kind_to_edges<'id>(edge_kind: &EdgeKind<'id>) -> EdgeGroup<'id> {
-        let edges: Vec<Edge> = match edge_kind {
-            EdgeKind::Cyclic(things) => {
+    /// Convert an [`InputEdgeGroup`] to a list of [`Edge`]s.
+    fn input_edge_group_to_edges<'id>(input_edge_group: &InputEdgeGroup<'id>) -> EdgeGroup<'id> {
+        let things = &input_edge_group.things;
+        let edges: Vec<Edge> = Self::edge_kind_to_edges(input_edge_group.kind, things);
+
+        EdgeGroup::from(edges)
+    }
+
+    /// Convert an [`EdgeKind`] and a list of things to a list of [`Edge`]s.
+    fn edge_kind_to_edges<'id>(edge_kind: EdgeKind, things: &[ThingId<'id>]) -> Vec<Edge<'id>> {
+        match edge_kind {
+            EdgeKind::Cyclic => {
                 // Create edges from each thing to the next, and from last back to first
                 things
                     .iter()
@@ -429,7 +446,7 @@ impl InputToIrDiagramMapper {
                     })
                     .collect()
             }
-            EdgeKind::Sequence(things) => {
+            EdgeKind::Sequence => {
                 // Create edges from each thing to the next (no cycle back)
                 things
                     .windows(2)
@@ -440,7 +457,7 @@ impl InputToIrDiagramMapper {
                     })
                     .collect()
             }
-            EdgeKind::Symmetric(things) => {
+            EdgeKind::Symmetric => {
                 // Create edges from each thing to the next, then back from last to first
                 // For [A, B, C]: A -> B -> C -> B -> A
                 // For [A] (1 thing): A -> A (request), A -> A (response)
@@ -474,9 +491,7 @@ impl InputToIrDiagramMapper {
                     forward.into_iter().chain(reverse).collect()
                 }
             }
-        };
-
-        EdgeGroup::from(edges)
+        }
     }
 
     // === Entity Descs / Tooltips === //
@@ -588,24 +603,30 @@ impl InputToIrDiagramMapper {
         thing_deps: &ThingDependencies<'id>,
         input_entity_types: &EntityTypes<'id>,
     ) {
-        let edge_group_entries = thing_deps.iter().flat_map(|(edge_group_id, edge_kind)| {
-            // edge group entity types
-            let edge_group_entity_types = Self::build_entity_types_for_edge_groups(
-                input_entity_types,
-                edge_group_id,
-                edge_kind,
-                Self::edge_group_default_type_dependency,
-            );
+        let edge_group_entries = thing_deps
+            .iter()
+            .flat_map(|(edge_group_id, input_edge_group)| {
+                let edge_kind = input_edge_group.kind;
+                let things = &input_edge_group.things;
 
-            // edge entity types
-            let edge_entity_types = Self::build_entity_types_for_edges(
-                input_entity_types,
-                edge_group_id,
-                edge_kind,
-                Self::edge_default_type_dependency,
-            );
-            std::iter::once(edge_group_entity_types).chain(edge_entity_types)
-        });
+                // edge group entity types
+                let edge_group_entity_types = Self::build_entity_types_for_edge_groups(
+                    input_entity_types,
+                    edge_group_id,
+                    edge_kind,
+                    Self::edge_group_default_type_dependency,
+                );
+
+                // edge entity types
+                let edge_entity_types = Self::build_entity_types_for_edges(
+                    input_entity_types,
+                    edge_group_id,
+                    edge_kind,
+                    things,
+                    Self::edge_default_type_dependency,
+                );
+                std::iter::once(edge_group_entity_types).chain(edge_entity_types)
+            });
 
         entity_types.extend(edge_group_entries);
     }
@@ -619,7 +640,10 @@ impl InputToIrDiagramMapper {
         let edge_group_entries =
             thing_interactions
                 .iter()
-                .flat_map(|(edge_group_id, edge_kind)| {
+                .flat_map(|(edge_group_id, input_edge_group)| {
+                    let edge_kind = input_edge_group.kind;
+                    let things = &input_edge_group.things;
+
                     // edge group entity types
                     let edge_group_entity_types = Self::build_entity_types_for_edge_groups(
                         input_entity_types,
@@ -633,6 +657,7 @@ impl InputToIrDiagramMapper {
                         input_entity_types,
                         edge_group_id,
                         edge_kind,
+                        things,
                         Self::edge_default_type_interaction,
                     );
                     std::iter::once(edge_group_entity_types).chain(edge_entity_types)
@@ -644,8 +669,8 @@ impl InputToIrDiagramMapper {
     fn build_entity_types_for_edge_groups<'id>(
         input_entity_types: &EntityTypes<'id>,
         edge_group_id: &EdgeGroupId<'id>,
-        edge_kind: &EdgeKind<'id>,
-        edge_group_default_type_fn: fn(&EdgeKind<'id>) -> EntityType,
+        edge_kind: EdgeKind,
+        edge_group_default_type_fn: fn(EdgeKind) -> EntityType,
     ) -> (Id<'id>, Set<EntityType>) {
         let edge_group_id: Id<'id> = edge_group_id.as_ref().clone();
 
@@ -661,23 +686,23 @@ impl InputToIrDiagramMapper {
         (edge_group_id, types)
     }
 
-    fn edge_group_default_type_dependency<'id>(edge_kind: &EdgeKind<'id>) -> EntityType {
+    fn edge_group_default_type_dependency(edge_kind: EdgeKind) -> EntityType {
         match edge_kind {
-            EdgeKind::Cyclic(_) => EntityType::DependencyEdgeCyclicDefault,
-            EdgeKind::Sequence(_) => EntityType::DependencyEdgeSequenceDefault,
-            EdgeKind::Symmetric(_) => EntityType::DependencyEdgeSymmetricDefault,
+            EdgeKind::Cyclic => EntityType::DependencyEdgeCyclicDefault,
+            EdgeKind::Sequence => EntityType::DependencyEdgeSequenceDefault,
+            EdgeKind::Symmetric => EntityType::DependencyEdgeSymmetricDefault,
         }
     }
 
-    fn edge_default_type_dependency<'id>(
-        edge_kind: &EdgeKind<'id>,
+    fn edge_default_type_dependency(
+        edge_kind: EdgeKind,
         forward_count: usize,
         i: usize,
     ) -> EntityType {
         match edge_kind {
-            EdgeKind::Cyclic(_) => EntityType::DependencyEdgeCyclicForwardDefault,
-            EdgeKind::Sequence(_) => EntityType::DependencyEdgeSequenceForwardDefault,
-            EdgeKind::Symmetric(_) => {
+            EdgeKind::Cyclic => EntityType::DependencyEdgeCyclicForwardDefault,
+            EdgeKind::Sequence => EntityType::DependencyEdgeSequenceForwardDefault,
+            EdgeKind::Symmetric => {
                 // First half are forward, second half are reverse
                 if i < forward_count {
                     EntityType::DependencyEdgeSymmetricForwardDefault
@@ -688,23 +713,23 @@ impl InputToIrDiagramMapper {
         }
     }
 
-    fn edge_group_default_type_interaction<'id>(edge_kind: &EdgeKind<'id>) -> EntityType {
+    fn edge_group_default_type_interaction(edge_kind: EdgeKind) -> EntityType {
         match edge_kind {
-            EdgeKind::Cyclic(_) => EntityType::InteractionEdgeCyclicDefault,
-            EdgeKind::Sequence(_) => EntityType::InteractionEdgeSequenceDefault,
-            EdgeKind::Symmetric(_) => EntityType::InteractionEdgeSymmetricDefault,
+            EdgeKind::Cyclic => EntityType::InteractionEdgeCyclicDefault,
+            EdgeKind::Sequence => EntityType::InteractionEdgeSequenceDefault,
+            EdgeKind::Symmetric => EntityType::InteractionEdgeSymmetricDefault,
         }
     }
 
-    fn edge_default_type_interaction<'id>(
-        edge_kind: &EdgeKind<'id>,
+    fn edge_default_type_interaction(
+        edge_kind: EdgeKind,
         forward_count: usize,
         i: usize,
     ) -> EntityType {
         match edge_kind {
-            EdgeKind::Cyclic(_) => EntityType::InteractionEdgeCyclicForwardDefault,
-            EdgeKind::Sequence(_) => EntityType::InteractionEdgeSequenceForwardDefault,
-            EdgeKind::Symmetric(_) => {
+            EdgeKind::Cyclic => EntityType::InteractionEdgeCyclicForwardDefault,
+            EdgeKind::Sequence => EntityType::InteractionEdgeSequenceForwardDefault,
+            EdgeKind::Symmetric => {
                 // First half are forward, second half are reverse
                 if i < forward_count {
                     EntityType::InteractionEdgeSymmetricForwardDefault
@@ -718,16 +743,17 @@ impl InputToIrDiagramMapper {
     fn build_entity_types_for_edges<'id>(
         input_entity_types: &EntityTypes<'id>,
         edge_group_id: &EdgeGroupId<'id>,
-        edge_kind: &EdgeKind<'id>,
-        edge_default_type_fn: fn(&EdgeKind<'id>, usize, usize) -> EntityType,
+        edge_kind: EdgeKind,
+        things: &[ThingId<'id>],
+        edge_default_type_fn: fn(EdgeKind, usize, usize) -> EntityType,
     ) -> impl Iterator<Item = (Id<'id>, Set<EntityType>)> {
         let (edge_count, forward_count) = match edge_kind {
-            EdgeKind::Cyclic(things) => (things.len(), things.len()),
-            EdgeKind::Sequence(things) => {
+            EdgeKind::Cyclic => (things.len(), things.len()),
+            EdgeKind::Sequence => {
                 let count = things.len().saturating_sub(1);
                 (count, count)
             }
-            EdgeKind::Symmetric(things) => {
+            EdgeKind::Symmetric => {
                 // Forward edges + reverse edges
                 // For 1 thing: 2 edges (1 request, 1 response)
                 // For n things: (n-1) forward + (n-1) reverse

@@ -7,7 +7,7 @@
 use dioxus::signals::{ReadableExt, Signal, WritableExt};
 use disposition::{
     input_model::{
-        edge::EdgeKind,
+        edge::EdgeGroup,
         thing::{ThingHierarchy, ThingId},
         InputDiagram,
     },
@@ -99,20 +99,20 @@ impl ThingsPageOps {
                     thing_hierarchy_with_id.replace_index(thing_index, thing_id_new.clone());
             }
 
-            // thing_dependencies: rename ThingIds inside EdgeKind values.
+            // thing_dependencies: rename ThingIds inside EdgeGroup values.
             input_diagram_ref
                 .thing_dependencies
                 .values_mut()
-                .for_each(|edge_kind| {
-                    Self::thing_rename_in_edge_kind(edge_kind, &thing_id_old, &thing_id_new);
+                .for_each(|edge_group| {
+                    Self::thing_rename_in_edge_group(edge_group, &thing_id_old, &thing_id_new);
                 });
 
             // thing_interactions: same structure as thing_dependencies.
             input_diagram_ref
                 .thing_interactions
                 .values_mut()
-                .for_each(|edge_kind| {
-                    Self::thing_rename_in_edge_kind(edge_kind, &thing_id_old, &thing_id_new);
+                .for_each(|edge_group| {
+                    Self::thing_rename_in_edge_group(edge_group, &thing_id_old, &thing_id_new);
                 });
 
             // tag_things: rename ThingIds in each Set<ThingId> value.
@@ -133,18 +133,13 @@ impl ThingsPageOps {
     }
 
     /// Replaces occurrences of `thing_id_old` with `thing_id_new` inside an
-    /// [`EdgeKind`] (which wraps a `Vec<ThingId>`).
-    fn thing_rename_in_edge_kind(
-        edge_kind: &mut EdgeKind<'static>,
+    /// [`EdgeGroup`] (which contains a `Vec<ThingId>`).
+    fn thing_rename_in_edge_group(
+        edge_group: &mut EdgeGroup<'static>,
         thing_id_old: &ThingId<'static>,
         thing_id_new: &ThingId<'static>,
     ) {
-        let things = match edge_kind {
-            EdgeKind::Cyclic(things) | EdgeKind::Sequence(things) | EdgeKind::Symmetric(things) => {
-                things
-            }
-        };
-        things.iter_mut().for_each(|thing_id| {
+        edge_group.things.iter_mut().for_each(|thing_id| {
             if thing_id == thing_id_old {
                 *thing_id = thing_id_new.clone();
             }

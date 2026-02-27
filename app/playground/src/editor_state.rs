@@ -84,7 +84,7 @@ pub enum EditorPage {
     #[default]
     Things,
     /// Thing dependencies: edge groups with
-    /// [`EdgeKind`](disposition::input_model::edge::EdgeKind) variants.
+    /// [`EdgeGroup`](disposition::input_model::edge::EdgeGroup) entries.
     ThingDependencies,
     /// Thing interactions: edge groups representing runtime communication.
     ThingInteractions,
