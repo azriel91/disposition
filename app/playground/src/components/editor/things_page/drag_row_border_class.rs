@@ -27,12 +27,13 @@ pub fn drag_row_border_class(
 
     if is_target
         && let Some(from) = drag_src
-            && from != index {
-                if from < index {
-                    return "border-t-transparent border-b-blue-400";
-                } else {
-                    return "border-t-blue-400 border-b-transparent";
-                }
-            }
+        && from != index
+    {
+        if from < index {
+            return "border-t-transparent border-b-blue-400";
+        } else {
+            return "border-t-blue-400 border-b-transparent";
+        }
+    }
     "border-t-transparent border-b-transparent"
 }
