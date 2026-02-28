@@ -428,7 +428,7 @@ fn EdgeGroupCard(
                         },
                     }
 
-                    span {
+                    button {
                         class: REMOVE_BTN,
                         tabindex: "-1",
                         "data-action": "remove",
@@ -525,7 +525,7 @@ fn EdgeGroupCard(
                                         },
                                     }
 
-                                    span {
+                                    button {
                                         class: REMOVE_BTN,
                                         tabindex: "-1",
                                         "data-action": "remove",

@@ -285,7 +285,7 @@ pub fn ThingLayoutRow(
             }
 
             // === Remove button === //
-            span {
+            button {
                 class: REMOVE_BTN,
                 title: "Remove from hierarchy",
                 onclick: {

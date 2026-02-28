@@ -310,7 +310,7 @@ pub fn ThingNameRow(
             }
 
             // Remove button
-            span {
+            button {
                 class: REMOVE_BTN,
                 tabindex: "-1",
                 "data-action": "remove",
@@ -337,7 +337,12 @@ pub fn ThingNameRow(
                                 document::eval(JS_TAB_NEXT);
                             }
                         }
-                        // Stop arrow keys from bubbling to the row handler.
+                        // Stop Enter and arrow keys from bubbling to the row
+                        // handler. Enter is not prevented so the browser still
+                        // fires the native button click.
+                        Key::Enter => {
+                            evt.stop_propagation();
+                        }
                         Key::ArrowUp | Key::ArrowDown => {
                             evt.stop_propagation();
                         }

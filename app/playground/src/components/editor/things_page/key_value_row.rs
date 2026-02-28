@@ -317,7 +317,7 @@ pub fn KeyValueRow(
                 },
             }
 
-            span {
+            button {
                 class: REMOVE_BTN,
                 tabindex: "-1",
                 "data-action": "remove",
@@ -343,6 +343,12 @@ pub fn KeyValueRow(
                             } else {
                                 document::eval(JS_TAB_NEXT);
                             }
+                        }
+                        // Stop Enter from bubbling to the row handler.
+                        // Enter is not prevented so the browser still
+                        // fires the native button click.
+                        Key::Enter => {
+                            evt.stop_propagation();
                         }
                         // Stop arrow keys from bubbling to the row handler.
                         Key::ArrowUp | Key::ArrowDown => {

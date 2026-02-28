@@ -146,7 +146,7 @@ fn CssClassPartialsCardAliasRow(
                 },
             }
 
-            span {
+            button {
                 class: REMOVE_BTN,
                 tabindex: "-1",
                 "data-action": "remove",

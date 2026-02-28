@@ -281,7 +281,7 @@ fn StyleAliasesSectionHeader(
                 },
             }
 
-            span {
+            button {
                 class: REMOVE_BTN,
                 tabindex: "-1",
                 "data-action": "remove",
@@ -416,7 +416,7 @@ fn StyleAliasesSectionAliasRow(
                 },
             }
 
-            span {
+            button {
                 class: REMOVE_BTN,
                 tabindex: "-1",
                 "data-action": "remove",
@@ -601,7 +601,7 @@ fn StyleAliasesSectionAttrRow(
             }
 
             // === Remove button === //
-            span {
+            button {
                 class: REMOVE_BTN,
                 tabindex: "-1",
                 "data-action": "remove",

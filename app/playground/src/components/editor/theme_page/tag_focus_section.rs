@@ -83,7 +83,7 @@ pub fn TagFocusSection(input_diagram: Signal<InputDiagram<'static>>, tag_key: St
                     }
                 }
 
-                span {
+                button {
                     class: REMOVE_BTN,
                     onclick: {
                         let key = tag_key.clone();

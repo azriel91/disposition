@@ -466,7 +466,7 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                         },
                     }
 
-                    span {
+                    button {
                         class: REMOVE_BTN,
                         tabindex: "-1",
                         "data-action": "remove",
@@ -588,7 +588,7 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                                         },
                                     }
 
-                                    span {
+                                    button {
                                         class: REMOVE_BTN,
                                         tabindex: "-1",
                                         "data-action": "remove",
@@ -950,7 +950,7 @@ fn StepInteractionCard(
                     },
                 }
 
-                span {
+                button {
                     class: REMOVE_BTN,
                     tabindex: "-1",
                     "data-action": "remove",
@@ -1012,7 +1012,7 @@ fn StepInteractionCard(
                                     },
                                 }
 
-                                span {
+                                button {
                                     class: REMOVE_BTN,
                                     tabindex: "-1",
                                     "data-action": "remove",

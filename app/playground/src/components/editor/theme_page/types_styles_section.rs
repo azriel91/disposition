@@ -72,7 +72,7 @@ pub fn TypesStylesSection(
                     },
                 }
 
-                span {
+                button {
                     class: REMOVE_BTN,
                     onclick: {
                         let key = type_key.clone();

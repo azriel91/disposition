@@ -81,11 +81,19 @@ pub const SELECT_CLASS: &str = "\
 
 /// CSS classes for the small "remove" button.
 pub const REMOVE_BTN: &str = "\
+    bg-transparent \
+    border-none \
+    cursor-pointer \
+    outline-none \
+    rounded \
+    p-0 \
+    px-1 \
+    text-xs \
     text-red-400 \
     hover:text-red-300 \
-    text-xs \
-    cursor-pointer \
-    px-1\
+    focus:border \
+    focus:border-solid \
+    focus:border-blue-400\
 ";
 
 /// CSS classes for the "add" button.
