@@ -7,10 +7,14 @@ mod disposition_status_message_div;
 mod editor_page_content;
 mod editor_tab_bar;
 mod taffy_tree_fmt;
+mod undo_redo_toolbar;
 
 use dioxus::{
     hooks::{use_memo, use_signal},
-    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Props},
+    prelude::{
+        component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Key,
+        ModifiersInteraction, Props,
+    },
     router::navigator,
     signals::{Memo, ReadSignal, ReadableExt, Signal, WritableExt},
 };
@@ -40,10 +44,12 @@ use crate::{
     route::Route,
 };
 
+use crate::undo_history::{history_push, history_redo, history_undo, UndoHistory};
+
 use self::{
     disposition_status_message_div::DispositionStatusMessageDiv,
     editor_page_content::EditorPageContent, editor_tab_bar::EditorTabBar,
-    taffy_tree_fmt::TaffyTreeFmt,
+    taffy_tree_fmt::TaffyTreeFmt, undo_redo_toolbar::UndoRedoToolbar,
 };
 
 #[component]
@@ -57,6 +63,19 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
 
     // The active editor page.
     let mut active_page: Signal<EditorPage> = use_signal(|| editor_state.read().page.clone());
+
+    // === Undo history === //
+
+    let undo_history: Signal<UndoHistory> =
+        use_signal(|| UndoHistory::new(input_diagram.peek().clone()));
+
+    // Watch `input_diagram` for changes and push snapshots to the history.
+    // The `UndoHistory::push` method internally handles the `skip_next_push`
+    // flag so that undo/redo-triggered writes don't create new entries.
+    use_memo(move || {
+        let diagram = input_diagram.read().clone();
+        history_push(undo_history, diagram);
+    });
 
     // === Sync: incoming EditorState prop -> local signals === //
 
@@ -276,6 +295,42 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 lg:flex-row
                 gap-2
             ",
+            // Global keyboard handler for undo/redo shortcuts.
+            // Ctrl+Z = undo, Ctrl+Shift+Z / Ctrl+Y = redo.
+            // Meta (Cmd on macOS) is also supported.
+            onkeydown: move |evt| {
+                let ctrl_or_meta = evt.modifiers().ctrl() || evt.modifiers().meta();
+                if !ctrl_or_meta {
+                    return;
+                }
+
+                match evt.key() {
+                    Key::Character(ref c) if c.eq_ignore_ascii_case("z") => {
+                        evt.prevent_default();
+                        evt.stop_propagation();
+                        if evt.modifiers().shift() {
+                            // Ctrl+Shift+Z -> redo
+                            if let Some(diagram) = history_redo(undo_history) {
+                                input_diagram.set(diagram);
+                            }
+                        } else {
+                            // Ctrl+Z -> undo
+                            if let Some(diagram) = history_undo(undo_history) {
+                                input_diagram.set(diagram);
+                            }
+                        }
+                    }
+                    Key::Character(ref c) if c.eq_ignore_ascii_case("y") => {
+                        evt.prevent_default();
+                        evt.stop_propagation();
+                        // Ctrl+Y -> redo
+                        if let Some(diagram) = history_redo(undo_history) {
+                            input_diagram.set(diagram);
+                        }
+                    }
+                    _ => {}
+                }
+            },
 
             // === Left column: editor tabs + status + intermediates === //
             div {
@@ -287,8 +342,26 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                     min-w-0
                 ",
 
-                EditorTabBar {
-                    active_page,
+                // === Tab bar + undo/redo toolbar === //
+                div {
+                    class: "
+                        flex
+                        flex-row
+                        items-start
+                        gap-2
+                    ",
+
+                    div {
+                        class: "flex-1 min-w-0",
+                        EditorTabBar {
+                            active_page,
+                        }
+                    }
+
+                    UndoRedoToolbar {
+                        input_diagram,
+                        undo_history,
+                    }
                 }
 
                 div {

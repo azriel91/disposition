@@ -12,6 +12,7 @@ use crate::route::Route;
 mod components;
 mod editor_state;
 mod route;
+mod undo_history;
 mod views;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
