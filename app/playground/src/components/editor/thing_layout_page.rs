@@ -20,7 +20,7 @@ use dioxus::{
 };
 use disposition::input_model::InputDiagram;
 
-use crate::components::editor::common::{ADD_BTN, SECTION_HEADING};
+use crate::components::editor::common::{ADD_BTN, SECTION_HEADING, TEXTAREA_CLASS};
 
 use self::{
     flat_entry::hierarchy_flatten, help_tooltip::HelpTooltip,
@@ -73,7 +73,6 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
 
     let diagram = input_diagram.read();
     let flat_entries = hierarchy_flatten(&diagram.thing_hierarchy);
-    drop(diagram);
 
     let flat_len = flat_entries.len();
 
@@ -88,6 +87,15 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
             (is_first_sibling, is_last_sibling)
         })
         .collect();
+
+    // Serialize the current hierarchy to a YAML snippet for a simple textarea
+    // editor (hierarchy is recursive and hard to represent with flat inputs).
+    let hierarchy_yaml = serde_saphyr::to_string(&diagram.thing_hierarchy)
+        .unwrap_or_default()
+        .trim()
+        .to_owned();
+
+    drop(diagram);
 
     rsx! {
         div {
@@ -153,6 +161,24 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                     ThingLayoutPageOps::entry_add(input_diagram);
                 },
                 "+ Add to hierarchy"
+            }
+
+
+            // === Thing Hierarchy === //
+            h3 { class: SECTION_HEADING, "Thing Hierarchy (YAML)" }
+            p {
+                class: "text-xs text-gray-500 mb-1",
+                "Recursive nesting of things. Edit as YAML."
+            }
+            textarea {
+                class: TEXTAREA_CLASS,
+                value: "{hierarchy_yaml}",
+                oninput: move |evt| {
+                    let text = evt.value();
+                    if let Ok(hierarchy) = serde_saphyr::from_str(&text) {
+                        input_diagram.write().thing_hierarchy = hierarchy;
+                    }
+                },
             }
         }
     }

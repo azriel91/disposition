@@ -25,7 +25,7 @@ use disposition::input_model::InputDiagram;
 
 use crate::{
     components::editor::{
-        common::{ADD_BTN, SECTION_HEADING, TEXTAREA_CLASS},
+        common::{ADD_BTN, SECTION_HEADING},
         datalists::list_ids,
     },
     editor_state::ThingsPageUiState,
@@ -95,13 +95,6 @@ pub fn ThingsPage(
         .iter()
         .map(|(id, tip)| (id.as_str().to_owned(), tip.clone()))
         .collect();
-
-    // Serialize the current hierarchy to a YAML snippet for a simple textarea
-    // editor (hierarchy is recursive and hard to represent with flat inputs).
-    let hierarchy_yaml = serde_saphyr::to_string(&diagram.thing_hierarchy)
-        .unwrap_or_default()
-        .trim()
-        .to_owned();
 
     // Drop the immutable borrow before rendering (we need `input_diagram` for
     // event handlers).
@@ -386,23 +379,6 @@ pub fn ThingsPage(
                     ThingsPageOps::entity_tooltip_add(input_diagram);
                 },
                 "+ Add tooltip"
-            }
-
-            // === Thing Hierarchy === //
-            h3 { class: SECTION_HEADING, "Thing Hierarchy (YAML)" }
-            p {
-                class: "text-xs text-gray-500 mb-1",
-                "Recursive nesting of things. Edit as YAML."
-            }
-            textarea {
-                class: TEXTAREA_CLASS,
-                value: "{hierarchy_yaml}",
-                oninput: move |evt| {
-                    let text = evt.value();
-                    if let Ok(hierarchy) = serde_saphyr::from_str(&text) {
-                        input_diagram.write().thing_hierarchy = hierarchy;
-                    }
-                },
             }
         }
     }
