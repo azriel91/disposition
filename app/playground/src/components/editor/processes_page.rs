@@ -9,7 +9,12 @@
 //!   to `Vec<EdgeGroupId>`)
 
 use dioxus::{
-    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    document,
+    hooks::use_signal,
+    prelude::{
+        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
+        ModifiersInteraction, Props,
+    },
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::{
@@ -20,8 +25,8 @@ use disposition::{
 use crate::components::editor::{
     common::{
         id_rename_in_input_diagram, parse_edge_group_id, parse_process_id, parse_process_step_id,
-        ADD_BTN, CARD_CLASS, INNER_CARD_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE,
-        SECTION_HEADING, TEXTAREA_CLASS,
+        ADD_BTN, INNER_CARD_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SECTION_HEADING,
+        TEXTAREA_CLASS,
     },
     datalists::list_ids,
 };
@@ -35,6 +40,52 @@ struct ProcessEntry {
     steps: Vec<(String, String)>,
     step_interactions: Vec<(String, Vec<String>)>,
 }
+
+// === ProcessCard JS helpers === //
+
+/// JavaScript snippet: focus the parent `[data-process-card]` ancestor.
+const JS_FOCUS_PARENT_CARD: &str = "\
+    document.activeElement\
+        ?.closest('[data-process-card]')\
+        ?.focus()";
+
+/// JavaScript snippet: Tab to the next focusable element (input, textarea, or
+/// `[data-action="remove"]`) within the same `[data-process-card]`.
+const JS_TAB_NEXT_FIELD: &str = "\
+    (() => {\
+        let el = document.activeElement;\
+        if (!el) return;\
+        let card = el.closest('[data-process-card]');\
+        if (!card) return;\
+        let items = Array.from(card.querySelectorAll(\
+            'input, textarea, [data-action=\"remove\"]'\
+        ));\
+        let idx = items.indexOf(el);\
+        if (idx >= 0 && idx + 1 < items.length) {\
+            items[idx + 1].focus();\
+        } else {\
+            card.focus();\
+        }\
+    })()";
+
+/// JavaScript snippet: Shift+Tab to the previous focusable element within the
+/// same `[data-process-card]`.
+const JS_TAB_PREV_FIELD: &str = "\
+    (() => {\
+        let el = document.activeElement;\
+        if (!el) return;\
+        let card = el.closest('[data-process-card]');\
+        if (!card) return;\
+        let items = Array.from(card.querySelectorAll(\
+            'input, textarea, [data-action=\"remove\"]'\
+        ));\
+        let idx = items.indexOf(el);\
+        if (idx > 0) {\
+            items[idx - 1].focus();\
+        } else {\
+            card.focus();\
+        }\
+    })()";
 
 /// The **Processes** editor page.
 #[component]
@@ -214,203 +265,388 @@ impl ProcessesPageOps {
 
 // === Process card component === //
 
+/// CSS classes for the focusable process card wrapper.
+///
+/// Extends `CARD_CLASS` with focus ring styling and transitions.
+const PROCESS_CARD_CLASS: &str = "\
+    rounded-lg \
+    border \
+    border-gray-700 \
+    bg-gray-900 \
+    p-3 \
+    mb-2 \
+    flex \
+    flex-col \
+    gap-2 \
+    focus:outline-none \
+    focus:ring-1 \
+    focus:ring-blue-400 \
+    transition-all \
+    duration-150\
+";
+
+/// CSS classes for the collapsed summary header.
+const COLLAPSED_HEADER_CLASS: &str = "\
+    flex \
+    flex-row \
+    items-center \
+    gap-3 \
+    cursor-pointer \
+    select-none\
+";
+
+/// CSS classes for an input/textarea inside a process card.
+///
+/// These elements use `tabindex="-1"` so they are skipped by the normal tab
+/// order; the user enters edit mode by pressing Enter on the focused card.
+const FIELD_INPUT_CLASS: &str = INPUT_CLASS;
+
 #[component]
 fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry) -> Element {
     let process_id = entry.process_id.clone();
+    let mut collapsed = use_signal(|| true);
+
+    let step_count = entry.steps.len();
+    let step_suffix = if step_count != 1 { "s" } else { "" };
+    let display_name = if entry.name.is_empty() {
+        entry.process_id.clone()
+    } else {
+        entry.name.clone()
+    };
 
     rsx! {
         div {
-            class: CARD_CLASS,
+            class: PROCESS_CARD_CLASS,
+            tabindex: "0",
+            "data-process-card": "true",
 
-            // === Header: Process ID + Remove === //
-            div {
-                class: ROW_CLASS_SIMPLE,
-
-                label {
-                    class: "text-xs text-gray-500 w-20",
-                    "Process ID"
+            // === Card-level keyboard shortcuts === //
+            onkeydown: move |evt| {
+                match evt.key() {
+                    Key::ArrowRight => {
+                        // Expand, but only when the card itself is focused
+                        // (not a child input).
+                        evt.prevent_default();
+                        collapsed.set(false);
+                    }
+                    Key::ArrowLeft => {
+                        evt.prevent_default();
+                        collapsed.set(true);
+                    }
+                    Key::Enter => {
+                        evt.prevent_default();
+                        // Expand if collapsed, then focus the first input.
+                        collapsed.set(false);
+                        document::eval(
+                            "setTimeout(() => {\
+                                document.activeElement\
+                                    ?.querySelector('input, textarea')\
+                                    ?.focus();\
+                            }, 0)"
+                        );
+                    }
+                    _ => {}
                 }
-                input {
-                    class: INPUT_CLASS,
-                    style: "max-width:16rem",
-                    list: list_ids::PROCESS_IDS,
-                    placeholder: "process_id",
-                    value: "{process_id}",
-                    onchange: {
-                        let process_id_old = process_id.clone();
-                        move |evt: dioxus::events::FormEvent| {
-                            ProcessesPageOps::process_rename(input_diagram, &process_id_old, &evt.value());
+            },
+
+            if *collapsed.read() {
+                // === Collapsed summary === //
+                div {
+                    class: COLLAPSED_HEADER_CLASS,
+                    onclick: move |_| collapsed.set(false),
+
+                    // Expand chevron
+                    span {
+                        class: "text-gray-500 text-xs",
+                        ">"
+                    }
+
+                    span {
+                        class: "text-sm font-mono text-blue-400",
+                        "{process_id}"
+                    }
+
+                    if !entry.name.is_empty() {
+                        span {
+                            class: "text-sm text-gray-300",
+                            "-- {display_name}"
                         }
-                    },
+                    }
+
+                    span {
+                        class: "text-xs text-gray-500",
+                        "({step_count} step{step_suffix})"
+                    }
+                }
+            } else {
+                // === Expanded content === //
+
+                // Collapse toggle
+                div {
+                    class: "flex flex-row items-center gap-1 cursor-pointer select-none mb-1",
+                    onclick: move |_| collapsed.set(true),
+
+                    span {
+                        class: "text-gray-500 text-xs rotate-90 inline-block",
+                        ">"
+                    }
+                    span {
+                        class: "text-xs text-gray-500",
+                        "Collapse"
+                    }
                 }
 
-                span {
-                    class: REMOVE_BTN,
-                    onclick: {
-                        let process_id = process_id.clone();
-                        move |_| {
-                            ProcessesPageOps::process_remove(input_diagram, &process_id);
-                        }
-                    },
-                    "✕ Remove"
-                }
-            }
+                // === Header: Process ID + Remove === //
+                div {
+                    class: ROW_CLASS_SIMPLE,
 
-            // === Name === //
-            div {
-                class: ROW_CLASS_SIMPLE,
+                    label {
+                        class: "text-xs text-gray-500 w-20",
+                        "Process ID"
+                    }
+                    input {
+                        class: FIELD_INPUT_CLASS,
+                        style: "max-width:16rem",
+                        tabindex: "-1",
+                        list: list_ids::PROCESS_IDS,
+                        placeholder: "process_id",
+                        value: "{process_id}",
+                        onchange: {
+                            let process_id_old = process_id.clone();
+                            move |evt: dioxus::events::FormEvent| {
+                                ProcessesPageOps::process_rename(input_diagram, &process_id_old, &evt.value());
+                            }
+                        },
+                        onkeydown: move |evt| {
+                            process_card_field_keydown(evt);
+                        },
+                    }
 
-                label {
-                    class: "text-xs text-gray-500 w-20",
-                    "Name"
-                }
-                input {
-                    class: INPUT_CLASS,
-                    placeholder: "Display name",
-                    value: "{entry.name}",
-                    oninput: {
-                        let process_id = process_id.clone();
-                        move |evt: dioxus::events::FormEvent| {
-                            ProcessesPageOps::process_name_update(input_diagram, &process_id, &evt.value());
-                        }
-                    },
-                }
-            }
-
-            // === Description === //
-            div {
-                class: ROW_CLASS_SIMPLE,
-
-                label {
-                    class: "text-xs text-gray-500 w-20",
-                    "Description"
-                }
-                textarea {
-                    class: TEXTAREA_CLASS,
-                    placeholder: "Process description (markdown)",
-                    value: "{entry.desc}",
-                    oninput: {
-                        let process_id = process_id.clone();
-                        move |evt: dioxus::events::FormEvent| {
-                            ProcessesPageOps::process_desc_update(input_diagram, &process_id, &evt.value());
-                        }
-                    },
-                }
-            }
-
-            // === Steps === //
-            div {
-                class: "flex flex-col gap-1 pl-4",
-
-                h4 {
-                    class: "text-xs font-semibold text-gray-400 mt-1",
-                    "Steps"
+                    span {
+                        class: REMOVE_BTN,
+                        tabindex: "-1",
+                        "data-action": "remove",
+                        onclick: {
+                            let process_id = process_id.clone();
+                            move |_| {
+                                ProcessesPageOps::process_remove(input_diagram, &process_id);
+                            }
+                        },
+                        onkeydown: move |evt| {
+                            process_card_field_keydown(evt);
+                        },
+                        "✕ Remove"
+                    }
                 }
 
-                for (step_id, step_label) in entry.steps.iter() {
-                    {
-                        let step_id = step_id.clone();
-                        let step_label = step_label.clone();
-                        let process_id = process_id.clone();
-                        rsx! {
-                            div {
-                                key: "{process_id}_{step_id}",
-                                class: ROW_CLASS_SIMPLE,
+                // === Name === //
+                div {
+                    class: ROW_CLASS_SIMPLE,
 
-                                input {
-                                    class: INPUT_CLASS,
-                                    style: "max-width:14rem",
-                                    list: list_ids::PROCESS_STEP_IDS,
-                                    placeholder: "step_id",
-                                    value: "{step_id}",
-                                    onchange: {
-                                        let process_id = process_id.clone();
-                                        let step_id_old = step_id.clone();
-                                        move |evt: dioxus::events::FormEvent| {
-                                            ProcessCardOps::step_rename(input_diagram, &process_id, &step_id_old, &evt.value());
-                                        }
-                                    },
-                                }
+                    label {
+                        class: "text-xs text-gray-500 w-20",
+                        "Name"
+                    }
+                    input {
+                        class: FIELD_INPUT_CLASS,
+                        tabindex: "-1",
+                        placeholder: "Display name",
+                        value: "{entry.name}",
+                        oninput: {
+                            let process_id = process_id.clone();
+                            move |evt: dioxus::events::FormEvent| {
+                                ProcessesPageOps::process_name_update(input_diagram, &process_id, &evt.value());
+                            }
+                        },
+                        onkeydown: move |evt| {
+                            process_card_field_keydown(evt);
+                        },
+                    }
+                }
 
-                                input {
-                                    class: INPUT_CLASS,
-                                    placeholder: "Step label",
-                                    value: "{step_label}",
-                                    oninput: {
-                                        let process_id = process_id.clone();
-                                        let step_id = step_id.clone();
-                                        move |evt: dioxus::events::FormEvent| {
-                                            ProcessCardOps::step_label_update(input_diagram, &process_id, &step_id, &evt.value());
-                                        }
-                                    },
-                                }
+                // === Description === //
+                div {
+                    class: ROW_CLASS_SIMPLE,
 
-                                span {
-                                    class: REMOVE_BTN,
-                                    onclick: {
-                                        let process_id = process_id.clone();
-                                        let step_id = step_id.clone();
-                                        move |_| {
-                                            ProcessCardOps::step_remove(input_diagram, &process_id, &step_id);
-                                        }
-                                    },
-                                    "✕"
+                    label {
+                        class: "text-xs text-gray-500 w-20",
+                        "Description"
+                    }
+                    textarea {
+                        class: TEXTAREA_CLASS,
+                        tabindex: "-1",
+                        placeholder: "Process description (markdown)",
+                        value: "{entry.desc}",
+                        oninput: {
+                            let process_id = process_id.clone();
+                            move |evt: dioxus::events::FormEvent| {
+                                ProcessesPageOps::process_desc_update(input_diagram, &process_id, &evt.value());
+                            }
+                        },
+                        onkeydown: move |evt| {
+                            process_card_field_keydown(evt);
+                        },
+                    }
+                }
+
+                // === Steps === //
+                div {
+                    class: "flex flex-col gap-1 pl-4",
+
+                    h4 {
+                        class: "text-xs font-semibold text-gray-400 mt-1",
+                        "Steps"
+                    }
+
+                    for (step_id, step_label) in entry.steps.iter() {
+                        {
+                            let step_id = step_id.clone();
+                            let step_label = step_label.clone();
+                            let process_id = process_id.clone();
+                            rsx! {
+                                div {
+                                    key: "{process_id}_{step_id}",
+                                    class: ROW_CLASS_SIMPLE,
+
+                                    input {
+                                        class: FIELD_INPUT_CLASS,
+                                        style: "max-width:14rem",
+                                        tabindex: "-1",
+                                        list: list_ids::PROCESS_STEP_IDS,
+                                        placeholder: "step_id",
+                                        value: "{step_id}",
+                                        onchange: {
+                                            let process_id = process_id.clone();
+                                            let step_id_old = step_id.clone();
+                                            move |evt: dioxus::events::FormEvent| {
+                                                ProcessCardOps::step_rename(input_diagram, &process_id, &step_id_old, &evt.value());
+                                            }
+                                        },
+                                        onkeydown: move |evt| {
+                                            process_card_field_keydown(evt);
+                                        },
+                                    }
+
+                                    input {
+                                        class: FIELD_INPUT_CLASS,
+                                        tabindex: "-1",
+                                        placeholder: "Step label",
+                                        value: "{step_label}",
+                                        oninput: {
+                                            let process_id = process_id.clone();
+                                            let step_id = step_id.clone();
+                                            move |evt: dioxus::events::FormEvent| {
+                                                ProcessCardOps::step_label_update(input_diagram, &process_id, &step_id, &evt.value());
+                                            }
+                                        },
+                                        onkeydown: move |evt| {
+                                            process_card_field_keydown(evt);
+                                        },
+                                    }
+
+                                    span {
+                                        class: REMOVE_BTN,
+                                        tabindex: "-1",
+                                        "data-action": "remove",
+                                        onclick: {
+                                            let process_id = process_id.clone();
+                                            let step_id = step_id.clone();
+                                            move |_| {
+                                                ProcessCardOps::step_remove(input_diagram, &process_id, &step_id);
+                                            }
+                                        },
+                                        onkeydown: move |evt| {
+                                            process_card_field_keydown(evt);
+                                        },
+                                        "✕"
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                div {
-                    class: ADD_BTN,
-                    onclick: {
-                        let process_id = process_id.clone();
-                        move |_| {
-                            ProcessCardOps::step_add(input_diagram, &process_id);
-                        }
-                    },
-                    "+ Add step"
-                }
-            }
-
-            // === Step Thing Interactions === //
-            div {
-                class: "flex flex-col gap-1 pl-4",
-
-                h4 {
-                    class: "text-xs font-semibold text-gray-400 mt-1",
-                    "Step -> Thing Interactions"
-                }
-
-                for (step_id, edge_ids) in entry.step_interactions.iter() {
-                    {
-                        let step_id = step_id.clone();
-                        let edge_ids = edge_ids.clone();
-                        let process_id = process_id.clone();
-                        rsx! {
-                            StepInteractionCard {
-                                key: "{process_id}_sti_{step_id}",
-                                input_diagram,
-                                process_id,
-                                step_id,
-                                edge_ids,
+                    div {
+                        class: ADD_BTN,
+                        onclick: {
+                            let process_id = process_id.clone();
+                            move |_| {
+                                ProcessCardOps::step_add(input_diagram, &process_id);
                             }
-                        }
+                        },
+                        "+ Add step"
                     }
                 }
 
+                // === Step Thing Interactions === //
                 div {
-                    class: ADD_BTN,
-                    onclick: {
-                        let process_id = process_id.clone();
-                        move |_| {
-                            ProcessCardOps::step_interaction_add(input_diagram, &process_id);
+                    class: "flex flex-col gap-1 pl-4",
+
+                    h4 {
+                        class: "text-xs font-semibold text-gray-400 mt-1",
+                        "Step -> Thing Interactions"
+                    }
+
+                    for (step_id, edge_ids) in entry.step_interactions.iter() {
+                        {
+                            let step_id = step_id.clone();
+                            let edge_ids = edge_ids.clone();
+                            let process_id = process_id.clone();
+                            rsx! {
+                                StepInteractionCard {
+                                    key: "{process_id}_sti_{step_id}",
+                                    input_diagram,
+                                    process_id,
+                                    step_id,
+                                    edge_ids,
+                                }
+                            }
                         }
-                    },
-                    "+ Add step interaction mapping"
+                    }
+
+                    div {
+                        class: ADD_BTN,
+                        onclick: {
+                            let process_id = process_id.clone();
+                            move |_| {
+                                ProcessCardOps::step_interaction_add(input_diagram, &process_id);
+                            }
+                        },
+                        "+ Add step interaction mapping"
+                    }
                 }
             }
         }
+    }
+}
+
+/// Shared `onkeydown` handler for inputs, textareas, and remove buttons inside
+/// a `ProcessCard`.
+///
+/// - **Esc**: return focus to the parent `ProcessCard`.
+/// - **Tab / Shift+Tab**: cycle through focusable fields within the card.
+/// - **ArrowUp / ArrowDown**: stop propagation so the card-level handler does
+///   not fire (allows cursor movement in text inputs).
+fn process_card_field_keydown(evt: dioxus::events::KeyboardEvent) {
+    let shift = evt.modifiers().shift();
+    match evt.key() {
+        Key::Escape => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            document::eval(JS_FOCUS_PARENT_CARD);
+        }
+        Key::Tab => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            if shift {
+                document::eval(JS_TAB_PREV_FIELD);
+            } else {
+                document::eval(JS_TAB_NEXT_FIELD);
+            }
+        }
+        Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight => {
+            evt.stop_propagation();
+        }
+        _ => {}
     }
 }
 
@@ -633,8 +869,9 @@ fn StepInteractionCard(
                 class: ROW_CLASS_SIMPLE,
 
                 input {
-                    class: INPUT_CLASS,
+                    class: FIELD_INPUT_CLASS,
                     style: "max-width:14rem",
+                    tabindex: "-1",
                     list: list_ids::PROCESS_STEP_IDS,
                     placeholder: "step_id",
                     value: "{step_id}",
@@ -652,16 +889,24 @@ fn StepInteractionCard(
                             );
                         }
                     },
+                    onkeydown: move |evt| {
+                        process_card_field_keydown(evt);
+                    },
                 }
 
                 span {
                     class: REMOVE_BTN,
+                    tabindex: "-1",
+                    "data-action": "remove",
                     onclick: {
                         let process_id = process_id.clone();
                         let step_id = step_id.clone();
                         move |_| {
                             StepInteractionCardOps::step_interaction_remove(input_diagram, &process_id, &step_id);
                         }
+                    },
+                    onkeydown: move |evt| {
+                        process_card_field_keydown(evt);
                     },
                     "✕"
                 }
@@ -687,8 +932,9 @@ fn StepInteractionCard(
                                 }
 
                                 input {
-                                    class: INPUT_CLASS,
+                                    class: FIELD_INPUT_CLASS,
                                     style: "max-width:14rem",
+                                    tabindex: "-1",
                                     list: list_ids::EDGE_GROUP_IDS,
                                     placeholder: "edge_group_id",
                                     value: "{edge_group_id}",
@@ -705,10 +951,15 @@ fn StepInteractionCard(
                                             );
                                         }
                                     },
+                                    onkeydown: move |evt| {
+                                        process_card_field_keydown(evt);
+                                    },
                                 }
 
                                 span {
                                     class: REMOVE_BTN,
+                                    tabindex: "-1",
+                                    "data-action": "remove",
                                     onclick: {
                                         let process_id = process_id.clone();
                                         let step_id = step_id.clone();
@@ -720,6 +971,9 @@ fn StepInteractionCard(
                                                 idx,
                                             );
                                         }
+                                    },
+                                    onkeydown: move |evt| {
+                                        process_card_field_keydown(evt);
                                     },
                                     "✕"
                                 }
