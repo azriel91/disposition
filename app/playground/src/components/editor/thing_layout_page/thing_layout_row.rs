@@ -5,12 +5,14 @@
 //! shortcuts) and nesting (indent / outdent).
 
 use dioxus::{
+    document,
     prelude::{
         component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
         ModifiersInteraction, Props,
     },
     signals::{ReadableExt, Signal, WritableExt},
 };
+
 use disposition::input_model::{thing::ThingId, InputDiagram};
 
 use crate::components::editor::common::{DRAG_HANDLE, REMOVE_BTN};
@@ -73,6 +75,8 @@ const ACTION_BTN_DISABLED: &str = "\
 /// * `is_last_sibling`: whether this is the last sibling at its depth.
 /// * `drag_index`: signal tracking which row is being dragged.
 /// * `drop_target`: signal tracking which row is the current drop target.
+/// * `focus_index`: signal that, when set to `Some(idx)`, causes the row at
+///   that flat index to receive focus after the next DOM update.
 #[component]
 pub fn ThingLayoutRow(
     input_diagram: Signal<InputDiagram<'static>>,
@@ -84,6 +88,7 @@ pub fn ThingLayoutRow(
     is_last_sibling: bool,
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
+    mut focus_index: Signal<Option<usize>>,
 ) -> Element {
     let border_class = drag_row_border_class(drag_index, drop_target, flat_index);
     let indent_px = depth * 24;
@@ -133,19 +138,45 @@ pub fn ThingLayoutRow(
                 match evt.key() {
                     Key::ArrowUp if alt => {
                         evt.prevent_default();
-                        ThingLayoutOps::entry_move_up(input_diagram, flat_index);
+                        if let Some(new_idx) = ThingLayoutOps::entry_move_up(input_diagram, flat_index) {
+                            focus_index.set(Some(new_idx));
+                        }
                     }
                     Key::ArrowDown if alt => {
                         evt.prevent_default();
-                        ThingLayoutOps::entry_move_down(input_diagram, flat_index);
+                        if let Some(new_idx) = ThingLayoutOps::entry_move_down(input_diagram, flat_index) {
+                            focus_index.set(Some(new_idx));
+                        }
+                    }
+                    Key::ArrowUp => {
+                        evt.prevent_default();
+                        // Focus the previous sibling row.
+                        document::eval(
+                            "document.activeElement\
+                                ?.previousElementSibling\
+                                ?.focus()",
+                        );
+                    }
+                    Key::ArrowDown => {
+                        evt.prevent_default();
+                        // Focus the next sibling row.
+                        document::eval(
+                            "document.activeElement\
+                                ?.nextElementSibling\
+                                ?.focus()",
+                        );
                     }
                     Key::Tab if shift => {
                         evt.prevent_default();
-                        ThingLayoutOps::entry_outdent(input_diagram, flat_index);
+                        if let Some(new_idx) = ThingLayoutOps::entry_outdent(input_diagram, flat_index) {
+                            focus_index.set(Some(new_idx));
+                        }
                     }
                     Key::Tab => {
                         evt.prevent_default();
-                        ThingLayoutOps::entry_indent(input_diagram, flat_index);
+                        if let Some(new_idx) = ThingLayoutOps::entry_indent(input_diagram, flat_index) {
+                            focus_index.set(Some(new_idx));
+                        }
                     }
                     _ => {}
                 }
@@ -187,7 +218,9 @@ pub fn ThingLayoutRow(
                 title: "Move up (Alt+Up)",
                 onclick: move |_| {
                     if can_move_up {
-                        ThingLayoutOps::entry_move_up(input_diagram, flat_index);
+                        if let Some(new_idx) = ThingLayoutOps::entry_move_up(input_diagram, flat_index) {
+                            focus_index.set(Some(new_idx));
+                        }
                     }
                 },
                 "▲"
@@ -197,7 +230,9 @@ pub fn ThingLayoutRow(
                 title: "Move down (Alt+Down)",
                 onclick: move |_| {
                     if can_move_down {
-                        ThingLayoutOps::entry_move_down(input_diagram, flat_index);
+                        if let Some(new_idx) = ThingLayoutOps::entry_move_down(input_diagram, flat_index) {
+                            focus_index.set(Some(new_idx));
+                        }
                     }
                 },
                 "▼"
@@ -209,7 +244,9 @@ pub fn ThingLayoutRow(
                 title: "Outdent (Shift+Tab)",
                 onclick: move |_| {
                     if can_outdent {
-                        ThingLayoutOps::entry_outdent(input_diagram, flat_index);
+                        if let Some(new_idx) = ThingLayoutOps::entry_outdent(input_diagram, flat_index) {
+                            focus_index.set(Some(new_idx));
+                        }
                     }
                 },
                 "⇤"
@@ -219,7 +256,9 @@ pub fn ThingLayoutRow(
                 title: "Indent (Tab)",
                 onclick: move |_| {
                     if can_indent {
-                        ThingLayoutOps::entry_indent(input_diagram, flat_index);
+                        if let Some(new_idx) = ThingLayoutOps::entry_indent(input_diagram, flat_index) {
+                            focus_index.set(Some(new_idx));
+                        }
                     }
                 },
                 "⇥"

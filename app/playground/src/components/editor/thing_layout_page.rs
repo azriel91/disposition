@@ -2,7 +2,8 @@
 //!
 //! Provides an interactive tree editor for the `thing_hierarchy` field of an
 //! [`InputDiagram`]. Users can reorder entries via drag-and-drop or keyboard
-//! shortcuts (Alt+Up/Down to move, Tab/Shift+Tab to indent/outdent).
+//! shortcuts (Up/Down to navigate rows, Alt+Up/Down to move,
+//! Tab/Shift+Tab to indent/outdent).
 
 mod drag_row_border_class;
 mod flat_entry;
@@ -12,9 +13,10 @@ mod thing_layout_page_ops;
 mod thing_layout_row;
 
 use dioxus::{
-    hooks::use_signal,
+    document,
+    hooks::{use_effect, use_signal},
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{ReadableExt, Signal},
+    signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
 
@@ -31,6 +33,7 @@ use self::{
 /// supports:
 ///
 /// - **Drag-and-drop**: grab the handle to reorder.
+/// - **Up / Down**: move focus to the previous / next row.
 /// - **Alt+Up / Alt+Down**: move the entry up or down within its nesting level,
 ///   or reparent it when at the boundary of its current level.
 /// - **Tab**: indent (become a child of the previous sibling).
@@ -44,6 +47,29 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
 
     // Help tooltip visibility.
     let show_help: Signal<bool> = use_signal(|| false);
+
+    // When set, the row at this flat index should receive focus after the
+    // next DOM update. Operations that move a row (Alt+Up/Down, indent,
+    // outdent) write the entry's new index here.
+    let mut focus_index: Signal<Option<usize>> = use_signal(|| None);
+
+    // After the DOM re-renders, focus the row identified by `focus_index`.
+    use_effect(move || {
+        if let Some(idx) = focus_index() {
+            focus_index.set(None);
+            document::eval(&format!(
+                "setTimeout(() => {{\
+                    let container = document.querySelector(\
+                        '[data-thing-layout-rows]'\
+                    );\
+                    if (container) {{\
+                        let row = container.children[{idx}];\
+                        if (row) row.focus();\
+                    }}\
+                }}, 0)"
+            ));
+        }
+    });
 
     let diagram = input_diagram.read();
     let flat_entries = hierarchy_flatten(&diagram.thing_hierarchy);
@@ -88,6 +114,8 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                     gap-0\
                 ",
 
+                "data-thing-layout-rows": "true",
+
                 if flat_entries.is_empty() {
                     p {
                         class: "text-xs text-gray-600 italic py-2 text-center",
@@ -112,6 +140,7 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                                 is_last_sibling: is_last,
                                 drag_index,
                                 drop_target,
+                                focus_index,
                             }
                         }
                     }

@@ -25,14 +25,20 @@ impl ThingLayoutOps {
     ///   the parent.
     /// - Otherwise it swaps position with its previous sibling (including any
     ///   descendants of that sibling).
-    pub fn entry_move_up(mut input_diagram: Signal<InputDiagram<'static>>, index: usize) {
+    ///
+    /// Returns the new flat index of the moved entry, or `None` if no
+    /// move was performed.
+    pub fn entry_move_up(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        index: usize,
+    ) -> Option<usize> {
         let mut entries = {
             let diagram = input_diagram.read();
             hierarchy_flatten(&diagram.thing_hierarchy)
         };
 
         if index == 0 || index >= entries.len() {
-            return;
+            return None;
         }
 
         let depth = entries[index].depth;
@@ -51,6 +57,8 @@ impl ThingLayoutOps {
                 entries[prev_subtree_start..prev_subtree_end].to_vec();
             let cur_subtree: Vec<FlatEntry> = entries[cur_subtree_start..cur_subtree_end].to_vec();
 
+            let new_index = prev_subtree_start;
+
             // Replace both subtrees: put current before previous.
             let mut new_entries = Vec::with_capacity(entries.len());
             new_entries.extend_from_slice(&entries[..prev_subtree_start]);
@@ -59,21 +67,26 @@ impl ThingLayoutOps {
             new_entries.extend_from_slice(&entries[cur_subtree_end..]);
 
             entries = new_entries;
+
+            input_diagram.write().thing_hierarchy = hierarchy_rebuild(&entries);
+            return Some(new_index);
         } else {
             // No previous sibling: reparent one level up (become sibling of
             // parent). Only possible if depth > 0.
             if depth == 0 {
-                return;
+                return None;
             }
 
             // Find the parent entry.
             let parent_idx = match Self::parent_index(&entries, index) {
                 Some(idx) => idx,
-                None => return,
+                None => return None,
             };
 
             let cur_subtree_start = index;
             let cur_subtree_end = Self::subtree_end(&entries, index);
+
+            let new_index = parent_idx;
 
             // Extract the current subtree and decrease depth by 1.
             let mut cur_subtree: Vec<FlatEntry> =
@@ -90,9 +103,10 @@ impl ThingLayoutOps {
             new_entries.extend_from_slice(&entries[cur_subtree_end..]);
 
             entries = new_entries;
-        }
 
-        input_diagram.write().thing_hierarchy = hierarchy_rebuild(&entries);
+            input_diagram.write().thing_hierarchy = hierarchy_rebuild(&entries);
+            return Some(new_index);
+        }
     }
 
     /// Move the entry at `index` down within the flattened hierarchy.
@@ -103,14 +117,20 @@ impl ThingLayoutOps {
     ///   parent's subtree.
     /// - Otherwise it swaps position with its next sibling (including any
     ///   descendants of that sibling).
-    pub fn entry_move_down(mut input_diagram: Signal<InputDiagram<'static>>, index: usize) {
+    ///
+    /// Returns the new flat index of the moved entry, or `None` if no
+    /// move was performed.
+    pub fn entry_move_down(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        index: usize,
+    ) -> Option<usize> {
         let mut entries = {
             let diagram = input_diagram.read();
             hierarchy_flatten(&diagram.thing_hierarchy)
         };
 
         if index >= entries.len() {
-            return;
+            return None;
         }
 
         let depth = entries[index].depth;
@@ -129,6 +149,9 @@ impl ThingLayoutOps {
             let next_subtree: Vec<FlatEntry> =
                 entries[next_subtree_start..next_subtree_end].to_vec();
 
+            let next_subtree_len = next_subtree.len();
+            let new_index = index + next_subtree_len;
+
             // Replace both subtrees: put next before current.
             let mut new_entries = Vec::with_capacity(entries.len());
             new_entries.extend_from_slice(&entries[..cur_subtree_start]);
@@ -137,23 +160,29 @@ impl ThingLayoutOps {
             new_entries.extend_from_slice(&entries[next_subtree_end..]);
 
             entries = new_entries;
+
+            input_diagram.write().thing_hierarchy = hierarchy_rebuild(&entries);
+            return Some(new_index);
         } else {
             // No next sibling: reparent one level up (become sibling of
             // parent), placed after the parent's full subtree.
             // Only possible if depth > 0.
             if depth == 0 {
-                return;
+                return None;
             }
 
             let parent_idx = match Self::parent_index(&entries, index) {
                 Some(idx) => idx,
-                None => return,
+                None => return None,
             };
 
             let parent_subtree_end = Self::subtree_end(&entries, parent_idx);
 
             let cur_subtree_start = index;
             let cur_subtree_end = Self::subtree_end(&entries, index);
+
+            let cur_subtree_len = cur_subtree_end - cur_subtree_start;
+            let new_index = parent_subtree_end - cur_subtree_len;
 
             // Extract the current subtree and decrease depth by 1.
             let mut cur_subtree: Vec<FlatEntry> =
@@ -170,28 +199,35 @@ impl ThingLayoutOps {
             new_entries.extend_from_slice(&entries[parent_subtree_end..]);
 
             entries = new_entries;
-        }
 
-        input_diagram.write().thing_hierarchy = hierarchy_rebuild(&entries);
+            input_diagram.write().thing_hierarchy = hierarchy_rebuild(&entries);
+            return Some(new_index);
+        }
     }
 
     /// Indent the entry at `index` (increase nesting depth by 1).
     ///
     /// The entry becomes a child of the previous sibling at its current
     /// depth. If there is no previous sibling, this is a no-op.
-    pub fn entry_indent(mut input_diagram: Signal<InputDiagram<'static>>, index: usize) {
+    ///
+    /// Returns the new flat index of the entry, or `None` if no indent
+    /// was performed. The flat index does not change on indent.
+    pub fn entry_indent(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        index: usize,
+    ) -> Option<usize> {
         let mut entries = {
             let diagram = input_diagram.read();
             hierarchy_flatten(&diagram.thing_hierarchy)
         };
 
         if index >= entries.len() {
-            return;
+            return None;
         }
 
         // Must have a previous sibling to become a child of.
         if Self::prev_sibling_index(&entries, index).is_none() {
-            return;
+            return None;
         }
 
         let cur_subtree_end = Self::subtree_end(&entries, index);
@@ -202,70 +238,65 @@ impl ThingLayoutOps {
         }
 
         input_diagram.write().thing_hierarchy = hierarchy_rebuild(&entries);
+        Some(index)
     }
 
     /// Outdent the entry at `index` (decrease nesting depth by 1).
     ///
     /// The entry and its subtree move out of their parent and become a
-    /// sibling of the parent. Any siblings that follow this entry within the
-    /// same parent become children of this entry (they are "adopted").
+    /// sibling of the parent, placed immediately after the parent's
+    /// subtree. Following siblings within the same parent stay as
+    /// children of the parent.
     ///
     /// If the entry is already at the top level (`depth == 0`), this is a
     /// no-op.
-    pub fn entry_outdent(mut input_diagram: Signal<InputDiagram<'static>>, index: usize) {
+    /// Returns the new flat index of the moved entry, or `None` if no
+    /// outdent was performed.
+    pub fn entry_outdent(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        index: usize,
+    ) -> Option<usize> {
         let mut entries = {
             let diagram = input_diagram.read();
             hierarchy_flatten(&diagram.thing_hierarchy)
         };
 
         if index >= entries.len() || entries[index].depth == 0 {
-            return;
+            return None;
         }
 
         let parent_idx = match Self::parent_index(&entries, index) {
             Some(idx) => idx,
-            None => return,
+            None => return None,
         };
 
         let parent_subtree_end = Self::subtree_end(&entries, parent_idx);
         let cur_subtree_end = Self::subtree_end(&entries, index);
 
-        // The "following siblings" within the parent become children of the
-        // entry being outdented. Their depth stays the same relative to
-        // the current entry (effectively they stay at current depth, which
-        // is now one level deeper relative to the outdented entry's new
-        // depth -- which is exactly what we want).
+        // The new position is after the remaining parent children that
+        // follow the current subtree have shifted into its old slot.
+        let following_len = parent_subtree_end - cur_subtree_end;
+        let new_index = index + following_len;
 
-        // Decrease depth for the entry and its current descendants.
-        for entry in &mut entries[index..cur_subtree_end] {
+        // Extract the current entry's subtree and decrease depth by 1.
+        let mut cur_subtree: Vec<FlatEntry> = entries[index..cur_subtree_end].to_vec();
+        for entry in &mut cur_subtree {
             entry.depth -= 1;
         }
 
-        // Move following siblings (cur_subtree_end..parent_subtree_end) so
-        // they remain as children -- they keep their depth, which is now
-        // correct because the entry moved one level shallower and the
-        // followers are one level deeper relative to it.
-
-        // Extract the following siblings block.
-        let following: Vec<FlatEntry> = entries[cur_subtree_end..parent_subtree_end].to_vec();
-
-        // Remove from old position and reinsert after the current subtree
-        // (which is now at parent level).
+        // Remove the subtree from its current position and reinsert it
+        // immediately after the parent's subtree. Following siblings
+        // within the parent stay as children of the parent.
         let mut new_entries = Vec::with_capacity(entries.len());
-        new_entries.extend_from_slice(&entries[..cur_subtree_end]);
-        // skip `following` at old position
+        new_entries.extend_from_slice(&entries[..index]);
+        new_entries.extend_from_slice(&entries[cur_subtree_end..parent_subtree_end]);
+        new_entries.extend(cur_subtree);
         new_entries.extend_from_slice(&entries[parent_subtree_end..]);
-
-        // Insert the following block right after the current subtree
-        // (at position cur_subtree_end).
-        let insert_pos = cur_subtree_end;
-        for (i, entry) in following.into_iter().enumerate() {
-            new_entries.insert(insert_pos + i, entry);
-        }
 
         entries = new_entries;
 
         input_diagram.write().thing_hierarchy = hierarchy_rebuild(&entries);
+        Some(new_index)
     }
 
     /// Moves a dragged entry from flat index `from` to flat index `to`.
