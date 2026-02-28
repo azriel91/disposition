@@ -61,6 +61,13 @@ pub fn ThingsPage(
     let desc_drop_target: Signal<Option<usize>> = use_signal(|| None);
     let tooltip_drop_target: Signal<Option<usize>> = use_signal(|| None);
 
+    // Focus-after-move state: when set, the row at this index receives
+    // focus after the next DOM update (managed by KeyValueRowContainer).
+    let thing_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+    let copy_text_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+    let desc_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+    let tooltip_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+
     let diagram = input_diagram.read();
 
     // Snapshot current thing keys + values so we can iterate without holding
@@ -175,6 +182,9 @@ pub fn ThingsPage(
             }
 
             KeyValueRowContainer {
+                section_id: "thing_names",
+                focus_index: thing_focus_idx,
+
                 for (idx, (id, name)) in visible_things.iter() {
                     {
                         let id = id.clone();
@@ -187,8 +197,10 @@ pub fn ThingsPage(
                                 thing_id: id,
                                 thing_name: name,
                                 index: idx,
+                                entry_count: thing_count,
                                 drag_index: thing_drag_idx,
                                 drop_target: thing_drop_target,
+                                focus_index: thing_focus_idx,
                             }
                         }
                     }
@@ -222,6 +234,9 @@ pub fn ThingsPage(
             }
 
             KeyValueRowContainer {
+                section_id: "copy_text",
+                focus_index: copy_text_focus_idx,
+
                 for (idx, (id, text)) in visible_copy_text.iter() {
                     {
                         let id = id.clone();
@@ -236,8 +251,10 @@ pub fn ThingsPage(
                                 id_list: list_ids::THING_IDS,
                                 on_change: OnChangeTarget::CopyText,
                                 index: idx,
+                                entry_count: copy_text_count,
                                 drag_index: copy_text_drag_idx,
                                 drop_target: copy_text_drop_target,
+                                focus_index: copy_text_focus_idx,
                             }
                         }
                     }
@@ -271,6 +288,9 @@ pub fn ThingsPage(
             }
 
             KeyValueRowContainer {
+                section_id: "entity_descs",
+                focus_index: desc_focus_idx,
+
                 for (idx, (id, desc)) in visible_descs.iter() {
                     {
                         let id = id.clone();
@@ -285,8 +305,10 @@ pub fn ThingsPage(
                                 id_list: list_ids::ENTITY_IDS,
                                 on_change: OnChangeTarget::EntityDesc,
                                 index: idx,
+                                entry_count: desc_count,
                                 drag_index: desc_drag_idx,
                                 drop_target: desc_drop_target,
+                                focus_index: desc_focus_idx,
                             }
                         }
                     }
@@ -320,6 +342,9 @@ pub fn ThingsPage(
             }
 
             KeyValueRowContainer {
+                section_id: "entity_tooltips",
+                focus_index: tooltip_focus_idx,
+
                 for (idx, (id, tip)) in visible_tooltips.iter() {
                     {
                         let id = id.clone();
@@ -334,8 +359,10 @@ pub fn ThingsPage(
                                 id_list: list_ids::ENTITY_IDS,
                                 on_change: OnChangeTarget::EntityTooltip,
                                 index: idx,
+                                entry_count: tooltip_count,
                                 drag_index: tooltip_drag_idx,
                                 drop_target: tooltip_drop_target,
+                                focus_index: tooltip_focus_idx,
                             }
                         }
                     }
