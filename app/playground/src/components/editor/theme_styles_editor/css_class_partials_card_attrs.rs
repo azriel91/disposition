@@ -63,8 +63,9 @@ pub fn CssClassPartialsCardAttrs(
                 }
             }
 
-            div {
+            button {
                 class: ADD_BTN,
+                tabindex: 0,
                 onclick: {
                     let key = entry_key.clone();
                     let target = target.clone();

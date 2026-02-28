@@ -110,8 +110,9 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                 }
             }
 
-            div {
+            button {
                 class: ADD_BTN,
+                tabindex: 0,
                 onclick: move |_| {
                     let mut diagram = input_diagram.write();
                     // Find a custom alias name that doesn't exist yet.
@@ -243,8 +244,9 @@ pub fn ThemeTypesStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
                 }
             }
 
-            div {
+            button {
                 class: ADD_BTN,
+                tabindex: 0,
                 onclick: move |_| {
                     let mut diagram = input_diagram.write();
                     // Find a type key that doesn't exist yet.
@@ -376,8 +378,9 @@ pub fn ThemeTagsFocusPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
                 }
             }
 
-            div {
+            button {
                 class: ADD_BTN,
+                tabindex: 0,
                 onclick: move |_| {
                     let mut diagram = input_diagram.write();
                     // Add tag_defaults first if not present, otherwise a custom tag.

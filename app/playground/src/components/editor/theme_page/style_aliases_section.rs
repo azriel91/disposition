@@ -341,8 +341,9 @@ fn StyleAliasesSectionAliases(
                 }
             }
 
-            div {
+            button {
                 class: ADD_BTN,
+                tabindex: 0,
                 onclick: {
                     let key = alias_key.clone();
                     move |_| {
@@ -479,8 +480,9 @@ fn StyleAliasesSectionAttrs(
                 }
             }
 
-            div {
+            button {
                 class: ADD_BTN,
+                tabindex: 0,
                 onclick: {
                     let key = alias_key.clone();
                     move |_| {

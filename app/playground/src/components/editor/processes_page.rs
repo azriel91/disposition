@@ -181,8 +181,9 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 }
             }
 
-            div {
+            button {
                 class: ADD_BTN,
+                tabindex: 0,
                 onclick: move |_| {
                     ProcessesPageOps::process_add(input_diagram);
                 },
@@ -608,8 +609,9 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                         }
                     }
 
-                    div {
+                    button {
                         class: ADD_BTN,
+                        tabindex: 0,
                         onclick: {
                             let process_id = process_id.clone();
                             move |_| {
@@ -646,8 +648,9 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                         }
                     }
 
-                    div {
+                    button {
                         class: ADD_BTN,
+                        tabindex: 0,
                         onclick: {
                             let process_id = process_id.clone();
                             move |_| {
@@ -1029,8 +1032,9 @@ fn StepInteractionCard(
                     }
                 }
 
-                div {
+                button {
                     class: ADD_BTN,
+                    tabindex: 0,
                     onclick: {
                         let process_id = process_id.clone();
                         let step_id = step_id.clone();

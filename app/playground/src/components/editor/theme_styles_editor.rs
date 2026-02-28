@@ -295,8 +295,9 @@ pub fn ThemeStylesEditor(
         return rsx! {
             div {
                 class: "flex flex-col gap-2",
-                div {
+                button {
                     class: ADD_BTN,
+                    tabindex: 0,
                     onclick: {
                         let target = target.clone();
                         move |_| {
@@ -369,8 +370,9 @@ pub fn ThemeStylesEditor(
             }
 
             // === Add entry button === //
-            div {
+            button {
                 class: ADD_BTN,
+                tabindex: 0,
                 onclick: {
                     let target = target.clone();
                     move |_| {

@@ -91,6 +91,7 @@ pub const REMOVE_BTN: &str = "\
 /// CSS classes for the "add" button.
 pub const ADD_BTN: &str = "\
     mt-1 \
+    text-left \
     text-sm \
     text-blue-400 \
     hover:text-blue-300 \

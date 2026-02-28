@@ -127,8 +127,9 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                 }
             }
 
-            div {
+            button {
                 class: ADD_BTN,
+                tabindex: 0,
                 onclick: move |_| {
                     ThingLayoutPageOps::entry_add(input_diagram);
                 },

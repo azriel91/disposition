@@ -308,8 +308,9 @@ pub fn ThingsPage(
                     }
                 }
 
-                div {
+                button {
                     class: ADD_BTN,
+                    tabindex: 0,
                     onclick: move |_| {
                         ThingsPageOps::thing_add(input_diagram);
                     },
@@ -372,8 +373,9 @@ pub fn ThingsPage(
                     }
                 }
 
-                div {
+                button {
                     class: ADD_BTN,
+                    tabindex: 0,
                     onclick: move |_| {
                         ThingsPageOps::copy_text_add(input_diagram);
                     },
@@ -436,8 +438,9 @@ pub fn ThingsPage(
                     }
                 }
 
-                div {
+                button {
                     class: ADD_BTN,
+                    tabindex: 0,
                     onclick: move |_| {
                         ThingsPageOps::entity_desc_add(input_diagram);
                     },
@@ -500,8 +503,9 @@ pub fn ThingsPage(
                     }
                 }
 
-                div {
+                button {
                     class: ADD_BTN,
+                    tabindex: 0,
                     onclick: move |_| {
                         ThingsPageOps::entity_tooltip_add(input_diagram);
                     },

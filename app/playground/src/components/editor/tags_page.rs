@@ -322,8 +322,9 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 }
             }
 
-            div {
+            button {
                 class: ADD_BTN,
+                tabindex: 0,
                 onclick: move |_| {
                     TagsPageOps::tag_add(input_diagram);
                 },
@@ -352,8 +353,9 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 }
             }
 
-            div {
+            button {
                 class: ADD_BTN,
+                tabindex: 0,
                 onclick: move |_| {
                     TagsPageOps::tag_things_entry_add(input_diagram);
                 },
@@ -1040,8 +1042,9 @@ fn TagThingsCard(
                         }
                     }
 
-                    div {
+                    button {
                         class: ADD_BTN,
+                        tabindex: 0,
                         onclick: {
                             let tag_id = tag_id.clone();
                             move |_| {
