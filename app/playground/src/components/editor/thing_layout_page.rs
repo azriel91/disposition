@@ -11,10 +11,10 @@ mod help_tooltip;
 mod thing_layout_ops;
 mod thing_layout_page_ops;
 mod thing_layout_row;
+mod thing_layout_rows;
 
 use dioxus::{
-    document,
-    hooks::{use_effect, use_signal},
+    hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
@@ -25,6 +25,7 @@ use crate::components::editor::common::{ADD_BTN, SECTION_HEADING, TEXTAREA_CLASS
 use self::{
     flat_entry::hierarchy_flatten, help_tooltip::HelpTooltip,
     thing_layout_page_ops::ThingLayoutPageOps, thing_layout_row::ThingLayoutRow,
+    thing_layout_rows::ThingLayoutRows,
 };
 
 /// The **Thing Layout** editor page.
@@ -51,25 +52,7 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
     // When set, the row at this flat index should receive focus after the
     // next DOM update. Operations that move a row (Alt+Up/Down, indent,
     // outdent) write the entry's new index here.
-    let mut focus_index: Signal<Option<usize>> = use_signal(|| None);
-
-    // After the DOM re-renders, focus the row identified by `focus_index`.
-    use_effect(move || {
-        if let Some(idx) = focus_index() {
-            focus_index.set(None);
-            document::eval(&format!(
-                "setTimeout(() => {{\
-                    let container = document.querySelector(\
-                        '[data-thing-layout-rows]'\
-                    );\
-                    if (container) {{\
-                        let row = container.children[{idx}];\
-                        if (row) row.focus();\
-                    }}\
-                }}, 0)"
-            ));
-        }
-    });
+    let focus_index: Signal<Option<usize>> = use_signal(|| None);
 
     let diagram = input_diagram.read();
     let flat_entries = hierarchy_flatten(&diagram.thing_hierarchy);
@@ -110,19 +93,8 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                 HelpTooltip { show_help }
             }
 
-            div {
-                class: "\
-                    flex \
-                    flex-col \
-                    rounded-lg \
-                    border \
-                    border-gray-700 \
-                    bg-gray-900 \
-                    p-2 \
-                    gap-0\
-                ",
-
-                "data-thing-layout-rows": "true",
+            ThingLayoutRows {
+                focus_index,
 
                 if flat_entries.is_empty() {
                     p {

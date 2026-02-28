@@ -126,7 +126,7 @@ pub fn ThingLayoutRow(
     rsx! {
         div {
             class: "{LAYOUT_ROW_CLASS} {border_class}",
-            tabindex: "0",
+            tabindex: "-1",
             draggable: "true",
             style: "padding-left: {indent_px}px;",
 
@@ -163,6 +163,16 @@ pub fn ThingLayoutRow(
                         document::eval(
                             "document.activeElement\
                                 ?.nextElementSibling\
+                                ?.focus()",
+                        );
+                    }
+                    Key::Escape => {
+                        evt.prevent_default();
+                        // Return focus to the parent ThingLayoutRows
+                        // container.
+                        document::eval(
+                            "document.activeElement\
+                                ?.closest('[data-thing-layout-rows]')\
                                 ?.focus()",
                         );
                     }
