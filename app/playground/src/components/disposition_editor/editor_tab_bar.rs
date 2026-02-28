@@ -1,7 +1,7 @@
 //! Editor tab bar component.
 //!
-//! Renders the top-level tab bar and, when a Theme page is active, a nested
-//! sub-tab bar.
+//! Renders the top-level tab bar and, when a Things or Theme page is active,
+//! a nested sub-tab bar.
 //!
 //! Supports keyboard navigation:
 //!
@@ -162,6 +162,96 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
                 }
             }
 
+            // === Things sub-tabs (only visible when a Things page is active) === //
+            if current.is_things() {
+                div {
+                    class: "
+                        flex
+                        flex-row
+                        flex-wrap
+                        gap-1
+                        border-b
+                        border-gray-700
+                        mb-1
+                        pl-2
+                    ",
+                    role: "tablist",
+
+                    onkeydown: move |evt| {
+                        match evt.key() {
+                            Key::ArrowLeft => {
+                                evt.prevent_default();
+                                document::eval(
+                                    "(() => {\
+                                        let el = document.activeElement;\
+                                        if (!el || el.getAttribute('role') !== 'tab') return;\
+                                        let prev = el.previousElementSibling;\
+                                        if (prev) prev.focus();\
+                                        else { let last = el.parentElement?.lastElementChild; if (last) last.focus(); }\
+                                    })()"
+                                );
+                            }
+                            Key::ArrowRight => {
+                                evt.prevent_default();
+                                document::eval(
+                                    "(() => {\
+                                        let el = document.activeElement;\
+                                        if (!el || el.getAttribute('role') !== 'tab') return;\
+                                        let next = el.nextElementSibling;\
+                                        if (next) next.focus();\
+                                        else { let first = el.parentElement?.firstElementChild; if (first) first.focus(); }\
+                                    })()"
+                                );
+                            }
+                            _ => {}
+                        }
+                    },
+
+                    for sub in EditorPage::THINGS_SUB_PAGES.iter() {
+                        {
+                            let is_active = current == *sub;
+                            let css = format!(
+                                "{SUB_TAB_CLASS} {}",
+                                if is_active { TAB_ACTIVE } else { TAB_INACTIVE }
+                            );
+                            let tab_index = if is_active { "0" } else { "-1" };
+                            let sub_clone = sub.clone();
+
+                            rsx! {
+                                span {
+                                    key: "{sub.label()}",
+                                    role: "tab",
+                                    tabindex: "{tab_index}",
+                                    "aria-selected": if is_active { "true" } else { "false" },
+                                    class: "{css}",
+                                    onclick: {
+                                        let sub_page = sub_clone.clone();
+                                        move |_| {
+                                            active_page.set(sub_page.clone());
+                                        }
+                                    },
+                                    onkeydown: {
+                                        let sub_page = sub_clone.clone();
+                                        move |evt| {
+                                            let activate = match evt.key() {
+                                                Key::Enter => true,
+                                                Key::Character(ref c) if c == " " => true,
+                                                _ => false,
+                                            };
+                                            if activate {
+                                                evt.prevent_default();
+                                                active_page.set(sub_page.clone());
+                                            }
+                                        }
+                                    },
+                                    "{sub.label()}"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // === Theme sub-tabs (only visible when a Theme page is active) === //
             if current.is_theme() {
                 div {
@@ -257,9 +347,11 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
 
 /// Activates a top-level tab entry.
 ///
-/// For a single [`EditorPage`], sets it directly. For the
-/// [`ThemeGroup`](EditorPageOrGroup::ThemeGroup), only switches to
-/// `ThemeStyleAliases` if the user is not already on a theme page.
+/// For a single [`EditorPage`], sets it directly. For grouped tabs
+/// ([`ThingsGroup`](EditorPageOrGroup::ThingsGroup) or
+/// [`ThemeGroup`](EditorPageOrGroup::ThemeGroup)), only switches to the
+/// group's default sub-page if the user is not already on a page within
+/// that group.
 fn editor_tab_bar_top_level_activate(
     mut active_page: Signal<EditorPage>,
     entry: &EditorPageOrGroup,
@@ -267,6 +359,13 @@ fn editor_tab_bar_top_level_activate(
     match entry {
         EditorPageOrGroup::Page(p) => {
             active_page.set(p.clone());
+        }
+        EditorPageOrGroup::ThingsGroup => {
+            // If already on a things page, stay there;
+            // otherwise default to ThingNames.
+            if !active_page.peek().is_things() {
+                active_page.set(EditorPage::ThingNames);
+            }
         }
         EditorPageOrGroup::ThemeGroup => {
             // If already on a theme page, stay there;

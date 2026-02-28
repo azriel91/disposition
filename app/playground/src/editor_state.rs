@@ -31,46 +31,6 @@ pub struct EditorState {
     /// The input diagram being edited.
     #[serde(default)]
     pub input_diagram: InputDiagram<'static>,
-
-    /// UI state for the Things editor page (collapsed sections).
-    #[serde(default, skip_serializing_if = "ThingsPageUiState::is_default")]
-    pub things_ui: ThingsPageUiState,
-}
-
-/// UI state for the Things editor page.
-///
-/// Tracks which sections are collapsed so the state can be persisted in the
-/// URL hash and restored on reload. Sections with more than 4 entries are
-/// eligible for collapsing.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ThingsPageUiState {
-    /// Whether the "Thing Names" section is collapsed.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub thing_names_collapsed: bool,
-    /// Whether the "Thing Copy Text" section is collapsed.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub copy_text_collapsed: bool,
-    /// Whether the "Entity Descriptions" section is collapsed.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub entity_descs_collapsed: bool,
-    /// Whether the "Entity Tooltips" section is collapsed.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub entity_tooltips_collapsed: bool,
-}
-
-/// Helper for `skip_serializing_if` on `bool` fields.
-fn is_false(v: &bool) -> bool {
-    !*v
-}
-
-impl ThingsPageUiState {
-    /// Returns `true` when all fields are at their default (expanded) values.
-    ///
-    /// Used by `EditorState`'s `skip_serializing_if` so the field is omitted
-    /// from the URL hash when nothing is collapsed.
-    pub fn is_default(&self) -> bool {
-        *self == Self::default()
-    }
 }
 
 /// Identifies which editor page (tab) is currently active.
@@ -80,9 +40,15 @@ impl ThingsPageUiState {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EditorPage {
-    /// Things: names, descriptions, copy-text, hierarchy.
+    /// Things: names (ThingId -> display label).
     #[default]
-    Things,
+    ThingNames,
+    /// Things: clipboard text per ThingId.
+    ThingCopyText,
+    /// Things: entity descriptions.
+    ThingEntityDescs,
+    /// Things: entity tooltips.
+    ThingEntityTooltips,
     /// Thing layout: interactive tree editor for `thing_hierarchy`.
     ThingLayout,
     /// Thing dependencies: edge groups with
@@ -121,10 +87,17 @@ impl EditorPage {
         Self::ThemeDependenciesStyles,
         Self::ThemeTagsFocus,
     ];
-    /// Pages that appear as top-level tabs (Theme pages are grouped under a
-    /// single "Theme" parent tab).
+    /// The sub-pages within the Things group.
+    pub const THINGS_SUB_PAGES: &'static [EditorPage] = &[
+        Self::ThingNames,
+        Self::ThingCopyText,
+        Self::ThingEntityDescs,
+        Self::ThingEntityTooltips,
+    ];
+    /// Pages that appear as top-level tabs (Things and Theme pages are
+    /// grouped under single parent tabs).
     pub const TOP_LEVEL: &'static [EditorPageOrGroup] = &[
-        EditorPageOrGroup::Page(Self::Things),
+        EditorPageOrGroup::ThingsGroup,
         EditorPageOrGroup::Page(Self::ThingLayout),
         EditorPageOrGroup::Page(Self::ThingDependencies),
         EditorPageOrGroup::Page(Self::ThingInteractions),
@@ -138,7 +111,10 @@ impl EditorPage {
     /// bar.
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Things => "Things",
+            Self::ThingNames => "Things: Names",
+            Self::ThingCopyText => "Things: Copy Text",
+            Self::ThingEntityDescs => "Things: Descriptions",
+            Self::ThingEntityTooltips => "Things: Tooltips",
             Self::ThingLayout => "Layout",
             Self::ThingDependencies => "Dependencies",
             Self::ThingInteractions => "Interactions",
@@ -152,6 +128,17 @@ impl EditorPage {
             Self::ThemeTagsFocus => "Theme: Tags",
             Self::Text => "Text",
         }
+    }
+
+    /// Returns `true` if this page belongs to the Things group.
+    pub fn is_things(&self) -> bool {
+        matches!(
+            self,
+            Self::ThingNames
+                | Self::ThingCopyText
+                | Self::ThingEntityDescs
+                | Self::ThingEntityTooltips
+        )
     }
 
     /// Returns `true` if this page belongs to the Theme group.
@@ -168,12 +155,14 @@ impl EditorPage {
     }
 }
 
-/// A top-level tab can either be a single [`EditorPage`] or the Theme group
+/// A top-level tab can either be a single [`EditorPage`] or a group
 /// (which contains its own sub-tabs).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditorPageOrGroup {
     /// A single editor page.
     Page(EditorPage),
+    /// The "Things" group, rendered with sub-tabs.
+    ThingsGroup,
     /// The "Theme" group, rendered with sub-tabs.
     ThemeGroup,
 }
@@ -183,6 +172,7 @@ impl EditorPageOrGroup {
     pub fn label(&self) -> &'static str {
         match self {
             Self::Page(page) => page.label(),
+            Self::ThingsGroup => "Things",
             Self::ThemeGroup => "Theme",
         }
     }
@@ -192,6 +182,7 @@ impl EditorPageOrGroup {
     pub fn contains(&self, page: &EditorPage) -> bool {
         match self {
             Self::Page(p) => p == page,
+            Self::ThingsGroup => page.is_things(),
             Self::ThemeGroup => page.is_theme(),
         }
     }

@@ -82,11 +82,14 @@ const JS_FOCUS_PARENT_ROW: &str = "\
         ?.closest('[tabindex=\"0\"]')\
         ?.focus()";
 
-/// JavaScript snippet: focus the parent `[data-things-section]` wrapper.
+/// JavaScript snippet: focus the active editor sub-tab so the user can
+/// navigate away via arrow keys. Falls back to blurring the active element.
 const JS_FOCUS_PARENT_SECTION: &str = "\
-    document.activeElement\
-        ?.closest('[data-things-section]')\
-        ?.focus()";
+    (() => {\
+        let tab = document.querySelector('[role=\"tab\"][aria-selected=\"true\"]');\
+        if (tab) { tab.focus(); return; }\
+        document.activeElement?.blur();\
+    })()";
 
 /// JavaScript snippet: move focus to the previous sibling row.
 const JS_FOCUS_PREV_ROW: &str = "\

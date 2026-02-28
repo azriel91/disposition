@@ -16,7 +16,9 @@ pub use self::{
     },
     thing_dependencies_page::{ThingDependenciesPage, ThingInteractionsPage},
     thing_layout_page::ThingLayoutPage,
-    things_page::ThingsPage,
+    things_page::{
+        ThingCopyTextPage, ThingEntityDescsPage, ThingEntityTooltipsPage, ThingNamesPage,
+    },
 };
 
 pub(crate) mod common;

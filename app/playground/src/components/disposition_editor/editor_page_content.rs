@@ -12,10 +12,10 @@ use crate::{
     components::editor::{
         ProcessesPage, TagsPage, TextPage, ThemeBaseStylesPage, ThemeDependenciesStylesPage,
         ThemeProcessStepStylesPage, ThemeStyleAliasesPage, ThemeTagsFocusPage,
-        ThemeTypesStylesPage, ThingDependenciesPage, ThingInteractionsPage, ThingLayoutPage,
-        ThingsPage,
+        ThemeTypesStylesPage, ThingCopyTextPage, ThingDependenciesPage, ThingEntityDescsPage,
+        ThingEntityTooltipsPage, ThingInteractionsPage, ThingLayoutPage, ThingNamesPage,
     },
-    editor_state::{EditorPage, ThingsPageUiState},
+    editor_state::EditorPage,
 };
 
 /// Renders the content of the currently active editor page.
@@ -23,12 +23,14 @@ use crate::{
 pub fn EditorPageContent(
     active_page: Signal<EditorPage>,
     input_diagram: Signal<InputDiagram<'static>>,
-    things_ui_state: Signal<ThingsPageUiState>,
 ) -> Element {
     let page = active_page.read().clone();
 
     match page {
-        EditorPage::Things => rsx! { ThingsPage { input_diagram, things_ui_state } },
+        EditorPage::ThingNames => rsx! { ThingNamesPage { input_diagram } },
+        EditorPage::ThingCopyText => rsx! { ThingCopyTextPage { input_diagram } },
+        EditorPage::ThingEntityDescs => rsx! { ThingEntityDescsPage { input_diagram } },
+        EditorPage::ThingEntityTooltips => rsx! { ThingEntityTooltipsPage { input_diagram } },
         EditorPage::ThingLayout => rsx! { ThingLayoutPage { input_diagram } },
         EditorPage::ThingDependencies => rsx! { ThingDependenciesPage { input_diagram } },
         EditorPage::ThingInteractions => rsx! { ThingInteractionsPage { input_diagram } },
