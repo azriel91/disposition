@@ -93,6 +93,38 @@ const JS_TAB_PREV_FIELD: &str = "\
         }\
     })()";
 
+/// JavaScript snippet: focus the previous sibling `[data-style-alias-card]`.
+const JS_FOCUS_PREV_CARD: &str = "\
+    (() => {\
+        let el = document.activeElement;\
+        if (!el) return;\
+        let card = el.closest('[data-style-alias-card]') || el;\
+        let prev = card.previousElementSibling;\
+        while (prev) {\
+            if (prev.hasAttribute && prev.hasAttribute('data-style-alias-card')) {\
+                prev.focus();\
+                return;\
+            }\
+            prev = prev.previousElementSibling;\
+        }\
+    })()";
+
+/// JavaScript snippet: focus the next sibling `[data-style-alias-card]`.
+const JS_FOCUS_NEXT_CARD: &str = "\
+    (() => {\
+        let el = document.activeElement;\
+        if (!el) return;\
+        let card = el.closest('[data-style-alias-card]') || el;\
+        let next = card.nextElementSibling;\
+        while (next) {\
+            if (next.hasAttribute && next.hasAttribute('data-style-alias-card')) {\
+                next.focus();\
+                return;\
+            }\
+            next = next.nextElementSibling;\
+        }\
+    })()";
+
 // === CSS === //
 
 /// CSS classes for the focusable style alias card wrapper.
@@ -141,6 +173,14 @@ pub fn StyleAliasesSection(
             // === Card-level keyboard shortcuts === //
             onkeydown: move |evt| {
                 match evt.key() {
+                    Key::ArrowUp => {
+                        evt.prevent_default();
+                        document::eval(JS_FOCUS_PREV_CARD);
+                    }
+                    Key::ArrowDown => {
+                        evt.prevent_default();
+                        document::eval(JS_FOCUS_NEXT_CARD);
+                    }
                     Key::Enter => {
                         evt.prevent_default();
                         document::eval(

@@ -330,6 +330,14 @@ fn EdgeGroupCard(
                         evt.prevent_default();
                         document::eval(JS_FOCUS_NEXT_CARD);
                     }
+                    Key::ArrowLeft => {
+                        evt.prevent_default();
+                        collapsed.set(true);
+                    }
+                    Key::ArrowRight => {
+                        evt.prevent_default();
+                        collapsed.set(false);
+                    }
                     Key::Character(ref c) if c == " " => {
                         evt.prevent_default();
                         let is_collapsed = *collapsed.read();
@@ -582,6 +590,10 @@ fn edge_group_card_field_keydown(evt: dioxus::events::KeyboardEvent) {
             }
         }
         Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight => {
+            evt.stop_propagation();
+        }
+        Key::Character(ref c) if c == " " => {
+            // Prevents the parent card from collapsing.
             evt.stop_propagation();
         }
         _ => {}
