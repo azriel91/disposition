@@ -78,12 +78,9 @@ pub fn ThingLayoutRows(mut focus_index: Signal<Option<usize>>, children: Element
 
             // === Keyboard shortcuts (container-level) === //
             onkeydown: move |evt| {
-                match evt.key() {
-                    Key::Enter => {
-                        evt.prevent_default();
-                        document::eval(JS_FOCUS_FIRST_ROW);
-                    }
-                    _ => {}
+                if evt.key() == Key::Enter {
+                    evt.prevent_default();
+                    document::eval(JS_FOCUS_FIRST_ROW);
                 }
             },
 
