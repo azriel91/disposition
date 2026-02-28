@@ -6,7 +6,6 @@
 //! - Entity Descriptions (`entity_descs`: `Id` -> description)
 //! - Entity Tooltips (`entity_tooltips`: `Id` -> tooltip)
 
-mod collapse_bar;
 mod drag_handle;
 mod drag_row_border_class;
 mod key_value_row;
@@ -18,7 +17,7 @@ mod things_page_ops;
 use dioxus::{
     hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{ReadableExt, Signal, WritableExt},
+    signals::{ReadableExt, Signal},
 };
 use disposition::input_model::InputDiagram;
 
@@ -28,13 +27,9 @@ use crate::components::editor::{
 };
 
 use self::{
-    collapse_bar::CollapseBar, key_value_row::KeyValueRow,
-    key_value_row_container::KeyValueRowContainer, on_change_target::OnChangeTarget,
-    thing_name_row::ThingNameRow, things_page_ops::ThingsPageOps,
+    key_value_row::KeyValueRow, key_value_row_container::KeyValueRowContainer,
+    on_change_target::OnChangeTarget, thing_name_row::ThingNameRow, things_page_ops::ThingsPageOps,
 };
-
-/// Number of rows shown when a section is collapsed.
-const COLLAPSE_THRESHOLD: usize = 4;
 
 // === Thing Names sub-page === //
 
@@ -47,7 +42,6 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let thing_drag_idx: Signal<Option<usize>> = use_signal(|| None);
     let thing_drop_target: Signal<Option<usize>> = use_signal(|| None);
     let thing_focus_idx: Signal<Option<usize>> = use_signal(|| None);
-    let mut collapsed = use_signal(|| false);
 
     let diagram = input_diagram.read();
     let thing_entries: Vec<(String, String)> = diagram
@@ -58,18 +52,6 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     drop(diagram);
 
     let thing_count = thing_entries.len();
-    let is_collapsed = *collapsed.read();
-    let collapsible = thing_count > COLLAPSE_THRESHOLD;
-
-    let visible_things: Vec<(usize, &(String, String))> = if collapsible && is_collapsed {
-        thing_entries
-            .iter()
-            .enumerate()
-            .take(COLLAPSE_THRESHOLD)
-            .collect()
-    } else {
-        thing_entries.iter().enumerate().collect()
-    };
 
     rsx! {
         div {
@@ -85,11 +67,10 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 section_id: "thing_names",
                 focus_index: thing_focus_idx,
 
-                for (idx, (id, name)) in visible_things.iter() {
+                for (idx, (id, name)) in thing_entries.iter().enumerate() {
                     {
                         let id = id.clone();
                         let name = name.clone();
-                        let idx = *idx;
                         rsx! {
                             ThingNameRow {
                                 key: "{id}",
@@ -104,17 +85,6 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                             }
                         }
                     }
-                }
-            }
-
-            if collapsible {
-                CollapseBar {
-                    collapsed: is_collapsed,
-                    total: thing_count,
-                    visible: if is_collapsed { COLLAPSE_THRESHOLD } else { thing_count },
-                    on_toggle: move |_| {
-                        collapsed.set(!is_collapsed);
-                    },
                 }
             }
 
@@ -141,7 +111,6 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
     let copy_text_drag_idx: Signal<Option<usize>> = use_signal(|| None);
     let copy_text_drop_target: Signal<Option<usize>> = use_signal(|| None);
     let copy_text_focus_idx: Signal<Option<usize>> = use_signal(|| None);
-    let mut collapsed = use_signal(|| false);
 
     let diagram = input_diagram.read();
     let copy_text_entries: Vec<(String, String)> = diagram
@@ -152,18 +121,6 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
     drop(diagram);
 
     let copy_text_count = copy_text_entries.len();
-    let is_collapsed = *collapsed.read();
-    let collapsible = copy_text_count > COLLAPSE_THRESHOLD;
-
-    let visible_copy_text: Vec<(usize, &(String, String))> = if collapsible && is_collapsed {
-        copy_text_entries
-            .iter()
-            .enumerate()
-            .take(COLLAPSE_THRESHOLD)
-            .collect()
-    } else {
-        copy_text_entries.iter().enumerate().collect()
-    };
 
     rsx! {
         div {
@@ -179,11 +136,10 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                 section_id: "copy_text",
                 focus_index: copy_text_focus_idx,
 
-                for (idx, (id, text)) in visible_copy_text.iter() {
+                for (idx, (id, text)) in copy_text_entries.iter().enumerate() {
                     {
                         let id = id.clone();
                         let text = text.clone();
-                        let idx = *idx;
                         rsx! {
                             KeyValueRow {
                                 key: "ct_{id}",
@@ -200,17 +156,6 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                             }
                         }
                     }
-                }
-            }
-
-            if collapsible {
-                CollapseBar {
-                    collapsed: is_collapsed,
-                    total: copy_text_count,
-                    visible: if is_collapsed { COLLAPSE_THRESHOLD } else { copy_text_count },
-                    on_toggle: move |_| {
-                        collapsed.set(!is_collapsed);
-                    },
                 }
             }
 
@@ -237,7 +182,6 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
     let desc_drag_idx: Signal<Option<usize>> = use_signal(|| None);
     let desc_drop_target: Signal<Option<usize>> = use_signal(|| None);
     let desc_focus_idx: Signal<Option<usize>> = use_signal(|| None);
-    let mut collapsed = use_signal(|| false);
 
     let diagram = input_diagram.read();
     let desc_entries: Vec<(String, String)> = diagram
@@ -248,18 +192,6 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
     drop(diagram);
 
     let desc_count = desc_entries.len();
-    let is_collapsed = *collapsed.read();
-    let collapsible = desc_count > COLLAPSE_THRESHOLD;
-
-    let visible_descs: Vec<(usize, &(String, String))> = if collapsible && is_collapsed {
-        desc_entries
-            .iter()
-            .enumerate()
-            .take(COLLAPSE_THRESHOLD)
-            .collect()
-    } else {
-        desc_entries.iter().enumerate().collect()
-    };
 
     rsx! {
         div {
@@ -275,11 +207,10 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
                 section_id: "entity_descs",
                 focus_index: desc_focus_idx,
 
-                for (idx, (id, desc)) in visible_descs.iter() {
+                for (idx, (id, desc)) in desc_entries.iter().enumerate() {
                     {
                         let id = id.clone();
                         let desc = desc.clone();
-                        let idx = *idx;
                         rsx! {
                             KeyValueRow {
                                 key: "desc_{id}",
@@ -296,17 +227,6 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
                             }
                         }
                     }
-                }
-            }
-
-            if collapsible {
-                CollapseBar {
-                    collapsed: is_collapsed,
-                    total: desc_count,
-                    visible: if is_collapsed { COLLAPSE_THRESHOLD } else { desc_count },
-                    on_toggle: move |_| {
-                        collapsed.set(!is_collapsed);
-                    },
                 }
             }
 
@@ -332,7 +252,6 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
     let tooltip_drag_idx: Signal<Option<usize>> = use_signal(|| None);
     let tooltip_drop_target: Signal<Option<usize>> = use_signal(|| None);
     let tooltip_focus_idx: Signal<Option<usize>> = use_signal(|| None);
-    let mut collapsed = use_signal(|| false);
 
     let diagram = input_diagram.read();
     let tooltip_entries: Vec<(String, String)> = diagram
@@ -343,18 +262,6 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
     drop(diagram);
 
     let tooltip_count = tooltip_entries.len();
-    let is_collapsed = *collapsed.read();
-    let collapsible = tooltip_count > COLLAPSE_THRESHOLD;
-
-    let visible_tooltips: Vec<(usize, &(String, String))> = if collapsible && is_collapsed {
-        tooltip_entries
-            .iter()
-            .enumerate()
-            .take(COLLAPSE_THRESHOLD)
-            .collect()
-    } else {
-        tooltip_entries.iter().enumerate().collect()
-    };
 
     rsx! {
         div {
@@ -370,11 +277,10 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
                 section_id: "entity_tooltips",
                 focus_index: tooltip_focus_idx,
 
-                for (idx, (id, tip)) in visible_tooltips.iter() {
+                for (idx, (id, tip)) in tooltip_entries.iter().enumerate() {
                     {
                         let id = id.clone();
                         let tip = tip.clone();
-                        let idx = *idx;
                         rsx! {
                             KeyValueRow {
                                 key: "tip_{id}",
@@ -391,17 +297,6 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
                             }
                         }
                     }
-                }
-            }
-
-            if collapsible {
-                CollapseBar {
-                    collapsed: is_collapsed,
-                    total: tooltip_count,
-                    visible: if is_collapsed { COLLAPSE_THRESHOLD } else { tooltip_count },
-                    on_toggle: move |_| {
-                        collapsed.set(!is_collapsed);
-                    },
                 }
             }
 

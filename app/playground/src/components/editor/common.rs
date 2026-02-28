@@ -154,23 +154,6 @@ pub const DRAG_HANDLE: &str = "\
     items-center\
 ";
 
-/// CSS classes for the collapse/expand toggle bar.
-pub const COLLAPSE_BAR: &str = "\
-    flex \
-    flex-col \
-    justify-center \
-    items-center \
-    cursor-pointer \
-    py-1 \
-    text-gray-500 \
-    hover:text-gray-300 \
-    bg-gray-800/50 \
-    rounded \
-    my-1 \
-    select-none \
-    gap-0.5\
-";
-
 /// Helper label classes.
 pub const LABEL_CLASS: &str = "text-xs text-gray-500 mb-1";
 

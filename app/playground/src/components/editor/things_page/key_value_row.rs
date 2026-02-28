@@ -3,9 +3,7 @@
 //! A reusable editable row for maps keyed by an ID string.
 //! Supports keyboard shortcuts:
 //!
-//! - **Up / Down** (on row): move focus to the previous / next row. When on the
-//!   first or last visible row, moves focus to the adjacent `CollapseBar` (if
-//!   any).
+//! - **Up / Down** (on row): move focus to the previous / next row.
 //! - **Alt+Up / Alt+Down**: move the entry up or down in the list.
 //! - **Enter** (on row): focus the first input inside the row for editing.
 //! - **Tab** (inside an input or remove button): move focus to the next
@@ -98,10 +96,8 @@ const JS_FOCUS_PREV_ROW: &str = "\
         ?.focus()";
 
 /// JavaScript snippet: from the last visible row, walk forwards through the
-/// container's following siblings to find a focusable element (e.g. a
-/// `CollapseBar` button). First checks for a next sibling row (handles
-/// collapsed sections where `entry_count` exceeds the number of rendered
-/// rows).
+/// container's following siblings to find a focusable element. First checks
+/// for a next sibling row, then walks the container's next siblings.
 const JS_FOCUS_AFTER_CONTAINER: &str = "\
     (() => {\
         let row = document.activeElement;\
@@ -190,9 +186,7 @@ pub fn KeyValueRow(
                         evt.stop_propagation();
                         // Use a DOM-based check: if there is no next
                         // sibling row, walk to the container's next
-                        // focusable sibling (e.g. CollapseBar). This
-                        // handles collapsed sections where `entry_count`
-                        // exceeds the number of rendered rows.
+                        // focusable sibling.
                         document::eval(JS_FOCUS_AFTER_CONTAINER);
                     }
                     Key::Escape => {
