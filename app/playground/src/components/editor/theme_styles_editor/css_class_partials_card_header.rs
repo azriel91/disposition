@@ -13,7 +13,10 @@ use disposition::input_model::{theme::IdOrDefaults, InputDiagram};
 use crate::components::editor::{
     common::{INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS},
     datalists::list_ids,
-    theme_styles_editor::{parse_id_or_defaults, ThemeStylesTarget, ID_OR_DEFAULTS_BUILTINS},
+    theme_styles_editor::{
+        css_class_partials_card::css_card_field_keydown, parse_id_or_defaults, ThemeStylesTarget,
+        ID_OR_DEFAULTS_BUILTINS,
+    },
 };
 
 // === CssClassPartialsCardHeader === //
@@ -89,6 +92,8 @@ pub fn CssClassPartialsCardHeader(
             // === Remove button === //
             span {
                 class: REMOVE_BTN,
+                tabindex: "-1",
+                "data-action": "remove",
                 onclick: {
                     let key = entry_key.clone();
                     let target = target.clone();
@@ -101,6 +106,9 @@ pub fn CssClassPartialsCardHeader(
                             styles.shift_remove(&parsed);
                         }
                     }
+                },
+                onkeydown: move |evt| {
+                    css_card_field_keydown(evt);
                 },
                 "x Remove"
             }
@@ -121,6 +129,7 @@ fn CssClassPartialsCardHeaderBuiltinSelect(
     rsx! {
         select {
             class: SELECT_CLASS,
+            tabindex: "-1",
             value: "{entry_key}",
             onchange: {
                 let old_key = entry_key.clone();
@@ -144,6 +153,9 @@ fn CssClassPartialsCardHeaderBuiltinSelect(
                         }
                     }
                 }
+            },
+            onkeydown: move |evt| {
+                css_card_field_keydown(evt);
             },
 
             for (val, label) in ID_OR_DEFAULTS_BUILTINS.iter() {
@@ -170,6 +182,7 @@ fn CssClassPartialsCardHeaderCustomInput(
         input {
             class: INPUT_CLASS,
             style: "max-width:14rem",
+            tabindex: "-1",
             list: list_ids::ENTITY_IDS,
             placeholder: "entity_id",
             value: "{entry_key}",
@@ -195,6 +208,9 @@ fn CssClassPartialsCardHeaderCustomInput(
                         }
                     }
                 }
+            },
+            onkeydown: move |evt| {
+                css_card_field_keydown(evt);
             },
         }
     }
@@ -222,6 +238,7 @@ fn CssClassPartialsCardHeaderToggle(
             input {
                 r#type: "checkbox",
                 class: "accent-blue-500",
+                tabindex: "-1",
                 checked: !is_builtin,
                 onchange: {
                     let old_key = entry_key.clone();
@@ -250,6 +267,9 @@ fn CssClassPartialsCardHeaderToggle(
                             }
                         }
                     }
+                },
+                onkeydown: move |evt| {
+                    css_card_field_keydown(evt);
                 },
             }
             "ID"

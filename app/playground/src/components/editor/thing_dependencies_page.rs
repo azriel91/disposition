@@ -8,7 +8,11 @@
 //! and mutation helpers via [`MapTarget`].
 
 use dioxus::{
-    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    document,
+    prelude::{
+        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
+        ModifiersInteraction, Props,
+    },
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::{
@@ -22,8 +26,8 @@ use disposition::{
 
 use crate::components::editor::{
     common::{
-        id_rename_in_input_diagram, parse_edge_group_id, parse_thing_id, ADD_BTN, CARD_CLASS,
-        INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SECTION_HEADING, SELECT_CLASS,
+        id_rename_in_input_diagram, parse_edge_group_id, parse_thing_id, ADD_BTN, INPUT_CLASS,
+        LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SECTION_HEADING, SELECT_CLASS,
     },
     datalists::list_ids,
 };
@@ -160,9 +164,136 @@ pub(crate) enum MapTarget {
     Interactions,
 }
 
+// === EdgeGroupCard JS helpers === //
+
+/// JavaScript snippet: focus the parent `[data-edge-group-card]` ancestor.
+const JS_FOCUS_PARENT_CARD: &str = "\
+    document.activeElement\
+        ?.closest('[data-edge-group-card]')\
+        ?.focus()";
+
+/// JavaScript snippet: Tab to the next focusable element (input, select, or
+/// `[data-action="remove"]`) within the same `[data-edge-group-card]`.
+const JS_TAB_NEXT_FIELD: &str = "\
+    (() => {\
+        let el = document.activeElement;\
+        if (!el) return;\
+        let card = el.closest('[data-edge-group-card]');\
+        if (!card) return;\
+        let items = Array.from(card.querySelectorAll(\
+            'input, select, [data-action=\"remove\"]'\
+        ));\
+        let idx = items.indexOf(el);\
+        if (idx >= 0 && idx + 1 < items.length) {\
+            items[idx + 1].focus();\
+        } else {\
+            card.focus();\
+        }\
+    })()";
+
+/// JavaScript snippet: Shift+Tab to the previous focusable element within the
+/// same `[data-edge-group-card]`.
+const JS_TAB_PREV_FIELD: &str = "\
+    (() => {\
+        let el = document.activeElement;\
+        if (!el) return;\
+        let card = el.closest('[data-edge-group-card]');\
+        if (!card) return;\
+        let items = Array.from(card.querySelectorAll(\
+            'input, select, [data-action=\"remove\"]'\
+        ));\
+        let idx = items.indexOf(el);\
+        if (idx > 0) {\
+            items[idx - 1].focus();\
+        } else {\
+            card.focus();\
+        }\
+    })()";
+
+// === Edge group card CSS === //
+
+/// JavaScript snippet: focus the previous sibling `[data-edge-group-card]`.
+const JS_FOCUS_PREV_CARD: &str = "\
+    (() => {\
+        let el = document.activeElement;\
+        if (!el) return;\
+        let card = el.closest('[data-edge-group-card]') || el;\
+        let prev = card.previousElementSibling;\
+        while (prev) {\
+            if (prev.hasAttribute && prev.hasAttribute('data-edge-group-card')) {\
+                prev.focus();\
+                return;\
+            }\
+            prev = prev.previousElementSibling;\
+        }\
+    })()";
+
+/// JavaScript snippet: focus the next sibling `[data-edge-group-card]`.
+const JS_FOCUS_NEXT_CARD: &str = "\
+    (() => {\
+        let el = document.activeElement;\
+        if (!el) return;\
+        let card = el.closest('[data-edge-group-card]') || el;\
+        let next = card.nextElementSibling;\
+        while (next) {\
+            if (next.hasAttribute && next.hasAttribute('data-edge-group-card')) {\
+                next.focus();\
+                return;\
+            }\
+            next = next.nextElementSibling;\
+        }\
+    })()";
+
+/// CSS classes for the focusable edge group card wrapper.
+///
+/// Extends the standard card styling with focus ring and transitions.
+const EDGE_GROUP_CARD_CLASS: &str = "\
+    rounded-lg \
+    border \
+    border-gray-700 \
+    bg-gray-900 \
+    p-3 \
+    mb-2 \
+    flex \
+    flex-col \
+    gap-2 \
+    focus:outline-none \
+    focus:ring-1 \
+    focus:ring-blue-400 \
+    transition-all \
+    duration-150\
+";
+
+/// CSS classes for the collapsed summary header.
+const COLLAPSED_HEADER_CLASS: &str = "\
+    flex \
+    flex-row \
+    items-center \
+    gap-3 \
+    cursor-pointer \
+    select-none\
+";
+
+/// CSS classes for an input inside an edge group card.
+///
+/// These elements use `tabindex="-1"` so they are skipped by the normal tab
+/// order; the user enters edit mode by pressing Enter on the focused card.
+const FIELD_INPUT_CLASS: &str = INPUT_CLASS;
+
 // === Edge group card component === //
 
 /// A card for a single edge group (used by both dependencies and interactions).
+///
+/// Supports keyboard shortcuts:
+///
+/// - **ArrowRight**: expand the card (when collapsed).
+/// - **ArrowLeft**: collapse the card (when expanded).
+/// - **Enter**: expand + focus the first input inside the card.
+/// - **Tab / Shift+Tab** (inside a field): cycle through focusable fields
+///   within the card.
+/// - **Esc** (inside a field): return focus to the card wrapper.
+///
+/// When collapsed, shows the edge group ID, kind, and number of things.
 #[component]
 fn EdgeGroupCard(
     input_diagram: Signal<InputDiagram<'static>>,
@@ -172,146 +303,288 @@ fn EdgeGroupCard(
     let edge_group_id = entry.edge_group_id.clone();
     let edge_kind = entry.edge_kind;
     let things = entry.things.clone();
+    let mut collapsed = dioxus::hooks::use_signal(|| true);
+
+    let thing_count = things.len();
+    let thing_suffix = if thing_count != 1 { "s" } else { "" };
+    let kind_label = match edge_kind {
+        EdgeKind::Cyclic => "cyclic",
+        EdgeKind::Sequence => "sequence",
+        EdgeKind::Symmetric => "symmetric",
+    };
 
     rsx! {
         div {
-            class: CARD_CLASS,
+            class: EDGE_GROUP_CARD_CLASS,
+            tabindex: "0",
+            "data-edge-group-card": "true",
 
-            // === EdgeGroupId + Remove === //
-            div {
-                class: ROW_CLASS_SIMPLE,
+            // === Card-level keyboard shortcuts === //
+            onkeydown: move |evt| {
+                match evt.key() {
+                    Key::ArrowUp => {
+                        evt.prevent_default();
+                        document::eval(JS_FOCUS_PREV_CARD);
+                    }
+                    Key::ArrowDown => {
+                        evt.prevent_default();
+                        document::eval(JS_FOCUS_NEXT_CARD);
+                    }
+                    Key::Character(ref c) if c == " " => {
+                        evt.prevent_default();
+                        let is_collapsed = *collapsed.read();
+                        collapsed.set(!is_collapsed);
+                    }
+                    Key::Enter => {
+                        evt.prevent_default();
+                        collapsed.set(false);
+                        document::eval(
+                            "setTimeout(() => {\
+                                document.activeElement\
+                                    ?.querySelector('input, select')\
+                                    ?.focus();\
+                            }, 0)"
+                        );
+                    }
+                    _ => {}
+                }
+            },
 
-                input {
-                    class: INPUT_CLASS,
-                    style: "max-width:16rem",
-                    list: list_ids::EDGE_GROUP_IDS,
-                    placeholder: "edge_group_id",
-                    value: "{edge_group_id}",
-                    onchange: {
-                        let edge_group_id_old = edge_group_id.clone();
-                        move |evt: dioxus::events::FormEvent| {
-                            let edge_group_id_new = evt.value();
-                            EdgeGroupCardOps::edge_group_rename(input_diagram, &edge_group_id_old, &edge_group_id_new);
-                        }
-                    },
+            if *collapsed.read() {
+                // === Collapsed summary === //
+                div {
+                    class: COLLAPSED_HEADER_CLASS,
+                    onclick: move |_| collapsed.set(false),
+
+                    // Expand chevron
+                    span {
+                        class: "text-gray-500 text-xs",
+                        ">"
+                    }
+
+                    span {
+                        class: "text-sm font-mono text-blue-400",
+                        "{edge_group_id}"
+                    }
+
+                    span {
+                        class: "text-xs text-gray-500 italic",
+                        "{kind_label}"
+                    }
+
+                    span {
+                        class: "text-xs text-gray-500",
+                        "({thing_count} thing{thing_suffix})"
+                    }
+                }
+            } else {
+                // === Expanded content === //
+
+                // Collapse toggle
+                div {
+                    class: "flex flex-row items-center gap-1 cursor-pointer select-none mb-1",
+                    onclick: move |_| collapsed.set(true),
+
+                    span {
+                        class: "text-gray-500 text-xs rotate-90 inline-block",
+                        ">"
+                    }
+                    span {
+                        class: "text-xs text-gray-500",
+                        "Collapse"
+                    }
                 }
 
-                span {
-                    class: REMOVE_BTN,
-                    onclick: {
-                        let edge_group_id = edge_group_id.clone();
-                        move |_| {
-                            EdgeGroupCardOps::edge_group_remove(input_diagram, target, &edge_group_id);
-                        }
-                    },
-                    "✕ Remove"
-                }
-            }
+                // === EdgeGroupId + Remove === //
+                div {
+                    class: ROW_CLASS_SIMPLE,
 
-            // === kind === //
-            div {
-                class: "flex flex-col items-start gap-1 pl-4",
-
-                label { class: LABEL_CLASS, "kind" }
-
-                select {
-                    class: SELECT_CLASS,
-                    value: "{edge_kind}",
-                    onchange: {
-                        let edge_group_id = edge_group_id.clone();
-                        let current_things = things.clone();
-                        move |evt: dioxus::events::FormEvent| {
-                            let kind_str = evt.value();
-                            if let Ok(edge_kind_new) = kind_str.parse::<EdgeKind>() {
-                                EdgeGroupCardOps::edge_kind_change(
-                                    input_diagram,
-                                    target,
-                                    &edge_group_id,
-                                    edge_kind_new,
-                                    &current_things,
-                                );
+                    input {
+                        class: FIELD_INPUT_CLASS,
+                        style: "max-width:16rem",
+                        tabindex: "-1",
+                        list: list_ids::EDGE_GROUP_IDS,
+                        placeholder: "edge_group_id",
+                        value: "{edge_group_id}",
+                        onchange: {
+                            let edge_group_id_old = edge_group_id.clone();
+                            move |evt: dioxus::events::FormEvent| {
+                                let edge_group_id_new = evt.value();
+                                EdgeGroupCardOps::edge_group_rename(input_diagram, &edge_group_id_old, &edge_group_id_new);
                             }
-                        }
-                    },
-                    option { value: "cyclic", "Cyclic" }
-                    option { value: "sequence", "Sequence" }
-                    option { value: "symmetric", "Symmetric" }
+                        },
+                        onkeydown: move |evt| {
+                            edge_group_card_field_keydown(evt);
+                        },
+                    }
+
+                    span {
+                        class: REMOVE_BTN,
+                        tabindex: "-1",
+                        "data-action": "remove",
+                        onclick: {
+                            let edge_group_id = edge_group_id.clone();
+                            move |_| {
+                                EdgeGroupCardOps::edge_group_remove(input_diagram, target, &edge_group_id);
+                            }
+                        },
+                        onkeydown: move |evt| {
+                            edge_group_card_field_keydown(evt);
+                        },
+                        "x Remove"
+                    }
                 }
-            }
 
-            // === things === //
-            div {
-                class: "flex flex-col gap-1 pl-4",
+                // === kind === //
+                div {
+                    class: "flex flex-col items-start gap-1 pl-4",
 
-                label { class: LABEL_CLASS, "things" }
+                    label { class: LABEL_CLASS, "kind" }
 
-                for (idx, thing_id) in things.iter().enumerate() {
-                    {
-                        let thing_id = thing_id.clone();
-                        let edge_group_id = edge_group_id.clone();
-                        rsx! {
-                            div {
-                                key: "{edge_group_id}_{idx}",
-                                class: ROW_CLASS_SIMPLE,
-
-                                span {
-                                    class: "text-xs text-gray-500 w-6 text-right",
-                                    "{idx}."
+                    select {
+                        class: SELECT_CLASS,
+                        tabindex: "-1",
+                        value: "{edge_kind}",
+                        onchange: {
+                            let edge_group_id = edge_group_id.clone();
+                            let current_things = things.clone();
+                            move |evt: dioxus::events::FormEvent| {
+                                let kind_str = evt.value();
+                                if let Ok(edge_kind_new) = kind_str.parse::<EdgeKind>() {
+                                    EdgeGroupCardOps::edge_kind_change(
+                                        input_diagram,
+                                        target,
+                                        &edge_group_id,
+                                        edge_kind_new,
+                                        &current_things,
+                                    );
                                 }
+                            }
+                        },
+                        onkeydown: move |evt| {
+                            edge_group_card_field_keydown(evt);
+                        },
+                        option { value: "cyclic", "Cyclic" }
+                        option { value: "sequence", "Sequence" }
+                        option { value: "symmetric", "Symmetric" }
+                    }
+                }
 
-                                input {
-                                    class: INPUT_CLASS,
-                                    style: "max-width:14rem",
-                                    list: list_ids::THING_IDS,
-                                    placeholder: "thing_id",
-                                    value: "{thing_id}",
-                                    onchange: {
-                                        let edge_group_id = edge_group_id.clone();
-                                        move |evt: dioxus::events::FormEvent| {
-                                            let thing_id_new = evt.value();
-                                            EdgeGroupCardOps::edge_thing_update(
-                                                input_diagram,
-                                                target,
-                                                &edge_group_id,
-                                                idx,
-                                                &thing_id_new,
-                                            );
-                                        }
-                                    },
-                                }
+                // === things === //
+                div {
+                    class: "flex flex-col gap-1 pl-4",
 
-                                span {
-                                    class: REMOVE_BTN,
-                                    onclick: {
-                                        let edge_group_id = edge_group_id.clone();
-                                        move |_| {
-                                            EdgeGroupCardOps::edge_thing_remove(
-                                                input_diagram,
-                                                target,
-                                                &edge_group_id,
-                                                idx,
-                                            );
-                                        }
-                                    },
-                                    "✕"
+                    label { class: LABEL_CLASS, "things" }
+
+                    for (idx, thing_id) in things.iter().enumerate() {
+                        {
+                            let thing_id = thing_id.clone();
+                            let edge_group_id = edge_group_id.clone();
+                            rsx! {
+                                div {
+                                    key: "{edge_group_id}_{idx}",
+                                    class: ROW_CLASS_SIMPLE,
+
+                                    span {
+                                        class: "text-xs text-gray-500 w-6 text-right",
+                                        "{idx}."
+                                    }
+
+                                    input {
+                                        class: FIELD_INPUT_CLASS,
+                                        style: "max-width:14rem",
+                                        tabindex: "-1",
+                                        list: list_ids::THING_IDS,
+                                        placeholder: "thing_id",
+                                        value: "{thing_id}",
+                                        onchange: {
+                                            let edge_group_id = edge_group_id.clone();
+                                            move |evt: dioxus::events::FormEvent| {
+                                                let thing_id_new = evt.value();
+                                                EdgeGroupCardOps::edge_thing_update(
+                                                    input_diagram,
+                                                    target,
+                                                    &edge_group_id,
+                                                    idx,
+                                                    &thing_id_new,
+                                                );
+                                            }
+                                        },
+                                        onkeydown: move |evt| {
+                                            edge_group_card_field_keydown(evt);
+                                        },
+                                    }
+
+                                    span {
+                                        class: REMOVE_BTN,
+                                        tabindex: "-1",
+                                        "data-action": "remove",
+                                        onclick: {
+                                            let edge_group_id = edge_group_id.clone();
+                                            move |_| {
+                                                EdgeGroupCardOps::edge_thing_remove(
+                                                    input_diagram,
+                                                    target,
+                                                    &edge_group_id,
+                                                    idx,
+                                                );
+                                            }
+                                        },
+                                        onkeydown: move |evt| {
+                                            edge_group_card_field_keydown(evt);
+                                        },
+                                        "x"
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                div {
-                    class: ADD_BTN,
-                    onclick: {
-                        let edge_group_id = edge_group_id.clone();
-                        move |_| {
-                            EdgeGroupCardOps::edge_thing_add(input_diagram, target, &edge_group_id);
-                        }
-                    },
-                    "+ Add thing"
+                    div {
+                        class: ADD_BTN,
+                        onclick: {
+                            let edge_group_id = edge_group_id.clone();
+                            move |_| {
+                                EdgeGroupCardOps::edge_thing_add(input_diagram, target, &edge_group_id);
+                            }
+                        },
+                        "+ Add thing"
+                    }
                 }
             }
         }
+    }
+}
+
+/// Shared `onkeydown` handler for inputs, selects, and remove buttons inside
+/// an `EdgeGroupCard`.
+///
+/// - **Esc**: return focus to the parent `EdgeGroupCard`.
+/// - **Tab / Shift+Tab**: cycle through focusable fields within the card.
+/// - **ArrowUp / ArrowDown / ArrowLeft / ArrowRight**: stop propagation so the
+///   card-level handler does not fire (allows cursor movement in text inputs
+///   and select navigation).
+fn edge_group_card_field_keydown(evt: dioxus::events::KeyboardEvent) {
+    let shift = evt.modifiers().shift();
+    match evt.key() {
+        Key::Escape => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            document::eval(JS_FOCUS_PARENT_CARD);
+        }
+        Key::Tab => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            if shift {
+                document::eval(JS_TAB_PREV_FIELD);
+            } else {
+                document::eval(JS_TAB_NEXT_FIELD);
+            }
+        }
+        Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight => {
+            evt.stop_propagation();
+        }
+        _ => {}
     }
 }
 

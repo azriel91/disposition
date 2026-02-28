@@ -87,6 +87,38 @@ const JS_TAB_PREV_FIELD: &str = "\
         }\
     })()";
 
+/// JavaScript snippet: focus the previous sibling `[data-process-card]`.
+const JS_FOCUS_PREV_CARD: &str = "\
+    (() => {\
+        let el = document.activeElement;\
+        if (!el) return;\
+        let card = el.closest('[data-process-card]') || el;\
+        let prev = card.previousElementSibling;\
+        while (prev) {\
+            if (prev.hasAttribute && prev.hasAttribute('data-process-card')) {\
+                prev.focus();\
+                return;\
+            }\
+            prev = prev.previousElementSibling;\
+        }\
+    })()";
+
+/// JavaScript snippet: focus the next sibling `[data-process-card]`.
+const JS_FOCUS_NEXT_CARD: &str = "\
+    (() => {\
+        let el = document.activeElement;\
+        if (!el) return;\
+        let card = el.closest('[data-process-card]') || el;\
+        let next = card.nextElementSibling;\
+        while (next) {\
+            if (next.hasAttribute && next.hasAttribute('data-process-card')) {\
+                next.focus();\
+                return;\
+            }\
+            next = next.nextElementSibling;\
+        }\
+    })()";
+
 /// The **Processes** editor page.
 #[component]
 pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
@@ -323,15 +355,18 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
             // === Card-level keyboard shortcuts === //
             onkeydown: move |evt| {
                 match evt.key() {
-                    Key::ArrowRight => {
-                        // Expand, but only when the card itself is focused
-                        // (not a child input).
+                    Key::ArrowUp => {
                         evt.prevent_default();
-                        collapsed.set(false);
+                        document::eval(JS_FOCUS_PREV_CARD);
                     }
-                    Key::ArrowLeft => {
+                    Key::ArrowDown => {
                         evt.prevent_default();
-                        collapsed.set(true);
+                        document::eval(JS_FOCUS_NEXT_CARD);
+                    }
+                    Key::Character(ref c) if c == " " => {
+                        evt.prevent_default();
+                        let is_collapsed = *collapsed.read();
+                        collapsed.set(!is_collapsed);
                     }
                     Key::Enter => {
                         evt.prevent_default();

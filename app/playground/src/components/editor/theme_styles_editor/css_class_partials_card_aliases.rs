@@ -17,7 +17,9 @@ use disposition::{
 use crate::components::editor::{
     common::{ADD_BTN, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
-    theme_styles_editor::{parse_id_or_defaults, ThemeStylesTarget},
+    theme_styles_editor::{
+        css_class_partials_card::css_card_field_keydown, parse_id_or_defaults, ThemeStylesTarget,
+    },
 };
 
 // === CssClassPartialsCardAliases === //
@@ -106,6 +108,7 @@ fn CssClassPartialsCardAliasRow(
             input {
                 class: INPUT_CLASS,
                 style: "max-width:12rem",
+                tabindex: "-1",
                 list: list_ids::STYLE_ALIASES,
                 placeholder: "style_alias",
                 value: "{alias_name}",
@@ -134,10 +137,15 @@ fn CssClassPartialsCardAliasRow(
                         }
                     }
                 },
+                onkeydown: move |evt| {
+                    css_card_field_keydown(evt);
+                },
             }
 
             span {
                 class: REMOVE_BTN,
+                tabindex: "-1",
+                "data-action": "remove",
                 onclick: {
                     let key = entry_key.clone();
                     let target = target.clone();
@@ -155,6 +163,9 @@ fn CssClassPartialsCardAliasRow(
                             }
                         }
                     }
+                },
+                onkeydown: move |evt| {
+                    css_card_field_keydown(evt);
                 },
                 "x"
             }

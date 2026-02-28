@@ -82,6 +82,7 @@ pub fn CollapseBar(
                 match evt.key() {
                     Key::ArrowUp => {
                         evt.prevent_default();
+                        evt.stop_propagation();
                         // Focus the last focusable child of the previous
                         // sibling element (typically a KeyValueRowContainer).
                         document::eval(
@@ -102,6 +103,7 @@ pub fn CollapseBar(
                     }
                     Key::ArrowDown => {
                         evt.prevent_default();
+                        evt.stop_propagation();
                         // Focus the first focusable child of the next sibling
                         // element (typically a KeyValueRowContainer).
                         document::eval(

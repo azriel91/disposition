@@ -3,9 +3,20 @@
 //! Shows a header with the alias name (editable) and a remove button, then
 //! embeds sub-sections for editing the `style_aliases_applied` list and the
 //! `partials` (`ThemeAttr -> value`) map within the `CssClassPartials` value.
+//!
+//! Supports keyboard shortcuts:
+//!
+//! - **Enter** (on card): focus the first input inside the card for editing.
+//! - **Tab / Shift+Tab** (inside a field): cycle through focusable fields
+//!   within the card.
+//! - **Esc** (inside a field): return focus to the card wrapper.
 
 use dioxus::{
-    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    document,
+    prelude::{
+        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
+        ModifiersInteraction, Props,
+    },
     signals::{Signal, WritableExt},
 };
 use disposition::{
@@ -17,9 +28,7 @@ use disposition::{
 };
 
 use crate::components::editor::{
-    common::{
-        ADD_BTN, CARD_CLASS, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS,
-    },
+    common::{ADD_BTN, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS},
     datalists::list_ids,
     theme_styles_editor::{
         parse_theme_attr, theme_attr_entry::ThemeAttrEntry, theme_attr_name, THEME_ATTRS,
@@ -38,6 +47,74 @@ fn parse_style_alias(s: &str) -> Option<StyleAlias<'static>> {
         .map(|id| StyleAlias::from(id.into_static()).into_static())
 }
 
+// === JS helpers === //
+
+/// JavaScript snippet: focus the parent `[data-style-alias-card]` ancestor.
+const JS_FOCUS_PARENT_CARD: &str = "\
+    document.activeElement\
+        ?.closest('[data-style-alias-card]')\
+        ?.focus()";
+
+/// JavaScript snippet: Tab to the next focusable element (input, select, or
+/// `[data-action="remove"]`) within the same `[data-style-alias-card]`.
+const JS_TAB_NEXT_FIELD: &str = "\
+    (() => {\
+        let el = document.activeElement;\
+        if (!el) return;\
+        let card = el.closest('[data-style-alias-card]');\
+        if (!card) return;\
+        let items = Array.from(card.querySelectorAll(\
+            'input, select, [data-action=\"remove\"]'\
+        ));\
+        let idx = items.indexOf(el);\
+        if (idx >= 0 && idx + 1 < items.length) {\
+            items[idx + 1].focus();\
+        } else {\
+            card.focus();\
+        }\
+    })()";
+
+/// JavaScript snippet: Shift+Tab to the previous focusable element within
+/// the same `[data-style-alias-card]`.
+const JS_TAB_PREV_FIELD: &str = "\
+    (() => {\
+        let el = document.activeElement;\
+        if (!el) return;\
+        let card = el.closest('[data-style-alias-card]');\
+        if (!card) return;\
+        let items = Array.from(card.querySelectorAll(\
+            'input, select, [data-action=\"remove\"]'\
+        ));\
+        let idx = items.indexOf(el);\
+        if (idx > 0) {\
+            items[idx - 1].focus();\
+        } else {\
+            card.focus();\
+        }\
+    })()";
+
+// === CSS === //
+
+/// CSS classes for the focusable style alias card wrapper.
+///
+/// Provides focus ring and transitions for keyboard navigation.
+const STYLE_ALIAS_CARD_CLASS: &str = "\
+    rounded-lg \
+    border \
+    border-gray-700 \
+    bg-gray-900 \
+    p-3 \
+    mb-2 \
+    flex \
+    flex-col \
+    gap-2 \
+    focus:outline-none \
+    focus:ring-1 \
+    focus:ring-blue-400 \
+    transition-all \
+    duration-150\
+";
+
 // === StyleAliasesSection === //
 
 /// A single style-alias section within the style aliases page.
@@ -45,6 +122,9 @@ fn parse_style_alias(s: &str) -> Option<StyleAlias<'static>> {
 /// Shows a header with the alias name (editable) and a remove button, then
 /// embeds sub-sections for editing the `style_aliases_applied` list and the
 /// `partials` (`ThemeAttr -> value`) map.
+///
+/// The card is focusable. Pressing **Enter** focuses the first input;
+/// pressing **Esc** from within any field returns focus to the card.
 #[component]
 pub fn StyleAliasesSection(
     input_diagram: Signal<InputDiagram<'static>>,
@@ -54,7 +134,26 @@ pub fn StyleAliasesSection(
 ) -> Element {
     rsx! {
         div {
-            class: CARD_CLASS,
+            class: STYLE_ALIAS_CARD_CLASS,
+            tabindex: "0",
+            "data-style-alias-card": "true",
+
+            // === Card-level keyboard shortcuts === //
+            onkeydown: move |evt| {
+                match evt.key() {
+                    Key::Enter => {
+                        evt.prevent_default();
+                        document::eval(
+                            "setTimeout(() => {\
+                                document.activeElement\
+                                    ?.querySelector('input, select')\
+                                    ?.focus();\
+                            }, 0)"
+                        );
+                    }
+                    _ => {}
+                }
+            },
 
             // === Header: alias name + remove === //
             StyleAliasesSectionHeader {
@@ -102,6 +201,7 @@ fn StyleAliasesSectionHeader(
             input {
                 class: INPUT_CLASS,
                 style: "max-width:14rem",
+                tabindex: "-1",
                 list: list_ids::STYLE_ALIASES,
                 placeholder: "style_alias",
                 value: "{alias_key}",
@@ -136,10 +236,15 @@ fn StyleAliasesSectionHeader(
                             }
                     }
                 },
+                onkeydown: move |evt| {
+                    style_alias_field_keydown(evt);
+                },
             }
 
             span {
                 class: REMOVE_BTN,
+                tabindex: "-1",
+                "data-action": "remove",
                 onclick: {
                     let key = alias_key.clone();
                     move |_| {
@@ -148,6 +253,9 @@ fn StyleAliasesSectionHeader(
                             diagram.theme_default.style_aliases.shift_remove(&alias);
                         }
                     }
+                },
+                onkeydown: move |evt| {
+                    style_alias_field_keydown(evt);
                 },
                 "x Remove alias"
             }
@@ -237,6 +345,7 @@ fn StyleAliasesSectionAliasRow(
             input {
                 class: INPUT_CLASS,
                 style: "max-width:12rem",
+                tabindex: "-1",
                 list: list_ids::STYLE_ALIASES,
                 placeholder: "style_alias",
                 value: "{alias_name}",
@@ -258,10 +367,15 @@ fn StyleAliasesSectionAliasRow(
                             }
                     }
                 },
+                onkeydown: move |evt| {
+                    style_alias_field_keydown(evt);
+                },
             }
 
             span {
                 class: REMOVE_BTN,
+                tabindex: "-1",
+                "data-action": "remove",
                 onclick: {
                     let key = alias_key.clone();
                     let alias_idx = alias_index;
@@ -275,6 +389,9 @@ fn StyleAliasesSectionAliasRow(
                                 }
                         }
                     }
+                },
+                onkeydown: move |evt| {
+                    style_alias_field_keydown(evt);
                 },
                 "x"
             }
@@ -372,6 +489,7 @@ fn StyleAliasesSectionAttrRow(
             // === Attribute name dropdown === //
             select {
                 class: SELECT_CLASS,
+                tabindex: "-1",
                 value: "{attr_name}",
                 onchange: {
                     let key = alias_key.clone();
@@ -394,6 +512,9 @@ fn StyleAliasesSectionAttrRow(
                             }
                     }
                 },
+                onkeydown: move |evt| {
+                    style_alias_field_keydown(evt);
+                },
 
                 for (name, _) in THEME_ATTRS.iter() {
                     option {
@@ -408,6 +529,7 @@ fn StyleAliasesSectionAttrRow(
             input {
                 class: INPUT_CLASS,
                 style: "max-width:8rem",
+                tabindex: "-1",
                 placeholder: "value",
                 value: "{attr_value}",
                 onchange: {
@@ -425,11 +547,16 @@ fn StyleAliasesSectionAttrRow(
                         }
                     }
                 },
+                onkeydown: move |evt| {
+                    style_alias_field_keydown(evt);
+                },
             }
 
             // === Remove button === //
             span {
                 class: REMOVE_BTN,
+                tabindex: "-1",
+                "data-action": "remove",
                 onclick: {
                     let key = alias_key.clone();
                     let attr = theme_attr;
@@ -444,8 +571,45 @@ fn StyleAliasesSectionAttrRow(
                         }
                     }
                 },
+                onkeydown: move |evt| {
+                    style_alias_field_keydown(evt);
+                },
                 "x"
             }
         }
+    }
+}
+
+// === Shared field keydown handler === //
+
+/// Shared `onkeydown` handler for inputs, selects, and remove buttons inside
+/// a `StyleAliasesSection`.
+///
+/// - **Esc**: return focus to the parent card.
+/// - **Tab / Shift+Tab**: cycle through focusable fields within the card.
+/// - **ArrowUp / ArrowDown / ArrowLeft / ArrowRight**: stop propagation so the
+///   card-level handler does not fire (allows cursor movement in text inputs
+///   and select navigation).
+fn style_alias_field_keydown(evt: dioxus::events::KeyboardEvent) {
+    let shift = evt.modifiers().shift();
+    match evt.key() {
+        Key::Escape => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            document::eval(JS_FOCUS_PARENT_CARD);
+        }
+        Key::Tab => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            if shift {
+                document::eval(JS_TAB_PREV_FIELD);
+            } else {
+                document::eval(JS_TAB_NEXT_FIELD);
+            }
+        }
+        Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight => {
+            evt.stop_propagation();
+        }
+        _ => {}
     }
 }

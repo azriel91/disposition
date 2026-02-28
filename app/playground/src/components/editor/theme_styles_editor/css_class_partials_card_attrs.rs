@@ -15,8 +15,8 @@ use disposition::input_model::{theme::ThemeAttr, InputDiagram};
 use crate::components::editor::{
     common::{ADD_BTN, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS},
     theme_styles_editor::{
-        parse_id_or_defaults, parse_theme_attr, theme_attr_entry::ThemeAttrEntry, theme_attr_name,
-        ThemeStylesTarget, THEME_ATTRS,
+        css_class_partials_card::css_card_field_keydown, parse_id_or_defaults, parse_theme_attr,
+        theme_attr_entry::ThemeAttrEntry, theme_attr_name, ThemeStylesTarget, THEME_ATTRS,
     },
 };
 
@@ -116,6 +116,7 @@ fn CssClassPartialsCardAttrRow(
             // === Attribute name dropdown === //
             select {
                 class: SELECT_CLASS,
+                tabindex: "-1",
                 value: "{attr_name}",
                 onchange: {
                     let key = entry_key.clone();
@@ -141,6 +142,9 @@ fn CssClassPartialsCardAttrRow(
                         }
                     }
                 },
+                onkeydown: move |evt| {
+                    css_card_field_keydown(evt);
+                },
 
                 for (name, _) in THEME_ATTRS.iter() {
                     option {
@@ -155,6 +159,7 @@ fn CssClassPartialsCardAttrRow(
             input {
                 class: INPUT_CLASS,
                 style: "max-width:8rem",
+                tabindex: "-1",
                 placeholder: "value",
                 value: "{attr_value}",
                 onchange: {
@@ -176,11 +181,16 @@ fn CssClassPartialsCardAttrRow(
                         }
                     }
                 },
+                onkeydown: move |evt| {
+                    css_card_field_keydown(evt);
+                },
             }
 
             // === Remove button === //
             span {
                 class: REMOVE_BTN,
+                tabindex: "-1",
+                "data-action": "remove",
                 onclick: {
                     let key = entry_key.clone();
                     let attr = theme_attr;
@@ -196,6 +206,9 @@ fn CssClassPartialsCardAttrRow(
                             }
                         }
                     }
+                },
+                onkeydown: move |evt| {
+                    css_card_field_keydown(evt);
                 },
                 "x"
             }

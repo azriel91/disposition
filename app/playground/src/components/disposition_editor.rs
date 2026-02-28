@@ -313,6 +313,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                         max-h-[70vh]
                         pr-1
                     ",
+                    tabindex: "-1",
                     EditorPageContent {
                         active_page,
                         input_diagram,

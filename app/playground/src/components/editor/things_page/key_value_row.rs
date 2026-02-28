@@ -82,30 +82,17 @@ const JS_FOCUS_PARENT_ROW: &str = "\
         ?.closest('[tabindex=\"0\"]')\
         ?.focus()";
 
+/// JavaScript snippet: focus the parent `[data-things-section]` wrapper.
+const JS_FOCUS_PARENT_SECTION: &str = "\
+    document.activeElement\
+        ?.closest('[data-things-section]')\
+        ?.focus()";
+
 /// JavaScript snippet: move focus to the previous sibling row.
 const JS_FOCUS_PREV_ROW: &str = "\
     document.activeElement\
         ?.previousElementSibling\
         ?.focus()";
-
-/// JavaScript snippet: from the first row, walk backwards through the
-/// container's preceding siblings to find a focusable element (e.g. a
-/// `CollapseBar` button).
-const JS_FOCUS_BEFORE_CONTAINER: &str = "\
-    (() => {\
-        let row = document.activeElement;\
-        if (!row) return;\
-        let container = row.parentElement;\
-        if (!container) return;\
-        let prev = container.previousElementSibling;\
-        while (prev) {\
-            if (prev.tabIndex >= 0 || prev.tagName === 'BUTTON' || prev.tagName === 'A') {\
-                prev.focus();\
-                return;\
-            }\
-            prev = prev.previousElementSibling;\
-        }\
-    })()";
 
 /// JavaScript snippet: from the last visible row, walk forwards through the
 /// container's following siblings to find a focusable element (e.g. a
@@ -174,6 +161,7 @@ pub fn KeyValueRow(
                 match evt.key() {
                     Key::ArrowUp if alt => {
                         evt.prevent_default();
+                        evt.stop_propagation();
                         if can_move_up {
                             ThingsPageOps::kv_entry_move(input_diagram, on_change, index, index - 1);
                             focus_index.set(Some(index - 1));
@@ -181,6 +169,7 @@ pub fn KeyValueRow(
                     }
                     Key::ArrowDown if alt => {
                         evt.prevent_default();
+                        evt.stop_propagation();
                         if can_move_down {
                             ThingsPageOps::kv_entry_move(input_diagram, on_change, index, index + 1);
                             focus_index.set(Some(index + 1));
@@ -188,14 +177,14 @@ pub fn KeyValueRow(
                     }
                     Key::ArrowUp => {
                         evt.prevent_default();
-                        if is_first {
-                            document::eval(JS_FOCUS_BEFORE_CONTAINER);
-                        } else {
+                        evt.stop_propagation();
+                        if !is_first {
                             document::eval(JS_FOCUS_PREV_ROW);
                         }
                     }
                     Key::ArrowDown => {
                         evt.prevent_default();
+                        evt.stop_propagation();
                         // Use a DOM-based check: if there is no next
                         // sibling row, walk to the container's next
                         // focusable sibling (e.g. CollapseBar). This
@@ -203,8 +192,14 @@ pub fn KeyValueRow(
                         // exceeds the number of rendered rows.
                         document::eval(JS_FOCUS_AFTER_CONTAINER);
                     }
+                    Key::Escape => {
+                        evt.prevent_default();
+                        evt.stop_propagation();
+                        document::eval(JS_FOCUS_PARENT_SECTION);
+                    }
                     Key::Enter => {
                         evt.prevent_default();
+                        evt.stop_propagation();
                         document::eval(JS_FOCUS_FIRST_INPUT);
                     }
                     _ => {}
