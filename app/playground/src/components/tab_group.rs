@@ -10,7 +10,8 @@ use dioxus::prelude::{
 /// detects them alongside their corresponding `group-[:has(...)]` panel
 /// classes.
 const TAB_IDS: &[&str] = &[
-    "tab-0", "tab-1", "tab-2", "tab-3", "tab-4", "tab-5", "tab-6", "tab-7",
+    "tab-0", "tab-1", "tab-2", "tab-3", "tab-4", "tab-5", "tab-6", "tab-7", "tab-8", "tab-9",
+    "tab-10", "tab-11", "tab-12", "tab-13", "tab-14", "tab-15",
 ];
 
 /// Static CSS class strings for tab panel visibility.
@@ -26,15 +27,24 @@ const TAB_PANEL_CLASSES: &[&str] = &[
     "hidden group-[:has(#tab-5:checked)]:flex flex-col",
     "hidden group-[:has(#tab-6:checked)]:flex flex-col",
     "hidden group-[:has(#tab-7:checked)]:flex flex-col",
+    "hidden group-[:has(#tab-8:checked)]:flex flex-col",
+    "hidden group-[:has(#tab-9:checked)]:flex flex-col",
+    "hidden group-[:has(#tab-10:checked)]:flex flex-col",
+    "hidden group-[:has(#tab-11:checked)]:flex flex-col",
+    "hidden group-[:has(#tab-12:checked)]:flex flex-col",
+    "hidden group-[:has(#tab-13:checked)]:flex flex-col",
+    "hidden group-[:has(#tab-14:checked)]:flex flex-col",
+    "hidden group-[:has(#tab-15:checked)]:flex flex-col",
 ];
 
 /// A CSS-only tab group component.
 ///
-/// **Supports up to 8 tabs. Additional entries beyond 8 are silently ignored.**
+/// **Supports up to 16 tabs. Additional entries beyond 16 are silently
+/// ignored.**
 ///
 /// Uses Tailwind CSS `group` with `:has(#tab-N:checked)` variants to toggle
 /// panel visibility without JavaScript. Each tab is a `<label>` wrapping a
-/// hidden `<input type="radio">` with a static `id` (`tab-0`~`tab-7`), and
+/// hidden `<input type="radio">` with a static `id` (`tab-0`~`tab-15`), and
 /// each panel `<div>` uses the corresponding
 /// `group-[:has(#tab-N:checked)]:flex` class to become visible when its radio
 /// input is selected.
