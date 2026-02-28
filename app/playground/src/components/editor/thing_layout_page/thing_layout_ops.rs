@@ -69,7 +69,7 @@ impl ThingLayoutOps {
             entries = new_entries;
 
             input_diagram.write().thing_hierarchy = hierarchy_rebuild(&entries);
-            return Some(new_index);
+            Some(new_index)
         } else {
             // No previous sibling: reparent one level up (become sibling of
             // parent). Only possible if depth > 0.
@@ -78,10 +78,7 @@ impl ThingLayoutOps {
             }
 
             // Find the parent entry.
-            let parent_idx = match Self::parent_index(&entries, index) {
-                Some(idx) => idx,
-                None => return None,
-            };
+            let parent_idx = Self::parent_index(&entries, index)?;
 
             let cur_subtree_start = index;
             let cur_subtree_end = Self::subtree_end(&entries, index);
@@ -105,7 +102,7 @@ impl ThingLayoutOps {
             entries = new_entries;
 
             input_diagram.write().thing_hierarchy = hierarchy_rebuild(&entries);
-            return Some(new_index);
+            Some(new_index)
         }
     }
 
@@ -162,7 +159,7 @@ impl ThingLayoutOps {
             entries = new_entries;
 
             input_diagram.write().thing_hierarchy = hierarchy_rebuild(&entries);
-            return Some(new_index);
+            Some(new_index)
         } else {
             // No next sibling: reparent one level up (become sibling of
             // parent), placed after the parent's full subtree.
@@ -171,10 +168,7 @@ impl ThingLayoutOps {
                 return None;
             }
 
-            let parent_idx = match Self::parent_index(&entries, index) {
-                Some(idx) => idx,
-                None => return None,
-            };
+            let parent_idx = Self::parent_index(&entries, index)?;
 
             let parent_subtree_end = Self::subtree_end(&entries, parent_idx);
 
@@ -201,7 +195,7 @@ impl ThingLayoutOps {
             entries = new_entries;
 
             input_diagram.write().thing_hierarchy = hierarchy_rebuild(&entries);
-            return Some(new_index);
+            Some(new_index)
         }
     }
 
@@ -226,9 +220,7 @@ impl ThingLayoutOps {
         }
 
         // Must have a previous sibling to become a child of.
-        if Self::prev_sibling_index(&entries, index).is_none() {
-            return None;
-        }
+        Self::prev_sibling_index(&entries, index)?;
 
         let cur_subtree_end = Self::subtree_end(&entries, index);
 
@@ -265,10 +257,7 @@ impl ThingLayoutOps {
             return None;
         }
 
-        let parent_idx = match Self::parent_index(&entries, index) {
-            Some(idx) => idx,
-            None => return None,
-        };
+        let parent_idx = Self::parent_index(&entries, index)?;
 
         let parent_subtree_end = Self::subtree_end(&entries, parent_idx);
         let cur_subtree_end = Self::subtree_end(&entries, index);

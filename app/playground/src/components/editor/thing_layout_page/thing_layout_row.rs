@@ -217,11 +217,10 @@ pub fn ThingLayoutRow(
                 class: "{up_btn_class}",
                 title: "Move up (Alt+Up)",
                 onclick: move |_| {
-                    if can_move_up {
-                        if let Some(new_idx) = ThingLayoutOps::entry_move_up(input_diagram, flat_index) {
+                    if can_move_up
+                        && let Some(new_idx) = ThingLayoutOps::entry_move_up(input_diagram, flat_index) {
                             focus_index.set(Some(new_idx));
                         }
-                    }
                 },
                 "▲"
             }
@@ -229,11 +228,10 @@ pub fn ThingLayoutRow(
                 class: "{down_btn_class}",
                 title: "Move down (Alt+Down)",
                 onclick: move |_| {
-                    if can_move_down {
-                        if let Some(new_idx) = ThingLayoutOps::entry_move_down(input_diagram, flat_index) {
+                    if can_move_down
+                        && let Some(new_idx) = ThingLayoutOps::entry_move_down(input_diagram, flat_index) {
                             focus_index.set(Some(new_idx));
                         }
-                    }
                 },
                 "▼"
             }
@@ -243,11 +241,10 @@ pub fn ThingLayoutRow(
                 class: "{outdent_btn_class}",
                 title: "Outdent (Shift+Tab)",
                 onclick: move |_| {
-                    if can_outdent {
-                        if let Some(new_idx) = ThingLayoutOps::entry_outdent(input_diagram, flat_index) {
+                    if can_outdent
+                        && let Some(new_idx) = ThingLayoutOps::entry_outdent(input_diagram, flat_index) {
                             focus_index.set(Some(new_idx));
                         }
-                    }
                 },
                 "⇤"
             }
@@ -255,11 +252,10 @@ pub fn ThingLayoutRow(
                 class: "{indent_btn_class}",
                 title: "Indent (Tab)",
                 onclick: move |_| {
-                    if can_indent {
-                        if let Some(new_idx) = ThingLayoutOps::entry_indent(input_diagram, flat_index) {
+                    if can_indent
+                        && let Some(new_idx) = ThingLayoutOps::entry_indent(input_diagram, flat_index) {
                             focus_index.set(Some(new_idx));
                         }
-                    }
                 },
                 "⇥"
             }

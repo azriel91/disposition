@@ -528,10 +528,10 @@ impl EdgeGroupCardOps {
             MapTarget::Dependencies => input_diagram.thing_dependencies.get_mut(&edge_group_id),
             MapTarget::Interactions => input_diagram.thing_interactions.get_mut(&edge_group_id),
         };
-        if let Some(edge_group) = edge_group {
-            if idx < edge_group.things.len() {
-                edge_group.things[idx] = thing_id_new;
-            }
+        if let Some(edge_group) = edge_group
+            && idx < edge_group.things.len()
+        {
+            edge_group.things[idx] = thing_id_new;
         }
     }
 
@@ -552,10 +552,10 @@ impl EdgeGroupCardOps {
             MapTarget::Dependencies => input_diagram.thing_dependencies.get_mut(&edge_group_id),
             MapTarget::Interactions => input_diagram.thing_interactions.get_mut(&edge_group_id),
         };
-        if let Some(edge_group) = edge_group {
-            if idx < edge_group.things.len() {
-                edge_group.things.remove(idx);
-            }
+        if let Some(edge_group) = edge_group
+            && idx < edge_group.things.len()
+        {
+            edge_group.things.remove(idx);
         }
     }
 
