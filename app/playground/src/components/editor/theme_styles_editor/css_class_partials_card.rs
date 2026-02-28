@@ -49,7 +49,7 @@ const JS_TAB_NEXT_FIELD: &str = "\
         let card = el.closest('[data-css-card]');\
         if (!card) return;\
         let items = Array.from(card.querySelectorAll(\
-            'input, select, [data-action=\"remove\"]'\
+            'input, select, button, [data-action=\"remove\"]'\
         ));\
         let idx = items.indexOf(el);\
         if (idx >= 0 && idx + 1 < items.length) {\
@@ -68,7 +68,7 @@ const JS_TAB_PREV_FIELD: &str = "\
         let card = el.closest('[data-css-card]');\
         if (!card) return;\
         let items = Array.from(card.querySelectorAll(\
-            'input, select, [data-action=\"remove\"]'\
+            'input, select, button, [data-action=\"remove\"]'\
         ));\
         let idx = items.indexOf(el);\
         if (idx > 0) {\

@@ -297,7 +297,7 @@ pub fn ThemeStylesEditor(
                 class: "flex flex-col gap-2",
                 button {
                     class: ADD_BTN,
-                    tabindex: 0,
+                    tabindex: -1,
                     onclick: {
                         let target = target.clone();
                         move |_| {
@@ -372,7 +372,7 @@ pub fn ThemeStylesEditor(
             // === Add entry button === //
             button {
                 class: ADD_BTN,
-                tabindex: 0,
+                tabindex: -1,
                 onclick: {
                     let target = target.clone();
                     move |_| {

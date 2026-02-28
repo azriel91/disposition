@@ -183,7 +183,7 @@ const JS_TAB_NEXT_FIELD: &str = "\
         let card = el.closest('[data-edge-group-card]');\
         if (!card) return;\
         let items = Array.from(card.querySelectorAll(\
-            'input, select, [data-action=\"remove\"]'\
+            'input, select, button, [data-action=\"remove\"]'\
         ));\
         let idx = items.indexOf(el);\
         if (idx >= 0 && idx + 1 < items.length) {\
@@ -202,7 +202,7 @@ const JS_TAB_PREV_FIELD: &str = "\
         let card = el.closest('[data-edge-group-card]');\
         if (!card) return;\
         let items = Array.from(card.querySelectorAll(\
-            'input, select, [data-action=\"remove\"]'\
+            'input, select, button, [data-action=\"remove\"]'\
         ));\
         let idx = items.indexOf(el);\
         if (idx > 0) {\
@@ -552,12 +552,15 @@ fn EdgeGroupCard(
 
                     button {
                         class: ADD_BTN,
-                        tabindex: 0,
+                        tabindex: -1,
                         onclick: {
                             let edge_group_id = edge_group_id.clone();
                             move |_| {
                                 EdgeGroupCardOps::edge_thing_add(input_diagram, target, &edge_group_id);
                             }
+                        },
+                        onkeydown: move |evt| {
+                            edge_group_card_field_keydown(evt);
                         },
                         "+ Add thing"
                     }

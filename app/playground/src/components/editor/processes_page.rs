@@ -58,7 +58,7 @@ const JS_TAB_NEXT_FIELD: &str = "\
         let card = el.closest('[data-process-card]');\
         if (!card) return;\
         let items = Array.from(card.querySelectorAll(\
-            'input, textarea, [data-action=\"remove\"]'\
+            'input, textarea, button, [data-action=\"remove\"]'\
         ));\
         let idx = items.indexOf(el);\
         if (idx >= 0 && idx + 1 < items.length) {\
@@ -77,7 +77,7 @@ const JS_TAB_PREV_FIELD: &str = "\
         let card = el.closest('[data-process-card]');\
         if (!card) return;\
         let items = Array.from(card.querySelectorAll(\
-            'input, textarea, [data-action=\"remove\"]'\
+            'input, textarea, button, [data-action=\"remove\"]'\
         ));\
         let idx = items.indexOf(el);\
         if (idx > 0) {\
@@ -183,7 +183,7 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 
             button {
                 class: ADD_BTN,
-                tabindex: 0,
+                tabindex: -1,
                 onclick: move |_| {
                     ProcessesPageOps::process_add(input_diagram);
                 },
@@ -611,12 +611,15 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
 
                     button {
                         class: ADD_BTN,
-                        tabindex: 0,
+                        tabindex: -1,
                         onclick: {
                             let process_id = process_id.clone();
                             move |_| {
                                 ProcessCardOps::step_add(input_diagram, &process_id);
                             }
+                        },
+                        onkeydown: move |evt| {
+                            process_card_field_keydown(evt);
                         },
                         "+ Add step"
                     }
@@ -650,12 +653,15 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
 
                     button {
                         class: ADD_BTN,
-                        tabindex: 0,
+                        tabindex: -1,
                         onclick: {
                             let process_id = process_id.clone();
                             move |_| {
                                 ProcessCardOps::step_interaction_add(input_diagram, &process_id);
                             }
+                        },
+                        onkeydown: move |evt| {
+                            process_card_field_keydown(evt);
                         },
                         "+ Add step interaction mapping"
                     }
@@ -1034,13 +1040,16 @@ fn StepInteractionCard(
 
                 button {
                     class: ADD_BTN,
-                    tabindex: 0,
+                    tabindex: -1,
                     onclick: {
                         let process_id = process_id.clone();
                         let step_id = step_id.clone();
                         move |_| {
                             StepInteractionCardOps::step_interaction_edge_add(input_diagram, &process_id, &step_id);
                         }
+                    },
+                    onkeydown: move |evt| {
+                        process_card_field_keydown(evt);
                     },
                     "+ Add edge group"
                 }

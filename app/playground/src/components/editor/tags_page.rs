@@ -164,7 +164,7 @@ const JS_CARD_TAB_NEXT: &str = "\
         let card = el.closest('[data-tag-things-card]');\
         if (!card) return;\
         let items = Array.from(card.querySelectorAll(\
-            'input, [data-action=\"remove\"]'\
+            'input, button, [data-action=\"remove\"]'\
         ));\
         let idx = items.indexOf(el);\
         if (idx >= 0 && idx + 1 < items.length) {\
@@ -183,7 +183,7 @@ const JS_CARD_TAB_PREV: &str = "\
         let card = el.closest('[data-tag-things-card]');\
         if (!card) return;\
         let items = Array.from(card.querySelectorAll(\
-            'input, [data-action=\"remove\"]'\
+            'input, button, [data-action=\"remove\"]'\
         ));\
         let idx = items.indexOf(el);\
         if (idx > 0) {\
@@ -324,7 +324,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 
             button {
                 class: ADD_BTN,
-                tabindex: 0,
+                tabindex: -1,
                 onclick: move |_| {
                     TagsPageOps::tag_add(input_diagram);
                 },
@@ -355,7 +355,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 
             button {
                 class: ADD_BTN,
-                tabindex: 0,
+                tabindex: -1,
                 onclick: move |_| {
                     TagsPageOps::tag_things_entry_add(input_diagram);
                 },
@@ -1044,12 +1044,15 @@ fn TagThingsCard(
 
                     button {
                         class: ADD_BTN,
-                        tabindex: 0,
+                        tabindex: -1,
                         onclick: {
                             let tag_id = tag_id.clone();
                             move |_| {
                                 TagsPageOps::tag_things_thing_add(input_diagram, &tag_id);
                             }
+                        },
+                        onkeydown: move |evt| {
+                            tag_things_card_field_keydown(evt);
                         },
                         "+ Add thing"
                     }

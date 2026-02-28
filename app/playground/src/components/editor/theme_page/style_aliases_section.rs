@@ -64,7 +64,7 @@ const JS_TAB_NEXT_FIELD: &str = "\
         let card = el.closest('[data-style-alias-card]');\
         if (!card) return;\
         let items = Array.from(card.querySelectorAll(\
-            'input, select, [data-action=\"remove\"]'\
+            'input, select, button, [data-action=\"remove\"]'\
         ));\
         let idx = items.indexOf(el);\
         if (idx >= 0 && idx + 1 < items.length) {\
@@ -83,7 +83,7 @@ const JS_TAB_PREV_FIELD: &str = "\
         let card = el.closest('[data-style-alias-card]');\
         if (!card) return;\
         let items = Array.from(card.querySelectorAll(\
-            'input, select, [data-action=\"remove\"]'\
+            'input, select, button, [data-action=\"remove\"]'\
         ));\
         let idx = items.indexOf(el);\
         if (idx > 0) {\
@@ -343,7 +343,7 @@ fn StyleAliasesSectionAliases(
 
             button {
                 class: ADD_BTN,
-                tabindex: 0,
+                tabindex: -1,
                 onclick: {
                     let key = alias_key.clone();
                     move |_| {
@@ -359,6 +359,9 @@ fn StyleAliasesSectionAliases(
                             }
                         }
                     }
+                },
+                onkeydown: move |evt| {
+                    style_alias_field_keydown(evt);
                 },
                 "+ Add alias"
             }
@@ -482,7 +485,7 @@ fn StyleAliasesSectionAttrs(
 
             button {
                 class: ADD_BTN,
-                tabindex: 0,
+                tabindex: -1,
                 onclick: {
                     let key = alias_key.clone();
                     move |_| {
@@ -502,6 +505,9 @@ fn StyleAliasesSectionAttrs(
                             }
                         }
                     }
+                },
+                onkeydown: move |evt| {
+                    style_alias_field_keydown(evt);
                 },
                 "+ Add attribute"
             }

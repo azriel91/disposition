@@ -64,7 +64,7 @@ pub fn CssClassPartialsCardAliases(
 
             button {
                 class: ADD_BTN,
-                tabindex: 0,
+                tabindex: -1,
                 onclick: {
                     let key = entry_key.clone();
                     let target = target.clone();
@@ -82,6 +82,9 @@ pub fn CssClassPartialsCardAliases(
                             }
                         }
                     }
+                },
+                onkeydown: move |evt| {
+                    css_card_field_keydown(evt);
                 },
                 "+ Add alias"
             }
