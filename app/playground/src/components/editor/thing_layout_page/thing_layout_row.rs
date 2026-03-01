@@ -15,12 +15,9 @@ use dioxus::{
 
 use disposition::input_model::{thing::ThingId, InputDiagram};
 
-use crate::components::editor::common::{DRAG_HANDLE, REMOVE_BTN};
+use crate::components::editor::common::DRAG_HANDLE;
 
-use super::{
-    drag_row_border_class::drag_row_border_class, thing_layout_ops::ThingLayoutOps,
-    thing_layout_page_ops::ThingLayoutPageOps,
-};
+use super::{drag_row_border_class::drag_row_border_class, thing_layout_ops::ThingLayoutOps};
 
 /// CSS classes for the layout row.
 ///
@@ -282,19 +279,6 @@ pub fn ThingLayoutRow(
                 ",
                 title: "{thing_id_display}",
                 "{thing_id_display}"
-            }
-
-            // === Remove button === //
-            button {
-                class: REMOVE_BTN,
-                title: "Remove from hierarchy",
-                onclick: {
-                    let thing_id_str = thing_id_display.clone();
-                    move |_| {
-                        ThingLayoutPageOps::entry_remove(input_diagram, &thing_id_str);
-                    }
-                },
-                "✕"
             }
         }
     }

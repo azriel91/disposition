@@ -8,6 +8,7 @@ use dioxus::signals::{ReadableExt, Signal, WritableExt};
 use disposition::{
     input_model::{
         edge::EdgeGroup,
+        theme::IdOrDefaults,
         thing::{ThingHierarchy, ThingId},
         InputDiagram,
     },
@@ -28,6 +29,9 @@ impl ThingsPageOps {
     // === Thing helpers === //
 
     /// Adds a new thing row with a unique placeholder ID.
+    ///
+    /// Also inserts a corresponding entry into `thing_hierarchy` with an
+    /// empty hierarchy so the thing appears in the layout editor.
     pub fn thing_add(mut input_diagram: Signal<InputDiagram<'static>>) {
         let mut n = input_diagram.read().things.len();
         loop {
@@ -35,7 +39,11 @@ impl ThingsPageOps {
             if let Some(thing_id) = parse_thing_id(&candidate)
                 && !input_diagram.read().things.contains_key(&thing_id)
             {
-                input_diagram.write().things.insert(thing_id, String::new());
+                let mut diagram = input_diagram.write();
+                diagram.things.insert(thing_id.clone(), String::new());
+                diagram
+                    .thing_hierarchy
+                    .insert(thing_id, ThingHierarchy::new());
                 break;
             }
             n += 1;
@@ -164,11 +172,123 @@ impl ThingsPageOps {
         }
     }
 
-    /// Removes a thing from the `things` map.
+    /// Removes a thing and all references to it from the [`InputDiagram`].
+    ///
+    /// Uses `shift_remove` to preserve ordering of remaining entries.
     pub fn thing_remove(mut input_diagram: Signal<InputDiagram<'static>>, thing_id_str: &str) {
         if let Some(thing_id) = parse_thing_id(thing_id_str) {
-            input_diagram.write().things.swap_remove(&thing_id);
+            let mut input_diagram_ref = input_diagram.write();
+
+            // things: remove ThingId key.
+            input_diagram_ref.things.shift_remove(&thing_id);
+
+            // thing_copy_text: remove ThingId key.
+            input_diagram_ref.thing_copy_text.shift_remove(&thing_id);
+
+            // thing_hierarchy: recursive remove.
+            Self::thing_remove_from_hierarchy(&mut input_diagram_ref.thing_hierarchy, &thing_id);
+
+            // thing_dependencies: remove ThingId from EdgeGroup values.
+            input_diagram_ref
+                .thing_dependencies
+                .values_mut()
+                .for_each(|edge_group| {
+                    Self::thing_remove_from_edge_group(edge_group, &thing_id);
+                });
+
+            // thing_interactions: same structure as thing_dependencies.
+            input_diagram_ref
+                .thing_interactions
+                .values_mut()
+                .for_each(|edge_group| {
+                    Self::thing_remove_from_edge_group(edge_group, &thing_id);
+                });
+
+            // tag_things: remove ThingId from each Set<ThingId> value.
+            input_diagram_ref.tag_things.values_mut().for_each(
+                |thing_ids: &mut disposition::model_common::Set<ThingId<'static>>| {
+                    thing_ids.shift_remove(&thing_id);
+                },
+            );
+
+            // entity_descs, entity_tooltips, entity_types, and theme style
+            // maps: remove by Id.
+            let id = thing_id.into_inner();
+            Self::thing_remove_id_from_input_diagram(&mut input_diagram_ref, &id);
         }
+    }
+
+    /// Removes an [`Id`] from entity and theme maps in the
+    /// [`InputDiagram`].
+    fn thing_remove_id_from_input_diagram(
+        input_diagram: &mut InputDiagram<'static>,
+        id: &Id<'static>,
+    ) {
+        input_diagram.entity_descs.shift_remove(id);
+        input_diagram.entity_tooltips.shift_remove(id);
+        input_diagram.entity_types.shift_remove(id);
+
+        let key = IdOrDefaults::Id(id.clone());
+
+        // theme_default: remove from base_styles and
+        // process_step_selected_styles.
+        input_diagram.theme_default.base_styles.shift_remove(&key);
+        input_diagram
+            .theme_default
+            .process_step_selected_styles
+            .shift_remove(&key);
+
+        // theme_types_styles: remove from each ThemeStyles value.
+        input_diagram
+            .theme_types_styles
+            .values_mut()
+            .for_each(|theme_styles| {
+                theme_styles.shift_remove(&key);
+            });
+
+        // theme_thing_dependencies_styles: remove from both ThemeStyles
+        // fields.
+        input_diagram
+            .theme_thing_dependencies_styles
+            .things_included_styles
+            .shift_remove(&key);
+        input_diagram
+            .theme_thing_dependencies_styles
+            .things_excluded_styles
+            .shift_remove(&key);
+
+        // theme_tag_things_focus: remove from each ThemeStyles value.
+        input_diagram
+            .theme_tag_things_focus
+            .values_mut()
+            .for_each(|theme_styles| {
+                theme_styles.shift_remove(&key);
+            });
+    }
+
+    /// Removes all occurrences of `thing_id` from an [`EdgeGroup`]'s
+    /// `things` list.
+    fn thing_remove_from_edge_group(
+        edge_group: &mut EdgeGroup<'static>,
+        thing_id: &ThingId<'static>,
+    ) {
+        edge_group.things.retain(|id| id != thing_id);
+    }
+
+    /// Recursively removes a `ThingId` key (and its subtree) from a
+    /// [`ThingHierarchy`].
+    ///
+    /// Returns `true` if the key was found and removed.
+    fn thing_remove_from_hierarchy(
+        hierarchy: &mut ThingHierarchy<'static>,
+        thing_id: &ThingId<'static>,
+    ) -> bool {
+        if hierarchy.shift_remove(thing_id).is_some() {
+            return true;
+        }
+        hierarchy
+            .values_mut()
+            .any(|child| Self::thing_remove_from_hierarchy(child, thing_id))
     }
 
     /// Moves a thing entry from one index to another in the `things` map.

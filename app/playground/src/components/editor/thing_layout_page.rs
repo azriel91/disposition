@@ -9,7 +9,6 @@ mod drag_row_border_class;
 mod flat_entry;
 mod help_tooltip;
 mod thing_layout_ops;
-mod thing_layout_page_ops;
 mod thing_layout_row;
 mod thing_layout_rows;
 
@@ -20,11 +19,10 @@ use dioxus::{
 };
 use disposition::input_model::InputDiagram;
 
-use crate::components::editor::common::{ADD_BTN, SECTION_HEADING, TEXTAREA_CLASS};
+use crate::components::editor::common::{SECTION_HEADING, TEXTAREA_CLASS};
 
 use self::{
-    flat_entry::hierarchy_flatten, help_tooltip::HelpTooltip,
-    thing_layout_page_ops::ThingLayoutPageOps, thing_layout_row::ThingLayoutRow,
+    flat_entry::hierarchy_flatten, help_tooltip::HelpTooltip, thing_layout_row::ThingLayoutRow,
     thing_layout_rows::ThingLayoutRows,
 };
 
@@ -126,16 +124,6 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                     }
                 }
             }
-
-            button {
-                class: ADD_BTN,
-                tabindex: 0,
-                onclick: move |_| {
-                    ThingLayoutPageOps::entry_add(input_diagram);
-                },
-                "+ Add to hierarchy"
-            }
-
 
             // === Thing Hierarchy === //
             h3 { class: SECTION_HEADING, "Thing Hierarchy (YAML)" }
