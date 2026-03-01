@@ -386,10 +386,10 @@ impl ThingsPageOps {
                     None => return,
                 };
                 let mut input_diagram = input_diagram.write();
-                input_diagram.thing_copy_text.swap_remove(&thing_id_old);
                 input_diagram
                     .thing_copy_text
                     .insert(thing_id_new, current_value.to_owned());
+                input_diagram.thing_copy_text.swap_remove(&thing_id_old);
             }
             OnChangeTarget::EntityDesc => {
                 let id_old = match parse_id(id_old_str) {
@@ -401,10 +401,10 @@ impl ThingsPageOps {
                     None => return,
                 };
                 let mut input_diagram = input_diagram.write();
-                input_diagram.entity_descs.swap_remove(&id_old);
                 input_diagram
                     .entity_descs
                     .insert(id_new, current_value.to_owned());
+                input_diagram.entity_descs.swap_remove(&id_old);
             }
             OnChangeTarget::EntityTooltip => {
                 let id_old = match parse_id(id_old_str) {
@@ -416,10 +416,10 @@ impl ThingsPageOps {
                     None => return,
                 };
                 let mut input_diagram = input_diagram.write();
-                input_diagram.entity_tooltips.swap_remove(&id_old);
                 input_diagram
                     .entity_tooltips
                     .insert(id_new, current_value.to_owned());
+                input_diagram.entity_tooltips.swap_remove(&id_old);
             }
         }
     }
@@ -465,12 +465,15 @@ impl ThingsPageOps {
         match target {
             OnChangeTarget::CopyText => {
                 if let Some(thing_id) = parse_thing_id(id_str) {
-                    input_diagram.write().thing_copy_text.swap_remove(&thing_id);
+                    input_diagram
+                        .write()
+                        .thing_copy_text
+                        .shift_remove(&thing_id);
                 }
             }
             OnChangeTarget::EntityDesc => {
                 if let Some(entity_id) = parse_id(id_str) {
-                    input_diagram.write().entity_descs.swap_remove(&entity_id);
+                    input_diagram.write().entity_descs.shift_remove(&entity_id);
                 }
             }
             OnChangeTarget::EntityTooltip => {
@@ -478,7 +481,7 @@ impl ThingsPageOps {
                     input_diagram
                         .write()
                         .entity_tooltips
-                        .swap_remove(&entity_id);
+                        .shift_remove(&entity_id);
                 }
             }
         }

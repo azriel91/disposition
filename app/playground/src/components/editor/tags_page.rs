@@ -394,7 +394,7 @@ impl TagsPageOps {
     /// Removes a tag from the `tags` map.
     fn tag_remove(mut input_diagram: Signal<InputDiagram<'static>>, tag_id_str: &str) {
         if let Some(tag_id) = parse_tag_id(tag_id_str) {
-            input_diagram.write().tags.swap_remove(&tag_id);
+            input_diagram.write().tags.shift_remove(&tag_id);
         }
     }
 
@@ -506,7 +506,7 @@ impl TagsPageOps {
     /// Removes a tag->things entry.
     fn tag_things_entry_remove(mut input_diagram: Signal<InputDiagram<'static>>, tag_id_str: &str) {
         if let Some(tag_id) = parse_tag_id(tag_id_str) {
-            input_diagram.write().tag_things.swap_remove(&tag_id);
+            input_diagram.write().tag_things.shift_remove(&tag_id);
         }
     }
 
@@ -533,8 +533,8 @@ impl TagsPageOps {
             .filter_map(|s| parse_thing_id(s))
             .collect();
         let mut input_diagram = input_diagram.write();
-        input_diagram.tag_things.swap_remove(&tag_id_old);
         input_diagram.tag_things.insert(tag_id_new, things);
+        input_diagram.tag_things.swap_remove(&tag_id_old);
     }
 
     /// Updates a single thing within a tag's thing set at the given index.
@@ -584,7 +584,7 @@ impl TagsPageOps {
         if let Some(things) = input_diagram.tag_things.get_mut(&tag_id)
             && idx < things.len()
         {
-            things.swap_remove_index(idx);
+            things.shift_remove_index(idx);
         }
     }
 

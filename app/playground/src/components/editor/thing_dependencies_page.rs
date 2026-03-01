@@ -646,10 +646,10 @@ impl EdgeGroupCardOps {
     ) {
         match target {
             MapTarget::Dependencies => {
-                input_diagram.thing_dependencies.swap_remove(edge_group_id);
+                input_diagram.thing_dependencies.shift_remove(edge_group_id);
             }
             MapTarget::Interactions => {
-                input_diagram.thing_interactions.swap_remove(edge_group_id);
+                input_diagram.thing_interactions.shift_remove(edge_group_id);
             }
         }
     }

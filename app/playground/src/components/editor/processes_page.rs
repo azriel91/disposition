@@ -223,7 +223,7 @@ impl ProcessesPageOps {
     /// Removes a process from the `processes` map.
     fn process_remove(mut input_diagram: Signal<InputDiagram<'static>>, process_id_str: &str) {
         if let Some(process_id) = parse_process_id(process_id_str) {
-            input_diagram.write().processes.swap_remove(&process_id);
+            input_diagram.write().processes.shift_remove(&process_id);
         }
     }
 
@@ -760,7 +760,7 @@ impl ProcessCardOps {
             None => return,
         };
         if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
-            process_diagram.steps.swap_remove(&step_id);
+            process_diagram.steps.shift_remove(&step_id);
         }
     }
 
@@ -1084,7 +1084,7 @@ impl StepInteractionCardOps {
         if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
             process_diagram
                 .step_thing_interactions
-                .swap_remove(&step_id);
+                .shift_remove(&step_id);
         }
     }
 
@@ -1118,10 +1118,10 @@ impl StepInteractionCardOps {
         if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
             process_diagram
                 .step_thing_interactions
-                .swap_remove(&step_id_old);
+                .insert(step_id_new, edge_group_ids);
             process_diagram
                 .step_thing_interactions
-                .insert(step_id_new, edge_group_ids);
+                .swap_remove(&step_id_old);
         }
     }
 
