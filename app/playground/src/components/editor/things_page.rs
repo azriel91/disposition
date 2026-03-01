@@ -23,12 +23,12 @@ use crate::components::editor::{
     id_value_row::IdValueRow,
 };
 
-use crate::components::editor::key_value_row_container::KeyValueRowContainer;
+use crate::components::editor::id_value_row_container::IdValueRowContainer;
 
 use self::{on_change_target::OnChangeTarget, things_page_ops::ThingsPageOps};
 
 /// JavaScript snippet: from the Add button, focus the last focusable child of
-/// the preceding sibling container (the `KeyValueRowContainer`).
+/// the preceding sibling container (the `IdValueRowContainer`).
 const JS_FOCUS_LAST_ROW: &str = "\
     (() => {\
         let btn = document.activeElement;\
@@ -77,7 +77,7 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 "Map of ThingId -> display label."
             }
 
-            KeyValueRowContainer {
+            IdValueRowContainer {
                 section_id: "thing_names",
                 focus_index: thing_focus_idx,
                 rename_refocus: thing_rename_refocus,
@@ -170,7 +170,7 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                 "Optional clipboard text per ThingId (defaults to display label)."
             }
 
-            KeyValueRowContainer {
+            IdValueRowContainer {
                 section_id: "copy_text",
                 focus_index: copy_text_focus_idx,
                 rename_refocus: copy_text_rename_refocus,
@@ -274,7 +274,7 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
                 "Descriptions rendered next to entities in the diagram."
             }
 
-            KeyValueRowContainer {
+            IdValueRowContainer {
                 section_id: "entity_descs",
                 focus_index: desc_focus_idx,
                 rename_refocus: desc_rename_refocus,
@@ -377,7 +377,7 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
                 "Tooltip text (markdown) shown on hover."
             }
 
-            KeyValueRowContainer {
+            IdValueRowContainer {
                 section_id: "entity_tooltips",
                 focus_index: tooltip_focus_idx,
                 rename_refocus: tooltip_rename_refocus,

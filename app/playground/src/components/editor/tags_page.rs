@@ -45,7 +45,7 @@ use crate::components::editor::{
     },
     datalists::list_ids,
     id_value_row::IdValueRow,
-    key_value_row_container::KeyValueRowContainer,
+    id_value_row_container::IdValueRowContainer,
 };
 
 // === TagThingsCard JS helpers === //
@@ -184,7 +184,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 "Map of TagId to display label."
             }
 
-            KeyValueRowContainer {
+            IdValueRowContainer {
                 section_id: "tag_names",
                 focus_index: tag_name_focus_idx,
                 rename_refocus: tag_name_rename_refocus,

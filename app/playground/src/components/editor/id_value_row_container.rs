@@ -1,4 +1,4 @@
-//! Container component for draggable key-value rows.
+//! Container component for draggable ID-value rows.
 //!
 //! Manages post-render focus via a `focus_index` signal so that rows
 //! retain focus after keyboard-driven reorder operations (Alt+Up/Down).
@@ -37,7 +37,7 @@ use crate::components::editor::common::{RenameRefocus, RenameRefocusTarget};
 ///
 /// [`IdValueRow`]: crate::components::editor::id_value_row::IdValueRow
 #[component]
-pub fn KeyValueRowContainer(
+pub fn IdValueRowContainer(
     section_id: &'static str,
     mut focus_index: Signal<Option<usize>>,
     mut rename_refocus: Signal<Option<RenameRefocus>>,
