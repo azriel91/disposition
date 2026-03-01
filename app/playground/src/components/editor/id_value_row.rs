@@ -19,6 +19,11 @@
 //!
 //! Arrow keys are **not** intercepted when an `<input>` has focus, so the
 //! cursor can still be moved within the text field.
+//!
+//! After an ID rename the row element is destroyed and recreated under the new
+//! key. The row signals its stable parent container via `rename_refocus` so
+//! that the container can re-focus the correct sub-element (ID input on Enter,
+//! next field on Tab) once the new DOM node exists.
 
 mod drag_handle;
 mod drag_row_border_class;
@@ -27,6 +32,7 @@ pub use self::{drag_handle::DragHandle, drag_row_border_class::drag_row_border_c
 
 use dioxus::{
     document,
+    hooks::use_signal,
     prelude::{
         component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Callback, Element, Key,
         ModifiersInteraction, Props,
@@ -34,7 +40,9 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 
-use crate::components::editor::common::{ID_INPUT_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS};
+use crate::components::editor::common::{
+    RenameRefocus, ID_INPUT_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS,
+};
 
 // === JS focus helpers === //
 
@@ -188,6 +196,9 @@ pub fn field_keydown(evt: dioxus::events::KeyboardEvent) {
 /// * `entry_count`: total number of entries.
 /// * `drag_index` / `drop_target`: shared drag-and-drop signals.
 /// * `focus_index`: shared focus-after-move signal.
+/// * `rename_refocus`: when an ID rename completes, this signal is set so that
+///   the stable parent container can re-focus the correct field inside the
+///   newly created row element.
 #[component]
 pub fn IdValueRow(
     entry_id: String,
@@ -200,6 +211,7 @@ pub fn IdValueRow(
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
     mut focus_index: Signal<Option<usize>>,
+    mut rename_refocus: Signal<Option<RenameRefocus>>,
     on_move: Callback<(usize, usize)>,
     on_rename: Callback<(String, String)>,
     on_update: Callback<(String, String)>,
@@ -212,11 +224,16 @@ pub fn IdValueRow(
 
     let is_first = index == 0;
 
+    // Tracks whether the last key pressed in the ID input was Tab (true) or
+    // Enter / blur (false), so that on rename we know which field to focus.
+    let mut id_input_tab_pressed = use_signal(|| false);
+
     rsx! {
         div {
             class: "{ROW_CLASS} {border_class} rounded focus:border-blue-400 focus:bg-gray-800 focus:outline-none",
             tabindex: "0",
             draggable: "true",
+            "data-entry-id": "{entry_id}",
 
             // === Keyboard shortcuts (row-level) === //
             onkeydown: move |evt| {
@@ -303,10 +320,22 @@ pub fn IdValueRow(
                     let id_old = entry_id.clone();
                     move |evt: dioxus::events::FormEvent| {
                         let id_new = evt.value();
-                        on_rename.call((id_old.clone(), id_new));
+                        let tab_pressed = *id_input_tab_pressed.read();
+                        on_rename.call((id_old.clone(), id_new.clone()));
+                        rename_refocus.set(Some(RenameRefocus {
+                            new_id: id_new,
+                            tab_pressed,
+                        }));
                     }
                 },
                 onkeydown: move |evt| {
+                    // Record whether Tab triggered the upcoming onchange before
+                    // field_keydown handles the event (which prevents default).
+                    match evt.key() {
+                        Key::Tab => id_input_tab_pressed.set(!evt.modifiers().shift()),
+                        Key::Enter => id_input_tab_pressed.set(false),
+                        _ => {}
+                    }
                     field_keydown(evt);
                 },
             }

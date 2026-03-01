@@ -6,7 +6,6 @@
 //! - Entity Descriptions (`entity_descs`: `Id` -> description)
 //! - Entity Tooltips (`entity_tooltips`: `Id` -> tooltip)
 
-mod key_value_row_container;
 mod on_change_target;
 mod things_page_ops;
 
@@ -19,15 +18,14 @@ use dioxus::{
 use disposition::input_model::InputDiagram;
 
 use crate::components::editor::{
-    common::{ADD_BTN, SECTION_HEADING},
+    common::{RenameRefocus, ADD_BTN, SECTION_HEADING},
     datalists::list_ids,
     id_value_row::IdValueRow,
 };
 
-use self::{
-    key_value_row_container::KeyValueRowContainer, on_change_target::OnChangeTarget,
-    things_page_ops::ThingsPageOps,
-};
+use crate::components::editor::key_value_row_container::KeyValueRowContainer;
+
+use self::{on_change_target::OnChangeTarget, things_page_ops::ThingsPageOps};
 
 /// JavaScript snippet: from the Add button, focus the last focusable child of
 /// the preceding sibling container (the `KeyValueRowContainer`).
@@ -57,6 +55,7 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let thing_drag_idx: Signal<Option<usize>> = use_signal(|| None);
     let thing_drop_target: Signal<Option<usize>> = use_signal(|| None);
     let thing_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+    let thing_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
 
     let diagram = input_diagram.read();
     let thing_entries: Vec<(String, String)> = diagram
@@ -81,6 +80,7 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
             KeyValueRowContainer {
                 section_id: "thing_names",
                 focus_index: thing_focus_idx,
+                rename_refocus: thing_rename_refocus,
 
                 for (idx, (id, name)) in thing_entries.iter().enumerate() {
                     {
@@ -99,6 +99,7 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                                 drag_index: thing_drag_idx,
                                 drop_target: thing_drop_target,
                                 focus_index: thing_focus_idx,
+                                rename_refocus: thing_rename_refocus,
                                 on_move: move |(from, to)| {
                                     ThingsPageOps::thing_move(input_diagram, from, to);
                                 },
@@ -147,6 +148,7 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
     let copy_text_drag_idx: Signal<Option<usize>> = use_signal(|| None);
     let copy_text_drop_target: Signal<Option<usize>> = use_signal(|| None);
     let copy_text_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+    let copy_text_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
 
     let diagram = input_diagram.read();
     let copy_text_entries: Vec<(String, String)> = diagram
@@ -171,6 +173,7 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
             KeyValueRowContainer {
                 section_id: "copy_text",
                 focus_index: copy_text_focus_idx,
+                rename_refocus: copy_text_rename_refocus,
 
                 for (idx, (id, text)) in copy_text_entries.iter().enumerate() {
                     {
@@ -191,6 +194,7 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                                 drag_index: copy_text_drag_idx,
                                 drop_target: copy_text_drop_target,
                                 focus_index: copy_text_focus_idx,
+                                rename_refocus: copy_text_rename_refocus,
                                 on_move: move |(from, to)| {
                                     ThingsPageOps::kv_entry_move(input_diagram, on_change, from, to);
                                 },
@@ -248,6 +252,7 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
     let desc_drag_idx: Signal<Option<usize>> = use_signal(|| None);
     let desc_drop_target: Signal<Option<usize>> = use_signal(|| None);
     let desc_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+    let desc_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
 
     let diagram = input_diagram.read();
     let desc_entries: Vec<(String, String)> = diagram
@@ -272,6 +277,7 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
             KeyValueRowContainer {
                 section_id: "entity_descs",
                 focus_index: desc_focus_idx,
+                rename_refocus: desc_rename_refocus,
 
                 for (idx, (id, desc)) in desc_entries.iter().enumerate() {
                     {
@@ -292,6 +298,7 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
                                 drag_index: desc_drag_idx,
                                 drop_target: desc_drop_target,
                                 focus_index: desc_focus_idx,
+                                rename_refocus: desc_rename_refocus,
                                 on_move: move |(from, to)| {
                                     ThingsPageOps::kv_entry_move(input_diagram, on_change, from, to);
                                 },
@@ -348,6 +355,7 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
     let tooltip_drag_idx: Signal<Option<usize>> = use_signal(|| None);
     let tooltip_drop_target: Signal<Option<usize>> = use_signal(|| None);
     let tooltip_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+    let tooltip_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
 
     let diagram = input_diagram.read();
     let tooltip_entries: Vec<(String, String)> = diagram
@@ -372,6 +380,7 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
             KeyValueRowContainer {
                 section_id: "entity_tooltips",
                 focus_index: tooltip_focus_idx,
+                rename_refocus: tooltip_rename_refocus,
 
                 for (idx, (id, tip)) in tooltip_entries.iter().enumerate() {
                     {
@@ -392,6 +401,7 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
                                 drag_index: tooltip_drag_idx,
                                 drop_target: tooltip_drop_target,
                                 focus_index: tooltip_focus_idx,
+                                rename_refocus: tooltip_rename_refocus,
                                 on_move: move |(from, to)| {
                                     ThingsPageOps::kv_entry_move(input_diagram, on_change, from, to);
                                 },

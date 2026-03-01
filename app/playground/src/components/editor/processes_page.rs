@@ -10,7 +10,7 @@
 
 use dioxus::{
     document,
-    hooks::use_signal,
+    hooks::{use_effect, use_signal},
     prelude::{
         component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
         ModifiersInteraction, Props,
@@ -25,8 +25,8 @@ use disposition::{
 use crate::components::editor::{
     common::{
         id_rename_in_input_diagram, parse_edge_group_id, parse_process_id, parse_process_step_id,
-        ADD_BTN, INNER_CARD_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SECTION_HEADING,
-        TEXTAREA_CLASS,
+        RenameRefocus, ADD_BTN, INNER_CARD_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE,
+        SECTION_HEADING, TEXTAREA_CLASS,
     },
     datalists::list_ids,
 };
@@ -122,6 +122,9 @@ const JS_FOCUS_NEXT_CARD: &str = "\
 /// The **Processes** editor page.
 #[component]
 pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
+    // Post-rename focus state for process cards.
+    let process_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
+
     let diagram = input_diagram.read();
 
     let entries: Vec<ProcessEntry> = diagram
@@ -176,6 +179,7 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                             key: "{entry.process_id}",
                             input_diagram,
                             entry,
+                            rename_refocus: process_rename_refocus,
                         }
                     }
                 }
@@ -335,16 +339,84 @@ const COLLAPSED_HEADER_CLASS: &str = "\
 const FIELD_INPUT_CLASS: &str = INPUT_CLASS;
 
 #[component]
-fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry) -> Element {
+fn ProcessCard(
+    input_diagram: Signal<InputDiagram<'static>>,
+    entry: ProcessEntry,
+    mut rename_refocus: Signal<Option<RenameRefocus>>,
+) -> Element {
     let process_id = entry.process_id.clone();
     let mut collapsed = use_signal(|| true);
+    // Tracks whether Tab (true) or Enter/blur (false) triggered the last ID
+    // input change, so we know which field to focus after re-render.
+    let mut id_input_tab_pressed = use_signal(|| false);
+
+    // Clone before moving into the closure so `process_id` remains available
+    // for the `rsx!` block below.
+    let process_id_for_effect = process_id.clone();
+
+    // After an ID rename this card is destroyed and recreated under the new
+    // key. If the rename_refocus signal carries our new ID, focus the correct
+    // sub-element once the DOM has settled.
+    use_effect(move || {
+        let refocus = rename_refocus.read().clone();
+        if let Some(RenameRefocus {
+            new_id,
+            tab_pressed,
+        }) = refocus
+        {
+            if new_id == process_id_for_effect {
+                rename_refocus.set(None);
+                let js = if tab_pressed {
+                    format!(
+                        "setTimeout(() => {{\
+                            let card = document.querySelector(\
+                                '[data-process-card-id=\"{new_id}\"]'\
+                            );\
+                            if (!card) return;\
+                            let items = Array.from(\
+                                card.querySelectorAll(\
+                                    'input, textarea, button, [data-action=\"remove\"]'\
+                                )\
+                            );\
+                            if (items.length > 1) {{\
+                                items[1].focus();\
+                            }} else if (items.length === 1) {{\
+                                items[0].focus();\
+                            }} else {{\
+                                card.focus();\
+                            }}\
+                        }}, 0)"
+                    )
+                } else {
+                    format!(
+                        "setTimeout(() => {{\
+                            let card = document.querySelector(\
+                                '[data-process-card-id=\"{new_id}\"]'\
+                            );\
+                            if (!card) return;\
+                            let input = card.querySelector('input, textarea');\
+                            if (input) {{\
+                                input.focus();\
+                            }} else {{\
+                                card.focus();\
+                            }}\
+                        }}, 0)"
+                    )
+                };
+                document::eval(&js);
+            }
+        }
+    });
+
+    let entry_name = entry.name.clone();
+    let entry_desc = entry.desc.clone();
 
     let step_count = entry.steps.len();
     let step_suffix = if step_count != 1 { "s" } else { "" };
-    let display_name = if entry.name.is_empty() {
-        entry.process_id.clone()
+    let display_name = if entry_name.is_empty() {
+        process_id.clone()
     } else {
-        entry.name.clone()
+        entry_name.clone()
     };
 
     rsx! {
@@ -352,6 +424,9 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
             class: PROCESS_CARD_CLASS,
             tabindex: "0",
             "data-process-card": "true",
+
+            // === Card identity for post-rename focus === //
+            "data-process-card-id": "{process_id}",
 
             // === Card-level keyboard shortcuts === //
             onkeydown: move |evt| {
@@ -410,7 +485,7 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                         "{process_id}"
                     }
 
-                    if !entry.name.is_empty() {
+                    if !entry_name.is_empty() {
                         span {
                             class: "text-sm text-gray-300",
                             "-- {display_name}"
@@ -458,10 +533,25 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                         onchange: {
                             let process_id_old = process_id.clone();
                             move |evt: dioxus::events::FormEvent| {
-                                ProcessesPageOps::process_rename(input_diagram, &process_id_old, &evt.value());
+                                let id_new = evt.value();
+                                let tab_pressed = *id_input_tab_pressed.read();
+                                ProcessesPageOps::process_rename(
+                                    input_diagram,
+                                    &process_id_old,
+                                    &id_new,
+                                );
+                                rename_refocus.set(Some(RenameRefocus {
+                                    new_id: id_new,
+                                    tab_pressed,
+                                }));
                             }
                         },
                         onkeydown: move |evt| {
+                            match evt.key() {
+                                Key::Tab => id_input_tab_pressed.set(!evt.modifiers().shift()),
+                                Key::Enter => id_input_tab_pressed.set(false),
+                                _ => {}
+                            }
                             process_card_field_keydown(evt);
                         },
                     }
@@ -495,7 +585,7 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                         class: FIELD_INPUT_CLASS,
                         tabindex: "-1",
                         placeholder: "Display name",
-                        value: "{entry.name}",
+                        value: "{entry_name}",
                         oninput: {
                             let process_id = process_id.clone();
                             move |evt: dioxus::events::FormEvent| {
@@ -520,7 +610,7 @@ fn ProcessCard(input_diagram: Signal<InputDiagram<'static>>, entry: ProcessEntry
                         class: TEXTAREA_CLASS,
                         tabindex: "-1",
                         placeholder: "Process description (markdown)",
-                        value: "{entry.desc}",
+                        value: "{entry_desc}",
                         oninput: {
                             let process_id = process_id.clone();
                             move |evt: dioxus::events::FormEvent| {

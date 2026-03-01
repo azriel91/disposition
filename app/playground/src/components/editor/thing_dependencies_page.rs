@@ -9,6 +9,7 @@
 
 use dioxus::{
     document,
+    hooks::{use_effect, use_signal},
     prelude::{
         component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
         ModifiersInteraction, Props,
@@ -26,8 +27,8 @@ use disposition::{
 
 use crate::components::editor::{
     common::{
-        id_rename_in_input_diagram, parse_edge_group_id, parse_thing_id, ADD_BTN, INPUT_CLASS,
-        LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SECTION_HEADING, SELECT_CLASS,
+        id_rename_in_input_diagram, parse_edge_group_id, parse_thing_id, RenameRefocus, ADD_BTN,
+        INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SECTION_HEADING, SELECT_CLASS,
     },
     datalists::list_ids,
 };
@@ -43,6 +44,9 @@ struct EdgeGroupEntry {
 /// The **Thing Dependencies** editor page.
 #[component]
 pub fn ThingDependenciesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
+    // Post-rename focus state for edge group cards.
+    let edge_group_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
+
     let diagram = input_diagram.read();
 
     let entries: Vec<EdgeGroupEntry> = diagram
@@ -80,6 +84,7 @@ pub fn ThingDependenciesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                             input_diagram,
                             entry,
                             target: MapTarget::Dependencies,
+                            rename_refocus: edge_group_rename_refocus,
                         }
                     }
                 }
@@ -103,6 +108,9 @@ pub fn ThingDependenciesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
 /// `thing_interactions`.
 #[component]
 pub fn ThingInteractionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
+    // Post-rename focus state for edge group cards.
+    let edge_group_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
+
     let diagram = input_diagram.read();
 
     let entries: Vec<EdgeGroupEntry> = diagram
@@ -140,6 +148,7 @@ pub fn ThingInteractionsPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                             input_diagram,
                             entry,
                             target: MapTarget::Interactions,
+                            rename_refocus: edge_group_rename_refocus,
                         }
                     }
                 }
@@ -301,11 +310,73 @@ fn EdgeGroupCard(
     input_diagram: Signal<InputDiagram<'static>>,
     entry: EdgeGroupEntry,
     target: MapTarget,
+    mut rename_refocus: Signal<Option<RenameRefocus>>,
 ) -> Element {
     let edge_group_id = entry.edge_group_id.clone();
     let edge_kind = entry.edge_kind;
     let things = entry.things.clone();
-    let mut collapsed = dioxus::hooks::use_signal(|| true);
+    let mut collapsed = use_signal(|| true);
+    // Tracks whether Tab (true) or Enter/blur (false) triggered the last ID
+    // input change, so we know which field to focus after re-render.
+    let mut id_input_tab_pressed = use_signal(|| false);
+
+    // Clone before moving into the closure so `edge_group_id` remains
+    // available for the `rsx!` block below.
+    let edge_group_id_for_effect = edge_group_id.clone();
+
+    // After an ID rename this card is destroyed and recreated under the new
+    // key. If the rename_refocus signal carries our new ID, focus the correct
+    // sub-element once the DOM has settled.
+    use_effect(move || {
+        let refocus = rename_refocus.read().clone();
+        if let Some(RenameRefocus {
+            new_id,
+            tab_pressed,
+        }) = refocus
+        {
+            if new_id == edge_group_id_for_effect {
+                rename_refocus.set(None);
+                let js = if tab_pressed {
+                    format!(
+                        "setTimeout(() => {{\
+                            let card = document.querySelector(\
+                                '[data-edge-group-card-id=\"{new_id}\"]'\
+                            );\
+                            if (!card) return;\
+                            let items = Array.from(\
+                                card.querySelectorAll(\
+                                    'input, select, button, [data-action=\"remove\"]'\
+                                )\
+                            );\
+                            if (items.length > 1) {{\
+                                items[1].focus();\
+                            }} else if (items.length === 1) {{\
+                                items[0].focus();\
+                            }} else {{\
+                                card.focus();\
+                            }}\
+                        }}, 0)"
+                    )
+                } else {
+                    format!(
+                        "setTimeout(() => {{\
+                            let card = document.querySelector(\
+                                '[data-edge-group-card-id=\"{new_id}\"]'\
+                            );\
+                            if (!card) return;\
+                            let input = card.querySelector('input');\
+                            if (input) {{\
+                                input.focus();\
+                            }} else {{\
+                                card.focus();\
+                            }}\
+                        }}, 0)"
+                    )
+                };
+                document::eval(&js);
+            }
+        }
+    });
 
     let thing_count = things.len();
     let thing_suffix = if thing_count != 1 { "s" } else { "" };
@@ -320,6 +391,9 @@ fn EdgeGroupCard(
             class: EDGE_GROUP_CARD_CLASS,
             tabindex: "0",
             "data-edge-group-card": "true",
+
+            // === Card identity for post-rename focus === //
+            "data-edge-group-card-id": "{edge_group_id}",
 
             // === Card-level keyboard shortcuts === //
             onkeydown: move |evt| {
@@ -419,11 +493,25 @@ fn EdgeGroupCard(
                         onchange: {
                             let edge_group_id_old = edge_group_id.clone();
                             move |evt: dioxus::events::FormEvent| {
-                                let edge_group_id_new = evt.value();
-                                EdgeGroupCardOps::edge_group_rename(input_diagram, &edge_group_id_old, &edge_group_id_new);
+                                let id_new = evt.value();
+                                let tab_pressed = *id_input_tab_pressed.read();
+                                EdgeGroupCardOps::edge_group_rename(
+                                    input_diagram,
+                                    &edge_group_id_old,
+                                    &id_new,
+                                );
+                                rename_refocus.set(Some(RenameRefocus {
+                                    new_id: id_new,
+                                    tab_pressed,
+                                }));
                             }
                         },
                         onkeydown: move |evt| {
+                            match evt.key() {
+                                Key::Tab => id_input_tab_pressed.set(!evt.modifiers().shift()),
+                                Key::Enter => id_input_tab_pressed.set(false),
+                                _ => {}
+                            }
                             edge_group_card_field_keydown(evt);
                         },
                     }

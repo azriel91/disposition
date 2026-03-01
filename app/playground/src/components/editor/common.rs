@@ -4,6 +4,10 @@
 //! into typed IDs, to rename keys inside theme style maps, and to perform
 //! the boilerplate rename of an [`Id`] across all theme / entity maps in an
 //! [`InputDiagram`].
+//!
+//! Also exports [`RenameRefocus`], which carries the context needed to restore
+//! keyboard focus after an ID rename causes the focused element to be
+//! destroyed and recreated with a new key.
 
 use disposition::{
     input_model::{
@@ -15,6 +19,30 @@ use disposition::{
     },
     model_common::{edge::EdgeGroupId, entity::EntityTypeId, Id},
 };
+
+// === Post-rename focus type === //
+
+/// Carries the context needed after an ID rename to restore keyboard focus.
+///
+/// When a user renames an ID (e.g. in an `IdValueRow` or a card component),
+/// the DOM element is destroyed and recreated under a new key. A stable
+/// ancestor component uses this value -- received via a shared signal -- to
+/// re-focus the correct field in the new element after the DOM update.
+///
+/// # Fields
+///
+/// * `new_id`: the ID string the entry was renamed to, e.g. `"thing_1"`.
+/// * `tab_pressed`: `true` if the rename was triggered by Tab (move focus to
+///   the next field); `false` if triggered by Enter or blur (re-focus the ID
+///   input).
+#[derive(Clone, PartialEq)]
+pub struct RenameRefocus {
+    /// The new ID string after the rename, e.g. `"thing_1"`.
+    pub new_id: String,
+    /// `true` if Tab triggered the rename (focus the next field after the ID
+    /// input); `false` if Enter or blur triggered it (re-focus the ID input).
+    pub tab_pressed: bool,
+}
 
 // === Shared CSS constants === //
 
