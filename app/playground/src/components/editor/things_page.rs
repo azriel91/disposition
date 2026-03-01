@@ -88,7 +88,7 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                         let name = name.clone();
                         rsx! {
                             IdValueRow {
-                                key: "{id}",
+                                key: "thing_name_{id}",
                                 entry_id: id,
                                 entry_value: name,
                                 id_list: list_ids::THING_IDS.to_owned(),
@@ -180,7 +180,7 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                         let current_value = text.clone();
                         rsx! {
                             IdValueRow {
-                                key: "ct_{id}",
+                                key: "thing_copy_text_{id}",
                                 entry_id: id,
                                 entry_value: text,
                                 id_list: list_ids::THING_IDS.to_owned(),
@@ -281,7 +281,7 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
                         let current_value = desc.clone();
                         rsx! {
                             IdValueRow {
-                                key: "desc_{id}",
+                                key: "entity_desc_{id}",
                                 entry_id: id,
                                 entry_value: desc,
                                 id_list: list_ids::ENTITY_IDS.to_owned(),
