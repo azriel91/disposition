@@ -285,9 +285,7 @@ impl ThingsPageOps {
         thing_id: &ThingId<'static>,
     ) -> bool {
         if let Some(removal_index) = hierarchy.get_index_of(thing_id) {
-            let children = hierarchy
-                .shift_remove(thing_id)
-                .unwrap_or_else(ThingHierarchy::new);
+            let children = hierarchy.shift_remove(thing_id).unwrap_or_default();
 
             // Insert children at the position where the removed node was,
             // preserving their original order.
