@@ -275,15 +275,28 @@ impl ThingsPageOps {
         edge_group.things.retain(|id| id != thing_id);
     }
 
-    /// Recursively removes a `ThingId` key (and its subtree) from a
-    /// [`ThingHierarchy`].
+    /// Removes a `ThingId` key from a [`ThingHierarchy`], re-parenting its
+    /// children into the same level at the position it occupied.
     ///
-    /// Returns `true` if the key was found and removed.
+    /// Searches recursively through all nesting levels. Returns `true` if
+    /// the key was found and removed.
     fn thing_remove_from_hierarchy(
         hierarchy: &mut ThingHierarchy<'static>,
         thing_id: &ThingId<'static>,
     ) -> bool {
-        if hierarchy.shift_remove(thing_id).is_some() {
+        if let Some(removal_index) = hierarchy.get_index_of(thing_id) {
+            let children = hierarchy
+                .shift_remove(thing_id)
+                .unwrap_or_else(ThingHierarchy::new);
+
+            // Insert children at the position where the removed node was,
+            // preserving their original order.
+            children.into_inner().into_iter().enumerate().for_each(
+                |(offset, (child_id, child_hierarchy))| {
+                    hierarchy.shift_insert(removal_index + offset, child_id, child_hierarchy);
+                },
+            );
+
             return true;
         }
         hierarchy
