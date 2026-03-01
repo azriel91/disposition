@@ -5,11 +5,14 @@
 //!
 //! Supports keyboard shortcuts:
 //!
+//! - **ArrowUp / ArrowDown**: navigate between sibling cards.
 //! - **ArrowRight**: expand the card (when collapsed).
 //! - **ArrowLeft**: collapse the card (when expanded).
+//! - **Space**: toggle expand/collapse.
 //! - **Enter**: expand + focus the first input inside the card.
+//! - **Escape**: focus the parent section / tab.
 //! - **Tab / Shift+Tab** (inside a field): cycle through focusable fields
-//!   within the card.
+//!   within the card. Wraps from last to first / first to last.
 //! - **Esc** (inside a field): return focus to the card wrapper.
 
 use dioxus::{
@@ -26,11 +29,12 @@ use disposition::input_model::InputDiagram;
 use crate::components::editor::{
     common::{RenameRefocus, RenameRefocusTarget, ADD_BTN, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
+    keyboard_nav::{self, CardKeyAction},
 };
 
 use super::{
-    tag_things_card_field_keydown, tags_page_ops::TagsPageOps, COLLAPSED_HEADER_CLASS,
-    FIELD_INPUT_CLASS, TAG_THINGS_CARD_CLASS,
+    tags_page_ops::TagsPageOps, COLLAPSED_HEADER_CLASS, DATA_ATTR, DATA_ID_ATTR, FIELD_INPUT_CLASS,
+    TAG_THINGS_CARD_CLASS,
 };
 
 /// A collapsible card for editing a single tag's associated things.
@@ -68,57 +72,7 @@ pub(crate) fn TagThingsCard(
             // The card was destroyed and recreated -- ensure it is
             // expanded so the user can see/interact with the fields.
             collapsed.set(false);
-            let js = match target {
-                RenameRefocusTarget::NextField => {
-                    format!(
-                        "setTimeout(() => {{\
-                                let card = document.querySelector(\
-                                    '[data-tag-things-card-id=\"{new_id}\"]'\
-                                );\
-                                if (!card) return;\
-                                let items = Array.from(\
-                                    card.querySelectorAll(\
-                                        'input, button, [data-action=\"remove\"]'\
-                                    )\
-                                );\
-                                if (items.length > 1) {{\
-                                    items[1].focus();\
-                                }} else if (items.length === 1) {{\
-                                    items[0].focus();\
-                                }} else {{\
-                                    card.focus();\
-                                }}\
-                            }}, 0)"
-                    )
-                }
-                RenameRefocusTarget::IdInput => {
-                    format!(
-                        "setTimeout(() => {{\
-                                let card = document.querySelector(\
-                                    '[data-tag-things-card-id=\"{new_id}\"]'\
-                                );\
-                                if (!card) return;\
-                                let input = card.querySelector('input');\
-                                if (input) {{\
-                                    input.focus();\
-                                }} else {{\
-                                    card.focus();\
-                                }}\
-                            }}, 0)"
-                    )
-                }
-                RenameRefocusTarget::FocusParent => {
-                    format!(
-                        "setTimeout(() => {{\
-                                let card = document.querySelector(\
-                                    '[data-tag-things-card-id=\"{new_id}\"]'\
-                                );\
-                                if (!card) return;\
-                                card.focus();\
-                            }}, 0)"
-                    )
-                }
-            };
+            let js = keyboard_nav::js_rename_refocus(DATA_ID_ATTR, &new_id, &target);
             document::eval(&js);
         }
     });
@@ -137,27 +91,16 @@ pub(crate) fn TagThingsCard(
 
             // === Card-level keyboard shortcuts === //
             onkeydown: move |evt| {
-                match evt.key() {
-                    Key::ArrowRight => {
-                        evt.prevent_default();
-                        collapsed.set(false);
+                let action = keyboard_nav::card_keydown(evt, DATA_ATTR);
+                match action {
+                    CardKeyAction::Collapse => collapsed.set(true),
+                    CardKeyAction::Expand => collapsed.set(false),
+                    CardKeyAction::Toggle => {
+                        let is_collapsed = *collapsed.read();
+                        collapsed.set(!is_collapsed);
                     }
-                    Key::ArrowLeft => {
-                        evt.prevent_default();
-                        collapsed.set(true);
-                    }
-                    Key::Enter => {
-                        evt.prevent_default();
-                        collapsed.set(false);
-                        document::eval(
-                            "setTimeout(() => {\
-                                document.activeElement\
-                                    ?.querySelector('input')\
-                                    ?.focus();\
-                            }, 0)"
-                        );
-                    }
-                    _ => {}
+                    CardKeyAction::EnterEdit => collapsed.set(false),
+                    CardKeyAction::None => {}
                 }
             },
 
@@ -251,7 +194,7 @@ pub(crate) fn TagThingsCard(
                                 }
                                 _ => {}
                             }
-                            tag_things_card_field_keydown(evt);
+                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                         },
                     }
 
@@ -266,7 +209,7 @@ pub(crate) fn TagThingsCard(
                             }
                         },
                         onkeydown: move |evt| {
-                            tag_things_card_field_keydown(evt);
+                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                         },
                         "x Remove"
                     }
@@ -309,7 +252,7 @@ pub(crate) fn TagThingsCard(
                                             }
                                         },
                                         onkeydown: move |evt| {
-                                            tag_things_card_field_keydown(evt);
+                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                                         },
                                     }
 
@@ -328,7 +271,7 @@ pub(crate) fn TagThingsCard(
                                             }
                                         },
                                         onkeydown: move |evt| {
-                                            tag_things_card_field_keydown(evt);
+                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                                         },
                                         "\u{2715}"
                                     }
@@ -347,7 +290,7 @@ pub(crate) fn TagThingsCard(
                             }
                         },
                         onkeydown: move |evt| {
-                            tag_things_card_field_keydown(evt);
+                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                         },
                         "+ Add thing"
                     }

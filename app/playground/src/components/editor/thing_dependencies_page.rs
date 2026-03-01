@@ -15,12 +15,8 @@ mod edge_group_card;
 mod edge_group_card_ops;
 
 use dioxus::{
-    document,
     hooks::use_signal,
-    prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
-        ModifiersInteraction, Props,
-    },
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal},
 };
 use disposition::input_model::{edge::EdgeKind, thing::ThingId, InputDiagram};
@@ -46,85 +42,17 @@ pub(crate) enum MapTarget {
     Interactions,
 }
 
-// === EdgeGroupCard JS helpers === //
+// === Edge group card constants === //
 
-/// JavaScript snippet: focus the parent `[data-edge-group-card]` ancestor.
-pub(crate) const JS_FOCUS_PARENT_CARD: &str = "\
-    document.activeElement\
-        ?.closest('[data-edge-group-card]')\
-        ?.focus()";
+/// The `data-*` attribute placed on each `EdgeGroupCard` wrapper.
+///
+/// Used by [`keyboard_nav`](crate::components::editor::keyboard_nav) helpers
+/// to locate the nearest ancestor card.
+pub(crate) const DATA_ATTR: &str = "data-edge-group-card";
 
-/// JavaScript snippet: Tab to the next focusable element (input, select, or
-/// `[data-action="remove"]`) within the same `[data-edge-group-card]`.
-pub(crate) const JS_TAB_NEXT_FIELD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-edge-group-card]');\
-        if (!card) return;\
-        let items = Array.from(card.querySelectorAll(\
-            'input, select, button, [data-action=\"remove\"]'\
-        ));\
-        let idx = items.indexOf(el);\
-        if (idx >= 0 && idx + 1 < items.length) {\
-            items[idx + 1].focus();\
-        } else {\
-            card.focus();\
-        }\
-    })()";
-
-/// JavaScript snippet: Shift+Tab to the previous focusable element within the
-/// same `[data-edge-group-card]`.
-pub(crate) const JS_TAB_PREV_FIELD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-edge-group-card]');\
-        if (!card) return;\
-        let items = Array.from(card.querySelectorAll(\
-            'input, select, button, [data-action=\"remove\"]'\
-        ));\
-        let idx = items.indexOf(el);\
-        if (idx > 0) {\
-            items[idx - 1].focus();\
-        } else {\
-            card.focus();\
-        }\
-    })()";
-
-/// JavaScript snippet: focus the previous sibling `[data-edge-group-card]`.
-pub(crate) const JS_FOCUS_PREV_CARD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-edge-group-card]') || el;\
-        let prev = card.previousElementSibling;\
-        while (prev) {\
-            if (prev.hasAttribute && prev.hasAttribute('data-edge-group-card')) {\
-                prev.focus();\
-                return;\
-            }\
-            prev = prev.previousElementSibling;\
-        }\
-    })()";
-
-/// JavaScript snippet: focus the next sibling `[data-edge-group-card]`.
-pub(crate) const JS_FOCUS_NEXT_CARD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-edge-group-card]') || el;\
-        let next = card.nextElementSibling;\
-        while (next) {\
-            if (next.hasAttribute && next.hasAttribute('data-edge-group-card')) {\
-                next.focus();\
-                return;\
-            }\
-            next = next.nextElementSibling;\
-        }\
-    })()";
-
-// === Edge group card CSS === //
+/// The `data-*` attribute that holds the card's ID value (for post-rename
+/// focus).
+pub(crate) const DATA_ID_ATTR: &str = "data-edge-group-card-id";
 
 /// CSS classes for the focusable edge group card wrapper.
 ///
@@ -161,49 +89,6 @@ pub(crate) const COLLAPSED_HEADER_CLASS: &str = "\
 /// These elements use `tabindex="-1"` so they are skipped by the normal tab
 /// order; the user enters edit mode by pressing Enter on the focused card.
 pub(crate) const FIELD_INPUT_CLASS: &str = INPUT_CLASS;
-
-// === Shared field keydown handler === //
-
-/// Shared `onkeydown` handler for inputs, selects, and remove buttons inside
-/// an `EdgeGroupCard`.
-///
-/// - **Esc**: return focus to the parent `EdgeGroupCard`.
-/// - **Tab / Shift+Tab**: cycle through focusable fields within the card.
-/// - **ArrowUp / ArrowDown / ArrowLeft / ArrowRight**: stop propagation so the
-///   card-level handler does not fire (allows cursor movement in text inputs
-///   and select navigation).
-pub(crate) fn edge_group_card_field_keydown(evt: dioxus::events::KeyboardEvent) {
-    let shift = evt.modifiers().shift();
-    match evt.key() {
-        Key::Escape => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            document::eval(JS_FOCUS_PARENT_CARD);
-        }
-        Key::Tab => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            if shift {
-                document::eval(JS_TAB_PREV_FIELD);
-            } else {
-                document::eval(JS_TAB_NEXT_FIELD);
-            }
-        }
-        Key::Enter => {
-            // Stop propagation so the card-level Enter handler (which
-            // calls preventDefault) does not fire for form fields.
-            evt.stop_propagation();
-        }
-        Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight => {
-            evt.stop_propagation();
-        }
-        Key::Character(ref c) if c == " " => {
-            // Prevents the parent card from collapsing.
-            evt.stop_propagation();
-        }
-        _ => {}
-    }
-}
 
 // === ThingDependenciesPage component === //
 
@@ -258,7 +143,7 @@ pub fn ThingDependenciesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
 
             button {
                 class: ADD_BTN,
-                tabindex: 0,
+                tabindex: -1,
                 onclick: move |_| {
                     EdgeGroupCardOps::edge_group_add(input_diagram, MapTarget::Dependencies);
                 },
@@ -324,7 +209,7 @@ pub fn ThingInteractionsPage(input_diagram: Signal<InputDiagram<'static>>) -> El
 
             button {
                 class: ADD_BTN,
-                tabindex: 0,
+                tabindex: -1,
                 onclick: move |_| {
                     EdgeGroupCardOps::edge_group_add(input_diagram, MapTarget::Interactions);
                 },

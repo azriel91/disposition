@@ -5,110 +5,41 @@
 //!
 //! Supports keyboard shortcuts:
 //!
+//! - **ArrowUp / ArrowDown**: navigate between sibling cards.
 //! - **ArrowRight**: expand the card (when collapsed).
 //! - **ArrowLeft**: collapse the card (when expanded).
+//! - **Space**: toggle expand/collapse.
 //! - **Enter**: expand + focus the first input inside the card.
+//! - **Escape**: focus the parent section / tab.
 //! - **Tab / Shift+Tab** (inside a field): cycle through focusable fields
-//!   within the card.
+//!   within the card. Wraps from last to first / first to last.
 //! - **Esc** (inside a field): return focus to the card wrapper.
 //!
 //! When collapsed, shows the entry key and number of attributes.
 
 use dioxus::{
-    document,
     hooks::use_signal,
-    prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
-        ModifiersInteraction, Props,
-    },
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
 
-use crate::components::editor::theme_styles_editor::{
-    css_class_partials_card_aliases::CssClassPartialsCardAliases,
-    css_class_partials_card_attrs::CssClassPartialsCardAttrs,
-    css_class_partials_card_header::CssClassPartialsCardHeader, theme_attr_entry::ThemeAttrEntry,
-    ThemeStylesTarget,
+use crate::components::editor::{
+    keyboard_nav::{self, CardKeyAction},
+    theme_styles_editor::{
+        css_class_partials_card_aliases::CssClassPartialsCardAliases,
+        css_class_partials_card_attrs::CssClassPartialsCardAttrs,
+        css_class_partials_card_header::CssClassPartialsCardHeader,
+        theme_attr_entry::ThemeAttrEntry, ThemeStylesTarget,
+    },
 };
 
-// === JS helpers === //
+// === Data attribute for the card wrapper === //
 
-/// JavaScript snippet: focus the parent `[data-css-card]` ancestor.
-const JS_FOCUS_PARENT_CARD: &str = "\
-    document.activeElement\
-        ?.closest('[data-css-card]')\
-        ?.focus()";
-
-/// JavaScript snippet: Tab to the next focusable element (input, select,
-/// checkbox, or `[data-action="remove"]`) within the same `[data-css-card]`.
-const JS_TAB_NEXT_FIELD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-css-card]');\
-        if (!card) return;\
-        let items = Array.from(card.querySelectorAll(\
-            'input, select, button, [data-action=\"remove\"]'\
-        ));\
-        let idx = items.indexOf(el);\
-        if (idx >= 0 && idx + 1 < items.length) {\
-            items[idx + 1].focus();\
-        } else {\
-            card.focus();\
-        }\
-    })()";
-
-/// JavaScript snippet: Shift+Tab to the previous focusable element within
-/// the same `[data-css-card]`.
-const JS_TAB_PREV_FIELD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-css-card]');\
-        if (!card) return;\
-        let items = Array.from(card.querySelectorAll(\
-            'input, select, button, [data-action=\"remove\"]'\
-        ));\
-        let idx = items.indexOf(el);\
-        if (idx > 0) {\
-            items[idx - 1].focus();\
-        } else {\
-            card.focus();\
-        }\
-    })()";
-
-/// JavaScript snippet: focus the previous sibling `[data-css-card]`.
-const JS_FOCUS_PREV_CARD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-css-card]') || el;\
-        let prev = card.previousElementSibling;\
-        while (prev) {\
-            if (prev.hasAttribute && prev.hasAttribute('data-css-card')) {\
-                prev.focus();\
-                return;\
-            }\
-            prev = prev.previousElementSibling;\
-        }\
-    })()";
-
-/// JavaScript snippet: focus the next sibling `[data-css-card]`.
-const JS_FOCUS_NEXT_CARD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-css-card]') || el;\
-        let next = card.nextElementSibling;\
-        while (next) {\
-            if (next.hasAttribute && next.hasAttribute('data-css-card')) {\
-                next.focus();\
-                return;\
-            }\
-            next = next.nextElementSibling;\
-        }\
-    })()";
+/// The `data-*` attribute placed on each `CssClassPartialsCard` wrapper.
+///
+/// Used by [`keyboard_nav`] helpers to locate the nearest ancestor card.
+pub(crate) const DATA_ATTR: &str = "data-css-card";
 
 // === CSS === //
 
@@ -178,32 +109,16 @@ pub fn CssClassPartialsCard(
 
             // === Card-level keyboard shortcuts === //
             onkeydown: move |evt| {
-                match evt.key() {
-                    Key::ArrowUp => {
-                        evt.prevent_default();
-                        document::eval(JS_FOCUS_PREV_CARD);
-                    }
-                    Key::ArrowDown => {
-                        evt.prevent_default();
-                        document::eval(JS_FOCUS_NEXT_CARD);
-                    }
-                    Key::Character(ref c) if c == " " => {
-                        evt.prevent_default();
+                let action = keyboard_nav::card_keydown(evt, DATA_ATTR);
+                match action {
+                    CardKeyAction::Collapse => collapsed.set(true),
+                    CardKeyAction::Expand => collapsed.set(false),
+                    CardKeyAction::Toggle => {
                         let is_collapsed = *collapsed.read();
                         collapsed.set(!is_collapsed);
                     }
-                    Key::Enter => {
-                        evt.prevent_default();
-                        collapsed.set(false);
-                        document::eval(
-                            "setTimeout(() => {\
-                                document.activeElement\
-                                    ?.querySelector('input, select')\
-                                    ?.focus();\
-                            }, 0)"
-                        );
-                    }
-                    _ => {}
+                    CardKeyAction::EnterEdit => collapsed.set(false),
+                    CardKeyAction::None => {}
                 }
             },
 
@@ -277,31 +192,16 @@ pub fn CssClassPartialsCard(
 /// Shared `onkeydown` handler for inputs, selects, checkboxes, and remove
 /// buttons inside a `CssClassPartialsCard`.
 ///
-/// - **Esc**: return focus to the parent `CssClassPartialsCard`.
-/// - **Tab / Shift+Tab**: cycle through focusable fields within the card.
-/// - **ArrowUp / ArrowDown / ArrowLeft / ArrowRight**: stop propagation so the
-///   card-level handler does not fire (allows cursor movement in text inputs
+/// Delegates to [`keyboard_nav::field_keydown`] with this card's
+/// [`DATA_ATTR`].
+///
+/// - **Escape**: return focus to the parent `CssClassPartialsCard`.
+/// - **Tab / Shift+Tab**: cycle through focusable fields within the card. Wraps
+///   from last to first / first to last.
+/// - **Enter**: stop propagation so the card-level handler does not fire.
+/// - **Arrow keys**: stop propagation (allows cursor movement in text inputs
 ///   and select navigation).
+/// - **Space**: stop propagation (prevents parent collapse toggle).
 pub(crate) fn css_card_field_keydown(evt: dioxus::events::KeyboardEvent) {
-    let shift = evt.modifiers().shift();
-    match evt.key() {
-        Key::Escape => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            document::eval(JS_FOCUS_PARENT_CARD);
-        }
-        Key::Tab => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            if shift {
-                document::eval(JS_TAB_PREV_FIELD);
-            } else {
-                document::eval(JS_TAB_NEXT_FIELD);
-            }
-        }
-        Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight => {
-            evt.stop_propagation();
-        }
-        _ => {}
-    }
+    keyboard_nav::field_keydown(evt, DATA_ATTR);
 }

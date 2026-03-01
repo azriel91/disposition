@@ -11,20 +11,22 @@
 //! - **Up / Down** (on row): move focus to the previous / next row.
 //! - **Alt+Up / Alt+Down**: move the entry up or down in the list.
 //! - **Enter** (on row): focus the first input inside the row for editing.
-//! - **Tab** (inside an input or remove button): move focus to the next
-//!   interactive element within the same row (inputs then remove button), or
-//!   back to the parent row when there are no more elements.
+//! - **Escape** (on row): focus the parent section / tab.
+//! - **Tab** (inside an input or remove button): cycle to the next interactive
+//!   element within the same row. Wraps from last to first.
+//! - **Shift+Tab** (inside an input or remove button): cycle to the previous
+//!   interactive element within the same row. Wraps from first to last.
 //! - **Esc** (inside an input or remove button): return focus to the parent
 //!   row.
+//! - **Space** (inside an input or remove button): stop propagation.
 //!
 //! Arrow keys are **not** intercepted when an `<input>` has focus, so the
 //! cursor can still be moved within the text field.
 //!
 //! After an ID rename the row element is destroyed and recreated under the new
 //! key. The row signals its stable parent container via `rename_refocus` so
-//! that the container can re-focus the correct sub-element (ID input on Enter,
-//! next field on Tab, parent row on Shift+Tab or Esc) once the new DOM node
-//! exists.
+//! that the container can re-focus the correct field in the new element after
+//! the DOM update.
 
 mod drag_handle;
 mod drag_row_border_class;
@@ -41,65 +43,24 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 
-use crate::components::editor::common::{
-    RenameRefocus, RenameRefocusTarget, ID_INPUT_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS,
+use crate::components::editor::{
+    common::{
+        RenameRefocus, RenameRefocusTarget, ID_INPUT_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS,
+    },
+    keyboard_nav,
 };
 
-// === JS focus helpers === //
+// === Data attribute for the row wrapper === //
 
-/// Moves focus to the next focusable element (input or remove button) within
-/// the same row. If there is no next element, focuses the parent row `div`
-/// instead.
-pub const JS_TAB_NEXT: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let row = el.closest('[tabindex=\"0\"]');\
-        if (!row) return;\
-        let items = Array.from(row.querySelectorAll('input, [data-action=\"remove\"]'));\
-        let idx = items.indexOf(el);\
-        if (idx >= 0 && idx + 1 < items.length) {\
-            items[idx + 1].focus();\
-        } else {\
-            row.focus();\
-        }\
-    })()";
+/// The `data-*` attribute placed on each `IdValueRow` wrapper.
+///
+/// Used by [`keyboard_nav`] helpers to locate the nearest ancestor row.
+const DATA_ATTR: &str = "data-entry-id";
 
-/// Moves focus to the previous focusable element (input or remove button)
-/// within the same row. If there is no previous element, focuses the parent
-/// row `div` instead.
-pub const JS_TAB_PREV: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let row = el.closest('[tabindex=\"0\"]');\
-        if (!row) return;\
-        let items = Array.from(row.querySelectorAll('input, [data-action=\"remove\"]'));\
-        let idx = items.indexOf(el);\
-        if (idx > 0) {\
-            items[idx - 1].focus();\
-        } else {\
-            row.focus();\
-        }\
-    })()";
-
-/// Focus the parent row.
-pub const JS_FOCUS_PARENT_ROW: &str = "\
-    document.activeElement\
-        ?.closest('[tabindex=\"0\"]')\
-        ?.focus()";
-
-/// Focus the active editor sub-tab so the user can navigate away via arrow
-/// keys. Falls back to blurring the active element.
-pub const JS_FOCUS_PARENT_SECTION: &str = "\
-    (() => {\
-        let tab = document.querySelector('[role=\"tab\"][aria-selected=\"true\"]');\
-        if (tab) { tab.focus(); return; }\
-        document.activeElement?.blur();\
-    })()";
+// === JS focus helpers (row-specific) === //
 
 /// Move focus to the previous sibling row.
-pub const JS_FOCUS_PREV_ROW: &str = "\
+const JS_FOCUS_PREV_ROW: &str = "\
     document.activeElement\
         ?.previousElementSibling\
         ?.focus()";
@@ -107,7 +68,7 @@ pub const JS_FOCUS_PREV_ROW: &str = "\
 /// From the current row, walk forwards through the container's following
 /// siblings to find a focusable element. First checks for a next sibling
 /// row, then walks to the container's next siblings.
-pub const JS_FOCUS_AFTER_CONTAINER: &str = "\
+const JS_FOCUS_AFTER_CONTAINER: &str = "\
     (() => {\
         let row = document.activeElement;\
         if (!row) return;\
@@ -124,50 +85,6 @@ pub const JS_FOCUS_AFTER_CONTAINER: &str = "\
             next = next.nextElementSibling;\
         }\
     })()";
-
-/// Focus the first input inside the currently focused element.
-pub const JS_FOCUS_FIRST_INPUT: &str = "\
-    document.activeElement\
-        ?.querySelector('input')\
-        ?.focus()";
-
-// === Shared field keydown handler === //
-
-/// Shared `onkeydown` handler for inputs and remove buttons inside a row.
-///
-/// - **Esc**: return focus to the parent row.
-/// - **Tab / Shift+Tab**: cycle through focusable fields within the row.
-/// - **Enter**: stop propagation so the row-level handler does not fire (only
-///   relevant for the remove button -- the browser still fires the native
-///   click).
-/// - **ArrowUp / ArrowDown**: stop propagation so the row-level handler does
-///   not fire (allows cursor movement in text inputs).
-pub fn field_keydown(evt: dioxus::events::KeyboardEvent) {
-    let shift = evt.modifiers().shift();
-    match evt.key() {
-        Key::Escape => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            document::eval(JS_FOCUS_PARENT_ROW);
-        }
-        Key::Tab => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            if shift {
-                document::eval(JS_TAB_PREV);
-            } else {
-                document::eval(JS_TAB_NEXT);
-            }
-        }
-        Key::Enter => {
-            evt.stop_propagation();
-        }
-        Key::ArrowUp | Key::ArrowDown => {
-            evt.stop_propagation();
-        }
-        _ => {}
-    }
-}
 
 // === IdValueRow component === //
 
@@ -274,12 +191,12 @@ pub fn IdValueRow(
                     Key::Escape => {
                         evt.prevent_default();
                         evt.stop_propagation();
-                        document::eval(JS_FOCUS_PARENT_SECTION);
+                        document::eval(keyboard_nav::JS_FOCUS_PARENT_SECTION);
                     }
                     Key::Enter => {
                         evt.prevent_default();
                         evt.stop_propagation();
-                        document::eval(JS_FOCUS_FIRST_INPUT);
+                        document::eval(&keyboard_nav::js_focus_first_field());
                     }
                     _ => {}
                 }
@@ -350,7 +267,7 @@ pub fn IdValueRow(
                         }
                         _ => {}
                     }
-                    field_keydown(evt);
+                    keyboard_nav::field_keydown(evt, DATA_ATTR);
                 },
             }
 
@@ -368,7 +285,7 @@ pub fn IdValueRow(
                     }
                 },
                 onkeydown: move |evt| {
-                    field_keydown(evt);
+                    keyboard_nav::field_keydown(evt, DATA_ATTR);
                 },
             }
 
@@ -384,7 +301,7 @@ pub fn IdValueRow(
                     }
                 },
                 onkeydown: move |evt| {
-                    field_keydown(evt);
+                    keyboard_nav::field_keydown(evt, DATA_ATTR);
                 },
                 "\u{2715}"
             }

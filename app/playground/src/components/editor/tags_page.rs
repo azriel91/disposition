@@ -9,19 +9,24 @@
 //! - **Up / Down** (on row): move focus to the previous / next row.
 //! - **Alt+Up / Alt+Down**: move the entry up or down in the list.
 //! - **Enter** (on row): focus the first input inside the row for editing.
+//! - **Escape** (on row): focus the parent section / tab.
 //! - **Tab / Shift+Tab** (inside an input or remove button): cycle through
-//!   interactive elements within the same row, returning to the row when
-//!   exhausted.
+//!   interactive elements within the same row. Wraps from last to first / first
+//!   to last.
 //! - **Esc** (inside an input or remove button): return focus to the parent
 //!   row.
+//! - **Space** (inside an input or remove button): stop propagation.
 //!
 //! `TagThingsCard` supports keyboard shortcuts:
 //!
+//! - **ArrowUp / ArrowDown**: navigate between sibling cards.
 //! - **ArrowRight**: expand the card (when collapsed).
 //! - **ArrowLeft**: collapse the card (when expanded).
+//! - **Space**: toggle expand/collapse.
 //! - **Enter**: expand + focus the first input inside the card.
+//! - **Escape**: focus the parent section / tab.
 //! - **Tab / Shift+Tab** (inside a field): cycle through focusable fields
-//!   within the card.
+//!   within the card. Wraps from last to first / first to last.
 //! - **Esc** (inside a field): return focus to the card wrapper.
 //!
 //! The heavy lifting is delegated to submodules:
@@ -32,12 +37,8 @@ mod tag_things_card;
 mod tags_page_ops;
 
 use dioxus::{
-    document,
     hooks::use_signal,
-    prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
-        ModifiersInteraction, Props,
-    },
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal},
 };
 use disposition::input_model::InputDiagram;
@@ -51,51 +52,17 @@ use crate::components::editor::{
 
 use self::{tag_things_card::TagThingsCard, tags_page_ops::TagsPageOps};
 
-// === TagThingsCard JS helpers === //
+// === TagThingsCard constants === //
 
-/// JavaScript snippet: focus the parent `[data-tag-things-card]` ancestor.
-pub(crate) const JS_FOCUS_PARENT_CARD: &str = "\
-    document.activeElement\
-        ?.closest('[data-tag-things-card]')\
-        ?.focus()";
+/// The `data-*` attribute placed on each `TagThingsCard` wrapper.
+///
+/// Used by [`keyboard_nav`](crate::components::editor::keyboard_nav) helpers
+/// to locate the nearest ancestor card.
+pub(crate) const DATA_ATTR: &str = "data-tag-things-card";
 
-/// JavaScript snippet: Tab to the next focusable element (input or
-/// `[data-action="remove"]`) within the same `[data-tag-things-card]`.
-pub(crate) const JS_CARD_TAB_NEXT: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-tag-things-card]');\
-        if (!card) return;\
-        let items = Array.from(card.querySelectorAll(\
-            'input, button, [data-action=\"remove\"]'\
-        ));\
-        let idx = items.indexOf(el);\
-        if (idx >= 0 && idx + 1 < items.length) {\
-            items[idx + 1].focus();\
-        } else {\
-            card.focus();\
-        }\
-    })()";
-
-/// JavaScript snippet: Shift+Tab to the previous focusable element within the
-/// same `[data-tag-things-card]`.
-pub(crate) const JS_CARD_TAB_PREV: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-tag-things-card]');\
-        if (!card) return;\
-        let items = Array.from(card.querySelectorAll(\
-            'input, button, [data-action=\"remove\"]'\
-        ));\
-        let idx = items.indexOf(el);\
-        if (idx > 0) {\
-            items[idx - 1].focus();\
-        } else {\
-            card.focus();\
-        }\
-    })()";
+/// The `data-*` attribute that holds the card's ID value (for post-rename
+/// focus).
+pub(crate) const DATA_ID_ATTR: &str = "data-tag-things-card-id";
 
 // === TagThingsCard CSS === //
 
@@ -134,44 +101,6 @@ pub(crate) const COLLAPSED_HEADER_CLASS: &str = "\
 /// These elements use `tabindex="-1"` so they are skipped by the normal tab
 /// order; the user enters edit mode by pressing Enter on the focused card.
 pub(crate) const FIELD_INPUT_CLASS: &str = INPUT_CLASS;
-
-// === Shared field keydown handler === //
-
-/// Shared `onkeydown` handler for inputs and remove buttons inside a
-/// `TagThingsCard`.
-///
-/// - **Esc**: return focus to the parent `TagThingsCard`.
-/// - **Tab / Shift+Tab**: cycle through focusable fields within the card.
-/// - **ArrowUp / ArrowDown / ArrowLeft / ArrowRight**: stop propagation so the
-///   card-level handler does not fire (allows cursor movement in text inputs).
-pub(crate) fn tag_things_card_field_keydown(evt: dioxus::events::KeyboardEvent) {
-    let shift = evt.modifiers().shift();
-    match evt.key() {
-        Key::Escape => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            document::eval(JS_FOCUS_PARENT_CARD);
-        }
-        Key::Tab => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            if shift {
-                document::eval(JS_CARD_TAB_PREV);
-            } else {
-                document::eval(JS_CARD_TAB_NEXT);
-            }
-        }
-        Key::Enter => {
-            // Stop propagation so the card-level Enter handler (which
-            // calls preventDefault) does not fire for form fields.
-            evt.stop_propagation();
-        }
-        Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight => {
-            evt.stop_propagation();
-        }
-        _ => {}
-    }
-}
 
 // === TagsPage component === //
 

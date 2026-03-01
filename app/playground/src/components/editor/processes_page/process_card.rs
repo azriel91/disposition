@@ -3,6 +3,18 @@
 //! Displays the process ID, display name, description, steps, and step
 //! thing-interaction mappings. Supports keyboard shortcuts for navigation
 //! between cards, expand/collapse, and field editing.
+//!
+//! Keyboard shortcuts:
+//!
+//! - **ArrowUp / ArrowDown**: navigate between sibling cards.
+//! - **ArrowRight**: expand the card (when collapsed).
+//! - **ArrowLeft**: collapse the card (when expanded).
+//! - **Space**: toggle expand/collapse.
+//! - **Enter**: expand + focus the first input inside the card.
+//! - **Escape**: focus the parent section / tab.
+//! - **Tab / Shift+Tab** (inside a field): cycle through focusable fields
+//!   within the card. Wraps from last to first / first to last.
+//! - **Esc** (inside a field): return focus to the card wrapper.
 
 use dioxus::{
     document,
@@ -20,13 +32,13 @@ use crate::components::editor::{
         RenameRefocus, RenameRefocusTarget, ADD_BTN, REMOVE_BTN, ROW_CLASS_SIMPLE, TEXTAREA_CLASS,
     },
     datalists::list_ids,
+    keyboard_nav::{self, CardKeyAction},
 };
 
 use super::{
-    process_card_field_keydown, process_card_ops::ProcessCardOps,
-    processes_page_ops::ProcessesPageOps, step_interaction_card::StepInteractionCard, ProcessEntry,
-    COLLAPSED_HEADER_CLASS, FIELD_INPUT_CLASS, JS_FOCUS_NEXT_CARD, JS_FOCUS_PREV_CARD,
-    PROCESS_CARD_CLASS,
+    process_card_ops::ProcessCardOps, processes_page_ops::ProcessesPageOps,
+    step_interaction_card::StepInteractionCard, ProcessEntry, COLLAPSED_HEADER_CLASS, DATA_ATTR,
+    DATA_ID_ATTR, FIELD_INPUT_CLASS, PROCESS_CARD_CLASS,
 };
 
 /// A collapsible card for editing a single process.
@@ -64,57 +76,7 @@ pub(crate) fn ProcessCard(
             // The card was destroyed and recreated -- ensure it is
             // expanded so the user can see/interact with the fields.
             collapsed.set(false);
-            let js = match target {
-                RenameRefocusTarget::NextField => {
-                    format!(
-                        "setTimeout(() => {{\
-                                let card = document.querySelector(\
-                                    '[data-process-card-id=\"{new_id}\"]'\
-                                );\
-                                if (!card) return;\
-                                let items = Array.from(\
-                                    card.querySelectorAll(\
-                                        'input, textarea, button, [data-action=\"remove\"]'\
-                                    )\
-                                );\
-                                if (items.length > 1) {{\
-                                    items[1].focus();\
-                                }} else if (items.length === 1) {{\
-                                    items[0].focus();\
-                                }} else {{\
-                                    card.focus();\
-                                }}\
-                            }}, 0)"
-                    )
-                }
-                RenameRefocusTarget::IdInput => {
-                    format!(
-                        "setTimeout(() => {{\
-                                let card = document.querySelector(\
-                                    '[data-process-card-id=\"{new_id}\"]'\
-                                );\
-                                if (!card) return;\
-                                let input = card.querySelector('input, textarea');\
-                                if (input) {{\
-                                    input.focus();\
-                                }} else {{\
-                                    card.focus();\
-                                }}\
-                            }}, 0)"
-                    )
-                }
-                RenameRefocusTarget::FocusParent => {
-                    format!(
-                        "setTimeout(() => {{\
-                                let card = document.querySelector(\
-                                    '[data-process-card-id=\"{new_id}\"]'\
-                                );\
-                                if (!card) return;\
-                                card.focus();\
-                            }}, 0)"
-                    )
-                }
-            };
+            let js = keyboard_nav::js_rename_refocus(DATA_ID_ATTR, &new_id, &target);
             document::eval(&js);
         }
     });
@@ -141,41 +103,16 @@ pub(crate) fn ProcessCard(
 
             // === Card-level keyboard shortcuts === //
             onkeydown: move |evt| {
-                match evt.key() {
-                    Key::ArrowUp => {
-                        evt.prevent_default();
-                        document::eval(JS_FOCUS_PREV_CARD);
-                    }
-                    Key::ArrowDown => {
-                        evt.prevent_default();
-                        document::eval(JS_FOCUS_NEXT_CARD);
-                    }
-                    Key::ArrowLeft => {
-                        evt.prevent_default();
-                        collapsed.set(true);
-                    }
-                    Key::ArrowRight => {
-                        evt.prevent_default();
-                        collapsed.set(false);
-                    }
-                    Key::Character(ref c) if c == " " => {
-                        evt.prevent_default();
+                let action = keyboard_nav::card_keydown(evt, DATA_ATTR);
+                match action {
+                    CardKeyAction::Collapse => collapsed.set(true),
+                    CardKeyAction::Expand => collapsed.set(false),
+                    CardKeyAction::Toggle => {
                         let is_collapsed = *collapsed.read();
                         collapsed.set(!is_collapsed);
                     }
-                    Key::Enter => {
-                        evt.prevent_default();
-                        // Expand if collapsed, then focus the first input.
-                        collapsed.set(false);
-                        document::eval(
-                            "setTimeout(() => {\
-                                document.activeElement\
-                                    ?.querySelector('input, textarea')\
-                                    ?.focus();\
-                            }, 0)"
-                        );
-                    }
-                    _ => {}
+                    CardKeyAction::EnterEdit => collapsed.set(false),
+                    CardKeyAction::None => {}
                 }
             },
 
@@ -273,7 +210,7 @@ pub(crate) fn ProcessCard(
                                 }
                                 _ => {}
                             }
-                            process_card_field_keydown(evt);
+                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                         },
                     }
 
@@ -288,7 +225,7 @@ pub(crate) fn ProcessCard(
                             }
                         },
                         onkeydown: move |evt| {
-                            process_card_field_keydown(evt);
+                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                         },
                         "\u{2715} Remove"
                     }
@@ -314,7 +251,7 @@ pub(crate) fn ProcessCard(
                             }
                         },
                         onkeydown: move |evt| {
-                            process_card_field_keydown(evt);
+                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                         },
                     }
                 }
@@ -339,7 +276,7 @@ pub(crate) fn ProcessCard(
                             }
                         },
                         onkeydown: move |evt| {
-                            process_card_field_keydown(evt);
+                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                         },
                     }
                 }
@@ -378,7 +315,7 @@ pub(crate) fn ProcessCard(
                                             }
                                         },
                                         onkeydown: move |evt| {
-                                            process_card_field_keydown(evt);
+                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                                         },
                                     }
 
@@ -395,7 +332,7 @@ pub(crate) fn ProcessCard(
                                             }
                                         },
                                         onkeydown: move |evt| {
-                                            process_card_field_keydown(evt);
+                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                                         },
                                     }
 
@@ -411,7 +348,7 @@ pub(crate) fn ProcessCard(
                                             }
                                         },
                                         onkeydown: move |evt| {
-                                            process_card_field_keydown(evt);
+                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                                         },
                                         "\u{2715}"
                                     }
@@ -430,7 +367,7 @@ pub(crate) fn ProcessCard(
                             }
                         },
                         onkeydown: move |evt| {
-                            process_card_field_keydown(evt);
+                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                         },
                         "+ Add step"
                     }
@@ -472,7 +409,7 @@ pub(crate) fn ProcessCard(
                             }
                         },
                         onkeydown: move |evt| {
-                            process_card_field_keydown(evt);
+                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                         },
                         "+ Add step interaction mapping"
                     }

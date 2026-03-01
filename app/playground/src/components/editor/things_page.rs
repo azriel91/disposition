@@ -10,9 +10,8 @@ mod on_change_target;
 mod things_page_ops;
 
 use dioxus::{
-    document,
     hooks::use_signal,
-    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key, Props},
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal},
 };
 use disposition::input_model::InputDiagram;
@@ -26,23 +25,6 @@ use crate::components::editor::{
 use crate::components::editor::id_value_row_container::IdValueRowContainer;
 
 use self::{on_change_target::OnChangeTarget, things_page_ops::ThingsPageOps};
-
-/// JavaScript snippet: from the Add button, focus the last focusable child of
-/// the preceding sibling container (the `IdValueRowContainer`).
-const JS_FOCUS_LAST_ROW: &str = "\
-    (() => {\
-        let btn = document.activeElement;\
-        if (!btn) return;\
-        let prev = btn.previousElementSibling;\
-        while (prev) {\
-            let children = prev.querySelectorAll('[tabindex=\"0\"]');\
-            if (children.length > 0) {\
-                children[children.length - 1].focus();\
-                return;\
-            }\
-            prev = prev.previousElementSibling;\
-        }\
-    })()";
 
 // === Thing Names sub-page === //
 
@@ -120,16 +102,9 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 
             button {
                 class: ADD_BTN,
-                tabindex: 0,
+                tabindex: -1,
                 onclick: move |_| {
                     ThingsPageOps::thing_add(input_diagram);
-                },
-                onkeydown: move |evt| {
-                    if evt.key() == Key::ArrowUp {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        document::eval(JS_FOCUS_LAST_ROW);
-                    }
                 },
                 "+ Add thing"
             }
@@ -224,16 +199,9 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
 
             button {
                 class: ADD_BTN,
-                tabindex: 0,
+                tabindex: -1,
                 onclick: move |_| {
                     ThingsPageOps::copy_text_add(input_diagram);
-                },
-                onkeydown: move |evt| {
-                    if evt.key() == Key::ArrowUp {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        document::eval(JS_FOCUS_LAST_ROW);
-                    }
                 },
                 "+ Add copy text"
             }
@@ -328,16 +296,9 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
 
             button {
                 class: ADD_BTN,
-                tabindex: 0,
+                tabindex: -1,
                 onclick: move |_| {
                     ThingsPageOps::entity_desc_add(input_diagram);
-                },
-                onkeydown: move |evt| {
-                    if evt.key() == Key::ArrowUp {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        document::eval(JS_FOCUS_LAST_ROW);
-                    }
                 },
                 "+ Add description"
             }
@@ -431,16 +392,9 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
 
             button {
                 class: ADD_BTN,
-                tabindex: 0,
+                tabindex: -1,
                 onclick: move |_| {
                     ThingsPageOps::entity_tooltip_add(input_diagram);
-                },
-                onkeydown: move |evt| {
-                    if evt.key() == Key::ArrowUp {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        document::eval(JS_FOCUS_LAST_ROW);
-                    }
                 },
                 "+ Add tooltip"
             }

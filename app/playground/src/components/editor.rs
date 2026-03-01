@@ -26,6 +26,7 @@ pub mod datalists;
 pub(crate) mod common;
 pub(crate) mod id_value_row;
 pub(crate) mod id_value_row_container;
+pub(crate) mod keyboard_nav;
 pub(crate) mod theme_styles_editor;
 
 mod processes_page;

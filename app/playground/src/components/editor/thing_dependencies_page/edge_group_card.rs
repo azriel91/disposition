@@ -11,8 +11,9 @@
 //! - **ArrowLeft**: collapse the card (when expanded).
 //! - **Space**: toggle expand/collapse.
 //! - **Enter**: expand + focus the first input inside the card.
+//! - **Escape**: focus the parent section / tab.
 //! - **Tab / Shift+Tab** (inside a field): cycle through focusable fields
-//!   within the card.
+//!   within the card. Wraps from last to first / first to last.
 //! - **Esc** (inside a field): return focus to the card wrapper.
 
 use dioxus::{
@@ -32,12 +33,12 @@ use crate::components::editor::{
         SELECT_CLASS,
     },
     datalists::list_ids,
+    keyboard_nav::{self, CardKeyAction},
 };
 
 use super::{
-    edge_group_card_field_keydown, edge_group_card_ops::EdgeGroupCardOps, EdgeGroupEntry,
-    MapTarget, COLLAPSED_HEADER_CLASS, EDGE_GROUP_CARD_CLASS, FIELD_INPUT_CLASS,
-    JS_FOCUS_NEXT_CARD, JS_FOCUS_PREV_CARD,
+    edge_group_card_ops::EdgeGroupCardOps, EdgeGroupEntry, MapTarget, COLLAPSED_HEADER_CLASS,
+    DATA_ATTR, DATA_ID_ATTR, EDGE_GROUP_CARD_CLASS, FIELD_INPUT_CLASS,
 };
 
 /// A collapsible card for editing a single edge group.
@@ -78,57 +79,7 @@ pub(crate) fn EdgeGroupCard(
             // The card was destroyed and recreated -- ensure it is
             // expanded so the user can see/interact with the fields.
             collapsed.set(false);
-            let js = match target {
-                RenameRefocusTarget::NextField => {
-                    format!(
-                        "setTimeout(() => {{\
-                                let card = document.querySelector(\
-                                    '[data-edge-group-card-id=\"{new_id}\"]'\
-                                );\
-                                if (!card) return;\
-                                let items = Array.from(\
-                                    card.querySelectorAll(\
-                                        'input, select, button, [data-action=\"remove\"]'\
-                                    )\
-                                );\
-                                if (items.length > 1) {{\
-                                    items[1].focus();\
-                                }} else if (items.length === 1) {{\
-                                    items[0].focus();\
-                                }} else {{\
-                                    card.focus();\
-                                }}\
-                            }}, 0)"
-                    )
-                }
-                RenameRefocusTarget::IdInput => {
-                    format!(
-                        "setTimeout(() => {{\
-                                let card = document.querySelector(\
-                                    '[data-edge-group-card-id=\"{new_id}\"]'\
-                                );\
-                                if (!card) return;\
-                                let input = card.querySelector('input');\
-                                if (input) {{\
-                                    input.focus();\
-                                }} else {{\
-                                    card.focus();\
-                                }}\
-                            }}, 0)"
-                    )
-                }
-                RenameRefocusTarget::FocusParent => {
-                    format!(
-                        "setTimeout(() => {{\
-                                let card = document.querySelector(\
-                                    '[data-edge-group-card-id=\"{new_id}\"]'\
-                                );\
-                                if (!card) return;\
-                                card.focus();\
-                            }}, 0)"
-                    )
-                }
-            };
+            let js = keyboard_nav::js_rename_refocus(DATA_ID_ATTR, &new_id, &target);
             document::eval(&js);
         }
     });
@@ -152,40 +103,16 @@ pub(crate) fn EdgeGroupCard(
 
             // === Card-level keyboard shortcuts === //
             onkeydown: move |evt| {
-                match evt.key() {
-                    Key::ArrowUp => {
-                        evt.prevent_default();
-                        document::eval(JS_FOCUS_PREV_CARD);
-                    }
-                    Key::ArrowDown => {
-                        evt.prevent_default();
-                        document::eval(JS_FOCUS_NEXT_CARD);
-                    }
-                    Key::ArrowLeft => {
-                        evt.prevent_default();
-                        collapsed.set(true);
-                    }
-                    Key::ArrowRight => {
-                        evt.prevent_default();
-                        collapsed.set(false);
-                    }
-                    Key::Character(ref c) if c == " " => {
-                        evt.prevent_default();
+                let action = keyboard_nav::card_keydown(evt, DATA_ATTR);
+                match action {
+                    CardKeyAction::Collapse => collapsed.set(true),
+                    CardKeyAction::Expand => collapsed.set(false),
+                    CardKeyAction::Toggle => {
                         let is_collapsed = *collapsed.read();
                         collapsed.set(!is_collapsed);
                     }
-                    Key::Enter => {
-                        evt.prevent_default();
-                        collapsed.set(false);
-                        document::eval(
-                            "setTimeout(() => {\
-                                document.activeElement\
-                                    ?.querySelector('input, select')\
-                                    ?.focus();\
-                            }, 0)"
-                        );
-                    }
-                    _ => {}
+                    CardKeyAction::EnterEdit => collapsed.set(false),
+                    CardKeyAction::None => {}
                 }
             },
 
@@ -277,7 +204,7 @@ pub(crate) fn EdgeGroupCard(
                                 }
                                 _ => {}
                             }
-                            edge_group_card_field_keydown(evt);
+                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                         },
                     }
 
@@ -292,7 +219,7 @@ pub(crate) fn EdgeGroupCard(
                             }
                         },
                         onkeydown: move |evt| {
-                            edge_group_card_field_keydown(evt);
+                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                         },
                         "x Remove"
                     }
@@ -325,7 +252,7 @@ pub(crate) fn EdgeGroupCard(
                             }
                         },
                         onkeydown: move |evt| {
-                            edge_group_card_field_keydown(evt);
+                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                         },
                         option { value: "cyclic", "Cyclic" }
                         option { value: "sequence", "Sequence" }
@@ -374,7 +301,7 @@ pub(crate) fn EdgeGroupCard(
                                             }
                                         },
                                         onkeydown: move |evt| {
-                                            edge_group_card_field_keydown(evt);
+                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                                         },
                                     }
 
@@ -394,7 +321,7 @@ pub(crate) fn EdgeGroupCard(
                                             }
                                         },
                                         onkeydown: move |evt| {
-                                            edge_group_card_field_keydown(evt);
+                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                                         },
                                         "x"
                                     }
@@ -413,7 +340,7 @@ pub(crate) fn EdgeGroupCard(
                             }
                         },
                         onkeydown: move |evt| {
-                            edge_group_card_field_keydown(evt);
+                            keyboard_nav::field_keydown(evt, DATA_ATTR);
                         },
                         "+ Add thing"
                     }

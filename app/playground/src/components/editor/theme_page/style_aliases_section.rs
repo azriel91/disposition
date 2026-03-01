@@ -6,18 +6,21 @@
 //!
 //! Supports keyboard shortcuts:
 //!
+//! - **ArrowUp / ArrowDown**: navigate between sibling cards.
+//! - **ArrowRight**: expand the card (when collapsed).
+//! - **ArrowLeft**: collapse the card (when expanded).
+//! - **Space**: toggle expand/collapse.
 //! - **Enter** (on card): focus the first input inside the card for editing.
+//! - **Escape** (on card): focus the parent section / tab.
 //! - **Tab / Shift+Tab** (inside a field): cycle through focusable fields
-//!   within the card.
+//!   within the card. Wraps from last to first / first to last.
 //! - **Esc** (inside a field): return focus to the card wrapper.
+//! - **Space** (inside a field): stop propagation.
 
 use dioxus::{
-    document,
-    prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
-        ModifiersInteraction, Props,
-    },
-    signals::{Signal, WritableExt},
+    hooks::use_signal,
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::{
     input_model::{
@@ -30,6 +33,7 @@ use disposition::{
 use crate::components::editor::{
     common::{ADD_BTN, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS},
     datalists::list_ids,
+    keyboard_nav::{self, CardKeyAction},
     theme_styles_editor::{
         parse_theme_attr, theme_attr_entry::ThemeAttrEntry, theme_attr_name, THEME_ATTRS,
     },
@@ -47,83 +51,12 @@ fn parse_style_alias(s: &str) -> Option<StyleAlias<'static>> {
         .map(|id| StyleAlias::from(id.into_static()).into_static())
 }
 
-// === JS helpers === //
+// === Data attribute for the card wrapper === //
 
-/// JavaScript snippet: focus the parent `[data-style-alias-card]` ancestor.
-const JS_FOCUS_PARENT_CARD: &str = "\
-    document.activeElement\
-        ?.closest('[data-style-alias-card]')\
-        ?.focus()";
-
-/// JavaScript snippet: Tab to the next focusable element (input, select, or
-/// `[data-action="remove"]`) within the same `[data-style-alias-card]`.
-const JS_TAB_NEXT_FIELD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-style-alias-card]');\
-        if (!card) return;\
-        let items = Array.from(card.querySelectorAll(\
-            'input, select, button, [data-action=\"remove\"]'\
-        ));\
-        let idx = items.indexOf(el);\
-        if (idx >= 0 && idx + 1 < items.length) {\
-            items[idx + 1].focus();\
-        } else {\
-            card.focus();\
-        }\
-    })()";
-
-/// JavaScript snippet: Shift+Tab to the previous focusable element within
-/// the same `[data-style-alias-card]`.
-const JS_TAB_PREV_FIELD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-style-alias-card]');\
-        if (!card) return;\
-        let items = Array.from(card.querySelectorAll(\
-            'input, select, button, [data-action=\"remove\"]'\
-        ));\
-        let idx = items.indexOf(el);\
-        if (idx > 0) {\
-            items[idx - 1].focus();\
-        } else {\
-            card.focus();\
-        }\
-    })()";
-
-/// JavaScript snippet: focus the previous sibling `[data-style-alias-card]`.
-const JS_FOCUS_PREV_CARD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-style-alias-card]') || el;\
-        let prev = card.previousElementSibling;\
-        while (prev) {\
-            if (prev.hasAttribute && prev.hasAttribute('data-style-alias-card')) {\
-                prev.focus();\
-                return;\
-            }\
-            prev = prev.previousElementSibling;\
-        }\
-    })()";
-
-/// JavaScript snippet: focus the next sibling `[data-style-alias-card]`.
-const JS_FOCUS_NEXT_CARD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-style-alias-card]') || el;\
-        let next = card.nextElementSibling;\
-        while (next) {\
-            if (next.hasAttribute && next.hasAttribute('data-style-alias-card')) {\
-                next.focus();\
-                return;\
-            }\
-            next = next.nextElementSibling;\
-        }\
-    })()";
+/// The `data-*` attribute placed on each `StyleAliasesSection` wrapper.
+///
+/// Used by [`keyboard_nav`] helpers to locate the nearest ancestor card.
+const DATA_ATTR: &str = "data-style-alias-card";
 
 // === CSS === //
 
@@ -155,8 +88,8 @@ const STYLE_ALIAS_CARD_CLASS: &str = "\
 /// embeds sub-sections for editing the `style_aliases_applied` list and the
 /// `partials` (`ThemeAttr -> value`) map.
 ///
-/// The card is focusable. Pressing **Enter** focuses the first input;
-/// pressing **Esc** from within any field returns focus to the card.
+/// The card is focusable and supports full keyboard navigation via the
+/// shared [`keyboard_nav`] helpers.
 #[component]
 pub fn StyleAliasesSection(
     input_diagram: Signal<InputDiagram<'static>>,
@@ -164,6 +97,13 @@ pub fn StyleAliasesSection(
     style_aliases_applied: Vec<String>,
     theme_attrs: Vec<ThemeAttrEntry>,
 ) -> Element {
+    let mut collapsed = use_signal(|| true);
+
+    let alias_count = style_aliases_applied.len();
+    let attr_count = theme_attrs.len();
+    let alias_suffix = if alias_count != 1 { "es" } else { "" };
+    let attr_suffix = if attr_count != 1 { "s" } else { "" };
+
     rsx! {
         div {
             class: STYLE_ALIAS_CARD_CLASS,
@@ -172,47 +112,85 @@ pub fn StyleAliasesSection(
 
             // === Card-level keyboard shortcuts === //
             onkeydown: move |evt| {
-                match evt.key() {
-                    Key::ArrowUp => {
-                        evt.prevent_default();
-                        document::eval(JS_FOCUS_PREV_CARD);
+                let action = keyboard_nav::card_keydown(evt, DATA_ATTR);
+                match action {
+                    CardKeyAction::Collapse => collapsed.set(true),
+                    CardKeyAction::Expand => collapsed.set(false),
+                    CardKeyAction::Toggle => {
+                        let is_collapsed = *collapsed.read();
+                        collapsed.set(!is_collapsed);
                     }
-                    Key::ArrowDown => {
-                        evt.prevent_default();
-                        document::eval(JS_FOCUS_NEXT_CARD);
-                    }
-                    Key::Enter => {
-                        evt.prevent_default();
-                        document::eval(
-                            "setTimeout(() => {\
-                                document.activeElement\
-                                    ?.querySelector('input, select')\
-                                    ?.focus();\
-                            }, 0)"
-                        );
-                    }
-                    _ => {}
+                    CardKeyAction::EnterEdit => collapsed.set(false),
+                    CardKeyAction::None => {}
                 }
             },
 
-            // === Header: alias name + remove === //
-            StyleAliasesSectionHeader {
-                input_diagram,
-                alias_key: alias_key.clone(),
-            }
+            if *collapsed.read() {
+                // === Collapsed summary === //
+                div {
+                    class: "\
+                        flex \
+                        flex-row \
+                        items-center \
+                        gap-3 \
+                        cursor-pointer \
+                        select-none\
+                    ",
+                    onclick: move |_| collapsed.set(false),
 
-            // === Style aliases applied === //
-            StyleAliasesSectionAliases {
-                input_diagram,
-                alias_key: alias_key.clone(),
-                style_aliases_applied,
-            }
+                    // Expand chevron
+                    span {
+                        class: "text-gray-500 text-xs",
+                        ">"
+                    }
 
-            // === Theme attributes (partials map) === //
-            StyleAliasesSectionAttrs {
-                input_diagram,
-                alias_key,
-                theme_attrs,
+                    span {
+                        class: "text-sm font-mono text-blue-400",
+                        "{alias_key}"
+                    }
+
+                    span {
+                        class: "text-xs text-gray-500",
+                        "({alias_count} alias{alias_suffix}, {attr_count} attr{attr_suffix})"
+                    }
+                }
+            } else {
+                // === Expanded content === //
+
+                // Collapse toggle
+                div {
+                    class: "flex flex-row items-center gap-1 cursor-pointer select-none mb-1",
+                    onclick: move |_| collapsed.set(true),
+
+                    span {
+                        class: "text-gray-500 text-xs rotate-90 inline-block",
+                        ">"
+                    }
+                    span {
+                        class: "text-xs text-gray-500",
+                        "Collapse"
+                    }
+                }
+
+                // === Header: alias name + remove === //
+                StyleAliasesSectionHeader {
+                    input_diagram,
+                    alias_key: alias_key.clone(),
+                }
+
+                // === Style aliases applied === //
+                StyleAliasesSectionAliases {
+                    input_diagram,
+                    alias_key: alias_key.clone(),
+                    style_aliases_applied,
+                }
+
+                // === Theme attributes (partials map) === //
+                StyleAliasesSectionAttrs {
+                    input_diagram,
+                    alias_key,
+                    theme_attrs,
+                }
             }
         }
     }
@@ -277,7 +255,7 @@ fn StyleAliasesSectionHeader(
                     }
                 },
                 onkeydown: move |evt| {
-                    style_alias_field_keydown(evt);
+                    keyboard_nav::field_keydown(evt, DATA_ATTR);
                 },
             }
 
@@ -295,7 +273,7 @@ fn StyleAliasesSectionHeader(
                     }
                 },
                 onkeydown: move |evt| {
-                    style_alias_field_keydown(evt);
+                    keyboard_nav::field_keydown(evt, DATA_ATTR);
                 },
                 "x Remove alias"
             }
@@ -361,7 +339,7 @@ fn StyleAliasesSectionAliases(
                     }
                 },
                 onkeydown: move |evt| {
-                    style_alias_field_keydown(evt);
+                    keyboard_nav::field_keydown(evt, DATA_ATTR);
                 },
                 "+ Add alias"
             }
@@ -412,7 +390,7 @@ fn StyleAliasesSectionAliasRow(
                     }
                 },
                 onkeydown: move |evt| {
-                    style_alias_field_keydown(evt);
+                    keyboard_nav::field_keydown(evt, DATA_ATTR);
                 },
             }
 
@@ -435,7 +413,7 @@ fn StyleAliasesSectionAliasRow(
                     }
                 },
                 onkeydown: move |evt| {
-                    style_alias_field_keydown(evt);
+                    keyboard_nav::field_keydown(evt, DATA_ATTR);
                 },
                 "x"
             }
@@ -507,7 +485,7 @@ fn StyleAliasesSectionAttrs(
                     }
                 },
                 onkeydown: move |evt| {
-                    style_alias_field_keydown(evt);
+                    keyboard_nav::field_keydown(evt, DATA_ATTR);
                 },
                 "+ Add attribute"
             }
@@ -561,7 +539,7 @@ fn StyleAliasesSectionAttrRow(
                     }
                 },
                 onkeydown: move |evt| {
-                    style_alias_field_keydown(evt);
+                    keyboard_nav::field_keydown(evt, DATA_ATTR);
                 },
 
                 for (name, _) in THEME_ATTRS.iter() {
@@ -596,7 +574,7 @@ fn StyleAliasesSectionAttrRow(
                     }
                 },
                 onkeydown: move |evt| {
-                    style_alias_field_keydown(evt);
+                    keyboard_nav::field_keydown(evt, DATA_ATTR);
                 },
             }
 
@@ -620,44 +598,10 @@ fn StyleAliasesSectionAttrRow(
                     }
                 },
                 onkeydown: move |evt| {
-                    style_alias_field_keydown(evt);
+                    keyboard_nav::field_keydown(evt, DATA_ATTR);
                 },
                 "x"
             }
         }
-    }
-}
-
-// === Shared field keydown handler === //
-
-/// Shared `onkeydown` handler for inputs, selects, and remove buttons inside
-/// a `StyleAliasesSection`.
-///
-/// - **Esc**: return focus to the parent card.
-/// - **Tab / Shift+Tab**: cycle through focusable fields within the card.
-/// - **ArrowUp / ArrowDown / ArrowLeft / ArrowRight**: stop propagation so the
-///   card-level handler does not fire (allows cursor movement in text inputs
-///   and select navigation).
-fn style_alias_field_keydown(evt: dioxus::events::KeyboardEvent) {
-    let shift = evt.modifiers().shift();
-    match evt.key() {
-        Key::Escape => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            document::eval(JS_FOCUS_PARENT_CARD);
-        }
-        Key::Tab => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            if shift {
-                document::eval(JS_TAB_PREV_FIELD);
-            } else {
-                document::eval(JS_TAB_NEXT_FIELD);
-            }
-        }
-        Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight => {
-            evt.stop_propagation();
-        }
-        _ => {}
     }
 }

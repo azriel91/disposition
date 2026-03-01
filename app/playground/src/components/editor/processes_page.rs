@@ -23,12 +23,8 @@ mod step_interaction_card;
 mod step_interaction_card_ops;
 
 use dioxus::{
-    document,
     hooks::use_signal,
-    prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
-        ModifiersInteraction, Props,
-    },
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal},
 };
 use disposition::input_model::InputDiagram;
@@ -47,85 +43,17 @@ pub(crate) struct ProcessEntry {
     pub(crate) step_interactions: Vec<(String, Vec<String>)>,
 }
 
-// === ProcessCard JS helpers === //
+// === ProcessCard constants === //
 
-/// JavaScript snippet: focus the parent `[data-process-card]` ancestor.
-pub(crate) const JS_FOCUS_PARENT_CARD: &str = "\
-    document.activeElement\
-        ?.closest('[data-process-card]')\
-        ?.focus()";
+/// The `data-*` attribute placed on each `ProcessCard` wrapper.
+///
+/// Used by [`keyboard_nav`](crate::components::editor::keyboard_nav) helpers
+/// to locate the nearest ancestor card.
+pub(crate) const DATA_ATTR: &str = "data-process-card";
 
-/// JavaScript snippet: Tab to the next focusable element (input, textarea, or
-/// `[data-action="remove"]`) within the same `[data-process-card]`.
-pub(crate) const JS_TAB_NEXT_FIELD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-process-card]');\
-        if (!card) return;\
-        let items = Array.from(card.querySelectorAll(\
-            'input, textarea, button, [data-action=\"remove\"]'\
-        ));\
-        let idx = items.indexOf(el);\
-        if (idx >= 0 && idx + 1 < items.length) {\
-            items[idx + 1].focus();\
-        } else {\
-            card.focus();\
-        }\
-    })()";
-
-/// JavaScript snippet: Shift+Tab to the previous focusable element within the
-/// same `[data-process-card]`.
-pub(crate) const JS_TAB_PREV_FIELD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-process-card]');\
-        if (!card) return;\
-        let items = Array.from(card.querySelectorAll(\
-            'input, textarea, button, [data-action=\"remove\"]'\
-        ));\
-        let idx = items.indexOf(el);\
-        if (idx > 0) {\
-            items[idx - 1].focus();\
-        } else {\
-            card.focus();\
-        }\
-    })()";
-
-/// JavaScript snippet: focus the previous sibling `[data-process-card]`.
-pub(crate) const JS_FOCUS_PREV_CARD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-process-card]') || el;\
-        let prev = card.previousElementSibling;\
-        while (prev) {\
-            if (prev.hasAttribute && prev.hasAttribute('data-process-card')) {\
-                prev.focus();\
-                return;\
-            }\
-            prev = prev.previousElementSibling;\
-        }\
-    })()";
-
-/// JavaScript snippet: focus the next sibling `[data-process-card]`.
-pub(crate) const JS_FOCUS_NEXT_CARD: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let card = el.closest('[data-process-card]') || el;\
-        let next = card.nextElementSibling;\
-        while (next) {\
-            if (next.hasAttribute && next.hasAttribute('data-process-card')) {\
-                next.focus();\
-                return;\
-            }\
-            next = next.nextElementSibling;\
-        }\
-    })()";
-
-// === ProcessCard CSS === //
+/// The `data-*` attribute that holds the card's ID value (for post-rename
+/// focus).
+pub(crate) const DATA_ID_ATTR: &str = "data-process-card-id";
 
 /// CSS classes for the focusable process card wrapper.
 ///
@@ -162,48 +90,6 @@ pub(crate) const COLLAPSED_HEADER_CLASS: &str = "\
 /// These elements use `tabindex="-1"` so they are skipped by the normal tab
 /// order; the user enters edit mode by pressing Enter on the focused card.
 pub(crate) const FIELD_INPUT_CLASS: &str = INPUT_CLASS;
-
-// === Shared field keydown handler === //
-
-/// Shared `onkeydown` handler for inputs, textareas, and remove buttons inside
-/// a `ProcessCard`.
-///
-/// - **Esc**: return focus to the parent `ProcessCard`.
-/// - **Tab / Shift+Tab**: cycle through focusable fields within the card.
-/// - **ArrowUp / ArrowDown**: stop propagation so the card-level handler does
-///   not fire (allows cursor movement in text inputs).
-pub(crate) fn process_card_field_keydown(evt: dioxus::events::KeyboardEvent) {
-    let shift = evt.modifiers().shift();
-    match evt.key() {
-        Key::Escape => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            document::eval(JS_FOCUS_PARENT_CARD);
-        }
-        Key::Tab => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            if shift {
-                document::eval(JS_TAB_PREV_FIELD);
-            } else {
-                document::eval(JS_TAB_NEXT_FIELD);
-            }
-        }
-        Key::Enter => {
-            // Stop propagation so the card-level Enter handler (which
-            // calls preventDefault) does not fire for form fields.
-            evt.stop_propagation();
-        }
-        Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight => {
-            evt.stop_propagation();
-        }
-        Key::Character(ref c) if c == " " => {
-            // Prevents the parent card from collapsing.
-            evt.stop_propagation();
-        }
-        _ => {}
-    }
-}
 
 // === ProcessesPage component === //
 

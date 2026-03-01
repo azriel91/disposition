@@ -12,12 +12,10 @@ use disposition::input_model::InputDiagram;
 use crate::components::editor::{
     common::{ADD_BTN, INNER_CARD_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
+    keyboard_nav,
 };
 
-use super::{
-    process_card_field_keydown, step_interaction_card_ops::StepInteractionCardOps,
-    FIELD_INPUT_CLASS,
-};
+use super::{step_interaction_card_ops::StepInteractionCardOps, DATA_ATTR, FIELD_INPUT_CLASS};
 
 /// A card for one step's thing-interaction list.
 #[component]
@@ -57,7 +55,7 @@ pub(crate) fn StepInteractionCard(
                         }
                     },
                     onkeydown: move |evt| {
-                        process_card_field_keydown(evt);
+                        keyboard_nav::field_keydown(evt, DATA_ATTR);
                     },
                 }
 
@@ -73,7 +71,7 @@ pub(crate) fn StepInteractionCard(
                         }
                     },
                     onkeydown: move |evt| {
-                        process_card_field_keydown(evt);
+                        keyboard_nav::field_keydown(evt, DATA_ATTR);
                     },
                     "\u{2715}"
                 }
@@ -119,7 +117,7 @@ pub(crate) fn StepInteractionCard(
                                         }
                                     },
                                     onkeydown: move |evt| {
-                                        process_card_field_keydown(evt);
+                                        keyboard_nav::field_keydown(evt, DATA_ATTR);
                                     },
                                 }
 
@@ -140,7 +138,7 @@ pub(crate) fn StepInteractionCard(
                                         }
                                     },
                                     onkeydown: move |evt| {
-                                        process_card_field_keydown(evt);
+                                        keyboard_nav::field_keydown(evt, DATA_ATTR);
                                     },
                                     "\u{2715}"
                                 }
@@ -160,7 +158,7 @@ pub(crate) fn StepInteractionCard(
                         }
                     },
                     onkeydown: move |evt| {
-                        process_card_field_keydown(evt);
+                        keyboard_nav::field_keydown(evt, DATA_ATTR);
                     },
                     "+ Add edge group"
                 }
