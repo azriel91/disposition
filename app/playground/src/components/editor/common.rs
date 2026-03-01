@@ -22,6 +22,23 @@ use disposition::{
 
 // === Post-rename focus type === //
 
+/// Which sub-element should receive focus after a rename-induced re-creation.
+///
+/// When a user renames an ID the DOM element is destroyed and recreated under a
+/// new key. The triggering key determines where focus should land in the new
+/// element.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RenameRefocusTarget {
+    /// Enter or blur triggered the rename -- re-focus the ID input.
+    IdInput,
+    /// Tab (forward) triggered the rename -- focus the next field after the ID
+    /// input.
+    NextField,
+    /// Shift+Tab or Esc triggered the rename -- focus the nearest focusable
+    /// ancestor (the parent row for `IdValueRow`, the card wrapper for cards).
+    FocusParent,
+}
+
 /// Carries the context needed after an ID rename to restore keyboard focus.
 ///
 /// When a user renames an ID (e.g. in an `IdValueRow` or a card component),
@@ -32,16 +49,13 @@ use disposition::{
 /// # Fields
 ///
 /// * `new_id`: the ID string the entry was renamed to, e.g. `"thing_1"`.
-/// * `tab_pressed`: `true` if the rename was triggered by Tab (move focus to
-///   the next field); `false` if triggered by Enter or blur (re-focus the ID
-///   input).
+/// * `target`: which sub-element to focus after the rename.
 #[derive(Clone, PartialEq)]
 pub struct RenameRefocus {
     /// The new ID string after the rename, e.g. `"thing_1"`.
     pub new_id: String,
-    /// `true` if Tab triggered the rename (focus the next field after the ID
-    /// input); `false` if Enter or blur triggered it (re-focus the ID input).
-    pub tab_pressed: bool,
+    /// Which sub-element to focus after the rename.
+    pub target: RenameRefocusTarget,
 }
 
 // === Shared CSS constants === //

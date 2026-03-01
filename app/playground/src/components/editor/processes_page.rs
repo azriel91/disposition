@@ -25,8 +25,8 @@ use disposition::{
 use crate::components::editor::{
     common::{
         id_rename_in_input_diagram, parse_edge_group_id, parse_process_id, parse_process_step_id,
-        RenameRefocus, ADD_BTN, INNER_CARD_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE,
-        SECTION_HEADING, TEXTAREA_CLASS,
+        RenameRefocus, RenameRefocusTarget, ADD_BTN, INNER_CARD_CLASS, INPUT_CLASS, REMOVE_BTN,
+        ROW_CLASS_SIMPLE, SECTION_HEADING, TEXTAREA_CLASS,
     },
     datalists::list_ids,
 };
@@ -346,9 +346,11 @@ fn ProcessCard(
 ) -> Element {
     let process_id = entry.process_id.clone();
     let mut collapsed = use_signal(|| true);
-    // Tracks whether Tab (true) or Enter/blur (false) triggered the last ID
-    // input change, so we know which field to focus after re-render.
-    let mut id_input_tab_pressed = use_signal(|| false);
+    // Tracks which refocus target the next ID rename should use.
+    // - `IdInput`: Enter or blur triggered the rename.
+    // - `NextField`: forward Tab triggered the rename.
+    // - `FocusParent`: Shift+Tab or Esc triggered the rename.
+    let mut rename_target = use_signal(|| RenameRefocusTarget::IdInput);
 
     // Clone before moving into the closure so `process_id` remains available
     // for the `rsx!` block below.
@@ -359,49 +361,62 @@ fn ProcessCard(
     // sub-element once the DOM has settled.
     use_effect(move || {
         let refocus = rename_refocus.read().clone();
-        if let Some(RenameRefocus {
-            new_id,
-            tab_pressed,
-        }) = refocus
-        {
+        if let Some(RenameRefocus { new_id, target }) = refocus {
             if new_id == process_id_for_effect {
                 rename_refocus.set(None);
-                let js = if tab_pressed {
-                    format!(
-                        "setTimeout(() => {{\
-                            let card = document.querySelector(\
-                                '[data-process-card-id=\"{new_id}\"]'\
-                            );\
-                            if (!card) return;\
-                            let items = Array.from(\
-                                card.querySelectorAll(\
-                                    'input, textarea, button, [data-action=\"remove\"]'\
-                                )\
-                            );\
-                            if (items.length > 1) {{\
-                                items[1].focus();\
-                            }} else if (items.length === 1) {{\
-                                items[0].focus();\
-                            }} else {{\
+                // The card was destroyed and recreated -- ensure it is
+                // expanded so the user can see/interact with the fields.
+                collapsed.set(false);
+                let js = match target {
+                    RenameRefocusTarget::NextField => {
+                        format!(
+                            "setTimeout(() => {{\
+                                let card = document.querySelector(\
+                                    '[data-process-card-id=\"{new_id}\"]'\
+                                );\
+                                if (!card) return;\
+                                let items = Array.from(\
+                                    card.querySelectorAll(\
+                                        'input, textarea, button, [data-action=\"remove\"]'\
+                                    )\
+                                );\
+                                if (items.length > 1) {{\
+                                    items[1].focus();\
+                                }} else if (items.length === 1) {{\
+                                    items[0].focus();\
+                                }} else {{\
+                                    card.focus();\
+                                }}\
+                            }}, 0)"
+                        )
+                    }
+                    RenameRefocusTarget::IdInput => {
+                        format!(
+                            "setTimeout(() => {{\
+                                let card = document.querySelector(\
+                                    '[data-process-card-id=\"{new_id}\"]'\
+                                );\
+                                if (!card) return;\
+                                let input = card.querySelector('input, textarea');\
+                                if (input) {{\
+                                    input.focus();\
+                                }} else {{\
+                                    card.focus();\
+                                }}\
+                            }}, 0)"
+                        )
+                    }
+                    RenameRefocusTarget::FocusParent => {
+                        format!(
+                            "setTimeout(() => {{\
+                                let card = document.querySelector(\
+                                    '[data-process-card-id=\"{new_id}\"]'\
+                                );\
+                                if (!card) return;\
                                 card.focus();\
-                            }}\
-                        }}, 0)"
-                    )
-                } else {
-                    format!(
-                        "setTimeout(() => {{\
-                            let card = document.querySelector(\
-                                '[data-process-card-id=\"{new_id}\"]'\
-                            );\
-                            if (!card) return;\
-                            let input = card.querySelector('input, textarea');\
-                            if (input) {{\
-                                input.focus();\
-                            }} else {{\
-                                card.focus();\
-                            }}\
-                        }}, 0)"
-                    )
+                            }}, 0)"
+                        )
+                    }
                 };
                 document::eval(&js);
             }
@@ -534,7 +549,7 @@ fn ProcessCard(
                             let process_id_old = process_id.clone();
                             move |evt: dioxus::events::FormEvent| {
                                 let id_new = evt.value();
-                                let tab_pressed = *id_input_tab_pressed.read();
+                                let target = *rename_target.read();
                                 ProcessesPageOps::process_rename(
                                     input_diagram,
                                     &process_id_old,
@@ -542,14 +557,24 @@ fn ProcessCard(
                                 );
                                 rename_refocus.set(Some(RenameRefocus {
                                     new_id: id_new,
-                                    tab_pressed,
+                                    target,
                                 }));
                             }
                         },
                         onkeydown: move |evt| {
                             match evt.key() {
-                                Key::Tab => id_input_tab_pressed.set(!evt.modifiers().shift()),
-                                Key::Enter => id_input_tab_pressed.set(false),
+                                Key::Tab if evt.modifiers().shift() => {
+                                    rename_target.set(RenameRefocusTarget::FocusParent);
+                                }
+                                Key::Tab => {
+                                    rename_target.set(RenameRefocusTarget::NextField);
+                                }
+                                Key::Escape => {
+                                    rename_target.set(RenameRefocusTarget::FocusParent);
+                                }
+                                Key::Enter => {
+                                    rename_target.set(RenameRefocusTarget::IdInput);
+                                }
                                 _ => {}
                             }
                             process_card_field_keydown(evt);
@@ -784,6 +809,11 @@ fn process_card_field_keydown(evt: dioxus::events::KeyboardEvent) {
             } else {
                 document::eval(JS_TAB_NEXT_FIELD);
             }
+        }
+        Key::Enter => {
+            // Stop propagation so the card-level Enter handler (which
+            // calls preventDefault) does not fire for form fields.
+            evt.stop_propagation();
         }
         Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight => {
             evt.stop_propagation();

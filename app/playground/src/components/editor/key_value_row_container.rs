@@ -14,7 +14,7 @@ use dioxus::{
     signals::{Signal, WritableExt},
 };
 
-use crate::components::editor::common::RenameRefocus;
+use crate::components::editor::common::{RenameRefocus, RenameRefocusTarget};
 
 /// A container for multiple draggable [`IdValueRow`]s.
 ///
@@ -32,8 +32,7 @@ use crate::components::editor::common::RenameRefocus;
 ///   receives focus after the next DOM update.
 /// * `rename_refocus`: when set to `Some(refocus)`, the row whose
 ///   `data-entry-id` matches `refocus.new_id` receives focus after the next DOM
-///   update, with the correct sub-element focused based on
-///   `refocus.tab_pressed`.
+///   update, with the correct sub-element focused based on `refocus.target`.
 /// * `children`: the row elements rendered inside the container.
 ///
 /// [`IdValueRow`]: crate::components::editor::id_value_row::IdValueRow
@@ -65,56 +64,72 @@ pub fn KeyValueRowContainer(
     // After an ID rename the old row is destroyed and a new one is created
     // under the new key. Focus the correct sub-element inside that new row.
     use_effect(move || {
-        if let Some(RenameRefocus {
-            new_id,
-            tab_pressed,
-        }) = rename_refocus()
-        {
+        if let Some(RenameRefocus { new_id, target }) = rename_refocus() {
             rename_refocus.set(None);
-            // JS: find the row by data-entry-id, then focus the ID input
-            // (Enter) or the next focusable field after it (Tab).
-            let js = if tab_pressed {
-                format!(
-                    "setTimeout(() => {{\
-                        let container = document.querySelector(\
-                            '[data-section-id=\"{section_id}\"]'\
-                        );\
-                        if (!container) return;\
-                        let row = container.querySelector(\
-                            '[data-entry-id=\"{new_id}\"]'\
-                        );\
-                        if (!row) return;\
-                        let items = Array.from(\
-                            row.querySelectorAll('input, [data-action=\"remove\"]')\
-                        );\
-                        if (items.length > 1) {{\
-                            items[1].focus();\
-                        }} else if (items.length === 1) {{\
-                            items[0].focus();\
-                        }} else {{\
+            // JS: find the row by data-entry-id, then focus:
+            // - NextField: the second focusable element (first after the ID input).
+            // - IdInput: the first input (the ID input).
+            // - FocusParent: the row wrapper itself.
+            let js = match target {
+                RenameRefocusTarget::NextField => {
+                    format!(
+                        "setTimeout(() => {{\
+                            let container = document.querySelector(\
+                                '[data-section-id=\"{section_id}\"]'\
+                            );\
+                            if (!container) return;\
+                            let row = container.querySelector(\
+                                '[data-entry-id=\"{new_id}\"]'\
+                            );\
+                            if (!row) return;\
+                            let items = Array.from(\
+                                row.querySelectorAll('input, [data-action=\"remove\"]')\
+                            );\
+                            if (items.length > 1) {{\
+                                items[1].focus();\
+                            }} else if (items.length === 1) {{\
+                                items[0].focus();\
+                            }} else {{\
+                                row.focus();\
+                            }}\
+                        }}, 0)"
+                    )
+                }
+                RenameRefocusTarget::IdInput => {
+                    format!(
+                        "setTimeout(() => {{\
+                            let container = document.querySelector(\
+                                '[data-section-id=\"{section_id}\"]'\
+                            );\
+                            if (!container) return;\
+                            let row = container.querySelector(\
+                                '[data-entry-id=\"{new_id}\"]'\
+                            );\
+                            if (!row) return;\
+                            let input = row.querySelector('input');\
+                            if (input) {{\
+                                input.focus();\
+                            }} else {{\
+                                row.focus();\
+                            }}\
+                        }}, 0)"
+                    )
+                }
+                RenameRefocusTarget::FocusParent => {
+                    format!(
+                        "setTimeout(() => {{\
+                            let container = document.querySelector(\
+                                '[data-section-id=\"{section_id}\"]'\
+                            );\
+                            if (!container) return;\
+                            let row = container.querySelector(\
+                                '[data-entry-id=\"{new_id}\"]'\
+                            );\
+                            if (!row) return;\
                             row.focus();\
-                        }}\
-                    }}, 0)"
-                )
-            } else {
-                format!(
-                    "setTimeout(() => {{\
-                        let container = document.querySelector(\
-                            '[data-section-id=\"{section_id}\"]'\
-                        );\
-                        if (!container) return;\
-                        let row = container.querySelector(\
-                            '[data-entry-id=\"{new_id}\"]'\
-                        );\
-                        if (!row) return;\
-                        let input = row.querySelector('input');\
-                        if (input) {{\
-                            input.focus();\
-                        }} else {{\
-                            row.focus();\
-                        }}\
-                    }}, 0)"
-                )
+                        }}, 0)"
+                    )
+                }
             };
             document::eval(&js);
         }

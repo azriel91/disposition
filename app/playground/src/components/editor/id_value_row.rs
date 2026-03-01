@@ -23,7 +23,8 @@
 //! After an ID rename the row element is destroyed and recreated under the new
 //! key. The row signals its stable parent container via `rename_refocus` so
 //! that the container can re-focus the correct sub-element (ID input on Enter,
-//! next field on Tab) once the new DOM node exists.
+//! next field on Tab, parent row on Shift+Tab or Esc) once the new DOM node
+//! exists.
 
 mod drag_handle;
 mod drag_row_border_class;
@@ -41,7 +42,7 @@ use dioxus::{
 };
 
 use crate::components::editor::common::{
-    RenameRefocus, ID_INPUT_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS,
+    RenameRefocus, RenameRefocusTarget, ID_INPUT_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS,
 };
 
 // === JS focus helpers === //
@@ -224,9 +225,11 @@ pub fn IdValueRow(
 
     let is_first = index == 0;
 
-    // Tracks whether the last key pressed in the ID input was Tab (true) or
-    // Enter / blur (false), so that on rename we know which field to focus.
-    let mut id_input_tab_pressed = use_signal(|| false);
+    // Tracks which refocus target the next ID rename should use.
+    // - `IdInput`: Enter or blur triggered the rename.
+    // - `NextField`: forward Tab triggered the rename.
+    // - `FocusParent`: Shift+Tab or Esc triggered the rename.
+    let mut rename_target = use_signal(|| RenameRefocusTarget::IdInput);
 
     rsx! {
         div {
@@ -320,20 +323,31 @@ pub fn IdValueRow(
                     let id_old = entry_id.clone();
                     move |evt: dioxus::events::FormEvent| {
                         let id_new = evt.value();
-                        let tab_pressed = *id_input_tab_pressed.read();
+                        let target = *rename_target.read();
                         on_rename.call((id_old.clone(), id_new.clone()));
                         rename_refocus.set(Some(RenameRefocus {
                             new_id: id_new,
-                            tab_pressed,
+                            target,
                         }));
                     }
                 },
                 onkeydown: move |evt| {
-                    // Record whether Tab triggered the upcoming onchange before
-                    // field_keydown handles the event (which prevents default).
+                    // Record which refocus target the upcoming onchange should
+                    // use before field_keydown handles the event (which
+                    // prevents default and may move focus).
                     match evt.key() {
-                        Key::Tab => id_input_tab_pressed.set(!evt.modifiers().shift()),
-                        Key::Enter => id_input_tab_pressed.set(false),
+                        Key::Tab if evt.modifiers().shift() => {
+                            rename_target.set(RenameRefocusTarget::FocusParent);
+                        }
+                        Key::Tab => {
+                            rename_target.set(RenameRefocusTarget::NextField);
+                        }
+                        Key::Escape => {
+                            rename_target.set(RenameRefocusTarget::FocusParent);
+                        }
+                        Key::Enter => {
+                            rename_target.set(RenameRefocusTarget::IdInput);
+                        }
                         _ => {}
                     }
                     field_keydown(evt);

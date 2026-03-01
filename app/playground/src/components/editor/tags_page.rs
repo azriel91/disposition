@@ -40,8 +40,8 @@ use disposition::{
 
 use crate::components::editor::{
     common::{
-        id_rename_in_input_diagram, parse_tag_id, parse_thing_id, RenameRefocus, ADD_BTN,
-        INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SECTION_HEADING,
+        id_rename_in_input_diagram, parse_tag_id, parse_thing_id, RenameRefocus,
+        RenameRefocusTarget, ADD_BTN, INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SECTION_HEADING,
     },
     datalists::list_ids,
     id_value_row::IdValueRow,
@@ -545,9 +545,11 @@ fn TagThingsCard(
     mut rename_refocus: Signal<Option<RenameRefocus>>,
 ) -> Element {
     let mut collapsed = use_signal(|| true);
-    // Tracks whether Tab (true) or Enter/blur (false) triggered the last ID
-    // input change, so we know which field to focus after re-render.
-    let mut id_input_tab_pressed = use_signal(|| false);
+    // Tracks which refocus target the next ID rename should use.
+    // - `IdInput`: Enter or blur triggered the rename.
+    // - `NextField`: forward Tab triggered the rename.
+    // - `FocusParent`: Shift+Tab or Esc triggered the rename.
+    let mut rename_target = use_signal(|| RenameRefocusTarget::IdInput);
 
     // Clone before moving into the closure so `tag_id` remains available
     // for the `rsx!` block below.
@@ -558,47 +560,62 @@ fn TagThingsCard(
     // sub-element once the DOM has settled.
     dioxus::hooks::use_effect(move || {
         let refocus = rename_refocus.read().clone();
-        if let Some(RenameRefocus {
-            new_id,
-            tab_pressed,
-        }) = refocus
-        {
+        if let Some(RenameRefocus { new_id, target }) = refocus {
             if new_id == tag_id_for_effect {
                 rename_refocus.set(None);
-                let js = if tab_pressed {
-                    format!(
-                        "setTimeout(() => {{\
-                            let card = document.querySelector(\
-                                '[data-tag-things-card-id=\"{new_id}\"]'\
-                            );\
-                            if (!card) return;\
-                            let items = Array.from(\
-                                card.querySelectorAll('input, button, [data-action=\"remove\"]')\
-                            );\
-                            if (items.length > 1) {{\
-                                items[1].focus();\
-                            }} else if (items.length === 1) {{\
-                                items[0].focus();\
-                            }} else {{\
+                // The card was destroyed and recreated -- ensure it is
+                // expanded so the user can see/interact with the fields.
+                collapsed.set(false);
+                let js = match target {
+                    RenameRefocusTarget::NextField => {
+                        format!(
+                            "setTimeout(() => {{\
+                                let card = document.querySelector(\
+                                    '[data-tag-things-card-id=\"{new_id}\"]'\
+                                );\
+                                if (!card) return;\
+                                let items = Array.from(\
+                                    card.querySelectorAll(\
+                                        'input, button, [data-action=\"remove\"]'\
+                                    )\
+                                );\
+                                if (items.length > 1) {{\
+                                    items[1].focus();\
+                                }} else if (items.length === 1) {{\
+                                    items[0].focus();\
+                                }} else {{\
+                                    card.focus();\
+                                }}\
+                            }}, 0)"
+                        )
+                    }
+                    RenameRefocusTarget::IdInput => {
+                        format!(
+                            "setTimeout(() => {{\
+                                let card = document.querySelector(\
+                                    '[data-tag-things-card-id=\"{new_id}\"]'\
+                                );\
+                                if (!card) return;\
+                                let input = card.querySelector('input');\
+                                if (input) {{\
+                                    input.focus();\
+                                }} else {{\
+                                    card.focus();\
+                                }}\
+                            }}, 0)"
+                        )
+                    }
+                    RenameRefocusTarget::FocusParent => {
+                        format!(
+                            "setTimeout(() => {{\
+                                let card = document.querySelector(\
+                                    '[data-tag-things-card-id=\"{new_id}\"]'\
+                                );\
+                                if (!card) return;\
                                 card.focus();\
-                            }}\
-                        }}, 0)"
-                    )
-                } else {
-                    format!(
-                        "setTimeout(() => {{\
-                            let card = document.querySelector(\
-                                '[data-tag-things-card-id=\"{new_id}\"]'\
-                            );\
-                            if (!card) return;\
-                            let input = card.querySelector('input');\
-                            if (input) {{\
-                                input.focus();\
-                            }} else {{\
-                                card.focus();\
-                            }}\
-                        }}, 0)"
-                    )
+                            }}, 0)"
+                        )
+                    }
                 };
                 document::eval(&js);
             }
@@ -704,7 +721,7 @@ fn TagThingsCard(
                             let current_things = things.clone();
                             move |evt: dioxus::events::FormEvent| {
                                 let id_new = evt.value();
-                                let tab_pressed = *id_input_tab_pressed.read();
+                                let target = *rename_target.read();
                                 TagsPageOps::tag_things_entry_rename(
                                     input_diagram,
                                     &tag_id_old,
@@ -713,14 +730,24 @@ fn TagThingsCard(
                                 );
                                 rename_refocus.set(Some(RenameRefocus {
                                     new_id: id_new,
-                                    tab_pressed,
+                                    target,
                                 }));
                             }
                         },
                         onkeydown: move |evt| {
                             match evt.key() {
-                                Key::Tab => id_input_tab_pressed.set(!evt.modifiers().shift()),
-                                Key::Enter => id_input_tab_pressed.set(false),
+                                Key::Tab if evt.modifiers().shift() => {
+                                    rename_target.set(RenameRefocusTarget::FocusParent);
+                                }
+                                Key::Tab => {
+                                    rename_target.set(RenameRefocusTarget::NextField);
+                                }
+                                Key::Escape => {
+                                    rename_target.set(RenameRefocusTarget::FocusParent);
+                                }
+                                Key::Enter => {
+                                    rename_target.set(RenameRefocusTarget::IdInput);
+                                }
                                 _ => {}
                             }
                             tag_things_card_field_keydown(evt);
@@ -852,6 +879,11 @@ fn tag_things_card_field_keydown(evt: dioxus::events::KeyboardEvent) {
             } else {
                 document::eval(JS_CARD_TAB_NEXT);
             }
+        }
+        Key::Enter => {
+            // Stop propagation so the card-level Enter handler (which
+            // calls preventDefault) does not fire for form fields.
+            evt.stop_propagation();
         }
         Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight => {
             evt.stop_propagation();
