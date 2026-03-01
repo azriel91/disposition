@@ -1,7 +1,12 @@
-//! Thing name row component.
+//! Shared editable row component for ID-value maps.
 //!
-//! A single editable row for a thing name (`ThingId` -> display label).
-//! Supports keyboard shortcuts:
+//! Provides [`IdValueRow`] -- a reusable row with:
+//! - A drag handle for reordering.
+//! - An ID input (with optional datalist and pattern).
+//! - A value input.
+//! - A remove button.
+//!
+//! Keyboard shortcuts:
 //!
 //! - **Up / Down** (on row): move focus to the previous / next row.
 //! - **Alt+Up / Alt+Down**: move the entry up or down in the list.
@@ -15,33 +20,28 @@
 //! Arrow keys are **not** intercepted when an `<input>` has focus, so the
 //! cursor can still be moved within the text field.
 
+mod drag_handle;
+mod drag_row_border_class;
+
+pub use self::{drag_handle::DragHandle, drag_row_border_class::drag_row_border_class};
+
 use dioxus::{
     document,
     prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
+        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Callback, Element, Key,
         ModifiersInteraction, Props,
     },
     signals::{ReadableExt, Signal, WritableExt},
 };
-use disposition::input_model::InputDiagram;
 
-use crate::components::editor::{
-    common::{ID_INPUT_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS},
-    datalists::list_ids,
-};
+use crate::components::editor::common::{ID_INPUT_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS};
 
-use super::{
-    drag_handle::DragHandle, drag_row_border_class::drag_row_border_class,
-    things_page_ops::ThingsPageOps,
-};
+// === JS focus helpers === //
 
-/// JavaScript snippet evaluated when the user presses **Tab** inside a row
-/// child.
-///
 /// Moves focus to the next focusable element (input or remove button) within
 /// the same row. If there is no next element, focuses the parent row `div`
 /// instead.
-const JS_TAB_NEXT: &str = "\
+pub const JS_TAB_NEXT: &str = "\
     (() => {\
         let el = document.activeElement;\
         if (!el) return;\
@@ -56,13 +56,10 @@ const JS_TAB_NEXT: &str = "\
         }\
     })()";
 
-/// JavaScript snippet evaluated when the user presses **Shift+Tab** inside a
-/// row child.
-///
 /// Moves focus to the previous focusable element (input or remove button)
 /// within the same row. If there is no previous element, focuses the parent
 /// row `div` instead.
-const JS_TAB_PREV: &str = "\
+pub const JS_TAB_PREV: &str = "\
     (() => {\
         let el = document.activeElement;\
         if (!el) return;\
@@ -77,31 +74,31 @@ const JS_TAB_PREV: &str = "\
         }\
     })()";
 
-/// JavaScript snippet: focus the parent row.
-const JS_FOCUS_PARENT_ROW: &str = "\
+/// Focus the parent row.
+pub const JS_FOCUS_PARENT_ROW: &str = "\
     document.activeElement\
         ?.closest('[tabindex=\"0\"]')\
         ?.focus()";
 
-/// JavaScript snippet: focus the active editor sub-tab so the user can
-/// navigate away via arrow keys. Falls back to blurring the active element.
-const JS_FOCUS_PARENT_SECTION: &str = "\
+/// Focus the active editor sub-tab so the user can navigate away via arrow
+/// keys. Falls back to blurring the active element.
+pub const JS_FOCUS_PARENT_SECTION: &str = "\
     (() => {\
         let tab = document.querySelector('[role=\"tab\"][aria-selected=\"true\"]');\
         if (tab) { tab.focus(); return; }\
         document.activeElement?.blur();\
     })()";
 
-/// JavaScript snippet: move focus to the previous sibling row.
-const JS_FOCUS_PREV_ROW: &str = "\
+/// Move focus to the previous sibling row.
+pub const JS_FOCUS_PREV_ROW: &str = "\
     document.activeElement\
         ?.previousElementSibling\
         ?.focus()";
 
-/// JavaScript snippet: from the last visible row, walk forwards through the
-/// container's following siblings to find a focusable element. First checks
-/// for a next sibling row, then walks to the container's next siblings.
-const JS_FOCUS_AFTER_CONTAINER: &str = "\
+/// From the current row, walk forwards through the container's following
+/// siblings to find a focusable element. First checks for a next sibling
+/// row, then walks to the container's next siblings.
+pub const JS_FOCUS_AFTER_CONTAINER: &str = "\
     (() => {\
         let row = document.activeElement;\
         if (!row) return;\
@@ -119,24 +116,94 @@ const JS_FOCUS_AFTER_CONTAINER: &str = "\
         }\
     })()";
 
-/// JavaScript snippet: focus the first input inside the currently focused
-/// element.
-const JS_FOCUS_FIRST_INPUT: &str = "\
+/// Focus the first input inside the currently focused element.
+pub const JS_FOCUS_FIRST_INPUT: &str = "\
     document.activeElement\
         ?.querySelector('input')\
         ?.focus()";
 
-/// A single editable row for a thing name (`ThingId` -> display label).
+// === Shared field keydown handler === //
+
+/// Shared `onkeydown` handler for inputs and remove buttons inside a row.
+///
+/// - **Esc**: return focus to the parent row.
+/// - **Tab / Shift+Tab**: cycle through focusable fields within the row.
+/// - **Enter**: stop propagation so the row-level handler does not fire (only
+///   relevant for the remove button -- the browser still fires the native
+///   click).
+/// - **ArrowUp / ArrowDown**: stop propagation so the row-level handler does
+///   not fire (allows cursor movement in text inputs).
+pub fn field_keydown(evt: dioxus::events::KeyboardEvent) {
+    let shift = evt.modifiers().shift();
+    match evt.key() {
+        Key::Escape => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            document::eval(JS_FOCUS_PARENT_ROW);
+        }
+        Key::Tab => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            if shift {
+                document::eval(JS_TAB_PREV);
+            } else {
+                document::eval(JS_TAB_NEXT);
+            }
+        }
+        Key::Enter => {
+            evt.stop_propagation();
+        }
+        Key::ArrowUp | Key::ArrowDown => {
+            evt.stop_propagation();
+        }
+        _ => {}
+    }
+}
+
+// === IdValueRow component === //
+
+/// A reusable editable row for ID-value maps.
+///
+/// The row renders a drag handle, an ID input, a value input, and a remove
+/// button with unified keyboard and drag-and-drop behaviour. Callers
+/// supply callbacks for the four mutation operations that differ between
+/// pages.
+///
+/// # Callbacks
+///
+/// * `on_move(from, to)`: reorder the entry from index `from` to index `to`.
+/// * `on_rename(id_old, id_new)`: change the entry key.
+/// * `on_update(id, value)`: change the entry value.
+/// * `on_remove(id)`: delete the entry.
+///
+/// # Props
+///
+/// * `entry_id`: the current ID string, e.g. `"thing_0"`.
+/// * `entry_value`: the current value string.
+/// * `id_list`: datalist id for the ID input (e.g. `list_ids::THING_IDS`).
+/// * `id_placeholder`: placeholder text for the ID input, e.g. `"thing_id"`.
+/// * `value_placeholder`: placeholder text for the value input, e.g. `"Display
+///   name"`.
+/// * `index`: position of this entry in its list.
+/// * `entry_count`: total number of entries.
+/// * `drag_index` / `drop_target`: shared drag-and-drop signals.
+/// * `focus_index`: shared focus-after-move signal.
 #[component]
-pub fn ThingNameRow(
-    input_diagram: Signal<InputDiagram<'static>>,
-    thing_id: String,
-    thing_name: String,
+pub fn IdValueRow(
+    entry_id: String,
+    entry_value: String,
+    id_list: String,
+    id_placeholder: String,
+    value_placeholder: String,
     index: usize,
     entry_count: usize,
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
     mut focus_index: Signal<Option<usize>>,
+    on_move: Callback<(usize, usize)>,
+    on_rename: Callback<(String, String)>,
+    on_update: Callback<(String, String)>,
+    on_remove: Callback<String>,
 ) -> Element {
     let border_class = drag_row_border_class(drag_index, drop_target, index);
 
@@ -152,9 +219,6 @@ pub fn ThingNameRow(
             draggable: "true",
 
             // === Keyboard shortcuts (row-level) === //
-            // Arrow keys from child `<input>`s and the remove button do not
-            // reach here because each child's `onkeydown` calls
-            // `stop_propagation` for them.
             onkeydown: move |evt| {
                 let alt = evt.modifiers().alt();
 
@@ -163,7 +227,7 @@ pub fn ThingNameRow(
                         evt.prevent_default();
                         evt.stop_propagation();
                         if can_move_up {
-                            ThingsPageOps::thing_move(input_diagram, index, index - 1);
+                            on_move.call((index, index - 1));
                             focus_index.set(Some(index - 1));
                         }
                     }
@@ -171,7 +235,7 @@ pub fn ThingNameRow(
                         evt.prevent_default();
                         evt.stop_propagation();
                         if can_move_down {
-                            ThingsPageOps::thing_move(input_diagram, index, index + 1);
+                            on_move.call((index, index + 1));
                             focus_index.set(Some(index + 1));
                         }
                     }
@@ -185,9 +249,6 @@ pub fn ThingNameRow(
                     Key::ArrowDown => {
                         evt.prevent_default();
                         evt.stop_propagation();
-                        // Use a DOM-based check: if there is no next
-                        // sibling row, walk to the container's next
-                        // focusable sibling.
                         document::eval(JS_FOCUS_AFTER_CONTAINER);
                     }
                     Key::Escape => {
@@ -215,9 +276,10 @@ pub fn ThingNameRow(
             ondrop: move |evt| {
                 evt.prevent_default();
                 if let Some(from) = *drag_index.read()
-                    && from != index {
-                        ThingsPageOps::thing_move(input_diagram, from, index);
-                    }
+                    && from != index
+                {
+                    on_move.call((from, index));
+                }
                 drag_index.set(None);
                 drop_target.set(None);
             },
@@ -228,128 +290,60 @@ pub fn ThingNameRow(
 
             DragHandle {}
 
-            // ThingId input
+            // === ID input === //
             input {
                 class: ID_INPUT_CLASS,
                 style: "max-width:14rem",
                 tabindex: "-1",
-                list: list_ids::THING_IDS,
-                placeholder: "thing_id",
-                value: "{thing_id}",
+                list: "{id_list}",
+                placeholder: "{id_placeholder}",
+                value: "{entry_id}",
                 pattern: "^[a-zA-Z_][a-zA-Z0-9_]*$",
                 onchange: {
-                    let thing_id_old = thing_id.clone();
+                    let id_old = entry_id.clone();
                     move |evt: dioxus::events::FormEvent| {
-                        let thing_id_new = evt.value();
-                        ThingsPageOps::thing_rename(input_diagram, &thing_id_old, &thing_id_new);
+                        let id_new = evt.value();
+                        on_rename.call((id_old.clone(), id_new));
                     }
                 },
                 onkeydown: move |evt| {
-                    let shift = evt.modifiers().shift();
-                    match evt.key() {
-                        Key::Escape => {
-                            evt.prevent_default();
-                            evt.stop_propagation();
-                            document::eval(JS_FOCUS_PARENT_ROW);
-                        }
-                        Key::Tab => {
-                            evt.prevent_default();
-                            evt.stop_propagation();
-                            if shift {
-                                document::eval(JS_TAB_PREV);
-                            } else {
-                                document::eval(JS_TAB_NEXT);
-                            }
-                        }
-                        // Stop arrow keys from bubbling to the row handler
-                        // so that the cursor can move inside the input.
-                        Key::ArrowUp | Key::ArrowDown => {
-                            evt.stop_propagation();
-                        }
-                        _ => {}
-                    }
+                    field_keydown(evt);
                 },
             }
 
-            // Display name input
+            // === Value input === //
             input {
                 class: INPUT_CLASS,
                 tabindex: "-1",
-                placeholder: "Display name",
-                value: "{thing_name}",
+                placeholder: "{value_placeholder}",
+                value: "{entry_value}",
                 oninput: {
-                    let thing_id = thing_id.clone();
+                    let entry_id = entry_id.clone();
                     move |evt: dioxus::events::FormEvent| {
-                        let name = evt.value();
-                        ThingsPageOps::thing_name_update(input_diagram, &thing_id, &name);
+                        let new_value = evt.value();
+                        on_update.call((entry_id.clone(), new_value));
                     }
                 },
                 onkeydown: move |evt| {
-                    let shift = evt.modifiers().shift();
-                    match evt.key() {
-                        Key::Escape => {
-                            evt.prevent_default();
-                            evt.stop_propagation();
-                            document::eval(JS_FOCUS_PARENT_ROW);
-                        }
-                        Key::Tab => {
-                            evt.prevent_default();
-                            evt.stop_propagation();
-                            if shift {
-                                document::eval(JS_TAB_PREV);
-                            } else {
-                                document::eval(JS_TAB_NEXT);
-                            }
-                        }
-                        Key::ArrowUp | Key::ArrowDown => {
-                            evt.stop_propagation();
-                        }
-                        _ => {}
-                    }
+                    field_keydown(evt);
                 },
             }
 
-            // Remove button
+            // === Remove button === //
             button {
                 class: REMOVE_BTN,
                 tabindex: "-1",
                 "data-action": "remove",
                 onclick: {
-                    let thing_id = thing_id.clone();
+                    let entry_id = entry_id.clone();
                     move |_| {
-                        ThingsPageOps::thing_remove(input_diagram, &thing_id);
+                        on_remove.call(entry_id.clone());
                     }
                 },
                 onkeydown: move |evt| {
-                    let shift = evt.modifiers().shift();
-                    match evt.key() {
-                        Key::Escape => {
-                            evt.prevent_default();
-                            evt.stop_propagation();
-                            document::eval(JS_FOCUS_PARENT_ROW);
-                        }
-                        Key::Tab => {
-                            evt.prevent_default();
-                            evt.stop_propagation();
-                            if shift {
-                                document::eval(JS_TAB_PREV);
-                            } else {
-                                document::eval(JS_TAB_NEXT);
-                            }
-                        }
-                        // Stop Enter and arrow keys from bubbling to the row
-                        // handler. Enter is not prevented so the browser still
-                        // fires the native button click.
-                        Key::Enter => {
-                            evt.stop_propagation();
-                        }
-                        Key::ArrowUp | Key::ArrowDown => {
-                            evt.stop_propagation();
-                        }
-                        _ => {}
-                    }
+                    field_keydown(evt);
                 },
-                "✕"
+                "\u{2715}"
             }
         }
     }

@@ -6,12 +6,8 @@
 //! - Entity Descriptions (`entity_descs`: `Id` -> description)
 //! - Entity Tooltips (`entity_tooltips`: `Id` -> tooltip)
 
-mod drag_handle;
-mod drag_row_border_class;
-mod key_value_row;
 mod key_value_row_container;
 mod on_change_target;
-mod thing_name_row;
 mod things_page_ops;
 
 use dioxus::{
@@ -25,11 +21,12 @@ use disposition::input_model::InputDiagram;
 use crate::components::editor::{
     common::{ADD_BTN, SECTION_HEADING},
     datalists::list_ids,
+    id_value_row::IdValueRow,
 };
 
 use self::{
-    key_value_row::KeyValueRow, key_value_row_container::KeyValueRowContainer,
-    on_change_target::OnChangeTarget, thing_name_row::ThingNameRow, things_page_ops::ThingsPageOps,
+    key_value_row_container::KeyValueRowContainer, on_change_target::OnChangeTarget,
+    things_page_ops::ThingsPageOps,
 };
 
 /// JavaScript snippet: from the Add button, focus the last focusable child of
@@ -54,7 +51,7 @@ const JS_FOCUS_LAST_ROW: &str = "\
 /// The **Things: Names** editor sub-page.
 ///
 /// Edits `things` -- a map from `ThingId` to display label. Each entry gets
-/// a [`ThingNameRow`] with editable ID, display name, and a remove button.
+/// an [`IdValueRow`] with editable ID, display name, and a remove button.
 #[component]
 pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let thing_drag_idx: Signal<Option<usize>> = use_signal(|| None);
@@ -90,16 +87,30 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                         let id = id.clone();
                         let name = name.clone();
                         rsx! {
-                            ThingNameRow {
+                            IdValueRow {
                                 key: "{id}",
-                                input_diagram,
-                                thing_id: id,
-                                thing_name: name,
+                                entry_id: id,
+                                entry_value: name,
+                                id_list: list_ids::THING_IDS.to_owned(),
+                                id_placeholder: "thing_id".to_owned(),
+                                value_placeholder: "Display name".to_owned(),
                                 index: idx,
                                 entry_count: thing_count,
                                 drag_index: thing_drag_idx,
                                 drop_target: thing_drop_target,
                                 focus_index: thing_focus_idx,
+                                on_move: move |(from, to)| {
+                                    ThingsPageOps::thing_move(input_diagram, from, to);
+                                },
+                                on_rename: move |(id_old, id_new): (String, String)| {
+                                    ThingsPageOps::thing_rename(input_diagram, &id_old, &id_new);
+                                },
+                                on_update: move |(id, value): (String, String)| {
+                                    ThingsPageOps::thing_name_update(input_diagram, &id, &value);
+                                },
+                                on_remove: move |id: String| {
+                                    ThingsPageOps::thing_remove(input_diagram, &id);
+                                },
                             }
                         }
                     }
@@ -165,19 +176,42 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                     {
                         let id = id.clone();
                         let text = text.clone();
+                        let on_change = OnChangeTarget::CopyText;
+                        let current_value = text.clone();
                         rsx! {
-                            KeyValueRow {
+                            IdValueRow {
                                 key: "ct_{id}",
-                                input_diagram,
                                 entry_id: id,
                                 entry_value: text,
-                                id_list: list_ids::THING_IDS,
-                                on_change: OnChangeTarget::CopyText,
+                                id_list: list_ids::THING_IDS.to_owned(),
+                                id_placeholder: "id".to_owned(),
+                                value_placeholder: "value".to_owned(),
                                 index: idx,
                                 entry_count: copy_text_count,
                                 drag_index: copy_text_drag_idx,
                                 drop_target: copy_text_drop_target,
                                 focus_index: copy_text_focus_idx,
+                                on_move: move |(from, to)| {
+                                    ThingsPageOps::kv_entry_move(input_diagram, on_change, from, to);
+                                },
+                                on_rename: {
+                                    let current_value = current_value.clone();
+                                    move |(id_old, id_new): (String, String)| {
+                                        ThingsPageOps::kv_entry_rename(
+                                            input_diagram,
+                                            on_change,
+                                            &id_old,
+                                            &id_new,
+                                            &current_value,
+                                        );
+                                    }
+                                },
+                                on_update: move |(id, value): (String, String)| {
+                                    ThingsPageOps::kv_entry_update(input_diagram, on_change, &id, &value);
+                                },
+                                on_remove: move |id: String| {
+                                    ThingsPageOps::kv_entry_remove(input_diagram, on_change, &id);
+                                },
                             }
                         }
                     }
@@ -243,19 +277,42 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
                     {
                         let id = id.clone();
                         let desc = desc.clone();
+                        let on_change = OnChangeTarget::EntityDesc;
+                        let current_value = desc.clone();
                         rsx! {
-                            KeyValueRow {
+                            IdValueRow {
                                 key: "desc_{id}",
-                                input_diagram,
                                 entry_id: id,
                                 entry_value: desc,
-                                id_list: list_ids::ENTITY_IDS,
-                                on_change: OnChangeTarget::EntityDesc,
+                                id_list: list_ids::ENTITY_IDS.to_owned(),
+                                id_placeholder: "id".to_owned(),
+                                value_placeholder: "value".to_owned(),
                                 index: idx,
                                 entry_count: desc_count,
                                 drag_index: desc_drag_idx,
                                 drop_target: desc_drop_target,
                                 focus_index: desc_focus_idx,
+                                on_move: move |(from, to)| {
+                                    ThingsPageOps::kv_entry_move(input_diagram, on_change, from, to);
+                                },
+                                on_rename: {
+                                    let current_value = current_value.clone();
+                                    move |(id_old, id_new): (String, String)| {
+                                        ThingsPageOps::kv_entry_rename(
+                                            input_diagram,
+                                            on_change,
+                                            &id_old,
+                                            &id_new,
+                                            &current_value,
+                                        );
+                                    }
+                                },
+                                on_update: move |(id, value): (String, String)| {
+                                    ThingsPageOps::kv_entry_update(input_diagram, on_change, &id, &value);
+                                },
+                                on_remove: move |id: String| {
+                                    ThingsPageOps::kv_entry_remove(input_diagram, on_change, &id);
+                                },
                             }
                         }
                     }
@@ -320,19 +377,42 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
                     {
                         let id = id.clone();
                         let tip = tip.clone();
+                        let on_change = OnChangeTarget::EntityTooltip;
+                        let current_value = tip.clone();
                         rsx! {
-                            KeyValueRow {
+                            IdValueRow {
                                 key: "tip_{id}",
-                                input_diagram,
                                 entry_id: id,
                                 entry_value: tip,
-                                id_list: list_ids::ENTITY_IDS,
-                                on_change: OnChangeTarget::EntityTooltip,
+                                id_list: list_ids::ENTITY_IDS.to_owned(),
+                                id_placeholder: "id".to_owned(),
+                                value_placeholder: "value".to_owned(),
                                 index: idx,
                                 entry_count: tooltip_count,
                                 drag_index: tooltip_drag_idx,
                                 drop_target: tooltip_drop_target,
                                 focus_index: tooltip_focus_idx,
+                                on_move: move |(from, to)| {
+                                    ThingsPageOps::kv_entry_move(input_diagram, on_change, from, to);
+                                },
+                                on_rename: {
+                                    let current_value = current_value.clone();
+                                    move |(id_old, id_new): (String, String)| {
+                                        ThingsPageOps::kv_entry_rename(
+                                            input_diagram,
+                                            on_change,
+                                            &id_old,
+                                            &id_new,
+                                            &current_value,
+                                        );
+                                    }
+                                },
+                                on_update: move |(id, value): (String, String)| {
+                                    ThingsPageOps::kv_entry_update(input_diagram, on_change, &id, &value);
+                                },
+                                on_remove: move |id: String| {
+                                    ThingsPageOps::kv_entry_remove(input_diagram, on_change, &id);
+                                },
                             }
                         }
                     }

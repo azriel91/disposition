@@ -10,7 +10,7 @@ use dioxus::{
     signals::{Signal, WritableExt},
 };
 
-/// A container for multiple draggable key-value rows (or [`ThingNameRow`]s).
+/// A container for multiple draggable [`IdValueRow`]s.
 ///
 /// Uses `group/key-value-rows` so that child rows can react to an active drag
 /// via `group-active/key-value-rows:_` utilities. Does **not** use `gap` on
@@ -26,7 +26,7 @@ use dioxus::{
 ///   receives focus after the next DOM update.
 /// * `children`: the row elements rendered inside the container.
 ///
-/// [`ThingNameRow`]: super::thing_name_row::ThingNameRow
+/// [`IdValueRow`]: crate::components::editor::id_value_row::IdValueRow
 #[component]
 pub fn KeyValueRowContainer(
     section_id: &'static str,

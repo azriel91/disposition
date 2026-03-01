@@ -23,6 +23,7 @@ pub use self::{
 
 pub(crate) mod common;
 pub mod datalists;
+pub(crate) mod id_value_row;
 mod processes_page;
 mod tags_page;
 mod text_page;

@@ -40,112 +40,12 @@ use disposition::{
 
 use crate::components::editor::{
     common::{
-        id_rename_in_input_diagram, parse_tag_id, parse_thing_id, ADD_BTN, DRAG_HANDLE,
-        ID_INPUT_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS, ROW_CLASS_SIMPLE, SECTION_HEADING,
+        id_rename_in_input_diagram, parse_tag_id, parse_thing_id, ADD_BTN, INPUT_CLASS, REMOVE_BTN,
+        ROW_CLASS_SIMPLE, SECTION_HEADING,
     },
     datalists::list_ids,
+    id_value_row::IdValueRow,
 };
-
-// === TagNameRow JS helpers === //
-
-/// JavaScript snippet evaluated when the user presses **Tab** inside a row
-/// child.
-///
-/// Moves focus to the next focusable element (input or remove button) within
-/// the same row. If there is no next element, focuses the parent row `div`
-/// instead.
-const JS_TAB_NEXT: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let row = el.closest('[tabindex=\"0\"]');\
-        if (!row) return;\
-        let items = Array.from(row.querySelectorAll('input, [data-action=\"remove\"]'));\
-        let idx = items.indexOf(el);\
-        if (idx >= 0 && idx + 1 < items.length) {\
-            items[idx + 1].focus();\
-        } else {\
-            row.focus();\
-        }\
-    })()";
-
-/// JavaScript snippet evaluated when the user presses **Shift+Tab** inside a
-/// row child.
-///
-/// Moves focus to the previous focusable element (input or remove button)
-/// within the same row. If there is no previous element, focuses the parent
-/// row `div` instead.
-const JS_TAB_PREV: &str = "\
-    (() => {\
-        let el = document.activeElement;\
-        if (!el) return;\
-        let row = el.closest('[tabindex=\"0\"]');\
-        if (!row) return;\
-        let items = Array.from(row.querySelectorAll('input, [data-action=\"remove\"]'));\
-        let idx = items.indexOf(el);\
-        if (idx > 0) {\
-            items[idx - 1].focus();\
-        } else {\
-            row.focus();\
-        }\
-    })()";
-
-/// JavaScript snippet: focus the parent row.
-const JS_FOCUS_PARENT_ROW: &str = "\
-    document.activeElement\
-        ?.closest('[tabindex=\"0\"]')\
-        ?.focus()";
-
-/// JavaScript snippet: move focus to the previous sibling row.
-const JS_FOCUS_PREV_ROW: &str = "\
-    document.activeElement\
-        ?.previousElementSibling\
-        ?.focus()";
-
-/// JavaScript snippet: from the last visible row, walk forwards through the
-/// container's following siblings to find a focusable element.
-const JS_FOCUS_AFTER_CONTAINER: &str = "\
-    (() => {\
-        let row = document.activeElement;\
-        if (!row) return;\
-        let nextRow = row.nextElementSibling;\
-        if (nextRow) { nextRow.focus(); return; }\
-        let container = row.parentElement;\
-        if (!container) return;\
-        let next = container.nextElementSibling;\
-        while (next) {\
-            if (next.tabIndex >= 0 || next.tagName === 'BUTTON' || next.tagName === 'A') {\
-                next.focus();\
-                return;\
-            }\
-            next = next.nextElementSibling;\
-        }\
-    })()";
-
-/// JavaScript snippet: from the first row, walk backwards through the
-/// container's preceding siblings to find a focusable element.
-const JS_FOCUS_BEFORE_CONTAINER: &str = "\
-    (() => {\
-        let row = document.activeElement;\
-        if (!row) return;\
-        let container = row.parentElement;\
-        if (!container) return;\
-        let prev = container.previousElementSibling;\
-        while (prev) {\
-            if (prev.tabIndex >= 0 || prev.tagName === 'BUTTON' || prev.tagName === 'A') {\
-                prev.focus();\
-                return;\
-            }\
-            prev = prev.previousElementSibling;\
-        }\
-    })()";
-
-/// JavaScript snippet: focus the first input inside the currently focused
-/// element.
-const JS_FOCUS_FIRST_INPUT: &str = "\
-    document.activeElement\
-        ?.querySelector('input')\
-        ?.focus()";
 
 // === TagThingsCard JS helpers === //
 
@@ -238,10 +138,10 @@ const FIELD_INPUT_CLASS: &str = INPUT_CLASS;
 /// 2. Tag Things: map of `TagId` to set of `ThingId`s associated with the tag.
 #[component]
 pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
-    // Focus-after-move state for TagNameRow reorder.
+    // Focus-after-move state for tag name row reorder.
     let mut tag_name_focus_idx: Signal<Option<usize>> = use_signal(|| None);
 
-    // Drag-and-drop state for TagNameRow.
+    // Drag-and-drop state for tag name rows.
     let tag_name_drag_idx: Signal<Option<usize>> = use_signal(|| None);
     let tag_name_drop_target: Signal<Option<usize>> = use_signal(|| None);
 
@@ -268,7 +168,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 
     let tag_count = tag_entries.len();
 
-    // Post-render focus effect for TagNameRow reorder.
+    // Post-render focus effect for tag name row reorder.
     dioxus::hooks::use_effect(move || {
         if let Some(idx) = tag_name_focus_idx() {
             tag_name_focus_idx.set(None);
@@ -306,16 +206,30 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                         let tag_id = tag_id.clone();
                         let tag_name = tag_name.clone();
                         rsx! {
-                            TagNameRow {
+                            IdValueRow {
                                 key: "{tag_id}",
-                                input_diagram,
-                                tag_id,
-                                tag_name,
+                                entry_id: tag_id,
+                                entry_value: tag_name,
+                                id_list: list_ids::TAG_IDS.to_owned(),
+                                id_placeholder: "tag_id".to_owned(),
+                                value_placeholder: "Display name".to_owned(),
                                 index: idx,
                                 entry_count: tag_count,
                                 drag_index: tag_name_drag_idx,
                                 drop_target: tag_name_drop_target,
                                 focus_index: tag_name_focus_idx,
+                                on_move: move |(from, to)| {
+                                    TagsPageOps::tag_move(input_diagram, from, to);
+                                },
+                                on_rename: move |(id_old, id_new): (String, String)| {
+                                    TagsPageOps::tag_rename(input_diagram, &id_old, &id_new);
+                                },
+                                on_update: move |(id, value): (String, String)| {
+                                    TagsPageOps::tag_name_update(input_diagram, &id, &value);
+                                },
+                                on_remove: move |id: String| {
+                                    TagsPageOps::tag_remove(input_diagram, &id);
+                                },
                             }
                         }
                     }
@@ -621,218 +535,7 @@ impl TagsPageOps {
 
 /// Returns Tailwind border-color classes for the drop-target indicator on
 /// tag name rows.
-fn tag_drag_row_border_class(
-    drag_index: Signal<Option<usize>>,
-    drop_target: Signal<Option<usize>>,
-    index: usize,
-) -> &'static str {
-    let drag_src = *drag_index.read();
-    let is_target = drop_target.read().is_some_and(|i| i == index);
-
-    if is_target
-        && let Some(from) = drag_src
-        && from != index
-    {
-        if from < index {
-            return "border-t-transparent border-b-blue-400";
-        } else {
-            return "border-t-blue-400 border-b-transparent";
-        }
-    }
-    "border-t-transparent border-b-transparent"
-}
-
-// === Helper components === //
-
-/// A single editable row for a tag name (TagId -> display label).
-///
-/// Supports drag-and-drop reorder, Alt+Up/Alt+Down keyboard reorder, Enter
-/// to edit, Tab/Shift+Tab to cycle within the row, and Esc to return focus
-/// to the row.
-#[component]
-fn TagNameRow(
-    input_diagram: Signal<InputDiagram<'static>>,
-    tag_id: String,
-    tag_name: String,
-    index: usize,
-    entry_count: usize,
-    drag_index: Signal<Option<usize>>,
-    drop_target: Signal<Option<usize>>,
-    mut focus_index: Signal<Option<usize>>,
-) -> Element {
-    let border_class = tag_drag_row_border_class(drag_index, drop_target, index);
-
-    let can_move_up = index > 0;
-    let can_move_down = index + 1 < entry_count;
-
-    let is_first = index == 0;
-
-    rsx! {
-        div {
-            class: "{ROW_CLASS} {border_class} rounded focus:border-blue-400 focus:bg-gray-800 focus:outline-none",
-            tabindex: "0",
-            draggable: "true",
-
-            // === Keyboard shortcuts (row-level) === //
-            onkeydown: move |evt| {
-                let alt = evt.modifiers().alt();
-
-                match evt.key() {
-                    Key::ArrowUp if alt => {
-                        evt.prevent_default();
-                        if can_move_up {
-                            TagsPageOps::tag_move(input_diagram, index, index - 1);
-                            focus_index.set(Some(index - 1));
-                        }
-                    }
-                    Key::ArrowDown if alt => {
-                        evt.prevent_default();
-                        if can_move_down {
-                            TagsPageOps::tag_move(input_diagram, index, index + 1);
-                            focus_index.set(Some(index + 1));
-                        }
-                    }
-                    Key::ArrowUp => {
-                        evt.prevent_default();
-                        if is_first {
-                            document::eval(JS_FOCUS_BEFORE_CONTAINER);
-                        } else {
-                            document::eval(JS_FOCUS_PREV_ROW);
-                        }
-                    }
-                    Key::ArrowDown => {
-                        evt.prevent_default();
-                        document::eval(JS_FOCUS_AFTER_CONTAINER);
-                    }
-                    Key::Enter => {
-                        evt.prevent_default();
-                        document::eval(JS_FOCUS_FIRST_INPUT);
-                    }
-                    _ => {}
-                }
-            },
-
-            // === Drag-and-drop === //
-            ondragstart: move |_| {
-                drag_index.set(Some(index));
-            },
-            ondragover: move |evt| {
-                evt.prevent_default();
-                drop_target.set(Some(index));
-            },
-            ondrop: move |evt| {
-                evt.prevent_default();
-                if let Some(from) = *drag_index.read()
-                    && from != index {
-                        TagsPageOps::tag_move(input_diagram, from, index);
-                    }
-                drag_index.set(None);
-                drop_target.set(None);
-            },
-            ondragend: move |_| {
-                drag_index.set(None);
-                drop_target.set(None);
-            },
-
-            // Drag handle
-            span {
-                class: DRAG_HANDLE,
-                title: "Drag to reorder",
-                "\u{2817}"
-            }
-
-            // TagId input
-            input {
-                class: ID_INPUT_CLASS,
-                style: "max-width:14rem",
-                tabindex: "-1",
-                list: list_ids::TAG_IDS,
-                placeholder: "tag_id",
-                pattern: "^[a-zA-Z_][a-zA-Z0-9_]*$",
-                value: "{tag_id}",
-                onchange: {
-                    let tag_id_old = tag_id.clone();
-                    move |evt: dioxus::events::FormEvent| {
-                        let tag_id_new = evt.value();
-                        TagsPageOps::tag_rename(input_diagram, &tag_id_old, &tag_id_new);
-                    }
-                },
-                onkeydown: move |evt| {
-                    tag_name_row_field_keydown(evt);
-                },
-            }
-
-            // Display name input
-            input {
-                class: INPUT_CLASS,
-                tabindex: "-1",
-                placeholder: "Display name",
-                value: "{tag_name}",
-                oninput: {
-                    let tag_id = tag_id.clone();
-                    move |evt: dioxus::events::FormEvent| {
-                        let name = evt.value();
-                        TagsPageOps::tag_name_update(input_diagram, &tag_id, &name);
-                    }
-                },
-                onkeydown: move |evt| {
-                    tag_name_row_field_keydown(evt);
-                },
-            }
-
-            // Remove button
-            button {
-                class: REMOVE_BTN,
-                tabindex: "-1",
-                "data-action": "remove",
-                onclick: {
-                    let tag_id = tag_id.clone();
-                    move |_| {
-                        TagsPageOps::tag_remove(input_diagram, &tag_id);
-                    }
-                },
-                onkeydown: move |evt| {
-                    tag_name_row_field_keydown(evt);
-                },
-                "\u{2715}"
-            }
-        }
-    }
-}
-
-/// Shared `onkeydown` handler for inputs and remove buttons inside a
-/// `TagNameRow`.
-///
-/// - **Esc**: return focus to the parent row.
-/// - **Tab / Shift+Tab**: cycle through focusable fields within the row.
-/// - **ArrowUp / ArrowDown**: stop propagation so the row-level handler does
-///   not fire (allows cursor movement in text inputs).
-fn tag_name_row_field_keydown(evt: dioxus::events::KeyboardEvent) {
-    let shift = evt.modifiers().shift();
-    match evt.key() {
-        Key::Escape => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            document::eval(JS_FOCUS_PARENT_ROW);
-        }
-        Key::Tab => {
-            evt.prevent_default();
-            evt.stop_propagation();
-            if shift {
-                document::eval(JS_TAB_PREV);
-            } else {
-                document::eval(JS_TAB_NEXT);
-            }
-        }
-        // Stop arrow keys from bubbling to the row handler
-        // so that the cursor can move inside the input.
-        Key::ArrowUp | Key::ArrowDown => {
-            evt.stop_propagation();
-        }
-        _ => {}
-    }
-}
-
+/// The **Tag Things** card component.
 /// A card for one tag's associated things.
 ///
 /// Supports keyboard shortcuts:
