@@ -102,7 +102,8 @@ thing_dependencies: &thing_dependencies
     # Cyclic dependencies are where the last thing in the list has an edge back to first thing.
     #
     # Must have at least 1 thing.
-    cyclic:
+    kind: cyclic
+    things:
       - t_localhost
       - t_github_user_repo
   edge_dep_t_localhost__t_github_user_repo__push:
@@ -110,21 +111,26 @@ thing_dependencies: &thing_dependencies
     # and no reverse edges.
     #
     # Must have at least 2 things.
-    sequence:
+    kind: sequence
+    things:
       - t_localhost
       - t_github_user_repo
   edge_dep_t_localhost__t_localhost__within:
-    cyclic:
+    kind: cyclic
+    things:
       - t_localhost
   edge_dep_t_github_user_repo__t_github_user_repo__within:
-    symmetric:
+    kind: symmetric
+    things:
       - t_github_user_repo
   edge_dep_t_github_user_repo__t_aws_ecr_repo__push:
-    sequence:
+    kind: sequence
+    things:
       - t_github_user_repo
       - t_aws_ecr_repo
   edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push:
-    sequence:
+    kind: sequence
+    things:
       - t_aws_ecr_repo
       - t_aws_ecs_cluster
 
@@ -162,7 +168,8 @@ thing_interactions:
     # thing in the list.
     #
     # Must have at least 1 thing.
-    symmetric:
+    kind: symmetric
+    things:
       - t_localhost
       - t_github_user_repo
   edge_ix_t_localhost__t_github_user_repo__push:
@@ -170,21 +177,26 @@ thing_interactions:
     # and no reverse edges.
     #
     # Must have at least 2 things.
-    sequence:
+    kind: sequence
+    things:
       - t_localhost
       - t_github_user_repo
   edge_ix_t_localhost__t_localhost__within:
-    cyclic:
+    kind: cyclic
+    things:
       - t_localhost
   edge_ix_t_github_user_repo__t_github_user_repo__within:
-    symmetric:
+    kind: symmetric
+    things:
       - t_github_user_repo
   edge_ix_t_github_user_repo__t_aws_ecr_repo__push:
-    sequence:
+    kind: sequence
+    things:
       - t_github_user_repo
       - t_aws_ecr_repo
   edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push:
-    sequence:
+    kind: sequence
+    things:
       - t_aws_ecr_repo
       - t_aws_ecs_cluster
 

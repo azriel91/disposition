@@ -1654,6 +1654,7 @@ dependencies = [
  "disposition",
  "disposition_input_ir_rt",
  "getrandom 0.3.4",
+ "serde",
  "serde-saphyr",
  "urlencoding",
  "web-time",

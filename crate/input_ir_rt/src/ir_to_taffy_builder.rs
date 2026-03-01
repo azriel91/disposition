@@ -20,13 +20,17 @@ use disposition_taffy_model::{
 };
 use taffy::prelude::TaffyZero;
 use typed_builder::TypedBuilder;
-use unicode_segmentation::UnicodeSegmentation;
 
-/// Monospace character width as a ratio of font size.
-/// For Noto Sans Mono at 11px, the character width is approximately 6.6px (0.6
-/// * 11).
-const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.6;
-const EMOJI_CHAR_WIDTH: f32 = 2.29;
+use self::{
+    taffy_node_build_context::{NodeMeasureContext, TaffyNodeBuildContext, TaffyWrapperNodeStyles},
+    text_measure::{
+        compute_text_dimensions, line_width_measure, wrap_text_monospace,
+        MONOSPACE_CHAR_WIDTH_RATIO,
+    },
+};
+
+mod taffy_node_build_context;
+mod text_measure;
 
 /// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///
@@ -458,10 +462,14 @@ impl IrToTaffyBuilder<'_> {
             Map::<EntityType, Vec<taffy::NodeId>>::new(),
             |mut entity_type_to_nodes, (node_id, child_hierarchy)| {
                 let node_id: &Id = node_id.as_ref();
-                let entity_type = entity_types
+                let Some(entity_type) = entity_types
                     .get(node_id)
                     .and_then(|entity_types| entity_types.first())
-                    .unwrap_or_else(|| panic!("`entity_type` not found for {node_id}"));
+                else {
+                    // Skip nodes without an entity type -- probably something extra in the
+                    // hierarchy without a node name.
+                    return entity_type_to_nodes;
+                };
 
                 if matches!(entity_type, EntityType::ProcessDefault) {
                     match processes_included {
@@ -527,14 +535,18 @@ impl IrToTaffyBuilder<'_> {
 
         node_hierarchy
             .iter()
-            .map(|(node_id, child_hierarchy)| {
+            .filter_map(|(node_id, child_hierarchy)| {
                 let node_id: &Id = node_id.as_ref();
-                let entity_type = entity_types
+                let Some(entity_type) = entity_types
                     .get(node_id)
                     .and_then(|entity_types| entity_types.first())
-                    .unwrap_or_else(|| panic!("`entity_type` not found for {node_id}"));
+                else {
+                    // Skip nodes without an entity type -- probably something extra in the
+                    // hierarchy without a node name.
+                    return None;
+                };
 
-                if child_hierarchy.is_empty() {
+                let taffy_node_id = if child_hierarchy.is_empty() {
                     Self::build_taffy_nodes_for_node_without_child_hierarchy(
                         taffy_tree,
                         node_layouts,
@@ -557,7 +569,9 @@ impl IrToTaffyBuilder<'_> {
                         node_id,
                         entity_type,
                     )
-                }
+                };
+
+                Some(taffy_node_id)
             })
             .collect::<Vec<taffy::NodeId>>()
     }
@@ -1021,221 +1035,4 @@ impl IrToTaffyBuilder<'_> {
                 + style.padding.bottom.into_raw().value(),
         }
     }
-}
-
-/// Compute text dimensions using simple monospace character width calculation.
-/// Returns (max_line_width, line_count).
-fn compute_text_dimensions(text: &str, char_width: f32, max_width: Option<f32>) -> (f32, usize) {
-    if text.is_empty() {
-        return (0.0, 0);
-    }
-
-    let max_chars_per_line = max_width.map(|w| (w / char_width).floor() as usize);
-
-    let mut line_width_max: f32 = 0.0;
-    let mut line_count: usize = 0;
-
-    text.lines().for_each(|line| {
-        let line_char_count = line.chars().count();
-
-        match max_chars_per_line {
-            Some(max_chars) if max_chars > 0 && line_char_count > max_chars => {
-                // Word wrap this line
-                let wrapped = wrap_line_monospace(line, max_chars);
-                wrapped.into_iter().for_each(|wrapped_line| {
-                    // Note: Ideally we can get a library to measure all kinds of graphemes.
-                    //
-                    // I tried this:
-                    //
-                    // ```rust
-                    // let width = unicode_width::UnicodeWidthStr::width_cjk(wrapped_line) as f32 * char_width;
-                    // ```
-                    //
-                    // but it didn't count emoji widths correctly.
-                    //
-                    // Also tried `string-width`:
-                    //
-                    // ```rust
-                    // let width = string_width::string_width(wrapped_line) as f32 * char_width;
-                    // ```
-
-                    let width = line_width_measure(wrapped_line, char_width);
-                    line_width_max = line_width_max.max(width);
-                    line_count += 1;
-                });
-            }
-            _ => {
-                // let width = string_width::string_width(line) as f32 * char_width;
-                let width = line_width_measure(line, char_width);
-                line_width_max = line_width_max.max(width);
-                line_count += 1;
-            }
-        }
-    });
-
-    (line_width_max, line_count)
-}
-
-/// Returns the width in pixels to display the given line of text.
-fn line_width_measure(line: &str, char_width: f32) -> f32 {
-    if line.is_empty() {
-        return 0.0;
-    }
-
-    let mut line_char_column_count = line
-        .graphemes(true)
-        .map(|grapheme| match emojis::get(grapheme).is_some() {
-            true => EMOJI_CHAR_WIDTH,
-            false => 1.0f32,
-        })
-        .sum::<f32>();
-
-    // Add one character width
-    //
-    // Without this, even with node padding, the text characters reach to both ends
-    // of the node, and sometimes the last character wraps down.
-    //
-    // Note that we shift the x coordinates of each line of text by `0.5 *
-    // char_width` in `highlighted_spans_compute`.
-    line_char_column_count += 1.0;
-
-    line_char_column_count * char_width
-}
-
-/// Wrap text for display, returning owned strings for each line.
-fn wrap_text_monospace(text: &str, char_width: f32, max_width: f32) -> Vec<String> {
-    let max_chars = (max_width / char_width).floor() as usize;
-
-    if max_chars == 0 {
-        return text.lines().map(String::from).collect();
-    }
-
-    let mut result = Vec::new();
-
-    text.lines().for_each(|line| {
-        let wrapped = wrap_line_monospace(line, max_chars);
-        result.extend(wrapped.into_iter().map(String::from));
-    });
-
-    if result.is_empty() {
-        result.push(String::new());
-    }
-
-    result
-}
-
-/// Wraps a single line to fit within max_chars characters.
-///
-/// Tries to break at word boundaries when possible.
-fn wrap_line_monospace(line: &str, max_chars: usize) -> Vec<&str> {
-    if max_chars == 0 {
-        return vec![line];
-    }
-
-    let mut result = Vec::new();
-    let mut remaining = line;
-
-    while !remaining.is_empty() {
-        let char_count = remaining.chars().count();
-        if char_count <= max_chars {
-            result.push(remaining);
-            break;
-        }
-
-        // Find a good break point (try to break at whitespace)
-        let mut break_at_byte = 0;
-        let mut break_at_char = 0;
-        let mut last_space_byte = None;
-        let mut last_space_char = 0;
-
-        remaining
-            .char_indices()
-            .enumerate()
-            .for_each(|(char_idx, (byte_idx, c))| {
-                if char_idx >= max_chars {
-                    return;
-                }
-                if c.is_whitespace() {
-                    last_space_byte = Some(byte_idx);
-                    last_space_char = char_idx;
-                }
-                break_at_byte = byte_idx + c.len_utf8();
-                break_at_char = char_idx + 1;
-            });
-
-        // Prefer breaking at whitespace if we found one in the second half
-        let (split_byte, split_char) =
-            if let Some(space_byte) = last_space_byte.filter(|_| last_space_char > max_chars / 2) {
-                (space_byte, last_space_char)
-            } else {
-                (break_at_byte, break_at_char)
-            };
-
-        if split_char == 0 {
-            // Safety: if we can't make progress, just take the whole thing
-            result.push(remaining);
-            break;
-        }
-
-        result.push(&remaining[..split_byte]);
-        remaining = remaining[split_byte..].trim_start();
-    }
-
-    if result.is_empty() {
-        result.push("");
-    }
-
-    result
-}
-
-struct TaffyNodeBuildContext<'ctx> {
-    taffy_tree: &'ctx mut TaffyTree<NodeContext>,
-    nodes: &'ctx NodeNames<'static>,
-    node_layouts: &'ctx NodeLayouts<'static>,
-    node_hierarchy: &'ctx NodeHierarchy<'static>,
-    entity_types: &'ctx EntityTypes<'static>,
-    node_shapes: &'ctx NodeShapes<'static>,
-    node_id_to_taffy: &'ctx mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
-    taffy_id_to_node: &'ctx mut Map<taffy::NodeId, NodeId<'static>>,
-}
-
-/// Layout information for a wrapper node and its text node.
-struct TaffyWrapperNodeStyles {
-    wrapper_style: Style,
-    text_style: Style,
-    child_container_style: Style,
-}
-
-impl Default for TaffyWrapperNodeStyles {
-    fn default() -> Self {
-        Self {
-            wrapper_style: Style {
-                display: Display::Flex,
-                max_size: Size::auto(),
-                flex_direction: FlexDirection::Column,
-                flex_wrap: FlexWrap::NoWrap,
-                ..Default::default()
-            },
-            text_style: Style::default(),
-            child_container_style: Style {
-                display: Display::Flex,
-                flex_direction: FlexDirection::Row,
-                flex_wrap: FlexWrap::Wrap,
-                align_items: Some(AlignItems::Start),
-                justify_items: Some(AlignItems::Start),
-                align_content: Some(AlignContent::Start),
-                justify_content: Some(AlignContent::Start),
-                ..Default::default()
-            },
-        }
-    }
-}
-
-struct NodeMeasureContext<'ctx> {
-    nodes: &'ctx NodeNames<'static>,
-    entity_descs: &'ctx EntityDescs<'static>,
-    /// Monospace character width in pixels.
-    char_width: f32,
-    /// Level of detail for the diagram.
-    lod: &'ctx DiagramLod,
 }
