@@ -97,11 +97,7 @@ pub(crate) fn EdgeGroupCard(
 
     let thing_count = things.len();
     let thing_suffix = if thing_count != 1 { "s" } else { "" };
-    let kind_label = match edge_kind {
-        EdgeKind::Cyclic => "cyclic",
-        EdgeKind::Sequence => "sequence",
-        EdgeKind::Symmetric => "symmetric",
-    };
+    let edge_kind_label = edge_kind.to_string();
 
     rsx! {
         div {
@@ -194,7 +190,7 @@ pub(crate) fn EdgeGroupCard(
 
                     span {
                         class: "text-xs text-gray-500 italic",
-                        "{kind_label}"
+                        "{edge_kind_label}"
                     }
 
                     span {
