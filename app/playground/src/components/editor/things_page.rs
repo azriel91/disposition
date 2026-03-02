@@ -20,9 +20,8 @@ use crate::components::editor::{
     common::{RenameRefocus, ADD_BTN, SECTION_HEADING},
     datalists::list_ids,
     id_value_row::IdValueRow,
+    reorderable::ReorderableContainer,
 };
-
-use crate::components::editor::id_value_row_container::IdValueRowContainer;
 
 use self::{on_change_target::OnChangeTarget, things_page_ops::ThingsPageOps};
 
@@ -59,10 +58,12 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 "Map of ThingId -> display label."
             }
 
-            IdValueRowContainer {
-                section_id: "thing_names",
+            ReorderableContainer {
+                data_attr: "data-entry-id".to_owned(),
+                section_id: "thing_names".to_owned(),
                 focus_index: thing_focus_idx,
-                rename_refocus: thing_rename_refocus,
+                data_id_attr: Some("data-entry-id".to_owned()),
+                rename_refocus: Some(thing_rename_refocus),
 
                 for (idx, (id, name)) in thing_entries.iter().enumerate() {
                     {
@@ -145,10 +146,12 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                 "Optional clipboard text per ThingId (defaults to display label)."
             }
 
-            IdValueRowContainer {
-                section_id: "copy_text",
+            ReorderableContainer {
+                data_attr: "data-entry-id".to_owned(),
+                section_id: "copy_text".to_owned(),
                 focus_index: copy_text_focus_idx,
-                rename_refocus: copy_text_rename_refocus,
+                data_id_attr: Some("data-entry-id".to_owned()),
+                rename_refocus: Some(copy_text_rename_refocus),
 
                 for (idx, (id, text)) in copy_text_entries.iter().enumerate() {
                     {
@@ -242,10 +245,12 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
                 "Descriptions rendered next to entities in the diagram."
             }
 
-            IdValueRowContainer {
-                section_id: "entity_descs",
+            ReorderableContainer {
+                data_attr: "data-entry-id".to_owned(),
+                section_id: "entity_descs".to_owned(),
                 focus_index: desc_focus_idx,
-                rename_refocus: desc_rename_refocus,
+                data_id_attr: Some("data-entry-id".to_owned()),
+                rename_refocus: Some(desc_rename_refocus),
 
                 for (idx, (id, desc)) in desc_entries.iter().enumerate() {
                     {
@@ -338,10 +343,12 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
                 "Tooltip text (markdown) shown on hover."
             }
 
-            IdValueRowContainer {
-                section_id: "entity_tooltips",
+            ReorderableContainer {
+                data_attr: "data-entry-id".to_owned(),
+                section_id: "entity_tooltips".to_owned(),
                 focus_index: tooltip_focus_idx,
-                rename_refocus: tooltip_rename_refocus,
+                data_id_attr: Some("data-entry-id".to_owned()),
+                rename_refocus: Some(tooltip_rename_refocus),
 
                 for (idx, (id, tip)) in tooltip_entries.iter().enumerate() {
                     {

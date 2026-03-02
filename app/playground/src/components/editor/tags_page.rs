@@ -48,7 +48,6 @@ use crate::components::editor::{
     common::{RenameRefocus, ADD_BTN, INPUT_CLASS, SECTION_HEADING},
     datalists::list_ids,
     id_value_row::IdValueRow,
-    id_value_row_container::IdValueRowContainer,
     reorderable::ReorderableContainer,
 };
 
@@ -165,10 +164,12 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 "Map of TagId to display label."
             }
 
-            IdValueRowContainer {
-                section_id: "tag_names",
+            ReorderableContainer {
+                data_attr: "data-entry-id".to_owned(),
+                section_id: "tag_names".to_owned(),
                 focus_index: tag_name_focus_idx,
-                rename_refocus: tag_name_rename_refocus,
+                data_id_attr: Some("data-entry-id".to_owned()),
+                rename_refocus: Some(tag_name_rename_refocus),
 
                 for (idx, (tag_id, tag_name)) in tag_entries.iter().enumerate() {
                     {

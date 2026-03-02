@@ -11,7 +11,8 @@
 //! - [`drag_border_class`]: computes Tailwind border classes for the
 //!   drop-target indicator during drag-and-drop.
 //! - [`ReorderableContainer`]: a wrapper component that manages post-reorder
-//!   focus via a `focus_index` signal, analogous to [`IdValueRowContainer`] but
+//!   focus via a `focus_index` signal and optional post-rename focus via a
+//!   `rename_refocus` signal. Subsumes the former `IdValueRowContainer` and is
 //!   usable by any reorderable entry list.
 //!
 //! [`IdValueRow`]: crate::components::editor::id_value_row::IdValueRow
@@ -20,7 +21,6 @@
 //! [`ProcessCard`]: crate::components::editor::processes_page::process_card::ProcessCard
 //! [`CssClassPartialsCard`]: crate::components::editor::theme_styles_editor::css_class_partials_card::CssClassPartialsCard
 //! [`StyleAliasesSection`]: crate::components::editor::theme_page::style_aliases_section::StyleAliasesSection
-//! [`IdValueRowContainer`]: crate::components::editor::id_value_row_container::IdValueRowContainer
 
 use dioxus::{
     document,
@@ -29,7 +29,7 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 
-use crate::components::editor::common::DRAG_HANDLE;
+use crate::components::editor::common::{RenameRefocus, RenameRefocusTarget, DRAG_HANDLE};
 
 // === DragHandle === //
 
@@ -98,6 +98,18 @@ pub fn drag_border_class(
 /// `focus_index` signal and, when set, focuses the child element at that
 /// index after the DOM has updated.
 ///
+/// Optionally handles post-rename focus via `rename_refocus` and
+/// `data_id_attr`. When an ID rename destroys and recreates a child
+/// element, the container locates the new element by its `data_id_attr`
+/// value and focuses the appropriate sub-element (ID input, next field,
+/// or the entry wrapper itself) based on the [`RenameRefocusTarget`].
+///
+/// This replaces the former `IdValueRowContainer` for [`IdValueRow`]
+/// sections, and can also be used by `*Card` sections. Cards that need
+/// additional behaviour on rename (e.g. expanding a collapsed card) can
+/// handle that in their own `use_effect` -- the container only manages
+/// DOM focus.
+///
 /// # Props
 ///
 /// * `data_attr`: the `data-*` attribute name used by the child entries, e.g.
@@ -105,20 +117,32 @@ pub fn drag_border_class(
 ///   direct reorderable children when computing focus targets.
 /// * `section_id`: a unique identifier for this section, used as a
 ///   `data-reorderable-section` attribute so focus JS can locate the correct
-///   container. e.g. `"edge_groups_deps"`, `"tag_things"`.
+///   container. e.g. `"edge_groups_deps"`, `"tag_things"`, `"thing_names"`.
 /// * `focus_index`: when set to `Some(idx)`, the entry at child index `idx`
 ///   (counting only children that have `data_attr`) receives focus after the
 ///   next DOM update.
+/// * `data_id_attr`: optional `data-*` attribute name that holds the entry's ID
+///   value, e.g. `"data-entry-id"`. Required when `rename_refocus` is provided.
+///   Used to locate the newly created entry after an ID rename.
+/// * `rename_refocus`: optional signal for post-rename focus. When set to
+///   `Some(refocus)`, the entry whose `data_id_attr` matches `refocus.new_id`
+///   receives focus after the next DOM update, with the correct sub-element
+///   focused based on `refocus.target`.
 /// * `children`: the entry elements rendered inside the container.
+///
+/// [`IdValueRow`]: crate::components::editor::id_value_row::IdValueRow
 #[component]
 pub fn ReorderableContainer(
     data_attr: String,
     section_id: String,
     mut focus_index: Signal<Option<usize>>,
+    #[props(default)] data_id_attr: Option<String>,
+    #[props(default)] mut rename_refocus: Option<Signal<Option<RenameRefocus>>>,
     children: Element,
 ) -> Element {
-    let section_id_effect = section_id.clone();
-    let data_attr_effect = data_attr.clone();
+    // === Post-reorder focus effect === //
+    let section_id_focus = section_id.clone();
+    let data_attr_focus = data_attr.clone();
 
     use_effect(move || {
         if let Some(idx) = focus_index() {
@@ -126,15 +150,90 @@ pub fn ReorderableContainer(
             document::eval(&format!(
                 "setTimeout(() => {{\
                     let container = document.querySelector(\
-                        '[data-reorderable-section=\"{section_id_effect}\"]'\
+                        '[data-reorderable-section=\"{section_id_focus}\"]'\
                     );\
                     if (!container) return;\
                     let entries = Array.from(\
-                        container.querySelectorAll('[{data_attr_effect}]')\
+                        container.querySelectorAll('[{data_attr_focus}]')\
                     );\
                     if (entries[{idx}]) entries[{idx}].focus();\
                 }}, 0)"
             ));
+        }
+    });
+
+    // === Post-rename focus effect === //
+    let section_id_rename = section_id.clone();
+    let data_id_attr_rename = data_id_attr.clone();
+
+    use_effect(move || {
+        let Some(ref mut rename_signal) = rename_refocus else {
+            return;
+        };
+        let Some(data_id_attr) = data_id_attr_rename.as_deref() else {
+            return;
+        };
+
+        if let Some(RenameRefocus { new_id, target }) = rename_signal() {
+            rename_signal.set(None);
+
+            let section_sel = format!("[data-reorderable-section=\"{section_id_rename}\"]");
+            let entry_sel = format!("[{data_id_attr}=\"{new_id}\"]");
+
+            // Selector for focusable fields inside the entry.
+            let focusable_sel = "input, select, textarea, button, [data-action=\"remove\"]";
+
+            let js = match target {
+                RenameRefocusTarget::NextField => {
+                    format!(
+                        "setTimeout(() => {{\
+                            let container = document.querySelector('{section_sel}');\
+                            if (!container) return;\
+                            let entry = container.querySelector('{entry_sel}');\
+                            if (!entry) return;\
+                            let items = Array.from(\
+                                entry.querySelectorAll('{focusable_sel}')\
+                            );\
+                            if (items.length > 1) {{\
+                                items[1].focus();\
+                            }} else if (items.length === 1) {{\
+                                items[0].focus();\
+                            }} else {{\
+                                entry.focus();\
+                            }}\
+                        }}, 0)"
+                    )
+                }
+                RenameRefocusTarget::IdInput => {
+                    format!(
+                        "setTimeout(() => {{\
+                            let container = document.querySelector('{section_sel}');\
+                            if (!container) return;\
+                            let entry = container.querySelector('{entry_sel}');\
+                            if (!entry) return;\
+                            let input = entry.querySelector('input');\
+                            if (input) {{\
+                                input.focus();\
+                            }} else {{\
+                                entry.focus();\
+                            }}\
+                        }}, 0)"
+                    )
+                }
+                RenameRefocusTarget::FocusParent => {
+                    format!(
+                        "setTimeout(() => {{\
+                            let container = document.querySelector('{section_sel}');\
+                            if (!container) return;\
+                            let entry = container.querySelector('{entry_sel}');\
+                            if (!entry) return;\
+                            entry.focus();\
+                        }}, 0)"
+                    )
+                }
+            };
+
+            document::eval(&js);
         }
     });
 
