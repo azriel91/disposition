@@ -16,11 +16,11 @@
 //! - [`step_interaction_card_ops`]: mutation helpers for step interaction
 //!   entries.
 
-mod process_card;
-mod process_card_ops;
-mod processes_page_ops;
-mod step_interaction_card;
-mod step_interaction_card_ops;
+pub(crate) mod process_card;
+pub(crate) mod process_card_ops;
+pub(crate) mod processes_page_ops;
+pub(crate) mod step_interaction_card;
+pub(crate) mod step_interaction_card_ops;
 
 use dioxus::{
     hooks::use_signal,

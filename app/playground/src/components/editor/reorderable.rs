@@ -1,8 +1,9 @@
 //! Shared reorderable component helpers.
 //!
 //! Provides the visual and behavioural building blocks that are common to
-//! all reorderable entries in the editor: `IdValueRow`, `EdgeGroupCard`,
-//! `TagThingsCard`, `ProcessCard`, and `CssClassPartialsCard`.
+//! all reorderable entries in the editor: [`IdValueRow`], [`EdgeGroupCard`],
+//! [`TagThingsCard`], [`ProcessCard`], [`CssClassPartialsCard`], and
+//! [`StyleAliasesSection`].
 //!
 //! ## Contents
 //!
@@ -10,8 +11,16 @@
 //! - [`drag_border_class`]: computes Tailwind border classes for the
 //!   drop-target indicator during drag-and-drop.
 //! - [`ReorderableContainer`]: a wrapper component that manages post-reorder
-//!   focus via a `focus_index` signal, analogous to `IdValueRowContainer` but
+//!   focus via a `focus_index` signal, analogous to [`IdValueRowContainer`] but
 //!   usable by any reorderable entry list.
+//!
+//! [`IdValueRow`]: crate::components::editor::id_value_row::IdValueRow
+//! [`EdgeGroupCard`]: crate::components::editor::thing_dependencies_page::edge_group_card::EdgeGroupCard
+//! [`TagThingsCard`]: crate::components::editor::tags_page::tag_things_card::TagThingsCard
+//! [`ProcessCard`]: crate::components::editor::processes_page::process_card::ProcessCard
+//! [`CssClassPartialsCard`]: crate::components::editor::theme_styles_editor::css_class_partials_card::CssClassPartialsCard
+//! [`StyleAliasesSection`]: crate::components::editor::theme_page::style_aliases_section::StyleAliasesSection
+//! [`IdValueRowContainer`]: crate::components::editor::id_value_row_container::IdValueRowContainer
 
 use dioxus::{
     document,
@@ -30,7 +39,9 @@ use crate::components::editor::common::DRAG_HANDLE;
 /// `draggable` / `ondragstart` / `ondragover` / `ondrop` / `ondragend`
 /// attributes; this component is purely visual.
 ///
-/// Used by both `IdValueRow` rows and `*Card` components.
+/// Used by both [`IdValueRow`] rows and `*Card` components.
+///
+/// [`IdValueRow`]: crate::components::editor::id_value_row::IdValueRow
 #[component]
 pub fn DragHandle() -> Element {
     rsx! {

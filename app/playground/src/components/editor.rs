@@ -30,10 +30,10 @@ pub(crate) mod keyboard_nav;
 pub(crate) mod reorderable;
 pub(crate) mod theme_styles_editor;
 
-mod processes_page;
-mod tags_page;
-mod text_page;
-mod theme_page;
-mod thing_dependencies_page;
-mod thing_layout_page;
-mod things_page;
+pub(crate) mod processes_page;
+pub(crate) mod tags_page;
+pub(crate) mod text_page;
+pub(crate) mod theme_page;
+pub(crate) mod thing_dependencies_page;
+pub(crate) mod thing_layout_page;
+pub(crate) mod things_page;

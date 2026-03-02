@@ -34,8 +34,8 @@
 //! - [`tag_things_card`]: collapsible card for a single tag's thing set.
 //! - [`tags_page_ops`]: mutation helpers for the page-level tag maps.
 
-mod tag_things_card;
-mod tags_page_ops;
+pub(crate) mod tag_things_card;
+pub(crate) mod tags_page_ops;
 
 use dioxus::{
     hooks::use_signal,

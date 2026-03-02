@@ -11,8 +11,8 @@
 //! - [`edge_group_card`]: collapsible card for a single edge group.
 //! - [`edge_group_card_ops`]: mutation helpers for edge group entries.
 
-mod edge_group_card;
-mod edge_group_card_ops;
+pub(crate) mod edge_group_card;
+pub(crate) mod edge_group_card_ops;
 
 use dioxus::{
     hooks::use_signal,
