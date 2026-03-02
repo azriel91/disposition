@@ -160,6 +160,8 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 data_attr: DATA_ATTR.to_owned(),
                 section_id: "processes".to_owned(),
                 focus_index: process_focus_idx,
+                data_id_attr: Some(DATA_ID_ATTR.to_owned()),
+                rename_refocus: Some(process_rename_refocus),
 
                 for (idx, entry) in entries.iter().enumerate() {
                     {

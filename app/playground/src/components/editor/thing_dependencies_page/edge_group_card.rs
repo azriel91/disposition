@@ -18,8 +18,7 @@
 //! - **Esc** (inside a field): return focus to the card wrapper.
 
 use dioxus::{
-    document,
-    hooks::{use_effect, use_signal},
+    hooks::use_signal,
     prelude::{
         component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
         ModifiersInteraction, Props,
@@ -35,12 +34,12 @@ use crate::components::editor::{
     },
     datalists::list_ids,
     keyboard_nav::{self, CardKeyAction},
-    reorderable::{drag_border_class, DragHandle},
+    reorderable::{drag_border_class, is_rename_target, DragHandle},
 };
 
 use super::{
     edge_group_card_ops::EdgeGroupCardOps, EdgeGroupEntry, MapTarget, COLLAPSED_HEADER_CLASS,
-    DATA_ATTR, DATA_ID_ATTR, EDGE_GROUP_CARD_CLASS, FIELD_INPUT_CLASS,
+    DATA_ATTR, EDGE_GROUP_CARD_CLASS, FIELD_INPUT_CLASS,
 };
 
 /// A collapsible card for editing a single edge group.
@@ -63,7 +62,15 @@ pub(crate) fn EdgeGroupCard(
     let edge_group_id = entry.edge_group_id.clone();
     let edge_kind = entry.edge_kind;
     let things = entry.things.clone();
-    let mut collapsed = use_signal(|| true);
+
+    // When this card was just recreated after an ID rename, start expanded
+    // so the user can see/interact with the fields. The
+    // `ReorderableContainer`'s `use_effect` handles DOM focus afterwards.
+    let mut collapsed = use_signal({
+        let edge_group_id = edge_group_id.clone();
+        move || !is_rename_target(rename_refocus, &edge_group_id)
+    });
+
     // Tracks which refocus target the next ID rename should use.
     // - `IdInput`: Enter or blur triggered the rename.
     // - `NextField`: forward Tab triggered the rename.
@@ -73,27 +80,6 @@ pub(crate) fn EdgeGroupCard(
     let can_move_up = index > 0;
     let can_move_down = index + 1 < entry_count;
     let border_class = drag_border_class(drag_index, drop_target, index);
-
-    // Clone before moving into the closure so `edge_group_id` remains
-    // available for the `rsx!` block below.
-    let edge_group_id_for_effect = edge_group_id.clone();
-
-    // After an ID rename this card is destroyed and recreated under the new
-    // key. If the rename_refocus signal carries our new ID, focus the correct
-    // sub-element once the DOM has settled.
-    use_effect(move || {
-        let refocus = rename_refocus.read().clone();
-        if let Some(RenameRefocus { new_id, target }) = refocus
-            && new_id == edge_group_id_for_effect
-        {
-            rename_refocus.set(None);
-            // The card was destroyed and recreated -- ensure it is
-            // expanded so the user can see/interact with the fields.
-            collapsed.set(false);
-            let js = keyboard_nav::js_rename_refocus(DATA_ID_ATTR, &new_id, &target);
-            document::eval(&js);
-        }
-    });
 
     let thing_count = things.len();
     let thing_suffix = if thing_count != 1 { "s" } else { "" };

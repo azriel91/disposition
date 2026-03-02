@@ -18,8 +18,7 @@
 //! - **Esc** (inside a field): return focus to the card wrapper.
 
 use dioxus::{
-    document,
-    hooks::{use_effect, use_signal},
+    hooks::use_signal,
     prelude::{
         component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
         ModifiersInteraction, Props,
@@ -34,13 +33,13 @@ use crate::components::editor::{
     },
     datalists::list_ids,
     keyboard_nav::{self, CardKeyAction},
-    reorderable::{drag_border_class, DragHandle},
+    reorderable::{drag_border_class, is_rename_target, DragHandle},
 };
 
 use super::{
     process_card_ops::ProcessCardOps, processes_page_ops::ProcessesPageOps,
     step_interaction_card::StepInteractionCard, ProcessEntry, COLLAPSED_HEADER_CLASS, DATA_ATTR,
-    DATA_ID_ATTR, FIELD_INPUT_CLASS, PROCESS_CARD_CLASS,
+    FIELD_INPUT_CLASS, PROCESS_CARD_CLASS,
 };
 
 /// A collapsible card for editing a single process.
@@ -60,7 +59,15 @@ pub(crate) fn ProcessCard(
     mut rename_refocus: Signal<Option<RenameRefocus>>,
 ) -> Element {
     let process_id = entry.process_id.clone();
-    let mut collapsed = use_signal(|| true);
+
+    // When this card was just recreated after an ID rename, start expanded
+    // so the user can see/interact with the fields. The
+    // `ReorderableContainer`'s `use_effect` handles DOM focus afterwards.
+    let mut collapsed = use_signal({
+        let process_id = process_id.clone();
+        move || !is_rename_target(rename_refocus, &process_id)
+    });
+
     // Tracks which refocus target the next ID rename should use.
     // - `IdInput`: Enter or blur triggered the rename.
     // - `NextField`: forward Tab triggered the rename.
@@ -70,27 +77,6 @@ pub(crate) fn ProcessCard(
     let can_move_up = index > 0;
     let can_move_down = index + 1 < entry_count;
     let border_class = drag_border_class(drag_index, drop_target, index);
-
-    // Clone before moving into the closure so `process_id` remains available
-    // for the `rsx!` block below.
-    let process_id_for_effect = process_id.clone();
-
-    // After an ID rename this card is destroyed and recreated under the new
-    // key. If the rename_refocus signal carries our new ID, focus the correct
-    // sub-element once the DOM has settled.
-    use_effect(move || {
-        let refocus = rename_refocus.read().clone();
-        if let Some(RenameRefocus { new_id, target }) = refocus
-            && new_id == process_id_for_effect
-        {
-            rename_refocus.set(None);
-            // The card was destroyed and recreated -- ensure it is
-            // expanded so the user can see/interact with the fields.
-            collapsed.set(false);
-            let js = keyboard_nav::js_rename_refocus(DATA_ID_ATTR, &new_id, &target);
-            document::eval(&js);
-        }
-    });
 
     let entry_name = entry.name.clone();
     let entry_desc = entry.desc.clone();

@@ -141,6 +141,8 @@ pub fn ThingDependenciesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                 data_attr: DATA_ATTR.to_owned(),
                 section_id: "edge_groups_deps".to_owned(),
                 focus_index: edge_group_focus_idx,
+                data_id_attr: Some(DATA_ID_ATTR.to_owned()),
+                rename_refocus: Some(edge_group_rename_refocus),
 
                 for (idx, entry) in entries.iter().enumerate() {
                     {
@@ -226,6 +228,8 @@ pub fn ThingInteractionsPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                 data_attr: DATA_ATTR.to_owned(),
                 section_id: "edge_groups_interactions".to_owned(),
                 focus_index: edge_group_focus_idx,
+                data_id_attr: Some(DATA_ID_ATTR.to_owned()),
+                rename_refocus: Some(edge_group_rename_refocus),
 
                 for (idx, entry) in entries.iter().enumerate() {
                     {

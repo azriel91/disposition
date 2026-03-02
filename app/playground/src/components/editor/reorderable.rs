@@ -10,6 +10,10 @@
 //! - [`DragHandle`]: a purely-visual grip indicator for draggable entries.
 //! - [`drag_border_class`]: computes Tailwind border classes for the
 //!   drop-target indicator during drag-and-drop.
+//! - [`is_rename_target`]: checks whether a `rename_refocus` signal targets a
+//!   specific entry ID. Used by collapsible cards to initialise their
+//!   `collapsed` state to `false` when the card was just recreated via a
+//!   rename.
 //! - [`ReorderableContainer`]: a wrapper component that manages post-reorder
 //!   focus via a `focus_index` signal and optional post-rename focus via a
 //!   `rename_refocus` signal. Subsumes the former `IdValueRowContainer` and is
@@ -89,6 +93,30 @@ pub fn drag_border_class(
     "border-t-transparent border-b-transparent"
 }
 
+// === is_rename_target === //
+
+/// Returns `true` if the `rename_refocus` signal currently targets `entry_id`.
+///
+/// Collapsible card components call this during render (before effects run)
+/// to decide their initial `collapsed` state. When a card is recreated
+/// after an ID rename, the signal still holds the rename info at render
+/// time; the [`ReorderableContainer`]'s `use_effect` clears it and handles
+/// DOM focus afterwards.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let mut collapsed = use_signal(|| {
+///     !is_rename_target(rename_refocus, &my_id)
+/// });
+/// ```
+pub fn is_rename_target(rename_refocus: Signal<Option<RenameRefocus>>, entry_id: &str) -> bool {
+    rename_refocus
+        .read()
+        .as_ref()
+        .is_some_and(|r| r.new_id == entry_id)
+}
+
 // === ReorderableContainer === //
 
 /// A container for a list of reorderable entries (cards or rows).
@@ -103,12 +131,6 @@ pub fn drag_border_class(
 /// element, the container locates the new element by its `data_id_attr`
 /// value and focuses the appropriate sub-element (ID input, next field,
 /// or the entry wrapper itself) based on the [`RenameRefocusTarget`].
-///
-/// This replaces the former `IdValueRowContainer` for [`IdValueRow`]
-/// sections, and can also be used by `*Card` sections. Cards that need
-/// additional behaviour on rename (e.g. expanding a collapsed card) can
-/// handle that in their own `use_effect` -- the container only manages
-/// DOM focus.
 ///
 /// # Props
 ///
