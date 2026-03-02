@@ -8,8 +8,7 @@
 //! **Entry-level** (the focusable card or row wrapper):
 //!
 //! - **Up / Down**: navigate to the previous / next sibling entry.
-//! - **Alt+Up / Alt+Down**: reorder the entry (only for rows with drag-and-drop
-//!   support -- handled by the caller, not this module).
+//! - **Alt+Up / Alt+Down**: reorder the entry up or down in the list.
 //! - **Left**: collapse the entry (if collapsible).
 //! - **Right**: expand the entry (if collapsible).
 //! - **Space**: toggle collapsed state (if collapsible).
@@ -304,6 +303,10 @@ pub enum CardKeyAction {
     /// The user pressed **Enter** -- expand (if collapsed) and focus the
     /// first interactive element.
     EnterEdit,
+    /// The user pressed **Alt+Up** -- move the entry up in the list.
+    MoveUp,
+    /// The user pressed **Alt+Down** -- move the entry down in the list.
+    MoveDown,
 }
 
 /// Shared `onkeydown` handler for a collapsible card/entry wrapper.
@@ -315,7 +318,19 @@ pub enum CardKeyAction {
 /// signal accordingly. Focus management (Up/Down navigation, Enter to
 /// first field) is handled internally.
 pub fn card_keydown(evt: dioxus::events::KeyboardEvent, data_attr: &str) -> CardKeyAction {
+    let alt = evt.modifiers().alt();
+
     match evt.key() {
+        Key::ArrowUp if alt => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            CardKeyAction::MoveUp
+        }
+        Key::ArrowDown if alt => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            CardKeyAction::MoveDown
+        }
         Key::ArrowUp => {
             evt.prevent_default();
             evt.stop_propagation();

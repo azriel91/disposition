@@ -5,7 +5,6 @@
 //! shortcuts (Up/Down to navigate rows, Alt+Up/Down to move,
 //! Tab/Shift+Tab to indent/outdent).
 
-mod drag_row_border_class;
 mod flat_entry;
 mod help_tooltip;
 mod thing_layout_ops;

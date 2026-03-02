@@ -7,6 +7,7 @@
 //! Supports keyboard shortcuts:
 //!
 //! - **ArrowUp / ArrowDown**: navigate between sibling cards.
+//! - **Alt+Up / Alt+Down**: move the card up or down in the list.
 //! - **ArrowRight**: expand the card (when collapsed).
 //! - **ArrowLeft**: collapse the card (when expanded).
 //! - **Space**: toggle expand/collapse.
@@ -34,6 +35,7 @@ use crate::components::editor::{
     },
     datalists::list_ids,
     keyboard_nav::{self, CardKeyAction},
+    reorderable::{drag_border_class, DragHandle},
 };
 
 use super::{
@@ -51,6 +53,11 @@ pub(crate) fn EdgeGroupCard(
     input_diagram: Signal<InputDiagram<'static>>,
     entry: EdgeGroupEntry,
     target: MapTarget,
+    index: usize,
+    entry_count: usize,
+    drag_index: Signal<Option<usize>>,
+    drop_target: Signal<Option<usize>>,
+    mut focus_index: Signal<Option<usize>>,
     mut rename_refocus: Signal<Option<RenameRefocus>>,
 ) -> Element {
     let edge_group_id = entry.edge_group_id.clone();
@@ -62,6 +69,10 @@ pub(crate) fn EdgeGroupCard(
     // - `NextField`: forward Tab triggered the rename.
     // - `FocusParent`: Shift+Tab or Esc triggered the rename.
     let mut rename_target = use_signal(|| RenameRefocusTarget::IdInput);
+
+    let can_move_up = index > 0;
+    let can_move_down = index + 1 < entry_count;
+    let border_class = drag_border_class(drag_index, drop_target, index);
 
     // Clone before moving into the closure so `edge_group_id` remains
     // available for the `rsx!` block below.
@@ -94,8 +105,9 @@ pub(crate) fn EdgeGroupCard(
 
     rsx! {
         div {
-            class: EDGE_GROUP_CARD_CLASS,
+            class: "{EDGE_GROUP_CARD_CLASS} {border_class}",
             tabindex: "0",
+            draggable: "true",
             "data-edge-group-card": "true",
 
             // === Card identity for post-rename focus === //
@@ -105,6 +117,28 @@ pub(crate) fn EdgeGroupCard(
             onkeydown: move |evt| {
                 let action = keyboard_nav::card_keydown(evt, DATA_ATTR);
                 match action {
+                    CardKeyAction::MoveUp => {
+                        if can_move_up {
+                            EdgeGroupCardOps::edge_group_move(
+                                input_diagram,
+                                target,
+                                index,
+                                index - 1,
+                            );
+                            focus_index.set(Some(index - 1));
+                        }
+                    }
+                    CardKeyAction::MoveDown => {
+                        if can_move_down {
+                            EdgeGroupCardOps::edge_group_move(
+                                input_diagram,
+                                target,
+                                index,
+                                index + 1,
+                            );
+                            focus_index.set(Some(index + 1));
+                        }
+                    }
                     CardKeyAction::Collapse => collapsed.set(true),
                     CardKeyAction::Expand => collapsed.set(false),
                     CardKeyAction::Toggle => {
@@ -116,11 +150,36 @@ pub(crate) fn EdgeGroupCard(
                 }
             },
 
+            // === Drag-and-drop === //
+            ondragstart: move |_| {
+                drag_index.set(Some(index));
+            },
+            ondragover: move |evt| {
+                evt.prevent_default();
+                drop_target.set(Some(index));
+            },
+            ondrop: move |evt| {
+                evt.prevent_default();
+                if let Some(from) = *drag_index.read()
+                    && from != index
+                {
+                    EdgeGroupCardOps::edge_group_move(input_diagram, target, from, index);
+                }
+                drag_index.set(None);
+                drop_target.set(None);
+            },
+            ondragend: move |_| {
+                drag_index.set(None);
+                drop_target.set(None);
+            },
+
             if *collapsed.read() {
                 // === Collapsed summary === //
                 div {
                     class: COLLAPSED_HEADER_CLASS,
                     onclick: move |_| collapsed.set(false),
+
+                    DragHandle {}
 
                     // Expand chevron
                     span {
@@ -146,10 +205,12 @@ pub(crate) fn EdgeGroupCard(
             } else {
                 // === Expanded content === //
 
-                // Collapse toggle
+                // Collapse toggle + drag handle
                 div {
                     class: "flex flex-row items-center gap-1 cursor-pointer select-none mb-1",
                     onclick: move |_| collapsed.set(true),
+
+                    DragHandle {}
 
                     span {
                         class: "text-gray-500 text-xs rotate-90 inline-block",

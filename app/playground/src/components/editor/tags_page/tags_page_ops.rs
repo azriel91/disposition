@@ -116,6 +116,16 @@ impl TagsPageOps {
 
     // === Tag things helpers === //
 
+    /// Moves a tag->things entry from one index to another in the
+    /// `tag_things` map.
+    pub(crate) fn tag_things_entry_move(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        from: usize,
+        to: usize,
+    ) {
+        input_diagram.write().tag_things.move_index(from, to);
+    }
+
     /// Adds a new tag->things entry, picking an unmapped tag or generating a
     /// placeholder.
     pub(crate) fn tag_things_entry_add(mut input_diagram: Signal<InputDiagram<'static>>) {

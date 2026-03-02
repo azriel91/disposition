@@ -8,6 +8,8 @@
 //!   / text input, the `style_aliases_applied` list, and each `ThemeAttr ->
 //!   value` pair with individual inputs.
 //!
+//! Cards support drag-and-drop and Alt+Up/Down keyboard reordering.
+//!
 //! The [`ThemeStylesTarget`] enum tells the editor which field inside
 //! [`InputDiagram`] to read from / write to. Variants exist for:
 //!
@@ -26,6 +28,7 @@ pub(crate) mod css_class_partials_snapshot;
 pub(crate) mod theme_attr_entry;
 
 use dioxus::{
+    hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
@@ -37,7 +40,10 @@ use disposition::{
     model_common::Id,
 };
 
-use crate::components::editor::common::{parse_entity_type_id, parse_tag_id_or_defaults, ADD_BTN};
+use crate::components::editor::{
+    common::{parse_entity_type_id, parse_tag_id_or_defaults, ADD_BTN},
+    reorderable::ReorderableContainer,
+};
 
 use self::{
     css_class_partials_card::CssClassPartialsCard,
@@ -272,6 +278,20 @@ impl ThemeStylesTarget {
             }
         }
     }
+
+    /// Moves a `ThemeStyles` entry from one index to another within the
+    /// targeted map.
+    pub(crate) fn entry_move(
+        &self,
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        from: usize,
+        to: usize,
+    ) {
+        let mut diagram = input_diagram.write();
+        if let Some(styles) = self.write_mut(&mut diagram) {
+            styles.move_index(from, to);
+        }
+    }
 }
 
 // === ThemeStylesEditor === //
@@ -285,6 +305,12 @@ pub fn ThemeStylesEditor(
     input_diagram: Signal<InputDiagram<'static>>,
     target: ThemeStylesTarget,
 ) -> Element {
+    // Drag-and-drop state for css class partials cards.
+    let css_card_drag_idx: Signal<Option<usize>> = use_signal(|| None);
+    let css_card_drop_target: Signal<Option<usize>> = use_signal(|| None);
+    // Focus-after-move state for css class partials card reorder.
+    let css_card_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+
     let diagram = input_diagram.read();
     let theme_styles = target.read(&diagram);
 
@@ -345,25 +371,37 @@ pub fn ThemeStylesEditor(
         .collect();
     drop(diagram);
 
+    let entry_count = entries.len();
+
     rsx! {
         div {
             class: "flex flex-col gap-2",
 
-            for (idx, entry) in entries.iter().enumerate() {
-                {
-                    let entry_key = entry.entry_key.clone();
-                    let style_aliases = entry.style_aliases_applied.clone();
-                    let theme_attrs = entry.theme_attrs.clone();
-                    let target = target.clone();
-                    rsx! {
-                        CssClassPartialsCard {
-                            key: "entry_{idx}_{entry_key}",
-                            input_diagram,
-                            target,
-                            entry_index: idx,
-                            entry_key,
-                            style_aliases,
-                            theme_attrs,
+            ReorderableContainer {
+                data_attr: css_class_partials_card::DATA_ATTR.to_owned(),
+                section_id: format!("css_cards_{target:?}"),
+                focus_index: css_card_focus_idx,
+
+                for (idx, entry) in entries.iter().enumerate() {
+                    {
+                        let entry_key = entry.entry_key.clone();
+                        let style_aliases = entry.style_aliases_applied.clone();
+                        let theme_attrs = entry.theme_attrs.clone();
+                        let target = target.clone();
+                        rsx! {
+                            CssClassPartialsCard {
+                                key: "entry_{idx}_{entry_key}",
+                                input_diagram,
+                                target,
+                                entry_index: idx,
+                                entry_count,
+                                entry_key,
+                                style_aliases,
+                                theme_attrs,
+                                drag_index: css_card_drag_idx,
+                                drop_target: css_card_drop_target,
+                                focus_index: css_card_focus_idx,
+                            }
                         }
                     }
                 }

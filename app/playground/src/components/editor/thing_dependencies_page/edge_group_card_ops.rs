@@ -110,6 +110,24 @@ impl EdgeGroupCardOps {
         }
     }
 
+    /// Moves an edge group from one index to another in the target map.
+    pub(crate) fn edge_group_move(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        target: MapTarget,
+        from: usize,
+        to: usize,
+    ) {
+        let mut input_diagram = input_diagram.write();
+        match target {
+            MapTarget::Dependencies => {
+                input_diagram.thing_dependencies.move_index(from, to);
+            }
+            MapTarget::Interactions => {
+                input_diagram.thing_interactions.move_index(from, to);
+            }
+        }
+    }
+
     /// Removes an edge group from the target map.
     pub(crate) fn edge_group_remove(
         mut input_diagram: Signal<InputDiagram<'static>>,

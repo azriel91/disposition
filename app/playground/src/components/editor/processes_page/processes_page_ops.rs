@@ -12,6 +12,15 @@ use crate::components::editor::common::{id_rename_in_input_diagram, parse_proces
 pub(crate) struct ProcessesPageOps;
 
 impl ProcessesPageOps {
+    /// Moves a process from one index to another in the `processes` map.
+    pub(crate) fn process_move(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        from: usize,
+        to: usize,
+    ) {
+        input_diagram.write().processes.move_index(from, to);
+    }
+
     /// Adds a new process with a unique placeholder ProcessId.
     pub(crate) fn process_add(mut input_diagram: Signal<InputDiagram<'static>>) {
         let mut n = input_diagram.read().processes.len();

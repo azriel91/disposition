@@ -21,7 +21,10 @@ use dioxus::{
 };
 use disposition::input_model::{edge::EdgeKind, thing::ThingId, InputDiagram};
 
-use crate::components::editor::common::{RenameRefocus, ADD_BTN, INPUT_CLASS, SECTION_HEADING};
+use crate::components::editor::{
+    common::{RenameRefocus, ADD_BTN, INPUT_CLASS, SECTION_HEADING},
+    reorderable::ReorderableContainer,
+};
 
 use self::{edge_group_card::EdgeGroupCard, edge_group_card_ops::EdgeGroupCardOps};
 
@@ -98,6 +101,12 @@ pub fn ThingDependenciesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
     // Post-rename focus state for edge group cards.
     let edge_group_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
 
+    // Drag-and-drop state for edge group cards.
+    let edge_group_drag_idx: Signal<Option<usize>> = use_signal(|| None);
+    let edge_group_drop_target: Signal<Option<usize>> = use_signal(|| None);
+    // Focus-after-move state for edge group card reorder.
+    let edge_group_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+
     let diagram = input_diagram.read();
 
     let entries: Vec<EdgeGroupEntry> = diagram
@@ -116,6 +125,8 @@ pub fn ThingDependenciesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
 
     drop(diagram);
 
+    let entry_count = entries.len();
+
     rsx! {
         div {
             class: "flex flex-col gap-2",
@@ -126,16 +137,27 @@ pub fn ThingDependenciesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                 "Static relationships between things. Each edge group has an ID, a kind (cyclic / sequence / symmetric), and a list of things."
             }
 
-            for entry in entries.iter() {
-                {
-                    let entry = entry.clone();
-                    rsx! {
-                        EdgeGroupCard {
-                            key: "{entry.edge_group_id}",
-                            input_diagram,
-                            entry,
-                            target: MapTarget::Dependencies,
-                            rename_refocus: edge_group_rename_refocus,
+            ReorderableContainer {
+                data_attr: DATA_ATTR.to_owned(),
+                section_id: "edge_groups_deps".to_owned(),
+                focus_index: edge_group_focus_idx,
+
+                for (idx, entry) in entries.iter().enumerate() {
+                    {
+                        let entry = entry.clone();
+                        rsx! {
+                            EdgeGroupCard {
+                                key: "{entry.edge_group_id}",
+                                input_diagram,
+                                entry,
+                                target: MapTarget::Dependencies,
+                                index: idx,
+                                entry_count,
+                                drag_index: edge_group_drag_idx,
+                                drop_target: edge_group_drop_target,
+                                focus_index: edge_group_focus_idx,
+                                rename_refocus: edge_group_rename_refocus,
+                            }
                         }
                     }
                 }
@@ -164,6 +186,12 @@ pub fn ThingInteractionsPage(input_diagram: Signal<InputDiagram<'static>>) -> El
     // Post-rename focus state for edge group cards.
     let edge_group_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
 
+    // Drag-and-drop state for edge group cards.
+    let edge_group_drag_idx: Signal<Option<usize>> = use_signal(|| None);
+    let edge_group_drop_target: Signal<Option<usize>> = use_signal(|| None);
+    // Focus-after-move state for edge group card reorder.
+    let edge_group_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+
     let diagram = input_diagram.read();
 
     let entries: Vec<EdgeGroupEntry> = diagram
@@ -182,6 +210,8 @@ pub fn ThingInteractionsPage(input_diagram: Signal<InputDiagram<'static>>) -> El
 
     drop(diagram);
 
+    let entry_count = entries.len();
+
     rsx! {
         div {
             class: "flex flex-col gap-2",
@@ -192,16 +222,27 @@ pub fn ThingInteractionsPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                 "Runtime communication between things. Same structure as dependencies but represents runtime interactions."
             }
 
-            for entry in entries.iter() {
-                {
-                    let entry = entry.clone();
-                    rsx! {
-                        EdgeGroupCard {
-                            key: "{entry.edge_group_id}",
-                            input_diagram,
-                            entry,
-                            target: MapTarget::Interactions,
-                            rename_refocus: edge_group_rename_refocus,
+            ReorderableContainer {
+                data_attr: DATA_ATTR.to_owned(),
+                section_id: "edge_groups_interactions".to_owned(),
+                focus_index: edge_group_focus_idx,
+
+                for (idx, entry) in entries.iter().enumerate() {
+                    {
+                        let entry = entry.clone();
+                        rsx! {
+                            EdgeGroupCard {
+                                key: "{entry.edge_group_id}",
+                                input_diagram,
+                                entry,
+                                target: MapTarget::Interactions,
+                                index: idx,
+                                entry_count,
+                                drag_index: edge_group_drag_idx,
+                                drop_target: edge_group_drop_target,
+                                focus_index: edge_group_focus_idx,
+                                rename_refocus: edge_group_rename_refocus,
+                            }
                         }
                     }
                 }

@@ -6,6 +6,7 @@
 //! Supports keyboard shortcuts:
 //!
 //! - **ArrowUp / ArrowDown**: navigate between sibling cards.
+//! - **Alt+Up / Alt+Down**: move the card up or down in the list.
 //! - **ArrowRight**: expand the card (when collapsed).
 //! - **ArrowLeft**: collapse the card (when expanded).
 //! - **Space**: toggle expand/collapse.
@@ -26,6 +27,7 @@ use disposition::input_model::InputDiagram;
 
 use crate::components::editor::{
     keyboard_nav::{self, CardKeyAction},
+    reorderable::{drag_border_class, DragHandle},
     theme_styles_editor::{
         css_class_partials_card_aliases::CssClassPartialsCardAliases,
         css_class_partials_card_attrs::CssClassPartialsCardAttrs,
@@ -90,27 +92,64 @@ pub fn CssClassPartialsCard(
     input_diagram: Signal<InputDiagram<'static>>,
     target: ThemeStylesTarget,
     entry_index: usize,
+    entry_count: usize,
     entry_key: String,
     style_aliases: Vec<String>,
     theme_attrs: Vec<ThemeAttrEntry>,
+    drag_index: Signal<Option<usize>>,
+    drop_target: Signal<Option<usize>>,
+    mut focus_index: Signal<Option<usize>>,
 ) -> Element {
     let mut collapsed = use_signal(|| true);
+
+    let can_move_up = entry_index > 0;
+    let can_move_down = entry_index + 1 < entry_count;
+    let border_class = drag_border_class(drag_index, drop_target, entry_index);
 
     let alias_count = style_aliases.len();
     let attr_count = theme_attrs.len();
     let alias_suffix = if alias_count != 1 { "es" } else { "" };
     let attr_suffix = if attr_count != 1 { "s" } else { "" };
 
+    // Pre-clone `target` for closures that need their own copy, so
+    // the final use inside the `rsx!` block can move the original.
+    let target_for_keydown = target.clone();
+    let target_for_drop = target.clone();
+    let target_for_header = target.clone();
+    let target_for_aliases = target.clone();
+
     rsx! {
         div {
-            class: CSS_CARD_CLASS,
+            class: "{CSS_CARD_CLASS} {border_class}",
             tabindex: "0",
+            draggable: "true",
             "data-css-card": "true",
 
             // === Card-level keyboard shortcuts === //
             onkeydown: move |evt| {
+                let target = target_for_keydown.clone();
                 let action = keyboard_nav::card_keydown(evt, DATA_ATTR);
                 match action {
+                    CardKeyAction::MoveUp => {
+                        if can_move_up {
+                            target.entry_move(
+                                input_diagram,
+                                entry_index,
+                                entry_index - 1,
+                            );
+                            focus_index.set(Some(entry_index - 1));
+                        }
+                    }
+                    CardKeyAction::MoveDown => {
+                        if can_move_down {
+                            target.entry_move(
+                                input_diagram,
+                                entry_index,
+                                entry_index + 1,
+                            );
+                            focus_index.set(Some(entry_index + 1));
+                        }
+                    }
                     CardKeyAction::Collapse => collapsed.set(true),
                     CardKeyAction::Expand => collapsed.set(false),
                     CardKeyAction::Toggle => {
@@ -122,11 +161,36 @@ pub fn CssClassPartialsCard(
                 }
             },
 
+            // === Drag-and-drop === //
+            ondragstart: move |_| {
+                drag_index.set(Some(entry_index));
+            },
+            ondragover: move |evt| {
+                evt.prevent_default();
+                drop_target.set(Some(entry_index));
+            },
+            ondrop: move |evt: dioxus::events::DragEvent| {
+                evt.prevent_default();
+                if let Some(from) = *drag_index.read()
+                    && from != entry_index
+                {
+                    target_for_drop.entry_move(input_diagram, from, entry_index);
+                }
+                drag_index.set(None);
+                drop_target.set(None);
+            },
+            ondragend: move |_| {
+                drag_index.set(None);
+                drop_target.set(None);
+            },
+
             if *collapsed.read() {
                 // === Collapsed summary === //
                 div {
                     class: COLLAPSED_HEADER_CLASS,
                     onclick: move |_| collapsed.set(false),
+
+                    DragHandle {}
 
                     // Expand chevron
                     span {
@@ -147,10 +211,12 @@ pub fn CssClassPartialsCard(
             } else {
                 // === Expanded content === //
 
-                // Collapse toggle
+                // Collapse toggle + drag handle
                 div {
                     class: "flex flex-row items-center gap-1 cursor-pointer select-none mb-1",
                     onclick: move |_| collapsed.set(true),
+
+                    DragHandle {}
 
                     span {
                         class: "text-gray-500 text-xs rotate-90 inline-block",
@@ -165,14 +231,14 @@ pub fn CssClassPartialsCard(
                 // === Header row: key + remove === //
                 CssClassPartialsCardHeader {
                     input_diagram,
-                    target: target.clone(),
+                    target: target_for_header,
                     entry_key: entry_key.clone(),
                 }
 
                 // === Style aliases applied === //
                 CssClassPartialsCardAliases {
                     input_diagram,
-                    target: target.clone(),
+                    target: target_for_aliases,
                     entry_key: entry_key.clone(),
                     style_aliases,
                 }

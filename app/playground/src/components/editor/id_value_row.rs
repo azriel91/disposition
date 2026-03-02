@@ -28,11 +28,6 @@
 //! that the container can re-focus the correct field in the new element after
 //! the DOM update.
 
-mod drag_handle;
-mod drag_row_border_class;
-
-pub use self::{drag_handle::DragHandle, drag_row_border_class::drag_row_border_class};
-
 use dioxus::{
     document,
     hooks::use_signal,
@@ -48,6 +43,7 @@ use crate::components::editor::{
         RenameRefocus, RenameRefocusTarget, ID_INPUT_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS,
     },
     keyboard_nav,
+    reorderable::{drag_border_class, DragHandle},
 };
 
 // === Data attribute for the row wrapper === //
@@ -135,7 +131,7 @@ pub fn IdValueRow(
     on_update: Callback<(String, String)>,
     on_remove: Callback<String>,
 ) -> Element {
-    let border_class = drag_row_border_class(drag_index, drop_target, index);
+    let border_class = drag_border_class(drag_index, drop_target, index);
 
     let can_move_up = index > 0;
     let can_move_down = index + 1 < entry_count;

@@ -20,6 +20,7 @@
 //! `TagThingsCard` supports keyboard shortcuts:
 //!
 //! - **ArrowUp / ArrowDown**: navigate between sibling cards.
+//! - **Alt+Up / Alt+Down**: move the card up or down in the list.
 //! - **ArrowRight**: expand the card (when collapsed).
 //! - **ArrowLeft**: collapse the card (when expanded).
 //! - **Space**: toggle expand/collapse.
@@ -48,6 +49,7 @@ use crate::components::editor::{
     datalists::list_ids,
     id_value_row::IdValueRow,
     id_value_row_container::IdValueRowContainer,
+    reorderable::ReorderableContainer,
 };
 
 use self::{tag_things_card::TagThingsCard, tags_page_ops::TagsPageOps};
@@ -118,6 +120,12 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     // Post-rename focus state for tag-things cards.
     let tag_things_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
 
+    // Drag-and-drop state for tag-things cards.
+    let tag_things_drag_idx: Signal<Option<usize>> = use_signal(|| None);
+    let tag_things_drop_target: Signal<Option<usize>> = use_signal(|| None);
+    // Focus-after-move state for tag-things card reorder.
+    let tag_things_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+
     // Drag-and-drop state for tag name rows.
     let tag_name_drag_idx: Signal<Option<usize>> = use_signal(|| None);
     let tag_name_drop_target: Signal<Option<usize>> = use_signal(|| None);
@@ -144,6 +152,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     drop(diagram);
 
     let tag_count = tag_entries.len();
+    let tag_things_count = tag_things_entries.len();
 
     rsx! {
         div {
@@ -213,17 +222,28 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 "Things highlighted when each tag is focused."
             }
 
-            for (tag_id, things) in tag_things_entries.iter() {
-                {
-                    let tag_id = tag_id.clone();
-                    let things = things.clone();
-                    rsx! {
-                        TagThingsCard {
-                            key: "tt_{tag_id}",
-                            input_diagram,
-                            tag_id,
-                            things,
-                            rename_refocus: tag_things_rename_refocus,
+            ReorderableContainer {
+                data_attr: DATA_ATTR.to_owned(),
+                section_id: "tag_things".to_owned(),
+                focus_index: tag_things_focus_idx,
+
+                for (idx, (tag_id, things)) in tag_things_entries.iter().enumerate() {
+                    {
+                        let tag_id = tag_id.clone();
+                        let things = things.clone();
+                        rsx! {
+                            TagThingsCard {
+                                key: "tt_{tag_id}",
+                                input_diagram,
+                                tag_id,
+                                things,
+                                index: idx,
+                                entry_count: tag_things_count,
+                                drag_index: tag_things_drag_idx,
+                                drop_target: tag_things_drop_target,
+                                focus_index: tag_things_focus_idx,
+                                rename_refocus: tag_things_rename_refocus,
+                            }
                         }
                     }
                 }

@@ -29,7 +29,10 @@ use dioxus::{
 };
 use disposition::input_model::InputDiagram;
 
-use crate::components::editor::common::{RenameRefocus, ADD_BTN, INPUT_CLASS, SECTION_HEADING};
+use crate::components::editor::{
+    common::{RenameRefocus, ADD_BTN, INPUT_CLASS, SECTION_HEADING},
+    reorderable::ReorderableContainer,
+};
 
 use self::{process_card::ProcessCard, processes_page_ops::ProcessesPageOps};
 
@@ -99,6 +102,12 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     // Post-rename focus state for process cards.
     let process_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
 
+    // Drag-and-drop state for process cards.
+    let process_drag_idx: Signal<Option<usize>> = use_signal(|| None);
+    let process_drop_target: Signal<Option<usize>> = use_signal(|| None);
+    // Focus-after-move state for process card reorder.
+    let process_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+
     let diagram = input_diagram.read();
 
     let entries: Vec<ProcessEntry> = diagram
@@ -135,6 +144,8 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 
     drop(diagram);
 
+    let entry_count = entries.len();
+
     rsx! {
         div {
             class: "flex flex-col gap-2",
@@ -145,15 +156,26 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 "Processes group thing interactions into sequenced steps."
             }
 
-            for entry in entries.iter() {
-                {
-                    let entry = entry.clone();
-                    rsx! {
-                        ProcessCard {
-                            key: "{entry.process_id}",
-                            input_diagram,
-                            entry,
-                            rename_refocus: process_rename_refocus,
+            ReorderableContainer {
+                data_attr: DATA_ATTR.to_owned(),
+                section_id: "processes".to_owned(),
+                focus_index: process_focus_idx,
+
+                for (idx, entry) in entries.iter().enumerate() {
+                    {
+                        let entry = entry.clone();
+                        rsx! {
+                            ProcessCard {
+                                key: "{entry.process_id}",
+                                input_diagram,
+                                entry,
+                                index: idx,
+                                entry_count,
+                                drag_index: process_drag_idx,
+                                drop_target: process_drop_target,
+                                focus_index: process_focus_idx,
+                                rename_refocus: process_rename_refocus,
+                            }
                         }
                     }
                 }

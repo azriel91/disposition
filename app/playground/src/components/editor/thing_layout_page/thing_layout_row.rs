@@ -15,9 +15,9 @@ use dioxus::{
 
 use disposition::input_model::{thing::ThingId, InputDiagram};
 
-use crate::components::editor::common::DRAG_HANDLE;
+use crate::components::editor::{common::DRAG_HANDLE, reorderable::drag_border_class};
 
-use super::{drag_row_border_class::drag_row_border_class, thing_layout_ops::ThingLayoutOps};
+use super::thing_layout_ops::ThingLayoutOps;
 
 /// CSS classes for the layout row.
 ///
@@ -87,7 +87,7 @@ pub fn ThingLayoutRow(
     drop_target: Signal<Option<usize>>,
     mut focus_index: Signal<Option<usize>>,
 ) -> Element {
-    let border_class = drag_row_border_class(drag_index, drop_target, flat_index);
+    let border_class = drag_border_class(drag_index, drop_target, flat_index);
     let indent_px = depth * 24;
 
     // Determine which actions are available.
