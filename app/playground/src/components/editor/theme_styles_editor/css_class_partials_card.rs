@@ -19,14 +19,14 @@
 //! When collapsed, shows the entry key and number of attributes.
 
 use dioxus::{
-    hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
 
 use crate::components::editor::{
-    keyboard_nav::{self, CardKeyAction},
+    common::CardComponent,
+    keyboard_nav,
     reorderable::{drag_border_class, DragHandle},
     theme_styles_editor::{
         css_class_partials_card_aliases::CssClassPartialsCardAliases,
@@ -100,10 +100,8 @@ pub fn CssClassPartialsCard(
     drop_target: Signal<Option<usize>>,
     mut focus_index: Signal<Option<usize>>,
 ) -> Element {
-    let mut collapsed = use_signal(|| true);
-
-    let can_move_up = entry_index > 0;
-    let can_move_down = entry_index + 1 < entry_count;
+    let card_state = CardComponent::state_init(entry_index, entry_count);
+    let mut collapsed = card_state.collapsed;
     let border_class = drag_border_class(drag_index, drop_target, entry_index);
 
     let alias_count = style_aliases.len();
@@ -114,6 +112,7 @@ pub fn CssClassPartialsCard(
     // Pre-clone `target` for closures that need their own copy, so
     // the final use inside the `rsx!` block can move the original.
     let target_for_keydown = target.clone();
+    let target_for_keydown_down = target.clone();
     let target_for_drop = target.clone();
     let target_for_header = target.clone();
     let target_for_aliases = target.clone();
@@ -126,40 +125,20 @@ pub fn CssClassPartialsCard(
             "data-css-card": "true",
 
             // === Card-level keyboard shortcuts === //
-            onkeydown: move |evt| {
-                let target = target_for_keydown.clone();
-                let action = keyboard_nav::card_keydown(evt, DATA_ATTR);
-                match action {
-                    CardKeyAction::MoveUp => {
-                        if can_move_up {
-                            target.entry_move(
-                                input_diagram,
-                                entry_index,
-                                entry_index - 1,
-                            );
-                            focus_index.set(Some(entry_index - 1));
-                        }
-                    }
-                    CardKeyAction::MoveDown => {
-                        if can_move_down {
-                            target.entry_move(
-                                input_diagram,
-                                entry_index,
-                                entry_index + 1,
-                            );
-                            focus_index.set(Some(entry_index + 1));
-                        }
-                    }
-                    CardKeyAction::Collapse => collapsed.set(true),
-                    CardKeyAction::Expand => collapsed.set(false),
-                    CardKeyAction::Toggle => {
-                        let is_collapsed = *collapsed.read();
-                        collapsed.set(!is_collapsed);
-                    }
-                    CardKeyAction::EnterEdit => collapsed.set(false),
-                    CardKeyAction::None => {}
-                }
-            },
+            onkeydown: CardComponent::card_onkeydown(
+                DATA_ATTR,
+                card_state,
+                move || {
+                    let target = target_for_keydown.clone();
+                    target.entry_move(input_diagram, entry_index, entry_index - 1);
+                    focus_index.set(Some(entry_index - 1));
+                },
+                move || {
+                    let target = target_for_keydown_down.clone();
+                    target.entry_move(input_diagram, entry_index, entry_index + 1);
+                    focus_index.set(Some(entry_index + 1));
+                },
+            ),
 
             // === Drag-and-drop === //
             ondragstart: move |_| {

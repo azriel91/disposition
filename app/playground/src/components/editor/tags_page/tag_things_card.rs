@@ -17,17 +17,15 @@
 //! - **Esc** (inside a field): return focus to the card wrapper.
 
 use dioxus::{
-    hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
 
 use crate::components::editor::{
-    common::{FieldNav, RenameRefocus, RenameRefocusTarget, ADD_BTN, REMOVE_BTN, ROW_CLASS_SIMPLE},
+    common::{CardComponent, FieldNav, RenameRefocus, ADD_BTN, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
-    keyboard_nav::{self, CardKeyAction},
-    reorderable::{drag_border_class, is_rename_target, DragHandle},
+    reorderable::{drag_border_class, DragHandle},
 };
 
 use super::{
@@ -52,22 +50,10 @@ pub(crate) fn TagThingsCard(
     mut focus_index: Signal<Option<usize>>,
     mut rename_refocus: Signal<Option<RenameRefocus>>,
 ) -> Element {
-    // When this card was just recreated after an ID rename, start expanded
-    // so the user can see/interact with the fields. The
-    // `ReorderableContainer`'s `use_effect` handles DOM focus afterwards.
-    let mut collapsed = use_signal({
-        let tag_id = tag_id.clone();
-        move || !is_rename_target(rename_refocus, &tag_id)
-    });
-
-    // Tracks which refocus target the next ID rename should use.
-    // - `IdInput`: Enter or blur triggered the rename.
-    // - `NextField`: forward Tab triggered the rename.
-    // - `FocusParent`: Shift+Tab or Esc triggered the rename.
-    let rename_target = use_signal(|| RenameRefocusTarget::IdInput);
-
-    let can_move_up = index > 0;
-    let can_move_down = index + 1 < entry_count;
+    let card_state =
+        CardComponent::state_init_with_rename(index, entry_count, rename_refocus, &tag_id);
+    let mut collapsed = card_state.collapsed;
+    let rename_target = card_state.rename_target;
     let border_class = drag_border_class(drag_index, drop_target, index);
 
     let thing_count = things.len();
@@ -84,39 +70,18 @@ pub(crate) fn TagThingsCard(
             "data-tag-things-card-id": "{tag_id}",
 
             // === Card-level keyboard shortcuts === //
-            onkeydown: move |evt| {
-                let action = keyboard_nav::card_keydown(evt, DATA_ATTR);
-                match action {
-                    CardKeyAction::MoveUp => {
-                        if can_move_up {
-                            TagsPageOps::tag_things_entry_move(
-                                input_diagram,
-                                index,
-                                index - 1,
-                            );
-                            focus_index.set(Some(index - 1));
-                        }
-                    }
-                    CardKeyAction::MoveDown => {
-                        if can_move_down {
-                            TagsPageOps::tag_things_entry_move(
-                                input_diagram,
-                                index,
-                                index + 1,
-                            );
-                            focus_index.set(Some(index + 1));
-                        }
-                    }
-                    CardKeyAction::Collapse => collapsed.set(true),
-                    CardKeyAction::Expand => collapsed.set(false),
-                    CardKeyAction::Toggle => {
-                        let is_collapsed = *collapsed.read();
-                        collapsed.set(!is_collapsed);
-                    }
-                    CardKeyAction::EnterEdit => collapsed.set(false),
-                    CardKeyAction::None => {}
-                }
-            },
+            onkeydown: CardComponent::card_onkeydown(
+                DATA_ATTR,
+                card_state,
+                move || {
+                    TagsPageOps::tag_things_entry_move(input_diagram, index, index - 1);
+                    focus_index.set(Some(index - 1));
+                },
+                move || {
+                    TagsPageOps::tag_things_entry_move(input_diagram, index, index + 1);
+                    focus_index.set(Some(index + 1));
+                },
+            ),
 
             // === Drag-and-drop === //
             ondragstart: move |_| {

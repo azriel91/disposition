@@ -9,8 +9,9 @@
 //! keyboard focus after an ID rename causes the focused element to be
 //! destroyed and recreated with a new key.
 
-pub(crate) use self::field_nav::FieldNav;
+pub(crate) use self::{card_component::CardComponent, field_nav::FieldNav};
 
+mod card_component;
 mod field_nav;
 
 use disposition::{

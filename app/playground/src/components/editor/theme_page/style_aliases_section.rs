@@ -19,7 +19,6 @@
 //! - **Space** (inside a field): stop propagation.
 
 use dioxus::{
-    hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
@@ -33,10 +32,10 @@ use disposition::{
 
 use crate::components::editor::{
     common::{
-        FieldNav, ADD_BTN, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS,
+        CardComponent, FieldNav, ADD_BTN, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE,
+        SELECT_CLASS,
     },
     datalists::list_ids,
-    keyboard_nav::{self, CardKeyAction},
     reorderable::{drag_border_class, DragHandle},
     theme_styles_editor::{
         parse_theme_attr, theme_attr_entry::ThemeAttrEntry, theme_attr_name, THEME_ATTRS,
@@ -59,7 +58,8 @@ fn parse_style_alias(s: &str) -> Option<StyleAlias<'static>> {
 
 /// The `data-*` attribute placed on each `StyleAliasesSection` wrapper.
 ///
-/// Used by [`keyboard_nav`] helpers to locate the nearest ancestor card.
+/// Used by [`keyboard_nav`](crate::components::editor::keyboard_nav) helpers
+/// to locate the nearest ancestor card.
 pub(crate) const DATA_ATTR: &str = "data-style-alias-card";
 
 // === CSS === //
@@ -106,10 +106,8 @@ pub fn StyleAliasesSection(
     drop_target: Signal<Option<usize>>,
     mut focus_index: Signal<Option<usize>>,
 ) -> Element {
-    let mut collapsed = use_signal(|| true);
-
-    let can_move_up = index > 0;
-    let can_move_down = index + 1 < entry_count;
+    let card_state = CardComponent::state_init(index, entry_count);
+    let mut collapsed = card_state.collapsed;
     let border_class = drag_border_class(drag_index, drop_target, index);
 
     let alias_count = style_aliases_applied.len();
@@ -125,39 +123,26 @@ pub fn StyleAliasesSection(
             "data-style-alias-card": "true",
 
             // === Card-level keyboard shortcuts === //
-            onkeydown: move |evt| {
-                let action = keyboard_nav::card_keydown(evt, DATA_ATTR);
-                match action {
-                    CardKeyAction::MoveUp => {
-                        if can_move_up {
-                            input_diagram
-                                .write()
-                                .theme_default
-                                .style_aliases
-                                .move_index(index, index - 1);
-                            focus_index.set(Some(index - 1));
-                        }
-                    }
-                    CardKeyAction::MoveDown => {
-                        if can_move_down {
-                            input_diagram
-                                .write()
-                                .theme_default
-                                .style_aliases
-                                .move_index(index, index + 1);
-                            focus_index.set(Some(index + 1));
-                        }
-                    }
-                    CardKeyAction::Collapse => collapsed.set(true),
-                    CardKeyAction::Expand => collapsed.set(false),
-                    CardKeyAction::Toggle => {
-                        let is_collapsed = *collapsed.read();
-                        collapsed.set(!is_collapsed);
-                    }
-                    CardKeyAction::EnterEdit => collapsed.set(false),
-                    CardKeyAction::None => {}
-                }
-            },
+            onkeydown: CardComponent::card_onkeydown(
+                DATA_ATTR,
+                card_state,
+                move || {
+                    input_diagram
+                        .write()
+                        .theme_default
+                        .style_aliases
+                        .move_index(index, index - 1);
+                    focus_index.set(Some(index - 1));
+                },
+                move || {
+                    input_diagram
+                        .write()
+                        .theme_default
+                        .style_aliases
+                        .move_index(index, index + 1);
+                    focus_index.set(Some(index + 1));
+                },
+            ),
 
             // === Drag-and-drop === //
             ondragstart: move |_| {

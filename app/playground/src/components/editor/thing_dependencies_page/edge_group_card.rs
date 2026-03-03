@@ -18,7 +18,6 @@
 //! - **Esc** (inside a field): return focus to the card wrapper.
 
 use dioxus::{
-    hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
@@ -26,12 +25,11 @@ use disposition::input_model::{edge::EdgeKind, InputDiagram};
 
 use crate::components::editor::{
     common::{
-        FieldNav, RenameRefocus, RenameRefocusTarget, ADD_BTN, LABEL_CLASS, REMOVE_BTN,
-        ROW_CLASS_SIMPLE, SELECT_CLASS,
+        CardComponent, FieldNav, RenameRefocus, ADD_BTN, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE,
+        SELECT_CLASS,
     },
     datalists::list_ids,
-    keyboard_nav::{self, CardKeyAction},
-    reorderable::{drag_border_class, is_rename_target, DragHandle},
+    reorderable::{drag_border_class, DragHandle},
 };
 
 use super::{
@@ -60,22 +58,10 @@ pub(crate) fn EdgeGroupCard(
     let edge_kind = entry.edge_kind;
     let things = entry.things.clone();
 
-    // When this card was just recreated after an ID rename, start expanded
-    // so the user can see/interact with the fields. The
-    // `ReorderableContainer`'s `use_effect` handles DOM focus afterwards.
-    let mut collapsed = use_signal({
-        let edge_group_id = edge_group_id.clone();
-        move || !is_rename_target(rename_refocus, &edge_group_id)
-    });
-
-    // Tracks which refocus target the next ID rename should use.
-    // - `IdInput`: Enter or blur triggered the rename.
-    // - `NextField`: forward Tab triggered the rename.
-    // - `FocusParent`: Shift+Tab or Esc triggered the rename.
-    let rename_target = use_signal(|| RenameRefocusTarget::IdInput);
-
-    let can_move_up = index > 0;
-    let can_move_down = index + 1 < entry_count;
+    let card_state =
+        CardComponent::state_init_with_rename(index, entry_count, rename_refocus, &edge_group_id);
+    let mut collapsed = card_state.collapsed;
+    let rename_target = card_state.rename_target;
     let border_class = drag_border_class(drag_index, drop_target, index);
 
     let thing_count = things.len();
@@ -93,41 +79,18 @@ pub(crate) fn EdgeGroupCard(
             "data-edge-group-card-id": "{edge_group_id}",
 
             // === Card-level keyboard shortcuts === //
-            onkeydown: move |evt| {
-                let action = keyboard_nav::card_keydown(evt, DATA_ATTR);
-                match action {
-                    CardKeyAction::MoveUp => {
-                        if can_move_up {
-                            EdgeGroupCardOps::edge_group_move(
-                                input_diagram,
-                                target,
-                                index,
-                                index - 1,
-                            );
-                            focus_index.set(Some(index - 1));
-                        }
-                    }
-                    CardKeyAction::MoveDown => {
-                        if can_move_down {
-                            EdgeGroupCardOps::edge_group_move(
-                                input_diagram,
-                                target,
-                                index,
-                                index + 1,
-                            );
-                            focus_index.set(Some(index + 1));
-                        }
-                    }
-                    CardKeyAction::Collapse => collapsed.set(true),
-                    CardKeyAction::Expand => collapsed.set(false),
-                    CardKeyAction::Toggle => {
-                        let is_collapsed = *collapsed.read();
-                        collapsed.set(!is_collapsed);
-                    }
-                    CardKeyAction::EnterEdit => collapsed.set(false),
-                    CardKeyAction::None => {}
-                }
-            },
+            onkeydown: CardComponent::card_onkeydown(
+                DATA_ATTR,
+                card_state,
+                move || {
+                    EdgeGroupCardOps::edge_group_move(input_diagram, target, index, index - 1);
+                    focus_index.set(Some(index - 1));
+                },
+                move || {
+                    EdgeGroupCardOps::edge_group_move(input_diagram, target, index, index + 1);
+                    focus_index.set(Some(index + 1));
+                },
+            ),
 
             // === Drag-and-drop === //
             ondragstart: move |_| {
