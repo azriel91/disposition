@@ -32,11 +32,12 @@ use disposition::{
 
 use crate::components::editor::{
     common::{
-        CardComponent, FieldNav, ADD_BTN, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE,
-        SELECT_CLASS,
+        CardComponent, FieldNav, RenameRefocus, RenameRefocusTarget, ADD_BTN, INPUT_CLASS,
+        LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS,
     },
     datalists::list_ids,
     reorderable::{drag_border_class, DragHandle},
+    theme_page::style_aliases_section_ops::StyleAliasesSectionOps,
     theme_styles_editor::{
         parse_theme_attr, theme_attr_entry::ThemeAttrEntry, theme_attr_name, THEME_ATTRS,
     },
@@ -61,6 +62,10 @@ fn parse_style_alias(s: &str) -> Option<StyleAlias<'static>> {
 /// Used by [`keyboard_nav`](crate::components::editor::keyboard_nav) helpers
 /// to locate the nearest ancestor card.
 pub(crate) const DATA_ATTR: &str = "data-style-alias-card";
+
+/// The `data-*` attribute that holds the card's ID value (for post-rename
+/// focus).
+pub(crate) const DATA_ID_ATTR: &str = "data-style-alias-card-id";
 
 // === CSS === //
 
@@ -105,9 +110,12 @@ pub fn StyleAliasesSection(
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
     mut focus_index: Signal<Option<usize>>,
+    mut rename_refocus: Signal<Option<RenameRefocus>>,
 ) -> Element {
-    let card_state = CardComponent::state_init(index, entry_count);
+    let card_state =
+        CardComponent::state_init_with_rename(index, entry_count, rename_refocus, &alias_key);
     let mut collapsed = card_state.collapsed;
+    let rename_target = card_state.rename_target;
     let border_class = drag_border_class(drag_index, drop_target, index);
 
     let alias_count = style_aliases_applied.len();
@@ -121,6 +129,9 @@ pub fn StyleAliasesSection(
             tabindex: "0",
             draggable: "true",
             "data-style-alias-card": "true",
+
+            // === Card identity for post-rename focus === //
+            "data-style-alias-card-id": "{alias_key}",
 
             // === Card-level keyboard shortcuts === //
             onkeydown: CardComponent::card_onkeydown(
@@ -226,6 +237,8 @@ pub fn StyleAliasesSection(
                 StyleAliasesSectionHeader {
                     input_diagram,
                     alias_key: alias_key.clone(),
+                    rename_target,
+                    rename_refocus,
                 }
 
                 // === Style aliases applied === //
@@ -238,7 +251,7 @@ pub fn StyleAliasesSection(
                 // === Theme attributes (partials map) === //
                 StyleAliasesSectionAttrs {
                     input_diagram,
-                    alias_key,
+                    alias_key: alias_key.clone(),
                     theme_attrs,
                 }
             }
@@ -256,6 +269,8 @@ pub fn StyleAliasesSection(
 fn StyleAliasesSectionHeader(
     input_diagram: Signal<InputDiagram<'static>>,
     alias_key: String,
+    rename_target: Signal<RenameRefocusTarget>,
+    mut rename_refocus: Signal<Option<RenameRefocus>>,
 ) -> Element {
     rsx! {
         div {
@@ -276,35 +291,20 @@ fn StyleAliasesSectionHeader(
                 onchange: {
                     let old_key = alias_key.clone();
                     move |evt: dioxus::events::FormEvent| {
-                        let new_val = evt.value();
-                        if new_val != old_key
-                            && let (Some(old_alias), Some(new_alias)) = (
-                                parse_style_alias(&old_key),
-                                parse_style_alias(&new_val),
-                            ) {
-                                let mut diagram = input_diagram.write();
-                                if !diagram
-                                    .theme_default
-                                    .style_aliases
-                                    .contains_key(&new_alias)
-                                    && let Some(idx) = diagram
-                                        .theme_default
-                                        .style_aliases
-                                        .get_index_of(&old_alias)
-                                    {
-                                        diagram
-                                            .theme_default
-                                            .style_aliases
-                                            .replace_index(idx, new_alias)
-                                            .expect(
-                                                "Expected new key to be unique; \
-                                                 checked for availability above",
-                                            );
-                                    }
-                            }
+                        let id_new = evt.value();
+                        let target = *rename_target.read();
+                        StyleAliasesSectionOps::style_alias_rename(
+                            input_diagram,
+                            &old_key,
+                            &id_new,
+                        );
+                        rename_refocus.set(Some(RenameRefocus {
+                            new_id: id_new,
+                            target,
+                        }));
                     }
                 },
-                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
+                onkeydown: FieldNav::id_onkeydown(DATA_ATTR, rename_target),
             }
 
             button {

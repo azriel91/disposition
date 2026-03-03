@@ -11,9 +11,11 @@
 //! - Additional CSS (`css`)
 
 pub(crate) mod style_aliases_section;
+pub(crate) mod style_aliases_section_ops;
 pub(crate) mod tag_focus_section;
 pub(crate) mod types_styles_section;
 
+use crate::components::editor::common::RenameRefocus;
 use dioxus::{
     hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
@@ -56,6 +58,8 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
     let style_alias_drop_target: Signal<Option<usize>> = use_signal(|| None);
     // Focus-after-move state for style alias card reorder.
     let style_alias_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+    // Post-rename focus state for style alias cards.
+    let style_alias_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
 
     // Snapshot the entries so we can drop the borrow before event handlers.
     let entries: Vec<CssClassPartialsSnapshot> = {
@@ -107,6 +111,8 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                 data_attr: style_aliases_section::DATA_ATTR.to_owned(),
                 section_id: "style_aliases".to_owned(),
                 focus_index: style_alias_focus_idx,
+                data_id_attr: Some(style_aliases_section::DATA_ID_ATTR.to_owned()),
+                rename_refocus: Some(style_alias_rename_refocus),
 
                 for (idx, entry) in entries.iter().enumerate() {
                     {
@@ -125,6 +131,7 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                                 drag_index: style_alias_drag_idx,
                                 drop_target: style_alias_drop_target,
                                 focus_index: style_alias_focus_idx,
+                                rename_refocus: style_alias_rename_refocus,
                             }
                         }
                     }
