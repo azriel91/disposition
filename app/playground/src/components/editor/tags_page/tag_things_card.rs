@@ -18,16 +18,13 @@
 
 use dioxus::{
     hooks::use_signal,
-    prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
-        ModifiersInteraction, Props,
-    },
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
 
 use crate::components::editor::{
-    common::{RenameRefocus, RenameRefocusTarget, ADD_BTN, REMOVE_BTN, ROW_CLASS_SIMPLE},
+    common::{FieldNav, RenameRefocus, RenameRefocusTarget, ADD_BTN, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
     keyboard_nav::{self, CardKeyAction},
     reorderable::{drag_border_class, is_rename_target, DragHandle},
@@ -67,7 +64,7 @@ pub(crate) fn TagThingsCard(
     // - `IdInput`: Enter or blur triggered the rename.
     // - `NextField`: forward Tab triggered the rename.
     // - `FocusParent`: Shift+Tab or Esc triggered the rename.
-    let mut rename_target = use_signal(|| RenameRefocusTarget::IdInput);
+    let rename_target = use_signal(|| RenameRefocusTarget::IdInput);
 
     let can_move_up = index > 0;
     let can_move_down = index + 1 < entry_count;
@@ -222,24 +219,7 @@ pub(crate) fn TagThingsCard(
                                 }));
                             }
                         },
-                        onkeydown: move |evt| {
-                            match evt.key() {
-                                Key::Tab if evt.modifiers().shift() => {
-                                    rename_target.set(RenameRefocusTarget::FocusParent);
-                                }
-                                Key::Tab => {
-                                    rename_target.set(RenameRefocusTarget::NextField);
-                                }
-                                Key::Escape => {
-                                    rename_target.set(RenameRefocusTarget::FocusParent);
-                                }
-                                Key::Enter => {
-                                    rename_target.set(RenameRefocusTarget::IdInput);
-                                }
-                                _ => {}
-                            }
-                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                        },
+                        onkeydown: FieldNav::id_onkeydown(DATA_ATTR, rename_target)
                     }
 
                     button {

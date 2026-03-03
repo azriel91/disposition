@@ -9,6 +9,10 @@
 //! keyboard focus after an ID rename causes the focused element to be
 //! destroyed and recreated with a new key.
 
+pub(crate) use self::field_nav::FieldNav;
+
+mod field_nav;
+
 use disposition::{
     input_model::{
         process::{ProcessId, ProcessStepId},
