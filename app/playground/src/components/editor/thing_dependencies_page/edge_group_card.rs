@@ -242,9 +242,7 @@ pub(crate) fn EdgeGroupCard(
                                 EdgeGroupCardOps::edge_group_remove(input_diagram, target, &edge_group_id);
                             }
                         },
-                        onkeydown: move |evt| {
-                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                        },
+                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                         "x Remove"
                     }
                 }
@@ -275,9 +273,7 @@ pub(crate) fn EdgeGroupCard(
                                 }
                             }
                         },
-                        onkeydown: move |evt| {
-                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                        },
+                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                         option { value: "cyclic", "Cyclic" }
                         option { value: "sequence", "Sequence" }
                         option { value: "symmetric", "Symmetric" }
@@ -324,9 +320,7 @@ pub(crate) fn EdgeGroupCard(
                                                 );
                                             }
                                         },
-                                        onkeydown: move |evt| {
-                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                                        },
+                                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                                     }
 
                                     button {
@@ -344,9 +338,7 @@ pub(crate) fn EdgeGroupCard(
                                                 );
                                             }
                                         },
-                                        onkeydown: move |evt| {
-                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                                        },
+                                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                                         "x"
                                     }
                                 }
@@ -363,9 +355,7 @@ pub(crate) fn EdgeGroupCard(
                                 EdgeGroupCardOps::edge_thing_add(input_diagram, target, &edge_group_id);
                             }
                         },
-                        onkeydown: move |evt| {
-                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                        },
+                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                         "+ Add thing"
                     }
                 }

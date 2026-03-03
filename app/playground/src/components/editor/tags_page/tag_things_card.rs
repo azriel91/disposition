@@ -232,9 +232,7 @@ pub(crate) fn TagThingsCard(
                                 TagsPageOps::tag_things_entry_remove(input_diagram, &tag_id);
                             }
                         },
-                        onkeydown: move |evt| {
-                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                        },
+                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                         "x Remove"
                     }
                 }
@@ -275,9 +273,7 @@ pub(crate) fn TagThingsCard(
                                                 );
                                             }
                                         },
-                                        onkeydown: move |evt| {
-                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                                        },
+                                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                                     }
 
                                     button {
@@ -294,9 +290,7 @@ pub(crate) fn TagThingsCard(
                                                 );
                                             }
                                         },
-                                        onkeydown: move |evt| {
-                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                                        },
+                                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                                         "\u{2715}"
                                     }
                                 }
@@ -313,9 +307,7 @@ pub(crate) fn TagThingsCard(
                                 TagsPageOps::tag_things_thing_add(input_diagram, &tag_id);
                             }
                         },
-                        onkeydown: move |evt| {
-                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                        },
+                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                         "+ Add thing"
                     }
                 }

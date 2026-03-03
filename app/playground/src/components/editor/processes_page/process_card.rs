@@ -250,9 +250,7 @@ pub(crate) fn ProcessCard(
                                 ProcessesPageOps::process_remove(input_diagram, &process_id);
                             }
                         },
-                        onkeydown: move |evt| {
-                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                        },
+                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                         "\u{2715} Remove"
                     }
                 }
@@ -276,9 +274,7 @@ pub(crate) fn ProcessCard(
                                 ProcessesPageOps::process_name_update(input_diagram, &process_id, &evt.value());
                             }
                         },
-                        onkeydown: move |evt| {
-                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                        },
+                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                     }
                 }
 
@@ -301,9 +297,7 @@ pub(crate) fn ProcessCard(
                                 ProcessesPageOps::process_desc_update(input_diagram, &process_id, &evt.value());
                             }
                         },
-                        onkeydown: move |evt| {
-                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                        },
+                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                     }
                 }
 
@@ -340,9 +334,7 @@ pub(crate) fn ProcessCard(
                                                 ProcessCardOps::step_rename(input_diagram, &process_id, &step_id_old, &evt.value());
                                             }
                                         },
-                                        onkeydown: move |evt| {
-                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                                        },
+                                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                                     }
 
                                     input {
@@ -357,9 +349,7 @@ pub(crate) fn ProcessCard(
                                                 ProcessCardOps::step_label_update(input_diagram, &process_id, &step_id, &evt.value());
                                             }
                                         },
-                                        onkeydown: move |evt| {
-                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                                        },
+                                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                                     }
 
                                     button {
@@ -373,9 +363,7 @@ pub(crate) fn ProcessCard(
                                                 ProcessCardOps::step_remove(input_diagram, &process_id, &step_id);
                                             }
                                         },
-                                        onkeydown: move |evt| {
-                                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                                        },
+                                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                                         "\u{2715}"
                                     }
                                 }
@@ -392,9 +380,7 @@ pub(crate) fn ProcessCard(
                                 ProcessCardOps::step_add(input_diagram, &process_id);
                             }
                         },
-                        onkeydown: move |evt| {
-                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                        },
+                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                         "+ Add step"
                     }
                 }
@@ -434,9 +420,7 @@ pub(crate) fn ProcessCard(
                                 ProcessCardOps::step_interaction_add(input_diagram, &process_id);
                             }
                         },
-                        onkeydown: move |evt| {
-                            keyboard_nav::field_keydown(evt, DATA_ATTR);
-                        },
+                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                         "+ Add step interaction mapping"
                     }
                 }

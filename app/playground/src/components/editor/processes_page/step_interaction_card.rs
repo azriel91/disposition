@@ -10,9 +10,8 @@ use dioxus::{
 use disposition::input_model::InputDiagram;
 
 use crate::components::editor::{
-    common::{ADD_BTN, INNER_CARD_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE},
+    common::{FieldNav, ADD_BTN, INNER_CARD_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
-    keyboard_nav,
 };
 
 use super::{step_interaction_card_ops::StepInteractionCardOps, DATA_ATTR, FIELD_INPUT_CLASS};
@@ -54,9 +53,7 @@ pub(crate) fn StepInteractionCard(
                             );
                         }
                     },
-                    onkeydown: move |evt| {
-                        keyboard_nav::field_keydown(evt, DATA_ATTR);
-                    },
+                    onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                 }
 
                 button {
@@ -70,9 +67,7 @@ pub(crate) fn StepInteractionCard(
                             StepInteractionCardOps::step_interaction_remove(input_diagram, &process_id, &step_id);
                         }
                     },
-                    onkeydown: move |evt| {
-                        keyboard_nav::field_keydown(evt, DATA_ATTR);
-                    },
+                    onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                     "\u{2715}"
                 }
             }
@@ -116,9 +111,7 @@ pub(crate) fn StepInteractionCard(
                                             );
                                         }
                                     },
-                                    onkeydown: move |evt| {
-                                        keyboard_nav::field_keydown(evt, DATA_ATTR);
-                                    },
+                                    onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                                 }
 
                                 button {
@@ -137,9 +130,7 @@ pub(crate) fn StepInteractionCard(
                                             );
                                         }
                                     },
-                                    onkeydown: move |evt| {
-                                        keyboard_nav::field_keydown(evt, DATA_ATTR);
-                                    },
+                                    onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                                     "\u{2715}"
                                 }
                             }
@@ -157,9 +148,7 @@ pub(crate) fn StepInteractionCard(
                             StepInteractionCardOps::step_interaction_edge_add(input_diagram, &process_id, &step_id);
                         }
                     },
-                    onkeydown: move |evt| {
-                        keyboard_nav::field_keydown(evt, DATA_ATTR);
-                    },
+                    onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                     "+ Add edge group"
                 }
             }

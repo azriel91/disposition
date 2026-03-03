@@ -46,4 +46,17 @@ impl FieldNav {
             keyboard_nav::field_keydown(evt, data_attr);
         }
     }
+
+    /// Returns a handler for `keydown` events on value fields, updating the
+    /// rename target signal based on the key pressed.
+    ///
+    /// # Parameters
+    ///
+    /// * `data_attr`: The data attribute used to identify the field, e.g.
+    ///   `"data-entry-id"`, `"data-edge-group-card"`, etc.
+    pub fn value_onkeydown(data_attr: &'static str) -> impl FnMut(Event<KeyboardData>) {
+        move |evt: Event<KeyboardData>| {
+            keyboard_nav::field_keydown(evt, data_attr);
+        }
+    }
 }

@@ -261,9 +261,7 @@ pub fn IdValueRow(
                         on_update.call((entry_id.clone(), new_value));
                     }
                 },
-                onkeydown: move |evt| {
-                    keyboard_nav::field_keydown(evt, DATA_ATTR);
-                },
+                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
             }
 
             // === Remove button === //
@@ -277,9 +275,7 @@ pub fn IdValueRow(
                         on_remove.call(entry_id.clone());
                     }
                 },
-                onkeydown: move |evt| {
-                    keyboard_nav::field_keydown(evt, DATA_ATTR);
-                },
+                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                 "\u{2715}"
             }
         }

@@ -32,7 +32,9 @@ use disposition::{
 };
 
 use crate::components::editor::{
-    common::{ADD_BTN, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS},
+    common::{
+        FieldNav, ADD_BTN, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS,
+    },
     datalists::list_ids,
     keyboard_nav::{self, CardKeyAction},
     reorderable::{drag_border_class, DragHandle},
@@ -317,9 +319,7 @@ fn StyleAliasesSectionHeader(
                             }
                     }
                 },
-                onkeydown: move |evt| {
-                    keyboard_nav::field_keydown(evt, DATA_ATTR);
-                },
+                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
             }
 
             button {
@@ -335,9 +335,7 @@ fn StyleAliasesSectionHeader(
                         }
                     }
                 },
-                onkeydown: move |evt| {
-                    keyboard_nav::field_keydown(evt, DATA_ATTR);
-                },
+                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                 "x Remove alias"
             }
         }
@@ -401,9 +399,7 @@ fn StyleAliasesSectionAliases(
                         }
                     }
                 },
-                onkeydown: move |evt| {
-                    keyboard_nav::field_keydown(evt, DATA_ATTR);
-                },
+                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                 "+ Add alias"
             }
         }
@@ -452,9 +448,7 @@ fn StyleAliasesSectionAliasRow(
                             }
                     }
                 },
-                onkeydown: move |evt| {
-                    keyboard_nav::field_keydown(evt, DATA_ATTR);
-                },
+                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
             }
 
             button {
@@ -475,9 +469,7 @@ fn StyleAliasesSectionAliasRow(
                         }
                     }
                 },
-                onkeydown: move |evt| {
-                    keyboard_nav::field_keydown(evt, DATA_ATTR);
-                },
+                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                 "x"
             }
         }
@@ -547,9 +539,7 @@ fn StyleAliasesSectionAttrs(
                         }
                     }
                 },
-                onkeydown: move |evt| {
-                    keyboard_nav::field_keydown(evt, DATA_ATTR);
-                },
+                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                 "+ Add attribute"
             }
         }
@@ -601,9 +591,7 @@ fn StyleAliasesSectionAttrRow(
                             }
                     }
                 },
-                onkeydown: move |evt| {
-                    keyboard_nav::field_keydown(evt, DATA_ATTR);
-                },
+                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
 
                 for (name, _) in THEME_ATTRS.iter() {
                     option {
@@ -636,9 +624,7 @@ fn StyleAliasesSectionAttrRow(
                         }
                     }
                 },
-                onkeydown: move |evt| {
-                    keyboard_nav::field_keydown(evt, DATA_ATTR);
-                },
+                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
             }
 
             // === Remove button === //
@@ -660,9 +646,7 @@ fn StyleAliasesSectionAttrRow(
                         }
                     }
                 },
-                onkeydown: move |evt| {
-                    keyboard_nav::field_keydown(evt, DATA_ATTR);
-                },
+                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                 "x"
             }
         }
