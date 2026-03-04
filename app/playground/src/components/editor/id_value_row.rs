@@ -9,6 +9,7 @@
 //! Keyboard shortcuts:
 //!
 //! - **Up / Down** (on row): move focus to the previous / next row.
+//! - **Ctrl+Up / Ctrl+Down** (on row): jump to the first / last row.
 //! - **Alt+Up / Alt+Down**: move the entry up or down in the list.
 //! - **Enter** (on row): focus the first input inside the row for editing.
 //! - **Escape** (on row): focus the parent section / tab.
@@ -156,6 +157,7 @@ pub fn IdValueRow(
             // === Keyboard shortcuts (row-level) === //
             onkeydown: move |evt| {
                 let alt = evt.modifiers().alt();
+                let ctrl = evt.modifiers().ctrl();
 
                 match evt.key() {
                     Key::ArrowUp if alt => {
@@ -172,6 +174,20 @@ pub fn IdValueRow(
                         if can_move_down {
                             on_move.call((index, index + 1));
                             focus_index.set(Some(index + 1));
+                        }
+                    }
+                    Key::ArrowUp if ctrl => {
+                        evt.prevent_default();
+                        evt.stop_propagation();
+                        if !is_first {
+                            document::eval(&keyboard_nav::js_focus_first_entry(DATA_ATTR));
+                        }
+                    }
+                    Key::ArrowDown if ctrl => {
+                        evt.prevent_default();
+                        evt.stop_propagation();
+                        if !is_last {
+                            document::eval(&keyboard_nav::js_focus_last_entry(DATA_ATTR));
                         }
                     }
                     Key::ArrowUp => {

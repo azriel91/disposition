@@ -8,6 +8,7 @@
 //! **Entry-level** (the focusable card or row wrapper):
 //!
 //! - **Up / Down**: navigate to the previous / next sibling entry.
+//! - **Ctrl+Up / Ctrl+Down**: jump to the first / last sibling entry.
 //! - **Alt+Up / Alt+Down**: reorder the entry up or down in the list.
 //! - **Left**: collapse the entry (if collapsible).
 //! - **Right**: expand the entry (if collapsible).
@@ -149,6 +150,43 @@ pub fn js_focus_next_entry(data_attr: &str) -> String {
     )
 }
 
+/// Build a JS snippet that focuses the **first** sibling element matching
+/// `[data_attr]` within the same parent container.
+///
+/// Used by Ctrl+Up to jump to the top of a reorderable list.
+pub fn js_focus_first_entry(data_attr: &str) -> String {
+    format!(
+        "(() => {{\
+            let el = document.activeElement;\
+            if (!el) return;\
+            let card = el.closest('[{data_attr}]') || el;\
+            let container = card.parentElement;\
+            if (!container) return;\
+            let first = container.querySelector('[{data_attr}]');\
+            if (first && first !== card) first.focus();\
+        }})()"
+    )
+}
+
+/// Build a JS snippet that focuses the **last** sibling element matching
+/// `[data_attr]` within the same parent container.
+///
+/// Used by Ctrl+Down to jump to the bottom of a reorderable list.
+pub fn js_focus_last_entry(data_attr: &str) -> String {
+    format!(
+        "(() => {{\
+            let el = document.activeElement;\
+            if (!el) return;\
+            let card = el.closest('[{data_attr}]') || el;\
+            let container = card.parentElement;\
+            if (!container) return;\
+            let all = container.querySelectorAll('[{data_attr}]');\
+            let last = all[all.length - 1];\
+            if (last && last !== card) last.focus();\
+        }})()"
+    )
+}
+
 /// Build a JS snippet that focuses the first focusable element inside the
 /// currently focused element (used when pressing Enter on a card/row).
 pub fn js_focus_first_field() -> String {
@@ -247,6 +285,8 @@ pub enum CardKeyAction {
 pub fn card_keydown(evt: dioxus::events::KeyboardEvent, data_attr: &str) -> CardKeyAction {
     let alt = evt.modifiers().alt();
 
+    let ctrl = evt.modifiers().ctrl();
+
     match evt.key() {
         Key::ArrowUp if alt => {
             evt.prevent_default();
@@ -257,6 +297,18 @@ pub fn card_keydown(evt: dioxus::events::KeyboardEvent, data_attr: &str) -> Card
             evt.prevent_default();
             evt.stop_propagation();
             CardKeyAction::MoveDown
+        }
+        Key::ArrowUp if ctrl => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            document::eval(&js_focus_first_entry(data_attr));
+            CardKeyAction::None
+        }
+        Key::ArrowDown if ctrl => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            document::eval(&js_focus_last_entry(data_attr));
+            CardKeyAction::None
         }
         Key::ArrowUp => {
             evt.prevent_default();
