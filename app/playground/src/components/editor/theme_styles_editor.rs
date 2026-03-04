@@ -410,7 +410,7 @@ pub fn ThemeStylesEditor(
             // === Add entry button === //
             button {
                 class: ADD_BTN,
-                tabindex: -1,
+                tabindex: 0,
                 onclick: {
                     let target = target.clone();
                     move |_| {

@@ -167,7 +167,7 @@ pub fn ThingDependenciesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
 
             button {
                 class: ADD_BTN,
-                tabindex: -1,
+                tabindex: 0,
                 onclick: move |_| {
                     EdgeGroupCardOps::edge_group_add(input_diagram, MapTarget::Dependencies);
                 },
@@ -254,7 +254,7 @@ pub fn ThingInteractionsPage(input_diagram: Signal<InputDiagram<'static>>) -> El
 
             button {
                 class: ADD_BTN,
-                tabindex: -1,
+                tabindex: 0,
                 onclick: move |_| {
                     EdgeGroupCardOps::edge_group_add(input_diagram, MapTarget::Interactions);
                 },

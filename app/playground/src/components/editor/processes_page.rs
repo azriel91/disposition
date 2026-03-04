@@ -185,7 +185,7 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 
             button {
                 class: ADD_BTN,
-                tabindex: -1,
+                tabindex: 0,
                 onclick: move |_| {
                     ProcessesPageOps::process_add(input_diagram);
                 },

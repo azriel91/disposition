@@ -103,7 +103,7 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 
             button {
                 class: ADD_BTN,
-                tabindex: -1,
+                tabindex: 0,
                 onclick: move |_| {
                     ThingsPageOps::thing_add(input_diagram);
                 },
@@ -202,7 +202,7 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
 
             button {
                 class: ADD_BTN,
-                tabindex: -1,
+                tabindex: 0,
                 onclick: move |_| {
                     ThingsPageOps::copy_text_add(input_diagram);
                 },
@@ -301,7 +301,7 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
 
             button {
                 class: ADD_BTN,
-                tabindex: -1,
+                tabindex: 0,
                 onclick: move |_| {
                     ThingsPageOps::entity_desc_add(input_diagram);
                 },
@@ -399,7 +399,7 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
 
             button {
                 class: ADD_BTN,
-                tabindex: -1,
+                tabindex: 0,
                 onclick: move |_| {
                     ThingsPageOps::entity_tooltip_add(input_diagram);
                 },

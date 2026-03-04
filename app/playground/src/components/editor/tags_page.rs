@@ -209,7 +209,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 
             button {
                 class: ADD_BTN,
-                tabindex: -1,
+                tabindex: 0,
                 onclick: move |_| {
                     TagsPageOps::tag_add(input_diagram);
                 },
@@ -254,7 +254,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 
             button {
                 class: ADD_BTN,
-                tabindex: -1,
+                tabindex: 0,
                 onclick: move |_| {
                     TagsPageOps::tag_things_entry_add(input_diagram);
                 },
