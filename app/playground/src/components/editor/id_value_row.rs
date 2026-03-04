@@ -75,7 +75,7 @@ const JS_FOCUS_AFTER_CONTAINER: &str = "\
         if (!container) return;\
         let next = container.nextElementSibling;\
         while (next) {\
-            if (next.tabIndex >= 0 || next.tagName === 'BUTTON' || next.tagName === 'A') {\
+            if (next.tabIndex >= 0) {\
                 next.focus();\
                 return;\
             }\
@@ -138,6 +138,7 @@ pub fn IdValueRow(
     let can_move_down = index + 1 < entry_count;
 
     let is_first = index == 0;
+    let is_last = index + 1 >= entry_count;
 
     // Tracks which refocus target the next ID rename should use.
     // - `IdInput`: Enter or blur triggered the rename.
@@ -183,7 +184,9 @@ pub fn IdValueRow(
                     Key::ArrowDown => {
                         evt.prevent_default();
                         evt.stop_propagation();
-                        document::eval(JS_FOCUS_AFTER_CONTAINER);
+                        if !is_last {
+                            document::eval(JS_FOCUS_AFTER_CONTAINER);
+                        }
                     }
                     Key::Escape => {
                         evt.prevent_default();
