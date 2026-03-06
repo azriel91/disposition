@@ -1,4 +1,4 @@
-//! A single thing-ID row inside an edge group card.
+//! A single thing-ID row inside the things field of an edge group card.
 //!
 //! Extracted from [`EdgeGroupCard`] to keep the parent component concise.
 //!
@@ -23,18 +23,17 @@ use crate::components::editor::{
     common::{FieldNav, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
     keyboard_nav,
+    thing_dependencies_page::{
+        edge_group_card_ops::EdgeGroupCardOps, MapTarget, DATA_ATTR, FIELD_INPUT_CLASS,
+    },
 };
 
-use super::super::{
-    edge_group_card_ops::EdgeGroupCardOps, MapTarget, DATA_ATTR, FIELD_INPUT_CLASS,
-};
-
-/// A single thing-ID row inside an edge group card.
+/// A single thing-ID row inside the things field of an edge group card.
 ///
 /// Displays the row index, a thing-ID input with Alt+Up/Down reordering,
 /// and a remove button.
 #[component]
-pub(crate) fn EdgeThingRow(
+pub(crate) fn EdgeGroupCardFieldThingsRow(
     input_diagram: Signal<InputDiagram<'static>>,
     target: MapTarget,
     edge_group_id: String,

@@ -19,33 +19,36 @@
 //!
 //! Within the things list (when a thing row has focus):
 //!
-//! - **ArrowUp / ArrowDown**: navigate between thing rows.
 //! - **Alt+Up / Alt+Down**: move the thing up or down in the list.
-//! - **Enter**: focus the input inside the thing row.
-//! - **Escape**: return focus to the parent card.
+//! - All other keys fall through to the standard field navigation.
 
-mod edge_thing_row;
+mod edge_group_card_field_id;
+mod edge_group_card_field_kind;
+mod edge_group_card_field_things;
+mod edge_group_card_field_things_row;
+mod edge_group_card_summary;
 
 use dioxus::{
     hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
-use disposition::input_model::{edge::EdgeKind, InputDiagram};
+use disposition::input_model::InputDiagram;
 
 use crate::components::editor::{
-    common::{
-        CardComponent, FieldNav, RenameRefocus, ADD_BTN, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE,
-        SELECT_CLASS,
-    },
-    datalists::list_ids,
-    reorderable::{drag_border_class, DragHandle, ReorderableContainer},
+    common::{CardComponent, RenameRefocus},
+    reorderable::{drag_border_class, DragHandle},
 };
 
-use self::edge_thing_row::EdgeThingRow;
+use self::{
+    edge_group_card_field_id::EdgeGroupCardFieldId,
+    edge_group_card_field_kind::EdgeGroupCardFieldKind,
+    edge_group_card_field_things::EdgeGroupCardFieldThings,
+    edge_group_card_summary::EdgeGroupCardSummary,
+};
 use super::{
-    edge_group_card_ops::EdgeGroupCardOps, EdgeGroupEntry, MapTarget, COLLAPSED_HEADER_CLASS,
-    DATA_ATTR, EDGE_GROUP_CARD_CLASS, FIELD_INPUT_CLASS,
+    edge_group_card_ops::EdgeGroupCardOps, EdgeGroupEntry, MapTarget, DATA_ATTR,
+    EDGE_GROUP_CARD_CLASS,
 };
 
 /// A collapsible card for editing a single edge group.
@@ -63,7 +66,7 @@ pub(crate) fn EdgeGroupCard(
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
     mut focus_index: Signal<Option<usize>>,
-    mut rename_refocus: Signal<Option<RenameRefocus>>,
+    rename_refocus: Signal<Option<RenameRefocus>>,
 ) -> Element {
     let edge_group_id = entry.edge_group_id.clone();
     let edge_kind = entry.edge_kind;
@@ -79,7 +82,6 @@ pub(crate) fn EdgeGroupCard(
     let border_class = drag_border_class(drag_index, drop_target, index);
 
     let thing_count = things.len();
-    let thing_suffix = if thing_count != 1 { "s" } else { "" };
     let edge_kind_label = edge_kind.to_string();
 
     rsx! {
@@ -131,32 +133,11 @@ pub(crate) fn EdgeGroupCard(
 
             if *collapsed.read() {
                 // === Collapsed summary === //
-                div {
-                    class: COLLAPSED_HEADER_CLASS,
-                    onclick: move |_| collapsed.set(false),
-
-                    DragHandle {}
-
-                    // Expand chevron
-                    span {
-                        class: "text-gray-500 text-xs",
-                        ">"
-                    }
-
-                    span {
-                        class: "text-sm font-mono text-blue-400",
-                        "{edge_group_id}"
-                    }
-
-                    span {
-                        class: "text-xs text-gray-500 italic",
-                        "{edge_kind_label}"
-                    }
-
-                    span {
-                        class: "text-xs text-gray-500",
-                        "({thing_count} thing{thing_suffix})"
-                    }
+                EdgeGroupCardSummary {
+                    edge_group_id: edge_group_id.clone(),
+                    edge_kind_label,
+                    thing_count,
+                    collapsed,
                 }
             } else {
                 // === Expanded content === //
@@ -179,128 +160,30 @@ pub(crate) fn EdgeGroupCard(
                 }
 
                 // === EdgeGroupId + Remove === //
-                div {
-                    class: ROW_CLASS_SIMPLE,
-
-                    input {
-                        class: FIELD_INPUT_CLASS,
-                        style: "max-width:16rem",
-                        tabindex: "-1",
-                        list: list_ids::EDGE_GROUP_IDS,
-                        placeholder: "edge_group_id",
-                        value: "{edge_group_id}",
-                        onchange: {
-                            let edge_group_id_old = edge_group_id.clone();
-                            move |evt: dioxus::events::FormEvent| {
-                                let id_new = evt.value();
-                                let target = *rename_target.read();
-                                EdgeGroupCardOps::edge_group_rename(
-                                    input_diagram,
-                                    &edge_group_id_old,
-                                    &id_new,
-                                );
-                                rename_refocus.set(Some(RenameRefocus {
-                                    new_id: id_new,
-                                    target,
-                                }));
-                            }
-                        },
-                        onkeydown: FieldNav::id_onkeydown(DATA_ATTR, rename_target)
-                    }
-
-
-                    button {
-                        class: REMOVE_BTN,
-                        tabindex: "-1",
-                        "data-action": "remove",
-                        onclick: {
-                            let edge_group_id = edge_group_id.clone();
-                            move |_| {
-                                EdgeGroupCardOps::edge_group_remove(input_diagram, target, &edge_group_id);
-                            }
-                        },
-                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
-                        "x Remove"
-                    }
+                EdgeGroupCardFieldId {
+                    input_diagram,
+                    target,
+                    edge_group_id: edge_group_id.clone(),
+                    rename_target,
+                    rename_refocus,
                 }
 
                 // === kind === //
-                div {
-                    class: "flex flex-col items-start gap-1 pl-4",
-
-                    label { class: LABEL_CLASS, "kind" }
-
-                    select {
-                        class: SELECT_CLASS,
-                        tabindex: "-1",
-                        value: "{edge_kind}",
-                        onchange: {
-                            let edge_group_id = edge_group_id.clone();
-                            let current_things = things.clone();
-                            move |evt: dioxus::events::FormEvent| {
-                                let kind_str = evt.value();
-                                if let Ok(edge_kind_new) = kind_str.parse::<EdgeKind>() {
-                                    EdgeGroupCardOps::edge_kind_change(
-                                        input_diagram,
-                                        target,
-                                        &edge_group_id,
-                                        edge_kind_new,
-                                        &current_things,
-                                    );
-                                }
-                            }
-                        },
-                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
-                        option { value: "cyclic", "Cyclic" }
-                        option { value: "sequence", "Sequence" }
-                        option { value: "symmetric", "Symmetric" }
-                    }
+                EdgeGroupCardFieldKind {
+                    input_diagram,
+                    target,
+                    edge_group_id: edge_group_id.clone(),
+                    edge_kind,
+                    things: things.clone(),
                 }
 
                 // === things === //
-                div {
-                    class: "flex flex-col gap-1 pl-4",
-
-                    label { class: LABEL_CLASS, "things" }
-
-                    ReorderableContainer {
-                        data_attr: "data-edge-thing-row".to_owned(),
-                        section_id: format!("edge_things_{edge_group_id}"),
-                        focus_index: thing_focus_idx,
-                        focus_inner_selector: Some("input".to_owned()),
-
-                        for (idx, thing_id) in things.iter().enumerate() {
-                            {
-                                let thing_id = thing_id.clone();
-                                let edge_group_id = edge_group_id.clone();
-                                rsx! {
-                                    EdgeThingRow {
-                                        key: "{edge_group_id}_{idx}",
-                                        input_diagram,
-                                        target,
-                                        edge_group_id,
-                                        thing_id: thing_id.to_string(),
-                                        index: idx,
-                                        thing_count,
-                                        thing_focus_idx,
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    button {
-                        class: ADD_BTN,
-                        tabindex: -1,
-                        onclick: {
-                            let edge_group_id = edge_group_id.clone();
-                            move |_| {
-                                EdgeGroupCardOps::edge_thing_add(input_diagram, target, &edge_group_id);
-                            }
-                        },
-                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
-                        "+ Add thing"
-                    }
+                EdgeGroupCardFieldThings {
+                    input_diagram,
+                    target,
+                    edge_group_id: edge_group_id.clone(),
+                    things,
+                    thing_focus_idx,
                 }
             }
         }
