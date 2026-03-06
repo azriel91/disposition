@@ -6,11 +6,17 @@
 //! signals/fields, as well as the same `onkeydown` match structure for
 //! `CardKeyAction`. This module extracts that boilerplate into reusable
 //! helpers.
+//!
+//! Also provides [`CardComponent::field_onkeydown`], a field-level
+//! `onkeydown` handler that intercepts **Alt+Up / Alt+Down** for
+//! reordering rows within a card and falls through to
+//! [`keyboard_nav::field_keydown`] for all other keys.
 
 use dioxus::{
     core::Event,
     hooks::use_signal,
     html::KeyboardData,
+    prelude::{Key, ModifiersInteraction},
     signals::{ReadableExt, Signal, WritableExt},
 };
 
@@ -157,6 +163,57 @@ impl CardComponent {
                 }
                 CardKeyAction::EnterEdit => collapsed.set(false),
                 CardKeyAction::None => {}
+            }
+        }
+    }
+
+    /// Returns an `onkeydown` handler for a field (input, select, button)
+    /// inside a reorderable row.
+    ///
+    /// The returned closure intercepts **Alt+Up** and **Alt+Down** to
+    /// reorder the row, delegating to the provided closures. All other
+    /// keys fall through to [`keyboard_nav::field_keydown`] so that
+    /// Tab cycling, Escape-to-parent, arrow-key passthrough, etc. work
+    /// as usual.
+    ///
+    /// # Parameters
+    ///
+    /// * `data_attr`: the `data-*` attribute on the parent card/row wrapper,
+    ///   e.g. `"data-process-card"`, `"data-edge-group-card"`.
+    /// * `can_move_up`: whether the row can be moved up (i.e. `index > 0`).
+    /// * `can_move_down`: whether the row can be moved down (i.e. `index + 1 <
+    ///   entry_count`).
+    /// * `on_move_up`: closure to call when the user presses **Alt+Up** and
+    ///   `can_move_up` is `true`.
+    /// * `on_move_down`: closure to call when the user presses **Alt+Down** and
+    ///   `can_move_down` is `true`.
+    pub fn field_onkeydown(
+        data_attr: &'static str,
+        can_move_up: bool,
+        can_move_down: bool,
+        mut on_move_up: impl FnMut() + 'static,
+        mut on_move_down: impl FnMut() + 'static,
+    ) -> impl FnMut(Event<KeyboardData>) {
+        move |evt: Event<KeyboardData>| {
+            let alt = evt.modifiers().alt();
+            match evt.key() {
+                Key::ArrowUp if alt => {
+                    evt.prevent_default();
+                    evt.stop_propagation();
+                    if can_move_up {
+                        on_move_up();
+                    }
+                }
+                Key::ArrowDown if alt => {
+                    evt.prevent_default();
+                    evt.stop_propagation();
+                    if can_move_down {
+                        on_move_down();
+                    }
+                }
+                _ => {
+                    keyboard_nav::field_keydown(evt, data_attr);
+                }
             }
         }
     }

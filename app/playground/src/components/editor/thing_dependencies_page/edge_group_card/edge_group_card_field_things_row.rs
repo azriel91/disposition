@@ -11,18 +11,14 @@
 //! [`EdgeGroupCard`]: super::EdgeGroupCard
 
 use dioxus::{
-    prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
-        ModifiersInteraction, Props,
-    },
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
 
 use crate::components::editor::{
-    common::{FieldNav, REMOVE_BTN, ROW_CLASS_SIMPLE},
+    common::{CardComponent, FieldNav, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
-    keyboard_nav,
     thing_dependencies_page::{
         edge_group_card_ops::EdgeGroupCardOps, MapTarget, DATA_ATTR, FIELD_INPUT_CLASS,
     },
@@ -77,42 +73,32 @@ pub(crate) fn EdgeGroupCardFieldThingsRow(
                 },
                 onkeydown: {
                     let edge_group_id = edge_group_id.clone();
-                    move |evt: dioxus::events::KeyboardEvent| {
-                        let alt = evt.modifiers().alt();
-                        match evt.key() {
-                            Key::ArrowUp if alt => {
-                                evt.prevent_default();
-                                evt.stop_propagation();
-                                if can_move_up {
-                                    EdgeGroupCardOps::edge_thing_move(
-                                        input_diagram,
-                                        target,
-                                        &edge_group_id,
-                                        index,
-                                        index - 1,
-                                    );
-                                    thing_focus_idx.set(Some(index - 1));
-                                }
-                            }
-                            Key::ArrowDown if alt => {
-                                evt.prevent_default();
-                                evt.stop_propagation();
-                                if can_move_down {
-                                    EdgeGroupCardOps::edge_thing_move(
-                                        input_diagram,
-                                        target,
-                                        &edge_group_id,
-                                        index,
-                                        index + 1,
-                                    );
-                                    thing_focus_idx.set(Some(index + 1));
-                                }
-                            }
-                            _ => {
-                                keyboard_nav::field_keydown(evt, DATA_ATTR);
-                            }
-                        }
-                    }
+                    let edge_group_id_down = edge_group_id.clone();
+                    CardComponent::field_onkeydown(
+                        DATA_ATTR,
+                        can_move_up,
+                        can_move_down,
+                        move || {
+                            EdgeGroupCardOps::edge_thing_move(
+                                input_diagram,
+                                target,
+                                &edge_group_id,
+                                index,
+                                index - 1,
+                            );
+                            thing_focus_idx.set(Some(index - 1));
+                        },
+                        move || {
+                            EdgeGroupCardOps::edge_thing_move(
+                                input_diagram,
+                                target,
+                                &edge_group_id_down,
+                                index,
+                                index + 1,
+                            );
+                            thing_focus_idx.set(Some(index + 1));
+                        },
+                    )
                 },
             }
 
