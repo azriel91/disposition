@@ -5,6 +5,7 @@
 //! [`EdgeGroupCard`]: super::EdgeGroupCard
 
 use dioxus::{
+    hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::Signal,
 };
@@ -32,6 +33,8 @@ pub(crate) fn EdgeGroupCardFieldThings(
     thing_focus_idx: Signal<Option<usize>>,
 ) -> Element {
     let thing_count = things.len();
+    let thing_drag_idx: Signal<Option<usize>> = use_signal(|| None);
+    let thing_drop_target: Signal<Option<usize>> = use_signal(|| None);
 
     rsx! {
         div {
@@ -59,6 +62,8 @@ pub(crate) fn EdgeGroupCardFieldThings(
                                 index: idx,
                                 thing_count,
                                 thing_focus_idx,
+                                drag_index: thing_drag_idx,
+                                drop_target: thing_drop_target,
                             }
                         }
                     }

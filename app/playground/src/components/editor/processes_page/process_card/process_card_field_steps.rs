@@ -32,6 +32,8 @@ pub(crate) fn ProcessCardFieldSteps(
     steps: Vec<(String, String)>,
 ) -> Element {
     let step_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+    let step_drag_idx: Signal<Option<usize>> = use_signal(|| None);
+    let step_drop_target: Signal<Option<usize>> = use_signal(|| None);
     let step_count = steps.len();
 
     rsx! {
@@ -64,6 +66,8 @@ pub(crate) fn ProcessCardFieldSteps(
                                 index: idx,
                                 step_count,
                                 step_focus_idx,
+                                drag_index: step_drag_idx,
+                                drop_target: step_drop_target,
                             }
                         }
                     }
