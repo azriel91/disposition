@@ -16,6 +16,11 @@
 //!   within the card. Wraps from last to first / first to last.
 //! - **Esc** (inside a field): return focus to the card wrapper.
 
+mod tag_things_card_field_id;
+mod tag_things_card_field_things;
+mod tag_things_card_field_things_row;
+mod tag_things_card_summary;
+
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
@@ -23,14 +28,16 @@ use dioxus::{
 use disposition::input_model::InputDiagram;
 
 use crate::components::editor::{
-    common::{CardComponent, FieldNav, RenameRefocus, ADD_BTN, REMOVE_BTN, ROW_CLASS_SIMPLE},
-    datalists::list_ids,
+    common::{CardComponent, RenameRefocus},
     reorderable::{drag_border_class, DragHandle},
+    tags_page::{tags_page_ops::TagsPageOps, DATA_ATTR, TAG_THINGS_CARD_CLASS},
 };
 
-use super::{
-    tags_page_ops::TagsPageOps, COLLAPSED_HEADER_CLASS, DATA_ATTR, FIELD_INPUT_CLASS,
-    TAG_THINGS_CARD_CLASS,
+use self::{
+    tag_things_card_field_id::TagThingsCardFieldId,
+    tag_things_card_field_things::TagThingsCardFieldThings,
+    tag_things_card_field_things_row::TagThingsCardFieldThingsRow,
+    tag_things_card_summary::TagThingsCardSummary,
 };
 
 /// A collapsible card for editing a single tag's associated things.
@@ -57,7 +64,6 @@ pub(crate) fn TagThingsCard(
     let border_class = drag_border_class(drag_index, drop_target, index);
 
     let thing_count = things.len();
-    let thing_suffix = if thing_count != 1 { "s" } else { "" };
 
     rsx! {
         div {
@@ -108,27 +114,10 @@ pub(crate) fn TagThingsCard(
 
             if *collapsed.read() {
                 // === Collapsed summary === //
-                div {
-                    class: COLLAPSED_HEADER_CLASS,
-                    onclick: move |_| collapsed.set(false),
-
-                    DragHandle {}
-
-                    // Expand chevron
-                    span {
-                        class: "text-gray-500 text-xs",
-                        ">"
-                    }
-
-                    span {
-                        class: "text-sm font-mono text-blue-400",
-                        "{tag_id}"
-                    }
-
-                    span {
-                        class: "text-xs text-gray-500",
-                        "({thing_count} thing{thing_suffix})"
-                    }
+                TagThingsCardSummary {
+                    tag_id: tag_id.clone(),
+                    thing_count,
+                    collapsed,
                 }
             } else {
                 // === Expanded content === //
@@ -151,130 +140,19 @@ pub(crate) fn TagThingsCard(
                 }
 
                 // === Header: TagId + Remove === //
-                div {
-                    class: ROW_CLASS_SIMPLE,
-
-                    label {
-                        class: "text-xs text-gray-500 w-12",
-                        "Tag"
-                    }
-
-                    input {
-                        class: FIELD_INPUT_CLASS,
-                        style: "max-width:14rem",
-                        tabindex: "-1",
-                        list: list_ids::TAG_IDS,
-                        placeholder: "tag_id",
-                        value: "{tag_id}",
-                        onchange: {
-                            let tag_id_old = tag_id.clone();
-                            let current_things = things.clone();
-                            move |evt: dioxus::events::FormEvent| {
-                                let id_new = evt.value();
-                                let target = *rename_target.read();
-                                TagsPageOps::tag_things_entry_rename(
-                                    input_diagram,
-                                    &tag_id_old,
-                                    &id_new,
-                                    &current_things,
-                                );
-                                rename_refocus.set(Some(RenameRefocus {
-                                    new_id: id_new,
-                                    target,
-                                }));
-                            }
-                        },
-                        onkeydown: FieldNav::id_onkeydown(DATA_ATTR, rename_target)
-                    }
-
-                    button {
-                        class: REMOVE_BTN,
-                        tabindex: "-1",
-                        "data-action": "remove",
-                        onclick: {
-                            let tag_id = tag_id.clone();
-                            move |_| {
-                                TagsPageOps::tag_things_entry_remove(input_diagram, &tag_id);
-                            }
-                        },
-                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
-                        "x Remove"
-                    }
+                TagThingsCardFieldId {
+                    input_diagram,
+                    tag_id: tag_id.clone(),
+                    things: things.clone(),
+                    rename_target,
+                    rename_refocus,
                 }
 
                 // === Thing list === //
-                div {
-                    class: "flex flex-col gap-1 pl-4",
-
-                    for (idx, thing_id) in things.iter().enumerate() {
-                        {
-                            let thing_id = thing_id.clone();
-                            let tag_id = tag_id.clone();
-                            rsx! {
-                                div {
-                                    key: "{tag_id}_{idx}",
-                                    class: ROW_CLASS_SIMPLE,
-
-                                    span {
-                                        class: "text-xs text-gray-500 w-6 text-right",
-                                        "{idx}."
-                                    }
-
-                                    input {
-                                        class: FIELD_INPUT_CLASS,
-                                        style: "max-width:14rem",
-                                        tabindex: "-1",
-                                        list: list_ids::THING_IDS,
-                                        placeholder: "thing_id",
-                                        value: "{thing_id}",
-                                        onchange: {
-                                            let tag_id = tag_id.clone();
-                                            move |evt: dioxus::events::FormEvent| {
-                                                TagsPageOps::tag_things_thing_update(
-                                                    input_diagram,
-                                                    &tag_id,
-                                                    idx,
-                                                    &evt.value(),
-                                                );
-                                            }
-                                        },
-                                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
-                                    }
-
-                                    button {
-                                        class: REMOVE_BTN,
-                                        tabindex: "-1",
-                                        "data-action": "remove",
-                                        onclick: {
-                                            let tag_id = tag_id.clone();
-                                            move |_| {
-                                                TagsPageOps::tag_things_thing_remove(
-                                                    input_diagram,
-                                                    &tag_id,
-                                                    idx,
-                                                );
-                                            }
-                                        },
-                                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
-                                        "\u{2715}"
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    button {
-                        class: ADD_BTN,
-                        tabindex: -1,
-                        onclick: {
-                            let tag_id = tag_id.clone();
-                            move |_| {
-                                TagsPageOps::tag_things_thing_add(input_diagram, &tag_id);
-                            }
-                        },
-                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
-                        "+ Add thing"
-                    }
+                TagThingsCardFieldThings {
+                    input_diagram,
+                    tag_id: tag_id.clone(),
+                    things,
                 }
             }
         }

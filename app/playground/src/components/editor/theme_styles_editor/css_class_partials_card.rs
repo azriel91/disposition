@@ -32,6 +32,7 @@ use crate::components::editor::{
         css_class_partials_card_aliases::CssClassPartialsCardAliases,
         css_class_partials_card_attrs::CssClassPartialsCardAttrs,
         css_class_partials_card_header::CssClassPartialsCardHeader,
+        css_class_partials_card_summary::CssClassPartialsCardSummary,
         theme_attr_entry::ThemeAttrEntry, ThemeStylesTarget,
     },
 };
@@ -66,7 +67,7 @@ const CSS_CARD_CLASS: &str = "\
 ";
 
 /// CSS classes for the collapsed summary header.
-const COLLAPSED_HEADER_CLASS: &str = "\
+pub(crate) const COLLAPSED_HEADER_CLASS: &str = "\
     flex \
     flex-row \
     items-center \
@@ -106,8 +107,6 @@ pub fn CssClassPartialsCard(
 
     let alias_count = style_aliases.len();
     let attr_count = theme_attrs.len();
-    let alias_suffix = if alias_count != 1 { "es" } else { "" };
-    let attr_suffix = if attr_count != 1 { "s" } else { "" };
 
     // Pre-clone `target` for closures that need their own copy, so
     // the final use inside the `rsx!` block can move the original.
@@ -165,27 +164,11 @@ pub fn CssClassPartialsCard(
 
             if *collapsed.read() {
                 // === Collapsed summary === //
-                div {
-                    class: COLLAPSED_HEADER_CLASS,
-                    onclick: move |_| collapsed.set(false),
-
-                    DragHandle {}
-
-                    // Expand chevron
-                    span {
-                        class: "text-gray-500 text-xs",
-                        ">"
-                    }
-
-                    span {
-                        class: "text-sm font-mono text-blue-400",
-                        "{entry_key}"
-                    }
-
-                    span {
-                        class: "text-xs text-gray-500",
-                        "({alias_count} alias{alias_suffix}, {attr_count} attr{attr_suffix})"
-                    }
+                CssClassPartialsCardSummary {
+                    entry_key: entry_key.clone(),
+                    alias_count,
+                    attr_count,
+                    collapsed,
                 }
             } else {
                 // === Expanded content === //

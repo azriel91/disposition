@@ -24,6 +24,7 @@ pub(crate) mod css_class_partials_card;
 pub(crate) mod css_class_partials_card_aliases;
 pub(crate) mod css_class_partials_card_attrs;
 pub(crate) mod css_class_partials_card_header;
+pub(crate) mod css_class_partials_card_summary;
 pub(crate) mod css_class_partials_snapshot;
 pub(crate) mod theme_attr_entry;
 
