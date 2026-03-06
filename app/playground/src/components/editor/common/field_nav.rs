@@ -16,6 +16,7 @@
 //! - **Alt+Up / Alt+Down**: move the entry up or down in the list.
 //! - **Alt+Shift+Up / Alt+Shift+Down**: insert a new entry before / after the
 //!   current row.
+//! - **Ctrl+Shift+K**: remove the current entry.
 //! - **Enter**: focus the first input inside the row for editing.
 //! - **Escape**: focus the parent section / tab.
 
@@ -71,6 +72,7 @@ impl FieldNav {
     /// - **Alt+Up / Alt+Down**: reorder the entry up / down.
     /// - **Alt+Shift+Up / Alt+Shift+Down**: insert a new entry before / after
     ///   the current row.
+    /// - **Ctrl+Shift+K**: remove the current entry.
     /// - **Enter**: focus the first input inside the row.
     /// - **Escape**: focus the parent section / tab.
     ///
@@ -80,17 +82,21 @@ impl FieldNav {
     ///   `"data-entry-id"`.
     /// * `index`: zero-based position of this row in its list.
     /// * `entry_count`: total number of entries in the list.
+    /// * `entry_id`: the current ID string of this row, e.g. `"thing_0"`.
     /// * `on_move`: callback to reorder `(from_index, to_index)`.
     /// * `focus_index`: signal set after a move so the container can re-focus
     ///   the row at its new position.
     /// * `on_add`: callback to insert a new entry at a given index.
+    /// * `on_remove`: callback to delete the entry by its ID string.
     pub fn div_onkeydown(
         data_attr: &'static str,
         index: usize,
         entry_count: usize,
+        entry_id: String,
         on_move: Callback<(usize, usize)>,
         mut focus_index: Signal<Option<usize>>,
         on_add: Callback<usize>,
+        on_remove: Callback<String>,
     ) -> impl FnMut(Event<KeyboardData>) {
         let can_move_up = index > 0;
         let can_move_down = index + 1 < entry_count;
@@ -116,6 +122,22 @@ impl FieldNav {
                     let insert_at = index + 1;
                     on_add.call(insert_at);
                     focus_index.set(Some(insert_at));
+                }
+
+                // === Ctrl+Shift+K: remove entry === //
+                Key::Character(ref c) if ctrl && shift && c.eq_ignore_ascii_case("k") => {
+                    evt.prevent_default();
+                    evt.stop_propagation();
+                    // Focus the next row, or previous if this is the last,
+                    // or the parent section if this is the only entry.
+                    if entry_count > 1 {
+                        if is_last {
+                            focus_index.set(Some(index - 1));
+                        } else {
+                            focus_index.set(Some(index));
+                        }
+                    }
+                    on_remove.call(entry_id.clone());
                 }
 
                 // === Alt: reorder === //

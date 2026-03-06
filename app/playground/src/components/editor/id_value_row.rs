@@ -13,6 +13,7 @@
 //! - **Alt+Up / Alt+Down**: move the entry up or down in the list.
 //! - **Alt+Shift+Up / Alt+Shift+Down**: insert a new entry before / after the
 //!   current row.
+//! - **Ctrl+Shift+K** (on row): remove the current entry.
 //! - **Enter** (on row): focus the first input inside the row for editing.
 //! - **Escape** (on row): focus the parent section / tab.
 //! - **Tab** (inside an input or remove button): cycle to the next interactive
@@ -126,9 +127,11 @@ pub fn IdValueRow(
                 DATA_ATTR,
                 index,
                 entry_count,
+                entry_id.clone(),
                 on_move,
                 focus_index,
                 on_add,
+                on_remove,
             ),
 
             // === Drag-and-drop === //
