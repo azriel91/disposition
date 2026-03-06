@@ -24,12 +24,11 @@
 //! - **Enter**: focus the input inside the thing row.
 //! - **Escape**: return focus to the parent card.
 
+mod edge_thing_row;
+
 use dioxus::{
     hooks::use_signal,
-    prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
-        ModifiersInteraction, Props,
-    },
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::{edge::EdgeKind, InputDiagram};
@@ -43,6 +42,7 @@ use crate::components::editor::{
     reorderable::{drag_border_class, DragHandle, ReorderableContainer},
 };
 
+use self::edge_thing_row::EdgeThingRow;
 use super::{
     edge_group_card_ops::EdgeGroupCardOps, EdgeGroupEntry, MapTarget, COLLAPSED_HEADER_CLASS,
     DATA_ATTR, EDGE_GROUP_CARD_CLASS, FIELD_INPUT_CLASS,
@@ -70,7 +70,7 @@ pub(crate) fn EdgeGroupCard(
     let things = entry.things.clone();
 
     // Focus-after-move state for thing reorder within this card.
-    let mut thing_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+    let thing_focus_idx: Signal<Option<usize>> = use_signal(|| None);
 
     let card_state =
         CardComponent::state_init_with_rename(index, entry_count, rename_refocus, &edge_group_id);
@@ -273,98 +273,16 @@ pub(crate) fn EdgeGroupCard(
                             {
                                 let thing_id = thing_id.clone();
                                 let edge_group_id = edge_group_id.clone();
-                                let can_move_up = idx > 0;
-                                let can_move_down = idx + 1 < thing_count;
                                 rsx! {
-                                    div {
+                                    EdgeThingRow {
                                         key: "{edge_group_id}_{idx}",
-                                        class: ROW_CLASS_SIMPLE,
-                                        "data-edge-thing-row": "",
-
-                                        span {
-                                            class: "text-xs text-gray-500 w-6 text-right",
-                                            "{idx}."
-                                        }
-
-                                        input {
-                                            class: FIELD_INPUT_CLASS,
-                                            style: "max-width:14rem",
-                                            tabindex: "-1",
-                                            list: list_ids::THING_IDS,
-                                            placeholder: "thing_id",
-                                            value: "{thing_id}",
-                                            onchange: {
-                                                let edge_group_id = edge_group_id.clone();
-                                                move |evt: dioxus::events::FormEvent| {
-                                                    let thing_id_new = evt.value();
-                                                    EdgeGroupCardOps::edge_thing_update(
-                                                        input_diagram,
-                                                        target,
-                                                        &edge_group_id,
-                                                        idx,
-                                                        &thing_id_new,
-                                                    );
-                                                }
-                                            },
-                                            onkeydown: {
-                                                let edge_group_id = edge_group_id.clone();
-                                                move |evt: dioxus::events::KeyboardEvent| {
-                                                    let alt = evt.modifiers().alt();
-                                                    match evt.key() {
-                                                        Key::ArrowUp if alt => {
-                                                            evt.prevent_default();
-                                                            evt.stop_propagation();
-                                                            if can_move_up {
-                                                                EdgeGroupCardOps::edge_thing_move(
-                                                                    input_diagram,
-                                                                    target,
-                                                                    &edge_group_id,
-                                                                    idx,
-                                                                    idx - 1,
-                                                                );
-                                                                thing_focus_idx.set(Some(idx - 1));
-                                                            }
-                                                        }
-                                                        Key::ArrowDown if alt => {
-                                                            evt.prevent_default();
-                                                            evt.stop_propagation();
-                                                            if can_move_down {
-                                                                EdgeGroupCardOps::edge_thing_move(
-                                                                    input_diagram,
-                                                                    target,
-                                                                    &edge_group_id,
-                                                                    idx,
-                                                                    idx + 1,
-                                                                );
-                                                                thing_focus_idx.set(Some(idx + 1));
-                                                            }
-                                                        }
-                                                        _ => {
-                                                            crate::components::editor::keyboard_nav::field_keydown(evt, DATA_ATTR);
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                        }
-
-                                        button {
-                                            class: REMOVE_BTN,
-                                            tabindex: "-1",
-                                            "data-action": "remove",
-                                            onclick: {
-                                                let edge_group_id = edge_group_id.clone();
-                                                move |_| {
-                                                    EdgeGroupCardOps::edge_thing_remove(
-                                                        input_diagram,
-                                                        target,
-                                                        &edge_group_id,
-                                                        idx,
-                                                    );
-                                                }
-                                            },
-                                            onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
-                                            "x"
-                                        }
+                                        input_diagram,
+                                        target,
+                                        edge_group_id,
+                                        thing_id: thing_id.to_string(),
+                                        index: idx,
+                                        thing_count,
+                                        thing_focus_idx,
                                     }
                                 }
                             }
