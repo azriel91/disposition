@@ -282,6 +282,33 @@ impl EdgeGroupCardOps {
         }
     }
 
+    /// Moves a thing within an edge group from one index to another.
+    pub(crate) fn edge_thing_move(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        target: MapTarget,
+        edge_group_id_str: &str,
+        from: usize,
+        to: usize,
+    ) {
+        let edge_group_id = match parse_edge_group_id(edge_group_id_str) {
+            Some(edge_group_id) => edge_group_id,
+            None => return,
+        };
+
+        let mut input_diagram = input_diagram.write();
+        let edge_group = match target {
+            MapTarget::Dependencies => input_diagram.thing_dependencies.get_mut(&edge_group_id),
+            MapTarget::Interactions => input_diagram.thing_interactions.get_mut(&edge_group_id),
+        };
+        if let Some(edge_group) = edge_group {
+            let len = edge_group.things.len();
+            if from < len && to < len && from != to {
+                let thing = edge_group.things.remove(from);
+                edge_group.things.insert(to, thing);
+            }
+        }
+    }
+
     /// Adds a thing to an edge group, using the first existing thing ID as a
     /// placeholder.
     pub(crate) fn edge_thing_add(

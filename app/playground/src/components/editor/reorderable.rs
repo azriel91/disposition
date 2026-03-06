@@ -143,6 +143,11 @@ pub fn is_rename_target(rename_refocus: Signal<Option<RenameRefocus>>, entry_id:
 /// * `focus_index`: when set to `Some(idx)`, the entry at child index `idx`
 ///   (counting only children that have `data_attr`) receives focus after the
 ///   next DOM update.
+/// * `focus_inner_selector`: optional CSS selector, e.g. `"input"`. When set,
+///   post-reorder focus targets the first element matching this selector
+///   *inside* the entry rather than the entry itself. Useful when entries are
+///   not independently focusable but contain a focusable child (e.g. thing rows
+///   inside an edge group card).
 /// * `data_id_attr`: optional `data-*` attribute name that holds the entry's ID
 ///   value, e.g. `"data-entry-id"`. Required when `rename_refocus` is provided.
 ///   Used to locate the newly created entry after an ID rename.
@@ -158,6 +163,7 @@ pub fn ReorderableContainer(
     data_attr: String,
     section_id: String,
     mut focus_index: Signal<Option<usize>>,
+    #[props(default)] focus_inner_selector: Option<String>,
     #[props(default)] data_id_attr: Option<String>,
     #[props(default)] mut rename_refocus: Option<Signal<Option<RenameRefocus>>>,
     children: Element,
@@ -165,10 +171,20 @@ pub fn ReorderableContainer(
     // === Post-reorder focus effect === //
     let section_id_focus = section_id.clone();
     let data_attr_focus = data_attr.clone();
+    let focus_inner_selector_clone = focus_inner_selector.clone();
 
     use_effect(move || {
         if let Some(idx) = focus_index() {
             focus_index.set(None);
+
+            let focus_js = match focus_inner_selector_clone.as_deref() {
+                Some(sel) => format!(
+                    "let inner = entries[{idx}].querySelector('{sel}');\
+                     if (inner) {{ inner.focus(); }} else {{ entries[{idx}].focus(); }}"
+                ),
+                None => format!("entries[{idx}].focus();"),
+            };
+
             document::eval(&format!(
                 "setTimeout(() => {{\
                     let container = document.querySelector(\
@@ -178,7 +194,7 @@ pub fn ReorderableContainer(
                     let entries = Array.from(\
                         container.querySelectorAll('[{data_attr_focus}]')\
                     );\
-                    if (entries[{idx}]) entries[{idx}].focus();\
+                    if (entries[{idx}]) {{ {focus_js} }}\
                 }}, 0)"
             ));
         }
