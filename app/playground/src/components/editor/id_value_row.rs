@@ -11,6 +11,8 @@
 //! - **Up / Down** (on row): move focus to the previous / next row.
 //! - **Ctrl+Up / Ctrl+Down** (on row): jump to the first / last row.
 //! - **Alt+Up / Alt+Down**: move the entry up or down in the list.
+//! - **Alt+Shift+Up / Alt+Shift+Down**: insert a new entry before / after the
+//!   current row.
 //! - **Enter** (on row): focus the first input inside the row for editing.
 //! - **Escape** (on row): focus the parent section / tab.
 //! - **Tab** (inside an input or remove button): cycle to the next interactive
@@ -30,11 +32,9 @@
 //! the DOM update.
 
 use dioxus::{
-    document,
     hooks::use_signal,
     prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Callback, Element, Key,
-        ModifiersInteraction, Props,
+        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Callback, Element, Props,
     },
     signals::{ReadableExt, Signal, WritableExt},
 };
@@ -44,7 +44,6 @@ use crate::components::editor::{
         FieldNav, RenameRefocus, RenameRefocusTarget, ID_INPUT_CLASS, INPUT_CLASS, REMOVE_BTN,
         ROW_CLASS,
     },
-    keyboard_nav,
     reorderable::{drag_border_class, DragHandle},
 };
 
@@ -52,37 +51,9 @@ use crate::components::editor::{
 
 /// The `data-*` attribute placed on each `IdValueRow` wrapper.
 ///
-/// Used by [`keyboard_nav`] helpers to locate the nearest ancestor row.
+/// Used by [`keyboard_nav`](crate::components::editor::keyboard_nav) helpers
+/// to locate the nearest ancestor row.
 const DATA_ATTR: &str = "data-entry-id";
-
-// === JS focus helpers (row-specific) === //
-
-/// Move focus to the previous sibling row.
-const JS_FOCUS_PREV_ROW: &str = "\
-    document.activeElement\
-        ?.previousElementSibling\
-        ?.focus()";
-
-/// From the current row, walk forwards through the container's following
-/// siblings to find a focusable element. First checks for a next sibling
-/// row, then walks to the container's next siblings.
-const JS_FOCUS_AFTER_CONTAINER: &str = "\
-    (() => {\
-        let row = document.activeElement;\
-        if (!row) return;\
-        let nextRow = row.nextElementSibling;\
-        if (nextRow) { nextRow.focus(); return; }\
-        let container = row.parentElement;\
-        if (!container) return;\
-        let next = container.nextElementSibling;\
-        while (next) {\
-            if (next.tabIndex >= 0) {\
-                next.focus();\
-                return;\
-            }\
-            next = next.nextElementSibling;\
-        }\
-    })()";
 
 // === IdValueRow component === //
 
@@ -90,7 +61,7 @@ const JS_FOCUS_AFTER_CONTAINER: &str = "\
 ///
 /// The row renders a drag handle, an ID input, a value input, and a remove
 /// button with unified keyboard and drag-and-drop behaviour. Callers
-/// supply callbacks for the four mutation operations that differ between
+/// supply callbacks for the five mutation operations that differ between
 /// pages.
 ///
 /// # Callbacks
@@ -99,6 +70,7 @@ const JS_FOCUS_AFTER_CONTAINER: &str = "\
 /// * `on_rename(id_old, id_new)`: change the entry key.
 /// * `on_update(id, value)`: change the entry value.
 /// * `on_remove(id)`: delete the entry.
+/// * `on_add(index)`: insert a new entry at `index`.
 ///
 /// # Props
 ///
@@ -126,20 +98,15 @@ pub fn IdValueRow(
     entry_count: usize,
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
-    mut focus_index: Signal<Option<usize>>,
+    focus_index: Signal<Option<usize>>,
     mut rename_refocus: Signal<Option<RenameRefocus>>,
     on_move: Callback<(usize, usize)>,
     on_rename: Callback<(String, String)>,
     on_update: Callback<(String, String)>,
     on_remove: Callback<String>,
+    on_add: Callback<usize>,
 ) -> Element {
     let border_class = drag_border_class(drag_index, drop_target, index);
-
-    let can_move_up = index > 0;
-    let can_move_down = index + 1 < entry_count;
-
-    let is_first = index == 0;
-    let is_last = index + 1 >= entry_count;
 
     // Tracks which refocus target the next ID rename should use.
     // - `IdInput`: Enter or blur triggered the rename.
@@ -155,68 +122,14 @@ pub fn IdValueRow(
             "data-entry-id": "{entry_id}",
 
             // === Keyboard shortcuts (row-level) === //
-            onkeydown: move |evt| {
-                let alt = evt.modifiers().alt();
-                let ctrl = evt.modifiers().ctrl();
-
-                match evt.key() {
-                    Key::ArrowUp if alt => {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        if can_move_up {
-                            on_move.call((index, index - 1));
-                            focus_index.set(Some(index - 1));
-                        }
-                    }
-                    Key::ArrowDown if alt => {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        if can_move_down {
-                            on_move.call((index, index + 1));
-                            focus_index.set(Some(index + 1));
-                        }
-                    }
-                    Key::ArrowUp if ctrl => {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        if !is_first {
-                            document::eval(&keyboard_nav::js_focus_first_entry(DATA_ATTR));
-                        }
-                    }
-                    Key::ArrowDown if ctrl => {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        if !is_last {
-                            document::eval(&keyboard_nav::js_focus_last_entry(DATA_ATTR));
-                        }
-                    }
-                    Key::ArrowUp => {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        if !is_first {
-                            document::eval(JS_FOCUS_PREV_ROW);
-                        }
-                    }
-                    Key::ArrowDown => {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        if !is_last {
-                            document::eval(JS_FOCUS_AFTER_CONTAINER);
-                        }
-                    }
-                    Key::Escape => {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        document::eval(keyboard_nav::JS_FOCUS_PARENT_SECTION);
-                    }
-                    Key::Enter => {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        document::eval(&keyboard_nav::js_focus_first_field());
-                    }
-                    _ => {}
-                }
-            },
+            onkeydown: FieldNav::div_onkeydown(
+                DATA_ATTR,
+                index,
+                entry_count,
+                on_move,
+                focus_index,
+                on_add,
+            ),
 
             // === Drag-and-drop === //
             ondragstart: move |_| {

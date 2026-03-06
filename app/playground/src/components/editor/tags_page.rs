@@ -201,6 +201,10 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                                 on_remove: move |id: String| {
                                     TagsPageOps::tag_remove(input_diagram, &id);
                                 },
+                                on_add: move |insert_at: usize| {
+                                    TagsPageOps::tag_add(input_diagram);
+                                    TagsPageOps::tag_move(input_diagram, tag_count, insert_at);
+                                },
                             }
                         }
                     }

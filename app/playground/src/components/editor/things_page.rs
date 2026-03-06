@@ -95,6 +95,10 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                                 on_remove: move |id: String| {
                                     ThingsPageOps::thing_remove(input_diagram, &id);
                                 },
+                                on_add: move |insert_at: usize| {
+                                    ThingsPageOps::thing_add(input_diagram);
+                                    ThingsPageOps::thing_move(input_diagram, thing_count, insert_at);
+                                },
                             }
                         }
                     }
@@ -193,6 +197,10 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                                 },
                                 on_remove: move |id: String| {
                                     ThingsPageOps::kv_entry_remove(input_diagram, on_change, &id);
+                                },
+                                on_add: move |insert_at: usize| {
+                                    ThingsPageOps::copy_text_add(input_diagram);
+                                    ThingsPageOps::kv_entry_move(input_diagram, on_change, copy_text_count, insert_at);
                                 },
                             }
                         }
@@ -293,6 +301,10 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
                                 on_remove: move |id: String| {
                                     ThingsPageOps::kv_entry_remove(input_diagram, on_change, &id);
                                 },
+                                on_add: move |insert_at: usize| {
+                                    ThingsPageOps::entity_desc_add(input_diagram);
+                                    ThingsPageOps::kv_entry_move(input_diagram, on_change, desc_count, insert_at);
+                                },
                             }
                         }
                     }
@@ -390,6 +402,10 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
                                 },
                                 on_remove: move |id: String| {
                                     ThingsPageOps::kv_entry_remove(input_diagram, on_change, &id);
+                                },
+                                on_add: move |insert_at: usize| {
+                                    ThingsPageOps::entity_tooltip_add(input_diagram);
+                                    ThingsPageOps::kv_entry_move(input_diagram, on_change, tooltip_count, insert_at);
                                 },
                             }
                         }
