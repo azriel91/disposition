@@ -1,6 +1,7 @@
 //! Collapsed summary row for a [`CssClassPartialsCard`].
 //!
-//! Extracted from [`CssClassPartialsCard`] to keep the parent component concise.
+//! Extracted from [`CssClassPartialsCard`] to keep the parent component
+//! concise.
 //!
 //! [`CssClassPartialsCard`]: super::css_class_partials_card::CssClassPartialsCard
 
