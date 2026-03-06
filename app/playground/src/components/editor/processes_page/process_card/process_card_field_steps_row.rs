@@ -2,16 +2,22 @@
 //!
 //! Extracted from [`ProcessCard`] to keep the parent component concise.
 //!
+//! Keyboard shortcuts (on the inputs):
+//!
+//! - **Alt+Up / Alt+Down**: move the step up or down in the list.
+//! - All other keys fall through to the standard field navigation
+//!   (`field_keydown` with the card-level data attribute).
+//!
 //! [`ProcessCard`]: super::ProcessCard
 
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::Signal,
+    signals::{Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
 
 use crate::components::editor::{
-    common::{FieldNav, REMOVE_BTN, ROW_CLASS_SIMPLE},
+    common::{CardComponent, FieldNav, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
     processes_page::{process_card_ops::ProcessCardOps, DATA_ATTR, FIELD_INPUT_CLASS},
 };
@@ -19,17 +25,29 @@ use crate::components::editor::{
 /// A single step row within the steps section of a process card.
 ///
 /// Displays a step ID input, a step label input, and a remove button for
-/// one entry in the process's step list.
+/// one entry in the process's step list. Supports Alt+Up/Down reordering.
 #[component]
 pub(crate) fn ProcessCardFieldStepsRow(
     input_diagram: Signal<InputDiagram<'static>>,
     process_id: String,
     step_id: String,
     step_label: String,
+    index: usize,
+    step_count: usize,
+    mut step_focus_idx: Signal<Option<usize>>,
 ) -> Element {
+    let can_move_up = index > 0;
+    let can_move_down = index + 1 < step_count;
+
     rsx! {
         div {
             class: ROW_CLASS_SIMPLE,
+            "data-process-step-row": "",
+
+            span {
+                class: "text-xs text-gray-500 w-6 text-right",
+                "{index}."
+            }
 
             input {
                 class: FIELD_INPUT_CLASS,
@@ -45,7 +63,33 @@ pub(crate) fn ProcessCardFieldStepsRow(
                         ProcessCardOps::step_rename(input_diagram, &process_id, &step_id_old, &evt.value());
                     }
                 },
-                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
+                onkeydown: {
+                    let process_id = process_id.clone();
+                    let process_id_down = process_id.clone();
+                    CardComponent::field_onkeydown(
+                        DATA_ATTR,
+                        can_move_up,
+                        can_move_down,
+                        move || {
+                            ProcessCardOps::step_move(
+                                input_diagram,
+                                &process_id,
+                                index,
+                                index - 1,
+                            );
+                            step_focus_idx.set(Some(index - 1));
+                        },
+                        move || {
+                            ProcessCardOps::step_move(
+                                input_diagram,
+                                &process_id_down,
+                                index,
+                                index + 1,
+                            );
+                            step_focus_idx.set(Some(index + 1));
+                        },
+                    )
+                },
             }
 
             input {
@@ -60,7 +104,33 @@ pub(crate) fn ProcessCardFieldStepsRow(
                         ProcessCardOps::step_label_update(input_diagram, &process_id, &step_id, &evt.value());
                     }
                 },
-                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
+                onkeydown: {
+                    let process_id = process_id.clone();
+                    let process_id_down = process_id.clone();
+                    CardComponent::field_onkeydown(
+                        DATA_ATTR,
+                        can_move_up,
+                        can_move_down,
+                        move || {
+                            ProcessCardOps::step_move(
+                                input_diagram,
+                                &process_id,
+                                index,
+                                index - 1,
+                            );
+                            step_focus_idx.set(Some(index - 1));
+                        },
+                        move || {
+                            ProcessCardOps::step_move(
+                                input_diagram,
+                                &process_id_down,
+                                index,
+                                index + 1,
+                            );
+                            step_focus_idx.set(Some(index + 1));
+                        },
+                    )
+                },
             }
 
             button {
@@ -75,7 +145,7 @@ pub(crate) fn ProcessCardFieldStepsRow(
                     }
                 },
                 onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
-                "\u{2715}"
+                "x"
             }
         }
     }

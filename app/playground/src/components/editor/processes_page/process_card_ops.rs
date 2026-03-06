@@ -16,6 +16,32 @@ pub(crate) struct ProcessCardOps;
 impl ProcessCardOps {
     // === Step helpers === //
 
+    /// Moves a step within a process from one index to another.
+    ///
+    /// Uses `IndexMap::move_index` on the process's `steps` map to
+    /// reposition the entry while preserving all other entries.
+    ///
+    /// # Parameters
+    ///
+    /// * `input_diagram`: the diagram signal to mutate.
+    /// * `process_id_str`: the process ID string, e.g. `"proc_app_dev"`.
+    /// * `from`: the current index of the step.
+    /// * `to`: the desired index of the step.
+    pub(crate) fn step_move(
+        mut input_diagram: Signal<InputDiagram<'static>>,
+        process_id_str: &str,
+        from: usize,
+        to: usize,
+    ) {
+        let process_id = match parse_process_id(process_id_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        if let Some(process_diagram) = input_diagram.write().processes.get_mut(&process_id) {
+            process_diagram.steps.move_index(from, to);
+        }
+    }
+
     /// Adds a new step to a process with a unique placeholder step ID.
     pub(crate) fn step_add(mut input_diagram: Signal<InputDiagram<'static>>, process_id_str: &str) {
         let process_id = match parse_process_id(process_id_str) {
