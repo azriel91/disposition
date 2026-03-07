@@ -6,13 +6,14 @@
 
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::Signal,
+    signals::{Signal, WritableExt},
 };
 use disposition::input_model::{edge::EdgeKind, thing::ThingId, InputDiagram};
+use disposition_input_rt::{EdgeGroupCardOps, MapTarget};
 
 use crate::components::editor::{
     common::{FieldNav, LABEL_CLASS, SELECT_CLASS},
-    thing_dependencies_page::{edge_group_card_ops::EdgeGroupCardOps, MapTarget, DATA_ATTR},
+    thing_dependencies_page::DATA_ATTR,
 };
 
 /// Edge kind selector (Cyclic / Sequence / Symmetric).
@@ -44,7 +45,7 @@ pub(crate) fn EdgeGroupCardFieldKind(
                         let kind_str = evt.value();
                         if let Ok(edge_kind_new) = kind_str.parse::<EdgeKind>() {
                             EdgeGroupCardOps::edge_kind_change(
-                                input_diagram,
+                                &mut input_diagram.write(),
                                 target,
                                 &edge_group_id,
                                 edge_kind_new,

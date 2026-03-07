@@ -12,21 +12,21 @@
 //! - [`edge_group_card_ops`]: mutation helpers for edge group entries.
 
 pub(crate) mod edge_group_card;
-pub(crate) mod edge_group_card_ops;
 
 use dioxus::{
     hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{ReadableExt, Signal},
+    signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::{edge::EdgeKind, thing::ThingId, InputDiagram};
+use disposition_input_rt::{EdgeGroupCardOps, MapTarget};
 
 use crate::components::editor::{
     common::{RenameRefocus, ADD_BTN, INPUT_CLASS, SECTION_HEADING},
     reorderable::ReorderableContainer,
 };
 
-use self::{edge_group_card::EdgeGroupCard, edge_group_card_ops::EdgeGroupCardOps};
+use self::edge_group_card::EdgeGroupCard;
 
 /// Serialised snapshot of one edge group entry for rendering.
 #[derive(Clone, PartialEq)]
@@ -34,26 +34,6 @@ pub(crate) struct EdgeGroupEntry {
     pub(crate) edge_group_id: String,
     pub(crate) edge_kind: EdgeKind,
     pub(crate) things: Vec<ThingId<'static>>,
-}
-
-// === Shared types === //
-
-/// Which map inside `InputDiagram` we are editing.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum MapTarget {
-    Dependencies,
-    Interactions,
-}
-
-impl MapTarget {
-    /// Converts to the framework-agnostic
-    /// [`disposition_input_rt::MapTarget`].
-    pub(crate) fn into_rt(self) -> disposition_input_rt::MapTarget {
-        match self {
-            MapTarget::Dependencies => disposition_input_rt::MapTarget::Dependencies,
-            MapTarget::Interactions => disposition_input_rt::MapTarget::Interactions,
-        }
-    }
 }
 
 // === Edge group card constants === //
@@ -180,7 +160,7 @@ pub fn ThingDependenciesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                 class: ADD_BTN,
                 tabindex: 0,
                 onclick: move |_| {
-                    EdgeGroupCardOps::edge_group_add(input_diagram, MapTarget::Dependencies);
+                    EdgeGroupCardOps::edge_group_add(&mut input_diagram.write(), MapTarget::Dependencies);
                 },
                 "+ Add dependency edge group"
             }
@@ -267,7 +247,7 @@ pub fn ThingInteractionsPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                 class: ADD_BTN,
                 tabindex: 0,
                 onclick: move |_| {
-                    EdgeGroupCardOps::edge_group_add(input_diagram, MapTarget::Interactions);
+                    EdgeGroupCardOps::edge_group_add(&mut input_diagram.write(), MapTarget::Interactions);
                 },
                 "+ Add interaction edge group"
             }

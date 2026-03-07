@@ -19,14 +19,13 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::{EdgeGroupCardOps, MapTarget};
 
 use crate::components::editor::{
     common::{CardComponent, FieldNav, REMOVE_BTN, ROW_CLASS},
     datalists::list_ids,
     reorderable::{drag_border_class, DragHandle},
-    thing_dependencies_page::{
-        edge_group_card_ops::EdgeGroupCardOps, MapTarget, DATA_ATTR, FIELD_INPUT_CLASS,
-    },
+    thing_dependencies_page::{DATA_ATTR, FIELD_INPUT_CLASS},
 };
 
 /// A single thing-ID row inside the things field of an edge group card.
@@ -71,7 +70,7 @@ pub(crate) fn EdgeGroupCardFieldThingsRow(
                         && from != index
                     {
                         EdgeGroupCardOps::edge_thing_move(
-                            input_diagram,
+                            &mut input_diagram.write(),
                             target,
                             &edge_group_id,
                             from,
@@ -106,7 +105,7 @@ pub(crate) fn EdgeGroupCardFieldThingsRow(
                     move |evt: dioxus::events::FormEvent| {
                         let thing_id_new = evt.value();
                         EdgeGroupCardOps::edge_thing_update(
-                            input_diagram,
+                            &mut input_diagram.write(),
                             target,
                             &edge_group_id,
                             index,
@@ -123,7 +122,7 @@ pub(crate) fn EdgeGroupCardFieldThingsRow(
                         can_move_down,
                         move || {
                             EdgeGroupCardOps::edge_thing_move(
-                                input_diagram,
+                                &mut input_diagram.write(),
                                 target,
                                 &edge_group_id,
                                 index,
@@ -133,7 +132,7 @@ pub(crate) fn EdgeGroupCardFieldThingsRow(
                         },
                         move || {
                             EdgeGroupCardOps::edge_thing_move(
-                                input_diagram,
+                                &mut input_diagram.write(),
                                 target,
                                 &edge_group_id_down,
                                 index,
@@ -153,7 +152,7 @@ pub(crate) fn EdgeGroupCardFieldThingsRow(
                     let edge_group_id = edge_group_id.clone();
                     move |_| {
                         EdgeGroupCardOps::edge_thing_remove(
-                            input_diagram,
+                            &mut input_diagram.write(),
                             target,
                             &edge_group_id,
                             index,

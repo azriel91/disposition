@@ -17,24 +17,22 @@
 //!   entries.
 
 pub(crate) mod process_card;
-pub(crate) mod process_card_ops;
-pub(crate) mod processes_page_ops;
 pub(crate) mod step_interaction_card;
-pub(crate) mod step_interaction_card_ops;
 
 use dioxus::{
     hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{ReadableExt, Signal},
+    signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::ProcessesPageOps;
 
 use crate::components::editor::{
     common::{RenameRefocus, ADD_BTN, INPUT_CLASS, SECTION_HEADING},
     reorderable::ReorderableContainer,
 };
 
-use self::{process_card::ProcessCard, processes_page_ops::ProcessesPageOps};
+use self::process_card::ProcessCard;
 
 /// Snapshot of a single process for rendering.
 #[derive(Clone, PartialEq)]
@@ -187,7 +185,7 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 class: ADD_BTN,
                 tabindex: 0,
                 onclick: move |_| {
-                    ProcessesPageOps::process_add(input_diagram);
+                    ProcessesPageOps::process_add(&mut input_diagram.write());
                 },
                 "+ Add process"
             }

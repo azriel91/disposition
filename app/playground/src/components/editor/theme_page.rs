@@ -11,7 +11,6 @@
 //! - Additional CSS (`css`)
 
 pub(crate) mod style_aliases_section;
-pub(crate) mod style_aliases_section_ops;
 pub(crate) mod tag_focus_section;
 pub(crate) mod types_styles_section;
 

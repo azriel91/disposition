@@ -9,13 +9,12 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::{EdgeGroupCardOps, MapTarget};
 
 use crate::components::editor::{
     common::{FieldNav, RenameRefocus, RenameRefocusTarget, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
-    thing_dependencies_page::{
-        edge_group_card_ops::EdgeGroupCardOps, MapTarget, DATA_ATTR, FIELD_INPUT_CLASS,
-    },
+    thing_dependencies_page::{DATA_ATTR, FIELD_INPUT_CLASS},
 };
 
 /// Edge group ID input and remove button.
@@ -47,7 +46,7 @@ pub(crate) fn EdgeGroupCardFieldId(
                         let id_new = evt.value();
                         let target = *rename_target.read();
                         EdgeGroupCardOps::edge_group_rename(
-                            input_diagram,
+                            &mut input_diagram.write(),
                             &edge_group_id_old,
                             &id_new,
                         );
@@ -67,7 +66,7 @@ pub(crate) fn EdgeGroupCardFieldId(
                 onclick: {
                     let edge_group_id = edge_group_id.clone();
                     move |_| {
-                        EdgeGroupCardOps::edge_group_remove(input_diagram, target, &edge_group_id);
+                        EdgeGroupCardOps::edge_group_remove(&mut input_diagram.write(), target, &edge_group_id);
                     }
                 },
                 onkeydown: FieldNav::value_onkeydown(DATA_ATTR),

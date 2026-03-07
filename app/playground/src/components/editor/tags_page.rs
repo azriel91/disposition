@@ -35,14 +35,14 @@
 //! - [`tags_page_ops`]: mutation helpers for the page-level tag maps.
 
 pub(crate) mod tag_things_card;
-pub(crate) mod tags_page_ops;
 
 use dioxus::{
     hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{ReadableExt, Signal},
+    signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::TagsPageOps;
 
 use crate::components::editor::{
     common::{RenameRefocus, ADD_BTN, INPUT_CLASS, SECTION_HEADING},
@@ -51,7 +51,7 @@ use crate::components::editor::{
     reorderable::ReorderableContainer,
 };
 
-use self::{tag_things_card::TagThingsCard, tags_page_ops::TagsPageOps};
+use self::tag_things_card::TagThingsCard;
 
 // === TagThingsCard constants === //
 
@@ -190,20 +190,20 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                                 focus_index: tag_name_focus_idx,
                                 rename_refocus: tag_name_rename_refocus,
                                 on_move: move |(from, to)| {
-                                    TagsPageOps::tag_move(input_diagram, from, to);
+                                    TagsPageOps::tag_move(&mut input_diagram.write(), from, to);
                                 },
                                 on_rename: move |(id_old, id_new): (String, String)| {
-                                    TagsPageOps::tag_rename(input_diagram, &id_old, &id_new);
+                                    TagsPageOps::tag_rename(&mut input_diagram.write(), &id_old, &id_new);
                                 },
                                 on_update: move |(id, value): (String, String)| {
-                                    TagsPageOps::tag_name_update(input_diagram, &id, &value);
+                                    TagsPageOps::tag_name_update(&mut input_diagram.write(), &id, &value);
                                 },
                                 on_remove: move |id: String| {
-                                    TagsPageOps::tag_remove(input_diagram, &id);
+                                    TagsPageOps::tag_remove(&mut input_diagram.write(), &id);
                                 },
                                 on_add: move |insert_at: usize| {
-                                    TagsPageOps::tag_add(input_diagram);
-                                    TagsPageOps::tag_move(input_diagram, tag_count, insert_at);
+                                    TagsPageOps::tag_add(&mut input_diagram.write());
+                                    TagsPageOps::tag_move(&mut input_diagram.write(), tag_count, insert_at);
                                 },
                             }
                         }
@@ -215,7 +215,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 class: ADD_BTN,
                 tabindex: 0,
                 onclick: move |_| {
-                    TagsPageOps::tag_add(input_diagram);
+                    TagsPageOps::tag_add(&mut input_diagram.write());
                 },
                 "+ Add tag"
             }
@@ -260,7 +260,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 class: ADD_BTN,
                 tabindex: 0,
                 onclick: move |_| {
-                    TagsPageOps::tag_things_entry_add(input_diagram);
+                    TagsPageOps::tag_things_entry_add(&mut input_diagram.write());
                 },
                 "+ Add tag -> things mapping"
             }

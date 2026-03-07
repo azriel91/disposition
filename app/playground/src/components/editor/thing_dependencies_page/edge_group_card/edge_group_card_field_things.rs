@@ -7,16 +7,16 @@
 use dioxus::{
     hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::Signal,
+    signals::{Signal, WritableExt},
 };
 use disposition::input_model::{thing::ThingId, InputDiagram};
+use disposition_input_rt::{EdgeGroupCardOps, MapTarget};
 
 use crate::components::editor::{
     common::{FieldNav, ADD_BTN, LABEL_CLASS},
     reorderable::ReorderableContainer,
     thing_dependencies_page::{
-        edge_group_card::edge_group_card_field_things_row::EdgeGroupCardFieldThingsRow,
-        edge_group_card_ops::EdgeGroupCardOps, MapTarget, DATA_ATTR,
+        edge_group_card::edge_group_card_field_things_row::EdgeGroupCardFieldThingsRow, DATA_ATTR,
     },
 };
 
@@ -76,7 +76,11 @@ pub(crate) fn EdgeGroupCardFieldThings(
                 onclick: {
                     let edge_group_id = edge_group_id.clone();
                     move |_| {
-                        EdgeGroupCardOps::edge_thing_add(input_diagram, target, &edge_group_id);
+                        EdgeGroupCardOps::edge_thing_add(
+                            &mut input_diagram.write(),
+                            target,
+                            &edge_group_id,
+                        );
                     }
                 },
                 onkeydown: FieldNav::value_onkeydown(DATA_ATTR),

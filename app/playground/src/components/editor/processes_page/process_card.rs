@@ -30,12 +30,11 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::ProcessesPageOps;
 
 use crate::components::editor::{
     common::{CardComponent, RenameRefocus},
-    processes_page::{
-        processes_page_ops::ProcessesPageOps, ProcessEntry, DATA_ATTR, PROCESS_CARD_CLASS,
-    },
+    processes_page::{ProcessEntry, DATA_ATTR, PROCESS_CARD_CLASS},
     reorderable::{drag_border_class, DragHandle},
 };
 
@@ -97,11 +96,11 @@ pub(crate) fn ProcessCard(
                 DATA_ATTR,
                 card_state,
                 move || {
-                    ProcessesPageOps::process_move(input_diagram, index, index - 1);
+                    ProcessesPageOps::process_move(&mut input_diagram.write(), index, index - 1);
                     focus_index.set(Some(index - 1));
                 },
                 move || {
-                    ProcessesPageOps::process_move(input_diagram, index, index + 1);
+                    ProcessesPageOps::process_move(&mut input_diagram.write(), index, index + 1);
                     focus_index.set(Some(index + 1));
                 },
             ),
@@ -119,7 +118,7 @@ pub(crate) fn ProcessCard(
                 if let Some(from) = *drag_index.read()
                     && from != index
                 {
-                    ProcessesPageOps::process_move(input_diagram, from, index);
+                    ProcessesPageOps::process_move(&mut input_diagram.write(), from, index);
                 }
                 drag_index.set(None);
                 drop_target.set(None);

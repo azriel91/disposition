@@ -34,10 +34,12 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::{EdgeGroupCardOps, MapTarget};
 
 use crate::components::editor::{
     common::{CardComponent, RenameRefocus},
     reorderable::{drag_border_class, DragHandle},
+    thing_dependencies_page::{EdgeGroupEntry, DATA_ATTR, EDGE_GROUP_CARD_CLASS},
 };
 
 use self::{
@@ -45,10 +47,6 @@ use self::{
     edge_group_card_field_kind::EdgeGroupCardFieldKind,
     edge_group_card_field_things::EdgeGroupCardFieldThings,
     edge_group_card_summary::EdgeGroupCardSummary,
-};
-use super::{
-    edge_group_card_ops::EdgeGroupCardOps, EdgeGroupEntry, MapTarget, DATA_ATTR,
-    EDGE_GROUP_CARD_CLASS,
 };
 
 /// A collapsible card for editing a single edge group.
@@ -99,11 +97,21 @@ pub(crate) fn EdgeGroupCard(
                 DATA_ATTR,
                 card_state,
                 move || {
-                    EdgeGroupCardOps::edge_group_move(input_diagram, target, index, index - 1);
+                    EdgeGroupCardOps::edge_group_move(
+                        &mut input_diagram.write(),
+                        target,
+                        index,
+                        index - 1,
+                    );
                     focus_index.set(Some(index - 1));
                 },
                 move || {
-                    EdgeGroupCardOps::edge_group_move(input_diagram, target, index, index + 1);
+                    EdgeGroupCardOps::edge_group_move(
+                        &mut input_diagram.write(),
+                        target,
+                        index,
+                        index + 1,
+                    );
                     focus_index.set(Some(index + 1));
                 },
             ),
@@ -121,7 +129,12 @@ pub(crate) fn EdgeGroupCard(
                 if let Some(from) = *drag_index.read()
                     && from != index
                 {
-                    EdgeGroupCardOps::edge_group_move(input_diagram, target, from, index);
+                    EdgeGroupCardOps::edge_group_move(
+                        &mut input_diagram.write(),
+                        target,
+                        from,
+                        index,
+                    );
                 }
                 drag_index.set(None);
                 drop_target.set(None);

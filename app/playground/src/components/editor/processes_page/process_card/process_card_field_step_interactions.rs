@@ -6,15 +6,14 @@
 
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::Signal,
+    signals::{Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::ProcessCardOps;
 
 use crate::components::editor::{
     common::{FieldNav, ADD_BTN},
-    processes_page::{
-        process_card_ops::ProcessCardOps, step_interaction_card::StepInteractionCard, DATA_ATTR,
-    },
+    processes_page::{step_interaction_card::StepInteractionCard, DATA_ATTR},
 };
 
 /// Step thing-interactions list with per-step cards and an "add" button.
@@ -60,7 +59,7 @@ pub(crate) fn ProcessCardFieldStepInteractions(
                 onclick: {
                     let process_id = process_id.clone();
                     move |_| {
-                        ProcessCardOps::step_interaction_add(input_diagram, &process_id);
+                        ProcessCardOps::step_interaction_add(&mut input_diagram.write(), &process_id);
                     }
                 },
                 onkeydown: FieldNav::value_onkeydown(DATA_ATTR),

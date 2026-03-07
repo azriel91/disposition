@@ -6,13 +6,14 @@
 
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::Signal,
+    signals::{Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::ProcessesPageOps;
 
 use crate::components::editor::{
     common::{FieldNav, ROW_CLASS_SIMPLE},
-    processes_page::{processes_page_ops::ProcessesPageOps, DATA_ATTR, FIELD_INPUT_CLASS},
+    processes_page::{DATA_ATTR, FIELD_INPUT_CLASS},
 };
 
 /// Process display name input.
@@ -42,7 +43,7 @@ pub(crate) fn ProcessCardFieldName(
                 oninput: {
                     let process_id = process_id.clone();
                     move |evt: dioxus::events::FormEvent| {
-                        ProcessesPageOps::process_name_update(input_diagram, &process_id, &evt.value());
+                        ProcessesPageOps::process_name_update(&mut input_diagram.write(), &process_id, &evt.value());
                     }
                 },
                 onkeydown: FieldNav::value_onkeydown(DATA_ATTR),

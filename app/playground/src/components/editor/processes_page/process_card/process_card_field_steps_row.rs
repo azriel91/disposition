@@ -19,11 +19,12 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::ProcessCardOps;
 
 use crate::components::editor::{
     common::{CardComponent, FieldNav, REMOVE_BTN, ROW_CLASS},
     datalists::list_ids,
-    processes_page::{process_card_ops::ProcessCardOps, DATA_ATTR, FIELD_INPUT_CLASS},
+    processes_page::{DATA_ATTR, FIELD_INPUT_CLASS},
     reorderable::{drag_border_class, DragHandle},
 };
 
@@ -69,7 +70,7 @@ pub(crate) fn ProcessCardFieldStepsRow(
                     if let Some(from) = *drag_index.read()
                         && from != index
                     {
-                        ProcessCardOps::step_move(input_diagram, &process_id, from, index);
+                        ProcessCardOps::step_move(&mut input_diagram.write(), &process_id, from, index);
                     }
                     drag_index.set(None);
                     drop_target.set(None);
@@ -98,7 +99,7 @@ pub(crate) fn ProcessCardFieldStepsRow(
                     let process_id = process_id.clone();
                     let step_id_old = step_id.clone();
                     move |evt: dioxus::events::FormEvent| {
-                        ProcessCardOps::step_rename(input_diagram, &process_id, &step_id_old, &evt.value());
+                        ProcessCardOps::step_rename(&mut input_diagram.write(), &process_id, &step_id_old, &evt.value());
                     }
                 },
                 onkeydown: {
@@ -110,7 +111,7 @@ pub(crate) fn ProcessCardFieldStepsRow(
                         can_move_down,
                         move || {
                             ProcessCardOps::step_move(
-                                input_diagram,
+                                &mut input_diagram.write(),
                                 &process_id,
                                 index,
                                 index - 1,
@@ -119,7 +120,7 @@ pub(crate) fn ProcessCardFieldStepsRow(
                         },
                         move || {
                             ProcessCardOps::step_move(
-                                input_diagram,
+                                &mut input_diagram.write(),
                                 &process_id_down,
                                 index,
                                 index + 1,
@@ -139,7 +140,7 @@ pub(crate) fn ProcessCardFieldStepsRow(
                     let process_id = process_id.clone();
                     let step_id = step_id.clone();
                     move |evt: dioxus::events::FormEvent| {
-                        ProcessCardOps::step_label_update(input_diagram, &process_id, &step_id, &evt.value());
+                        ProcessCardOps::step_label_update(&mut input_diagram.write(), &process_id, &step_id, &evt.value());
                     }
                 },
                 onkeydown: {
@@ -151,7 +152,7 @@ pub(crate) fn ProcessCardFieldStepsRow(
                         can_move_down,
                         move || {
                             ProcessCardOps::step_move(
-                                input_diagram,
+                                &mut input_diagram.write(),
                                 &process_id,
                                 index,
                                 index - 1,
@@ -160,7 +161,7 @@ pub(crate) fn ProcessCardFieldStepsRow(
                         },
                         move || {
                             ProcessCardOps::step_move(
-                                input_diagram,
+                                &mut input_diagram.write(),
                                 &process_id_down,
                                 index,
                                 index + 1,
@@ -179,7 +180,7 @@ pub(crate) fn ProcessCardFieldStepsRow(
                     let process_id = process_id.clone();
                     let step_id = step_id.clone();
                     move |_| {
-                        ProcessCardOps::step_remove(input_diagram, &process_id, &step_id);
+                        ProcessCardOps::step_remove(&mut input_diagram.write(), &process_id, &step_id);
                     }
                 },
                 onkeydown: FieldNav::value_onkeydown(DATA_ATTR),

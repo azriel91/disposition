@@ -6,16 +6,15 @@
 
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::Signal,
+    signals::{Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::StepInteractionCardOps;
 
 use crate::components::editor::{
     common::{FieldNav, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
-    processes_page::{
-        step_interaction_card_ops::StepInteractionCardOps, DATA_ATTR, FIELD_INPUT_CLASS,
-    },
+    processes_page::{DATA_ATTR, FIELD_INPUT_CLASS},
 };
 
 /// A single edge group row within the edges section of a step-interaction card.
@@ -51,7 +50,7 @@ pub(crate) fn StepInteractionCardFieldEdgesRow(
                     let step_id = step_id.clone();
                     move |evt: dioxus::events::FormEvent| {
                         StepInteractionCardOps::step_interaction_edge_update(
-                            input_diagram,
+                            &mut input_diagram.write(),
                             &process_id,
                             &step_id,
                             index,
@@ -71,7 +70,7 @@ pub(crate) fn StepInteractionCardFieldEdgesRow(
                     let step_id = step_id.clone();
                     move |_| {
                         StepInteractionCardOps::step_interaction_edge_remove(
-                            input_diagram,
+                            &mut input_diagram.write(),
                             &process_id,
                             &step_id,
                             index,

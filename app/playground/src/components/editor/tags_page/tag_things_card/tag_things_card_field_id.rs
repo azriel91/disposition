@@ -9,11 +9,12 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::TagsPageOps;
 
 use crate::components::editor::{
     common::{FieldNav, RenameRefocus, RenameRefocusTarget, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
-    tags_page::{tags_page_ops::TagsPageOps, DATA_ATTR, FIELD_INPUT_CLASS},
+    tags_page::{DATA_ATTR, FIELD_INPUT_CLASS},
 };
 
 /// Tag ID input and remove button.
@@ -51,7 +52,7 @@ pub(crate) fn TagThingsCardFieldId(
                         let id_new = evt.value();
                         let target = *rename_target.read();
                         TagsPageOps::tag_things_entry_rename(
-                            input_diagram,
+                            &mut input_diagram.write(),
                             &tag_id_old,
                             &id_new,
                             &current_things,
@@ -72,7 +73,7 @@ pub(crate) fn TagThingsCardFieldId(
                 onclick: {
                     let tag_id = tag_id.clone();
                     move |_| {
-                        TagsPageOps::tag_things_entry_remove(input_diagram, &tag_id);
+                        TagsPageOps::tag_things_entry_remove(&mut input_diagram.write(), &tag_id);
                     }
                 },
                 onkeydown: FieldNav::value_onkeydown(DATA_ATTR),

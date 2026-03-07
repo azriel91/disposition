@@ -6,15 +6,14 @@
 
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::Signal,
+    signals::{Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::TagsPageOps;
 
 use crate::components::editor::{
     common::{FieldNav, ADD_BTN},
-    tags_page::{
-        tag_things_card::TagThingsCardFieldThingsRow, tags_page_ops::TagsPageOps, DATA_ATTR,
-    },
+    tags_page::{tag_things_card::TagThingsCardFieldThingsRow, DATA_ATTR},
 };
 
 /// Things list with per-row editing and an "add" button.
@@ -53,7 +52,7 @@ pub(crate) fn TagThingsCardFieldThings(
                 onclick: {
                     let tag_id = tag_id.clone();
                     move |_| {
-                        TagsPageOps::tag_things_thing_add(input_diagram, &tag_id);
+                        TagsPageOps::tag_things_thing_add(&mut input_diagram.write(), &tag_id);
                     }
                 },
                 onkeydown: FieldNav::value_onkeydown(DATA_ATTR),

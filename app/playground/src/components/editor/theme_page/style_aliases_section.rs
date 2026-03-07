@@ -29,6 +29,7 @@ use disposition::{
     },
     model_common::Id,
 };
+use disposition_input_rt::StyleAliasesSectionOps;
 
 use crate::components::editor::{
     common::{
@@ -37,7 +38,6 @@ use crate::components::editor::{
     },
     datalists::list_ids,
     reorderable::{drag_border_class, DragHandle},
-    theme_page::style_aliases_section_ops::StyleAliasesSectionOps,
     theme_styles_editor::{
         parse_theme_attr, theme_attr_entry::ThemeAttrEntry, theme_attr_name, THEME_ATTRS,
     },
@@ -294,7 +294,7 @@ fn StyleAliasesSectionHeader(
                         let id_new = evt.value();
                         let target = *rename_target.read();
                         StyleAliasesSectionOps::style_alias_rename(
-                            input_diagram,
+                            &mut input_diagram.write(),
                             &old_key,
                             &id_new,
                         );

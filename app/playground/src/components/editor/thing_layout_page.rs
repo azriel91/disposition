@@ -7,7 +7,6 @@
 
 mod flat_entry;
 mod help_tooltip;
-mod thing_layout_ops;
 mod thing_layout_row;
 mod thing_layout_rows;
 

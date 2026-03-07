@@ -26,11 +26,12 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::TagsPageOps;
 
 use crate::components::editor::{
     common::{CardComponent, RenameRefocus},
     reorderable::{drag_border_class, DragHandle},
-    tags_page::{tags_page_ops::TagsPageOps, DATA_ATTR, TAG_THINGS_CARD_CLASS},
+    tags_page::{DATA_ATTR, TAG_THINGS_CARD_CLASS},
 };
 
 use self::{
@@ -80,11 +81,11 @@ pub(crate) fn TagThingsCard(
                 DATA_ATTR,
                 card_state,
                 move || {
-                    TagsPageOps::tag_things_entry_move(input_diagram, index, index - 1);
+                    TagsPageOps::tag_things_entry_move(&mut input_diagram.write(), index, index - 1);
                     focus_index.set(Some(index - 1));
                 },
                 move || {
-                    TagsPageOps::tag_things_entry_move(input_diagram, index, index + 1);
+                    TagsPageOps::tag_things_entry_move(&mut input_diagram.write(), index, index + 1);
                     focus_index.set(Some(index + 1));
                 },
             ),
@@ -102,7 +103,7 @@ pub(crate) fn TagThingsCard(
                 if let Some(from) = *drag_index.read()
                     && from != index
                 {
-                    TagsPageOps::tag_things_entry_move(input_diagram, from, index);
+                    TagsPageOps::tag_things_entry_move(&mut input_diagram.write(), from, index);
                 }
                 drag_index.set(None);
                 drop_target.set(None);

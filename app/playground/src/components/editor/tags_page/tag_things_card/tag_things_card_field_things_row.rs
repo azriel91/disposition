@@ -6,14 +6,15 @@
 
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::Signal,
+    signals::{Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::TagsPageOps;
 
 use crate::components::editor::{
     common::{FieldNav, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
-    tags_page::{tags_page_ops::TagsPageOps, DATA_ATTR, FIELD_INPUT_CLASS},
+    tags_page::{DATA_ATTR, FIELD_INPUT_CLASS},
 };
 
 /// A single thing row within the things list of a tag-things card.
@@ -47,7 +48,7 @@ pub(crate) fn TagThingsCardFieldThingsRow(
                     let tag_id = tag_id.clone();
                     move |evt: dioxus::events::FormEvent| {
                         TagsPageOps::tag_things_thing_update(
-                            input_diagram,
+                            &mut input_diagram.write(),
                             &tag_id,
                             index,
                             &evt.value(),
@@ -65,7 +66,7 @@ pub(crate) fn TagThingsCardFieldThingsRow(
                     let tag_id = tag_id.clone();
                     move |_| {
                         TagsPageOps::tag_things_thing_remove(
-                            input_diagram,
+                            &mut input_diagram.write(),
                             &tag_id,
                             index,
                         );

@@ -9,11 +9,12 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::ProcessesPageOps;
 
 use crate::components::editor::{
     common::{FieldNav, RenameRefocus, RenameRefocusTarget, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
-    processes_page::{processes_page_ops::ProcessesPageOps, DATA_ATTR, FIELD_INPUT_CLASS},
+    processes_page::{DATA_ATTR, FIELD_INPUT_CLASS},
 };
 
 /// Process ID input and remove button.
@@ -48,7 +49,7 @@ pub(crate) fn ProcessCardFieldId(
                         let id_new = evt.value();
                         let target = *rename_target.read();
                         ProcessesPageOps::process_rename(
-                            input_diagram,
+                            &mut input_diagram.write(),
                             &process_id_old,
                             &id_new,
                         );
@@ -68,7 +69,7 @@ pub(crate) fn ProcessCardFieldId(
                 onclick: {
                     let process_id = process_id.clone();
                     move |_| {
-                        ProcessesPageOps::process_remove(input_diagram, &process_id);
+                        ProcessesPageOps::process_remove(&mut input_diagram.write(), &process_id);
                     }
                 },
                 onkeydown: FieldNav::value_onkeydown(DATA_ATTR),

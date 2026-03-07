@@ -12,12 +12,10 @@ use dioxus::{
     },
     signals::{ReadableExt, Signal, WritableExt},
 };
-
 use disposition::input_model::{thing::ThingId, InputDiagram};
+use disposition_input_rt::ThingLayoutOps;
 
 use crate::components::editor::{common::DRAG_HANDLE, reorderable::drag_border_class};
-
-use super::thing_layout_ops::ThingLayoutOps;
 
 /// CSS classes for the layout row.
 ///
@@ -135,13 +133,19 @@ pub fn ThingLayoutRow(
                 match evt.key() {
                     Key::ArrowUp if alt => {
                         evt.prevent_default();
-                        if let Some(new_idx) = ThingLayoutOps::entry_move_up(input_diagram, flat_index) {
+                        if let Some(new_idx) = ThingLayoutOps::entry_move_up(
+                            &mut input_diagram.write(),
+                            flat_index,
+                        ) {
                             focus_index.set(Some(new_idx));
                         }
                     }
                     Key::ArrowDown if alt => {
                         evt.prevent_default();
-                        if let Some(new_idx) = ThingLayoutOps::entry_move_down(input_diagram, flat_index) {
+                        if let Some(new_idx) = ThingLayoutOps::entry_move_down(
+                            &mut input_diagram.write(),
+                            flat_index,
+                        ) {
                             focus_index.set(Some(new_idx));
                         }
                     }
@@ -175,13 +179,19 @@ pub fn ThingLayoutRow(
                     }
                     Key::Tab if shift => {
                         evt.prevent_default();
-                        if let Some(new_idx) = ThingLayoutOps::entry_outdent(input_diagram, flat_index) {
+                        if let Some(new_idx) = ThingLayoutOps::entry_outdent(
+                            &mut input_diagram.write(),
+                            flat_index,
+                        ) {
                             focus_index.set(Some(new_idx));
                         }
                     }
                     Key::Tab => {
                         evt.prevent_default();
-                        if let Some(new_idx) = ThingLayoutOps::entry_indent(input_diagram, flat_index) {
+                        if let Some(new_idx) = ThingLayoutOps::entry_indent(
+                            &mut input_diagram.write(),
+                            flat_index,
+                        ) {
                             focus_index.set(Some(new_idx));
                         }
                     }
@@ -202,7 +212,11 @@ pub fn ThingLayoutRow(
                 if let Some(from) = *drag_index.read()
                     && from != flat_index
                 {
-                    ThingLayoutOps::entry_drag_move(input_diagram, from, flat_index);
+                    ThingLayoutOps::entry_drag_move(
+                        &mut input_diagram.write(),
+                        from,
+                        flat_index,
+                    );
                 }
                 drag_index.set(None);
                 drop_target.set(None);
@@ -225,7 +239,10 @@ pub fn ThingLayoutRow(
                 title: "Move up (Alt+Up)",
                 onclick: move |_| {
                     if can_move_up
-                        && let Some(new_idx) = ThingLayoutOps::entry_move_up(input_diagram, flat_index) {
+                        && let Some(new_idx) = ThingLayoutOps::entry_move_up(
+                            &mut input_diagram.write(),
+                            flat_index,
+                        ) {
                             focus_index.set(Some(new_idx));
                         }
                 },
@@ -236,7 +253,10 @@ pub fn ThingLayoutRow(
                 title: "Move down (Alt+Down)",
                 onclick: move |_| {
                     if can_move_down
-                        && let Some(new_idx) = ThingLayoutOps::entry_move_down(input_diagram, flat_index) {
+                        && let Some(new_idx) = ThingLayoutOps::entry_move_down(
+                            &mut input_diagram.write(),
+                            flat_index,
+                        ) {
                             focus_index.set(Some(new_idx));
                         }
                 },
@@ -249,7 +269,10 @@ pub fn ThingLayoutRow(
                 title: "Outdent (Shift+Tab)",
                 onclick: move |_| {
                     if can_outdent
-                        && let Some(new_idx) = ThingLayoutOps::entry_outdent(input_diagram, flat_index) {
+                        && let Some(new_idx) = ThingLayoutOps::entry_outdent(
+                            &mut input_diagram.write(),
+                            flat_index,
+                        ) {
                             focus_index.set(Some(new_idx));
                         }
                 },
@@ -260,7 +283,10 @@ pub fn ThingLayoutRow(
                 title: "Indent (Tab)",
                 onclick: move |_| {
                     if can_indent
-                        && let Some(new_idx) = ThingLayoutOps::entry_indent(input_diagram, flat_index) {
+                        && let Some(new_idx) = ThingLayoutOps::entry_indent(
+                            &mut input_diagram.write(),
+                            flat_index,
+                        ) {
                             focus_index.set(Some(new_idx));
                         }
                 },
