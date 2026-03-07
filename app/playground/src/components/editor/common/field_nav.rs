@@ -92,13 +92,14 @@ impl FieldNav {
     /// * `on_remove`: callback to delete the entry by its ID string.
     /// * `on_duplicate`: optional callback to duplicate the entry by its ID
     ///   string. When provided, **Alt+Shift+D** triggers duplication.
+    #[allow(clippy::too_many_arguments)]
     pub fn div_onkeydown(
         data_attr: &'static str,
         index: usize,
         entry_count: usize,
         entry_id: String,
-        on_move: Callback<(usize, usize)>,
         mut focus_index: Signal<Option<usize>>,
+        on_move: Callback<(usize, usize)>,
         on_add: Callback<usize>,
         on_remove: Callback<String>,
         on_duplicate: Option<Callback<String>>,

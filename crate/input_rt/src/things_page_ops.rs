@@ -71,18 +71,17 @@ impl IdDuplicateParts {
         dup_number: u32,
     ) -> usize {
         let mut best = orig_index;
-        for (idx, key_str) in keys {
-            if let Some(suffix) = key_str.strip_prefix(&self.prefix) {
-                if !suffix.is_empty()
-                    && suffix.chars().all(|c| c.is_ascii_digit())
-                    && let Ok(n) = suffix.parse::<u32>()
-                    && n < dup_number
-                    && idx >= best
-                {
-                    best = idx;
-                }
+        keys.for_each(|(idx, key_str)| {
+            if let Some(suffix) = key_str.strip_prefix(&self.prefix)
+                && !suffix.is_empty()
+                && suffix.chars().all(|c| c.is_ascii_digit())
+                && let Ok(n) = suffix.parse::<u32>()
+                && n < dup_number
+                && idx >= best
+            {
+                best = idx;
             }
-        }
+        });
         best + 1
     }
 }
