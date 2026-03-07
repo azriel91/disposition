@@ -56,6 +56,26 @@ use crate::components::editor::{
 /// to locate the nearest ancestor row.
 const DATA_ATTR: &str = "data-entry-id";
 
+/// CSS classes for the duplicate button.
+///
+/// Styled similarly to the remove button but with a neutral colour instead of
+/// red so it is visually distinct.
+const DUPLICATE_BTN: &str = "\
+    bg-transparent \
+    border-none \
+    cursor-pointer \
+    outline-none \
+    rounded \
+    p-0 \
+    px-1 \
+    text-xs \
+    text-gray-400 \
+    hover:text-gray-200 \
+    focus:border \
+    focus:border-solid \
+    focus:border-blue-400\
+";
+
 // === IdValueRow component === //
 
 /// A reusable editable row for ID-value maps.
@@ -106,6 +126,7 @@ pub fn IdValueRow(
     on_update: Callback<(String, String)>,
     on_remove: Callback<String>,
     on_add: Callback<usize>,
+    on_duplicate: Option<Callback<String>>,
 ) -> Element {
     let border_class = drag_border_class(drag_index, drop_target, index);
 
@@ -132,6 +153,7 @@ pub fn IdValueRow(
                 focus_index,
                 on_add,
                 on_remove,
+                on_duplicate,
             ),
 
             // === Drag-and-drop === //
@@ -197,6 +219,23 @@ pub fn IdValueRow(
                     }
                 },
                 onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
+            }
+
+            // === Duplicate button (optional) === //
+            if let Some(on_duplicate) = on_duplicate {
+                button {
+                    class: DUPLICATE_BTN,
+                    tabindex: "-1",
+                    "data-action": "duplicate",
+                    onclick: {
+                        let entry_id = entry_id.clone();
+                        move |_| {
+                            on_duplicate.call(entry_id.clone());
+                        }
+                    },
+                    onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
+                    "\u{1F4CB}"
+                }
             }
 
             // === Remove button === //

@@ -16,6 +16,8 @@
 //! - **Alt+Up / Alt+Down**: move the entry up or down in the list.
 //! - **Alt+Shift+Up / Alt+Shift+Down**: insert a new entry before / after the
 //!   current row.
+//! - **Alt+Shift+D**: duplicate the current entry (when `on_duplicate` is
+//!   provided).
 //! - **Ctrl+Shift+K**: remove the current entry.
 //! - **Enter**: focus the first input inside the row for editing.
 //! - **Escape**: focus the parent section / tab.
@@ -88,6 +90,8 @@ impl FieldNav {
     ///   the row at its new position.
     /// * `on_add`: callback to insert a new entry at a given index.
     /// * `on_remove`: callback to delete the entry by its ID string.
+    /// * `on_duplicate`: optional callback to duplicate the entry by its ID
+    ///   string. When provided, **Alt+Shift+D** triggers duplication.
     pub fn div_onkeydown(
         data_attr: &'static str,
         index: usize,
@@ -97,6 +101,7 @@ impl FieldNav {
         mut focus_index: Signal<Option<usize>>,
         on_add: Callback<usize>,
         on_remove: Callback<String>,
+        on_duplicate: Option<Callback<String>>,
     ) -> impl FnMut(Event<KeyboardData>) {
         let can_move_up = index > 0;
         let can_move_down = index + 1 < entry_count;
@@ -109,6 +114,15 @@ impl FieldNav {
             let shift = evt.modifiers().shift();
 
             match evt.key() {
+                // === Alt+Shift+D: duplicate entry === //
+                Key::Character(ref c) if alt && shift && c.eq_ignore_ascii_case("d") => {
+                    if let Some(on_duplicate) = on_duplicate {
+                        evt.prevent_default();
+                        evt.stop_propagation();
+                        on_duplicate.call(entry_id.clone());
+                    }
+                }
+
                 // === Alt+Shift: insert new entry === //
                 Key::ArrowUp if alt && shift => {
                     evt.prevent_default();

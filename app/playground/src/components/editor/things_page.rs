@@ -99,6 +99,9 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                                     ThingsPageOps::thing_add(input_diagram);
                                     ThingsPageOps::thing_move(input_diagram, thing_count, insert_at);
                                 },
+                                on_duplicate: move |id: String| {
+                                    ThingsPageOps::thing_duplicate(input_diagram, &id);
+                                },
                             }
                         }
                     }

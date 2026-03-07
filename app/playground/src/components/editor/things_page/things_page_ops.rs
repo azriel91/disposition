@@ -1,5 +1,8 @@
 //! Things page mutation helpers.
 //!
+//! Also contains [`DuplicateIdParts`], a small helper used by
+//! [`ThingsPageOps::thing_duplicate`] to derive unique copy IDs.
+//!
 //! Provides [`ThingsPageOps`] which groups all mutation operations for the
 //! Things editor page so that related functions are discoverable when sorted
 //! by name, per the project's `noun_verb` naming convention.
@@ -8,16 +11,79 @@ use dioxus::signals::{ReadableExt, Signal, WritableExt};
 use disposition::{
     input_model::{
         edge::EdgeGroup,
-        theme::IdOrDefaults,
+        theme::{IdOrDefaults, ThemeStyles},
         thing::{ThingHierarchy, ThingId},
         InputDiagram,
     },
-    model_common::Id,
+    model_common::{Id, Set},
 };
 
 use crate::components::editor::common::{id_rename_in_input_diagram, parse_id, parse_thing_id};
 
 use super::on_change_target::OnChangeTarget;
+
+/// Components of a duplicate thing ID used during
+/// [`ThingsPageOps::thing_duplicate`].
+///
+/// Holds the fixed prefix, the first candidate number, and the minimum digit
+/// width so that leading zeroes are preserved (e.g. `_001` -> `_002`).
+struct IdDuplicateParts {
+    /// Fixed prefix including a trailing underscore, e.g. `"t_foo_"` or
+    /// `"t_bar_copy_"`.
+    prefix: String,
+    /// First candidate number to try (already incremented past the
+    /// original).
+    start_number: u32,
+    /// Minimum number of digit characters, for leading-zero preservation.
+    ///
+    /// For example, `3` means the number `2` is formatted as `"002"`.
+    min_width: usize,
+}
+
+impl IdDuplicateParts {
+    /// Formats a candidate duplicate ID from the stored prefix and the
+    /// given number, zero-padded to at least `min_width` digits.
+    ///
+    /// Examples: prefix `"t_foo_"`, n `2`, min_width `3` produces
+    /// `"t_foo_002"`.
+    fn format(&self, n: u32) -> String {
+        let min_width = self.min_width;
+        format!("{}{n:0>min_width$}", self.prefix)
+    }
+
+    /// Returns the insertion index that keeps entries sharing this prefix
+    /// in numeric order within an ordered map.
+    ///
+    /// Scans `keys` (an iterator of string representations in map order)
+    /// for entries whose string form starts with `self.prefix` and whose
+    /// remaining suffix parses as a `u32`. The duplicate is placed just
+    /// after the last sibling whose numeric suffix is less than
+    /// `dup_number`.
+    ///
+    /// If no sibling with a smaller number is found, the duplicate is
+    /// inserted just after the original at `orig_index`.
+    fn sorted_insert_index<'a>(
+        &self,
+        keys: impl Iterator<Item = (usize, &'a str)>,
+        orig_index: usize,
+        dup_number: u32,
+    ) -> usize {
+        let mut best = orig_index;
+        for (idx, key_str) in keys {
+            if let Some(suffix) = key_str.strip_prefix(&self.prefix) {
+                if !suffix.is_empty()
+                    && suffix.chars().all(|c| c.is_ascii_digit())
+                    && let Ok(n) = suffix.parse::<u32>()
+                    && n < dup_number
+                    && idx >= best
+                {
+                    best = idx;
+                }
+            }
+        }
+        best + 1
+    }
+}
 
 /// Mutation operations for the Things editor page.
 ///
@@ -47,6 +113,461 @@ impl ThingsPageOps {
                 break;
             }
             n += 1;
+        }
+    }
+
+    /// Duplicates a thing and all its entries across the [`InputDiagram`].
+    ///
+    /// The duplicate ID is derived from the original:
+    ///
+    /// * If the original ends with `_<number>` (e.g. `t_something_1`), the
+    ///   number is incremented (`t_something_2`). Leading zeroes are preserved
+    ///   when the incremented value fits in the same width (e.g.
+    ///   `t_something_001` becomes `t_something_002`), but an extra digit is
+    ///   added when it overflows (e.g. `_999` becomes `_1000`).
+    /// * Otherwise `_copy_1` is appended (e.g. `t_foo` becomes `t_foo_copy_1`).
+    ///   A subsequent duplicate of `t_foo_copy_1` will increment the trailing
+    ///   number to `t_foo_copy_2`.
+    ///
+    /// If the candidate ID already exists, the number keeps incrementing
+    /// until a unique ID is found.
+    ///
+    /// For `thing_hierarchy`, the duplicate is inserted as a sibling
+    /// immediately after the original but with an empty child hierarchy
+    /// (children can only have one parent).
+    pub fn thing_duplicate(mut input_diagram: Signal<InputDiagram<'static>>, thing_id_str: &str) {
+        let thing_id_orig = match parse_thing_id(thing_id_str) {
+            Some(id) => id,
+            None => return,
+        };
+
+        let parts = Self::thing_duplicate_id_parts(thing_id_str);
+
+        let (thing_id_dup, dup_number) = {
+            let diagram = input_diagram.read();
+            let mut n = parts.start_number;
+            loop {
+                let candidate = parts.format(n);
+                if let Some(id) = parse_thing_id(&candidate)
+                    && !diagram.things.contains_key(&id)
+                {
+                    break (id, n);
+                }
+                n += 1;
+            }
+        };
+
+        let mut diagram = input_diagram.write();
+
+        // things: insert duplicate in numerically sorted position among
+        // siblings that share the same prefix.
+        Self::thing_duplicate_in_things(
+            &mut diagram,
+            &thing_id_orig,
+            &thing_id_dup,
+            &parts,
+            dup_number,
+        );
+
+        // thing_copy_text: copy entry if it exists.
+        Self::thing_duplicate_in_copy_text(
+            &mut diagram,
+            &thing_id_orig,
+            &thing_id_dup,
+            &parts,
+            dup_number,
+        );
+
+        // thing_hierarchy: insert as sibling right after the original, with
+        // an empty child hierarchy (children can only have one parent).
+        Self::thing_duplicate_in_hierarchy(
+            &mut diagram.thing_hierarchy,
+            &thing_id_orig,
+            &thing_id_dup,
+            &parts,
+            dup_number,
+        );
+
+        // thing_dependencies: insert duplicate ThingId in numerically
+        // sorted position within each EdgeGroup.
+        diagram
+            .thing_dependencies
+            .values_mut()
+            .for_each(|edge_group| {
+                Self::thing_duplicate_in_edge_group(
+                    edge_group,
+                    &thing_id_orig,
+                    &thing_id_dup,
+                    &parts,
+                    dup_number,
+                );
+            });
+
+        // thing_interactions: same structure as thing_dependencies.
+        diagram
+            .thing_interactions
+            .values_mut()
+            .for_each(|edge_group| {
+                Self::thing_duplicate_in_edge_group(
+                    edge_group,
+                    &thing_id_orig,
+                    &thing_id_dup,
+                    &parts,
+                    dup_number,
+                );
+            });
+
+        // tag_things: add duplicate in numerically sorted position within
+        // each tag set that contains the original.
+        diagram.tag_things.values_mut().for_each(|thing_ids| {
+            if thing_ids.contains(&thing_id_orig) {
+                Self::thing_duplicate_in_tag_things(
+                    thing_ids,
+                    &thing_id_orig,
+                    &thing_id_dup,
+                    &parts,
+                    dup_number,
+                );
+            }
+        });
+
+        // entity_descs, entity_tooltips, entity_types, and theme style maps.
+        let id_orig = thing_id_orig.into_inner();
+        let id_dup = thing_id_dup.into_inner();
+        Self::id_copy_insert_in_input_diagram(&mut diagram, &id_orig, &id_dup, &parts, dup_number);
+    }
+
+    /// Inserts a duplicate entry in the `things` map at the numerically
+    /// sorted position among siblings that share the same prefix.
+    fn thing_duplicate_in_things(
+        diagram: &mut InputDiagram<'static>,
+        thing_id_orig: &ThingId<'static>,
+        thing_id_dup: &ThingId<'static>,
+        parts: &IdDuplicateParts,
+        dup_number: u32,
+    ) {
+        if let Some(orig_index) = diagram.things.get_index_of(thing_id_orig) {
+            let name = diagram
+                .things
+                .get(thing_id_orig)
+                .cloned()
+                .unwrap_or_default();
+            let insert_at = parts.sorted_insert_index(
+                diagram
+                    .things
+                    .keys()
+                    .enumerate()
+                    .map(|(i, k)| (i, k.as_str())),
+                orig_index,
+                dup_number,
+            );
+            diagram
+                .things
+                .shift_insert(insert_at, thing_id_dup.clone(), name);
+        }
+    }
+
+    /// Copies a `thing_copy_text` entry (if present) at the numerically
+    /// sorted position among siblings that share the same prefix.
+    fn thing_duplicate_in_copy_text(
+        diagram: &mut InputDiagram<'static>,
+        thing_id_orig: &ThingId<'static>,
+        thing_id_dup: &ThingId<'static>,
+        parts: &IdDuplicateParts,
+        dup_number: u32,
+    ) {
+        if let Some(orig_index) = diagram.thing_copy_text.get_index_of(thing_id_orig) {
+            let text = diagram
+                .thing_copy_text
+                .get(thing_id_orig)
+                .cloned()
+                .unwrap_or_default();
+            let insert_at = parts.sorted_insert_index(
+                diagram
+                    .thing_copy_text
+                    .keys()
+                    .enumerate()
+                    .map(|(i, k)| (i, k.as_str())),
+                orig_index,
+                dup_number,
+            );
+            diagram
+                .thing_copy_text
+                .shift_insert(insert_at, thing_id_dup.clone(), text);
+        }
+    }
+
+    /// Inserts the duplicate as a sibling in [`ThingHierarchy`] at the
+    /// numerically sorted position, with an empty child hierarchy.
+    ///
+    /// Searches recursively so the original can be at any nesting depth.
+    fn thing_duplicate_in_hierarchy(
+        hierarchy: &mut ThingHierarchy<'static>,
+        thing_id_orig: &ThingId<'static>,
+        thing_id_dup: &ThingId<'static>,
+        parts: &IdDuplicateParts,
+        dup_number: u32,
+    ) -> bool {
+        if let Some(orig_index) = hierarchy.get_index_of(thing_id_orig) {
+            let insert_at = parts.sorted_insert_index(
+                hierarchy.keys().enumerate().map(|(i, k)| (i, k.as_str())),
+                orig_index,
+                dup_number,
+            );
+            hierarchy.shift_insert(insert_at, thing_id_dup.clone(), ThingHierarchy::new());
+            return true;
+        }
+        hierarchy.values_mut().any(|child| {
+            Self::thing_duplicate_in_hierarchy(
+                child,
+                thing_id_orig,
+                thing_id_dup,
+                parts,
+                dup_number,
+            )
+        })
+    }
+
+    /// Splits a thing ID string into [`DuplicateIdParts`] for duplicate ID
+    /// generation.
+    ///
+    /// * If the ID ends with `_<digits>` (e.g. `t_something_03`), the prefix
+    ///   includes the trailing underscore, the number is incremented by one,
+    ///   and `min_width` is the number of digit characters (for leading-zero
+    ///   preservation).
+    /// * Otherwise `_copy_` is appended and numbering starts at `1`.
+    fn thing_duplicate_id_parts(thing_id_str: &str) -> IdDuplicateParts {
+        if let Some((before, after)) = thing_id_str.rsplit_once('_')
+            && !after.is_empty()
+            && after.chars().all(|c| c.is_ascii_digit())
+            && let Ok(n) = after.parse::<u32>()
+        {
+            IdDuplicateParts {
+                prefix: format!("{before}_"),
+                start_number: n + 1,
+                min_width: after.len(),
+            }
+        } else {
+            IdDuplicateParts {
+                prefix: format!("{thing_id_str}_copy_"),
+                start_number: 1,
+                min_width: 1,
+            }
+        }
+    }
+
+    /// Inserts the duplicate `ThingId` in numerically sorted position
+    /// inside an [`EdgeGroup`]'s `things` list.
+    fn thing_duplicate_in_edge_group(
+        edge_group: &mut EdgeGroup<'static>,
+        thing_id_orig: &ThingId<'static>,
+        thing_id_dup: &ThingId<'static>,
+        parts: &IdDuplicateParts,
+        dup_number: u32,
+    ) {
+        if !edge_group.things.contains(thing_id_orig) {
+            return;
+        }
+        let insert_at = parts.sorted_insert_index(
+            edge_group
+                .things
+                .iter()
+                .enumerate()
+                .map(|(i, k)| (i, k.as_str())),
+            edge_group
+                .things
+                .iter()
+                .position(|id| id == thing_id_orig)
+                .unwrap_or(0),
+            dup_number,
+        );
+        edge_group.things.insert(insert_at, thing_id_dup.clone());
+    }
+
+    /// Inserts the duplicate `ThingId` in numerically sorted position
+    /// inside a tag's `Set<ThingId>`.
+    fn thing_duplicate_in_tag_things(
+        thing_ids: &mut Set<ThingId<'static>>,
+        thing_id_orig: &ThingId<'static>,
+        thing_id_dup: &ThingId<'static>,
+        parts: &IdDuplicateParts,
+        dup_number: u32,
+    ) {
+        let orig_index = match thing_ids.get_index_of(thing_id_orig) {
+            Some(idx) => idx,
+            None => return,
+        };
+        let insert_at = parts.sorted_insert_index(
+            thing_ids.iter().enumerate().map(|(i, k)| (i, k.as_str())),
+            orig_index,
+            dup_number,
+        );
+        thing_ids.shift_insert(insert_at, thing_id_dup.clone());
+    }
+
+    /// Copies an [`Id`]'s entries in entity and theme maps, inserting the
+    /// duplicate at the numerically sorted position in each map.
+    fn id_copy_insert_in_input_diagram(
+        input_diagram: &mut InputDiagram<'static>,
+        id_orig: &Id<'static>,
+        id_dup: &Id<'static>,
+        parts: &IdDuplicateParts,
+        dup_number: u32,
+    ) {
+        // entity_descs
+        if let Some(orig_index) = input_diagram.entity_descs.get_index_of(id_orig) {
+            let value = input_diagram
+                .entity_descs
+                .get(id_orig)
+                .cloned()
+                .unwrap_or_default();
+            let insert_at = parts.sorted_insert_index(
+                input_diagram
+                    .entity_descs
+                    .keys()
+                    .enumerate()
+                    .map(|(i, k)| (i, k.as_str())),
+                orig_index,
+                dup_number,
+            );
+            input_diagram
+                .entity_descs
+                .shift_insert(insert_at, id_dup.clone(), value);
+        }
+
+        // entity_tooltips
+        if let Some(orig_index) = input_diagram.entity_tooltips.get_index_of(id_orig) {
+            let value = input_diagram
+                .entity_tooltips
+                .get(id_orig)
+                .cloned()
+                .unwrap_or_default();
+            let insert_at = parts.sorted_insert_index(
+                input_diagram
+                    .entity_tooltips
+                    .keys()
+                    .enumerate()
+                    .map(|(i, k)| (i, k.as_str())),
+                orig_index,
+                dup_number,
+            );
+            input_diagram
+                .entity_tooltips
+                .shift_insert(insert_at, id_dup.clone(), value);
+        }
+
+        // entity_types
+        if let Some(orig_index) = input_diagram.entity_types.get_index_of(id_orig) {
+            let value = input_diagram
+                .entity_types
+                .get(id_orig)
+                .cloned()
+                .unwrap_or_default();
+            let insert_at = parts.sorted_insert_index(
+                input_diagram
+                    .entity_types
+                    .keys()
+                    .enumerate()
+                    .map(|(i, k)| (i, k.as_str())),
+                orig_index,
+                dup_number,
+            );
+            input_diagram
+                .entity_types
+                .shift_insert(insert_at, id_dup.clone(), value);
+        }
+
+        let key_orig = IdOrDefaults::Id(id_orig.clone());
+        let key_dup = IdOrDefaults::Id(id_dup.clone());
+
+        // theme_default: base_styles and process_step_selected_styles.
+        Self::copy_insert_in_theme_styles(
+            &mut input_diagram.theme_default.base_styles,
+            &key_orig,
+            &key_dup,
+            parts,
+            dup_number,
+        );
+        Self::copy_insert_in_theme_styles(
+            &mut input_diagram.theme_default.process_step_selected_styles,
+            &key_orig,
+            &key_dup,
+            parts,
+            dup_number,
+        );
+
+        // theme_types_styles: copy in each ThemeStyles value.
+        input_diagram
+            .theme_types_styles
+            .values_mut()
+            .for_each(|theme_styles| {
+                Self::copy_insert_in_theme_styles(
+                    theme_styles,
+                    &key_orig,
+                    &key_dup,
+                    parts,
+                    dup_number,
+                );
+            });
+
+        // theme_thing_dependencies_styles: both ThemeStyles fields.
+        Self::copy_insert_in_theme_styles(
+            &mut input_diagram
+                .theme_thing_dependencies_styles
+                .things_included_styles,
+            &key_orig,
+            &key_dup,
+            parts,
+            dup_number,
+        );
+        Self::copy_insert_in_theme_styles(
+            &mut input_diagram
+                .theme_thing_dependencies_styles
+                .things_excluded_styles,
+            &key_orig,
+            &key_dup,
+            parts,
+            dup_number,
+        );
+
+        // theme_tag_things_focus: copy in each ThemeStyles value.
+        input_diagram
+            .theme_tag_things_focus
+            .values_mut()
+            .for_each(|theme_styles| {
+                Self::copy_insert_in_theme_styles(
+                    theme_styles,
+                    &key_orig,
+                    &key_dup,
+                    parts,
+                    dup_number,
+                );
+            });
+    }
+
+    /// Copies an entry in a [`ThemeStyles`] map, inserting the duplicate
+    /// at the numerically sorted position.
+    fn copy_insert_in_theme_styles(
+        theme_styles: &mut ThemeStyles<'static>,
+        key_orig: &IdOrDefaults<'static>,
+        key_dup: &IdOrDefaults<'static>,
+        parts: &IdDuplicateParts,
+        dup_number: u32,
+    ) {
+        if let Some(orig_index) = theme_styles.get_index_of(key_orig) {
+            let value = theme_styles.get(key_orig).cloned().unwrap_or_default();
+            let insert_at = parts.sorted_insert_index(
+                theme_styles.keys().enumerate().map(|(i, k)| {
+                    let s = match k {
+                        IdOrDefaults::Id(id) => id.as_str(),
+                        _ => "",
+                    };
+                    (i, s)
+                }),
+                orig_index,
+                dup_number,
+            );
+            theme_styles.shift_insert(insert_at, key_dup.clone(), value);
         }
     }
 
@@ -125,7 +646,7 @@ impl ThingsPageOps {
 
             // tag_things: rename ThingIds in each Set<ThingId> value.
             input_diagram_ref.tag_things.values_mut().for_each(
-                |thing_ids: &mut disposition::model_common::Set<ThingId<'static>>| {
+                |thing_ids: &mut Set<ThingId<'static>>| {
                     if let Some(index) = thing_ids.get_index_of(&thing_id_old) {
                         let _result = thing_ids.replace_index(index, thing_id_new.clone());
                     }
@@ -206,7 +727,7 @@ impl ThingsPageOps {
 
             // tag_things: remove ThingId from each Set<ThingId> value.
             input_diagram_ref.tag_things.values_mut().for_each(
-                |thing_ids: &mut disposition::model_common::Set<ThingId<'static>>| {
+                |thing_ids: &mut Set<ThingId<'static>>| {
                     thing_ids.shift_remove(&thing_id);
                 },
             );
