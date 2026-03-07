@@ -6,4 +6,5 @@ pub const BASE_DIAGRAM_YAML: &str = include_str!("base_diagram.yaml");
 
 mod input_ir_rt;
 mod input_model;
+mod input_rt;
 mod ir_model;

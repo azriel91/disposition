@@ -1,0 +1,27 @@
+[package]
+name = "disposition_input_rt"
+description = "Runtime mutation operations for `disposition` input diagrams."
+documentation = "https://docs.rs/disposition_input_rt/"
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+
+[lib]
+doctest = true
+test = false
+
+[lints]
+workspace = true
+
+[dependencies]
+disposition_input_model = { workspace = true }
+disposition_model_common = { workspace = true }
+indexmap = { workspace = true }
+serde = { workspace = true, features = ["derive"] }

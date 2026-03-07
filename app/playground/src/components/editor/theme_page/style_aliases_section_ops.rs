@@ -1,18 +1,12 @@
 //! Mutation helpers for the style aliases section.
 //!
-//! Provides the `StyleAliasesSectionOps` type that groups operations for
-//! renaming a `StyleAlias` key in `theme_default.style_aliases` and
-//! propagating that rename across every `style_aliases_applied` list in the
-//! `InputDiagram`.
+//! This module is a thin Signal-aware wrapper around
+//! [`disposition_input_rt::style_aliases_section_ops::StyleAliasesSectionOps`].
+//! Each method acquires a write guard on the [`Signal`] and delegates to the
+//! framework-agnostic implementation.
 
 use dioxus::signals::{Signal, WritableExt};
-use disposition::{
-    input_model::{
-        theme::{StyleAlias, ThemeStyles},
-        InputDiagram,
-    },
-    model_common::Id,
-};
+use disposition::input_model::InputDiagram;
 
 /// Groups mutation helpers for the style aliases section.
 pub(crate) struct StyleAliasesSectionOps;
@@ -21,7 +15,7 @@ impl StyleAliasesSectionOps {
     /// Renames a style alias key across the entire [`InputDiagram`].
     ///
     /// 1. Replaces the key in `theme_default.style_aliases`.
-    /// 2. Walks every [`ThemeStyles`] map reachable from the diagram
+    /// 2. Walks every `ThemeStyles` map reachable from the diagram
     ///    (`theme_default.base_styles`,
     ///    `theme_default.process_step_selected_styles`, `theme_types_styles`,
     ///    `theme_thing_dependencies_styles`, `theme_tag_things_focus`) and
@@ -41,123 +35,10 @@ impl StyleAliasesSectionOps {
         alias_old_str: &str,
         alias_new_str: &str,
     ) {
-        if alias_old_str == alias_new_str {
-            return;
-        }
-
-        let alias_old = match Self::parse_style_alias(alias_old_str) {
-            Some(a) => a,
-            None => return,
-        };
-        let alias_new = match Self::parse_style_alias(alias_new_str) {
-            Some(a) => a,
-            None => return,
-        };
-
-        let mut diagram = input_diagram.write();
-
-        // === 1. Rename the key in style_aliases === //
-        if diagram.theme_default.style_aliases.contains_key(&alias_new) {
-            // Target key already exists -- bail out to avoid data loss.
-            return;
-        }
-        if let Some(idx) = diagram.theme_default.style_aliases.get_index_of(&alias_old) {
-            diagram
-                .theme_default
-                .style_aliases
-                .replace_index(idx, alias_new.clone())
-                .expect(
-                    "Expected new key to be unique; \
-                     checked for availability above",
-                );
-        } else {
-            // Old key not found -- nothing to rename.
-            return;
-        }
-
-        // === 2. Rename inside style_aliases values === //
-        for css_partials in diagram.theme_default.style_aliases.values_mut() {
-            Self::rename_in_applied(
-                &mut css_partials.style_aliases_applied,
-                &alias_old,
-                &alias_new,
-            );
-        }
-
-        // === 3. Rename inside theme_default.base_styles === //
-        Self::rename_in_theme_styles(
-            &mut diagram.theme_default.base_styles,
-            &alias_old,
-            &alias_new,
+        disposition_input_rt::style_aliases_section_ops::StyleAliasesSectionOps::style_alias_rename(
+            &mut input_diagram.write(),
+            alias_old_str,
+            alias_new_str,
         );
-
-        // === 4. Rename inside theme_default.process_step_selected_styles === //
-        Self::rename_in_theme_styles(
-            &mut diagram.theme_default.process_step_selected_styles,
-            &alias_old,
-            &alias_new,
-        );
-
-        // === 5. Rename inside theme_types_styles === //
-        for theme_styles in diagram.theme_types_styles.values_mut() {
-            Self::rename_in_theme_styles(theme_styles, &alias_old, &alias_new);
-        }
-
-        // === 6. Rename inside theme_thing_dependencies_styles === //
-        Self::rename_in_theme_styles(
-            &mut diagram
-                .theme_thing_dependencies_styles
-                .things_included_styles,
-            &alias_old,
-            &alias_new,
-        );
-        Self::rename_in_theme_styles(
-            &mut diagram
-                .theme_thing_dependencies_styles
-                .things_excluded_styles,
-            &alias_old,
-            &alias_new,
-        );
-
-        // === 7. Rename inside theme_tag_things_focus === //
-        for theme_styles in diagram.theme_tag_things_focus.values_mut() {
-            Self::rename_in_theme_styles(theme_styles, &alias_old, &alias_new);
-        }
-    }
-
-    /// Replaces all occurrences of `old` with `new` in a single
-    /// `style_aliases_applied` vector.
-    fn rename_in_applied(
-        applied: &mut Vec<StyleAlias<'static>>,
-        old: &StyleAlias<'static>,
-        new: &StyleAlias<'static>,
-    ) {
-        for alias in applied.iter_mut() {
-            if alias == old {
-                *alias = new.clone();
-            }
-        }
-    }
-
-    /// Walks every `CssClassPartials` value inside a [`ThemeStyles`] map and
-    /// replaces matching entries in each `style_aliases_applied` vector.
-    fn rename_in_theme_styles(
-        theme_styles: &mut ThemeStyles<'static>,
-        old: &StyleAlias<'static>,
-        new: &StyleAlias<'static>,
-    ) {
-        for css_partials in theme_styles.values_mut() {
-            Self::rename_in_applied(&mut css_partials.style_aliases_applied, old, new);
-        }
-    }
-
-    /// Try to construct a `StyleAlias<'static>` from a string, returning
-    /// `None` if the string is not a valid identifier.
-    ///
-    /// Valid values: `"shade_light"`, `"padding_normal"`, `"my_custom_alias"`.
-    fn parse_style_alias(s: &str) -> Option<StyleAlias<'static>> {
-        Id::new(s)
-            .ok()
-            .map(|id| StyleAlias::from(id.into_static()).into_static())
     }
 }

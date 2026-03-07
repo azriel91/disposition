@@ -45,6 +45,17 @@ pub(crate) enum MapTarget {
     Interactions,
 }
 
+impl MapTarget {
+    /// Converts to the framework-agnostic
+    /// [`disposition_input_rt::map_target::MapTarget`].
+    pub(crate) fn into_rt(self) -> disposition_input_rt::map_target::MapTarget {
+        match self {
+            MapTarget::Dependencies => disposition_input_rt::map_target::MapTarget::Dependencies,
+            MapTarget::Interactions => disposition_input_rt::map_target::MapTarget::Interactions,
+        }
+    }
+}
+
 // === Edge group card constants === //
 
 /// The `data-*` attribute placed on each `EdgeGroupCard` wrapper.

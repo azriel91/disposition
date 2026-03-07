@@ -1,14 +1,6 @@
 //! Target map selector for generic key-value row mutations.
+//!
+//! Re-exports [`OnChangeTarget`] from `disposition_input_rt` so that existing
+//! callers within the playground continue to compile without path changes.
 
-/// Identifies which field of [`InputDiagram`] a generic key-value row targets.
-///
-/// [`InputDiagram`]: disposition::input_model::InputDiagram
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum OnChangeTarget {
-    /// Targets `thing_copy_text`.
-    CopyText,
-    /// Targets `entity_descs`.
-    EntityDesc,
-    /// Targets `entity_tooltips`.
-    EntityTooltip,
-}
+pub use disposition_input_rt::on_change_target::OnChangeTarget;

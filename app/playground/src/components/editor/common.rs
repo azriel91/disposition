@@ -1,9 +1,9 @@
 //! Common helper functions and shared CSS constants for editor page modules.
 //!
-//! These utilities are used by multiple editor pages to parse string inputs
-//! into typed IDs, to rename keys inside theme style maps, and to perform
-//! the boilerplate rename of an [`Id`] across all theme / entity maps in an
-//! [`InputDiagram`].
+//! ID parsers, theme-style rename helpers, and the shared
+//! rename-across-diagram helper are now provided by `disposition_input_rt`.
+//! This module re-exports them so that existing callers within the playground
+//! continue to compile without path changes.
 //!
 //! Also exports [`RenameRefocus`], which carries the context needed to restore
 //! keyboard focus after an ID rename causes the focused element to be
@@ -14,16 +14,9 @@ pub(crate) use self::{card_component::CardComponent, field_nav::FieldNav};
 mod card_component;
 mod field_nav;
 
-use disposition::{
-    input_model::{
-        process::{ProcessId, ProcessStepId},
-        tag::TagId,
-        theme::{IdOrDefaults, TagIdOrDefaults, ThemeStyles},
-        thing::ThingId,
-        InputDiagram,
-    },
-    model_common::{edge::EdgeGroupId, entity::EntityTypeId, Id},
-};
+// === Re-exports from disposition_input_rt === //
+
+pub use disposition_input_rt::id_parse::{parse_entity_type_id, parse_tag_id_or_defaults};
 
 // === Post-rename focus type === //
 
@@ -211,169 +204,3 @@ pub const DRAG_HANDLE: &str = "\
 
 /// Helper label classes.
 pub const LABEL_CLASS: &str = "text-xs text-gray-500 mb-1";
-
-// === ID parsers === //
-
-/// Try to construct an `Id<'static>` from a string, returning `None` if the
-/// string is not a valid identifier.
-pub fn parse_id(s: &str) -> Option<Id<'static>> {
-    Id::new(s).ok().map(|id| id.into_static())
-}
-
-/// Try to construct a `ThingId<'static>` from a string, returning `None` if
-/// the string is not a valid identifier.
-pub fn parse_thing_id(s: &str) -> Option<ThingId<'static>> {
-    Id::new(s).ok().map(|id| ThingId::from(id.into_static()))
-}
-
-/// Try to construct an `EdgeGroupId<'static>` from a string, returning `None`
-/// if the string is not a valid identifier.
-pub fn parse_edge_group_id(s: &str) -> Option<EdgeGroupId<'static>> {
-    EdgeGroupId::new(s).ok().map(|id| id.into_static())
-}
-
-/// Try to construct a `TagId<'static>` from a string, returning `None` if the
-/// string is not a valid identifier.
-pub fn parse_tag_id(s: &str) -> Option<TagId<'static>> {
-    Id::new(s).ok().map(|id| TagId::from(id.into_static()))
-}
-
-/// Try to construct a `ProcessId<'static>` from a string, returning `None` if
-/// the string is not a valid identifier.
-pub fn parse_process_id(s: &str) -> Option<ProcessId<'static>> {
-    Id::new(s).ok().map(|id| ProcessId::from(id.into_static()))
-}
-
-/// Try to construct a `ProcessStepId<'static>` from a string, returning `None`
-/// if the string is not a valid identifier.
-pub fn parse_process_step_id(s: &str) -> Option<ProcessStepId<'static>> {
-    Id::new(s)
-        .ok()
-        .map(|id| ProcessStepId::from(id.into_static()))
-}
-
-/// Try to construct an `EntityTypeId<'static>` from a string, returning
-/// `None` if the string is not a valid identifier.
-///
-/// Valid values: `"type_organisation"`, `"type_custom_1"`.
-pub fn parse_entity_type_id(s: &str) -> Option<EntityTypeId<'static>> {
-    Id::new(s)
-        .ok()
-        .map(|id| EntityTypeId::from(id.into_static()))
-}
-
-/// Parse a string into a `TagIdOrDefaults<'static>`.
-///
-/// Returns `TagIdOrDefaults::TagDefaults` for the literal `"tag_defaults"`,
-/// otherwise attempts to parse as a custom `TagId`.
-///
-/// Valid values: `"tag_defaults"`, `"tag_app_development"`.
-pub fn parse_tag_id_or_defaults(s: &str) -> Option<TagIdOrDefaults<'static>> {
-    match s {
-        "tag_defaults" => Some(TagIdOrDefaults::TagDefaults),
-        other => Id::new(other)
-            .ok()
-            .map(|id| TagIdOrDefaults::Custom(TagId::from(id.into_static()))),
-    }
-}
-
-// === Theme style rename helper === //
-
-/// Replaces an [`IdOrDefaults::Id`] key that matches `id_old` with `id_new`
-/// inside a [`ThemeStyles`] map.
-pub fn rename_id_in_theme_styles(
-    theme_styles: &mut ThemeStyles<'static>,
-    id_old: &Id<'static>,
-    id_new: &Id<'static>,
-) {
-    let key_old = IdOrDefaults::Id(id_old.clone());
-    if let Some(index) = theme_styles.get_index_of(&key_old) {
-        let key_new = IdOrDefaults::Id(id_new.clone());
-        let _result = theme_styles.replace_index(index, key_new);
-    }
-}
-
-// === Shared rename-across-diagram helper === //
-
-/// Renames an [`Id`] across all entity and theme maps in an
-/// [`InputDiagram`].
-///
-/// Many editor pages need to propagate a rename of an entity-level ID through
-/// `entity_descs`, `entity_tooltips`, `entity_types`, and all theme style
-/// maps. This function performs that common boilerplate so that each page's
-/// rename function only needs to handle the domain-specific maps (e.g.
-/// `things`, `tags`, `processes`, etc.) and then call this for the shared
-/// fields.
-///
-/// # Parameters
-///
-/// * `input_diagram`: mutable reference to the [`InputDiagram`] being edited.
-/// * `id_old`: the old [`Id`] being replaced.
-/// * `id_new`: the new [`Id`] to insert in its place.
-pub fn id_rename_in_input_diagram(
-    input_diagram: &mut InputDiagram<'static>,
-    id_old: &Id<'static>,
-    id_new: &Id<'static>,
-) {
-    let InputDiagram {
-        things: _,
-        thing_copy_text: _,
-        thing_hierarchy: _,
-        thing_dependencies: _,
-        thing_interactions: _,
-        processes: _,
-        tags: _,
-        tag_things: _,
-        entity_descs,
-        entity_tooltips,
-        entity_types,
-        theme_default,
-        theme_types_styles,
-        theme_thing_dependencies_styles,
-        theme_tag_things_focus,
-        css: _,
-    } = input_diagram;
-
-    // entity_descs / entity_tooltips / entity_types: keys are Id.
-    if let Some(index) = entity_descs.get_index_of(id_old) {
-        let _result = entity_descs.replace_index(index, id_new.clone());
-    }
-    if let Some(index) = entity_tooltips.get_index_of(id_old) {
-        let _result = entity_tooltips.replace_index(index, id_new.clone());
-    }
-    if let Some(index) = entity_types.get_index_of(id_old) {
-        let _result = entity_types.replace_index(index, id_new.clone());
-    }
-
-    // theme_default: rename in base_styles and process_step_selected_styles.
-    rename_id_in_theme_styles(&mut theme_default.base_styles, id_old, id_new);
-    rename_id_in_theme_styles(
-        &mut theme_default.process_step_selected_styles,
-        id_old,
-        id_new,
-    );
-
-    // theme_types_styles: rename in each ThemeStyles value.
-    theme_types_styles.values_mut().for_each(|theme_styles| {
-        rename_id_in_theme_styles(theme_styles, id_old, id_new);
-    });
-
-    // theme_thing_dependencies_styles: rename in both ThemeStyles fields.
-    rename_id_in_theme_styles(
-        &mut theme_thing_dependencies_styles.things_included_styles,
-        id_old,
-        id_new,
-    );
-    rename_id_in_theme_styles(
-        &mut theme_thing_dependencies_styles.things_excluded_styles,
-        id_old,
-        id_new,
-    );
-
-    // theme_tag_things_focus: rename in each ThemeStyles value.
-    theme_tag_things_focus
-        .values_mut()
-        .for_each(|theme_styles| {
-            rename_id_in_theme_styles(theme_styles, id_old, id_new);
-        });
-}
