@@ -32,11 +32,11 @@ pub const JS_FOCUS_SAVE: &str = "\
     function selectorFor(el) {\
         if (!el || el === document.body) return null;\
         if (el.id) return '#' + CSS.escape(el.id);\
-        var ds = el.dataset;\
-        for (var k in ds) {\
-            if (Object.prototype.hasOwnProperty.call(ds, k)) {\
-                var attr = 'data-' + k.replace(/([A-Z])/g, '-$1').toLowerCase();\
-                return '[' + attr + '=' + JSON.stringify(ds[k]) + ']';\
+        var dataset = el.dataset;\
+        for (var datasetKey in dataset) {\
+            if (Object.prototype.hasOwnProperty.call(dataset, datasetKey)) {\
+                var attr = 'data-' + datasetKey.replace(/([A-Z])/g, '-$1').toLowerCase();\
+                return '[' + attr + '=' + JSON.stringify(dataset[datasetKey]) + ']';\
             }\
         }\
         var parent = el.parentElement;\
@@ -44,8 +44,8 @@ pub const JS_FOCUS_SAVE: &str = "\
         var children = parent.children;\
         for (var i = 0; i < children.length; i++) {\
             if (children[i] === el) {\
-                var ps = selectorFor(parent);\
-                if (ps) return ps + ' > :nth-child(' + (i + 1) + ')';\
+                var parentSelector = selectorFor(parent);\
+                if (parentSelector) return parentSelector + ' > :nth-child(' + (i + 1) + ')';\
                 break;\
             }\
         }\
@@ -68,17 +68,17 @@ pub const JS_FOCUS_SAVE: &str = "\
 /// Call this **after** the undo/redo signal write.
 pub const JS_FOCUS_RESTORE: &str = "\
 requestAnimationFrame(() => {\
-    var r = window.__focusRestore;\
-    if (!r) { var fb = document.getElementById('disposition_editor'); if (fb) fb.focus(); return; }\
+    var focusRestore = window.__focusRestore;\
+    if (!focusRestore) { var dispositionEditor = document.getElementById('disposition_editor'); if (dispositionEditor) dispositionEditor.focus(); return; }\
     window.__focusRestore = null;\
     function tryFocus(sel) {\
         if (!sel) return false;\
         try { var el = document.querySelector(sel); if (el) { el.focus(); return document.activeElement === el; } } catch(e) {}\
         return false;\
     }\
-    if (tryFocus(r.self)) return;\
-    if (tryFocus(r.next)) return;\
-    if (tryFocus(r.prev)) return;\
+    if (tryFocus(focusRestore.self)) return;\
+    if (tryFocus(focusRestore.next)) return;\
+    if (tryFocus(focusRestore.prev)) return;\
     var editor = document.getElementById('disposition_editor');\
     if (editor) editor.focus();\
 })";
