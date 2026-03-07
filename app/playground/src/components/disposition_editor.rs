@@ -46,7 +46,9 @@ use crate::{
     route::Route,
 };
 
-use crate::undo_history::{history_push, history_redo, history_undo, UndoHistory};
+use crate::undo_history::{
+    history_push, history_redo, history_undo, input_diagram_order_eq, UndoHistory,
+};
 
 use self::{
     disposition_status_message_div::DispositionStatusMessageDiv,
@@ -86,7 +88,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
 
     use_memo(move || {
         let state = editor_state.read();
-        if *input_diagram.peek() != state.input_diagram {
+        if !input_diagram_order_eq(&input_diagram.peek(), &state.input_diagram) {
             input_diagram.set(state.input_diagram.clone());
         }
         if *active_page.peek() != state.page {
@@ -100,7 +102,9 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         let diagram = input_diagram.read().clone();
         let page = active_page.read().clone();
         let current_state = editor_state.peek().clone();
-        if current_state.input_diagram != diagram || current_state.page != page {
+        if !input_diagram_order_eq(&current_state.input_diagram, &diagram)
+            || current_state.page != page
+        {
             navigator().replace(Route::Home {
                 editor_state: EditorState {
                     page,

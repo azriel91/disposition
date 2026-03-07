@@ -11,6 +11,19 @@
 //!
 //! The history keeps at most [`UndoHistory::MAX_ENTRIES`] snapshots. When
 //! the limit is reached the oldest entry is dropped.
+//!
+//! ## Order-sensitive comparison
+//!
+//! `InputDiagram` derives `PartialEq`, which delegates to
+//! `IndexMap::PartialEq`. That implementation is **order-insensitive** --
+//! two maps with the same key-value pairs in different orders are
+//! considered equal. This means a pure reorder (e.g. moving an edge
+//! group up or down) would be silently ignored by the duplicate-push
+//! guard if we used `==`.
+//!
+//! To correctly detect reorders, [`input_diagram_order_eq`] compares
+//! diagrams by their YAML serialization, which preserves `IndexMap`
+//! insertion order.
 
 use dioxus::signals::{Signal, WritableExt};
 use disposition::input_model::InputDiagram;
@@ -64,7 +77,16 @@ impl UndoHistory {
         }
 
         // Ignore duplicate pushes.
-        if self.entries.get(self.cursor) == Some(&diagram) {
+        //
+        // We use `input_diagram_order_eq` instead of `==` because
+        // `IndexMap::PartialEq` is order-insensitive. A pure reorder
+        // (e.g. moving a card up/down) would be treated as a duplicate
+        // by `==`, preventing it from being recorded in the history.
+        if self
+            .entries
+            .get(self.cursor)
+            .is_some_and(|current| input_diagram_order_eq(current, &diagram))
+        {
             return;
         }
 
@@ -137,6 +159,40 @@ impl UndoHistory {
     pub fn redo_depth(&self) -> usize {
         self.entries.len() - 1 - self.cursor
     }
+}
+
+// === Order-sensitive comparison === //
+
+/// Compares two [`InputDiagram`]s for equality including map key order.
+///
+/// `InputDiagram` derives `PartialEq`, which delegates to
+/// `IndexMap::PartialEq`. That implementation only checks that the same
+/// key-value pairs exist in both maps -- it does **not** consider
+/// insertion order. This means a reorder operation (e.g. moving an edge
+/// group from index 0 to index 2) would be considered "equal" by `==`.
+///
+/// This function serializes both diagrams to YAML (which preserves
+/// `IndexMap` insertion order) and compares the resulting strings, so
+/// two diagrams that differ only in map key order are correctly detected
+/// as different.
+///
+/// See <https://github.com/indexmap-rs/indexmap/issues/153>
+pub fn input_diagram_order_eq(a: &InputDiagram<'static>, b: &InputDiagram<'static>) -> bool {
+    // Fast path: if the standard `PartialEq` says they differ, they
+    // definitely differ (order-insensitive check is a subset of
+    // order-sensitive).
+    if a != b {
+        return false;
+    }
+
+    // Slow path: serialize and compare to detect order differences.
+    let Ok(yaml_a) = serde_saphyr::to_string(a) else {
+        return false;
+    };
+    let Ok(yaml_b) = serde_saphyr::to_string(b) else {
+        return false;
+    };
+    yaml_a == yaml_b
 }
 
 // === Signal helper functions === //
@@ -285,5 +341,71 @@ mod tests {
         assert!(h.entries.len() <= MAX_ENTRIES);
         // Cursor should be at the end.
         assert_eq!(h.cursor, h.entries.len() - 1);
+    }
+
+    /// Verify that a reorder (same keys/values, different `IndexMap`
+    /// order) is treated as a distinct snapshot.
+    ///
+    /// `IndexMap::PartialEq` is order-insensitive, so `==` would say
+    /// the pre-move and post-move diagrams are equal. The history must
+    /// use the order-sensitive [`input_diagram_order_eq`] instead.
+    #[test]
+    fn reorder_is_recorded_and_redoable() {
+        use disposition_input_rt::{EdgeGroupCardOps, MapTarget};
+
+        let yaml = "\
+thing_dependencies:
+  edge_a:
+    kind: sequence
+    things:
+      - t_x
+      - t_y
+  edge_b:
+    kind: cyclic
+    things:
+      - t_y
+      - t_z
+  edge_c:
+    kind: sequence
+    things:
+      - t_x
+      - t_z
+";
+        let d0: InputDiagram<'static> = serde_saphyr::from_str(yaml).expect("valid yaml");
+        let mut d1 = d0.clone();
+        EdgeGroupCardOps::edge_group_move(&mut d1, MapTarget::Dependencies, 0, 2);
+
+        // Sanity: `PartialEq` says they are equal (order-insensitive).
+        assert_eq!(d0, d1, "IndexMap PartialEq is order-insensitive");
+        // But the order-sensitive check sees the difference.
+        assert!(
+            !input_diagram_order_eq(&d0, &d1),
+            "order-sensitive comparison must detect reorder"
+        );
+
+        let mut h = UndoHistory::new(d0.clone());
+        h.push(d1.clone());
+
+        // The reorder must have been recorded.
+        assert_eq!(h.undo_depth(), 1, "reorder should be a new undo entry");
+
+        // Undo should return the original order.
+        let undone = h.undo().cloned().unwrap();
+        assert!(
+            input_diagram_order_eq(&undone, &d0),
+            "undo should restore original order"
+        );
+        assert!(h.can_redo());
+
+        // Simulate the memo pushing the undone diagram (skip_next_push
+        // is set by `undo`).
+        h.push(undone);
+
+        // Redo should return the reordered version.
+        let redone = h.redo().cloned().unwrap();
+        assert!(
+            input_diagram_order_eq(&redone, &d1),
+            "redo should restore reordered version"
+        );
     }
 }

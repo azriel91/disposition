@@ -232,4 +232,172 @@ mod tests {
         let state: EditorState = "".parse().expect("parse failed");
         assert_eq!(state, EditorState::default());
     }
+
+    /// Verify that YAML round-tripping through `EditorState` preserves
+    /// `IndexMap` key ordering for maps like `thing_dependencies`.
+    ///
+    /// If the YAML serializer / deserializer loses map ordering, then
+    /// redo after a reorder operation would appear to do nothing because
+    /// the "sync incoming EditorState -> local signals" memo would
+    /// overwrite the reordered diagram with a non-reordered copy.
+    #[test]
+    fn round_trip_preserves_map_order() {
+        // Build a diagram where `thing_dependencies` has three entries
+        // in a specific order: edge_c, edge_a, edge_b.
+        let yaml_input = "\
+page: thing_dependencies
+input_diagram:
+  thing_dependencies:
+    edge_c:
+      kind: sequence
+      things:
+        - t_a
+        - t_b
+    edge_a:
+      kind: cyclic
+      things:
+        - t_b
+        - t_c
+    edge_b:
+      kind: sequence
+      things:
+        - t_a
+        - t_c
+";
+        let state: EditorState = yaml_input.parse().expect("parse original");
+        let keys_before: Vec<String> = state
+            .input_diagram
+            .thing_dependencies
+            .keys()
+            .map(|k| k.to_string())
+            .collect();
+        assert_eq!(keys_before, vec!["edge_c", "edge_a", "edge_b"]);
+
+        // Round-trip through Display -> FromStr (the path taken by the
+        // URL hash serialization).
+        let serialized = state.to_string();
+        let parsed: EditorState = serialized.parse().expect("parse round-tripped");
+
+        let keys_after: Vec<String> = parsed
+            .input_diagram
+            .thing_dependencies
+            .keys()
+            .map(|k| k.to_string())
+            .collect();
+        assert_eq!(
+            keys_before, keys_after,
+            "YAML round-trip must preserve IndexMap key order"
+        );
+        assert_eq!(state, parsed);
+    }
+
+    /// Verify that an `InputDiagram` with content in several fields
+    /// survives a YAML round-trip through `EditorState` with exact
+    /// order-sensitive equality, including after a reorder (move) of
+    /// processes and thing dependencies.
+    ///
+    /// `IndexMap::PartialEq` is **order-insensitive**, so `==` treats
+    /// two maps with the same entries in different orders as equal. The
+    /// undo history and URL sync code must use the order-sensitive
+    /// [`input_diagram_order_eq`] instead.
+    ///
+    /// This test verifies:
+    /// 1. A reorder IS detected by `input_diagram_order_eq`.
+    /// 2. The YAML round-trip preserves that ordering.
+    #[test]
+    fn round_trip_exact_equality_after_reorder() {
+        use disposition::input_model::InputDiagram;
+        use disposition_input_rt::{EdgeGroupCardOps, MapTarget, ProcessesPageOps};
+
+        use crate::undo_history::input_diagram_order_eq;
+
+        // Start with a diagram that has things, dependencies, and
+        // processes -- enough to exercise most fields.
+        let yaml_input = "\
+things:
+  t_a: Thing A
+  t_b: Thing B
+  t_c: Thing C
+thing_dependencies:
+  edge_ab:
+    kind: sequence
+    things:
+      - t_a
+      - t_b
+  edge_bc:
+    kind: sequence
+    things:
+      - t_b
+      - t_c
+  edge_ac:
+    kind: cyclic
+    things:
+      - t_a
+      - t_c
+processes:
+  proc_deploy:
+    steps:
+      step_build: Build
+      step_test: Test
+      step_ship: Ship
+  proc_rollback:
+    steps:
+      step_revert: Revert
+      step_verify: Verify
+";
+        let d_original: InputDiagram<'static> =
+            serde_saphyr::from_str(yaml_input).expect("parse original");
+
+        // Reorder: move the first dependency to the last position.
+        let mut d_moved = d_original.clone();
+        EdgeGroupCardOps::edge_group_move(&mut d_moved, MapTarget::Dependencies, 0, 2);
+
+        // `IndexMap::PartialEq` is order-insensitive, so `==` says equal.
+        assert_eq!(
+            d_original, d_moved,
+            "IndexMap PartialEq is order-insensitive (sanity check)"
+        );
+
+        // But our order-sensitive comparison detects the difference.
+        assert!(
+            !input_diagram_order_eq(&d_original, &d_moved),
+            "input_diagram_order_eq must detect reorder"
+        );
+
+        // Reorder processes too.
+        ProcessesPageOps::process_move(&mut d_moved, 0, 1);
+
+        assert!(
+            !input_diagram_order_eq(&d_original, &d_moved),
+            "input_diagram_order_eq must detect process reorder"
+        );
+
+        // Wrap in EditorState and round-trip.
+        let state = EditorState {
+            page: EditorPage::ThingDependencies,
+            input_diagram: d_moved.clone(),
+        };
+        let serialized = state.to_string();
+        let parsed: EditorState = serialized.parse().expect("parse round-tripped");
+
+        // The round-tripped diagram must be order-sensitively equal.
+        assert!(
+            input_diagram_order_eq(&d_moved, &parsed.input_diagram),
+            "round-tripped InputDiagram must preserve map key order"
+        );
+        assert_eq!(state, parsed);
+
+        // Also verify starting from d_original (pre-move).
+        let state_orig = EditorState {
+            page: EditorPage::ThingDependencies,
+            input_diagram: d_original.clone(),
+        };
+        let serialized_orig = state_orig.to_string();
+        let parsed_orig: EditorState = serialized_orig.parse().expect("parse round-tripped orig");
+
+        assert!(
+            input_diagram_order_eq(&d_original, &parsed_orig.input_diagram),
+            "round-tripped InputDiagram must preserve original map key order"
+        );
+    }
 }
