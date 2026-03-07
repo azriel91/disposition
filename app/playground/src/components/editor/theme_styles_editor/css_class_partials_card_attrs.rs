@@ -138,7 +138,7 @@ fn CssClassPartialsCardAttrRow(
                                 return;
                             };
                             if let Some(partials) = styles.get_mut(&parsed_key) {
-                                partials.partials.shift_remove(&old_attr);
+                                partials.partials.remove(&old_attr);
                                 partials
                                     .partials
                                     .insert(new_attr, current_value.clone());
@@ -206,7 +206,7 @@ fn CssClassPartialsCardAttrRow(
                                 return;
                             };
                             if let Some(partials) = styles.get_mut(&parsed_key) {
-                                partials.partials.shift_remove(&attr);
+                                partials.partials.remove(&attr);
                             }
                         }
                     }

@@ -90,7 +90,7 @@ pub fn TagFocusSection(input_diagram: Signal<InputDiagram<'static>>, tag_key: St
                         move |_| {
                             if let Some(parsed) = parse_tag_id_or_defaults(&key) {
                                 let mut diagram = input_diagram.write();
-                                diagram.theme_tag_things_focus.shift_remove(&parsed);
+                                diagram.theme_tag_things_focus.remove(&parsed);
                             }
                         }
                     },

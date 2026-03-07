@@ -38,7 +38,7 @@ impl TagsPageOps {
     /// Removes a tag from the `tags` map.
     pub fn tag_remove(input_diagram: &mut InputDiagram<'static>, tag_id_str: &str) {
         if let Some(tag_id) = parse_tag_id(tag_id_str) {
-            input_diagram.tags.shift_remove(&tag_id);
+            input_diagram.tags.remove(&tag_id);
         }
     }
 
@@ -153,7 +153,7 @@ impl TagsPageOps {
     /// Removes a tag->things entry.
     pub fn tag_things_entry_remove(input_diagram: &mut InputDiagram<'static>, tag_id_str: &str) {
         if let Some(tag_id) = parse_tag_id(tag_id_str) {
-            input_diagram.tag_things.shift_remove(&tag_id);
+            input_diagram.tag_things.remove(&tag_id);
         }
     }
 
@@ -228,7 +228,7 @@ impl TagsPageOps {
         if let Some(things) = input_diagram.tag_things.get_mut(&tag_id)
             && idx < things.len()
         {
-            things.shift_remove_index(idx);
+            things.remove_index(idx);
         }
     }
 

@@ -1624,7 +1624,7 @@ version = "0.0.4"
 dependencies = [
  "disposition_input_model",
  "disposition_model_common",
- "indexmap",
+ "ordermap",
  "serde",
 ]
 
@@ -1644,7 +1644,7 @@ name = "disposition_model_common"
 version = "0.0.4"
 dependencies = [
  "id_newtype",
- "indexmap",
+ "ordermap",
  "serde",
  "utoipa",
 ]
@@ -3602,6 +3602,17 @@ name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
+name = "ordermap"
+version = "0.5.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b100f7dd605611822d30e182214d3c02fdefce2d801d23993f6b6ba6ca1392af"
+dependencies = [
+ "indexmap",
+ "serde",
+ "serde_core",
+]
 
 [[package]]
 name = "pango"

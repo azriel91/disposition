@@ -30,9 +30,7 @@ impl StepInteractionCardOps {
             None => return,
         };
         if let Some(process_diagram) = input_diagram.processes.get_mut(&process_id) {
-            process_diagram
-                .step_thing_interactions
-                .shift_remove(&step_id);
+            process_diagram.step_thing_interactions.remove(&step_id);
         }
     }
 

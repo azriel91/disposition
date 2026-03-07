@@ -79,7 +79,7 @@ pub fn TypesStylesSection(
                         move |_| {
                             if let Some(type_id) = parse_entity_type_id(&key) {
                                 let mut diagram = input_diagram.write();
-                                diagram.theme_types_styles.shift_remove(&type_id);
+                                diagram.theme_types_styles.remove(&type_id);
                             }
                         }
                     },

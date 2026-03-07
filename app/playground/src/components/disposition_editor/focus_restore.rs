@@ -82,4 +82,3 @@ requestAnimationFrame(() => {\
     var editor = document.getElementById('disposition_editor');\
     if (editor) editor.focus();\
 })";
-

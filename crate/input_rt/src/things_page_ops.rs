@@ -687,14 +687,14 @@ impl ThingsPageOps {
 
     /// Removes a thing and all references to it from the [`InputDiagram`].
     ///
-    /// Uses `shift_remove` to preserve ordering of remaining entries.
+    /// Uses `remove` to preserve ordering of remaining entries.
     pub fn thing_remove(input_diagram: &mut InputDiagram<'static>, thing_id_str: &str) {
         if let Some(thing_id) = parse_thing_id(thing_id_str) {
             // things: remove ThingId key.
-            input_diagram.things.shift_remove(&thing_id);
+            input_diagram.things.remove(&thing_id);
 
             // thing_copy_text: remove ThingId key.
-            input_diagram.thing_copy_text.shift_remove(&thing_id);
+            input_diagram.thing_copy_text.remove(&thing_id);
 
             // thing_hierarchy: recursive remove.
             Self::thing_remove_from_hierarchy(&mut input_diagram.thing_hierarchy, &thing_id);
@@ -718,7 +718,7 @@ impl ThingsPageOps {
             // tag_things: remove ThingId from each Set<ThingId> value.
             input_diagram.tag_things.values_mut().for_each(
                 |thing_ids: &mut Set<ThingId<'static>>| {
-                    thing_ids.shift_remove(&thing_id);
+                    thing_ids.remove(&thing_id);
                 },
             );
 
@@ -735,26 +735,26 @@ impl ThingsPageOps {
         input_diagram: &mut InputDiagram<'static>,
         id: &Id<'static>,
     ) {
-        input_diagram.entity_descs.shift_remove(id);
-        input_diagram.entity_tooltips.shift_remove(id);
-        input_diagram.entity_types.shift_remove(id);
+        input_diagram.entity_descs.remove(id);
+        input_diagram.entity_tooltips.remove(id);
+        input_diagram.entity_types.remove(id);
 
         let key = IdOrDefaults::Id(id.clone());
 
         // theme_default: remove from base_styles and
         // process_step_selected_styles.
-        input_diagram.theme_default.base_styles.shift_remove(&key);
+        input_diagram.theme_default.base_styles.remove(&key);
         input_diagram
             .theme_default
             .process_step_selected_styles
-            .shift_remove(&key);
+            .remove(&key);
 
         // theme_types_styles: remove from each ThemeStyles value.
         input_diagram
             .theme_types_styles
             .values_mut()
             .for_each(|theme_styles| {
-                theme_styles.shift_remove(&key);
+                theme_styles.remove(&key);
             });
 
         // theme_thing_dependencies_styles: remove from both ThemeStyles
@@ -762,18 +762,18 @@ impl ThingsPageOps {
         input_diagram
             .theme_thing_dependencies_styles
             .things_included_styles
-            .shift_remove(&key);
+            .remove(&key);
         input_diagram
             .theme_thing_dependencies_styles
             .things_excluded_styles
-            .shift_remove(&key);
+            .remove(&key);
 
         // theme_tag_things_focus: remove from each ThemeStyles value.
         input_diagram
             .theme_tag_things_focus
             .values_mut()
             .for_each(|theme_styles| {
-                theme_styles.shift_remove(&key);
+                theme_styles.remove(&key);
             });
     }
 
@@ -796,7 +796,7 @@ impl ThingsPageOps {
         thing_id: &ThingId<'static>,
     ) -> bool {
         if let Some(removal_index) = hierarchy.get_index_of(thing_id) {
-            let children = hierarchy.shift_remove(thing_id).unwrap_or_default();
+            let children = hierarchy.remove(thing_id).unwrap_or_default();
 
             // Insert children at the position where the removed node was,
             // preserving their original order.
@@ -967,17 +967,17 @@ impl ThingsPageOps {
         match target {
             OnChangeTarget::CopyText => {
                 if let Some(thing_id) = parse_thing_id(id_str) {
-                    input_diagram.thing_copy_text.shift_remove(&thing_id);
+                    input_diagram.thing_copy_text.remove(&thing_id);
                 }
             }
             OnChangeTarget::EntityDesc => {
                 if let Some(entity_id) = parse_id(id_str) {
-                    input_diagram.entity_descs.shift_remove(&entity_id);
+                    input_diagram.entity_descs.remove(&entity_id);
                 }
             }
             OnChangeTarget::EntityTooltip => {
                 if let Some(entity_id) = parse_id(id_str) {
-                    input_diagram.entity_tooltips.shift_remove(&entity_id);
+                    input_diagram.entity_tooltips.remove(&entity_id);
                 }
             }
         }

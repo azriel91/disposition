@@ -39,7 +39,7 @@ impl ProcessesPageOps {
     /// Removes a process from the `processes` map.
     pub fn process_remove(input_diagram: &mut InputDiagram<'static>, process_id_str: &str) {
         if let Some(process_id) = parse_process_id(process_id_str) {
-            input_diagram.processes.shift_remove(&process_id);
+            input_diagram.processes.remove(&process_id);
         }
     }
 

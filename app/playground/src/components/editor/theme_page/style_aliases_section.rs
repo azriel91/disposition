@@ -316,7 +316,7 @@ fn StyleAliasesSectionHeader(
                     move |_| {
                         if let Some(alias) = parse_style_alias(&key) {
                             let mut diagram = input_diagram.write();
-                            diagram.theme_default.style_aliases.shift_remove(&alias);
+                            diagram.theme_default.style_aliases.remove(&alias);
                         }
                     }
                 },
@@ -568,7 +568,7 @@ fn StyleAliasesSectionAttrRow(
                                 if let Some(partials) =
                                     diagram.theme_default.style_aliases.get_mut(&parsed_key)
                                 {
-                                    partials.partials.shift_remove(&old_attr);
+                                    partials.partials.remove(&old_attr);
                                     partials
                                         .partials
                                         .insert(new_attr, current_value.clone());
@@ -626,7 +626,7 @@ fn StyleAliasesSectionAttrRow(
                             if let Some(partials) =
                                 diagram.theme_default.style_aliases.get_mut(&parsed_key)
                             {
-                                partials.partials.shift_remove(&attr);
+                                partials.partials.remove(&attr);
                             }
                         }
                     }

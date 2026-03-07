@@ -23,5 +23,5 @@ workspace = true
 [dependencies]
 disposition_input_model = { workspace = true }
 disposition_model_common = { workspace = true }
-indexmap = { workspace = true }
+ordermap = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

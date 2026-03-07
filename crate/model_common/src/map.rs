@@ -1,4 +1,4 @@
-//! `IndexMap` doesn't implement `utoipa::ToSchema`, and there doesn't yet exist
+//! `OrderMap` doesn't implement `utoipa::ToSchema`, and there doesn't yet exist
 //! a nice way to implement the trait on third party types:
 //!
 //! <https://github.com/juhaku/utoipa/issues/790#issuecomment-1787754185>
@@ -8,7 +8,7 @@
 //! In general, this library should be built with the `"openapi"` feature
 //! disabled.
 //!
-//! Tests rely on indexmap as some assertions expect order to be preserved.
+//! Tests rely on OrderMap as some assertions expect order to be preserved.
 
 #[cfg(all(feature = "openapi", not(feature = "test")))]
 pub use std::collections::hash_map::Keys;
@@ -16,6 +16,6 @@ pub use std::collections::hash_map::Keys;
 pub use std::collections::HashMap as Map;
 
 #[cfg(any(not(feature = "openapi"), feature = "test"))]
-pub use indexmap::map::Keys;
+pub use ordermap::map::Keys;
 #[cfg(any(not(feature = "openapi"), feature = "test"))]
-pub use indexmap::IndexMap as Map;
+pub use ordermap::OrderMap as Map;

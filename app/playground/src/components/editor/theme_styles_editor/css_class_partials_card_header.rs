@@ -103,7 +103,7 @@ pub fn CssClassPartialsCardHeader(
                             let Some(styles) = target.write_mut(&mut diagram) else {
                                 return;
                             };
-                            styles.shift_remove(&parsed);
+                            styles.remove(&parsed);
                         }
                     }
                 },

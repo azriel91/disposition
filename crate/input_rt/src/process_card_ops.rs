@@ -85,7 +85,7 @@ impl ProcessCardOps {
             None => return,
         };
         if let Some(process_diagram) = input_diagram.processes.get_mut(&process_id) {
-            process_diagram.steps.shift_remove(&step_id);
+            process_diagram.steps.remove(&step_id);
         }
     }
 
