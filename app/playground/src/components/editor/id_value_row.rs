@@ -144,6 +144,7 @@ pub fn IdValueRow(
             tabindex: "0",
             draggable: "true",
             "data-entry-id": "{entry_id}",
+            "data-input-diagram-field": "{entry_id}",
 
             // === Keyboard shortcuts (row-level) === //
             onkeydown: FieldNav::div_onkeydown(

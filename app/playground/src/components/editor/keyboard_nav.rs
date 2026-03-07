@@ -30,11 +30,31 @@
 //!   and native select navigation).
 //! - **Space**: stop propagation (prevents the parent card from toggling
 //!   collapse when typing in an input).
+//!
+//! ## Focus After Remove
+//!
+//! [`js_focus_after_field_remove`] provides a unified strategy for restoring
+//! focus when an editor field (`IdValueRow`, `*Card`, `StyleAliasesSection`)
+//! is removed via **Ctrl+Shift+K**. It walks up from the active element to
+//! the nearest `[data-input-diagram-field]` ancestor, then tries, in order:
+//!
+//! 1. The next sibling with `[data-input-diagram-field]`.
+//! 2. The previous sibling with `[data-input-diagram-field]`.
+//! 3. The closest focusable ancestor.
+//!
+//! ## Focus Save / Restore for Undo/Redo
+//!
+//! The `JS_FOCUS_SAVE` constant in `focus_restore` captures the
+//! `data-input-diagram-field` values of the active element's next and
+//! previous sibling fields, storing them on `window.__focusRestore` for
+//! `JS_FOCUS_RESTORE` to use after a DOM update.
 
 use dioxus::{
     document,
     prelude::{Key, ModifiersInteraction},
 };
+
+use crate::components::editor::common::DATA_INPUT_DIAGRAM_FIELD;
 
 // === Parameterised JS snippet builders === //
 
@@ -198,6 +218,71 @@ pub fn js_focus_first_field() -> String {
                 ?.querySelector('{FOCUSABLE_SELECTOR}')\
                 ?.focus();\
         }}, 0)"
+    )
+}
+
+// === Focus after remove === //
+
+/// Build a JS snippet that schedules focus on the next (or previous, or
+/// ancestor) `[data-input-diagram-field]` sibling after the current field
+/// is removed.
+///
+/// The snippet stores the target selector on `window.__focusAfterRemove`
+/// **before** the DOM mutation. A `requestAnimationFrame` callback then
+/// focuses the element after Dioxus has flushed the update.
+///
+/// Resolution order:
+///
+/// 1. Next sibling element with `[data-input-diagram-field]`.
+/// 2. Previous sibling element with `[data-input-diagram-field]`.
+/// 3. Closest focusable ancestor (e.g. the editor tab).
+pub fn js_focus_after_field_remove() -> String {
+    let attr = DATA_INPUT_DIAGRAM_FIELD;
+    format!(
+        "(() => {{\
+            var el = document.activeElement;\
+            if (!el) return;\
+            var field = el.closest('[{attr}]') || el;\
+            var sel = null;\
+            var next = field.nextElementSibling;\
+            while (next) {{\
+                if (next.hasAttribute('{attr}')) {{\
+                    sel = '[{attr}=\"' + next.getAttribute('{attr}') + '\"]';\
+                    break;\
+                }}\
+                next = next.nextElementSibling;\
+            }}\
+            if (!sel) {{\
+                var prev = field.previousElementSibling;\
+                while (prev) {{\
+                    if (prev.hasAttribute('{attr}')) {{\
+                        sel = '[{attr}=\"' + prev.getAttribute('{attr}') + '\"]';\
+                        break;\
+                    }}\
+                    prev = prev.previousElementSibling;\
+                }}\
+            }}\
+            if (!sel) {{\
+                var parent = field.parentElement;\
+                while (parent) {{\
+                    if (parent.tabIndex >= 0) {{\
+                        sel = parent.id ? '#' + CSS.escape(parent.id) : null;\
+                        break;\
+                    }}\
+                    parent = parent.parentElement;\
+                }}\
+            }}\
+            window.__focusAfterRemove = sel;\
+            requestAnimationFrame(() => {{\
+                var target = window.__focusAfterRemove;\
+                window.__focusAfterRemove = null;\
+                if (target) {{\
+                    try {{ var e = document.querySelector(target); if (e) {{ e.focus(); return; }} }} catch(ex) {{}}\
+                }}\
+                var editor = document.getElementById('disposition_editor');\
+                if (editor) editor.focus();\
+            }});\
+        }})()"
     )
 }
 

@@ -73,6 +73,7 @@ pub(crate) fn TagThingsCard(
             tabindex: "0",
             draggable: "true",
             "data-tag-things-card": "true",
+            "data-input-diagram-field": "{tag_id}",
 
             // === Card identity for post-rename focus === //
             "data-tag-things-card-id": "{tag_id}",

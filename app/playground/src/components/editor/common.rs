@@ -204,3 +204,15 @@ pub const DRAG_HANDLE: &str = "\
 
 /// Helper label classes.
 pub const LABEL_CLASS: &str = "text-xs text-gray-500 mb-1";
+
+/// The `data-*` attribute placed on every top-level editor field element
+/// (`IdValueRow`, `ProcessCard`, `EdgeGroupCard`, `TagThingsCard`,
+/// `CssClassPartialsCard`, `StyleAliasesSection`).
+///
+/// Used by the focus-after-remove and undo/redo focus-save/restore logic
+/// to locate sibling fields on the current page regardless of their
+/// concrete type.
+///
+/// The attribute value is the field's ID string, e.g. `"thing_0"`,
+/// `"proc_app_dev"`, `"shade_light"`.
+pub const DATA_INPUT_DIAGRAM_FIELD: &str = "data-input-diagram-field";

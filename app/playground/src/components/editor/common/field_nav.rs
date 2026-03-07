@@ -143,15 +143,9 @@ impl FieldNav {
                 Key::Character(ref c) if ctrl && shift && c.eq_ignore_ascii_case("k") => {
                     evt.prevent_default();
                     evt.stop_propagation();
-                    // Focus the next row, or previous if this is the last,
-                    // or the parent section if this is the only entry.
-                    if entry_count > 1 {
-                        if is_last {
-                            focus_index.set(Some(index - 1));
-                        } else {
-                            focus_index.set(Some(index));
-                        }
-                    }
+                    // Schedule focus on the next/prev sibling field
+                    // *before* the DOM element is removed.
+                    document::eval(&keyboard_nav::js_focus_after_field_remove());
                     on_remove.call(entry_id.clone());
                 }
 

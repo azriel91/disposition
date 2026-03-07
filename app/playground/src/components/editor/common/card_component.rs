@@ -14,6 +14,7 @@
 
 use dioxus::{
     core::Event,
+    document,
     hooks::use_signal,
     html::KeyboardData,
     prelude::{Key, ModifiersInteraction},
@@ -164,6 +165,9 @@ impl CardComponent {
                     collapsed.set(!is_collapsed);
                 }
                 CardKeyAction::Remove => {
+                    // Schedule focus on the next/prev sibling field
+                    // *before* the DOM element is removed.
+                    document::eval(&keyboard_nav::js_focus_after_field_remove());
                     on_remove();
                 }
                 CardKeyAction::EnterEdit => collapsed.set(false),

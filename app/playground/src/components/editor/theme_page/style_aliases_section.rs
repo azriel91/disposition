@@ -130,6 +130,7 @@ pub fn StyleAliasesSection(
             tabindex: "0",
             draggable: "true",
             "data-style-alias-card": "true",
+            "data-input-diagram-field": "{alias_key}",
 
             // === Card identity for post-rename focus === //
             "data-style-alias-card-id": "{alias_key}",

@@ -125,6 +125,7 @@ pub fn CssClassPartialsCard(
             tabindex: "0",
             draggable: "true",
             "data-css-card": "true",
+            "data-input-diagram-field": "{entry_key}",
 
             // === Card-level keyboard shortcuts === //
             onkeydown: {

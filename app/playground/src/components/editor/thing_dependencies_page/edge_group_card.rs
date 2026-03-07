@@ -89,6 +89,7 @@ pub(crate) fn EdgeGroupCard(
             tabindex: "0",
             draggable: "true",
             "data-edge-group-card": "true",
+            "data-input-diagram-field": "{edge_group_id}",
 
             // === Card identity for post-rename focus === //
             "data-edge-group-card-id": "{edge_group_id}",
