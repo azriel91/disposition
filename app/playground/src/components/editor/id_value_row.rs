@@ -92,6 +92,8 @@ const DUPLICATE_BTN: &str = "\
 /// * `on_update(id, value)`: change the entry value.
 /// * `on_remove(id)`: delete the entry.
 /// * `on_add(index)`: insert a new entry at `index`.
+/// * `on_duplicate(index)`: duplicate the entry -- special handler to clone the
+///   entry in various fields of the `InputDiagram`.
 ///
 /// # Props
 ///
