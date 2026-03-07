@@ -6,10 +6,12 @@
 mod disposition_status_message_div;
 mod editor_page_content;
 mod editor_tab_bar;
+mod focus_restore;
 mod taffy_tree_fmt;
 mod undo_redo_toolbar;
 
 use dioxus::{
+    document,
     hooks::{use_memo, use_signal},
     prelude::{
         component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Key,
@@ -48,8 +50,11 @@ use crate::undo_history::{history_push, history_redo, history_undo, UndoHistory}
 
 use self::{
     disposition_status_message_div::DispositionStatusMessageDiv,
-    editor_page_content::EditorPageContent, editor_tab_bar::EditorTabBar,
-    taffy_tree_fmt::TaffyTreeFmt, undo_redo_toolbar::UndoRedoToolbar,
+    editor_page_content::EditorPageContent,
+    editor_tab_bar::EditorTabBar,
+    focus_restore::{JS_FOCUS_RESTORE, JS_FOCUS_SAVE},
+    taffy_tree_fmt::TaffyTreeFmt,
+    undo_redo_toolbar::UndoRedoToolbar,
 };
 
 #[component]
@@ -289,6 +294,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
 
         div {
             id: "disposition_editor",
+            tabindex: "-1",
             class: "
                 flex
                 flex-col
@@ -311,12 +317,16 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                         if evt.modifiers().shift() {
                             // Ctrl+Shift+Z -> redo
                             if let Some(diagram) = history_redo(undo_history) {
+                                document::eval(JS_FOCUS_SAVE);
                                 input_diagram.set(diagram);
+                                document::eval(JS_FOCUS_RESTORE);
                             }
                         } else {
                             // Ctrl+Z -> undo
                             if let Some(diagram) = history_undo(undo_history) {
+                                document::eval(JS_FOCUS_SAVE);
                                 input_diagram.set(diagram);
+                                document::eval(JS_FOCUS_RESTORE);
                             }
                         }
                     }
@@ -325,7 +335,9 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                         evt.stop_propagation();
                         // Ctrl+Y -> redo
                         if let Some(diagram) = history_redo(undo_history) {
+                            document::eval(JS_FOCUS_SAVE);
                             input_diagram.set(diagram);
+                            document::eval(JS_FOCUS_RESTORE);
                         }
                     }
                     _ => {}

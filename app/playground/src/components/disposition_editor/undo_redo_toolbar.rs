@@ -9,12 +9,15 @@
 //! element (see [`DispositionEditor`](super::super::DispositionEditor)).
 
 use dioxus::{
+    document,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
 
 use crate::undo_history::{history_redo, history_undo, UndoHistory};
+
+use super::focus_restore::{JS_FOCUS_RESTORE, JS_FOCUS_SAVE};
 
 /// CSS classes for the undo/redo buttons when enabled.
 const BTN_ENABLED: &str = "\
@@ -99,7 +102,9 @@ pub fn UndoRedoToolbar(
                 "aria-label": "Undo",
                 onclick: move |_| {
                     if let Some(diagram) = history_undo(undo_history) {
+                        document::eval(JS_FOCUS_SAVE);
                         input_diagram.set(diagram);
+                        document::eval(JS_FOCUS_RESTORE);
                     }
                 },
                 // Left-pointing arrow + "Undo"
@@ -113,7 +118,9 @@ pub fn UndoRedoToolbar(
                 "aria-label": "Redo",
                 onclick: move |_| {
                     if let Some(diagram) = history_redo(undo_history) {
+                        document::eval(JS_FOCUS_SAVE);
                         input_diagram.set(diagram);
+                        document::eval(JS_FOCUS_RESTORE);
                     }
                 },
                 // "Redo" + right-pointing arrow
