@@ -7,7 +7,7 @@
 
 use dioxus::signals::{Signal, WritableExt};
 use disposition::input_model::InputDiagram;
-use disposition_input_rt::on_change_target::OnChangeTarget;
+use disposition_input_rt::OnChangeTarget;
 
 /// Mutation operations for the Things editor page.
 ///
@@ -23,7 +23,7 @@ impl ThingsPageOps {
     /// Also inserts a corresponding entry into `thing_hierarchy` with an
     /// empty hierarchy so the thing appears in the layout editor.
     pub fn thing_add(mut input_diagram: Signal<InputDiagram<'static>>) {
-        disposition_input_rt::things_page_ops::ThingsPageOps::thing_add(&mut input_diagram.write());
+        disposition_input_rt::ThingsPageOps::thing_add(&mut input_diagram.write());
     }
 
     /// Duplicates a thing and all its entries across the [`InputDiagram`].
@@ -46,7 +46,7 @@ impl ThingsPageOps {
     /// immediately after the original but with an empty child hierarchy
     /// (children can only have one parent).
     pub fn thing_duplicate(mut input_diagram: Signal<InputDiagram<'static>>, thing_id_str: &str) {
-        disposition_input_rt::things_page_ops::ThingsPageOps::thing_duplicate(
+        disposition_input_rt::ThingsPageOps::thing_duplicate(
             &mut input_diagram.write(),
             thing_id_str,
         );
@@ -58,7 +58,7 @@ impl ThingsPageOps {
         thing_id_str: &str,
         name: &str,
     ) {
-        disposition_input_rt::things_page_ops::ThingsPageOps::thing_name_update(
+        disposition_input_rt::ThingsPageOps::thing_name_update(
             &mut input_diagram.write(),
             thing_id_str,
             name,
@@ -71,7 +71,7 @@ impl ThingsPageOps {
         thing_id_old_str: &str,
         thing_id_new_str: &str,
     ) {
-        disposition_input_rt::things_page_ops::ThingsPageOps::thing_rename(
+        disposition_input_rt::ThingsPageOps::thing_rename(
             &mut input_diagram.write(),
             thing_id_old_str,
             thing_id_new_str,
@@ -82,42 +82,29 @@ impl ThingsPageOps {
     ///
     /// Uses `shift_remove` to preserve ordering of remaining entries.
     pub fn thing_remove(mut input_diagram: Signal<InputDiagram<'static>>, thing_id_str: &str) {
-        disposition_input_rt::things_page_ops::ThingsPageOps::thing_remove(
-            &mut input_diagram.write(),
-            thing_id_str,
-        );
+        disposition_input_rt::ThingsPageOps::thing_remove(&mut input_diagram.write(), thing_id_str);
     }
 
     /// Moves a thing entry from one index to another in the `things` map.
     pub fn thing_move(mut input_diagram: Signal<InputDiagram<'static>>, from: usize, to: usize) {
-        disposition_input_rt::things_page_ops::ThingsPageOps::thing_move(
-            &mut input_diagram.write(),
-            from,
-            to,
-        );
+        disposition_input_rt::ThingsPageOps::thing_move(&mut input_diagram.write(), from, to);
     }
 
     // === Copy text helpers === //
 
     /// Adds a new copy-text row with a unique placeholder ThingId.
     pub fn copy_text_add(mut input_diagram: Signal<InputDiagram<'static>>) {
-        disposition_input_rt::things_page_ops::ThingsPageOps::copy_text_add(
-            &mut input_diagram.write(),
-        );
+        disposition_input_rt::ThingsPageOps::copy_text_add(&mut input_diagram.write());
     }
 
     /// Adds a new entity description row with a unique placeholder Id.
     pub fn entity_desc_add(mut input_diagram: Signal<InputDiagram<'static>>) {
-        disposition_input_rt::things_page_ops::ThingsPageOps::entity_desc_add(
-            &mut input_diagram.write(),
-        );
+        disposition_input_rt::ThingsPageOps::entity_desc_add(&mut input_diagram.write());
     }
 
     /// Adds a new entity tooltip row with a unique placeholder Id.
     pub fn entity_tooltip_add(mut input_diagram: Signal<InputDiagram<'static>>) {
-        disposition_input_rt::things_page_ops::ThingsPageOps::entity_tooltip_add(
-            &mut input_diagram.write(),
-        );
+        disposition_input_rt::ThingsPageOps::entity_tooltip_add(&mut input_diagram.write());
     }
 
     // === Key-value (copy-text / desc / tooltip) mutation helpers === //
@@ -130,7 +117,7 @@ impl ThingsPageOps {
         id_new_str: &str,
         current_value: &str,
     ) {
-        disposition_input_rt::things_page_ops::ThingsPageOps::kv_entry_rename(
+        disposition_input_rt::ThingsPageOps::kv_entry_rename(
             &mut input_diagram.write(),
             target,
             id_old_str,
@@ -146,7 +133,7 @@ impl ThingsPageOps {
         id_str: &str,
         value: &str,
     ) {
-        disposition_input_rt::things_page_ops::ThingsPageOps::kv_entry_update(
+        disposition_input_rt::ThingsPageOps::kv_entry_update(
             &mut input_diagram.write(),
             target,
             id_str,
@@ -160,7 +147,7 @@ impl ThingsPageOps {
         target: OnChangeTarget,
         id_str: &str,
     ) {
-        disposition_input_rt::things_page_ops::ThingsPageOps::kv_entry_remove(
+        disposition_input_rt::ThingsPageOps::kv_entry_remove(
             &mut input_diagram.write(),
             target,
             id_str,
@@ -174,7 +161,7 @@ impl ThingsPageOps {
         from: usize,
         to: usize,
     ) {
-        disposition_input_rt::things_page_ops::ThingsPageOps::kv_entry_move(
+        disposition_input_rt::ThingsPageOps::kv_entry_move(
             &mut input_diagram.write(),
             target,
             from,

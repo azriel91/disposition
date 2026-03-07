@@ -1,9 +1,7 @@
 //! Tests for `disposition_input_rt::style_aliases_section_ops::StyleAliasesSectionOps`.
 
 use disposition::input_model::{theme::CssClassPartials, InputDiagram};
-use disposition_input_rt::{
-    id_parse::parse_style_alias, style_aliases_section_ops::StyleAliasesSectionOps,
-};
+use disposition_input_rt::{id_parse::parse_style_alias, StyleAliasesSectionOps};
 
 fn empty_diagram() -> InputDiagram<'static> {
     InputDiagram::default()

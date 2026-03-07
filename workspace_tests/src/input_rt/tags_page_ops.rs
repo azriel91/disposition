@@ -3,7 +3,7 @@
 use disposition::{input_model::InputDiagram, model_common::Set};
 use disposition_input_rt::{
     id_parse::{parse_tag_id, parse_thing_id},
-    tags_page_ops::TagsPageOps,
+    TagsPageOps,
 };
 
 fn empty_diagram() -> InputDiagram<'static> {

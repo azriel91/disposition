@@ -6,7 +6,6 @@
 //! - Entity Descriptions (`entity_descs`: `Id` -> description)
 //! - Entity Tooltips (`entity_tooltips`: `Id` -> tooltip)
 
-mod on_change_target;
 mod things_page_ops;
 
 use dioxus::{
@@ -15,6 +14,7 @@ use dioxus::{
     signals::{ReadableExt, Signal},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_rt::OnChangeTarget;
 
 use crate::components::editor::{
     common::{RenameRefocus, ADD_BTN, SECTION_HEADING},
@@ -23,7 +23,7 @@ use crate::components::editor::{
     reorderable::ReorderableContainer,
 };
 
-use self::{on_change_target::OnChangeTarget, things_page_ops::ThingsPageOps};
+use self::things_page_ops::ThingsPageOps;
 
 // === Thing Names sub-page === //
 

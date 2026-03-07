@@ -31,10 +31,7 @@ impl ThingLayoutOps {
         mut input_diagram: Signal<InputDiagram<'static>>,
         index: usize,
     ) -> Option<usize> {
-        disposition_input_rt::thing_layout_ops::ThingLayoutOps::entry_move_up(
-            &mut input_diagram.write(),
-            index,
-        )
+        disposition_input_rt::ThingLayoutOps::entry_move_up(&mut input_diagram.write(), index)
     }
 
     /// Move the entry at `index` down within the flattened hierarchy.
@@ -52,10 +49,7 @@ impl ThingLayoutOps {
         mut input_diagram: Signal<InputDiagram<'static>>,
         index: usize,
     ) -> Option<usize> {
-        disposition_input_rt::thing_layout_ops::ThingLayoutOps::entry_move_down(
-            &mut input_diagram.write(),
-            index,
-        )
+        disposition_input_rt::ThingLayoutOps::entry_move_down(&mut input_diagram.write(), index)
     }
 
     /// Indent the entry at `index` (increase nesting depth by 1).
@@ -69,10 +63,7 @@ impl ThingLayoutOps {
         mut input_diagram: Signal<InputDiagram<'static>>,
         index: usize,
     ) -> Option<usize> {
-        disposition_input_rt::thing_layout_ops::ThingLayoutOps::entry_indent(
-            &mut input_diagram.write(),
-            index,
-        )
+        disposition_input_rt::ThingLayoutOps::entry_indent(&mut input_diagram.write(), index)
     }
 
     /// Outdent the entry at `index` (decrease nesting depth by 1).
@@ -90,10 +81,7 @@ impl ThingLayoutOps {
         mut input_diagram: Signal<InputDiagram<'static>>,
         index: usize,
     ) -> Option<usize> {
-        disposition_input_rt::thing_layout_ops::ThingLayoutOps::entry_outdent(
-            &mut input_diagram.write(),
-            index,
-        )
+        disposition_input_rt::ThingLayoutOps::entry_outdent(&mut input_diagram.write(), index)
     }
 
     /// Moves a dragged entry from flat index `from` to flat index `to`.
@@ -107,10 +95,6 @@ impl ThingLayoutOps {
         from: usize,
         to: usize,
     ) {
-        disposition_input_rt::thing_layout_ops::ThingLayoutOps::entry_drag_move(
-            &mut input_diagram.write(),
-            from,
-            to,
-        );
+        disposition_input_rt::ThingLayoutOps::entry_drag_move(&mut input_diagram.write(), from, to);
     }
 }

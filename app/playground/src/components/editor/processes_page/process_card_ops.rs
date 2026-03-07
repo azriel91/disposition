@@ -31,7 +31,7 @@ impl ProcessCardOps {
         from: usize,
         to: usize,
     ) {
-        disposition_input_rt::process_card_ops::ProcessCardOps::step_move(
+        disposition_input_rt::ProcessCardOps::step_move(
             &mut input_diagram.write(),
             process_id_str,
             from,
@@ -41,10 +41,7 @@ impl ProcessCardOps {
 
     /// Adds a new step to a process with a unique placeholder step ID.
     pub(crate) fn step_add(mut input_diagram: Signal<InputDiagram<'static>>, process_id_str: &str) {
-        disposition_input_rt::process_card_ops::ProcessCardOps::step_add(
-            &mut input_diagram.write(),
-            process_id_str,
-        );
+        disposition_input_rt::ProcessCardOps::step_add(&mut input_diagram.write(), process_id_str);
     }
 
     /// Removes a step from a process.
@@ -53,7 +50,7 @@ impl ProcessCardOps {
         process_id_str: &str,
         step_id_str: &str,
     ) {
-        disposition_input_rt::process_card_ops::ProcessCardOps::step_remove(
+        disposition_input_rt::ProcessCardOps::step_remove(
             &mut input_diagram.write(),
             process_id_str,
             step_id_str,
@@ -68,7 +65,7 @@ impl ProcessCardOps {
         step_id_old_str: &str,
         step_id_new_str: &str,
     ) {
-        disposition_input_rt::process_card_ops::ProcessCardOps::step_rename(
+        disposition_input_rt::ProcessCardOps::step_rename(
             &mut input_diagram.write(),
             process_id_str,
             step_id_old_str,
@@ -83,7 +80,7 @@ impl ProcessCardOps {
         step_id_str: &str,
         label: &str,
     ) {
-        disposition_input_rt::process_card_ops::ProcessCardOps::step_label_update(
+        disposition_input_rt::ProcessCardOps::step_label_update(
             &mut input_diagram.write(),
             process_id_str,
             step_id_str,
@@ -98,7 +95,7 @@ impl ProcessCardOps {
         mut input_diagram: Signal<InputDiagram<'static>>,
         process_id_str: &str,
     ) {
-        disposition_input_rt::process_card_ops::ProcessCardOps::step_interaction_add(
+        disposition_input_rt::ProcessCardOps::step_interaction_add(
             &mut input_diagram.write(),
             process_id_str,
         );

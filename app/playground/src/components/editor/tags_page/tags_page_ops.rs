@@ -16,15 +16,12 @@ impl TagsPageOps {
 
     /// Adds a new tag with a unique placeholder TagId.
     pub(crate) fn tag_add(mut input_diagram: Signal<InputDiagram<'static>>) {
-        disposition_input_rt::tags_page_ops::TagsPageOps::tag_add(&mut input_diagram.write());
+        disposition_input_rt::TagsPageOps::tag_add(&mut input_diagram.write());
     }
 
     /// Removes a tag from the `tags` map.
     pub(crate) fn tag_remove(mut input_diagram: Signal<InputDiagram<'static>>, tag_id_str: &str) {
-        disposition_input_rt::tags_page_ops::TagsPageOps::tag_remove(
-            &mut input_diagram.write(),
-            tag_id_str,
-        );
+        disposition_input_rt::TagsPageOps::tag_remove(&mut input_diagram.write(), tag_id_str);
     }
 
     /// Renames a tag across all maps in the [`InputDiagram`].
@@ -33,7 +30,7 @@ impl TagsPageOps {
         tag_id_old_str: &str,
         tag_id_new_str: &str,
     ) {
-        disposition_input_rt::tags_page_ops::TagsPageOps::tag_rename(
+        disposition_input_rt::TagsPageOps::tag_rename(
             &mut input_diagram.write(),
             tag_id_old_str,
             tag_id_new_str,
@@ -46,7 +43,7 @@ impl TagsPageOps {
         tag_id_str: &str,
         name: &str,
     ) {
-        disposition_input_rt::tags_page_ops::TagsPageOps::tag_name_update(
+        disposition_input_rt::TagsPageOps::tag_name_update(
             &mut input_diagram.write(),
             tag_id_str,
             name,
@@ -59,11 +56,7 @@ impl TagsPageOps {
         from: usize,
         to: usize,
     ) {
-        disposition_input_rt::tags_page_ops::TagsPageOps::tag_move(
-            &mut input_diagram.write(),
-            from,
-            to,
-        );
+        disposition_input_rt::TagsPageOps::tag_move(&mut input_diagram.write(), from, to);
     }
 
     // === Tag things helpers === //
@@ -75,7 +68,7 @@ impl TagsPageOps {
         from: usize,
         to: usize,
     ) {
-        disposition_input_rt::tags_page_ops::TagsPageOps::tag_things_entry_move(
+        disposition_input_rt::TagsPageOps::tag_things_entry_move(
             &mut input_diagram.write(),
             from,
             to,
@@ -85,9 +78,7 @@ impl TagsPageOps {
     /// Adds a new tag->things entry, picking an unmapped tag or generating a
     /// placeholder.
     pub(crate) fn tag_things_entry_add(mut input_diagram: Signal<InputDiagram<'static>>) {
-        disposition_input_rt::tags_page_ops::TagsPageOps::tag_things_entry_add(
-            &mut input_diagram.write(),
-        );
+        disposition_input_rt::TagsPageOps::tag_things_entry_add(&mut input_diagram.write());
     }
 
     /// Removes a tag->things entry.
@@ -95,7 +86,7 @@ impl TagsPageOps {
         mut input_diagram: Signal<InputDiagram<'static>>,
         tag_id_str: &str,
     ) {
-        disposition_input_rt::tags_page_ops::TagsPageOps::tag_things_entry_remove(
+        disposition_input_rt::TagsPageOps::tag_things_entry_remove(
             &mut input_diagram.write(),
             tag_id_str,
         );
@@ -108,7 +99,7 @@ impl TagsPageOps {
         tag_id_new_str: &str,
         current_things: &[String],
     ) {
-        disposition_input_rt::tags_page_ops::TagsPageOps::tag_things_entry_rename(
+        disposition_input_rt::TagsPageOps::tag_things_entry_rename(
             &mut input_diagram.write(),
             tag_id_old_str,
             tag_id_new_str,
@@ -123,7 +114,7 @@ impl TagsPageOps {
         idx: usize,
         thing_id_new_str: &str,
     ) {
-        disposition_input_rt::tags_page_ops::TagsPageOps::tag_things_thing_update(
+        disposition_input_rt::TagsPageOps::tag_things_thing_update(
             &mut input_diagram.write(),
             tag_id_str,
             idx,
@@ -137,7 +128,7 @@ impl TagsPageOps {
         tag_id_str: &str,
         idx: usize,
     ) {
-        disposition_input_rt::tags_page_ops::TagsPageOps::tag_things_thing_remove(
+        disposition_input_rt::TagsPageOps::tag_things_thing_remove(
             &mut input_diagram.write(),
             tag_id_str,
             idx,
@@ -149,7 +140,7 @@ impl TagsPageOps {
         mut input_diagram: Signal<InputDiagram<'static>>,
         tag_id_str: &str,
     ) {
-        disposition_input_rt::tags_page_ops::TagsPageOps::tag_things_thing_add(
+        disposition_input_rt::TagsPageOps::tag_things_thing_add(
             &mut input_diagram.write(),
             tag_id_str,
         );

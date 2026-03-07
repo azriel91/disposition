@@ -10,8 +10,7 @@ use disposition::{
 };
 use disposition_input_rt::{
     id_parse::{parse_edge_group_id, parse_id, parse_tag_id, parse_thing_id},
-    on_change_target::OnChangeTarget,
-    things_page_ops::ThingsPageOps,
+    OnChangeTarget, ThingsPageOps,
 };
 
 fn empty_diagram() -> InputDiagram<'static> {

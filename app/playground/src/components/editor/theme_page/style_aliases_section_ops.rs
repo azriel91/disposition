@@ -35,7 +35,7 @@ impl StyleAliasesSectionOps {
         alias_old_str: &str,
         alias_new_str: &str,
     ) {
-        disposition_input_rt::style_aliases_section_ops::StyleAliasesSectionOps::style_alias_rename(
+        disposition_input_rt::StyleAliasesSectionOps::style_alias_rename(
             &mut input_diagram.write(),
             alias_old_str,
             alias_new_str,

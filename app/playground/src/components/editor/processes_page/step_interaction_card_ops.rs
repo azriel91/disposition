@@ -18,7 +18,7 @@ impl StepInteractionCardOps {
         process_id_str: &str,
         step_id_str: &str,
     ) {
-        disposition_input_rt::step_interaction_card_ops::StepInteractionCardOps::step_interaction_remove(
+        disposition_input_rt::StepInteractionCardOps::step_interaction_remove(
             &mut input_diagram.write(),
             process_id_str,
             step_id_str,
@@ -33,7 +33,7 @@ impl StepInteractionCardOps {
         step_id_new_str: &str,
         edge_id_strs: &[String],
     ) {
-        disposition_input_rt::step_interaction_card_ops::StepInteractionCardOps::step_interaction_rename(
+        disposition_input_rt::StepInteractionCardOps::step_interaction_rename(
             &mut input_diagram.write(),
             process_id_str,
             step_id_old_str,
@@ -51,7 +51,7 @@ impl StepInteractionCardOps {
         idx: usize,
         edge_group_id_new_str: &str,
     ) {
-        disposition_input_rt::step_interaction_card_ops::StepInteractionCardOps::step_interaction_edge_update(
+        disposition_input_rt::StepInteractionCardOps::step_interaction_edge_update(
             &mut input_diagram.write(),
             process_id_str,
             step_id_str,
@@ -67,7 +67,7 @@ impl StepInteractionCardOps {
         step_id_str: &str,
         idx: usize,
     ) {
-        disposition_input_rt::step_interaction_card_ops::StepInteractionCardOps::step_interaction_edge_remove(
+        disposition_input_rt::StepInteractionCardOps::step_interaction_edge_remove(
             &mut input_diagram.write(),
             process_id_str,
             step_id_str,
@@ -82,7 +82,7 @@ impl StepInteractionCardOps {
         process_id_str: &str,
         step_id_str: &str,
     ) {
-        disposition_input_rt::step_interaction_card_ops::StepInteractionCardOps::step_interaction_edge_add(
+        disposition_input_rt::StepInteractionCardOps::step_interaction_edge_add(
             &mut input_diagram.write(),
             process_id_str,
             step_id_str,

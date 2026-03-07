@@ -19,7 +19,7 @@ impl EdgeGroupCardOps {
         mut input_diagram: Signal<InputDiagram<'static>>,
         target: MapTarget,
     ) {
-        disposition_input_rt::edge_group_card_ops::EdgeGroupCardOps::edge_group_add(
+        disposition_input_rt::EdgeGroupCardOps::edge_group_add(
             &mut input_diagram.write(),
             target.into_rt(),
         );
@@ -32,7 +32,7 @@ impl EdgeGroupCardOps {
         from: usize,
         to: usize,
     ) {
-        disposition_input_rt::edge_group_card_ops::EdgeGroupCardOps::edge_group_move(
+        disposition_input_rt::EdgeGroupCardOps::edge_group_move(
             &mut input_diagram.write(),
             target.into_rt(),
             from,
@@ -46,7 +46,7 @@ impl EdgeGroupCardOps {
         target: MapTarget,
         edge_group_id_str: &str,
     ) {
-        disposition_input_rt::edge_group_card_ops::EdgeGroupCardOps::edge_group_remove(
+        disposition_input_rt::EdgeGroupCardOps::edge_group_remove(
             &mut input_diagram.write(),
             target.into_rt(),
             edge_group_id_str,
@@ -59,7 +59,7 @@ impl EdgeGroupCardOps {
         edge_group_id_old_str: &str,
         edge_group_id_new_str: &str,
     ) {
-        disposition_input_rt::edge_group_card_ops::EdgeGroupCardOps::edge_group_rename(
+        disposition_input_rt::EdgeGroupCardOps::edge_group_rename(
             &mut input_diagram.write(),
             edge_group_id_old_str,
             edge_group_id_new_str,
@@ -75,7 +75,7 @@ impl EdgeGroupCardOps {
         edge_kind_new: EdgeKind,
         current_things: &[ThingId<'static>],
     ) {
-        disposition_input_rt::edge_group_card_ops::EdgeGroupCardOps::edge_kind_change(
+        disposition_input_rt::EdgeGroupCardOps::edge_kind_change(
             &mut input_diagram.write(),
             target.into_rt(),
             edge_group_id_str,
@@ -92,7 +92,7 @@ impl EdgeGroupCardOps {
         idx: usize,
         thing_id_new_str: &str,
     ) {
-        disposition_input_rt::edge_group_card_ops::EdgeGroupCardOps::edge_thing_update(
+        disposition_input_rt::EdgeGroupCardOps::edge_thing_update(
             &mut input_diagram.write(),
             target.into_rt(),
             edge_group_id_str,
@@ -108,7 +108,7 @@ impl EdgeGroupCardOps {
         edge_group_id_str: &str,
         idx: usize,
     ) {
-        disposition_input_rt::edge_group_card_ops::EdgeGroupCardOps::edge_thing_remove(
+        disposition_input_rt::EdgeGroupCardOps::edge_thing_remove(
             &mut input_diagram.write(),
             target.into_rt(),
             edge_group_id_str,
@@ -124,7 +124,7 @@ impl EdgeGroupCardOps {
         from: usize,
         to: usize,
     ) {
-        disposition_input_rt::edge_group_card_ops::EdgeGroupCardOps::edge_thing_move(
+        disposition_input_rt::EdgeGroupCardOps::edge_thing_move(
             &mut input_diagram.write(),
             target.into_rt(),
             edge_group_id_str,
@@ -140,7 +140,7 @@ impl EdgeGroupCardOps {
         target: MapTarget,
         edge_group_id_str: &str,
     ) {
-        disposition_input_rt::edge_group_card_ops::EdgeGroupCardOps::edge_thing_add(
+        disposition_input_rt::EdgeGroupCardOps::edge_thing_add(
             &mut input_diagram.write(),
             target.into_rt(),
             edge_group_id_str,

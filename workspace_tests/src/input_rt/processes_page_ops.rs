@@ -1,7 +1,7 @@
 //! Tests for `disposition_input_rt::processes_page_ops::ProcessesPageOps`.
 
 use disposition::input_model::{process::ProcessDiagram, InputDiagram};
-use disposition_input_rt::{id_parse::parse_process_id, processes_page_ops::ProcessesPageOps};
+use disposition_input_rt::{id_parse::parse_process_id, ProcessesPageOps};
 
 fn empty_diagram() -> InputDiagram<'static> {
     InputDiagram::default()

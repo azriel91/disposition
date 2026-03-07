@@ -6,9 +6,8 @@ use disposition::input_model::{
     InputDiagram,
 };
 use disposition_input_rt::{
-    edge_group_card_ops::EdgeGroupCardOps,
     id_parse::{parse_edge_group_id, parse_thing_id},
-    map_target::MapTarget,
+    EdgeGroupCardOps, MapTarget,
 };
 
 fn empty_diagram() -> InputDiagram<'static> {

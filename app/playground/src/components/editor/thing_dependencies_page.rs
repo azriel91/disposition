@@ -47,11 +47,11 @@ pub(crate) enum MapTarget {
 
 impl MapTarget {
     /// Converts to the framework-agnostic
-    /// [`disposition_input_rt::map_target::MapTarget`].
-    pub(crate) fn into_rt(self) -> disposition_input_rt::map_target::MapTarget {
+    /// [`disposition_input_rt::MapTarget`].
+    pub(crate) fn into_rt(self) -> disposition_input_rt::MapTarget {
         match self {
-            MapTarget::Dependencies => disposition_input_rt::map_target::MapTarget::Dependencies,
-            MapTarget::Interactions => disposition_input_rt::map_target::MapTarget::Interactions,
+            MapTarget::Dependencies => disposition_input_rt::MapTarget::Dependencies,
+            MapTarget::Interactions => disposition_input_rt::MapTarget::Interactions,
         }
     }
 }

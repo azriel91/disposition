@@ -18,18 +18,12 @@ impl ProcessesPageOps {
         from: usize,
         to: usize,
     ) {
-        disposition_input_rt::processes_page_ops::ProcessesPageOps::process_move(
-            &mut input_diagram.write(),
-            from,
-            to,
-        );
+        disposition_input_rt::ProcessesPageOps::process_move(&mut input_diagram.write(), from, to);
     }
 
     /// Adds a new process with a unique placeholder ProcessId.
     pub(crate) fn process_add(mut input_diagram: Signal<InputDiagram<'static>>) {
-        disposition_input_rt::processes_page_ops::ProcessesPageOps::process_add(
-            &mut input_diagram.write(),
-        );
+        disposition_input_rt::ProcessesPageOps::process_add(&mut input_diagram.write());
     }
 
     /// Removes a process from the `processes` map.
@@ -37,7 +31,7 @@ impl ProcessesPageOps {
         mut input_diagram: Signal<InputDiagram<'static>>,
         process_id_str: &str,
     ) {
-        disposition_input_rt::processes_page_ops::ProcessesPageOps::process_remove(
+        disposition_input_rt::ProcessesPageOps::process_remove(
             &mut input_diagram.write(),
             process_id_str,
         );
@@ -49,7 +43,7 @@ impl ProcessesPageOps {
         process_id_old_str: &str,
         process_id_new_str: &str,
     ) {
-        disposition_input_rt::processes_page_ops::ProcessesPageOps::process_rename(
+        disposition_input_rt::ProcessesPageOps::process_rename(
             &mut input_diagram.write(),
             process_id_old_str,
             process_id_new_str,
@@ -62,7 +56,7 @@ impl ProcessesPageOps {
         process_id_str: &str,
         name: &str,
     ) {
-        disposition_input_rt::processes_page_ops::ProcessesPageOps::process_name_update(
+        disposition_input_rt::ProcessesPageOps::process_name_update(
             &mut input_diagram.write(),
             process_id_str,
             name,
@@ -75,7 +69,7 @@ impl ProcessesPageOps {
         process_id_str: &str,
         desc: &str,
     ) {
-        disposition_input_rt::processes_page_ops::ProcessesPageOps::process_desc_update(
+        disposition_input_rt::ProcessesPageOps::process_desc_update(
             &mut input_diagram.write(),
             process_id_str,
             desc,

@@ -7,7 +7,7 @@ use disposition::input_model::{
 };
 use disposition_input_rt::{
     id_parse::{parse_edge_group_id, parse_process_id, parse_process_step_id},
-    step_interaction_card_ops::StepInteractionCardOps,
+    StepInteractionCardOps,
 };
 
 fn empty_diagram() -> InputDiagram<'static> {

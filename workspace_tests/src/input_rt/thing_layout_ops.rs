@@ -1,7 +1,7 @@
 //! Tests for `disposition_input_rt::thing_layout_ops::ThingLayoutOps`.
 
 use disposition::input_model::InputDiagram;
-use disposition_input_rt::{flat_entry::hierarchy_flatten, thing_layout_ops::ThingLayoutOps};
+use disposition_input_rt::{flat_entry::hierarchy_flatten, ThingLayoutOps};
 
 fn empty_diagram() -> InputDiagram<'static> {
     InputDiagram::default()
