@@ -8,8 +8,8 @@
 //! and mutation helpers via [`MapTarget`].
 //!
 //! The heavy lifting is delegated to submodules:
+//!
 //! - [`edge_group_card`]: collapsible card for a single edge group.
-//! - [`edge_group_card_ops`]: mutation helpers for edge group entries.
 
 pub(crate) mod edge_group_card;
 

@@ -31,8 +31,8 @@
 //! - **Esc** (inside a field): return focus to the card wrapper.
 //!
 //! The heavy lifting is delegated to submodules:
+//!
 //! - [`tag_things_card`]: collapsible card for a single tag's thing set.
-//! - [`tags_page_ops`]: mutation helpers for the page-level tag maps.
 
 pub(crate) mod tag_things_card;
 

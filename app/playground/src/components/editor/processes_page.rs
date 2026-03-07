@@ -2,6 +2,7 @@
 //!
 //! Allows editing `processes`: a map from `ProcessId` to `ProcessDiagram`,
 //! where each `ProcessDiagram` has:
+//!
 //! - `name: Option<String>`
 //! - `desc: Option<String>`
 //! - `steps: ProcessSteps` (map of `ProcessStepId` to display label)
@@ -9,12 +10,9 @@
 //!   to `Vec<EdgeGroupId>`)
 //!
 //! The heavy lifting is delegated to submodules:
+//!
 //! - [`process_card`]: collapsible card for a single process.
-//! - [`process_card_ops`]: mutation helpers for steps within a process card.
-//! - [`processes_page_ops`]: mutation helpers for the page-level process map.
 //! - [`step_interaction_card`]: card for a step's thing-interaction list.
-//! - [`step_interaction_card_ops`]: mutation helpers for step interaction
-//!   entries.
 
 pub(crate) mod process_card;
 pub(crate) mod step_interaction_card;
