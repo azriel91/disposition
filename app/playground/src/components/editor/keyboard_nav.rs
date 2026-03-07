@@ -15,6 +15,7 @@
 //! - **Space**: toggle collapsed state (if collapsible).
 //! - **Enter**: expand (if collapsed) and focus the first interactive element
 //!   inside the entry.
+//! - **Ctrl+Shift+K**: remove the entry.
 //! - **Escape**: focus the parent section / tab.
 //!
 //! **Field-level** (inputs, selects, buttons inside an entry):
@@ -272,6 +273,8 @@ pub enum CardKeyAction {
     MoveUp,
     /// The user pressed **Alt+Down** -- move the entry down in the list.
     MoveDown,
+    /// The user pressed **Ctrl+Shift+K** -- remove the entry.
+    Remove,
 }
 
 /// Shared `onkeydown` handler for a collapsible card/entry wrapper.
@@ -284,10 +287,16 @@ pub enum CardKeyAction {
 /// first field) is handled internally.
 pub fn card_keydown(evt: dioxus::events::KeyboardEvent, data_attr: &str) -> CardKeyAction {
     let alt = evt.modifiers().alt();
-
     let ctrl = evt.modifiers().ctrl();
+    let shift = evt.modifiers().shift();
 
     match evt.key() {
+        // === Ctrl+Shift+K: remove entry === //
+        Key::Character(ref c) if ctrl && shift && c.eq_ignore_ascii_case("k") => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            CardKeyAction::Remove
+        }
         Key::ArrowUp if alt => {
             evt.prevent_default();
             evt.stop_propagation();

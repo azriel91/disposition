@@ -9,17 +9,23 @@ use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{Signal, WritableExt},
 };
+use disposition::input_model::InputDiagram;
 
-use crate::components::editor::reorderable::DragHandle;
+use crate::components::editor::{common::REMOVE_BTN, reorderable::DragHandle};
 
-use super::css_class_partials_card::COLLAPSED_HEADER_CLASS;
+use super::{
+    css_class_partials_card::COLLAPSED_HEADER_CLASS, parse_id_or_defaults, ThemeStylesTarget,
+};
 
 /// Collapsed summary for a CSS class partials card.
 ///
-/// Displays the drag handle, expand chevron, entry key, and counts of
-/// aliases and attributes. Clicking the row expands the card.
+/// Displays the drag handle, expand chevron, entry key, counts of
+/// aliases and attributes, and a remove button. Clicking the row
+/// (except the remove button) expands the card.
 #[component]
 pub fn CssClassPartialsCardSummary(
+    input_diagram: Signal<InputDiagram<'static>>,
+    target: ThemeStylesTarget,
     entry_key: String,
     alias_count: usize,
     attr_count: usize,
@@ -49,6 +55,27 @@ pub fn CssClassPartialsCardSummary(
             span {
                 class: "text-xs text-gray-500",
                 "({alias_count} alias{alias_suffix}, {attr_count} attr{attr_suffix})"
+            }
+
+            // === Remove button === //
+            button {
+                class: REMOVE_BTN,
+                tabindex: "0",
+                "data-action": "remove",
+                onclick: {
+                    let entry_key = entry_key.clone();
+                    let target = target.clone();
+                    move |evt: dioxus::events::MouseEvent| {
+                        evt.stop_propagation();
+                        if let Some(parsed) = parse_id_or_defaults(&entry_key) {
+                            let mut diagram = input_diagram.write();
+                            if let Some(styles) = target.write_mut(&mut diagram) {
+                                styles.remove(&parsed);
+                            }
+                        }
+                    }
+                },
+                "\u{2715}"
             }
         }
     }

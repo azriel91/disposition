@@ -12,6 +12,7 @@
 //! - **ArrowLeft**: collapse the card (when expanded).
 //! - **Space**: toggle expand/collapse.
 //! - **Enter**: expand + focus the first input inside the card.
+//! - **Ctrl+Shift+K**: remove the card.
 //! - **Escape**: focus the parent section / tab.
 //! - **Tab / Shift+Tab** (inside a field): cycle through focusable fields
 //!   within the card. Wraps from last to first / first to last.
@@ -92,18 +93,24 @@ pub(crate) fn ProcessCard(
             "data-process-card-id": "{process_id}",
 
             // === Card-level keyboard shortcuts === //
-            onkeydown: CardComponent::card_onkeydown(
-                DATA_ATTR,
-                card_state,
-                move || {
-                    ProcessesPageOps::process_move(&mut input_diagram.write(), index, index - 1);
-                    focus_index.set(Some(index - 1));
-                },
-                move || {
-                    ProcessesPageOps::process_move(&mut input_diagram.write(), index, index + 1);
-                    focus_index.set(Some(index + 1));
-                },
-            ),
+            onkeydown: {
+                let process_id = process_id.clone();
+                CardComponent::card_onkeydown(
+                    DATA_ATTR,
+                    card_state,
+                    move || {
+                        ProcessesPageOps::process_move(&mut input_diagram.write(), index, index - 1);
+                        focus_index.set(Some(index - 1));
+                    },
+                    move || {
+                        ProcessesPageOps::process_move(&mut input_diagram.write(), index, index + 1);
+                        focus_index.set(Some(index + 1));
+                    },
+                    move || {
+                        ProcessesPageOps::process_remove(&mut input_diagram.write(), &process_id);
+                    },
+                )
+            },
 
             // === Drag-and-drop === //
             ondragstart: move |_| {
@@ -131,6 +138,7 @@ pub(crate) fn ProcessCard(
             if *collapsed.read() {
                 // === Collapsed summary === //
                 ProcessCardSummary {
+                    input_diagram,
                     process_id: process_id.clone(),
                     display_name,
                     step_count,

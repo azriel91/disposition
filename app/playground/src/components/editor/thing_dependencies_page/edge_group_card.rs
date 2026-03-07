@@ -12,6 +12,7 @@
 //! - **ArrowLeft**: collapse the card (when expanded).
 //! - **Space**: toggle expand/collapse.
 //! - **Enter**: expand + focus the first input inside the card.
+//! - **Ctrl+Shift+K**: remove the card.
 //! - **Escape**: focus the parent section / tab.
 //! - **Tab / Shift+Tab** (inside a field): cycle through focusable fields
 //!   within the card. Wraps from last to first / first to last.
@@ -93,28 +94,38 @@ pub(crate) fn EdgeGroupCard(
             "data-edge-group-card-id": "{edge_group_id}",
 
             // === Card-level keyboard shortcuts === //
-            onkeydown: CardComponent::card_onkeydown(
-                DATA_ATTR,
-                card_state,
-                move || {
-                    EdgeGroupCardOps::edge_group_move(
-                        &mut input_diagram.write(),
-                        target,
-                        index,
-                        index - 1,
-                    );
-                    focus_index.set(Some(index - 1));
-                },
-                move || {
-                    EdgeGroupCardOps::edge_group_move(
-                        &mut input_diagram.write(),
-                        target,
-                        index,
-                        index + 1,
-                    );
-                    focus_index.set(Some(index + 1));
-                },
-            ),
+            onkeydown: {
+                let edge_group_id = edge_group_id.clone();
+                CardComponent::card_onkeydown(
+                    DATA_ATTR,
+                    card_state,
+                    move || {
+                        EdgeGroupCardOps::edge_group_move(
+                            &mut input_diagram.write(),
+                            target,
+                            index,
+                            index - 1,
+                        );
+                        focus_index.set(Some(index - 1));
+                    },
+                    move || {
+                        EdgeGroupCardOps::edge_group_move(
+                            &mut input_diagram.write(),
+                            target,
+                            index,
+                            index + 1,
+                        );
+                        focus_index.set(Some(index + 1));
+                    },
+                    move || {
+                        EdgeGroupCardOps::edge_group_remove(
+                            &mut input_diagram.write(),
+                            target,
+                            &edge_group_id,
+                        );
+                    },
+                )
+            },
 
             // === Drag-and-drop === //
             ondragstart: move |_| {
@@ -147,6 +158,8 @@ pub(crate) fn EdgeGroupCard(
             if *collapsed.read() {
                 // === Collapsed summary === //
                 EdgeGroupCardSummary {
+                    input_diagram,
+                    target,
                     edge_group_id: edge_group_id.clone(),
                     edge_kind_label,
                     thing_count,

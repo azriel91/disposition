@@ -11,6 +11,7 @@
 //! - **ArrowLeft**: collapse the card (when expanded).
 //! - **Space**: toggle expand/collapse.
 //! - **Enter**: expand + focus the first input inside the card.
+//! - **Ctrl+Shift+K**: remove the card.
 //! - **Escape**: focus the parent section / tab.
 //! - **Tab / Shift+Tab** (inside a field): cycle through focusable fields
 //!   within the card. Wraps from last to first / first to last.
@@ -77,18 +78,24 @@ pub(crate) fn TagThingsCard(
             "data-tag-things-card-id": "{tag_id}",
 
             // === Card-level keyboard shortcuts === //
-            onkeydown: CardComponent::card_onkeydown(
-                DATA_ATTR,
-                card_state,
-                move || {
-                    TagsPageOps::tag_things_entry_move(&mut input_diagram.write(), index, index - 1);
-                    focus_index.set(Some(index - 1));
-                },
-                move || {
-                    TagsPageOps::tag_things_entry_move(&mut input_diagram.write(), index, index + 1);
-                    focus_index.set(Some(index + 1));
-                },
-            ),
+            onkeydown: {
+                let tag_id = tag_id.clone();
+                CardComponent::card_onkeydown(
+                    DATA_ATTR,
+                    card_state,
+                    move || {
+                        TagsPageOps::tag_things_entry_move(&mut input_diagram.write(), index, index - 1);
+                        focus_index.set(Some(index - 1));
+                    },
+                    move || {
+                        TagsPageOps::tag_things_entry_move(&mut input_diagram.write(), index, index + 1);
+                        focus_index.set(Some(index + 1));
+                    },
+                    move || {
+                        TagsPageOps::tag_things_entry_remove(&mut input_diagram.write(), &tag_id);
+                    },
+                )
+            },
 
             // === Drag-and-drop === //
             ondragstart: move |_| {
@@ -116,6 +123,7 @@ pub(crate) fn TagThingsCard(
             if *collapsed.read() {
                 // === Collapsed summary === //
                 TagThingsCardSummary {
+                    input_diagram,
                     tag_id: tag_id.clone(),
                     thing_count,
                     collapsed,

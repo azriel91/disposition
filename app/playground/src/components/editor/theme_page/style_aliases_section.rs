@@ -12,6 +12,7 @@
 //! - **ArrowLeft**: collapse the card (when expanded).
 //! - **Space**: toggle expand/collapse.
 //! - **Enter** (on card): focus the first input inside the card for editing.
+//! - **Ctrl+Shift+K**: remove the card.
 //! - **Escape** (on card): focus the parent section / tab.
 //! - **Tab / Shift+Tab** (inside a field): cycle through focusable fields
 //!   within the card. Wraps from last to first / first to last.
@@ -134,26 +135,35 @@ pub fn StyleAliasesSection(
             "data-style-alias-card-id": "{alias_key}",
 
             // === Card-level keyboard shortcuts === //
-            onkeydown: CardComponent::card_onkeydown(
-                DATA_ATTR,
-                card_state,
-                move || {
-                    input_diagram
-                        .write()
-                        .theme_default
-                        .style_aliases
-                        .move_index(index, index - 1);
-                    focus_index.set(Some(index - 1));
-                },
-                move || {
-                    input_diagram
-                        .write()
-                        .theme_default
-                        .style_aliases
-                        .move_index(index, index + 1);
-                    focus_index.set(Some(index + 1));
-                },
-            ),
+            onkeydown: {
+                let alias_key = alias_key.clone();
+                CardComponent::card_onkeydown(
+                    DATA_ATTR,
+                    card_state,
+                    move || {
+                        input_diagram
+                            .write()
+                            .theme_default
+                            .style_aliases
+                            .move_index(index, index - 1);
+                        focus_index.set(Some(index - 1));
+                    },
+                    move || {
+                        input_diagram
+                            .write()
+                            .theme_default
+                            .style_aliases
+                            .move_index(index, index + 1);
+                        focus_index.set(Some(index + 1));
+                    },
+                    move || {
+                        if let Some(alias) = parse_style_alias(&alias_key) {
+                            let mut diagram = input_diagram.write();
+                            diagram.theme_default.style_aliases.remove(&alias);
+                        }
+                    },
+                )
+            },
 
             // === Drag-and-drop === //
             ondragstart: move |_| {
@@ -211,6 +221,24 @@ pub fn StyleAliasesSection(
                     span {
                         class: "text-xs text-gray-500",
                         "({alias_count} alias{alias_suffix}, {attr_count} attr{attr_suffix})"
+                    }
+
+                    // === Remove button === //
+                    button {
+                        class: REMOVE_BTN,
+                        tabindex: "0",
+                        "data-action": "remove",
+                        onclick: {
+                            let alias_key = alias_key.clone();
+                            move |evt: dioxus::events::MouseEvent| {
+                                evt.stop_propagation();
+                                if let Some(alias) = parse_style_alias(&alias_key) {
+                                    let mut diagram = input_diagram.write();
+                                    diagram.theme_default.style_aliases.remove(&alias);
+                                }
+                            }
+                        },
+                        "\u{2715}"
                     }
                 }
             } else {

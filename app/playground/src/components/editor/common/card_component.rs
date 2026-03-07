@@ -117,8 +117,8 @@ impl CardComponent {
     ///
     /// The returned closure delegates to [`keyboard_nav::card_keydown`] and
     /// handles the common `Collapse`, `Expand`, `Toggle`, `EnterEdit`, and
-    /// `None` actions internally. The caller-specific `MoveUp` and
-    /// `MoveDown` actions are forwarded to the provided closures.
+    /// `None` actions internally. The caller-specific `MoveUp`, `MoveDown`,
+    /// and `Remove` actions are forwarded to the provided closures.
     ///
     /// # Parameters
     ///
@@ -129,11 +129,13 @@ impl CardComponent {
     ///   `can_move_up` is `true`.
     /// * `on_move_down`: closure to call when the user presses **Alt+Down** and
     ///   `can_move_down` is `true`.
+    /// * `on_remove`: closure to call when the user presses **Ctrl+Shift+K**.
     pub fn card_onkeydown(
         data_attr: &'static str,
         card_state: CardState,
         mut on_move_up: impl FnMut() + 'static,
         mut on_move_down: impl FnMut() + 'static,
+        mut on_remove: impl FnMut() + 'static,
     ) -> impl FnMut(Event<KeyboardData>) {
         let CardState {
             mut collapsed,
@@ -160,6 +162,9 @@ impl CardComponent {
                 CardKeyAction::Toggle => {
                     let is_collapsed = *collapsed.read();
                     collapsed.set(!is_collapsed);
+                }
+                CardKeyAction::Remove => {
+                    on_remove();
                 }
                 CardKeyAction::EnterEdit => collapsed.set(false),
                 CardKeyAction::None => {}

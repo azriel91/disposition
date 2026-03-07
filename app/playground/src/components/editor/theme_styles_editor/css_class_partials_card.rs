@@ -11,6 +11,7 @@
 //! - **ArrowLeft**: collapse the card (when expanded).
 //! - **Space**: toggle expand/collapse.
 //! - **Enter**: expand + focus the first input inside the card.
+//! - **Ctrl+Shift+K**: remove the card.
 //! - **Escape**: focus the parent section / tab.
 //! - **Tab / Shift+Tab** (inside a field): cycle through focusable fields
 //!   within the card. Wraps from last to first / first to last.
@@ -32,7 +33,7 @@ use crate::components::editor::{
         css_class_partials_card_aliases::CssClassPartialsCardAliases,
         css_class_partials_card_attrs::CssClassPartialsCardAttrs,
         css_class_partials_card_header::CssClassPartialsCardHeader,
-        css_class_partials_card_summary::CssClassPartialsCardSummary,
+        css_class_partials_card_summary::CssClassPartialsCardSummary, parse_id_or_defaults,
         theme_attr_entry::ThemeAttrEntry, ThemeStylesTarget,
     },
 };
@@ -112,7 +113,9 @@ pub fn CssClassPartialsCard(
     // the final use inside the `rsx!` block can move the original.
     let target_for_keydown = target.clone();
     let target_for_keydown_down = target.clone();
+    let target_for_keydown_remove = target.clone();
     let target_for_drop = target.clone();
+    let target_for_summary = target.clone();
     let target_for_header = target.clone();
     let target_for_aliases = target.clone();
 
@@ -124,20 +127,32 @@ pub fn CssClassPartialsCard(
             "data-css-card": "true",
 
             // === Card-level keyboard shortcuts === //
-            onkeydown: CardComponent::card_onkeydown(
-                DATA_ATTR,
-                card_state,
-                move || {
-                    let target = target_for_keydown.clone();
-                    target.entry_move(input_diagram, entry_index, entry_index - 1);
-                    focus_index.set(Some(entry_index - 1));
-                },
-                move || {
-                    let target = target_for_keydown_down.clone();
-                    target.entry_move(input_diagram, entry_index, entry_index + 1);
-                    focus_index.set(Some(entry_index + 1));
-                },
-            ),
+            onkeydown: {
+                let entry_key = entry_key.clone();
+                CardComponent::card_onkeydown(
+                    DATA_ATTR,
+                    card_state,
+                    move || {
+                        let target = target_for_keydown.clone();
+                        target.entry_move(input_diagram, entry_index, entry_index - 1);
+                        focus_index.set(Some(entry_index - 1));
+                    },
+                    move || {
+                        let target = target_for_keydown_down.clone();
+                        target.entry_move(input_diagram, entry_index, entry_index + 1);
+                        focus_index.set(Some(entry_index + 1));
+                    },
+                    move || {
+                        let target = target_for_keydown_remove.clone();
+                        if let Some(parsed) = parse_id_or_defaults(&entry_key) {
+                            let mut diagram = input_diagram.write();
+                            if let Some(styles) = target.write_mut(&mut diagram) {
+                                styles.remove(&parsed);
+                            }
+                        }
+                    },
+                )
+            },
 
             // === Drag-and-drop === //
             ondragstart: move |_| {
@@ -165,6 +180,8 @@ pub fn CssClassPartialsCard(
             if *collapsed.read() {
                 // === Collapsed summary === //
                 CssClassPartialsCardSummary {
+                    input_diagram,
+                    target: target_for_summary,
                     entry_key: entry_key.clone(),
                     alias_count,
                     attr_count,
@@ -209,7 +226,7 @@ pub fn CssClassPartialsCard(
                 CssClassPartialsCardAttrs {
                     input_diagram,
                     target,
-                    entry_key,
+                    entry_key: entry_key.clone(),
                     theme_attrs,
                 }
             }
