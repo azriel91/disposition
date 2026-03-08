@@ -107,6 +107,12 @@ pub(crate) fn ProcessCard(
                     move || {
                         ProcessesPageOps::process_remove(&mut input_diagram.write(), &process_id);
                     },
+                    Some(Box::new(move |insert_at: usize| {
+                        ProcessesPageOps::process_add(&mut input_diagram.write());
+                        let last = input_diagram.read().processes.len() - 1;
+                        ProcessesPageOps::process_move(&mut input_diagram.write(), last, insert_at);
+                        focus_index.set(Some(insert_at));
+                    })),
                 )
             },
 

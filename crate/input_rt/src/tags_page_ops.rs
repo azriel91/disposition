@@ -232,6 +232,33 @@ impl TagsPageOps {
         }
     }
 
+    /// Moves a thing within a tag's thing set from one index to another.
+    ///
+    /// Uses `OrderSet::move_index` on the tag's thing set to reposition the
+    /// entry while preserving all other entries.
+    ///
+    /// # Parameters
+    ///
+    /// * `input_diagram`: the diagram to mutate.
+    /// * `tag_id_str`: the tag ID string, e.g. `"tag_app_development"`.
+    /// * `from`: the current index of the thing to move.
+    /// * `to`: the target index.
+    pub fn tag_things_thing_move(
+        input_diagram: &mut InputDiagram<'static>,
+        tag_id_str: &str,
+        from: usize,
+        to: usize,
+    ) {
+        let tag_id = match parse_tag_id(tag_id_str) {
+            Some(tag_id) => tag_id,
+            None => return,
+        };
+
+        if let Some(things) = input_diagram.tag_things.get_mut(&tag_id) {
+            things.move_index(from, to);
+        }
+    }
+
     /// Adds a thing to a tag's thing set.
     pub fn tag_things_thing_add(input_diagram: &mut InputDiagram<'static>, tag_id_str: &str) {
         let tag_id = match parse_tag_id(tag_id_str) {

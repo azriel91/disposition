@@ -123,6 +123,43 @@ impl StepInteractionCardOps {
         }
     }
 
+    /// Moves an edge group within a step interaction from one index to another.
+    ///
+    /// Uses `Vec::remove` + `Vec::insert` to reposition the entry while
+    /// preserving all other entries.
+    ///
+    /// # Parameters
+    ///
+    /// * `input_diagram`: the diagram to mutate.
+    /// * `process_id_str`: the process ID string, e.g. `"proc_0"`.
+    /// * `step_id_str`: the step ID string, e.g. `"step_0"`.
+    /// * `from`: the current index of the edge group to move.
+    /// * `to`: the target index.
+    pub fn step_interaction_edge_move(
+        input_diagram: &mut InputDiagram<'static>,
+        process_id_str: &str,
+        step_id_str: &str,
+        from: usize,
+        to: usize,
+    ) {
+        let process_id = match parse_process_id(process_id_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        let step_id = match parse_process_step_id(step_id_str) {
+            Some(step_id) => step_id,
+            None => return,
+        };
+        if let Some(process_diagram) = input_diagram.processes.get_mut(&process_id)
+            && let Some(edge_group_ids) = process_diagram.step_thing_interactions.get_mut(&step_id)
+            && from < edge_group_ids.len()
+            && to < edge_group_ids.len()
+        {
+            let item = edge_group_ids.remove(from);
+            edge_group_ids.insert(to, item);
+        }
+    }
+
     /// Adds an edge group to a step interaction, using the first existing
     /// interaction edge group ID as a placeholder.
     pub fn step_interaction_edge_add(

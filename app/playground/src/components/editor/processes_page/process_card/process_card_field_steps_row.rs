@@ -2,11 +2,24 @@
 //!
 //! Extracted from [`ProcessCard`] to keep the parent component concise.
 //!
-//! Keyboard shortcuts (on the inputs):
+//! Keyboard shortcuts (on the row wrapper):
+//!
+//! - **Up / Down**: move focus to the previous / next sibling row.
+//! - **Ctrl+Up / Ctrl+Down**: jump to the first / last row.
+//! - **Alt+Up / Alt+Down**: move the step up or down in the list.
+//! - **Alt+Shift+Up / Alt+Shift+Down**: insert a new step above / below the
+//!   current row.
+//! - **Ctrl+Shift+K**: remove the step.
+//! - **Enter**: focus the first input inside the row for editing.
+//! - **Escape**: focus the parent card wrapper.
+//!
+//! Keyboard shortcuts (on inputs inside the row):
 //!
 //! - **Alt+Up / Alt+Down**: move the step up or down in the list.
-//! - All other keys fall through to the standard field navigation
-//!   (`field_keydown` with the card-level data attribute).
+//! - **Alt+Shift+Up / Alt+Shift+Down**: insert a new step above / below.
+//! - **Ctrl+Shift+K**: remove the step.
+//! - **Tab / Shift+Tab**: cycle through focusable fields within the row.
+//! - **Escape**: return focus to the row wrapper.
 //!
 //! The row also supports drag-and-drop reordering via a [`DragHandle`]
 //! grip indicator, with drop-target border highlighting provided by
@@ -15,24 +28,36 @@
 //! [`ProcessCard`]: super::ProcessCard
 
 use dioxus::{
-    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    prelude::{
+        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Callback, Element, Props,
+    },
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
 use disposition_input_rt::ProcessCardOps;
 
 use crate::components::editor::{
-    common::{CardComponent, FieldNav, REMOVE_BTN, ROW_CLASS},
+    common::{RowComponent, REMOVE_BTN, ROW_CLASS},
     datalists::list_ids,
     processes_page::{DATA_ATTR, FIELD_INPUT_CLASS},
     reorderable::{drag_border_class, DragHandle},
 };
 
+/// Data attribute placed on each process step row wrapper.
+///
+/// Used by [`ReorderableContainer`] and keyboard navigation helpers
+/// to locate sibling rows within the steps list.
+///
+/// [`ReorderableContainer`]: crate::components::editor::reorderable::ReorderableContainer
+const ROW_DATA_ATTR: &str = "data-process-step-row";
+
 /// A single step row within the steps section of a process card.
 ///
 /// Displays a drag handle, row index, a step ID input, a step label input,
 /// and a remove button for one entry in the process's step list. Supports
-/// Alt+Up/Down keyboard reordering and drag-and-drop reordering.
+/// full keyboard navigation (Up/Down focus cycling, Alt reorder,
+/// Alt+Shift insert, Ctrl+Shift+K remove, Enter to edit, Escape to card)
+/// and drag-and-drop reordering.
 #[component]
 pub(crate) fn ProcessCardFieldStepsRow(
     input_diagram: Signal<InputDiagram<'static>>,
@@ -41,19 +66,34 @@ pub(crate) fn ProcessCardFieldStepsRow(
     step_label: String,
     index: usize,
     step_count: usize,
-    mut step_focus_idx: Signal<Option<usize>>,
+    step_focus_idx: Signal<Option<usize>>,
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
+    on_move: Callback<(usize, usize)>,
+    on_add: Callback<usize>,
+    on_remove: Callback<usize>,
 ) -> Element {
-    let can_move_up = index > 0;
-    let can_move_down = index + 1 < step_count;
     let border_class = drag_border_class(drag_index, drop_target, index);
 
     rsx! {
         div {
-            class: "{ROW_CLASS} {border_class}",
+            class: "{ROW_CLASS} {border_class} rounded focus:border-blue-400 focus:bg-gray-800 focus:outline-none",
+            tabindex: "0",
             draggable: "true",
             "data-process-step-row": "",
+            "data-input-diagram-field": "{process_id}_step_{index}",
+
+            // === Row-level keyboard shortcuts === //
+            onkeydown: RowComponent::row_onkeydown(
+                ROW_DATA_ATTR,
+                DATA_ATTR,
+                index,
+                step_count,
+                step_focus_idx,
+                on_move,
+                on_add,
+                on_remove,
+            ),
 
             // === Drag-and-drop === //
             ondragstart: move |_| {
@@ -102,33 +142,15 @@ pub(crate) fn ProcessCardFieldStepsRow(
                         ProcessCardOps::step_rename(&mut input_diagram.write(), &process_id, &step_id_old, &evt.value());
                     }
                 },
-                onkeydown: {
-                    let process_id = process_id.clone();
-                    let process_id_down = process_id.clone();
-                    CardComponent::field_onkeydown(
-                        DATA_ATTR,
-                        can_move_up,
-                        can_move_down,
-                        move || {
-                            ProcessCardOps::step_move(
-                                &mut input_diagram.write(),
-                                &process_id,
-                                index,
-                                index - 1,
-                            );
-                            step_focus_idx.set(Some(index - 1));
-                        },
-                        move || {
-                            ProcessCardOps::step_move(
-                                &mut input_diagram.write(),
-                                &process_id_down,
-                                index,
-                                index + 1,
-                            );
-                            step_focus_idx.set(Some(index + 1));
-                        },
-                    )
-                },
+                onkeydown: RowComponent::row_field_onkeydown(
+                    ROW_DATA_ATTR,
+                    index,
+                    step_count,
+                    step_focus_idx,
+                    on_move,
+                    on_add,
+                    on_remove,
+                ),
             }
 
             input {
@@ -143,33 +165,15 @@ pub(crate) fn ProcessCardFieldStepsRow(
                         ProcessCardOps::step_label_update(&mut input_diagram.write(), &process_id, &step_id, &evt.value());
                     }
                 },
-                onkeydown: {
-                    let process_id = process_id.clone();
-                    let process_id_down = process_id.clone();
-                    CardComponent::field_onkeydown(
-                        DATA_ATTR,
-                        can_move_up,
-                        can_move_down,
-                        move || {
-                            ProcessCardOps::step_move(
-                                &mut input_diagram.write(),
-                                &process_id,
-                                index,
-                                index - 1,
-                            );
-                            step_focus_idx.set(Some(index - 1));
-                        },
-                        move || {
-                            ProcessCardOps::step_move(
-                                &mut input_diagram.write(),
-                                &process_id_down,
-                                index,
-                                index + 1,
-                            );
-                            step_focus_idx.set(Some(index + 1));
-                        },
-                    )
-                },
+                onkeydown: RowComponent::row_field_onkeydown(
+                    ROW_DATA_ATTR,
+                    index,
+                    step_count,
+                    step_focus_idx,
+                    on_move,
+                    on_add,
+                    on_remove,
+                ),
             }
 
             button {
@@ -183,7 +187,15 @@ pub(crate) fn ProcessCardFieldStepsRow(
                         ProcessCardOps::step_remove(&mut input_diagram.write(), &process_id, &step_id);
                     }
                 },
-                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
+                onkeydown: RowComponent::row_field_onkeydown(
+                    ROW_DATA_ATTR,
+                    index,
+                    step_count,
+                    step_focus_idx,
+                    on_move,
+                    on_add,
+                    on_remove,
+                ),
                 "x"
             }
         }

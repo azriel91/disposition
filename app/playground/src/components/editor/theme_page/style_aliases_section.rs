@@ -25,7 +25,7 @@ use dioxus::{
 };
 use disposition::{
     input_model::{
-        theme::{StyleAlias, ThemeAttr},
+        theme::{CssClassPartials, StyleAlias, ThemeAttr},
         InputDiagram,
     },
     model_common::Id,
@@ -156,6 +156,35 @@ pub fn StyleAliasesSection(
                             diagram.theme_default.style_aliases.remove(&alias);
                         }
                     },
+                    Some(Box::new(move |insert_at: usize| {
+                        {
+                            let mut diagram = input_diagram.write();
+                            let mut n = 1u32;
+                            let new_alias = loop {
+                                let candidate = format!("custom_alias_{n}");
+                                if let Ok(id) = Id::new(&candidate) {
+                                    let alias =
+                                        StyleAlias::from(id.into_static()).into_static();
+                                    if !diagram.theme_default.style_aliases.contains_key(&alias)
+                                    {
+                                        break alias;
+                                    }
+                                }
+                                n += 1;
+                            };
+                            diagram
+                                .theme_default
+                                .style_aliases
+                                .insert(new_alias, CssClassPartials::default());
+                        }
+                        let last = input_diagram.read().theme_default.style_aliases.len() - 1;
+                        input_diagram
+                            .write()
+                            .theme_default
+                            .style_aliases
+                            .move_index(last, insert_at);
+                        focus_index.set(Some(insert_at));
+                    })),
                 )
             },
 

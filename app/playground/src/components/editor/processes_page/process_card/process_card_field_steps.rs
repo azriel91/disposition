@@ -55,6 +55,10 @@ pub(crate) fn ProcessCardFieldSteps(
                         let step_id = step_id.clone();
                         let step_label = step_label.clone();
                         let process_id = process_id.clone();
+                        let process_id_move = process_id.clone();
+                        let process_id_add = process_id.clone();
+                        let process_id_remove = process_id.clone();
+                        let step_id_remove = step_id.clone();
                         rsx! {
                             ProcessCardFieldStepsRow {
                                 key: "{process_id}_{idx}",
@@ -67,6 +71,34 @@ pub(crate) fn ProcessCardFieldSteps(
                                 step_focus_idx,
                                 drag_index: step_drag_idx,
                                 drop_target: step_drop_target,
+                                on_move: move |(from, to): (usize, usize)| {
+                                    ProcessCardOps::step_move(
+                                        &mut input_diagram.write(),
+                                        &process_id_move,
+                                        from,
+                                        to,
+                                    );
+                                },
+                                on_add: move |insert_at: usize| {
+                                    ProcessCardOps::step_add(
+                                        &mut input_diagram.write(),
+                                        &process_id_add,
+                                    );
+                                    let last = step_count;
+                                    ProcessCardOps::step_move(
+                                        &mut input_diagram.write(),
+                                        &process_id_add,
+                                        last,
+                                        insert_at,
+                                    );
+                                },
+                                on_remove: move |_row_index: usize| {
+                                    ProcessCardOps::step_remove(
+                                        &mut input_diagram.write(),
+                                        &process_id_remove,
+                                        &step_id_remove,
+                                    );
+                                },
                             }
                         }
                     }

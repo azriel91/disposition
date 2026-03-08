@@ -7,17 +7,14 @@
 //! `CardKeyAction`. This module extracts that boilerplate into reusable
 //! helpers.
 //!
-//! Also provides [`CardComponent::field_onkeydown`], a field-level
-//! `onkeydown` handler that intercepts **Alt+Up / Alt+Down** for
-//! reordering rows within a card and falls through to
-//! [`keyboard_nav::field_keydown`] for all other keys.
+//! Row-level keyboard handling has been moved to
+//! [`RowComponent`](super::RowComponent) in `row_component.rs`.
 
 use dioxus::{
     core::Event,
     document,
     hooks::use_signal,
     html::KeyboardData,
-    prelude::{Key, ModifiersInteraction},
     signals::{ReadableExt, Signal, WritableExt},
 };
 
@@ -50,6 +47,9 @@ pub struct CardState {
     /// that don't, this signal is still present but unused.
     pub rename_target: Signal<RenameRefocusTarget>,
 
+    /// Zero-based position of this card in the list.
+    pub index: usize,
+
     /// Whether the card can be moved up in the list (i.e. `index > 0`).
     pub can_move_up: bool,
 
@@ -76,6 +76,7 @@ impl CardComponent {
         CardState {
             collapsed,
             rename_target,
+            index,
             can_move_up: index > 0,
             can_move_down: index + 1 < entry_count,
         }
@@ -109,6 +110,7 @@ impl CardComponent {
         CardState {
             collapsed,
             rename_target,
+            index,
             can_move_up: index > 0,
             can_move_down: index + 1 < entry_count,
         }
@@ -119,7 +121,8 @@ impl CardComponent {
     /// The returned closure delegates to [`keyboard_nav::card_keydown`] and
     /// handles the common `Collapse`, `Expand`, `Toggle`, `EnterEdit`, and
     /// `None` actions internally. The caller-specific `MoveUp`, `MoveDown`,
-    /// and `Remove` actions are forwarded to the provided closures.
+    /// `AddAbove`, `AddBelow`, and `Remove` actions are forwarded to the
+    /// provided closures.
     ///
     /// # Parameters
     ///
@@ -131,16 +134,21 @@ impl CardComponent {
     /// * `on_move_down`: closure to call when the user presses **Alt+Down** and
     ///   `can_move_down` is `true`.
     /// * `on_remove`: closure to call when the user presses **Ctrl+Shift+K**.
+    /// * `on_add`: optional closure to call when the user presses
+    ///   **Alt+Shift+Up** or **Alt+Shift+Down**. Receives the index at which
+    ///   the new entry should be inserted.
     pub fn card_onkeydown(
         data_attr: &'static str,
         card_state: CardState,
         mut on_move_up: impl FnMut() + 'static,
         mut on_move_down: impl FnMut() + 'static,
         mut on_remove: impl FnMut() + 'static,
+        mut on_add: Option<Box<dyn FnMut(usize) + 'static>>,
     ) -> impl FnMut(Event<KeyboardData>) {
         let CardState {
             mut collapsed,
             rename_target: _,
+            index,
             can_move_up,
             can_move_down,
         } = card_state;
@@ -158,6 +166,16 @@ impl CardComponent {
                         on_move_down();
                     }
                 }
+                CardKeyAction::AddAbove => {
+                    if let Some(ref mut add_fn) = on_add {
+                        add_fn(index);
+                    }
+                }
+                CardKeyAction::AddBelow => {
+                    if let Some(ref mut add_fn) = on_add {
+                        add_fn(index + 1);
+                    }
+                }
                 CardKeyAction::Collapse => collapsed.set(true),
                 CardKeyAction::Expand => collapsed.set(false),
                 CardKeyAction::Toggle => {
@@ -172,57 +190,6 @@ impl CardComponent {
                 }
                 CardKeyAction::EnterEdit => collapsed.set(false),
                 CardKeyAction::None => {}
-            }
-        }
-    }
-
-    /// Returns an `onkeydown` handler for a field (input, select, button)
-    /// inside a reorderable row.
-    ///
-    /// The returned closure intercepts **Alt+Up** and **Alt+Down** to
-    /// reorder the row, delegating to the provided closures. All other
-    /// keys fall through to [`keyboard_nav::field_keydown`] so that
-    /// Tab cycling, Escape-to-parent, arrow-key passthrough, etc. work
-    /// as usual.
-    ///
-    /// # Parameters
-    ///
-    /// * `data_attr`: the `data-*` attribute on the parent card/row wrapper,
-    ///   e.g. `"data-process-card"`, `"data-edge-group-card"`.
-    /// * `can_move_up`: whether the row can be moved up (i.e. `index > 0`).
-    /// * `can_move_down`: whether the row can be moved down (i.e. `index + 1 <
-    ///   entry_count`).
-    /// * `on_move_up`: closure to call when the user presses **Alt+Up** and
-    ///   `can_move_up` is `true`.
-    /// * `on_move_down`: closure to call when the user presses **Alt+Down** and
-    ///   `can_move_down` is `true`.
-    pub fn field_onkeydown(
-        data_attr: &'static str,
-        can_move_up: bool,
-        can_move_down: bool,
-        mut on_move_up: impl FnMut() + 'static,
-        mut on_move_down: impl FnMut() + 'static,
-    ) -> impl FnMut(Event<KeyboardData>) {
-        move |evt: Event<KeyboardData>| {
-            let alt = evt.modifiers().alt();
-            match evt.key() {
-                Key::ArrowUp if alt => {
-                    evt.prevent_default();
-                    evt.stop_propagation();
-                    if can_move_up {
-                        on_move_up();
-                    }
-                }
-                Key::ArrowDown if alt => {
-                    evt.prevent_default();
-                    evt.stop_propagation();
-                    if can_move_down {
-                        on_move_down();
-                    }
-                }
-                _ => {
-                    keyboard_nav::field_keydown(evt, data_attr);
-                }
             }
         }
     }

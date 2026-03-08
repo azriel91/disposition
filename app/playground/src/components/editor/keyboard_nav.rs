@@ -358,6 +358,10 @@ pub enum CardKeyAction {
     MoveUp,
     /// The user pressed **Alt+Down** -- move the entry down in the list.
     MoveDown,
+    /// The user pressed **Alt+Shift+Up** -- insert a new entry above.
+    AddAbove,
+    /// The user pressed **Alt+Shift+Down** -- insert a new entry below.
+    AddBelow,
     /// The user pressed **Ctrl+Shift+K** -- remove the entry.
     Remove,
 }
@@ -381,6 +385,16 @@ pub fn card_keydown(evt: dioxus::events::KeyboardEvent, data_attr: &str) -> Card
             evt.prevent_default();
             evt.stop_propagation();
             CardKeyAction::Remove
+        }
+        Key::ArrowUp if alt && shift => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            CardKeyAction::AddAbove
+        }
+        Key::ArrowDown if alt && shift => {
+            evt.prevent_default();
+            evt.stop_propagation();
+            CardKeyAction::AddBelow
         }
         Key::ArrowUp if alt => {
             evt.prevent_default();

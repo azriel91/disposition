@@ -92,6 +92,12 @@ pub(crate) fn EntityTypeCard(
                     move || {
                         EntityTypesPageOps::entry_remove(&mut input_diagram.write(), &entity_id);
                     },
+                    Some(Box::new(move |insert_at: usize| {
+                        EntityTypesPageOps::entry_add(&mut input_diagram.write());
+                        let last = input_diagram.read().entity_types.len() - 1;
+                        EntityTypesPageOps::entry_move(&mut input_diagram.write(), last, insert_at);
+                        focus_index.set(Some(insert_at));
+                    })),
                 )
             },
 

@@ -2,12 +2,24 @@
 //!
 //! Extracted from [`EntityTypeCard`] to keep the parent component concise.
 //!
-//! Keyboard shortcuts (on the inputs):
+//! Keyboard shortcuts (on the row wrapper):
+//!
+//! - **Up / Down**: move focus to the previous / next sibling row.
+//! - **Ctrl+Up / Ctrl+Down**: jump to the first / last row.
+//! - **Alt+Up / Alt+Down**: move the type up or down in the list.
+//! - **Alt+Shift+Up / Alt+Shift+Down**: insert a new type above / below the
+//!   current row.
+//! - **Ctrl+Shift+K**: remove the type.
+//! - **Enter**: focus the first input inside the row for editing.
+//! - **Escape**: focus the parent card wrapper.
+//!
+//! Keyboard shortcuts (on inputs inside the row):
 //!
 //! - **Alt+Up / Alt+Down**: move the type up or down in the list.
+//! - **Alt+Shift+Up / Alt+Shift+Down**: insert a new type above / below.
 //! - **Ctrl+Shift+K**: remove the type.
-//! - All other keys fall through to the standard field navigation
-//!   (`field_keydown` with the card-level data attribute).
+//! - **Tab / Shift+Tab**: cycle through focusable fields within the row.
+//! - **Escape**: return focus to the row wrapper.
 //!
 //! The row also supports drag-and-drop reordering via a [`DragHandle`]
 //! grip indicator, with drop-target border highlighting provided by
@@ -16,24 +28,36 @@
 //! [`EntityTypeCard`]: super::EntityTypeCard
 
 use dioxus::{
-    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    prelude::{
+        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Callback, Element, Props,
+    },
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
 use disposition_input_rt::EntityTypesPageOps;
 
 use crate::components::editor::{
-    common::{CardComponent, FieldNav, REMOVE_BTN, ROW_CLASS},
+    common::{RowComponent, REMOVE_BTN, ROW_CLASS},
     datalists::list_ids,
     entity_types_page::{DATA_ATTR, FIELD_INPUT_CLASS},
     reorderable::{drag_border_class, DragHandle},
 };
 
+/// Data attribute placed on each entity type row wrapper.
+///
+/// Used by [`ReorderableContainer`] and keyboard navigation helpers
+/// to locate sibling rows within the types list.
+///
+/// [`ReorderableContainer`]: crate::components::editor::reorderable::ReorderableContainer
+const ROW_DATA_ATTR: &str = "data-entity-type-row";
+
 /// A single entity type row within the types section of an entity type card.
 ///
 /// Displays a drag handle, row index, an entity type input (with datalist),
 /// and a remove button for one entry in the entity's type set. Supports
-/// Alt+Up/Down keyboard reordering and drag-and-drop reordering.
+/// full keyboard navigation (Up/Down focus cycling, Alt reorder,
+/// Alt+Shift insert, Ctrl+Shift+K remove, Enter to edit, Escape to card)
+/// and drag-and-drop reordering.
 #[component]
 pub(crate) fn EntityTypeCardFieldTypesRow(
     input_diagram: Signal<InputDiagram<'static>>,
@@ -41,19 +65,34 @@ pub(crate) fn EntityTypeCardFieldTypesRow(
     type_str: String,
     index: usize,
     type_count: usize,
-    mut type_focus_idx: Signal<Option<usize>>,
+    type_focus_idx: Signal<Option<usize>>,
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
+    on_move: Callback<(usize, usize)>,
+    on_add: Callback<usize>,
+    on_remove: Callback<usize>,
 ) -> Element {
-    let can_move_up = index > 0;
-    let can_move_down = index + 1 < type_count;
     let border_class = drag_border_class(drag_index, drop_target, index);
 
     rsx! {
         div {
-            class: "{ROW_CLASS} {border_class}",
+            class: "{ROW_CLASS} {border_class} rounded focus:border-blue-400 focus:bg-gray-800 focus:outline-none",
+            tabindex: "0",
             draggable: "true",
             "data-entity-type-row": "",
+            "data-input-diagram-field": "{entity_id}_type_{index}",
+
+            // === Row-level keyboard shortcuts === //
+            onkeydown: RowComponent::row_onkeydown(
+                ROW_DATA_ATTR,
+                DATA_ATTR,
+                index,
+                type_count,
+                type_focus_idx,
+                on_move,
+                on_add,
+                on_remove,
+            ),
 
             // === Drag-and-drop === //
             ondragstart: move |_| {
@@ -106,33 +145,15 @@ pub(crate) fn EntityTypeCardFieldTypesRow(
                         );
                     }
                 },
-                onkeydown: {
-                    let entity_id = entity_id.clone();
-                    let entity_id_down = entity_id.clone();
-                    CardComponent::field_onkeydown(
-                        DATA_ATTR,
-                        can_move_up,
-                        can_move_down,
-                        move || {
-                            EntityTypesPageOps::type_move(
-                                &mut input_diagram.write(),
-                                &entity_id,
-                                index,
-                                index - 1,
-                            );
-                            type_focus_idx.set(Some(index - 1));
-                        },
-                        move || {
-                            EntityTypesPageOps::type_move(
-                                &mut input_diagram.write(),
-                                &entity_id_down,
-                                index,
-                                index + 1,
-                            );
-                            type_focus_idx.set(Some(index + 1));
-                        },
-                    )
-                },
+                onkeydown: RowComponent::row_field_onkeydown(
+                    ROW_DATA_ATTR,
+                    index,
+                    type_count,
+                    type_focus_idx,
+                    on_move,
+                    on_add,
+                    on_remove,
+                ),
             }
 
             button {
@@ -149,7 +170,15 @@ pub(crate) fn EntityTypeCardFieldTypesRow(
                         );
                     }
                 },
-                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
+                onkeydown: RowComponent::row_field_onkeydown(
+                    ROW_DATA_ATTR,
+                    index,
+                    type_count,
+                    type_focus_idx,
+                    on_move,
+                    on_add,
+                    on_remove,
+                ),
                 "\u{2715}"
             }
         }

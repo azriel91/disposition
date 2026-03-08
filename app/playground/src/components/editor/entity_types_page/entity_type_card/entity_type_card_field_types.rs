@@ -56,6 +56,9 @@ pub(crate) fn EntityTypeCardFieldTypes(
                     {
                         let type_str = type_str.clone();
                         let entity_id = entity_id.clone();
+                        let entity_id_move = entity_id.clone();
+                        let entity_id_add = entity_id.clone();
+                        let entity_id_remove = entity_id.clone();
                         rsx! {
                             EntityTypeCardFieldTypesRow {
                                 key: "{entity_id}_{idx}",
@@ -67,6 +70,34 @@ pub(crate) fn EntityTypeCardFieldTypes(
                                 type_focus_idx,
                                 drag_index: type_drag_idx,
                                 drop_target: type_drop_target,
+                                on_move: move |(from, to): (usize, usize)| {
+                                    EntityTypesPageOps::type_move(
+                                        &mut input_diagram.write(),
+                                        &entity_id_move,
+                                        from,
+                                        to,
+                                    );
+                                },
+                                on_add: move |insert_at: usize| {
+                                    EntityTypesPageOps::type_add(
+                                        &mut input_diagram.write(),
+                                        &entity_id_add,
+                                    );
+                                    let last = type_count;
+                                    EntityTypesPageOps::type_move(
+                                        &mut input_diagram.write(),
+                                        &entity_id_add,
+                                        last,
+                                        insert_at,
+                                    );
+                                },
+                                on_remove: move |row_index: usize| {
+                                    EntityTypesPageOps::type_remove(
+                                        &mut input_diagram.write(),
+                                        &entity_id_remove,
+                                        row_index,
+                                    );
+                                },
                             }
                         }
                     }

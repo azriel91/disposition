@@ -52,6 +52,9 @@ pub(crate) fn EdgeGroupCardFieldThings(
                     {
                         let thing_id = thing_id.clone();
                         let edge_group_id = edge_group_id.clone();
+                        let edge_group_id_move = edge_group_id.clone();
+                        let edge_group_id_add = edge_group_id.clone();
+                        let edge_group_id_remove = edge_group_id.clone();
                         rsx! {
                             EdgeGroupCardFieldThingsRow {
                                 key: "{edge_group_id}_{idx}",
@@ -64,6 +67,38 @@ pub(crate) fn EdgeGroupCardFieldThings(
                                 thing_focus_idx,
                                 drag_index: thing_drag_idx,
                                 drop_target: thing_drop_target,
+                                on_move: move |(from, to): (usize, usize)| {
+                                    EdgeGroupCardOps::edge_thing_move(
+                                        &mut input_diagram.write(),
+                                        target,
+                                        &edge_group_id_move,
+                                        from,
+                                        to,
+                                    );
+                                },
+                                on_add: move |insert_at: usize| {
+                                    EdgeGroupCardOps::edge_thing_add(
+                                        &mut input_diagram.write(),
+                                        target,
+                                        &edge_group_id_add,
+                                    );
+                                    let last = thing_count;
+                                    EdgeGroupCardOps::edge_thing_move(
+                                        &mut input_diagram.write(),
+                                        target,
+                                        &edge_group_id_add,
+                                        last,
+                                        insert_at,
+                                    );
+                                },
+                                on_remove: move |row_index: usize| {
+                                    EdgeGroupCardOps::edge_thing_remove(
+                                        &mut input_diagram.write(),
+                                        target,
+                                        &edge_group_id_remove,
+                                        row_index,
+                                    );
+                                },
                             }
                         }
                     }

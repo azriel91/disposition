@@ -122,6 +122,12 @@ pub(crate) fn EdgeGroupCard(
                             &edge_group_id,
                         );
                     },
+                    Some(Box::new(move |insert_at: usize| {
+                        EdgeGroupCardOps::edge_group_add(&mut input_diagram.write(), target);
+                        let last = EdgeGroupCardOps::edge_group_count(&input_diagram.read(), target) - 1;
+                        EdgeGroupCardOps::edge_group_move(&mut input_diagram.write(), target, last, insert_at);
+                        focus_index.set(Some(insert_at));
+                    })),
                 )
             },
 
