@@ -61,6 +61,8 @@ pub enum EditorPage {
     Processes,
     /// Tags: tag names and the things associated with each tag.
     Tags,
+    /// Entity Types: entity type assignments for common styling.
+    EntityTypes,
     /// Theme: style aliases sub-page.
     ThemeStyleAliases,
     /// Theme: base styles (node/edge defaults + per-entity overrides).
@@ -103,6 +105,7 @@ impl EditorPage {
         EditorPageOrGroup::Page(Self::ThingInteractions),
         EditorPageOrGroup::Page(Self::Processes),
         EditorPageOrGroup::Page(Self::Tags),
+        EditorPageOrGroup::Page(Self::EntityTypes),
         EditorPageOrGroup::ThemeGroup,
         EditorPageOrGroup::Page(Self::Text),
     ];
@@ -120,6 +123,7 @@ impl EditorPage {
             Self::ThingInteractions => "Interactions",
             Self::Processes => "Processes",
             Self::Tags => "Tags",
+            Self::EntityTypes => "Entity Types",
             Self::ThemeStyleAliases => "Theme: Aliases",
             Self::ThemeBaseStyles => "Theme: Base",
             Self::ThemeProcessStepStyles => "Theme: Step Styles",

@@ -7,6 +7,7 @@
 
 pub use self::{
     datalists::EditorDataLists,
+    entity_types_page::EntityTypesPage,
     processes_page::ProcessesPage,
     tags_page::TagsPage,
     text_page::TextPage,
@@ -29,6 +30,7 @@ pub(crate) mod keyboard_nav;
 pub(crate) mod reorderable;
 pub(crate) mod theme_styles_editor;
 
+pub(crate) mod entity_types_page;
 pub(crate) mod processes_page;
 pub(crate) mod tags_page;
 pub(crate) mod text_page;

@@ -144,6 +144,32 @@ impl EntityType {
         }
     }
 
+    /// Returns `true` if the entity type is a built-in type.
+    pub fn is_built_in(self) -> bool {
+        match self {
+            EntityType::ContainerInbuilt
+            | EntityType::ThingDefault
+            | EntityType::TagDefault
+            | EntityType::ProcessDefault
+            | EntityType::ProcessStepDefault
+            | EntityType::DependencyEdgeSequenceDefault
+            | EntityType::DependencyEdgeCyclicDefault
+            | EntityType::DependencyEdgeSymmetricDefault
+            | EntityType::DependencyEdgeSequenceForwardDefault
+            | EntityType::DependencyEdgeCyclicForwardDefault
+            | EntityType::DependencyEdgeSymmetricForwardDefault
+            | EntityType::DependencyEdgeSymmetricReverseDefault
+            | EntityType::InteractionEdgeSequenceDefault
+            | EntityType::InteractionEdgeCyclicDefault
+            | EntityType::InteractionEdgeSymmetricDefault
+            | EntityType::InteractionEdgeSequenceForwardDefault
+            | EntityType::InteractionEdgeCyclicForwardDefault
+            | EntityType::InteractionEdgeSymmetricForwardDefault
+            | EntityType::InteractionEdgeSymmetricReverseDefault => true,
+            EntityType::Custom(_) => false,
+        }
+    }
+
     /// Returns the ID representation of the style alias.
     ///
     /// # Examples

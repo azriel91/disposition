@@ -9,7 +9,7 @@ use dioxus::{
 };
 use disposition::{
     input_model::{theme::StyleAlias, InputDiagram},
-    model_common::Set,
+    model_common::{entity::EntityType, Id, Set},
 };
 
 /// Well-known datalist element IDs that editor pages can reference via
@@ -29,6 +29,9 @@ pub mod list_ids {
     pub const ENTITY_IDS: &str = "entity_ids";
     /// Union of base theme and user-defined `EntityTypeId` values.
     pub const ENTITY_TYPE_IDS: &str = "entity_type_ids";
+    /// User-defined (non-built-in) entity type values currently in use
+    /// across `entity_types`. Users can also type new custom values.
+    pub const ENTITY_TYPE_IDS_CUSTOM: &str = "entity_type_ids_custom";
     /// Built-in + user-defined `StyleAlias` values.
     pub const STYLE_ALIASES: &str = "style_aliases";
 }
@@ -86,6 +89,43 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
         .chain(process_step_ids.iter())
         .cloned()
         .collect();
+
+    // Custom entity type IDs = non-built-in EntityType values currently
+    // assigned in entity_types, plus keys from theme_types_styles that
+    // are not built-in.
+    let entity_type_ids_custom = {
+        let mut custom_types = Set::<String>::new();
+        diagram.entity_types.values().for_each(|types_set| {
+            for entity_type in types_set.iter() {
+                if !entity_type.clone().is_built_in() {
+                    let id_str = entity_type.as_str().to_owned();
+                    if !custom_types.contains(&id_str) {
+                        custom_types.insert(id_str);
+                    }
+                }
+            }
+        });
+        // Also include custom keys from theme_types_styles so the user
+        // sees types that already have styles defined.
+        diagram
+            .theme_types_styles
+            .keys()
+            .for_each(|entity_type_id| {
+                let id_str = entity_type_id.as_str().to_owned();
+                if !custom_types.contains(&id_str)
+                    && let Ok(id) = Id::new(&id_str)
+                {
+                    let et = EntityType::from(id.into_static());
+                    if !et.is_built_in() {
+                        custom_types.insert(id_str);
+                    }
+                }
+            });
+
+        custom_types.sort();
+
+        custom_types
+    };
 
     // Entity type IDs = base theme types + user-defined types.
     let entity_type_ids = {
@@ -177,6 +217,14 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
         datalist {
             id: list_ids::ENTITY_TYPE_IDS,
             for id in entity_type_ids.iter() {
+                option { value: "{id}" }
+            }
+        }
+
+        // === entity_type_ids_custom === //
+        datalist {
+            id: list_ids::ENTITY_TYPE_IDS_CUSTOM,
+            for id in entity_type_ids_custom.iter() {
                 option { value: "{id}" }
             }
         }

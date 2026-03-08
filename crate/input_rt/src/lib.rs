@@ -7,9 +7,10 @@
 //! across different frontends.
 
 pub use crate::{
-    edge_group_card_ops::EdgeGroupCardOps, flat_entry::FlatEntry, map_target::MapTarget,
-    on_change_target::OnChangeTarget, process_card_ops::ProcessCardOps,
-    processes_page_ops::ProcessesPageOps, step_interaction_card_ops::StepInteractionCardOps,
+    edge_group_card_ops::EdgeGroupCardOps, entity_types_page_ops::EntityTypesPageOps,
+    flat_entry::FlatEntry, map_target::MapTarget, on_change_target::OnChangeTarget,
+    process_card_ops::ProcessCardOps, processes_page_ops::ProcessesPageOps,
+    step_interaction_card_ops::StepInteractionCardOps,
     style_aliases_section_ops::StyleAliasesSectionOps, tags_page_ops::TagsPageOps,
     thing_layout_ops::ThingLayoutOps, things_page_ops::ThingsPageOps,
 };
@@ -19,6 +20,7 @@ pub mod id_parse;
 pub mod id_rename;
 
 mod edge_group_card_ops;
+mod entity_types_page_ops;
 mod map_target;
 mod on_change_target;
 mod process_card_ops;
