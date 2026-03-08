@@ -112,6 +112,104 @@ impl KeyboardNav {
     }
 
     /// Build a JS snippet that cycles focus to the **next** focusable element
+    /// within the closest ancestor matching `[data_attr]`, relative to the
+    /// active element's position in the DOM.
+    ///
+    /// Unlike [`js_tab_next_field`](Self::js_tab_next_field), this works even
+    /// when the active element is **not** itself a focusable field (e.g. a
+    /// row wrapper `div[tabindex="0"]`). It finds the first focusable field
+    /// that follows the active element in document order, wrapping to the
+    /// first field if none is found after it.
+    ///
+    /// Focusable fields that are descendants of any element matching
+    /// `[exclude_attr]` are excluded from the candidate list. This prevents
+    /// Tab from landing on inputs inside sibling rows.
+    ///
+    /// # Parameters
+    ///
+    /// * `data_attr`: the `data-*` attribute on the card wrapper, e.g.
+    ///   `"data-edge-group-card"`.
+    /// * `exclude_attr`: the `data-*` attribute on row wrappers, e.g.
+    ///   `"data-edge-thing-row"`. Fields inside any element with this attribute
+    ///   are filtered out.
+    ///
+    /// Used by [`RowComponent::row_onkeydown`] for Tab on row wrappers.
+    ///
+    /// [`RowComponent::row_onkeydown`]: crate::components::editor::common::RowComponent::row_onkeydown
+    pub fn js_tab_next_field_from(data_attr: &str, exclude_attr: &str) -> String {
+        format!(
+            "(() => {{\
+                let el = document.activeElement;\
+                if (!el) return;\
+                let card = el.closest('[{data_attr}]');\
+                if (!card) return;\
+                let items = Array.from(card.querySelectorAll(\
+                    '{FOCUSABLE_SELECTOR}'\
+                )).filter(i => !i.closest('[{exclude_attr}]'));\
+                if (items.length === 0) return;\
+                let idx = items.indexOf(el);\
+                if (idx >= 0) {{\
+                    items[(idx + 1) % items.length].focus();\
+                }} else {{\
+                    let after = items.find(i => \
+                        el.compareDocumentPosition(i) & Node.DOCUMENT_POSITION_FOLLOWING\
+                    );\
+                    (after || items[0]).focus();\
+                }}\
+            }})()"
+        )
+    }
+
+    /// Build a JS snippet that cycles focus to the **previous** focusable
+    /// element within the closest ancestor matching `[data_attr]`, relative
+    /// to the active element's position in the DOM.
+    ///
+    /// Unlike [`js_tab_prev_field`](Self::js_tab_prev_field), this works even
+    /// when the active element is **not** itself a focusable field (e.g. a
+    /// row wrapper `div[tabindex="0"]`). It finds the last focusable field
+    /// that precedes the active element in document order, wrapping to the
+    /// last field if none is found before it.
+    ///
+    /// Focusable fields that are descendants of any element matching
+    /// `[exclude_attr]` are excluded from the candidate list. This prevents
+    /// Shift+Tab from landing on inputs inside sibling rows.
+    ///
+    /// # Parameters
+    ///
+    /// * `data_attr`: the `data-*` attribute on the card wrapper, e.g.
+    ///   `"data-edge-group-card"`.
+    /// * `exclude_attr`: the `data-*` attribute on row wrappers, e.g.
+    ///   `"data-edge-thing-row"`. Fields inside any element with this attribute
+    ///   are filtered out.
+    ///
+    /// Used by [`RowComponent::row_onkeydown`] for Shift+Tab on row wrappers.
+    ///
+    /// [`RowComponent::row_onkeydown`]: crate::components::editor::common::RowComponent::row_onkeydown
+    pub fn js_tab_prev_field_from(data_attr: &str, exclude_attr: &str) -> String {
+        format!(
+            "(() => {{\
+                let el = document.activeElement;\
+                if (!el) return;\
+                let card = el.closest('[{data_attr}]');\
+                if (!card) return;\
+                let items = Array.from(card.querySelectorAll(\
+                    '{FOCUSABLE_SELECTOR}'\
+                )).filter(i => !i.closest('[{exclude_attr}]'));\
+                if (items.length === 0) return;\
+                let idx = items.indexOf(el);\
+                if (idx >= 0) {{\
+                    items[(idx - 1 + items.length) % items.length].focus();\
+                }} else {{\
+                    let before = items.findLast(i => \
+                        el.compareDocumentPosition(i) & Node.DOCUMENT_POSITION_PRECEDING\
+                    );\
+                    (before || items[items.length - 1]).focus();\
+                }}\
+            }})()"
+        )
+    }
+
+    /// Build a JS snippet that cycles focus to the **next** focusable element
     /// within the closest ancestor matching `[data_attr]`.
     ///
     /// When on the last element, wraps to the first (true cycling).

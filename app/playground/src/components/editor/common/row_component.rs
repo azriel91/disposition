@@ -49,6 +49,9 @@ impl RowComponent {
     /// - **Alt+Shift+Up / Alt+Shift+Down**: insert a new row before / after the
     ///   current row.
     /// - **Ctrl+Shift+K**: remove the current row.
+    /// - **Tab / Shift+Tab**: cycle through all focusable fields within the
+    ///   parent card (so that focus moves to card-level fields such as the
+    ///   edge-kind `<select>` rather than jumping to the card wrapper).
     /// - **Enter**: focus the first input inside the row for editing.
     /// - **Escape**: focus the parent card wrapper.
     ///
@@ -175,6 +178,37 @@ impl RowComponent {
                     evt.prevent_default();
                     evt.stop_propagation();
                     document::eval(&KeyboardNav::js_focus_parent_entry(card_data_attr));
+                }
+
+                // === Tab / Shift+Tab === //
+                // Within the row list, Tab/Shift+Tab moves between sibling
+                // rows. At the boundaries (first row Shift+Tab, last row
+                // Tab), focus breaks out to the next/prev card-level field.
+                Key::Tab if shift && is_first => {
+                    evt.prevent_default();
+                    evt.stop_propagation();
+                    document::eval(&KeyboardNav::js_tab_prev_field_from(
+                        card_data_attr,
+                        row_data_attr,
+                    ));
+                }
+                Key::Tab if !shift && is_last => {
+                    evt.prevent_default();
+                    evt.stop_propagation();
+                    document::eval(&KeyboardNav::js_tab_next_field_from(
+                        card_data_attr,
+                        row_data_attr,
+                    ));
+                }
+                Key::Tab if shift => {
+                    evt.prevent_default();
+                    evt.stop_propagation();
+                    document::eval(&KeyboardNav::js_focus_prev_entry(row_data_attr));
+                }
+                Key::Tab => {
+                    evt.prevent_default();
+                    evt.stop_propagation();
+                    document::eval(&KeyboardNav::js_focus_next_entry(row_data_attr));
                 }
 
                 // === Space: prevent toggle on parent card === //
