@@ -20,7 +20,7 @@ use dioxus::{
 
 use crate::components::editor::{
     common::RenameRefocusTarget,
-    keyboard_nav::{self, CardKeyAction},
+    keyboard_nav::{CardKeyAction, KeyboardNav},
     reorderable::is_rename_target,
 };
 
@@ -118,7 +118,7 @@ impl CardComponent {
 
     /// Returns an `onkeydown` handler for a collapsible card.
     ///
-    /// The returned closure delegates to [`keyboard_nav::card_keydown`] and
+    /// The returned closure delegates to [`KeyboardNav::card_keydown`] and
     /// handles the common `Collapse`, `Expand`, `Toggle`, `EnterEdit`, and
     /// `None` actions internally. The caller-specific `MoveUp`, `MoveDown`,
     /// `AddAbove`, `AddBelow`, and `Remove` actions are forwarded to the
@@ -154,7 +154,7 @@ impl CardComponent {
         } = card_state;
 
         move |evt: Event<KeyboardData>| {
-            let action = keyboard_nav::card_keydown(evt, data_attr);
+            let action = KeyboardNav::card_keydown(evt, data_attr);
             match action {
                 CardKeyAction::MoveUp => {
                     if can_move_up {
@@ -185,7 +185,7 @@ impl CardComponent {
                 CardKeyAction::Remove => {
                     // Schedule focus on the next/prev sibling field
                     // *before* the DOM element is removed.
-                    document::eval(&keyboard_nav::js_focus_after_field_remove());
+                    document::eval(&KeyboardNav::js_focus_after_field_remove());
                     on_remove();
                 }
                 CardKeyAction::EnterEdit => collapsed.set(false),

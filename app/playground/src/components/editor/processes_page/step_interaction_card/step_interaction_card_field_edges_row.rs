@@ -157,6 +157,7 @@ pub(crate) fn StepInteractionCardFieldEdgesRow(
                 },
                 onkeydown: RowComponent::row_field_onkeydown(
                     ROW_DATA_ATTR,
+                    DATA_ATTR,
                     index,
                     edge_count,
                     edge_focus_idx,
@@ -184,6 +185,7 @@ pub(crate) fn StepInteractionCardFieldEdgesRow(
                 },
                 onkeydown: RowComponent::row_field_onkeydown(
                     ROW_DATA_ATTR,
+                    DATA_ATTR,
                     index,
                     edge_count,
                     edge_focus_idx,

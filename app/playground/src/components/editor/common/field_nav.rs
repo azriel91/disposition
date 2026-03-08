@@ -30,7 +30,7 @@ use dioxus::{
     signals::{Signal, WritableExt},
 };
 
-use crate::components::editor::{common::RenameRefocusTarget, keyboard_nav};
+use crate::components::editor::{common::RenameRefocusTarget, keyboard_nav::KeyboardNav};
 
 /// JS snippet: move focus to the previous sibling row.
 const JS_FOCUS_PREV_ROW: &str = "\
@@ -145,7 +145,7 @@ impl FieldNav {
                     evt.stop_propagation();
                     // Schedule focus on the next/prev sibling field
                     // *before* the DOM element is removed.
-                    document::eval(&keyboard_nav::js_focus_after_field_remove());
+                    document::eval(&KeyboardNav::js_focus_after_field_remove());
                     on_remove.call(entry_id.clone());
                 }
 
@@ -172,14 +172,14 @@ impl FieldNav {
                     evt.prevent_default();
                     evt.stop_propagation();
                     if !is_first {
-                        document::eval(&keyboard_nav::js_focus_first_entry(data_attr));
+                        document::eval(&KeyboardNav::js_focus_first_entry(data_attr));
                     }
                 }
                 Key::ArrowDown if ctrl => {
                     evt.prevent_default();
                     evt.stop_propagation();
                     if !is_last {
-                        document::eval(&keyboard_nav::js_focus_last_entry(data_attr));
+                        document::eval(&KeyboardNav::js_focus_last_entry(data_attr));
                     }
                 }
 
@@ -203,12 +203,12 @@ impl FieldNav {
                 Key::Escape => {
                     evt.prevent_default();
                     evt.stop_propagation();
-                    document::eval(keyboard_nav::JS_FOCUS_PARENT_SECTION);
+                    document::eval(KeyboardNav::JS_FOCUS_PARENT_SECTION);
                 }
                 Key::Enter => {
                     evt.prevent_default();
                     evt.stop_propagation();
-                    document::eval(&keyboard_nav::js_focus_first_field());
+                    document::eval(&KeyboardNav::js_focus_first_field());
                 }
 
                 _ => {}
@@ -247,7 +247,7 @@ impl FieldNav {
                 }
                 _ => {}
             }
-            keyboard_nav::field_keydown(evt, data_attr);
+            KeyboardNav::field_keydown(evt, data_attr);
         }
     }
 
@@ -260,7 +260,7 @@ impl FieldNav {
     ///   `"data-entry-id"`, `"data-edge-group-card"`, etc.
     pub fn value_onkeydown(data_attr: &'static str) -> impl FnMut(Event<KeyboardData>) {
         move |evt: Event<KeyboardData>| {
-            keyboard_nav::field_keydown(evt, data_attr);
+            KeyboardNav::field_keydown(evt, data_attr);
         }
     }
 }

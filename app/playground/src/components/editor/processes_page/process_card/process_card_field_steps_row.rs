@@ -144,6 +144,7 @@ pub(crate) fn ProcessCardFieldStepsRow(
                 },
                 onkeydown: RowComponent::row_field_onkeydown(
                     ROW_DATA_ATTR,
+                    DATA_ATTR,
                     index,
                     step_count,
                     step_focus_idx,
@@ -167,6 +168,7 @@ pub(crate) fn ProcessCardFieldStepsRow(
                 },
                 onkeydown: RowComponent::row_field_onkeydown(
                     ROW_DATA_ATTR,
+                    DATA_ATTR,
                     index,
                     step_count,
                     step_focus_idx,
@@ -189,6 +191,7 @@ pub(crate) fn ProcessCardFieldStepsRow(
                 },
                 onkeydown: RowComponent::row_field_onkeydown(
                     ROW_DATA_ATTR,
+                    DATA_ATTR,
                     index,
                     step_count,
                     step_focus_idx,

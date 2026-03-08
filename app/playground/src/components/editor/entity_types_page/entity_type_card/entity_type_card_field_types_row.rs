@@ -147,6 +147,7 @@ pub(crate) fn EntityTypeCardFieldTypesRow(
                 },
                 onkeydown: RowComponent::row_field_onkeydown(
                     ROW_DATA_ATTR,
+                    DATA_ATTR,
                     index,
                     type_count,
                     type_focus_idx,
@@ -172,6 +173,7 @@ pub(crate) fn EntityTypeCardFieldTypesRow(
                 },
                 onkeydown: RowComponent::row_field_onkeydown(
                     ROW_DATA_ATTR,
+                    DATA_ATTR,
                     index,
                     type_count,
                     type_focus_idx,

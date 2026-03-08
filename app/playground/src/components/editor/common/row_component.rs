@@ -27,7 +27,7 @@ use dioxus::{
     signals::{Signal, WritableExt},
 };
 
-use crate::components::editor::keyboard_nav;
+use crate::components::editor::keyboard_nav::KeyboardNav;
 
 /// Groups common row-level logic: keyboard handling for reorderable rows
 /// inside card components.
@@ -109,7 +109,7 @@ impl RowComponent {
                     evt.stop_propagation();
                     // Schedule focus on the next/prev sibling row
                     // *before* the DOM element is removed.
-                    document::eval(&keyboard_nav::js_focus_after_field_remove());
+                    document::eval(&KeyboardNav::js_focus_after_field_remove());
                     on_remove.call(index);
                 }
 
@@ -136,14 +136,14 @@ impl RowComponent {
                     evt.prevent_default();
                     evt.stop_propagation();
                     if !is_first {
-                        document::eval(&keyboard_nav::js_focus_first_entry(row_data_attr));
+                        document::eval(&KeyboardNav::js_focus_first_entry(row_data_attr));
                     }
                 }
                 Key::ArrowDown if ctrl => {
                     evt.prevent_default();
                     evt.stop_propagation();
                     if !is_last {
-                        document::eval(&keyboard_nav::js_focus_last_entry(row_data_attr));
+                        document::eval(&KeyboardNav::js_focus_last_entry(row_data_attr));
                     }
                 }
 
@@ -152,14 +152,14 @@ impl RowComponent {
                     evt.prevent_default();
                     evt.stop_propagation();
                     if !is_first {
-                        document::eval(&keyboard_nav::js_focus_prev_entry(row_data_attr));
+                        document::eval(&KeyboardNav::js_focus_prev_entry(row_data_attr));
                     }
                 }
                 Key::ArrowDown => {
                     evt.prevent_default();
                     evt.stop_propagation();
                     if !is_last {
-                        document::eval(&keyboard_nav::js_focus_next_entry(row_data_attr));
+                        document::eval(&KeyboardNav::js_focus_next_entry(row_data_attr));
                     }
                 }
 
@@ -167,14 +167,14 @@ impl RowComponent {
                 Key::Enter => {
                     evt.prevent_default();
                     evt.stop_propagation();
-                    document::eval(&keyboard_nav::js_focus_first_field());
+                    document::eval(&KeyboardNav::js_focus_first_field());
                 }
 
                 // === Escape: focus parent card === //
                 Key::Escape => {
                     evt.prevent_default();
                     evt.stop_propagation();
-                    document::eval(&keyboard_nav::js_focus_parent_entry(card_data_attr));
+                    document::eval(&KeyboardNav::js_focus_parent_entry(card_data_attr));
                 }
 
                 // === Space: prevent toggle on parent card === //
@@ -193,15 +193,28 @@ impl RowComponent {
     ///
     /// The returned closure intercepts **Alt+Up / Alt+Down** for reordering,
     /// **Alt+Shift+Up / Alt+Shift+Down** for insertion, and
-    /// **Ctrl+Shift+K** for removal. All other keys fall through to
-    /// [`keyboard_nav::field_keydown`] so that Tab cycling,
-    /// Escape-to-parent-row, arrow-key passthrough, etc. work as usual.
+    /// **Ctrl+Shift+K** for removal.
+    ///
+    /// **Tab / Shift+Tab** cycle through all focusable fields within the
+    /// parent *card* (identified by `card_data_attr`), so that focus
+    /// correctly moves between row fields and card-level fields such as
+    /// the edge-kind `<select>` in `EdgeGroupCardFieldKind`.
+    ///
+    /// **Escape** returns focus to the parent *row* wrapper (identified by
+    /// `row_data_attr`), keeping the two-level hierarchy (field -> row ->
+    /// card) intact.
+    ///
+    /// All other keys (arrow keys, Enter, Space) have their propagation
+    /// stopped so that row- and card-level handlers do not interfere with
+    /// in-field editing (cursor movement, native select navigation, etc.).
     ///
     /// # Parameters
     ///
     /// * `row_data_attr`: the `data-*` attribute on the row wrapper, e.g.
-    ///   `"data-entity-type-row"`. Used by `field_keydown` for Tab cycling and
-    ///   Escape-to-row.
+    ///   `"data-entity-type-row"`. Used by Escape to focus the row.
+    /// * `card_data_attr`: the `data-*` attribute on the parent card wrapper,
+    ///   e.g. `"data-edge-group-card"`. Used by Tab / Shift+Tab to cycle
+    ///   through all focusable fields in the card.
     /// * `index`: zero-based position of this row in its list.
     /// * `entry_count`: total number of rows in the list.
     /// * `focus_index`: signal set after a move/add so the container can
@@ -212,6 +225,7 @@ impl RowComponent {
     #[allow(clippy::too_many_arguments)]
     pub fn row_field_onkeydown(
         row_data_attr: &'static str,
+        card_data_attr: &'static str,
         index: usize,
         entry_count: usize,
         mut focus_index: Signal<Option<usize>>,
@@ -247,7 +261,7 @@ impl RowComponent {
                 Key::Character(ref c) if ctrl && shift && c.eq_ignore_ascii_case("k") => {
                     evt.prevent_default();
                     evt.stop_propagation();
-                    document::eval(&keyboard_nav::js_focus_after_field_remove());
+                    document::eval(&KeyboardNav::js_focus_after_field_remove());
                     on_remove.call(index);
                 }
 
@@ -269,10 +283,40 @@ impl RowComponent {
                     }
                 }
 
-                // === Everything else: standard field navigation === //
-                _ => {
-                    keyboard_nav::field_keydown(evt, row_data_attr);
+                // === Tab / Shift+Tab: cycle within the card === //
+                Key::Tab => {
+                    evt.prevent_default();
+                    evt.stop_propagation();
+                    if shift {
+                        document::eval(&KeyboardNav::js_tab_prev_field(card_data_attr));
+                    } else {
+                        document::eval(&KeyboardNav::js_tab_next_field(card_data_attr));
+                    }
                 }
+
+                // === Escape: focus parent row wrapper === //
+                Key::Escape => {
+                    evt.prevent_default();
+                    evt.stop_propagation();
+                    document::eval(&KeyboardNav::js_focus_parent_entry(row_data_attr));
+                }
+
+                // === Enter: stop propagation (allow native behaviour) === //
+                Key::Enter => {
+                    evt.stop_propagation();
+                }
+
+                // === Arrow keys: stop propagation (cursor / select nav) === //
+                Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight => {
+                    evt.stop_propagation();
+                }
+
+                // === Space: stop propagation (prevent card toggle) === //
+                Key::Character(ref c) if c == " " => {
+                    evt.stop_propagation();
+                }
+
+                _ => {}
             }
         }
     }

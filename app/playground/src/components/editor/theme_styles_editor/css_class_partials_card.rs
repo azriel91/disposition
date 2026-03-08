@@ -27,7 +27,7 @@ use disposition::input_model::InputDiagram;
 
 use crate::components::editor::{
     common::CardComponent,
-    keyboard_nav,
+    keyboard_nav::KeyboardNav,
     reorderable::{drag_border_class, DragHandle},
     theme_styles_editor::{
         css_class_partials_card_aliases::CssClassPartialsCardAliases,
@@ -42,7 +42,7 @@ use crate::components::editor::{
 
 /// The `data-*` attribute placed on each `CssClassPartialsCard` wrapper.
 ///
-/// Used by [`keyboard_nav`] helpers to locate the nearest ancestor card.
+/// Used by [`KeyboardNav`] helpers to locate the nearest ancestor card.
 pub(crate) const DATA_ATTR: &str = "data-css-card";
 
 // === CSS === //
@@ -239,7 +239,7 @@ pub fn CssClassPartialsCard(
 /// Shared `onkeydown` handler for inputs, selects, checkboxes, and remove
 /// buttons inside a `CssClassPartialsCard`.
 ///
-/// Delegates to [`keyboard_nav::field_keydown`] with this card's
+/// Delegates to [`KeyboardNav::field_keydown`] with this card's
 /// [`DATA_ATTR`].
 ///
 /// - **Escape**: return focus to the parent `CssClassPartialsCard`.
@@ -250,5 +250,5 @@ pub fn CssClassPartialsCard(
 ///   and select navigation).
 /// - **Space**: stop propagation (prevents parent collapse toggle).
 pub(crate) fn css_card_field_keydown(evt: dioxus::events::KeyboardEvent) {
-    keyboard_nav::field_keydown(evt, DATA_ATTR);
+    KeyboardNav::field_keydown(evt, DATA_ATTR);
 }

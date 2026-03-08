@@ -152,6 +152,7 @@ pub(crate) fn TagThingsCardFieldThingsRow(
                 },
                 onkeydown: RowComponent::row_field_onkeydown(
                     ROW_DATA_ATTR,
+                    DATA_ATTR,
                     index,
                     thing_count,
                     thing_focus_idx,
@@ -177,6 +178,7 @@ pub(crate) fn TagThingsCardFieldThingsRow(
                 },
                 onkeydown: RowComponent::row_field_onkeydown(
                     ROW_DATA_ATTR,
+                    DATA_ATTR,
                     index,
                     thing_count,
                     thing_focus_idx,
