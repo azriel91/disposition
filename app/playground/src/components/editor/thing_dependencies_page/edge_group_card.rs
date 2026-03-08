@@ -91,9 +91,6 @@ pub(crate) fn EdgeGroupCard(
             "data-edge-group-card": "true",
             "data-input-diagram-field": "{edge_group_id}",
 
-            // === Card identity for post-rename focus === //
-            "data-edge-group-card-id": "{edge_group_id}",
-
             // === Card-level keyboard shortcuts === //
             onkeydown: {
                 let edge_group_id = edge_group_id.clone();

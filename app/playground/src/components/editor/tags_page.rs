@@ -61,10 +61,6 @@ use self::tag_things_card::TagThingsCard;
 /// to locate the nearest ancestor card.
 pub(crate) const DATA_ATTR: &str = "data-tag-things-card";
 
-/// The `data-*` attribute that holds the card's ID value (for post-rename
-/// focus).
-pub(crate) const DATA_ID_ATTR: &str = "data-tag-things-card-id";
-
 // === TagThingsCard CSS === //
 
 /// CSS classes for the focusable tag-things card wrapper.
@@ -168,7 +164,6 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 data_attr: "data-entry-id".to_owned(),
                 section_id: "tag_names".to_owned(),
                 focus_index: tag_name_focus_idx,
-                data_id_attr: Some("data-entry-id".to_owned()),
                 rename_refocus: Some(tag_name_rename_refocus),
 
                 for (idx, (tag_id, tag_name)) in tag_entries.iter().enumerate() {
@@ -231,7 +226,6 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 data_attr: DATA_ATTR.to_owned(),
                 section_id: "tag_things".to_owned(),
                 focus_index: tag_things_focus_idx,
-                data_id_attr: Some(DATA_ID_ATTR.to_owned()),
                 rename_refocus: Some(tag_things_rename_refocus),
 
                 for (idx, (tag_id, things)) in tag_things_entries.iter().enumerate() {

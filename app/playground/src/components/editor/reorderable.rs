@@ -33,7 +33,9 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 
-use crate::components::editor::common::{RenameRefocus, RenameRefocusTarget, DRAG_HANDLE};
+use crate::components::editor::common::{
+    RenameRefocus, RenameRefocusTarget, DATA_INPUT_DIAGRAM_FIELD, DRAG_HANDLE,
+};
 
 // === DragHandle === //
 
@@ -126,11 +128,11 @@ pub fn is_rename_target(rename_refocus: Signal<Option<RenameRefocus>>, entry_id:
 /// `focus_index` signal and, when set, focuses the child element at that
 /// index after the DOM has updated.
 ///
-/// Optionally handles post-rename focus via `rename_refocus` and
-/// `data_id_attr`. When an ID rename destroys and recreates a child
-/// element, the container locates the new element by its `data_id_attr`
-/// value and focuses the appropriate sub-element (ID input, next field,
-/// or the entry wrapper itself) based on the [`RenameRefocusTarget`].
+/// Optionally handles post-rename focus via `rename_refocus`. When an ID
+/// rename destroys and recreates a child element, the container locates
+/// the new element by its `data-input-diagram-field` attribute value and
+/// focuses the appropriate sub-element (ID input, next field, or the
+/// entry wrapper itself) based on the [`RenameRefocusTarget`].
 ///
 /// # Props
 ///
@@ -148,13 +150,10 @@ pub fn is_rename_target(rename_refocus: Signal<Option<RenameRefocus>>, entry_id:
 ///   *inside* the entry rather than the entry itself. Useful when entries are
 ///   not independently focusable but contain a focusable child (e.g. thing rows
 ///   inside an edge group card).
-/// * `data_id_attr`: optional `data-*` attribute name that holds the entry's ID
-///   value, e.g. `"data-entry-id"`. Required when `rename_refocus` is provided.
-///   Used to locate the newly created entry after an ID rename.
 /// * `rename_refocus`: optional signal for post-rename focus. When set to
-///   `Some(refocus)`, the entry whose `data_id_attr` matches `refocus.new_id`
-///   receives focus after the next DOM update, with the correct sub-element
-///   focused based on `refocus.target`.
+///   `Some(refocus)`, the entry whose `data-input-diagram-field` matches
+///   `refocus.new_id` receives focus after the next DOM update, with the
+///   correct sub-element focused based on `refocus.target`.
 /// * `children`: the entry elements rendered inside the container.
 ///
 /// [`IdValueRow`]: crate::components::editor::id_value_row::IdValueRow
@@ -164,7 +163,6 @@ pub fn ReorderableContainer(
     section_id: String,
     mut focus_index: Signal<Option<usize>>,
     #[props(default)] focus_inner_selector: Option<String>,
-    #[props(default)] data_id_attr: Option<String>,
     #[props(default)] mut rename_refocus: Option<Signal<Option<RenameRefocus>>>,
     children: Element,
 ) -> Element {
@@ -202,13 +200,9 @@ pub fn ReorderableContainer(
 
     // === Post-rename focus effect === //
     let section_id_rename = section_id.clone();
-    let data_id_attr_rename = data_id_attr.clone();
 
     use_effect(move || {
         let Some(ref mut rename_signal) = rename_refocus else {
-            return;
-        };
-        let Some(data_id_attr) = data_id_attr_rename.as_deref() else {
             return;
         };
 
@@ -216,7 +210,7 @@ pub fn ReorderableContainer(
             rename_signal.set(None);
 
             let section_sel = format!("[data-reorderable-section=\"{section_id_rename}\"]");
-            let entry_sel = format!("[{data_id_attr}=\"{new_id}\"]");
+            let entry_sel = format!("[{DATA_INPUT_DIAGRAM_FIELD}=\"{new_id}\"]");
 
             // Selector for focusable fields inside the entry.
             let focusable_sel = "input, select, textarea, button, [data-action=\"remove\"]";

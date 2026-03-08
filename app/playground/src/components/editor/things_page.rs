@@ -60,7 +60,6 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 data_attr: "data-entry-id".to_owned(),
                 section_id: "thing_names".to_owned(),
                 focus_index: thing_focus_idx,
-                data_id_attr: Some("data-entry-id".to_owned()),
                 rename_refocus: Some(thing_rename_refocus),
 
                 for (idx, (id, name)) in thing_entries.iter().enumerate() {
@@ -155,7 +154,6 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                 data_attr: "data-entry-id".to_owned(),
                 section_id: "copy_text".to_owned(),
                 focus_index: copy_text_focus_idx,
-                data_id_attr: Some("data-entry-id".to_owned()),
                 rename_refocus: Some(copy_text_rename_refocus),
 
                 for (idx, (id, text)) in copy_text_entries.iter().enumerate() {
@@ -258,7 +256,6 @@ pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
                 data_attr: "data-entry-id".to_owned(),
                 section_id: "entity_descs".to_owned(),
                 focus_index: desc_focus_idx,
-                data_id_attr: Some("data-entry-id".to_owned()),
                 rename_refocus: Some(desc_rename_refocus),
 
                 for (idx, (id, desc)) in desc_entries.iter().enumerate() {
@@ -360,7 +357,6 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
                 data_attr: "data-entry-id".to_owned(),
                 section_id: "entity_tooltips".to_owned(),
                 focus_index: tooltip_focus_idx,
-                data_id_attr: Some("data-entry-id".to_owned()),
                 rename_refocus: Some(tooltip_rename_refocus),
 
                 for (idx, (id, tip)) in tooltip_entries.iter().enumerate() {

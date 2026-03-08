@@ -64,10 +64,6 @@ fn parse_style_alias(s: &str) -> Option<StyleAlias<'static>> {
 /// to locate the nearest ancestor card.
 pub(crate) const DATA_ATTR: &str = "data-style-alias-card";
 
-/// The `data-*` attribute that holds the card's ID value (for post-rename
-/// focus).
-pub(crate) const DATA_ID_ATTR: &str = "data-style-alias-card-id";
-
 // === CSS === //
 
 /// CSS classes for the focusable style alias card wrapper.
@@ -131,9 +127,6 @@ pub fn StyleAliasesSection(
             draggable: "true",
             "data-style-alias-card": "true",
             "data-input-diagram-field": "{alias_key}",
-
-            // === Card identity for post-rename focus === //
-            "data-style-alias-card-id": "{alias_key}",
 
             // === Card-level keyboard shortcuts === //
             onkeydown: {

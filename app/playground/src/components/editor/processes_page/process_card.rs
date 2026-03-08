@@ -90,9 +90,6 @@ pub(crate) fn ProcessCard(
             "data-process-card": "true",
             "data-input-diagram-field": "{process_id}",
 
-            // === Card identity for post-rename focus === //
-            "data-process-card-id": "{process_id}",
-
             // === Card-level keyboard shortcuts === //
             onkeydown: {
                 let process_id = process_id.clone();

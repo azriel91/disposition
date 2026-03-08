@@ -110,7 +110,6 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                 data_attr: style_aliases_section::DATA_ATTR.to_owned(),
                 section_id: "style_aliases".to_owned(),
                 focus_index: style_alias_focus_idx,
-                data_id_attr: Some(style_aliases_section::DATA_ID_ATTR.to_owned()),
                 rename_refocus: Some(style_alias_rename_refocus),
 
                 for (idx, entry) in entries.iter().enumerate() {

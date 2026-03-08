@@ -75,9 +75,6 @@ pub(crate) fn TagThingsCard(
             "data-tag-things-card": "true",
             "data-input-diagram-field": "{tag_id}",
 
-            // === Card identity for post-rename focus === //
-            "data-tag-things-card-id": "{tag_id}",
-
             // === Card-level keyboard shortcuts === //
             onkeydown: {
                 let tag_id = tag_id.clone();
