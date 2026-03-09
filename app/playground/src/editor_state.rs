@@ -7,6 +7,14 @@
 //! `dioxus_router` can round-trip it through the URL hash
 //! fragment.
 
+mod editor_page;
+mod editor_page_theme;
+mod editor_page_thing;
+
+pub use self::{
+    editor_page::EditorPage, editor_page_theme::EditorPageTheme, editor_page_thing::EditorPageThing,
+};
+
 use std::fmt;
 
 use disposition::input_model::InputDiagram;
@@ -17,11 +25,6 @@ use serde::{Deserialize, Serialize};
 /// When serialized (via [`Display`](std::fmt::Display)), the struct is written
 /// as YAML. When deserialized (via [`FromStr`](std::str::FromStr)), the YAML
 /// is parsed back.
-///
-/// For backward compatibility with older URLs that contain only a raw
-/// [`InputDiagram`] YAML (without the wrapping `EditorState`),
-/// [`FromStr`](std::str::FromStr)
-/// will fall back to parsing the string as an `InputDiagram` directly.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EditorState {
     /// The currently active editor page / tab.
@@ -31,165 +34,6 @@ pub struct EditorState {
     /// The input diagram being edited.
     #[serde(default)]
     pub input_diagram: InputDiagram<'static>,
-}
-
-/// Identifies which editor page (tab) is currently active.
-///
-/// The YAML representation uses `snake_case` names so that the URL hash is
-/// human-readable.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum EditorPage {
-    /// Things: names (ThingId -> display label).
-    #[default]
-    ThingNames,
-    /// Things: clipboard text per ThingId.
-    ThingCopyText,
-    /// Things: entity descriptions.
-    ThingEntityDescs,
-    /// Things: entity tooltips.
-    ThingEntityTooltips,
-    /// Thing layout: interactive tree editor for `thing_hierarchy`.
-    ThingLayout,
-    /// Thing dependencies: edge groups with
-    /// [`EdgeGroup`](disposition::input_model::edge::EdgeGroup) entries.
-    ThingDependencies,
-    /// Thing interactions: edge groups representing runtime communication.
-    ThingInteractions,
-    /// Processes: process diagrams with steps and step-thing-interaction
-    /// mappings.
-    Processes,
-    /// Tags: tag names and the things associated with each tag.
-    Tags,
-    /// Entity Types: entity type assignments for common styling.
-    EntityTypes,
-    /// Theme: style aliases sub-page.
-    ThemeStyleAliases,
-    /// Theme: base styles (node/edge defaults + per-entity overrides).
-    ThemeBaseStyles,
-    /// Theme: process-step-selected styles.
-    ThemeProcessStepStyles,
-    /// Theme: type-based styles.
-    ThemeTypesStyles,
-    /// Theme: thing-dependencies focus styles.
-    ThemeDependenciesStyles,
-    /// Theme: tag-things focus styles.
-    ThemeTagsFocus,
-    /// Raw YAML text editor.
-    Text,
-}
-
-impl EditorPage {
-    /// The sub-pages within the Theme group.
-    pub const THEME_SUB_PAGES: &'static [EditorPage] = &[
-        Self::ThemeStyleAliases,
-        Self::ThemeBaseStyles,
-        Self::ThemeProcessStepStyles,
-        Self::ThemeTypesStyles,
-        Self::ThemeDependenciesStyles,
-        Self::ThemeTagsFocus,
-    ];
-    /// The sub-pages within the Things group.
-    pub const THINGS_SUB_PAGES: &'static [EditorPage] = &[
-        Self::ThingNames,
-        Self::ThingCopyText,
-        Self::ThingEntityDescs,
-        Self::ThingEntityTooltips,
-    ];
-    /// Pages that appear as top-level tabs (Things and Theme pages are
-    /// grouped under single parent tabs).
-    pub const TOP_LEVEL: &'static [EditorPageOrGroup] = &[
-        EditorPageOrGroup::ThingsGroup,
-        EditorPageOrGroup::Page(Self::ThingLayout),
-        EditorPageOrGroup::Page(Self::ThingDependencies),
-        EditorPageOrGroup::Page(Self::ThingInteractions),
-        EditorPageOrGroup::Page(Self::Processes),
-        EditorPageOrGroup::Page(Self::Tags),
-        EditorPageOrGroup::Page(Self::EntityTypes),
-        EditorPageOrGroup::ThemeGroup,
-        EditorPageOrGroup::Page(Self::Text),
-    ];
-
-    /// A human-readable label for each page, suitable for rendering in a tab
-    /// bar.
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::ThingNames => "Things: Names",
-            Self::ThingCopyText => "Things: Copy Text",
-            Self::ThingEntityDescs => "Things: Descriptions",
-            Self::ThingEntityTooltips => "Things: Tooltips",
-            Self::ThingLayout => "Layout",
-            Self::ThingDependencies => "Dependencies",
-            Self::ThingInteractions => "Interactions",
-            Self::Processes => "Processes",
-            Self::Tags => "Tags",
-            Self::EntityTypes => "Entity Types",
-            Self::ThemeStyleAliases => "Theme: Aliases",
-            Self::ThemeBaseStyles => "Theme: Base",
-            Self::ThemeProcessStepStyles => "Theme: Step Styles",
-            Self::ThemeTypesStyles => "Theme: Types",
-            Self::ThemeDependenciesStyles => "Theme: Deps",
-            Self::ThemeTagsFocus => "Theme: Tags",
-            Self::Text => "Text",
-        }
-    }
-
-    /// Returns `true` if this page belongs to the Things group.
-    pub fn is_things(&self) -> bool {
-        matches!(
-            self,
-            Self::ThingNames
-                | Self::ThingCopyText
-                | Self::ThingEntityDescs
-                | Self::ThingEntityTooltips
-        )
-    }
-
-    /// Returns `true` if this page belongs to the Theme group.
-    pub fn is_theme(&self) -> bool {
-        matches!(
-            self,
-            Self::ThemeStyleAliases
-                | Self::ThemeBaseStyles
-                | Self::ThemeProcessStepStyles
-                | Self::ThemeTypesStyles
-                | Self::ThemeDependenciesStyles
-                | Self::ThemeTagsFocus
-        )
-    }
-}
-
-/// A top-level tab can either be a single [`EditorPage`] or a group
-/// (which contains its own sub-tabs).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum EditorPageOrGroup {
-    /// A single editor page.
-    Page(EditorPage),
-    /// The "Things" group, rendered with sub-tabs.
-    ThingsGroup,
-    /// The "Theme" group, rendered with sub-tabs.
-    ThemeGroup,
-}
-
-impl EditorPageOrGroup {
-    /// Label for the top-level tab.
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Page(page) => page.label(),
-            Self::ThingsGroup => "Things",
-            Self::ThemeGroup => "Theme",
-        }
-    }
-
-    /// Returns `true` if the given [`EditorPage`] is "inside" this
-    /// top-level entry.
-    pub fn contains(&self, page: &EditorPage) -> bool {
-        match self {
-            Self::Page(p) => p == page,
-            Self::ThingsGroup => page.is_things(),
-            Self::ThemeGroup => page.is_theme(),
-        }
-    }
 }
 
 // === Display / FromStr: used by dioxus_router for the URL hash fragment === //
@@ -293,5 +137,56 @@ input_diagram:
             "YAML round-trip must preserve IndexMap key order"
         );
         assert_eq!(state, parsed);
+    }
+
+    #[test]
+    fn round_trip_all_pages() {
+        for page in enum_iterator::all::<EditorPage>() {
+            let state = EditorState {
+                page: page.clone(),
+                input_diagram: InputDiagram::default(),
+            };
+            let yaml = state.to_string();
+            let parsed: EditorState = yaml.parse().unwrap_or_else(|e| {
+                panic!("Failed to round-trip page {:?}: {e}", page);
+            });
+            assert_eq!(state.page, parsed.page, "Page mismatch for {:?}", page);
+        }
+    }
+
+    #[test]
+    fn top_level_index_returns_correct_indices() {
+        let top_level = EditorPage::top_level_pages();
+        assert_eq!(
+            EditorPage::Thing(EditorPageThing::Names).top_level_index(),
+            Some(0)
+        );
+        assert_eq!(
+            EditorPage::Thing(EditorPageThing::CopyText).top_level_index(),
+            Some(0)
+        );
+        assert_eq!(EditorPage::ThingLayout.top_level_index(), Some(1));
+        assert_eq!(
+            EditorPage::Text.top_level_index(),
+            Some(top_level.len() - 1)
+        );
+        assert_eq!(
+            EditorPage::Theme(EditorPageTheme::BaseStyles).top_level_index(),
+            EditorPage::Theme(EditorPageTheme::StyleAliases).top_level_index(),
+        );
+    }
+
+    #[test]
+    fn top_level_pages_covers_all_variants() {
+        let top_level = EditorPage::top_level_pages();
+        // Every variant from enum_iterator must map to some top-level
+        // entry.
+        for page in enum_iterator::all::<EditorPage>() {
+            assert!(
+                top_level.iter().any(|tl| tl.same_top_level(&page)),
+                "Page {:?} has no top-level entry",
+                page
+            );
+        }
     }
 }

@@ -16,7 +16,7 @@ use crate::{
         ThingEntityDescsPage, ThingEntityTooltipsPage, ThingInteractionsPage, ThingLayoutPage,
         ThingNamesPage,
     },
-    editor_state::EditorPage,
+    editor_state::{EditorPage, EditorPageTheme, EditorPageThing},
 };
 
 /// Renders the content of the currently active editor page.
@@ -28,24 +28,30 @@ pub fn EditorPageContent(
     let page = active_page.read().clone();
 
     match page {
-        EditorPage::ThingNames => rsx! { ThingNamesPage { input_diagram } },
-        EditorPage::ThingCopyText => rsx! { ThingCopyTextPage { input_diagram } },
-        EditorPage::ThingEntityDescs => rsx! { ThingEntityDescsPage { input_diagram } },
-        EditorPage::ThingEntityTooltips => rsx! { ThingEntityTooltipsPage { input_diagram } },
+        EditorPage::Thing(sub) => match sub {
+            EditorPageThing::Names => rsx! { ThingNamesPage { input_diagram } },
+            EditorPageThing::CopyText => rsx! { ThingCopyTextPage { input_diagram } },
+            EditorPageThing::EntityDescs => rsx! { ThingEntityDescsPage { input_diagram } },
+            EditorPageThing::EntityTooltips => rsx! { ThingEntityTooltipsPage { input_diagram } },
+        },
         EditorPage::ThingLayout => rsx! { ThingLayoutPage { input_diagram } },
         EditorPage::ThingDependencies => rsx! { ThingDependenciesPage { input_diagram } },
         EditorPage::ThingInteractions => rsx! { ThingInteractionsPage { input_diagram } },
         EditorPage::Processes => rsx! { ProcessesPage { input_diagram } },
         EditorPage::Tags => rsx! { TagsPage { input_diagram } },
         EditorPage::EntityTypes => rsx! { EntityTypesPage { input_diagram } },
-        EditorPage::ThemeStyleAliases => rsx! { ThemeStyleAliasesPage { input_diagram } },
-        EditorPage::ThemeBaseStyles => rsx! { ThemeBaseStylesPage { input_diagram } },
-        EditorPage::ThemeProcessStepStyles => rsx! { ThemeProcessStepStylesPage { input_diagram } },
-        EditorPage::ThemeTypesStyles => rsx! { ThemeTypesStylesPage { input_diagram } },
-        EditorPage::ThemeDependenciesStyles => {
-            rsx! { ThemeDependenciesStylesPage { input_diagram } }
-        }
-        EditorPage::ThemeTagsFocus => rsx! { ThemeTagsFocusPage { input_diagram } },
+        EditorPage::Theme(sub) => match sub {
+            EditorPageTheme::StyleAliases => rsx! { ThemeStyleAliasesPage { input_diagram } },
+            EditorPageTheme::BaseStyles => rsx! { ThemeBaseStylesPage { input_diagram } },
+            EditorPageTheme::ProcessStepStyles => {
+                rsx! { ThemeProcessStepStylesPage { input_diagram } }
+            }
+            EditorPageTheme::TypesStyles => rsx! { ThemeTypesStylesPage { input_diagram } },
+            EditorPageTheme::DependenciesStyles => {
+                rsx! { ThemeDependenciesStylesPage { input_diagram } }
+            }
+            EditorPageTheme::TagsFocus => rsx! { ThemeTagsFocusPage { input_diagram } },
+        },
         EditorPage::Text => rsx! { TextPage { input_diagram } },
     }
 }

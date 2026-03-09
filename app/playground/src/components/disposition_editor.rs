@@ -301,10 +301,52 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 lg:flex-row
                 gap-2
             ",
-            // Global keyboard handler for undo/redo shortcuts.
-            // Ctrl+Z = undo, Ctrl+Shift+Z / Ctrl+Y = redo.
-            // Meta (Cmd on macOS) is also supported.
+            // Global keyboard handler for:
+            // - Ctrl+Z = undo, Ctrl+Shift+Z / Ctrl+Y = redo.
+            // - Alt+1..9 = switch to top-level tab N.
+            // - Alt+0 = switch to the last top-level tab.
+            // Meta (Cmd on macOS) is also supported for undo/redo.
             onkeydown: move |evt| {
+                // === Alt+0..9: switch top-level tabs === //
+                if evt.modifiers().alt()
+                    && let Key::Character(ref c) = evt.key()
+                        && let Some(digit) = c.chars().next().and_then(|ch| ch.to_digit(10)) {
+                            let target_index = if digit == 0 {
+                                // Alt+0 -> last tab.
+                                let top_level = EditorPage::top_level_pages();
+                                if top_level.is_empty() {
+                                    return;
+                                }
+                                top_level.len() - 1
+                            } else {
+                                // Alt+1..9 -> tab at index digit-1.
+                                (digit - 1) as usize
+                            };
+                            if let Some(page) = EditorPage::default_page(target_index) {
+                                evt.prevent_default();
+                                evt.stop_propagation();
+                                // For grouped tabs (Thing/Theme), preserve
+                                // the current sub-tab if already in the
+                                // same group.
+                                if !active_page.peek().same_top_level(&page) {
+                                    active_page.set(page);
+                                }
+                                // Focus the tab span so subsequent
+                                // hotkeys are captured by the editor.
+                                let js = format!(
+                                    "requestAnimationFrame(() => {{\
+                                        var el = document.querySelector(\
+                                            '[data-top-level-index=\"{target_index}\"]'\
+                                        );\
+                                        if (el) el.focus();\
+                                    }})"
+                                );
+                                document::eval(&js);
+                            }
+                            return;
+                        }
+
+                // === Ctrl / Meta shortcuts: undo / redo === //
                 let ctrl_or_meta = evt.modifiers().ctrl() || evt.modifiers().meta();
                 if !ctrl_or_meta {
                     return;

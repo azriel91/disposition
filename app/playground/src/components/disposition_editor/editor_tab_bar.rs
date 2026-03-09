@@ -15,7 +15,7 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 
-use crate::editor_state::{EditorPage, EditorPageOrGroup};
+use crate::editor_state::{EditorPage, EditorPageTheme, EditorPageThing};
 
 /// CSS classes for top-level editor page tabs.
 const TAB_CLASS: &str = "\
@@ -48,8 +48,8 @@ const SUB_TAB_CLASS: &str = "\
     focus:ring-blue-400\
 ";
 
-/// Renders the top-level tab bar and, when a Theme page is active, a nested
-/// sub-tab bar.
+/// Renders the top-level tab bar and, when a Things or Theme page is
+/// active, a nested sub-tab bar.
 ///
 /// The tab bars use `role="tablist"` / `role="tab"` semantics and support
 /// Left/Right arrow key navigation as well as Enter/Space activation.
@@ -59,6 +59,7 @@ const SUB_TAB_CLASS: &str = "\
 #[component]
 pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
     let current = active_page.read().clone();
+    let top_level = EditorPage::top_level_pages();
 
     rsx! {
         div {
@@ -78,12 +79,6 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
                 role: "tablist",
 
                 onkeydown: move |evt| {
-                    let top_level = EditorPage::TOP_LEVEL;
-                    let len = top_level.len();
-                    if len == 0 {
-                        return;
-                    }
-
                     match evt.key() {
                         Key::ArrowLeft => {
                             evt.prevent_default();
@@ -115,9 +110,9 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
                     }
                 },
 
-                for (tab_idx, entry) in EditorPage::TOP_LEVEL.iter().enumerate() {
+                for (tab_idx, entry) in top_level.iter().enumerate() {
                     {
-                        let is_active = entry.contains(&current);
+                        let is_active = entry.same_top_level(&current);
                         let css = format!(
                             "{TAB_CLASS} {}",
                             if is_active { TAB_ACTIVE } else { TAB_INACTIVE }
@@ -126,14 +121,15 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
                         // tabindex="-1" and are reachable via arrow keys.
                         let tab_index = if is_active { "0" } else { "-1" };
                         let entry_clone = entry.clone();
-                        let _ = tab_idx;
+                        let tab_idx_str = tab_idx.to_string();
 
                         rsx! {
                             span {
-                                key: "{entry.label()}",
+                                key: "{entry.top_level_label()}",
                                 role: "tab",
                                 tabindex: "{tab_index}",
                                 "aria-selected": if is_active { "true" } else { "false" },
+                                "data-top-level-index": "{tab_idx_str}",
                                 class: "{css}",
                                 onclick: {
                                     let entry = entry_clone.clone();
@@ -155,7 +151,7 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
                                         }
                                     }
                                 },
-                                "{entry.label()}"
+                                "{entry.top_level_label()}"
                             }
                         }
                     }
@@ -163,7 +159,7 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
             }
 
             // === Things sub-tabs (only visible when a Things page is active) === //
-            if current.is_things() {
+            if current.is_thing() {
                 div {
                     class: "
                         flex
@@ -207,15 +203,17 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
                         }
                     },
 
-                    for sub in EditorPage::THINGS_SUB_PAGES.iter() {
+                    for sub in enum_iterator::all::<EditorPageThing>() {
                         {
-                            let is_active = current == *sub;
+                            let sub_page = EditorPage::Thing(sub.clone());
+                            let is_active = current == sub_page;
                             let css = format!(
                                 "{SUB_TAB_CLASS} {}",
                                 if is_active { TAB_ACTIVE } else { TAB_INACTIVE }
                             );
                             let tab_index = if is_active { "0" } else { "-1" };
-                            let sub_clone = sub.clone();
+                            let sub_page_click = sub_page.clone();
+                            let sub_page_key = sub_page.clone();
 
                             rsx! {
                                 span {
@@ -225,13 +223,13 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
                                     "aria-selected": if is_active { "true" } else { "false" },
                                     class: "{css}",
                                     onclick: {
-                                        let sub_page = sub_clone.clone();
+                                        let page = sub_page_click.clone();
                                         move |_| {
-                                            active_page.set(sub_page.clone());
+                                            active_page.set(page.clone());
                                         }
                                     },
                                     onkeydown: {
-                                        let sub_page = sub_clone.clone();
+                                        let page = sub_page_key.clone();
                                         move |evt| {
                                             let activate = match evt.key() {
                                                 Key::Enter => true,
@@ -240,7 +238,7 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
                                             };
                                             if activate {
                                                 evt.prevent_default();
-                                                active_page.set(sub_page.clone());
+                                                active_page.set(page.clone());
                                             }
                                         }
                                     },
@@ -297,15 +295,17 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
                         }
                     },
 
-                    for sub in EditorPage::THEME_SUB_PAGES.iter() {
+                    for sub in enum_iterator::all::<EditorPageTheme>() {
                         {
-                            let is_active = current == *sub;
+                            let sub_page = EditorPage::Theme(sub.clone());
+                            let is_active = current == sub_page;
                             let css = format!(
                                 "{SUB_TAB_CLASS} {}",
                                 if is_active { TAB_ACTIVE } else { TAB_INACTIVE }
                             );
                             let tab_index = if is_active { "0" } else { "-1" };
-                            let sub_clone = sub.clone();
+                            let sub_page_click = sub_page.clone();
+                            let sub_page_key = sub_page.clone();
 
                             rsx! {
                                 span {
@@ -315,13 +315,13 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
                                     "aria-selected": if is_active { "true" } else { "false" },
                                     class: "{css}",
                                     onclick: {
-                                        let sub_page = sub_clone.clone();
+                                        let page = sub_page_click.clone();
                                         move |_| {
-                                            active_page.set(sub_page.clone());
+                                            active_page.set(page.clone());
                                         }
                                     },
                                     onkeydown: {
-                                        let sub_page = sub_clone.clone();
+                                        let page = sub_page_key.clone();
                                         move |evt| {
                                             let activate = match evt.key() {
                                                 Key::Enter => true,
@@ -330,7 +330,7 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
                                             };
                                             if activate {
                                                 evt.prevent_default();
-                                                active_page.set(sub_page.clone());
+                                                active_page.set(page.clone());
                                             }
                                         }
                                     },
@@ -347,32 +347,28 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
 
 /// Activates a top-level tab entry.
 ///
-/// For a single [`EditorPage`], sets it directly. For grouped tabs
-/// ([`ThingsGroup`](EditorPageOrGroup::ThingsGroup) or
-/// [`ThemeGroup`](EditorPageOrGroup::ThemeGroup)), only switches to the
+/// For grouped tabs (`Thing(_)` or `Theme(_)`), only switches to the
 /// group's default sub-page if the user is not already on a page within
-/// that group.
-fn editor_tab_bar_top_level_activate(
-    mut active_page: Signal<EditorPage>,
-    entry: &EditorPageOrGroup,
-) {
+/// that group. This preserves the user's sub-tab selection when
+/// re-clicking the same group tab.
+fn editor_tab_bar_top_level_activate(mut active_page: Signal<EditorPage>, entry: &EditorPage) {
     match entry {
-        EditorPageOrGroup::Page(p) => {
-            active_page.set(p.clone());
-        }
-        EditorPageOrGroup::ThingsGroup => {
-            // If already on a things page, stay there;
-            // otherwise default to ThingNames.
-            if !active_page.peek().is_things() {
-                active_page.set(EditorPage::ThingNames);
+        EditorPage::Thing(_) => {
+            // If already on a thing page, stay there;
+            // otherwise default to Thing::Names.
+            if !active_page.peek().is_thing() {
+                active_page.set(EditorPage::Thing(EditorPageThing::default()));
             }
         }
-        EditorPageOrGroup::ThemeGroup => {
+        EditorPage::Theme(_) => {
             // If already on a theme page, stay there;
-            // otherwise default to StyleAliases.
+            // otherwise default to Theme::StyleAliases.
             if !active_page.peek().is_theme() {
-                active_page.set(EditorPage::ThemeStyleAliases);
+                active_page.set(EditorPage::Theme(EditorPageTheme::default()));
             }
+        }
+        other => {
+            active_page.set(other.clone());
         }
     }
 }

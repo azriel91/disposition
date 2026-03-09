@@ -18,6 +18,7 @@ dioxus = { workspace = true, features = ["router"] }
 disposition = { workspace = true }
 disposition_input_ir_rt = { workspace = true }
 disposition_input_rt = { workspace = true }
+enum-iterator = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde-saphyr = { workspace = true }
 urlencoding = { workspace = true }
