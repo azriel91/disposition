@@ -124,6 +124,7 @@ pub fn ThingLayoutRow(
             tabindex: "-1",
             draggable: "true",
             style: "padding-left: {indent_px}px;",
+            "data-thing-layout-row": "true",
 
             // === Keyboard shortcuts === //
             onkeydown: move |evt| {

@@ -24,7 +24,7 @@ use dioxus::{
 /// currently focused element.
 const JS_FOCUS_FIRST_ROW: &str = "\
     document.activeElement\
-        ?.querySelector('[tabindex=\"-1\"]')\
+        ?.querySelector('[data-thing-layout-row]')\
         ?.focus()";
 
 /// A focusable container for [`ThingLayoutRow`]s.
@@ -49,7 +49,7 @@ pub fn ThingLayoutRows(mut focus_index: Signal<Option<usize>>, children: Element
                         '[data-thing-layout-rows]'\
                     );\
                     if (container) {{\
-                        let rows = container.querySelectorAll('[tabindex=\"-1\"]');\
+                        let rows = container.querySelectorAll('[data-thing-layout-row]');\
                         if (rows[{idx}]) rows[{idx}].focus();\
                     }}\
                 }}, 0)"
