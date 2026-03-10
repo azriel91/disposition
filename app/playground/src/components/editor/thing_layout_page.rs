@@ -13,11 +13,11 @@ mod thing_layout_rows;
 use dioxus::{
     hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{ReadableExt, Signal, WritableExt},
+    signals::{ReadableExt, Signal},
 };
 use disposition::input_model::InputDiagram;
 
-use crate::components::editor::common::{SECTION_HEADING, TEXTAREA_CLASS};
+use crate::components::editor::common::SECTION_HEADING;
 
 use self::{
     flat_entry::hierarchy_flatten, help_tooltip::HelpTooltip, thing_layout_row::ThingLayoutRow,
@@ -67,13 +67,6 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
         })
         .collect();
 
-    // Serialize the current hierarchy to a YAML snippet for a simple textarea
-    // editor (hierarchy is recursive and hard to represent with flat inputs).
-    let hierarchy_yaml = serde_saphyr::to_string(&diagram.thing_hierarchy)
-        .unwrap_or_default()
-        .trim()
-        .to_owned();
-
     drop(diagram);
 
     rsx! {
@@ -95,7 +88,7 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                 if flat_entries.is_empty() {
                     p {
                         class: "text-xs text-gray-600 italic py-2 text-center",
-                        "No thing hierarchy entries. Add one below."
+                        "No things defined. Add one in the Things tab."
                     }
                 }
 
@@ -121,23 +114,6 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                         }
                     }
                 }
-            }
-
-            // === Thing Hierarchy === //
-            h3 { class: SECTION_HEADING, "Thing Hierarchy (YAML)" }
-            p {
-                class: "text-xs text-gray-500 mb-1",
-                "Recursive nesting of things. Edit as YAML."
-            }
-            textarea {
-                class: TEXTAREA_CLASS,
-                value: "{hierarchy_yaml}",
-                oninput: move |evt| {
-                    let text = evt.value();
-                    if let Ok(hierarchy) = serde_saphyr::from_str(&text) {
-                        input_diagram.write().thing_hierarchy = hierarchy;
-                    }
-                },
             }
         }
     }
