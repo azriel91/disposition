@@ -84,7 +84,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
     });
 
     // Help tooltip visibility.
-    let show_help: Signal<bool> = use_signal(|| false);
+    let mut show_help: Signal<bool> = use_signal(|| false);
 
     // === Sync: incoming EditorState prop -> local signals === //
 
@@ -305,13 +305,21 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 lg:flex-row
                 gap-2
             ",
-            // Global keyboard handler for:
-            // - Ctrl+Z = undo, Ctrl+Shift+Z / Ctrl+Y = redo.
-            // - Alt+1..9 = switch to top-level tab N.
-            // - Alt+0 = switch to the last top-level tab.
+            // Global keyboard shortcuts:
+            //
+            // - ctrl + z = undo, ctrl + shift + z / ctrl + y = redo.
+            // - alt + 1..9 = switch to top-level tab N.
+            // - alt + 0 = switch to the last top-level tab.
+            // - shift + ? = show help tooltip (keyboard shortcuts).
+            //
             // Meta (Cmd on macOS) is also supported for undo/redo.
             onkeydown: move |evt| {
-                // === Alt+0..9: switch top-level tabs === //
+                if evt.modifiers().shift() && let Key::Character(ref c) = evt.key() && c == "?" {
+                    let show_help_current = *show_help.read();
+                    show_help.set(!show_help_current);
+                }
+
+                // === alt + 0..9: switch top-level tabs === //
                 if evt.modifiers().alt()
                     && let Key::Character(ref c) = evt.key()
                         && let Some(digit) = c.chars().next().and_then(|ch| ch.to_digit(10)) {
@@ -350,7 +358,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                             return;
                         }
 
-                // === Ctrl / Meta shortcuts: undo / redo === //
+                // === ctrl / meta shortcuts: undo / redo === //
                 let ctrl_or_meta = evt.modifiers().ctrl() || evt.modifiers().meta();
                 if !ctrl_or_meta {
                     return;
