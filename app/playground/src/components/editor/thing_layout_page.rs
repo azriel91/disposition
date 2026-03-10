@@ -6,7 +6,6 @@
 //! Tab/Shift+Tab to indent/outdent).
 
 mod flat_entry;
-mod help_tooltip;
 mod thing_layout_row;
 mod thing_layout_rows;
 
@@ -20,7 +19,7 @@ use disposition::input_model::InputDiagram;
 use crate::components::editor::common::SECTION_HEADING;
 
 use self::{
-    flat_entry::hierarchy_flatten, help_tooltip::HelpTooltip, thing_layout_row::ThingLayoutRow,
+    flat_entry::hierarchy_flatten, thing_layout_row::ThingLayoutRow,
     thing_layout_rows::ThingLayoutRows,
 };
 
@@ -41,9 +40,6 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
     // Drag-and-drop state for the hierarchy rows.
     let drag_index: Signal<Option<usize>> = use_signal(|| None);
     let drop_target: Signal<Option<usize>> = use_signal(|| None);
-
-    // Help tooltip visibility.
-    let show_help: Signal<bool> = use_signal(|| false);
 
     // When set, the row at this flat index should receive focus after the
     // next DOM update. Operations that move a row (Alt+Up/Down, indent,
@@ -78,8 +74,6 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                 class: "flex flex-row items-center gap-2",
 
                 h3 { class: "{SECTION_HEADING} flex-1", "Thing Hierarchy" }
-
-                HelpTooltip { show_help }
             }
 
             ThingLayoutRows {

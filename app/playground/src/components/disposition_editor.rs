@@ -7,6 +7,7 @@ mod disposition_status_message_div;
 mod editor_page_content;
 mod editor_tab_bar;
 mod focus_restore;
+mod help_tooltip;
 mod taffy_tree_fmt;
 mod undo_redo_toolbar;
 
@@ -44,15 +45,15 @@ use crate::{
     },
     editor_state::{EditorPage, EditorState},
     route::Route,
+    undo_history::{history_push, history_redo, history_undo, UndoHistory},
 };
-
-use crate::undo_history::{history_push, history_redo, history_undo, UndoHistory};
 
 use self::{
     disposition_status_message_div::DispositionStatusMessageDiv,
     editor_page_content::EditorPageContent,
     editor_tab_bar::EditorTabBar,
     focus_restore::{JS_FOCUS_RESTORE, JS_FOCUS_SAVE},
+    help_tooltip::HelpTooltip,
     taffy_tree_fmt::TaffyTreeFmt,
     undo_redo_toolbar::UndoRedoToolbar,
 };
@@ -81,6 +82,9 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         let diagram = input_diagram.read().clone();
         history_push(undo_history, diagram);
     });
+
+    // Help tooltip visibility.
+    let show_help: Signal<bool> = use_signal(|| false);
 
     // === Sync: incoming EditorState prop -> local signals === //
 
@@ -416,6 +420,8 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                         input_diagram,
                         undo_history,
                     }
+
+                    HelpTooltip { show_help }
                 }
 
                 div {
