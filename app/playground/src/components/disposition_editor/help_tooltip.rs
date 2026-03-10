@@ -1,11 +1,14 @@
-//! Help tooltip component for the thing layout page.
+//! Help tooltip component for the disposition editor.
 //!
 //! Renders a circled question-mark button that toggles a dismissable tooltip
-//! listing all keyboard shortcuts and drag-and-drop instructions available
-//! in the thing layout editor.
+//! listing all keyboard shortcuts available in the disposition editor.
 
 use dioxus::{
-    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    core::spawn,
+    hooks::{use_effect, use_signal},
+    prelude::{
+        component, dioxus_core, dioxus_elements, dioxus_signals, document, rsx, Element, Props,
+    },
     signals::{ReadableExt, Signal, WritableExt},
 };
 
@@ -55,7 +58,7 @@ const TOOLTIP_CLASS: &str = "\
     right-0 \
     top-6 \
     z-10 \
-    w-72 \
+    w-80 \
     rounded-lg \
     border \
     border-gray-600 \
@@ -63,7 +66,9 @@ const TOOLTIP_CLASS: &str = "\
     p-3 \
     shadow-lg \
     text-xs \
-    text-gray-300\
+    text-gray-300 \
+    max-h-[80vh] \
+    overflow-y-auto\
 ";
 
 /// CSS classes for each shortcut row inside the tooltip.
@@ -85,8 +90,46 @@ const KBD_CLASS: &str = "\
     whitespace-nowrap\
 ";
 
-/// A help button with a dismissable tooltip showing keyboard shortcuts and
-/// interaction hints for the thing layout editor.
+/// CSS classes for a section heading inside the tooltip.
+const SECTION_HEADING: &str = "\
+    font-semibold \
+    text-gray-400 \
+    uppercase \
+    tracking-wide \
+    text-[10px] \
+    mt-2 \
+    mb-0.5\
+";
+
+/// CSS classes for the divider between sections.
+const DIVIDER: &str = "border-t border-gray-700 my-1";
+
+/// Returns `"Cmd"` on macOS and `"Ctrl"` on all other platforms, detected via
+/// the browser `navigator.platform` / `navigator.userAgentData` APIs.
+///
+/// Because this runs inside a Dioxus component (WASM), the detection is done
+/// with a small inline JS expression evaluated at render time.  On non-WASM
+/// builds (e.g. native preview) it always returns `"Ctrl"`.
+async fn ctrl_key_label() -> &'static str {
+    let is_mac = document::eval(
+        "const isMac = /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform || navigator.userAgentData?.platform || '') || false; dioxus.send(isMac);"
+    )
+    .recv::<bool>()
+    .await
+    .ok()
+    .unwrap_or(false);
+
+    if is_mac {
+        "Cmd"
+    } else {
+        "Ctrl"
+    }
+}
+
+/// A help button with a dismissable tooltip showing all keyboard shortcuts
+/// available in the disposition editor.
+///
+/// Toggle visibility with `Shift + ?` or by clicking the `?` button.
 ///
 /// # Props
 ///
@@ -95,6 +138,13 @@ const KBD_CLASS: &str = "\
 pub fn HelpTooltip(show_help: Signal<bool>) -> Element {
     let is_open = *show_help.read();
     let btn_class = if is_open { HELP_BTN_ACTIVE } else { HELP_BTN };
+    let mut ctrl = use_signal(|| "Ctrl");
+    use_effect(move || {
+        spawn(async move {
+            let ctrl_key_label = ctrl_key_label().await;
+            ctrl.set(ctrl_key_label);
+        });
+    });
 
     rsx! {
         div {
@@ -103,7 +153,7 @@ pub fn HelpTooltip(show_help: Signal<bool>) -> Element {
             // === Toggle button === //
             span {
                 class: "{btn_class}",
-                title: if is_open { "Hide keyboard shortcuts" } else { "Show keyboard shortcuts" },
+                title: if is_open { "Hide keyboard shortcuts (Shift + ?)" } else { "Show keyboard shortcuts (Shift + ?)" },
                 onclick: move |_| {
                     let current = *show_help.read();
                     show_help.set(!current);
@@ -135,58 +185,140 @@ pub fn HelpTooltip(show_help: Signal<bool>) -> Element {
                             onclick: move |_| {
                                 show_help.set(false);
                             },
-                            "✕"
+                            "x"
                         }
                     }
 
-                    // === Shortcut entries === //
                     div {
-                        class: "flex flex-col gap-1",
+                        class: "flex flex-col gap-0.5",
 
-                        // Move up
+                        // === Navigation === //
+                        div { class: SECTION_HEADING, "Navigation" }
+
                         div {
                             class: SHORTCUT_ROW,
-                            span { class: KBD_CLASS, "Alt + Up" }
-                            span { "Move entry up. If already first sibling, becomes sibling of parent." }
+                            span { class: KBD_CLASS, "Alt + 1 .. 9" }
+                            span { "Focus the numbered page tab." }
                         }
-
-                        // Move down
-                        div {
-                            class: SHORTCUT_ROW,
-                            span { class: KBD_CLASS, "Alt + Down" }
-                            span { "Move entry down. If already last sibling, becomes sibling of parent." }
-                        }
-
-                        // Indent
                         div {
                             class: SHORTCUT_ROW,
                             span { class: KBD_CLASS, "Tab" }
-                            span { "Indent -- become a child of the previous sibling." }
+                            span { class: KBD_CLASS, "Shift + Tab" }
+                            span { "Move to the next / previous field." }
+                        }
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "Up" }
+                            span { class: KBD_CLASS, "Down" }
+                            span { "Move to the previous / next field." }
+                        }
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "{ctrl} + Up" }
+                            span { class: KBD_CLASS, "{ctrl} + Down" }
+                            span { "Jump to the first / last field." }
                         }
 
-                        // Outdent
+                        div { class: DIVIDER }
+
+                        // === Editing === //
+                        div { class: SECTION_HEADING, "Editing" }
+
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "Enter" }
+                            span { "Start edit mode for the focused field." }
+                        }
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "Escape" }
+                            span { "Stop edit mode for the focused field." }
+                        }
+
+                        div { class: DIVIDER }
+
+                        // === Reordering === //
+                        div { class: SECTION_HEADING, "Reordering Entries" }
+
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "Alt + Up" }
+                            span { "Move the current entry up." }
+                        }
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "Alt + Down" }
+                            span { "Move the current entry down." }
+                        }
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "Alt + Shift + Up" }
+                            span { "Insert a new entry above the current entry." }
+                        }
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "Alt + Shift + Down" }
+                            span { "Insert a new entry below the current entry." }
+                        }
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "{ctrl} + Shift + K" }
+                            span { "Delete the current entry." }
+                        }
+
+                        div { class: DIVIDER }
+
+                        // === Thing Names page === //
+                        div { class: SECTION_HEADING, "Thing Names Page" }
+
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "Alt + Shift + D" }
+                            span { "Duplicate the current Thing, including its layout, edges, and styles." }
+                        }
+
+                        div { class: DIVIDER }
+
+                        // === Thing Layout page === //
+                        div { class: SECTION_HEADING, "Thing Layout Page (edit mode)" }
+
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "Tab" }
+                            span { "Indent -- make the current thing a child of the previous sibling." }
+                        }
                         div {
                             class: SHORTCUT_ROW,
                             span { class: KBD_CLASS, "Shift + Tab" }
-                            span { "Outdent -- become a sibling of the parent." }
+                            span { "Outdent -- make the current thing a sibling of its parent." }
                         }
 
-                        // Separator
-                        div {
-                            class: "border-t border-gray-700 my-1",
-                        }
+                        div { class: DIVIDER }
 
-                        // Drag and drop
+                        // === Undo / Redo === //
+                        div { class: SECTION_HEADING, "Undo / Redo" }
+
                         div {
                             class: SHORTCUT_ROW,
-                            span { class: KBD_CLASS, "Drag" }
-                            span { "Drag the handle to reorder. The entry adopts the depth of the drop target." }
+                            span { class: KBD_CLASS, "{ctrl} + Z" }
+                            span { "Undo." }
+                        }
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "{ctrl} + Y" }
+                            span { class: KBD_CLASS, "{ctrl} + Shift + Z" }
+                            span { "Redo." }
                         }
 
-                        // Focus hint
+                        div { class: DIVIDER }
+
+                        // === Help === //
+                        div { class: SECTION_HEADING, "Help" }
+
                         div {
-                            class: "text-gray-500 italic mt-1",
-                            "Click a row to focus it before using keyboard shortcuts."
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "Shift + ?" }
+                            span { "Show / hide this keyboard shortcuts panel." }
                         }
                     }
                 }
