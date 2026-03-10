@@ -127,10 +127,31 @@ pub fn ThingLayoutRow(
 
             // === Keyboard shortcuts === //
             onkeydown: move |evt| {
+                let ctrl = evt.modifiers().ctrl();
                 let alt = evt.modifiers().alt();
                 let shift = evt.modifiers().shift();
 
                 match evt.key() {
+                    Key::ArrowUp if ctrl => {
+                        evt.prevent_default();
+                        // Focus the first sibling row.
+                        document::eval(
+                            "document.activeElement\
+                                ?.parentNode\
+                                ?.firstElementChild\
+                                ?.focus()",
+                        );
+                    }
+                    Key::ArrowDown if ctrl => {
+                        evt.prevent_default();
+                        // Focus the last sibling row.
+                        document::eval(
+                            "document.activeElement\
+                                ?.parentNode\
+                                ?.lastElementChild\
+                                ?.focus()",
+                        );
+                    }
                     Key::ArrowUp if alt => {
                         evt.prevent_default();
                         if let Some(new_idx) = ThingLayoutOps::entry_move_up(
