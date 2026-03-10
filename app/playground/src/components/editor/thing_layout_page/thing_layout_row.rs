@@ -125,6 +125,7 @@ pub fn ThingLayoutRow(
             draggable: "true",
             style: "padding-left: {indent_px}px;",
             "data-thing-layout-row": "true",
+            "data-input-diagram-field": "thing_layout_row_{thing_id_display}",
 
             // === Keyboard shortcuts === //
             onkeydown: move |evt| {
