@@ -15,7 +15,7 @@ use dioxus::{
     document,
     hooks::{use_memo, use_signal},
     prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Key,
+        component, debug, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Key,
         ModifiersInteraction, Props,
     },
     router::navigator,
@@ -471,6 +471,86 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
             }
 
             // === Right column: SVG preview === //
+            SvgPreview { svg }
+        }
+    }
+}
+
+#[component]
+pub fn SvgPreview(svg: Memo<String>) -> Element {
+    let mut clipboard = dioxus_clipboard::hooks::use_clipboard();
+
+    rsx! {
+        div {
+            class: "flex-1 flex flex-col",
+            div {
+                class: "\
+                    flex \
+                    justify-end\
+                ",
+                button {
+                    class: "\
+                        flex-none \
+                        flex \
+                        justify-center \
+                        items-center \
+                        h-9 \
+                        w-9 \
+                        text-gray-200 \
+                        rounded-lg \
+                        bg-gray-800 \
+                        border-gray-600 \
+                        hover:bg-gray-600 \
+                        active:bg-gray-800 \
+                        focus:outline-none \
+                        focus:ring-2 \
+                        focus:ring-blue-600 \
+                        focus:ring-offset-2 \
+                        focus:ring-offset-gray-100 \
+                    ",
+                    tabindex: "0",
+                    title: "Copy to clipboard",
+                    onclick: move |_| async move {
+                        match clipboard.set(svg().clone()).await {
+                            Ok(()) => {}
+                            Err(e) => {
+                                debug!("Failed to copy SVG to clipboard: {:?}", e);
+                            }
+                        }
+                    },
+                    svg {
+                        xmlns: "http://www.w3.org/2000/svg",
+                        class: "[&>*]:stroke-gray-200",
+                        width: "24",
+                        height: "24",
+                        view_box: "0 0 24 24",
+                        rect {
+                            x: "2",
+                            y: "9",
+                            width: "13",
+                            height: "13",
+                            rx: "2",
+                            ry: "2",
+                            fill: "none",
+                            stroke: "currentColor",
+                        },
+                        path {
+                            d: "\
+                                M 10 5 \
+                                V 4\
+                                a 2 2 0 0 1 2 -2 \
+                                H 20 \
+                                a 2 2 0 0 1 2 2 \
+                                V 13 \
+                                a 2 2 0 0 1 -2 2 \
+                                h -1 \
+                                ",
+                            fill: "none",
+                            stroke: "currentColor",
+                        },
+                    }
+                },
+            },
             object {
                 class: "
                     flex-1

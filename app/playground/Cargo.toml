@@ -15,6 +15,7 @@ license.workspace = true
 
 [dependencies]
 dioxus = { workspace = true, features = ["router"] }
+dioxus-clipboard = { workspace = true, features = ["wasm", "async"] }
 disposition = { workspace = true }
 disposition_input_ir_rt = { workspace = true }
 disposition_input_rt = { workspace = true }
