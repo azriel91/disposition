@@ -1,0 +1,10 @@
+---
+# Simple nodes -- the most basic diagram with just a few things.
+things:
+  t_alice: "Alice"
+  t_bob: "Bob"
+  t_charlie: "Charlie"
+thing_hierarchy:
+  t_alice: {}
+  t_bob: {}
+  t_charlie: {}

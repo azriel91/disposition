@@ -1,0 +1,95 @@
+---
+# Package Dependencies
+#
+# Shows a software package dependency graph with sequence edges
+# representing "depends on" relationships between crates/packages.
+
+things:
+  pkg_app: "web-app"
+  pkg_api: "api-server"
+  pkg_db: "db-client"
+  pkg_config: "config-loader"
+  pkg_utils: "common-utils"
+
+thing_hierarchy:
+  pkg_app: {}
+  pkg_api: {}
+  pkg_db: {}
+  pkg_config: {}
+  pkg_utils: {}
+
+thing_dependencies:
+  dep_app_api:
+    kind: sequence
+    things:
+      - pkg_app
+      - pkg_api
+  dep_app_config:
+    kind: sequence
+    things:
+      - pkg_app
+      - pkg_config
+  dep_api_db:
+    kind: sequence
+    things:
+      - pkg_api
+      - pkg_db
+  dep_db_config:
+    kind: sequence
+    things:
+      - pkg_db
+      - pkg_config
+  dep_db_utils:
+    kind: sequence
+    things:
+      - pkg_db
+      - pkg_utils
+  dep_config_utils:
+    kind: sequence
+    things:
+      - pkg_config
+      - pkg_utils
+
+entity_descs:
+  pkg_app: "Top-level application binary"
+  pkg_api: "HTTP API server library"
+  pkg_utils: "Shared utility functions with no dependencies"
+
+tags:
+  tag_core: "Core Libraries"
+  tag_application: "Application Layer"
+
+tag_things:
+  tag_core:
+    - pkg_utils
+    - pkg_config
+  tag_application:
+    - pkg_app
+    - pkg_api
+    - pkg_db
+
+entity_types:
+  pkg_app: [type_binary]
+  pkg_api: [type_library]
+  pkg_db: [type_library]
+  pkg_config: [type_library]
+  pkg_utils: [type_library]
+
+theme_types_styles:
+  type_binary:
+    node_defaults:
+      shape_color: "amber"
+      stroke_width: "2"
+  type_library:
+    node_defaults:
+      shape_color: "sky"
+
+theme_thing_dependencies_styles:
+  things_excluded_styles:
+    node_defaults:
+      visibility: "hidden"
+    edge_defaults:
+      visibility: "hidden"
+  things_included_styles:
+    node_defaults:
+      visibility: "visible"

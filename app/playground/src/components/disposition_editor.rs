@@ -7,6 +7,7 @@ mod copy_button;
 mod disposition_status_message_div;
 mod editor_page_content;
 mod editor_tab_bar;
+mod example_diagram_select;
 mod focus_restore;
 mod help_tooltip;
 mod share_button;
@@ -58,6 +59,7 @@ pub(crate) use self::{
     disposition_status_message_div::DispositionStatusMessageDiv,
     editor_page_content::EditorPageContent,
     editor_tab_bar::EditorTabBar,
+    example_diagram_select::ExampleDiagramSelect,
     focus_restore::{JS_FOCUS_RESTORE, JS_FOCUS_SAVE},
     help_tooltip::HelpTooltip,
     share_button::ShareButton,
@@ -523,6 +525,10 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                         EditorTabBar {
                             active_page,
                         }
+                    }
+
+                    ExampleDiagramSelect {
+                        input_diagram,
                     }
 
                     UndoRedoToolbar {

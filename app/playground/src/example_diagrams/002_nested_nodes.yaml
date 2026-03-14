@@ -1,0 +1,20 @@
+---
+# Nested nodes -- demonstrates thing_hierarchy for grouping.
+
+things:
+  t_cloud: "Cloud Platform"
+  t_cloud_compute: "Compute"
+  t_cloud_compute_vm1: "VM 1"
+  t_cloud_compute_vm2: "VM 2"
+  t_cloud_storage: "Storage"
+  t_cloud_storage_bucket: "Object Bucket"
+  t_cloud_storage_disk: "Block Disk"
+
+thing_hierarchy:
+  t_cloud:
+    t_cloud_compute:
+      t_cloud_compute_vm1: {}
+      t_cloud_compute_vm2: {}
+    t_cloud_storage:
+      t_cloud_storage_bucket: {}
+      t_cloud_storage_disk: {}

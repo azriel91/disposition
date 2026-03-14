@@ -1,0 +1,54 @@
+---
+# Nodes with dependencies.
+#
+# Shows how to use `thing_dependencies` to define static
+# relationships between things using different edge kinds.
+
+things:
+  t_app: "Application"
+  t_framework: "Framework"
+  t_database: "Database"
+  t_cache: "Cache"
+  t_config: "Config"
+
+thing_hierarchy:
+  t_app: {}
+  t_framework: {}
+  t_database: {}
+  t_cache: {}
+  t_config: {}
+
+thing_dependencies:
+  # Sequential: app depends on framework.
+  edge_dep_app_framework:
+    kind: sequence
+    things:
+      - t_framework
+      - t_app
+
+  # Sequential chain: app -> database.
+  edge_dep_app_database:
+    kind: sequence
+    things:
+      - t_database
+      - t_app
+
+  # Symmetric: cache and database synchronize.
+  edge_dep_cache_database:
+    kind: symmetric
+    things:
+      - t_cache
+      - t_database
+
+  # Cyclic: config feeds back into itself.
+  edge_dep_config_self:
+    kind: cyclic
+    things:
+      - t_config
+
+  # Sequential: framework depends on config.
+  edge_dep_framework_config:
+    kind: sequence
+    things:
+      - t_config
+      - t_framework

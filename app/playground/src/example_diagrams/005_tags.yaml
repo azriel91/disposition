@@ -1,0 +1,84 @@
+---
+# Tags: grouping things by concern.
+things:
+  t_api_gateway: "API Gateway"
+  t_auth_service: "Auth Service"
+  t_user_service: "User Service"
+  t_order_service: "Order Service"
+  t_payment_service: "Payment Service"
+  t_database: "Database"
+  t_cache: "Cache"
+  t_message_queue: "Message Queue"
+
+thing_hierarchy:
+  t_api_gateway: {}
+  t_auth_service: {}
+  t_user_service: {}
+  t_order_service: {}
+  t_payment_service: {}
+  t_database: {}
+  t_cache: {}
+  t_message_queue: {}
+
+thing_dependencies:
+  edge_gateway_auth:
+    kind: sequence
+    things:
+      - t_api_gateway
+      - t_auth_service
+  edge_gateway_user:
+    kind: sequence
+    things:
+      - t_api_gateway
+      - t_user_service
+  edge_gateway_order:
+    kind: sequence
+    things:
+      - t_api_gateway
+      - t_order_service
+  edge_order_payment:
+    kind: sequence
+    things:
+      - t_order_service
+      - t_payment_service
+  edge_user_db:
+    kind: sequence
+    things:
+      - t_user_service
+      - t_database
+  edge_order_db:
+    kind: sequence
+    things:
+      - t_order_service
+      - t_database
+  edge_auth_cache:
+    kind: sequence
+    things:
+      - t_auth_service
+      - t_cache
+  edge_order_mq:
+    kind: sequence
+    things:
+      - t_order_service
+      - t_message_queue
+
+tags:
+  tag_frontend_facing: "Frontend-Facing"
+  tag_data_layer: "Data Layer"
+  tag_business_logic: "Business Logic"
+  tag_async_processing: "Async Processing"
+
+tag_things:
+  tag_frontend_facing:
+    - t_api_gateway
+    - t_auth_service
+  tag_data_layer:
+    - t_database
+    - t_cache
+  tag_business_logic:
+    - t_user_service
+    - t_order_service
+    - t_payment_service
+  tag_async_processing:
+    - t_message_queue
+    - t_order_service

@@ -1,0 +1,17 @@
+---
+# Process-only diagram -- no things, just a process definition.
+#
+# This shows that processes can be defined without any things.
+# The steps will be listed but no nodes or edges will appear.
+processes:
+  proc_release:
+    name: "Release Checklist"
+    desc: |-
+      Steps to release a new version.
+    steps:
+      step_update_changelog: "Update CHANGELOG"
+      step_bump_version: "Bump version number"
+      step_run_tests: "Run full test suite"
+      step_create_tag: "Create git tag"
+      step_push_tag: "Push tag to remote"
+      step_publish: "Publish package"
