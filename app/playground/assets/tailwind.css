@@ -7,6 +7,7 @@
     'Noto Color Emoji';
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
     monospace;
+    --color-red-100: oklch(93.6% 0.032 17.717);
     --color-red-200: oklch(88.5% 0.062 18.334);
     --color-red-300: oklch(80.8% 0.114 19.571);
     --color-red-400: oklch(70.4% 0.191 22.216);
@@ -877,10 +878,24 @@
       }
     }
   }
+  .hover\:bg-gray-500 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-gray-500);
+      }
+    }
+  }
   .hover\:bg-gray-600 {
     &:hover {
       @media (hover: hover) {
         background-color: var(--color-gray-600);
+      }
+    }
+  }
+  .hover\:bg-gray-700 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-gray-700);
       }
     }
   }
@@ -1017,9 +1032,66 @@
       flex-direction: row;
     }
   }
+  .\[\&_\*\]\:stroke-gray-300 {
+    & * {
+      stroke: var(--color-gray-300);
+    }
+  }
+  .\[\&_\*\]\:stroke-red-300 {
+    & * {
+      stroke: var(--color-red-300);
+    }
+  }
+  .hover\:\[\&_\*\]\:stroke-gray-100 {
+    &:hover {
+      @media (hover: hover) {
+        & * {
+          stroke: var(--color-gray-100);
+        }
+      }
+    }
+  }
+  .\[\*\]\:stroke-gray-300 {
+    &:is(*) {
+      stroke: var(--color-gray-300);
+    }
+  }
+  .\[\*\]\:stroke-red-300 {
+    &:is(*) {
+      stroke: var(--color-red-300);
+    }
+  }
+  .hover\:\[\*\]\:stroke-gray-100 {
+    &:hover {
+      @media (hover: hover) {
+        &:is(*) {
+          stroke: var(--color-gray-100);
+        }
+      }
+    }
+  }
+  .hover\:\[\*\]\:stroke-red-100 {
+    &:hover {
+      @media (hover: hover) {
+        &:is(*) {
+          stroke: var(--color-red-100);
+        }
+      }
+    }
+  }
+  .\[\&\>\*\]\:stroke-gray-100 {
+    &>* {
+      stroke: var(--color-gray-100);
+    }
+  }
   .\[\&\>\*\]\:stroke-gray-200 {
     &>* {
       stroke: var(--color-gray-200);
+    }
+  }
+  .\[\&\>\*\]\:stroke-gray-300 {
+    &>* {
+      stroke: var(--color-gray-300);
     }
   }
   .\[\&\>\*\]\:stroke-1 {
@@ -1030,6 +1102,24 @@
   .\[\&\>\*\]\:stroke-2 {
     &>* {
       stroke-width: 2;
+    }
+  }
+  .hover\:\[\&\>\*\]\:stroke-gray-100 {
+    &:hover {
+      @media (hover: hover) {
+        &>* {
+          stroke: var(--color-gray-100);
+        }
+      }
+    }
+  }
+  .hover\:\[\&\>\*\]\:stroke-gray-200 {
+    &:hover {
+      @media (hover: hover) {
+        &>* {
+          stroke: var(--color-gray-200);
+        }
+      }
     }
   }
   .\[\&\>a\]\:transition-colors {

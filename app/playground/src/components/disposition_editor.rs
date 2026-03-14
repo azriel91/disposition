@@ -3,11 +3,13 @@
 //! The main editor component wiring together the tab bar, page content,
 //! status messages, and SVG preview.
 
+mod copy_button;
 mod disposition_status_message_div;
 mod editor_page_content;
 mod editor_tab_bar;
 mod focus_restore;
 mod help_tooltip;
+mod svg_preview;
 mod taffy_tree_fmt;
 mod undo_redo_toolbar;
 
@@ -15,7 +17,7 @@ use dioxus::{
     document,
     hooks::{use_memo, use_signal},
     prelude::{
-        component, debug, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Key,
+        component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Key,
         ModifiersInteraction, Props,
     },
     router::navigator,
@@ -33,7 +35,6 @@ use disposition_input_ir_rt::{
     SvgElementsToSvgMapper, TaffyToSvgElementsMapper,
 };
 
-use std::time::Duration;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
@@ -45,17 +46,18 @@ use crate::{
         TaffyNodeMappingsDiv,
     },
     editor_state::{EditorPage, EditorState},
-    hooks::use_timeout,
     route::Route,
     undo_history::{history_push, history_redo, history_undo, UndoHistory},
 };
 
-use self::{
+pub(crate) use self::{
+    copy_button::CopyButton,
     disposition_status_message_div::DispositionStatusMessageDiv,
     editor_page_content::EditorPageContent,
     editor_tab_bar::EditorTabBar,
     focus_restore::{JS_FOCUS_RESTORE, JS_FOCUS_SAVE},
     help_tooltip::HelpTooltip,
+    svg_preview::SvgPreview,
     taffy_tree_fmt::TaffyTreeFmt,
     undo_redo_toolbar::UndoRedoToolbar,
 };
@@ -474,110 +476,6 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
 
             // === Right column: SVG preview === //
             SvgPreview { svg }
-        }
-    }
-}
-
-#[component]
-pub fn SvgPreview(svg: Memo<String>) -> Element {
-    let mut clipboard = dioxus_clipboard::hooks::use_clipboard();
-    let mut copied_signal = use_signal(|| false);
-    let mut copied_text_visibility = use_signal(|| "hidden");
-    let _copied_timeout = use_timeout(Duration::from_secs(1), copied_signal, move || {
-        copied_text_visibility.set("hidden");
-    });
-
-    rsx! {
-        div {
-            class: "flex-1 flex flex-col",
-            div {
-                class: "\
-                    flex \
-                    justify-end\
-                ",
-                button {
-                    class: "\
-                        flex-none \
-                        flex \
-                        justify-center \
-                        items-center \
-                        p-2 \
-                        text-gray-200 \
-                        rounded-lg \
-                        bg-gray-800 \
-                        border-gray-600 \
-                        hover:bg-gray-600 \
-                        active:bg-gray-800 \
-                        focus:outline-none \
-                        focus:ring-2 \
-                        focus:ring-blue-600 \
-                        focus:ring-offset-2 \
-                        focus:ring-offset-gray-100 \
-                    ",
-                    tabindex: "0",
-                    title: "Copy to clipboard",
-                    onclick: move |_| async move {
-                        match clipboard.set(svg().clone()).await {
-                            Ok(()) => {
-                                copied_text_visibility.set("visible");
-                                copied_signal.set(true);
-                            }
-                            Err(e) => {
-                                debug!("Failed to copy SVG to clipboard: {:?}", e);
-                            }
-                        }
-                    },
-
-                    span {
-                        class: "\
-                            mr-2 \
-                            text-sm \
-                            font-semibold \
-                            {copied_text_visibility}\
-                        ",
-                        "Copied!"
-                    }
-
-                    svg {
-                        xmlns: "http://www.w3.org/2000/svg",
-                        class: "h-5 w-5 [&>*]:stroke-gray-200 [&>*]:stroke-2",
-                        width: "24",
-                        height: "24",
-                        view_box: "0 0 24 24",
-                        rect {
-                            x: "2",
-                            y: "9",
-                            width: "13",
-                            height: "13",
-                            rx: "2",
-                            ry: "2",
-                            fill: "none",
-                            stroke: "currentColor",
-                        },
-                        path {
-                            d: "\
-                                M 10 5 \
-                                V 4\
-                                a 2 2 0 0 1 2 -2 \
-                                H 20 \
-                                a 2 2 0 0 1 2 2 \
-                                V 13 \
-                                a 2 2 0 0 1 -2 2 \
-                                h -1 \
-                                ",
-                            fill: "none",
-                            stroke: "currentColor",
-                        },
-                    }
-                },
-            },
-            object {
-                class: "
-                    flex-1
-                ",
-                r#type: "image/svg+xml",
-                data: format!("data:image/svg+xml,{}", urlencoding::encode(svg().as_str())),
-            }
         }
     }
 }
