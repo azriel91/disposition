@@ -23,6 +23,10 @@ use crate::components::editor::{
     reorderable::ReorderableContainer,
 };
 
+pub(crate) use self::duplicate_button::DuplicateButton;
+
+mod duplicate_button;
+
 // === Thing Names sub-page === //
 
 /// The **Things: Names** editor sub-page.

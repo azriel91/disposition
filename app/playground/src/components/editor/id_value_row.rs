@@ -46,6 +46,7 @@ use crate::components::editor::{
         ROW_CLASS,
     },
     reorderable::{drag_border_class, DragHandle},
+    things_page::DuplicateButton,
 };
 
 // === Data attribute for the row wrapper === //
@@ -55,26 +56,6 @@ use crate::components::editor::{
 /// Used by [`keyboard_nav`](crate::components::editor::keyboard_nav) helpers
 /// to locate the nearest ancestor row.
 const DATA_ATTR: &str = "data-entry-id";
-
-/// CSS classes for the duplicate button.
-///
-/// Styled similarly to the remove button but with a neutral colour instead of
-/// red so it is visually distinct.
-const DUPLICATE_BTN: &str = "\
-    bg-transparent \
-    border-none \
-    cursor-pointer \
-    outline-none \
-    rounded \
-    p-0 \
-    px-1 \
-    text-xs \
-    text-gray-400 \
-    hover:text-gray-200 \
-    focus:border \
-    focus:border-solid \
-    focus:border-blue-400\
-";
 
 // === IdValueRow component === //
 
@@ -226,18 +207,14 @@ pub fn IdValueRow(
 
             // === Duplicate button (optional) === //
             if let Some(on_duplicate) = on_duplicate {
-                button {
-                    class: DUPLICATE_BTN,
-                    tabindex: "-1",
-                    "data-action": "duplicate",
+                DuplicateButton {
+                    data_attr: DATA_ATTR,
                     onclick: {
                         let entry_id = entry_id.clone();
                         move |_| {
                             on_duplicate.call(entry_id.clone());
                         }
                     },
-                    onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
-                    "\u{1F4CB}"
                 }
             }
 

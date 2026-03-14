@@ -8,7 +8,6 @@
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
     monospace;
     --color-red-100: oklch(93.6% 0.032 17.717);
-    --color-red-200: oklch(88.5% 0.062 18.334);
     --color-red-300: oklch(80.8% 0.114 19.571);
     --color-red-400: oklch(70.4% 0.191 22.216);
     --color-red-700: oklch(50.5% 0.213 27.518);
@@ -16,20 +15,12 @@
     --color-yellow-100: oklch(97.3% 0.071 103.193);
     --color-yellow-600: oklch(68.1% 0.162 75.834);
     --color-yellow-700: oklch(55.4% 0.135 66.442);
-    --color-green-200: oklch(92.5% 0.084 155.995);
-    --color-blue-200: oklch(88.2% 0.059 254.128);
     --color-blue-300: oklch(80.9% 0.105 251.813);
     --color-blue-400: oklch(70.7% 0.165 254.624);
     --color-blue-500: oklch(62.3% 0.214 259.815);
     --color-blue-600: oklch(54.6% 0.245 262.881);
-    --color-slate-100: oklch(96.8% 0.007 247.896);
-    --color-slate-200: oklch(92.9% 0.013 255.508);
-    --color-slate-300: oklch(86.9% 0.022 252.894);
-    --color-slate-400: oklch(70.4% 0.04 256.788);
-    --color-slate-500: oklch(55.4% 0.046 257.417);
-    --color-slate-600: oklch(44.6% 0.043 257.281);
-    --color-slate-700: oklch(37.2% 0.044 257.287);
-    --color-slate-800: oklch(27.9% 0.041 260.031);
+    --color-purple-100: oklch(94.6% 0.033 307.174);
+    --color-purple-300: oklch(82.7% 0.119 306.383);
     --color-gray-100: oklch(96.7% 0.003 264.542);
     --color-gray-200: oklch(92.8% 0.006 264.531);
     --color-gray-300: oklch(87.2% 0.01 258.338);
@@ -203,14 +194,8 @@
   }
 }
 @layer utilities {
-  .\!visible {
-    visibility: visible !important;
-  }
   .collapse {
     visibility: collapse;
-  }
-  .invisible {
-    visibility: hidden;
   }
   .visible {
     visibility: visible;
@@ -277,9 +262,6 @@
   .mr-1 {
     margin-right: calc(var(--spacing) * 1);
   }
-  .mr-2 {
-    margin-right: calc(var(--spacing) * 2);
-  }
   .mb-0 {
     margin-bottom: calc(var(--spacing) * 0);
   }
@@ -316,23 +298,11 @@
   .table {
     display: table;
   }
+  .h-4 {
+    height: calc(var(--spacing) * 4);
+  }
   .h-5 {
     height: calc(var(--spacing) * 5);
-  }
-  .h-6 {
-    height: calc(var(--spacing) * 6);
-  }
-  .h-7 {
-    height: calc(var(--spacing) * 7);
-  }
-  .h-8 {
-    height: calc(var(--spacing) * 8);
-  }
-  .h-9 {
-    height: calc(var(--spacing) * 9);
-  }
-  .h-10 {
-    height: calc(var(--spacing) * 10);
   }
   .max-h-\[70vh\] {
     max-height: 70vh;
@@ -349,20 +319,14 @@
   .min-h-80 {
     min-height: calc(var(--spacing) * 80);
   }
+  .w-4 {
+    width: calc(var(--spacing) * 4);
+  }
   .w-5 {
     width: calc(var(--spacing) * 5);
   }
   .w-6 {
     width: calc(var(--spacing) * 6);
-  }
-  .w-7 {
-    width: calc(var(--spacing) * 7);
-  }
-  .w-8 {
-    width: calc(var(--spacing) * 8);
-  }
-  .w-9 {
-    width: calc(var(--spacing) * 9);
   }
   .w-10 {
     width: calc(var(--spacing) * 10);
@@ -384,9 +348,6 @@
   }
   .min-w-0 {
     min-width: calc(var(--spacing) * 0);
-  }
-  .min-w-9 {
-    min-width: calc(var(--spacing) * 9);
   }
   .flex-1 {
     flex: 1;
@@ -572,6 +533,9 @@
   }
   .p-0 {
     padding: calc(var(--spacing) * 0);
+  }
+  .p-1 {
+    padding: calc(var(--spacing) * 1);
   }
   .p-2 {
     padding: calc(var(--spacing) * 2);
@@ -878,13 +842,6 @@
       }
     }
   }
-  .hover\:bg-gray-500 {
-    &:hover {
-      @media (hover: hover) {
-        background-color: var(--color-gray-500);
-      }
-    }
-  }
   .hover\:bg-gray-600 {
     &:hover {
       @media (hover: hover) {
@@ -1032,14 +989,23 @@
       flex-direction: row;
     }
   }
+  .\[\&_\*\]\:fill-gray-300 {
+    & * {
+      fill: var(--color-gray-300);
+    }
+  }
   .\[\&_\*\]\:stroke-gray-300 {
     & * {
       stroke: var(--color-gray-300);
     }
   }
-  .\[\&_\*\]\:stroke-red-300 {
-    & * {
-      stroke: var(--color-red-300);
+  .hover\:\[\&_\*\]\:fill-gray-100 {
+    &:hover {
+      @media (hover: hover) {
+        & * {
+          fill: var(--color-gray-100);
+        }
+      }
     }
   }
   .hover\:\[\&_\*\]\:stroke-gray-100 {
@@ -1051,52 +1017,23 @@
       }
     }
   }
-  .\[\*\]\:stroke-gray-300 {
-    &:is(*) {
-      stroke: var(--color-gray-300);
+  .\[\&_rect\]\:fill-gray-300 {
+    & rect {
+      fill: var(--color-gray-300);
     }
   }
-  .\[\*\]\:stroke-red-300 {
-    &:is(*) {
-      stroke: var(--color-red-300);
-    }
-  }
-  .hover\:\[\*\]\:stroke-gray-100 {
+  .hover\:\[\&_rect\]\:fill-gray-100 {
     &:hover {
       @media (hover: hover) {
-        &:is(*) {
-          stroke: var(--color-gray-100);
+        & rect {
+          fill: var(--color-gray-100);
         }
       }
-    }
-  }
-  .hover\:\[\*\]\:stroke-red-100 {
-    &:hover {
-      @media (hover: hover) {
-        &:is(*) {
-          stroke: var(--color-red-100);
-        }
-      }
-    }
-  }
-  .\[\&\>\*\]\:stroke-gray-100 {
-    &>* {
-      stroke: var(--color-gray-100);
-    }
-  }
-  .\[\&\>\*\]\:stroke-gray-200 {
-    &>* {
-      stroke: var(--color-gray-200);
     }
   }
   .\[\&\>\*\]\:stroke-gray-300 {
     &>* {
       stroke: var(--color-gray-300);
-    }
-  }
-  .\[\&\>\*\]\:stroke-1 {
-    &>* {
-      stroke-width: 1;
     }
   }
   .\[\&\>\*\]\:stroke-2 {
@@ -1109,15 +1046,6 @@
       @media (hover: hover) {
         &>* {
           stroke: var(--color-gray-100);
-        }
-      }
-    }
-  }
-  .hover\:\[\&\>\*\]\:stroke-gray-200 {
-    &:hover {
-      @media (hover: hover) {
-        &>* {
-          stroke: var(--color-gray-200);
         }
       }
     }
@@ -1140,6 +1068,20 @@
       &:hover {
         @media (hover: hover) {
           color: var(--color-blue-300);
+        }
+      }
+    }
+  }
+  .\[\&\>rect\]\:fill-gray-300 {
+    &>rect {
+      fill: var(--color-gray-300);
+    }
+  }
+  .hover\:\[\&\>rect\]\:fill-gray-100 {
+    &:hover {
+      @media (hover: hover) {
+        &>rect {
+          fill: var(--color-gray-100);
         }
       }
     }
