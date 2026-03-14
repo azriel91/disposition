@@ -7,7 +7,7 @@ use disposition_input_model::{
     theme::{ThemeDefault, ThemeTypesStyles},
     thing::{
         ThingCopyText, ThingDependencies, ThingHierarchy as InputThingHierarchy, ThingId,
-        ThingInteractions, ThingNames,
+        ThingInteractions, ThingLayouts, ThingNames,
     },
     InputDiagram,
 };
@@ -50,6 +50,7 @@ impl InputToIrDiagramMapper {
             things,
             thing_copy_text,
             thing_hierarchy,
+            thing_layouts,
             thing_dependencies,
             thing_interactions,
             processes,
@@ -104,6 +105,7 @@ impl InputToIrDiagramMapper {
             theme_types_styles,
             tags,
             processes,
+            thing_layouts,
         );
 
         // 10. Build NodeShapes from theme
@@ -791,6 +793,7 @@ impl InputToIrDiagramMapper {
         theme_types_styles: &ThemeTypesStyles<'id>,
         tags: &TagNames<'id>,
         processes: &Processes<'id>,
+        thing_layouts: &ThingLayouts<'id>,
     ) -> NodeLayouts<'id> {
         let mut node_layouts = NodeLayouts::new();
 
@@ -913,6 +916,7 @@ impl InputToIrDiagramMapper {
             &mut node_layouts,
             &is_tag,
             &is_process,
+            thing_layouts,
         );
 
         node_layouts
@@ -1020,11 +1024,12 @@ impl InputToIrDiagramMapper {
         node_layouts: &mut NodeLayouts<'id>,
         is_tag: &F,
         is_process: &G,
+        thing_layouts: &ThingLayouts<'id>,
     ) where
         F: Fn(&NodeId<'id>) -> bool,
         G: Fn(&NodeId<'id>) -> bool,
     {
-        let thing_layouts: Vec<_> = hierarchy
+        let thing_layout_entries: Vec<_> = hierarchy
             .iter()
             // Skip tags and processes (already handled)
             .filter(|(node_id, _)| !is_tag(node_id) && !is_process(node_id))
@@ -1033,14 +1038,19 @@ impl InputToIrDiagramMapper {
                     // Leaf node -- no layout needed
                     NodeLayout::None
                 } else {
-                    // Container node -- use flex layout
-                    // Direction alternates based on depth: column at even depths, row at odd
-                    // depths
-                    let direction = if depth.is_multiple_of(2) {
-                        FlexDirection::Column
-                    } else {
-                        FlexDirection::Row
-                    };
+                    // Container node -- use flex layout.
+                    //
+                    // If the user specified a direction in `thing_layouts`, use
+                    // that. Otherwise alternate based on depth: column at even
+                    // depths, row at odd depths.
+                    let thing_id = ThingId::from(node_id.as_ref().clone());
+                    let direction = thing_layouts.get(&thing_id).copied().unwrap_or_else(|| {
+                        if depth.is_multiple_of(2) {
+                            FlexDirection::Column
+                        } else {
+                            FlexDirection::Row
+                        }
+                    });
 
                     Self::build_node_flex_layout(
                         node_id,
@@ -1064,7 +1074,7 @@ impl InputToIrDiagramMapper {
             .collect();
 
         // Insert layouts and recursively process children
-        thing_layouts
+        thing_layout_entries
             .into_iter()
             .for_each(|(node_id, layout, children_opt)| {
                 node_layouts.insert(node_id, layout);
@@ -1079,6 +1089,7 @@ impl InputToIrDiagramMapper {
                         node_layouts,
                         is_tag,
                         is_process,
+                        thing_layouts,
                     );
                 }
             });

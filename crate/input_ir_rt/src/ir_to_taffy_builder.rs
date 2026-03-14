@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use disposition_ir_model::{
     entity::{EntityDescs, EntityType, EntityTypes},
-    layout::{NodeLayout, NodeLayouts},
+    layout::{FlexDirection as ModelFlexDirection, NodeLayout, NodeLayouts},
     node::{NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeShape, NodeShapes},
     IrDiagram,
 };
@@ -31,6 +31,17 @@ use self::{
 
 mod taffy_node_build_context;
 mod text_measure;
+
+/// Converts a model [`FlexDirection`](ModelFlexDirection) to a
+/// [`taffy::style::FlexDirection`].
+fn flex_direction_to_taffy(direction: ModelFlexDirection) -> FlexDirection {
+    match direction {
+        ModelFlexDirection::Row => FlexDirection::Row,
+        ModelFlexDirection::RowReverse => FlexDirection::RowReverse,
+        ModelFlexDirection::Column => FlexDirection::Column,
+        ModelFlexDirection::ColumnReverse => FlexDirection::ColumnReverse,
+    }
+}
 
 /// Maps an intermediate representation diagram to a `TaffyNodeMappings`.
 ///
@@ -880,7 +891,7 @@ impl IrToTaffyBuilder<'_> {
                     align_content: Some(AlignContent::Start),
                     justify_content: Some(AlignContent::Start),
                     gap: Size::length(flex_layout.gap()),
-                    flex_direction: FlexDirection::from(flex_layout.direction()),
+                    flex_direction: flex_direction_to_taffy(flex_layout.direction()),
                     flex_wrap: if flex_layout.wrap() {
                         FlexWrap::Wrap
                     } else {
@@ -940,7 +951,7 @@ impl IrToTaffyBuilder<'_> {
                         display: Display::Flex,
                         max_size: Size::auto(),
                         gap: Size::length(flex_layout.gap()),
-                        flex_direction: FlexDirection::from(flex_layout.direction()),
+                        flex_direction: flex_direction_to_taffy(flex_layout.direction()),
                         flex_wrap: if flex_layout.wrap() {
                             FlexWrap::Wrap
                         } else {

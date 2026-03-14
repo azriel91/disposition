@@ -14,7 +14,10 @@ use crate::{
         ThemeDefault, ThemeStyles, ThemeTagThingsFocus, ThemeThingDependenciesStyles,
         ThemeTypesStyles,
     },
-    thing::{ThingCopyText, ThingDependencies, ThingHierarchy, ThingInteractions, ThingNames},
+    thing::{
+        ThingCopyText, ThingDependencies, ThingHierarchy, ThingInteractions, ThingLayouts,
+        ThingNames,
+    },
 };
 
 /// The kinds of diagrams that can be generated.
@@ -50,6 +53,16 @@ pub struct InputDiagram<'id> {
     /// in the diagram.
     #[serde(default, skip_serializing_if = "ThingHierarchy::is_empty")]
     pub thing_hierarchy: ThingHierarchy<'id>,
+
+    /// User-specified flex-direction overrides for container things.
+    ///
+    /// When a thing has children in `thing_hierarchy`, the layout engine
+    /// arranges them in alternating row/column directions by default. Entries
+    /// here override that default for the specified thing.
+    ///
+    /// Valid values: `"row"`, `"row_reverse"`, `"column"`, `"column_reverse"`.
+    #[serde(default, skip_serializing_if = "ThingLayouts::is_empty")]
+    pub thing_layouts: ThingLayouts<'id>,
 
     /// Dependencies between things (static relationships).
     ///
@@ -169,6 +182,7 @@ impl InputDiagram<'static> {
             things: ThingNames::default(),
             thing_copy_text: ThingCopyText::default(),
             thing_hierarchy: ThingHierarchy::default(),
+            thing_layouts: ThingLayouts::default(),
             thing_dependencies: ThingDependencies::default(),
             thing_interactions: ThingInteractions::default(),
             processes: Processes::default(),
