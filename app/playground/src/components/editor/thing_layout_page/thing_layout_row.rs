@@ -9,8 +9,8 @@ use dioxus::{
     signals::{Signal, WritableExt},
 };
 use disposition::{
-    input_model::{thing::ThingId, InputDiagram},
-    model_common::layout::FlexDirection,
+    input_model::InputDiagram,
+    model_common::{layout::FlexDirection, Id},
 };
 
 /// CSS classes for the layout row container.
@@ -61,10 +61,10 @@ const REMOVE_BTN: &str = "\
 #[component]
 pub fn ThingLayoutRow(
     input_diagram: Signal<InputDiagram<'static>>,
-    thing_id: ThingId<'static>,
+    node_inbuilt_or_thing_id: Id<'static>,
     direction: FlexDirection,
 ) -> Element {
-    let thing_id_display = thing_id.to_string();
+    let thing_id_display = node_inbuilt_or_thing_id.to_string();
 
     // Map direction to select index.
     let selected_value = match direction {
@@ -74,8 +74,8 @@ pub fn ThingLayoutRow(
         FlexDirection::ColumnReverse => "column_reverse",
     };
 
-    let thing_id_for_change = thing_id.clone();
-    let thing_id_for_remove = thing_id.clone();
+    let thing_id_for_change = node_inbuilt_or_thing_id.clone();
+    let thing_id_for_remove = node_inbuilt_or_thing_id.clone();
 
     rsx! {
         div {

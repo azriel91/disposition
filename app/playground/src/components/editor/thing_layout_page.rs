@@ -20,8 +20,9 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::{
-    input_model::{thing::ThingId, InputDiagram},
-    model_common::layout::FlexDirection,
+    input_model::InputDiagram,
+    ir_model::node::NodeInbuilt,
+    model_common::{layout::FlexDirection, Id, Set},
 };
 
 use crate::components::editor::common::SECTION_HEADING;
@@ -94,19 +95,24 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
 
     // Collect thing IDs that are containers (have children in the hierarchy)
     // so the "Add" button can pick one that doesn't already have an override.
-    let container_thing_ids: Vec<ThingId<'static>> = flat_entries
-        .iter()
-        .enumerate()
-        .filter(|(i, _entry)| {
-            // A thing is a container if the next entry has a greater depth.
-            let next_depth = flat_entries.get(i + 1).map(|e| e.depth);
-            next_depth.is_some_and(|d| d > flat_entries[*i].depth)
-        })
-        .map(|(_, entry)| entry.thing_id.clone())
-        .collect();
+    let node_inbuilt_and_container_thing_ids: Set<Id<'static>> =
+        enum_iterator::all::<NodeInbuilt>()
+            .map(NodeInbuilt::id)
+            .chain(
+                flat_entries
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _entry)| {
+                        // A thing is a container if the next entry has a greater depth.
+                        let next_depth = flat_entries.get(i + 1).map(|e| e.depth);
+                        next_depth.is_some_and(|d| d > flat_entries[*i].depth)
+                    })
+                    .map(|(_, entry)| entry.thing_id.clone().into_inner()),
+            )
+            .collect();
 
     // Current layout overrides, sorted by the order they appear.
-    let layout_entries: Vec<(ThingId<'static>, FlexDirection)> = diagram
+    let layout_entries: Vec<(Id<'static>, FlexDirection)> = diagram
         .thing_layouts
         .iter()
         .map(|(id, dir)| (id.clone(), *dir))
@@ -114,7 +120,7 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
 
     // Find the first container thing that doesn't already have an override,
     // to enable/disable the add button.
-    let next_addable: Option<ThingId<'static>> = container_thing_ids
+    let next_addable: Option<Id<'static>> = node_inbuilt_and_container_thing_ids
         .iter()
         .find(|id| !diagram.thing_layouts.contains_key(*id))
         .cloned();
@@ -182,15 +188,15 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                     }
                 }
 
-                for (thing_id, direction) in layout_entries.iter() {
+                for (node_inbuilt_or_thing_id, direction) in layout_entries.iter() {
                     {
-                        let thing_id = thing_id.clone();
+                        let node_inbuilt_or_thing_id = node_inbuilt_or_thing_id.clone();
                         let direction = *direction;
                         rsx! {
                             ThingLayoutRow {
-                                key: "{thing_id}",
+                                key: "{node_inbuilt_or_thing_id}",
                                 input_diagram,
-                                thing_id,
+                                node_inbuilt_or_thing_id,
                                 direction,
                             }
                         }
@@ -205,29 +211,32 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                         onclick: move |_| {
                             let diagram = input_diagram.read();
                             // Recompute to avoid stale closure.
-                            let container_ids: Vec<ThingId<'static>> = {
+                            let node_inbuilt_and_container_thing_ids: Vec<Id<'static>> = {
                                 let entries = hierarchy_flatten(&diagram.thing_hierarchy);
-                                entries
-                                    .iter()
-                                    .enumerate()
-                                    .filter(|(i, _)| {
-                                        let next_depth = entries.get(i + 1).map(|e| e.depth);
-                                        next_depth.is_some_and(|d| d > entries[*i].depth)
-                                    })
-                                    .map(|(_, e)| e.thing_id.clone())
+
+                                enum_iterator::all::<NodeInbuilt>()
+                                    .map(NodeInbuilt::id)
+                                    .chain(entries
+                                        .iter()
+                                        .enumerate()
+                                        .filter(|(i, _)| {
+                                            let next_depth = entries.get(i + 1).map(|e| e.depth);
+                                            next_depth.is_some_and(|d| d > entries[*i].depth)
+                                        })
+                                        .map(|(_, e)| e.thing_id.clone().into_inner()))
                                     .collect()
                             };
-                            let addable = container_ids
+                            let addable = node_inbuilt_and_container_thing_ids
                                 .iter()
                                 .find(|id| !diagram.thing_layouts.contains_key(*id))
                                 .cloned();
                             drop(diagram);
 
-                            if let Some(thing_id) = addable {
+                            if let Some(node_inbuilt_or_thing_id) = addable {
                                 input_diagram
                                     .write()
                                     .thing_layouts
-                                    .insert(thing_id, FlexDirection::Row);
+                                    .insert(node_inbuilt_or_thing_id, FlexDirection::Row);
                             }
                         },
                         "+ Add Direction Override"

@@ -807,7 +807,10 @@ impl InputToIrDiagramMapper {
         let root_id = NodeInbuilt::Root.id();
         let root_layout = Self::build_container_layout(
             &root_id,
-            FlexDirection::ColumnReverse,
+            thing_layouts
+                .get(&root_id)
+                .copied()
+                .unwrap_or(FlexDirection::ColumnReverse),
             true,
             entity_types,
             theme_default,
@@ -819,7 +822,10 @@ impl InputToIrDiagramMapper {
         let things_and_processes_id = NodeInbuilt::ThingsAndProcessesContainer.id();
         let things_and_processes_layout = Self::build_container_layout(
             &things_and_processes_id,
-            FlexDirection::RowReverse,
+            thing_layouts
+                .get(&things_and_processes_id)
+                .copied()
+                .unwrap_or(FlexDirection::RowReverse),
             true,
             entity_types,
             theme_default,
@@ -834,7 +840,10 @@ impl InputToIrDiagramMapper {
         let processes_container_id = NodeInbuilt::ProcessesContainer.id();
         let processes_container_layout = Self::build_container_layout(
             &processes_container_id,
-            FlexDirection::Column,
+            thing_layouts
+                .get(&processes_container_id)
+                .copied()
+                .unwrap_or(FlexDirection::Column),
             false,
             entity_types,
             theme_default,
@@ -878,7 +887,10 @@ impl InputToIrDiagramMapper {
         let tags_container_id = NodeInbuilt::TagsContainer.id();
         let tags_container_layout = Self::build_container_layout(
             &tags_container_id,
-            FlexDirection::Row,
+            thing_layouts
+                .get(&tags_container_id)
+                .copied()
+                .unwrap_or(FlexDirection::Row),
             true,
             entity_types,
             theme_default,
@@ -898,7 +910,10 @@ impl InputToIrDiagramMapper {
         let things_container_id = NodeInbuilt::ThingsContainer.id();
         let things_container_layout = Self::build_container_layout(
             &things_container_id,
-            FlexDirection::Row,
+            thing_layouts
+                .get(&things_container_id)
+                .copied()
+                .unwrap_or(FlexDirection::Row),
             true,
             entity_types,
             theme_default,
@@ -1043,7 +1058,7 @@ impl InputToIrDiagramMapper {
                     // If the user specified a direction in `thing_layouts`, use
                     // that. Otherwise alternate based on depth: column at even
                     // depths, row at odd depths.
-                    let thing_id = ThingId::from(node_id.as_ref().clone());
+                    let thing_id = node_id.as_ref().clone();
                     let direction = thing_layouts.get(&thing_id).copied().unwrap_or_else(|| {
                         if depth.is_multiple_of(2) {
                             FlexDirection::Column

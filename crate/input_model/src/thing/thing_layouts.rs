@@ -3,8 +3,6 @@ use std::ops::{Deref, DerefMut};
 use disposition_model_common::{layout::FlexDirection, Id, Map};
 use serde::{Deserialize, Serialize};
 
-use crate::thing::ThingId;
-
 /// User-specified flex-direction overrides for things.
 ///
 /// When a thing has children (i.e. it appears in `thing_hierarchy` with nested
@@ -15,6 +13,11 @@ use crate::thing::ThingId;
 ///
 /// Only things that act as containers (i.e. have children in the hierarchy)
 /// benefit from a layout override. Leaf things are ignored.
+///
+/// # Note
+///
+/// This map uses [`Id`] keys, not [`ThingId`], so that layout overrides can be
+/// applied to `NodeInbuilt` keys as well.
 ///
 /// # Example
 ///
@@ -29,7 +32,7 @@ use crate::thing::ThingId;
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ThingLayouts<'id>(Map<ThingId<'id>, FlexDirection>);
+pub struct ThingLayouts<'id>(Map<Id<'id>, FlexDirection>);
 
 impl<'id> ThingLayouts<'id> {
     /// Returns a new empty `ThingLayouts` map.
@@ -43,7 +46,7 @@ impl<'id> ThingLayouts<'id> {
     }
 
     /// Returns the underlying map.
-    pub fn into_inner(self) -> Map<ThingId<'id>, FlexDirection> {
+    pub fn into_inner(self) -> Map<Id<'id>, FlexDirection> {
         self.0
     }
 
@@ -63,7 +66,7 @@ impl<'id> ThingLayouts<'id> {
 }
 
 impl<'id> Deref for ThingLayouts<'id> {
-    type Target = Map<ThingId<'id>, FlexDirection>;
+    type Target = Map<Id<'id>, FlexDirection>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -76,14 +79,14 @@ impl<'id> DerefMut for ThingLayouts<'id> {
     }
 }
 
-impl<'id> From<Map<ThingId<'id>, FlexDirection>> for ThingLayouts<'id> {
-    fn from(inner: Map<ThingId<'id>, FlexDirection>) -> Self {
+impl<'id> From<Map<Id<'id>, FlexDirection>> for ThingLayouts<'id> {
+    fn from(inner: Map<Id<'id>, FlexDirection>) -> Self {
         Self(inner)
     }
 }
 
-impl<'id> FromIterator<(ThingId<'id>, FlexDirection)> for ThingLayouts<'id> {
-    fn from_iter<I: IntoIterator<Item = (ThingId<'id>, FlexDirection)>>(iter: I) -> Self {
+impl<'id> FromIterator<(Id<'id>, FlexDirection)> for ThingLayouts<'id> {
+    fn from_iter<I: IntoIterator<Item = (Id<'id>, FlexDirection)>>(iter: I) -> Self {
         Self(Map::from_iter(iter))
     }
 }
