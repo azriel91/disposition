@@ -1,42 +1,69 @@
 //! Thing layout editor page.
 //!
 //! Provides an interactive tree editor for the `thing_hierarchy` field of an
-//! [`InputDiagram`]. Users can reorder entries via drag-and-drop or keyboard
+//! [`InputDiagram`], as well as a layout direction editor for overriding the
+//! flex direction of container things via the `thing_layouts` field.
+//!
+//! Users can reorder hierarchy entries via drag-and-drop or keyboard
 //! shortcuts (Up/Down to navigate rows, Alt+Up/Down to move,
 //! Tab/Shift+Tab to indent/outdent).
 
 mod flat_entry;
+mod thing_hierarchy_row;
+mod thing_hierarchy_rows;
 mod thing_layout_row;
 mod thing_layout_rows;
 
 use dioxus::{
     hooks::use_signal,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{ReadableExt, Signal},
+    signals::{ReadableExt, Signal, WritableExt},
 };
-use disposition::input_model::InputDiagram;
+use disposition::{
+    input_model::{thing::ThingId, InputDiagram},
+    model_common::layout::FlexDirection,
+};
 
 use crate::components::editor::common::SECTION_HEADING;
 
 use self::{
-    flat_entry::hierarchy_flatten, thing_layout_row::ThingLayoutRow,
+    flat_entry::hierarchy_flatten, thing_hierarchy_row::ThingHierarchyRow,
+    thing_hierarchy_rows::ThingHierarchyRows, thing_layout_row::ThingLayoutRow,
     thing_layout_rows::ThingLayoutRows,
 };
 
+/// CSS classes for the add-layout-override button.
+const ADD_BTN: &str = "\
+    rounded \
+    px-2 py-1 \
+    text-sm \
+    font-semibold \
+    cursor-pointer \
+    select-none \
+    bg-gray-700 \
+    hover:bg-gray-600 \
+    text-gray-200 \
+    border \
+    border-gray-600 \
+    focus:outline-none \
+    focus:border-blue-400\
+";
+
 /// The **Thing Layout** editor page.
 ///
-/// Renders the `thing_hierarchy` as an indented list of rows. Each row
-/// supports:
+/// This page contains two sections:
 ///
-/// - **Drag-and-drop**: grab the handle to reorder.
-/// - **Up / Down**: move focus to the previous / next row.
-/// - **Alt+Up / Alt+Down**: move the entry up or down within its nesting level,
-///   or reparent it when at the boundary of its current level.
-/// - **Tab**: indent (become a child of the previous sibling).
-/// - **Shift+Tab**: outdent (become a sibling of the parent).
-/// - **Remove** button: delete the entry (and its subtree) from the hierarchy.
+/// 1. **Thing Hierarchy** -- an interactive tree editor for the
+///    `thing_hierarchy` field, allowing drag-and-drop reorder, indent/outdent,
+///    and keyboard navigation.
+///
+/// 2. **Thing Layout Directions** -- a list of flex-direction overrides for
+///    container things (things with children in the hierarchy). Users can add
+///    new overrides, change the direction, or remove them.
 #[component]
 pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
+    // === Hierarchy editor state === //
+
     // Drag-and-drop state for the hierarchy rows.
     let drag_index: Signal<Option<usize>> = use_signal(|| None);
     let drop_target: Signal<Option<usize>> = use_signal(|| None);
@@ -63,20 +90,51 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
         })
         .collect();
 
+    // === Layout direction editor state === //
+
+    // Collect thing IDs that are containers (have children in the hierarchy)
+    // so the "Add" button can pick one that doesn't already have an override.
+    let container_thing_ids: Vec<ThingId<'static>> = flat_entries
+        .iter()
+        .enumerate()
+        .filter(|(i, _entry)| {
+            // A thing is a container if the next entry has a greater depth.
+            let next_depth = flat_entries.get(i + 1).map(|e| e.depth);
+            next_depth.is_some_and(|d| d > flat_entries[*i].depth)
+        })
+        .map(|(_, entry)| entry.thing_id.clone())
+        .collect();
+
+    // Current layout overrides, sorted by the order they appear.
+    let layout_entries: Vec<(ThingId<'static>, FlexDirection)> = diagram
+        .thing_layouts
+        .iter()
+        .map(|(id, dir)| (id.clone(), *dir))
+        .collect();
+
+    // Find the first container thing that doesn't already have an override,
+    // to enable/disable the add button.
+    let next_addable: Option<ThingId<'static>> = container_thing_ids
+        .iter()
+        .find(|id| !diagram.thing_layouts.contains_key(*id))
+        .cloned();
+
+    let has_addable = next_addable.is_some();
+
     drop(diagram);
 
     rsx! {
         div {
             class: "flex flex-col gap-1",
 
-            // === Header row with title and help button === //
+            // === Section 1: Thing Hierarchy === //
             div {
                 class: "flex flex-row items-center gap-2",
 
                 h3 { class: "{SECTION_HEADING} flex-1", "Thing Hierarchy" }
             }
 
-            ThingLayoutRows {
+            ThingHierarchyRows {
                 focus_index,
 
                 if flat_entries.is_empty() {
@@ -92,7 +150,7 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                         let depth = entry.depth;
                         let (is_first, is_last) = sibling_flags[idx];
                         rsx! {
-                            ThingLayoutRow {
+                            ThingHierarchyRow {
                                 key: "{thing_id}_{idx}",
                                 input_diagram,
                                 thing_id,
@@ -106,6 +164,73 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                                 focus_index,
                             }
                         }
+                    }
+                }
+            }
+
+            // === Section 2: Thing Layout Directions === //
+            ThingLayoutRows {
+                if layout_entries.is_empty() && !has_addable {
+                    p {
+                        class: "text-xs text-gray-600 italic py-2 text-center",
+                        "No container things in the hierarchy."
+                    }
+                } else if layout_entries.is_empty() {
+                    p {
+                        class: "text-xs text-gray-600 italic py-2 text-center",
+                        "No direction overrides. Click + to add one."
+                    }
+                }
+
+                for (thing_id, direction) in layout_entries.iter() {
+                    {
+                        let thing_id = thing_id.clone();
+                        let direction = *direction;
+                        rsx! {
+                            ThingLayoutRow {
+                                key: "{thing_id}",
+                                input_diagram,
+                                thing_id,
+                                direction,
+                            }
+                        }
+                    }
+                }
+
+                // === Add button === //
+                if has_addable {
+                    button {
+                        class: ADD_BTN,
+                        title: "Add a layout direction override",
+                        onclick: move |_| {
+                            let diagram = input_diagram.read();
+                            // Recompute to avoid stale closure.
+                            let container_ids: Vec<ThingId<'static>> = {
+                                let entries = hierarchy_flatten(&diagram.thing_hierarchy);
+                                entries
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(i, _)| {
+                                        let next_depth = entries.get(i + 1).map(|e| e.depth);
+                                        next_depth.is_some_and(|d| d > entries[*i].depth)
+                                    })
+                                    .map(|(_, e)| e.thing_id.clone())
+                                    .collect()
+                            };
+                            let addable = container_ids
+                                .iter()
+                                .find(|id| !diagram.thing_layouts.contains_key(*id))
+                                .cloned();
+                            drop(diagram);
+
+                            if let Some(thing_id) = addable {
+                                input_diagram
+                                    .write()
+                                    .thing_layouts
+                                    .insert(thing_id, FlexDirection::Row);
+                            }
+                        },
+                        "+ Add Direction Override"
                     }
                 }
             }

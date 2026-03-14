@@ -18,3 +18,13 @@ thing_hierarchy:
     t_cloud_storage:
       t_cloud_storage_bucket: {}
       t_cloud_storage_disk: {}
+
+# Override the default flex direction for container things.
+#
+# By default, direction alternates by depth (column at even, row at odd).
+# Here we force the top-level cloud container to lay out its children
+# in a row, so Compute and Storage sit side by side.
+thing_layouts:
+  t_cloud: "row"
+  t_cloud_compute: "column"
+  t_cloud_storage: "column"

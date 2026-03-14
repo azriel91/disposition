@@ -42,6 +42,15 @@ thing_hierarchy:
     t_dns: {}
   t_users: {}
 
+# Override layout directions so subnets are arranged in a row
+# and their children stack vertically within each subnet.
+thing_layouts:
+  t_cloud: "column"
+  t_vpc: "row"
+  t_public_subnet: "row"
+  t_private_subnet: "row"
+  t_data_subnet: "row"
+
 thing_dependencies:
   edge_dep_dns_alb:
     kind: sequence

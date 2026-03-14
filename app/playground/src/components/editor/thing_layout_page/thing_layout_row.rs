@@ -1,320 +1,86 @@
 //! Thing layout row component.
 //!
-//! A single row in the thing hierarchy layout editor. Each row displays an
-//! indented thing ID with controls for reordering (drag-and-drop and keyboard
-//! shortcuts) and nesting (indent / outdent).
+//! A single row in the thing layout direction editor. Each row displays a
+//! thing ID alongside a `<select>` dropdown for choosing the flex direction
+//! and a remove button to clear the override.
 
 use dioxus::{
-    document,
-    prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key,
-        ModifiersInteraction, Props,
-    },
-    signals::{ReadableExt, Signal, WritableExt},
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    signals::{Signal, WritableExt},
 };
-use disposition::input_model::{thing::ThingId, InputDiagram};
-use disposition_input_rt::ThingLayoutOps;
+use disposition::{
+    input_model::{thing::ThingId, InputDiagram},
+    model_common::layout::FlexDirection,
+};
 
-use crate::components::editor::{common::DRAG_HANDLE, reorderable::drag_border_class};
-
-/// CSS classes for the layout row.
-///
-/// Compared to the generic `ROW_CLASS`, this variant adds
-/// `focus:border-blue-400 focus:bg-gray-800 focus:outline-none` so that the
-/// currently-focused row is visually highlighted with a blue border and a
-/// slightly lighter background.
-const LAYOUT_ROW_CLASS: &str = "\
+/// CSS classes for the layout row container.
+const ROW_CLASS: &str = "\
     flex flex-row gap-2 items-center \
-    pt-1 \
-    pb-1 \
-    border-t-1 \
-    border-b-1 \
-    rounded \
-    focus:border-blue-400 \
-    focus:bg-gray-800 \
-    focus:outline-none \
-    has-[:active]:opacity-40\
+    py-1 \
+    border-b \
+    border-gray-800\
 ";
 
-/// CSS classes for the indent/outdent and move buttons.
-const ACTION_BTN: &str = "\
+/// CSS classes for the flex-direction `<select>`.
+const SELECT_CLASS: &str = "\
+    rounded \
+    px-2 py-0.5 \
+    text-sm \
+    bg-gray-700 \
+    hover:bg-gray-600 \
+    text-gray-200 \
+    border \
+    border-gray-600 \
+    focus:outline-none \
+    focus:border-blue-400 \
+    cursor-pointer\
+";
+
+/// CSS classes for the remove button.
+const REMOVE_BTN: &str = "\
     text-gray-500 \
-    hover:text-gray-200 \
+    hover:text-red-400 \
     text-xs \
     cursor-pointer \
-    px-0.5 \
+    px-1 \
     select-none \
     leading-none\
 ";
 
-/// CSS classes for a disabled (greyed-out) action button.
-const ACTION_BTN_DISABLED: &str = "\
-    text-gray-700 \
-    text-xs \
-    px-0.5 \
-    select-none \
-    leading-none \
-    cursor-default\
-";
-
-/// A single row in the thing layout hierarchy editor.
+/// A single row in the thing layout direction editor.
+///
+/// Shows the thing ID, a `<select>` for picking the flex direction, and a
+/// remove button that deletes the override (reverting to the depth-based
+/// default).
 ///
 /// # Props
 ///
 /// * `input_diagram`: the shared diagram signal.
-/// * `thing_id`: the `ThingId` for this entry, e.g. `ThingId` for `"t_aws"`.
-/// * `depth`: nesting depth (`0` = top-level).
-/// * `flat_index`: the index of this entry in the flattened list.
-/// * `flat_len`: total number of entries in the flattened list.
-/// * `is_first_sibling`: whether this is the first sibling at its depth.
-/// * `is_last_sibling`: whether this is the last sibling at its depth.
-/// * `drag_index`: signal tracking which row is being dragged.
-/// * `drop_target`: signal tracking which row is the current drop target.
-/// * `focus_index`: signal that, when set to `Some(idx)`, causes the row at
-///   that flat index to receive focus after the next DOM update.
+/// * `thing_id`: the `ThingId` whose layout direction is being configured.
+/// * `direction`: the currently selected `FlexDirection`.
 #[component]
 pub fn ThingLayoutRow(
     input_diagram: Signal<InputDiagram<'static>>,
     thing_id: ThingId<'static>,
-    depth: usize,
-    flat_index: usize,
-    flat_len: usize,
-    is_first_sibling: bool,
-    is_last_sibling: bool,
-    drag_index: Signal<Option<usize>>,
-    drop_target: Signal<Option<usize>>,
-    mut focus_index: Signal<Option<usize>>,
+    direction: FlexDirection,
 ) -> Element {
-    let border_class = drag_border_class(drag_index, drop_target, flat_index);
-    let indent_px = depth * 24;
-
-    // Determine which actions are available.
-    let can_move_up = flat_index > 0;
-    let can_move_down = flat_index + 1 < flat_len;
-    // Indent requires a previous sibling to become a child of.
-    let can_indent = !is_first_sibling;
-    let can_outdent = depth > 0;
-
-    let up_btn_class = if can_move_up {
-        ACTION_BTN
-    } else {
-        ACTION_BTN_DISABLED
-    };
-    let down_btn_class = if can_move_down {
-        ACTION_BTN
-    } else {
-        ACTION_BTN_DISABLED
-    };
-    let indent_btn_class = if can_indent {
-        ACTION_BTN
-    } else {
-        ACTION_BTN_DISABLED
-    };
-    let outdent_btn_class = if can_outdent {
-        ACTION_BTN
-    } else {
-        ACTION_BTN_DISABLED
-    };
-
     let thing_id_display = thing_id.to_string();
+
+    // Map direction to select index.
+    let selected_value = match direction {
+        FlexDirection::Row => "row",
+        FlexDirection::RowReverse => "row_reverse",
+        FlexDirection::Column => "column",
+        FlexDirection::ColumnReverse => "column_reverse",
+    };
+
+    let thing_id_for_change = thing_id.clone();
+    let thing_id_for_remove = thing_id.clone();
 
     rsx! {
         div {
-            class: "{LAYOUT_ROW_CLASS} {border_class}",
-            tabindex: "-1",
-            draggable: "true",
-            style: "padding-left: {indent_px}px;",
-            "data-thing-layout-row": "true",
-            "data-input-diagram-field": "thing_layout_row_{thing_id_display}",
-
-            // === Keyboard shortcuts === //
-            onkeydown: move |evt| {
-                let ctrl = evt.modifiers().ctrl();
-                let alt = evt.modifiers().alt();
-                let shift = evt.modifiers().shift();
-
-                match evt.key() {
-                    Key::ArrowUp if ctrl => {
-                        evt.prevent_default();
-                        // Focus the first sibling row.
-                        document::eval(
-                            "document.activeElement\
-                                ?.parentNode\
-                                ?.firstElementChild\
-                                ?.focus()",
-                        );
-                    }
-                    Key::ArrowDown if ctrl => {
-                        evt.prevent_default();
-                        // Focus the last sibling row.
-                        document::eval(
-                            "document.activeElement\
-                                ?.parentNode\
-                                ?.lastElementChild\
-                                ?.focus()",
-                        );
-                    }
-                    Key::ArrowUp if alt => {
-                        evt.prevent_default();
-                        if let Some(new_idx) = ThingLayoutOps::entry_move_up(
-                            &mut input_diagram.write(),
-                            flat_index,
-                        ) {
-                            focus_index.set(Some(new_idx));
-                        }
-                    }
-                    Key::ArrowDown if alt => {
-                        evt.prevent_default();
-                        if let Some(new_idx) = ThingLayoutOps::entry_move_down(
-                            &mut input_diagram.write(),
-                            flat_index,
-                        ) {
-                            focus_index.set(Some(new_idx));
-                        }
-                    }
-                    Key::ArrowUp => {
-                        evt.prevent_default();
-                        // Focus the previous sibling row.
-                        document::eval(
-                            "document.activeElement\
-                                ?.previousElementSibling\
-                                ?.focus()",
-                        );
-                    }
-                    Key::ArrowDown => {
-                        evt.prevent_default();
-                        // Focus the next sibling row.
-                        document::eval(
-                            "document.activeElement\
-                                ?.nextElementSibling\
-                                ?.focus()",
-                        );
-                    }
-                    Key::Escape => {
-                        evt.prevent_default();
-                        // Return focus to the parent ThingLayoutRows
-                        // container.
-                        document::eval(
-                            "document.activeElement\
-                                ?.closest('[data-thing-layout-rows]')\
-                                ?.focus()",
-                        );
-                    }
-                    Key::Tab if shift => {
-                        evt.prevent_default();
-                        if let Some(new_idx) = ThingLayoutOps::entry_outdent(
-                            &mut input_diagram.write(),
-                            flat_index,
-                        ) {
-                            focus_index.set(Some(new_idx));
-                        }
-                    }
-                    Key::Tab => {
-                        evt.prevent_default();
-                        if let Some(new_idx) = ThingLayoutOps::entry_indent(
-                            &mut input_diagram.write(),
-                            flat_index,
-                        ) {
-                            focus_index.set(Some(new_idx));
-                        }
-                    }
-                    _ => {}
-                }
-            },
-
-            // === Drag-and-drop === //
-            ondragstart: move |_| {
-                drag_index.set(Some(flat_index));
-            },
-            ondragover: move |evt| {
-                evt.prevent_default();
-                drop_target.set(Some(flat_index));
-            },
-            ondrop: move |evt| {
-                evt.prevent_default();
-                if let Some(from) = *drag_index.read()
-                    && from != flat_index
-                {
-                    ThingLayoutOps::entry_drag_move(
-                        &mut input_diagram.write(),
-                        from,
-                        flat_index,
-                    );
-                }
-                drag_index.set(None);
-                drop_target.set(None);
-            },
-            ondragend: move |_| {
-                drag_index.set(None);
-                drop_target.set(None);
-            },
-
-            // === Drag handle === //
-            span {
-                class: DRAG_HANDLE,
-                title: "Drag to reorder",
-                "⠿"
-            }
-
-            // === Move buttons === //
-            span {
-                class: "{up_btn_class}",
-                title: "Move up (Alt+Up)",
-                onclick: move |_| {
-                    if can_move_up
-                        && let Some(new_idx) = ThingLayoutOps::entry_move_up(
-                            &mut input_diagram.write(),
-                            flat_index,
-                        ) {
-                            focus_index.set(Some(new_idx));
-                        }
-                },
-                "▲"
-            }
-            span {
-                class: "{down_btn_class}",
-                title: "Move down (Alt+Down)",
-                onclick: move |_| {
-                    if can_move_down
-                        && let Some(new_idx) = ThingLayoutOps::entry_move_down(
-                            &mut input_diagram.write(),
-                            flat_index,
-                        ) {
-                            focus_index.set(Some(new_idx));
-                        }
-                },
-                "▼"
-            }
-
-            // === Indent / Outdent buttons === //
-            span {
-                class: "{outdent_btn_class}",
-                title: "Outdent (Shift+Tab)",
-                onclick: move |_| {
-                    if can_outdent
-                        && let Some(new_idx) = ThingLayoutOps::entry_outdent(
-                            &mut input_diagram.write(),
-                            flat_index,
-                        ) {
-                            focus_index.set(Some(new_idx));
-                        }
-                },
-                "⇤"
-            }
-            span {
-                class: "{indent_btn_class}",
-                title: "Indent (Tab)",
-                onclick: move |_| {
-                    if can_indent
-                        && let Some(new_idx) = ThingLayoutOps::entry_indent(
-                            &mut input_diagram.write(),
-                            flat_index,
-                        ) {
-                            focus_index.set(Some(new_idx));
-                        }
-                },
-                "⇥"
-            }
+            class: ROW_CLASS,
+            "data-input-diagram-field": "thing_layout_{thing_id_display}",
 
             // === Thing ID label === //
             span {
@@ -323,11 +89,48 @@ pub fn ThingLayoutRow(
                     text-sm \
                     font-mono \
                     text-gray-200 \
-                    select-none \
                     truncate\
                 ",
                 title: "{thing_id_display}",
                 "{thing_id_display}"
+            }
+
+            // === Direction select === //
+            select {
+                class: SELECT_CLASS,
+                value: selected_value,
+                "aria-label": "Flex direction for {thing_id_display}",
+                onchange: move |evt: dioxus::events::FormEvent| {
+                    let new_direction = match evt.value().as_str() {
+                        "row" => FlexDirection::Row,
+                        "row_reverse" => FlexDirection::RowReverse,
+                        "column" => FlexDirection::Column,
+                        "column_reverse" => FlexDirection::ColumnReverse,
+                        _ => return,
+                    };
+                    input_diagram
+                        .write()
+                        .thing_layouts
+                        .insert(thing_id_for_change.clone(), new_direction);
+                },
+
+                option { value: "row", "Row" }
+                option { value: "row_reverse", "Row Reverse" }
+                option { value: "column", "Column" }
+                option { value: "column_reverse", "Column Reverse" }
+            }
+
+            // === Remove button === //
+            span {
+                class: REMOVE_BTN,
+                title: "Remove layout override",
+                onclick: move |_| {
+                    input_diagram
+                        .write()
+                        .thing_layouts
+                        .remove(&thing_id_for_remove);
+                },
+                "✕"
             }
         }
     }
