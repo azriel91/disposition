@@ -17,7 +17,10 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 
-use crate::{editor_state::EditorState, hooks::use_timeout};
+use crate::{
+    components::editor::common::DATA_INPUT_DIAGRAM_FIELD, editor_state::EditorState,
+    hooks::use_timeout,
+};
 
 // === CSS constants === //
 
@@ -190,11 +193,27 @@ pub fn ShareModal(
         );
     });
 
+    // Callback to hide the modal and refocus on last focused field.
+    let mut on_hide = move || {
+        show.set(false);
+        if let Some(field) = &*last_focused_field.read() {
+            document::eval(
+                format!(
+                    "requestAnimationFrame(() => {{\
+                        var el = document.querySelector('[{DATA_INPUT_DIAGRAM_FIELD}=\"{field}\"]');\
+                        if (el) el.focus();\
+                    }})"
+                )
+                .as_str(),
+            );
+        }
+    };
+
     rsx! {
         div {
             class: BACKDROP_CLASS,
             // Clicking the backdrop closes the modal.
-            onclick: move |_| show.set(false),
+            onclick: move |_| on_hide(),
 
             div {
                 class: MODAL_CLASS,
@@ -205,7 +224,7 @@ pub fn ShareModal(
                     if evt.key() == Key::Escape {
                         evt.prevent_default();
                         evt.stop_propagation();
-                        show.set(false);
+                        on_hide();
                     }
                 },
 
@@ -218,7 +237,7 @@ pub fn ShareModal(
                     }
                     span {
                         class: CLOSE_BTN_CLASS,
-                        onclick: move |_| show.set(false),
+                        onclick: move |_| on_hide(),
                         "❌"
                     }
                 }
