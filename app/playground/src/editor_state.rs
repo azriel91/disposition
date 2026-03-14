@@ -31,6 +31,28 @@ pub struct EditorState {
     #[serde(default)]
     pub page: EditorPage,
 
+    /// The `data-input-diagram-field` value of the field to focus on page
+    /// load.
+    ///
+    /// When a URL is opened with this field set, the editor will:
+    ///
+    /// 1. Expand any collapsible cards whose field ID is a prefix of this value
+    ///    (so that nested fields are visible).
+    /// 2. Focus the DOM element matching
+    ///    `[data-input-diagram-field="{value}"]`.
+    /// 3. Clear the field from the URL after focusing, so that subsequent edits
+    ///    do not keep re-focusing.
+    ///
+    /// # Examples
+    ///
+    /// * `Some("proc_app_dev")` -- focus the process card with ID
+    ///   `proc_app_dev`.
+    /// * `Some("proc_app_dev_step_2")` -- expand the `proc_app_dev` card, then
+    ///   focus the third step row inside it.
+    /// * `None` -- no field to focus (the default).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focus_field: Option<String>,
+
     /// The input diagram being edited.
     #[serde(default)]
     pub input_diagram: InputDiagram<'static>,
@@ -144,6 +166,7 @@ input_diagram:
         for page in enum_iterator::all::<EditorPage>() {
             let state = EditorState {
                 page: page.clone(),
+                focus_field: None,
                 input_diagram: InputDiagram::default(),
             };
             let yaml = state.to_string();
@@ -173,6 +196,54 @@ input_diagram:
         assert_eq!(
             EditorPage::Theme(EditorPageTheme::BaseStyles).top_level_index(),
             EditorPage::Theme(EditorPageTheme::StyleAliases).top_level_index(),
+        );
+    }
+
+    #[test]
+    fn focus_field_none_not_serialized() {
+        let state = EditorState {
+            page: EditorPage::default(),
+            focus_field: None,
+            input_diagram: InputDiagram::default(),
+        };
+        let yaml = state.to_string();
+        assert!(
+            !yaml.contains("focus_field"),
+            "focus_field: None should be omitted from serialized YAML, got:\n{yaml}"
+        );
+    }
+
+    #[test]
+    fn focus_field_some_round_trips() {
+        let state = EditorState {
+            page: EditorPage::Processes,
+            focus_field: Some(String::from("proc_app_dev_step_2")),
+            input_diagram: InputDiagram::default(),
+        };
+        let yaml = state.to_string();
+        assert!(
+            yaml.contains("focus_field"),
+            "focus_field: Some(_) should appear in serialized YAML, got:\n{yaml}"
+        );
+        let parsed: EditorState = yaml.parse().expect("parse failed");
+        assert_eq!(
+            state.focus_field, parsed.focus_field,
+            "focus_field must survive round-trip"
+        );
+        assert_eq!(state.page, parsed.page);
+    }
+
+    #[test]
+    fn focus_field_missing_in_yaml_defaults_to_none() {
+        let yaml_input = "\
+page: thing_dependencies
+input_diagram:
+  things: {}
+";
+        let state: EditorState = yaml_input.parse().expect("parse failed");
+        assert_eq!(
+            state.focus_field, None,
+            "Missing focus_field should default to None"
         );
     }
 

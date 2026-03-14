@@ -15,7 +15,7 @@ mod undo_redo_toolbar;
 
 use dioxus::{
     document,
-    hooks::{use_memo, use_signal},
+    hooks::{use_context_provider, use_effect, use_memo, use_signal},
     prelude::{
         component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Key,
         ModifiersInteraction, Props,
@@ -74,6 +74,43 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
     // The active editor page.
     let mut active_page: Signal<EditorPage> = use_signal(|| editor_state.read().page.clone());
 
+    // === Focus field: expand + focus a specific field on page load === //
+
+    // Capture the initial `focus_field` from the URL. This signal is provided
+    // via context so that card components can check whether they should start
+    // expanded. It is consumed once (on mount) and then cleared.
+    let focus_field: Signal<Option<String>> =
+        use_signal(|| editor_state.read().focus_field.clone());
+    use_context_provider(|| focus_field);
+
+    // After the first render, run a JS snippet that focuses the target
+    // element and then clear `focus_field` from the URL so subsequent
+    // edits don't re-trigger the focus.
+    use_effect(move || {
+        let field_value = focus_field.read().clone();
+        if let Some(ref field_id) = field_value {
+            let selector = format!("[data-input-diagram-field=\"{field_id}\"]");
+            let js = format!(
+                "requestAnimationFrame(() => {{\
+                    var el = document.querySelector('{selector}');\
+                    if (el) el.focus();\
+                }})"
+            );
+            document::eval(&js);
+
+            // Strip `focus_field` from the URL so it doesn't persist.
+            let diagram = input_diagram.peek().clone();
+            let page = active_page.peek().clone();
+            navigator().replace(Route::Home {
+                editor_state: EditorState {
+                    page,
+                    focus_field: None,
+                    input_diagram: diagram,
+                },
+            });
+        }
+    });
+
     // === Undo history === //
 
     let undo_history: Signal<UndoHistory> =
@@ -112,6 +149,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
             navigator().replace(Route::Home {
                 editor_state: EditorState {
                     page,
+                    focus_field: None,
                     input_diagram: diagram,
                 },
             });

@@ -13,7 +13,7 @@
 use dioxus::{
     core::Event,
     document,
-    hooks::use_signal,
+    hooks::{try_use_context, use_signal},
     html::KeyboardData,
     signals::{ReadableExt, Signal, WritableExt},
 };
@@ -59,18 +59,44 @@ pub struct CardState {
 }
 
 impl CardComponent {
+    /// Returns `true` if the focus-field context targets `card_field_id` or
+    /// one of its children (i.e. the focus field value equals the card's
+    /// field ID or starts with `"{card_field_id}_"`).
+    ///
+    /// The focus-field context is a `Signal<Option<String>>` provided by
+    /// [`DispositionEditor`](crate::components::DispositionEditor) via
+    /// `use_context_provider`. If no context is available (e.g. in tests),
+    /// this returns `false`.
+    fn should_expand_for_focus(card_field_id: &str) -> bool {
+        let focus_field: Option<Signal<Option<String>>> = try_use_context();
+        match focus_field {
+            Some(signal) => match &*signal.read() {
+                Some(focus) => {
+                    focus == card_field_id || focus.starts_with(&format!("{card_field_id}_"))
+                }
+                None => false,
+            },
+            None => false,
+        }
+    }
+
     /// Initializes a [`CardState`] for a card that does **not** support ID
     /// renaming.
     ///
-    /// The card starts collapsed. Use this for cards like
-    /// `CssClassPartialsCard` and `StyleAliasesSection`.
+    /// The card starts collapsed unless the focus-field context targets this
+    /// card or one of its children, in which case it starts expanded. Use
+    /// this for cards like `CssClassPartialsCard` and
+    /// `StyleAliasesSection`.
     ///
     /// # Parameters
     ///
     /// * `index`: zero-based position of this card in the list.
     /// * `entry_count`: total number of entries in the list.
-    pub fn state_init(index: usize, entry_count: usize) -> CardState {
-        let collapsed = use_signal(|| true);
+    /// * `card_field_id`: the `data-input-diagram-field` value of this card,
+    ///   used to check against the focus-field context.
+    pub fn state_init(index: usize, entry_count: usize, card_field_id: &str) -> CardState {
+        let expand_for_focus = Self::should_expand_for_focus(card_field_id);
+        let collapsed = use_signal(move || !expand_for_focus);
         let rename_target = use_signal(|| RenameRefocusTarget::IdInput);
 
         CardState {
@@ -85,8 +111,10 @@ impl CardComponent {
     /// Initializes a [`CardState`] for a card that supports ID renaming.
     ///
     /// When `rename_refocus` matches `card_id`, the card starts expanded so
-    /// the user can see the renamed entry. Use this for cards like
-    /// `ProcessCard`, `TagThingsCard`, and `EdgeGroupCard`.
+    /// the user can see the renamed entry. The card also starts expanded
+    /// when the focus-field context targets this card or one of its
+    /// children. Use this for cards like `ProcessCard`, `TagThingsCard`,
+    /// and `EdgeGroupCard`.
     ///
     /// # Parameters
     ///
@@ -94,16 +122,17 @@ impl CardComponent {
     /// * `entry_count`: total number of entries in the list.
     /// * `rename_refocus`: signal carrying the post-rename refocus context.
     /// * `card_id`: the current ID of this card, used to check against
-    ///   `rename_refocus`.
+    ///   `rename_refocus` and the focus-field context.
     pub fn state_init_with_rename(
         index: usize,
         entry_count: usize,
         rename_refocus: Signal<Option<RenameRefocus>>,
         card_id: &str,
     ) -> CardState {
+        let expand_for_focus = Self::should_expand_for_focus(card_id);
         let collapsed = use_signal({
             let is_target = is_rename_target(rename_refocus, card_id);
-            move || !is_target
+            move || !(is_target || expand_for_focus)
         });
         let rename_target = use_signal(|| RenameRefocusTarget::IdInput);
 

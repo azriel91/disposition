@@ -102,7 +102,7 @@ pub fn CssClassPartialsCard(
     drop_target: Signal<Option<usize>>,
     mut focus_index: Signal<Option<usize>>,
 ) -> Element {
-    let card_state = CardComponent::state_init(entry_index, entry_count);
+    let card_state = CardComponent::state_init(entry_index, entry_count, &entry_key);
     let mut collapsed = card_state.collapsed;
     let border_class = drag_border_class(drag_index, drop_target, entry_index);
 
