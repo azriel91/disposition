@@ -42,14 +42,13 @@ pub fn ExampleDiagramSelect(input_diagram: Signal<InputDiagram<'static>>) -> Ele
             "aria-label": "Load example diagram",
             onchange: move |evt: dioxus::events::FormEvent| {
                 let value = evt.value();
-                if let Ok(index) = value.parse::<usize>() {
-                    if let Some(example) = ExampleDiagram::from_index(index) {
+                if let Ok(index) = value.parse::<usize>()
+                    && let Some(example) = ExampleDiagram::from_index(index) {
                         let yaml = example.yaml();
                         if let Ok(diagram) = serde_saphyr::from_str::<InputDiagram<'static>>(yaml) {
                             input_diagram.set(diagram);
                         }
                     }
-                }
             },
 
             // Placeholder option that is always the visible default.

@@ -157,7 +157,7 @@ impl InputDiagramMerger {
     ) -> ThingLayouts<'id> {
         let mut result = base;
         overlay.iter().for_each(|(key, value)| {
-            result.insert(key.clone(), value.clone());
+            result.insert(key.clone(), *value);
         });
         result
     }
