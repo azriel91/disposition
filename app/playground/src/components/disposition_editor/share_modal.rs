@@ -156,7 +156,7 @@ pub fn ShareModal(
 
     // Full URL including origin -- computed via JS since we don't have
     // access to `window.location.origin` directly in Rust.
-    let mut full_url: Signal<String> = use_signal(|| String::new());
+    let mut full_url: Signal<String> = use_signal(String::new);
     use_effect(move || {
         let fragment = share_url.read().clone();
         spawn(async move {

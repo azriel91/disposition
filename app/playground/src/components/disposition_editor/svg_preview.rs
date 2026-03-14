@@ -17,7 +17,7 @@ pub fn SvgPreview(svg: Memo<String>, show_share_modal: Signal<bool>) -> Element 
                     gap-1\
                 ",
                 ShareButton { show_share_modal }
-                CopyButton { text_to_copy: svg.clone() }
+                CopyButton { text_to_copy: svg }
             },
             object {
                 class: "
