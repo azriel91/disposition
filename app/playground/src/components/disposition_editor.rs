@@ -384,6 +384,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 flex-col
                 lg:flex-row
                 gap-2
+                [&>*]:flex-1
             ",
             // Track the last focused `data-input-diagram-field` element
             // so the share modal can include it in the URL.
@@ -502,7 +503,6 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
             // === Left column: editor tabs + status + intermediates === //
             div {
                 class: "
-                    flex-1
                     flex
                     flex-col
                     gap-2
@@ -550,31 +550,36 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 }
 
                 DispositionStatusMessageDiv { status_messages }
-
-                TabGroup {
-                    group_name: "intermediate_tabs",
-                    default_checked: 0usize,
-                    tabs: vec![
-                        TabDetails {
-                            label: String::from("IR Diagram"),
-                            content: rsx! { IrDiagramDiv { ir_diagram_string } },
-                        },
-                        TabDetails {
-                            label: String::from("Taffy Node Mappings"),
-                            content: rsx! { TaffyNodeMappingsDiv { taffy_node_mappings_string } },
-                        },
-                        TabDetails {
-                            label: String::from("SVG Elements"),
-                            content: rsx! { SvgElementsDiv { svg_elements_string } },
-                        },
-                    ],
-                }
             }
 
-            // === Right column: SVG preview === //
-            SvgPreview {
-                svg,
-                show_share_modal,
+            // === Right column: Intermediate transformations and SVG preview === //
+
+            TabGroup {
+                group_name: "intermediate_tabs",
+                default_checked: 0usize,
+                tabs: vec![
+                    TabDetails {
+                        label: String::from("SVG Preview"),
+                        content: rsx! {
+                            SvgPreview {
+                                svg,
+                                show_share_modal,
+                            }
+                        },
+                    },
+                    TabDetails {
+                        label: String::from("IR Diagram"),
+                        content: rsx! { IrDiagramDiv { ir_diagram_string } },
+                    },
+                    TabDetails {
+                        label: String::from("Taffy Node Mappings"),
+                        content: rsx! { TaffyNodeMappingsDiv { taffy_node_mappings_string } },
+                    },
+                    TabDetails {
+                        label: String::from("SVG Elements"),
+                        content: rsx! { SvgElementsDiv { svg_elements_string } },
+                    },
+                ],
             }
         }
 
