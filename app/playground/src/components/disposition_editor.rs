@@ -9,11 +9,14 @@ mod editor_page_content;
 mod editor_tab_bar;
 mod focus_restore;
 mod help_tooltip;
+mod share_button;
+mod share_modal;
 mod svg_preview;
 mod taffy_tree_fmt;
 mod undo_redo_toolbar;
 
 use dioxus::{
+    core::spawn,
     document,
     hooks::{use_context_provider, use_effect, use_memo, use_signal},
     prelude::{
@@ -57,6 +60,8 @@ pub(crate) use self::{
     editor_tab_bar::EditorTabBar,
     focus_restore::{JS_FOCUS_RESTORE, JS_FOCUS_SAVE},
     help_tooltip::HelpTooltip,
+    share_button::ShareButton,
+    share_modal::ShareModal,
     svg_preview::SvgPreview,
     taffy_tree_fmt::TaffyTreeFmt,
     undo_redo_toolbar::UndoRedoToolbar,
@@ -111,6 +116,31 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         }
     });
 
+    // === Last focused field: tracked for the share modal === //
+
+    // Stores the `data-input-diagram-field` attribute value of the most
+    // recently focused editor field. Updated via a `focusin` listener on
+    // the editor root so it is always current, even after the user clicks
+    // the Share button (which moves focus away from the field).
+    let mut last_focused_field: Signal<Option<String>> = use_signal(|| None);
+
+    // Share modal visibility.
+    let mut show_share_modal: Signal<bool> = use_signal(|| false);
+
+    // The editor state as a writable signal, kept in sync with
+    // `input_diagram` and `active_page` for the share modal.
+    let mut editor_state_for_share: Signal<EditorState> = use_signal(|| EditorState {
+        page: active_page.peek().clone(),
+        focus_field: None,
+        input_diagram: input_diagram.peek().clone(),
+    });
+    use_memo(move || {
+        let diagram = input_diagram.read().clone();
+        let page = active_page.read().clone();
+        editor_state_for_share.write().page = page;
+        editor_state_for_share.write().input_diagram = diagram;
+    });
+
     // === Undo history === //
 
     let undo_history: Signal<UndoHistory> =
@@ -126,6 +156,14 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
 
     // Help tooltip visibility.
     let mut show_help: Signal<bool> = use_signal(|| false);
+
+    // JavaScript snippet that captures the `data-input-diagram-field`
+    // attribute of the focused element and sends it back to Rust via
+    // `dioxus.send()`. Used in the `onfocusin` handler below.
+    const JS_CAPTURE_FOCUSED_FIELD: &str = "\
+        var el = document.activeElement;\
+        var field = el ? el.closest('[data-input-diagram-field]') : null;\
+        dioxus.send(field ? field.getAttribute('data-input-diagram-field') : '');";
 
     // === Sync: incoming EditorState prop -> local signals === //
 
@@ -347,14 +385,30 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 lg:flex-row
                 gap-2
             ",
+            // Track the last focused `data-input-diagram-field` element
+            // so the share modal can include it in the URL.
+            onfocusin: move |_| {
+                spawn(async move {
+                    let result = document::eval(JS_CAPTURE_FOCUSED_FIELD)
+                        .recv::<String>()
+                        .await
+                        .ok()
+                        .unwrap_or_default();
+                    if !result.is_empty() {
+                        last_focused_field.set(Some(result));
+                    }
+                });
+            },
+
             // Global keyboard shortcuts:
             //
             // - ctrl + z = undo, ctrl + shift + z / ctrl + y = redo.
             // - alt + 1..9 = switch to top-level tab N.
             // - alt + 0 = switch to the last top-level tab.
             // - shift + ? = show help tooltip (keyboard shortcuts).
+            // - ctrl + shift + s = open share modal.
             //
-            // Meta (Cmd on macOS) is also supported for undo/redo.
+            // Meta (Cmd on macOS) is also supported for undo/redo and share.
             onkeydown: move |evt| {
                 if evt.modifiers().shift() && let Key::Character(ref c) = evt.key() && c == "?" {
                     let show_help_current = *show_help.read();
@@ -407,6 +461,11 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 }
 
                 match evt.key() {
+                    Key::Character(ref c) if c.eq_ignore_ascii_case("k") => {
+                        evt.prevent_default();
+                        evt.stop_propagation();
+                        show_share_modal.set(true);
+                    }
                     Key::Character(ref c) if c.eq_ignore_ascii_case("z") => {
                         evt.prevent_default();
                         evt.stop_propagation();
@@ -513,7 +572,17 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
             }
 
             // === Right column: SVG preview === //
-            SvgPreview { svg }
+            SvgPreview {
+                svg,
+                show_share_modal,
+            }
+        }
+
+        // === Share modal === //
+        ShareModal {
+            show: show_share_modal,
+            editor_state: editor_state_for_share,
+            last_focused_field,
         }
     }
 }

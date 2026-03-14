@@ -312,6 +312,17 @@ pub fn HelpTooltip(show_help: Signal<bool>) -> Element {
 
                         div { class: DIVIDER }
 
+                        // === Share === //
+                        div { class: SECTION_HEADING, "Share" }
+
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "{ctrl} + K" }
+                            span { "Open the share modal with a link to the current editor state." }
+                        }
+
+                        div { class: DIVIDER }
+
                         // === Help === //
                         div { class: SECTION_HEADING, "Help" }
 
