@@ -12,8 +12,9 @@ pub use self::{
     taffy_node_mappings_div::TaffyNodeMappingsDiv,
 };
 
-mod disposition_editor;
 pub mod editor;
+
+mod disposition_editor;
 mod input_diagram_div;
 mod ir_diagram_div;
 mod svg_elements_div;

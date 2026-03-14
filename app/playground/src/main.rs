@@ -11,6 +11,7 @@ use crate::route::Route;
 
 mod components;
 mod editor_state;
+mod hooks;
 mod route;
 mod undo_history;
 mod views;

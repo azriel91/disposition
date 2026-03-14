@@ -33,6 +33,7 @@ use disposition_input_ir_rt::{
     SvgElementsToSvgMapper, TaffyToSvgElementsMapper,
 };
 
+use std::time::Duration;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
@@ -44,6 +45,7 @@ use crate::{
         TaffyNodeMappingsDiv,
     },
     editor_state::{EditorPage, EditorState},
+    hooks::use_timeout,
     route::Route,
     undo_history::{history_push, history_redo, history_undo, UndoHistory},
 };
@@ -479,6 +481,11 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
 #[component]
 pub fn SvgPreview(svg: Memo<String>) -> Element {
     let mut clipboard = dioxus_clipboard::hooks::use_clipboard();
+    let mut copied_signal = use_signal(|| false);
+    let mut copied_text_visibility = use_signal(|| "hidden");
+    let _copied_timeout = use_timeout(Duration::from_secs(1), copied_signal, move || {
+        copied_text_visibility.set("hidden");
+    });
 
     rsx! {
         div {
@@ -494,8 +501,7 @@ pub fn SvgPreview(svg: Memo<String>) -> Element {
                         flex \
                         justify-center \
                         items-center \
-                        h-9 \
-                        w-9 \
+                        p-2 \
                         text-gray-200 \
                         rounded-lg \
                         bg-gray-800 \
@@ -512,15 +518,29 @@ pub fn SvgPreview(svg: Memo<String>) -> Element {
                     title: "Copy to clipboard",
                     onclick: move |_| async move {
                         match clipboard.set(svg().clone()).await {
-                            Ok(()) => {}
+                            Ok(()) => {
+                                copied_text_visibility.set("visible");
+                                copied_signal.set(true);
+                            }
                             Err(e) => {
                                 debug!("Failed to copy SVG to clipboard: {:?}", e);
                             }
                         }
                     },
+
+                    span {
+                        class: "\
+                            mr-2 \
+                            text-sm \
+                            font-semibold \
+                            {copied_text_visibility}\
+                        ",
+                        "Copied!"
+                    }
+
                     svg {
                         xmlns: "http://www.w3.org/2000/svg",
-                        class: "[&>*]:stroke-gray-200",
+                        class: "h-5 w-5 [&>*]:stroke-gray-200 [&>*]:stroke-2",
                         width: "24",
                         height: "24",
                         view_box: "0 0 24 24",
