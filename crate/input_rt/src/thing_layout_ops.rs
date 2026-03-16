@@ -8,6 +8,7 @@
 //! framework-specific signal type, making them testable without a UI runtime.
 
 use disposition_input_model::InputDiagram;
+use disposition_model_common::Id;
 
 use crate::flat_entry::{hierarchy_flatten, hierarchy_rebuild, FlatEntry};
 
@@ -318,6 +319,18 @@ impl ThingLayoutOps {
         }
 
         input_diagram.thing_hierarchy = hierarchy_rebuild(&entries);
+    }
+
+    /// Moves a `thing_layouts` entry from one index to another.
+    pub fn thing_layout_move(input_diagram: &mut InputDiagram<'static>, from: usize, to: usize) {
+        input_diagram.thing_layouts.move_index(from, to);
+    }
+
+    /// Removes a `thing_layouts` entry by its ID string.
+    pub fn thing_layout_remove(input_diagram: &mut InputDiagram<'static>, id_str: &str) {
+        if let Ok(id) = Id::new(id_str).map(Id::into_static) {
+            input_diagram.thing_layouts.remove(&id);
+        }
     }
 
     // === Helper functions === //
