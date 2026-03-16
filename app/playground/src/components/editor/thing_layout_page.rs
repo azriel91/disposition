@@ -25,7 +25,7 @@ use disposition::{
     model_common::{layout::FlexDirection, Id, Set},
 };
 
-use crate::components::editor::common::SECTION_HEADING;
+use crate::components::editor::common::{INPUT_CLASS, SECTION_HEADING};
 
 use self::{
     flat_entry::hierarchy_flatten, thing_hierarchy_row::ThingHierarchyRow,
@@ -33,22 +33,8 @@ use self::{
     thing_layout_rows::ThingLayoutRows,
 };
 
-/// CSS classes for the add-layout-override button.
-const ADD_BTN: &str = "\
-    rounded \
-    px-2 py-1 \
-    text-sm \
-    font-semibold \
-    cursor-pointer \
-    select-none \
-    bg-gray-700 \
-    hover:bg-gray-600 \
-    text-gray-200 \
-    border \
-    border-gray-600 \
-    focus:outline-none \
-    focus:border-blue-400\
-";
+/// Datalist element ID for the layout direction override input.
+const LAYOUT_OVERRIDE_IDS_DATALIST: &str = "layout_override_ids";
 
 /// The **Thing Layout** editor page.
 ///
@@ -93,8 +79,8 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
 
     // === Layout direction editor state === //
 
-    // Collect thing IDs that are containers (have children in the hierarchy)
-    // so the "Add" button can pick one that doesn't already have an override.
+    // Collect node inbuilt IDs and container thing IDs (things with children
+    // in the hierarchy) for the datalist suggestions.
     let node_inbuilt_and_container_thing_ids: Set<Id<'static>> =
         enum_iterator::all::<NodeInbuilt>()
             .map(NodeInbuilt::id)
@@ -118,14 +104,7 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
         .map(|(id, dir)| (id.clone(), *dir))
         .collect();
 
-    // Find the first container thing that doesn't already have an override,
-    // to enable/disable the add button.
-    let next_addable: Option<Id<'static>> = node_inbuilt_and_container_thing_ids
-        .iter()
-        .find(|id| !diagram.thing_layouts.contains_key(*id))
-        .cloned();
-
-    let has_addable = next_addable.is_some();
+    let has_suggestions = !node_inbuilt_and_container_thing_ids.is_empty();
 
     drop(diagram);
 
@@ -176,7 +155,7 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
 
             // === Section 2: Thing Layout Directions === //
             ThingLayoutRows {
-                if layout_entries.is_empty() && !has_addable {
+                if layout_entries.is_empty() && !has_suggestions {
                     p {
                         class: "text-xs text-gray-600 italic py-2 text-center",
                         "No container things in the hierarchy."
@@ -184,7 +163,7 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                 } else if layout_entries.is_empty() {
                     p {
                         class: "text-xs text-gray-600 italic py-2 text-center",
-                        "No direction overrides. Click + to add one."
+                        "No direction overrides. Type an ID below to add one."
                     }
                 }
 
@@ -203,43 +182,37 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                     }
                 }
 
-                // === Add button === //
-                if has_addable {
-                    button {
-                        class: ADD_BTN,
-                        title: "Add a layout direction override",
-                        onclick: move |_| {
-                            let diagram = input_diagram.read();
-                            // Recompute to avoid stale closure.
-                            let node_inbuilt_and_container_thing_ids: Vec<Id<'static>> = {
-                                let entries = hierarchy_flatten(&diagram.thing_hierarchy);
+                // === Add override input === //
+                datalist {
+                    id: LAYOUT_OVERRIDE_IDS_DATALIST,
+                    for id in node_inbuilt_and_container_thing_ids.iter() {
+                        option { value: "{id}" }
+                    }
+                }
 
-                                enum_iterator::all::<NodeInbuilt>()
-                                    .map(NodeInbuilt::id)
-                                    .chain(entries
-                                        .iter()
-                                        .enumerate()
-                                        .filter(|(i, _)| {
-                                            let next_depth = entries.get(i + 1).map(|e| e.depth);
-                                            next_depth.is_some_and(|d| d > entries[*i].depth)
-                                        })
-                                        .map(|(_, e)| e.thing_id.clone().into_inner()))
-                                    .collect()
-                            };
-                            let addable = node_inbuilt_and_container_thing_ids
-                                .iter()
-                                .find(|id| !diagram.thing_layouts.contains_key(*id))
-                                .cloned();
-                            drop(diagram);
+                div {
+                    class: "flex flex-row gap-2 items-center mt-1",
 
-                            if let Some(node_inbuilt_or_thing_id) = addable {
+                    input {
+                        class: INPUT_CLASS,
+                        style: "max-width:14rem",
+                        list: LAYOUT_OVERRIDE_IDS_DATALIST,
+                        placeholder: "node_inbuilt or thing_id",
+                        value: "",
+                        onchange: move |evt: dioxus::events::FormEvent| {
+                            let value = evt.value();
+                            let mut input_diagram = input_diagram.write();
+                            if let Ok(id) = Id::new(&value)
+                                && node_inbuilt_and_container_thing_ids.contains(&id)
+                                && !input_diagram.thing_layouts.contains_key(&id)
+                            {
+                                let id = id.into_static();
                                 input_diagram
-                                    .write()
                                     .thing_layouts
-                                    .insert(node_inbuilt_or_thing_id, FlexDirection::Row);
+                                    .entry(id)
+                                    .or_insert(FlexDirection::Row);
                             }
                         },
-                        "+ Add Direction Override"
                     }
                 }
             }
