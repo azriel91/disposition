@@ -253,6 +253,9 @@ pub fn CssClassPartialsCard(
                                     }
                                 }
                             },
+                            onkeydown: move |evt| {
+                                css_card_field_keydown(evt);
+                            },
                             "Revert to base"
                         }
                     }
