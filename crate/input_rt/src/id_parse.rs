@@ -8,7 +8,7 @@
 use disposition_input_model::{
     process::{ProcessId, ProcessStepId},
     tag::TagId,
-    theme::{StyleAlias, TagIdOrDefaults},
+    theme::{IdOrDefaults, StyleAlias, TagIdOrDefaults},
     thing::ThingId,
 };
 use disposition_model_common::{edge::EdgeGroupId, entity::EntityTypeId, Id};
@@ -71,6 +71,29 @@ pub fn parse_entity_type_id(s: &str) -> Option<EntityTypeId<'static>> {
     Id::new(s)
         .ok()
         .map(|id| EntityTypeId::from(id.into_static()))
+}
+
+/// Parse a string into an `IdOrDefaults<'static>`.
+///
+/// Returns built-in variants for the recognized sentinel strings, otherwise
+/// attempts to parse as a custom entity `Id`.
+///
+/// Recognized built-in keys:
+///
+/// * `"node_defaults"` -- `IdOrDefaults::NodeDefaults`
+/// * `"node_excluded_defaults"` -- `IdOrDefaults::NodeExcludedDefaults`
+/// * `"edge_defaults"` -- `IdOrDefaults::EdgeDefaults`
+///
+/// Valid values: `"node_defaults"`, `"edge_defaults"`, `"t_aws"`.
+pub fn parse_id_or_defaults(s: &str) -> Option<IdOrDefaults<'static>> {
+    match s {
+        "node_defaults" => Some(IdOrDefaults::NodeDefaults),
+        "node_excluded_defaults" => Some(IdOrDefaults::NodeExcludedDefaults),
+        "edge_defaults" => Some(IdOrDefaults::EdgeDefaults),
+        other => Id::new(other)
+            .ok()
+            .map(|id| IdOrDefaults::Id(id.into_static())),
+    }
 }
 
 /// Parse a string into a `TagIdOrDefaults<'static>`.

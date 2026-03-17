@@ -10,6 +10,7 @@ use dioxus::{
     signals::{Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_ir_rt::ThemeValueSource;
 
 use crate::components::editor::{common::REMOVE_BTN, reorderable::DragHandle};
 
@@ -30,6 +31,7 @@ pub fn CssClassPartialsCardSummary(
     alias_count: usize,
     attr_count: usize,
     mut collapsed: Signal<bool>,
+    value_source: ThemeValueSource,
 ) -> Element {
     let alias_suffix = if alias_count != 1 { "es" } else { "" };
     let attr_suffix = if attr_count != 1 { "s" } else { "" };
@@ -55,6 +57,19 @@ pub fn CssClassPartialsCardSummary(
             span {
                 class: "text-xs text-gray-500",
                 "({alias_count} alias{alias_suffix}, {attr_count} attr{attr_suffix})"
+            }
+
+            // Value source indicator
+            if value_source == ThemeValueSource::BaseDiagram {
+                span {
+                    class: "text-xs text-gray-500 italic",
+                    "(base)"
+                }
+            } else {
+                span {
+                    class: "text-xs text-amber-400",
+                    "(override)"
+                }
             }
 
             // === Remove button === //

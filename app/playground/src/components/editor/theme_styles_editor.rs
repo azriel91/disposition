@@ -29,22 +29,23 @@ pub(crate) mod css_class_partials_snapshot;
 pub(crate) mod theme_attr_entry;
 
 use dioxus::{
-    hooks::use_signal,
+    hooks::{use_context, use_signal},
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{ReadableExt, Signal, WritableExt},
+    signals::{Memo, ReadableExt, Signal, WritableExt},
 };
-use disposition::{
-    input_model::{
-        theme::{CssClassPartials, IdOrDefaults, StyleAlias, ThemeAttr, ThemeStyles},
-        InputDiagram,
-    },
-    model_common::Id,
+use disposition::input_model::{
+    theme::{CssClassPartials, IdOrDefaults, StyleAlias, ThemeAttr, ThemeStyles},
+    InputDiagram,
 };
+use disposition_input_ir_rt::{InputDiagramThemeSources, ThemeValueSource};
 
 use crate::components::editor::{
     common::{parse_entity_type_id, parse_tag_id_or_defaults, ADD_BTN},
     reorderable::ReorderableContainer,
 };
+
+// Re-export so that submodules can use `super::parse_id_or_defaults`.
+pub(crate) use crate::components::editor::common::parse_id_or_defaults;
 
 use self::{
     css_class_partials_card::CssClassPartialsCard,
@@ -151,24 +152,6 @@ pub(crate) fn theme_attr_name(attr: &ThemeAttr) -> &'static str {
         .unwrap_or("unknown")
 }
 
-/// Parse a string into an `IdOrDefaults`.
-///
-/// Returns the matching built-in variant for `"node_defaults"`,
-/// `"node_excluded_defaults"`, and `"edge_defaults"`, otherwise attempts to
-/// parse as a custom `Id`.
-///
-/// Valid values: `"node_defaults"`, `"edge_defaults"`, `"app_server"`.
-pub(crate) fn parse_id_or_defaults(s: &str) -> Option<IdOrDefaults<'static>> {
-    match s {
-        "node_defaults" => Some(IdOrDefaults::NodeDefaults),
-        "node_excluded_defaults" => Some(IdOrDefaults::NodeExcludedDefaults),
-        "edge_defaults" => Some(IdOrDefaults::EdgeDefaults),
-        other => Id::new(other)
-            .ok()
-            .map(|id| IdOrDefaults::Id(id.into_static())),
-    }
-}
-
 /// Parse a string into a `ThemeAttr` using the static table.
 ///
 /// Valid values: `"fill_color"`, `"stroke_width"`, `"opacity"`.
@@ -216,6 +199,17 @@ impl ThemeStylesTarget {
     /// Returns `None` when the outer map key does not (yet) exist for
     /// [`Self::TypesStyles`] or [`Self::TagFocus`] variants.
     pub(crate) fn read<'diag>(
+        &self,
+        diagram: &'diag InputDiagram<'static>,
+    ) -> Option<&'diag ThemeStyles<'static>> {
+        Self::read_from(self, diagram)
+    }
+
+    /// Read the [`ThemeStyles`] from the given diagram.
+    ///
+    /// Shared implementation used by both [`Self::read`] and
+    /// [`Self::read_merged`].
+    fn read_from<'diag>(
         &self,
         diagram: &'diag InputDiagram<'static>,
     ) -> Option<&'diag ThemeStyles<'static>> {
@@ -280,6 +274,60 @@ impl ThemeStylesTarget {
         }
     }
 
+    /// Returns a merged [`ThemeStyles`] combining base and overlay
+    /// entries for this target.
+    ///
+    /// Overlay entries override base entries with the same key. Base
+    /// entries not present in the overlay are preserved. The overlay
+    /// entries come first (preserving their order), followed by
+    /// base-only entries.
+    pub(crate) fn read_merged(
+        &self,
+        base_diagram: &InputDiagram<'static>,
+        overlay_diagram: &InputDiagram<'static>,
+    ) -> Option<ThemeStyles<'static>> {
+        let base_styles = Self::read_from(self, base_diagram);
+        let overlay_styles = Self::read_from(self, overlay_diagram);
+
+        match (base_styles, overlay_styles) {
+            (None, None) => None,
+            (None, Some(overlay)) => Some(overlay.clone()),
+            (Some(base), None) => Some(base.clone()),
+            (Some(base), Some(overlay)) => {
+                // Start with overlay entries (preserving their order).
+                let mut merged = overlay.clone();
+                // Append base-only entries.
+                for (key, value) in base.iter() {
+                    if !merged.contains_key(key) {
+                        merged.insert(key.clone(), value.clone());
+                    }
+                }
+                Some(merged)
+            }
+        }
+    }
+
+    /// Computes the [`ThemeValueSource`] for an entry key within this
+    /// target.
+    pub(crate) fn entry_source(
+        &self,
+        sources: &InputDiagramThemeSources<'_>,
+        entry_key: &str,
+    ) -> ThemeValueSource {
+        match self {
+            Self::BaseStyles => sources.base_styles_entry_source(entry_key),
+            Self::ProcessStepSelectedStyles => {
+                sources.process_step_selected_styles_entry_source(entry_key)
+            }
+            Self::TypesStyles { entity_type_key } => {
+                sources.types_styles_entry_source(entity_type_key, entry_key)
+            }
+            Self::DependenciesIncluded => sources.dependencies_included_entry_source(entry_key),
+            Self::DependenciesExcluded => sources.dependencies_excluded_entry_source(entry_key),
+            Self::TagFocus { tag_key } => sources.tag_focus_entry_source(tag_key, entry_key),
+        }
+    }
+
     /// Moves a `ThemeStyles` entry from one index to another within the
     /// targeted map.
     pub(crate) fn entry_move(
@@ -312,13 +360,21 @@ pub fn ThemeStylesEditor(
     // Focus-after-move state for css class partials card reorder.
     let css_card_focus_idx: Signal<Option<usize>> = use_signal(|| None);
 
-    let diagram = input_diagram.read();
-    let theme_styles = target.read(&diagram);
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
 
-    // If the target doesn't exist yet (e.g. a types-styles key was just
-    // removed), render an empty placeholder.
-    let Some(theme_styles) = theme_styles else {
+    let base = base_diagram.read();
+    let diagram = input_diagram.read();
+
+    // Merge base + overlay for this target so that base-only entries
+    // appear in the editor as read-only.
+    let merged_styles = target.read_merged(&base, &diagram);
+
+    // If neither the base nor the overlay has entries for this target
+    // (e.g. a types-styles key was just removed), render an empty
+    // placeholder.
+    let Some(merged_styles) = merged_styles else {
         drop(diagram);
+        drop(base);
         return rsx! {
             div {
                 class: "flex flex-col gap-2",
@@ -344,7 +400,8 @@ pub fn ThemeStylesEditor(
     };
 
     // Snapshot the entries so we can drop the borrow before event handlers.
-    let entries: Vec<CssClassPartialsSnapshot> = theme_styles
+    let sources = InputDiagramThemeSources::new(&base, &diagram);
+    let entries: Vec<CssClassPartialsSnapshot> = merged_styles
         .iter()
         .map(
             |(key, css_partials): (&IdOrDefaults<'static>, &CssClassPartials<'static>)| {
@@ -362,15 +419,18 @@ pub fn ThemeStylesEditor(
                         attr_value: val.clone(),
                     })
                     .collect();
+                let value_source = target.entry_source(&sources, &entry_key);
                 CssClassPartialsSnapshot {
                     entry_key,
                     style_aliases_applied,
                     theme_attrs,
+                    value_source,
                 }
             },
         )
         .collect();
     drop(diagram);
+    drop(base);
 
     let entry_count = entries.len();
 
@@ -384,28 +444,30 @@ pub fn ThemeStylesEditor(
                 focus_index: css_card_focus_idx,
 
                 for (idx, entry) in entries.iter().enumerate() {
-                    {
-                        let entry_key = entry.entry_key.clone();
-                        let style_aliases = entry.style_aliases_applied.clone();
-                        let theme_attrs = entry.theme_attrs.clone();
-                        let target = target.clone();
-                        rsx! {
-                            CssClassPartialsCard {
-                                key: "entry_{idx}_{entry_key}",
-                                input_diagram,
-                                target,
-                                entry_index: idx,
-                                entry_count,
-                                entry_key,
-                                style_aliases,
-                                theme_attrs,
-                                drag_index: css_card_drag_idx,
-                                drop_target: css_card_drop_target,
-                                focus_index: css_card_focus_idx,
+                        {
+                            let entry_key = entry.entry_key.clone();
+                            let style_aliases = entry.style_aliases_applied.clone();
+                            let theme_attrs = entry.theme_attrs.clone();
+                            let value_source = entry.value_source;
+                            let target = target.clone();
+                            rsx! {
+                                CssClassPartialsCard {
+                                    key: "entry_{idx}_{entry_key}",
+                                    input_diagram,
+                                    target,
+                                    entry_index: idx,
+                                    entry_count,
+                                    entry_key,
+                                    style_aliases,
+                                    theme_attrs,
+                                    value_source,
+                                    drag_index: css_card_drag_idx,
+                                    drop_target: css_card_drop_target,
+                                    focus_index: css_card_focus_idx,
+                                }
                             }
                         }
                     }
-                }
             }
 
             // === Add entry button === //

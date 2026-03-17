@@ -19,7 +19,9 @@ mod row_component;
 
 // === Re-exports from disposition_input_rt === //
 
-pub use disposition_input_rt::id_parse::{parse_entity_type_id, parse_tag_id_or_defaults};
+pub use disposition_input_rt::id_parse::{
+    parse_entity_type_id, parse_id_or_defaults, parse_tag_id_or_defaults,
+};
 
 // === Post-rename focus type === //
 

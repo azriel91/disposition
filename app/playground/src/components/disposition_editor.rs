@@ -90,6 +90,12 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         use_signal(|| editor_state.read().focus_field.clone());
     use_context_provider(|| focus_field);
 
+    // The base diagram for comparison. Theme editor components read this
+    // via `use_context` to show which values are from the base vs. user
+    // overrides.
+    let base_diagram: Memo<InputDiagram<'static>> = use_memo(move || InputDiagram::base());
+    use_context_provider(|| base_diagram);
+
     // After the first render, run a JS snippet that focuses the target
     // element and then clear `focus_field` from the URL so subsequent
     // edits don't re-trigger the focus.

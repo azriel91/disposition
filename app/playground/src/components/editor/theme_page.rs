@@ -16,14 +16,15 @@ pub(crate) mod types_styles_section;
 
 use crate::components::editor::common::RenameRefocus;
 use dioxus::{
-    hooks::use_signal,
+    hooks::{use_context, use_signal},
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{ReadableExt, Signal, WritableExt},
+    signals::{Memo, ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::{
     theme::{CssClassPartials, StyleAlias, TagIdOrDefaults, ThemeStyles},
     InputDiagram,
 };
+use disposition_input_ir_rt::{InputDiagramThemeSources, ThemeValueSource};
 
 use crate::components::editor::theme_styles_editor::{
     css_class_partials_snapshot::CssClassPartialsSnapshot, theme_attr_entry::ThemeAttrEntry,
@@ -60,37 +61,45 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
     // Post-rename focus state for style alias cards.
     let style_alias_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
 
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
+
     // Snapshot the entries so we can drop the borrow before event handlers.
+    // Merge base + overlay style aliases so that base-only entries appear
+    // as read-only in the editor.
     let entries: Vec<CssClassPartialsSnapshot> = {
+        let base = base_diagram.read();
         let diagram = input_diagram.read();
-        diagram
-            .theme_default
-            .style_aliases
-            .iter()
-            .map(
-                |(alias, css_partials): (&StyleAlias<'static>, &CssClassPartials<'static>)| {
-                    let entry_key = alias.as_str().to_owned();
-                    let style_aliases_applied: Vec<String> = css_partials
-                        .style_aliases_applied
-                        .iter()
-                        .map(|a: &StyleAlias<'static>| a.as_str().to_owned())
-                        .collect();
-                    let theme_attrs: Vec<ThemeAttrEntry> = css_partials
-                        .partials
-                        .iter()
-                        .map(|(attr, val)| ThemeAttrEntry {
-                            theme_attr: *attr,
-                            attr_value: val.clone(),
-                        })
-                        .collect();
-                    CssClassPartialsSnapshot {
-                        entry_key,
-                        style_aliases_applied,
-                        theme_attrs,
-                    }
-                },
-            )
-            .collect()
+        let sources = InputDiagramThemeSources::new(&base, &diagram);
+
+        // Build the merged alias map: overlay entries first (preserving
+        // their order), then base-only entries appended at the end.
+        let overlay_aliases = &diagram.theme_default.style_aliases;
+        let base_aliases = &base.theme_default.style_aliases;
+
+        let mut seen_keys = Vec::new();
+        let mut snapshots = Vec::new();
+
+        // Overlay entries first.
+        for (alias, css_partials) in overlay_aliases.iter() {
+            let entry_key = alias.as_str().to_owned();
+            seen_keys.push(alias.clone());
+            let value_source = sources.style_alias_source(&entry_key);
+            snapshots.push(style_alias_snapshot(&entry_key, css_partials, value_source));
+        }
+
+        // Base-only entries.
+        for (alias, css_partials) in base_aliases.iter() {
+            if !seen_keys.contains(alias) {
+                let entry_key = alias.as_str().to_owned();
+                snapshots.push(style_alias_snapshot(
+                    &entry_key,
+                    css_partials,
+                    ThemeValueSource::BaseDiagram,
+                ));
+            }
+        }
+
+        snapshots
     };
 
     let entry_count = entries.len();
@@ -117,6 +126,7 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                         let alias_key = entry.entry_key.clone();
                         let style_aliases_applied = entry.style_aliases_applied.clone();
                         let theme_attrs = entry.theme_attrs.clone();
+                        let value_source = entry.value_source;
                         rsx! {
                             StyleAliasesSection {
                                 key: "alias_{idx}_{alias_key}",
@@ -124,6 +134,7 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                                 alias_key,
                                 style_aliases_applied,
                                 theme_attrs,
+                                value_source,
                                 index: idx,
                                 entry_count,
                                 drag_index: style_alias_drag_idx,
@@ -163,6 +174,33 @@ pub fn ThemeStyleAliasesPage(input_diagram: Signal<InputDiagram<'static>>) -> El
                 "+ Add style alias"
             }
         }
+    }
+}
+
+/// Builds a [`CssClassPartialsSnapshot`] for a single style alias entry.
+fn style_alias_snapshot(
+    entry_key: &str,
+    css_partials: &CssClassPartials<'static>,
+    value_source: ThemeValueSource,
+) -> CssClassPartialsSnapshot {
+    let style_aliases_applied: Vec<String> = css_partials
+        .style_aliases_applied
+        .iter()
+        .map(|a: &StyleAlias<'static>| a.as_str().to_owned())
+        .collect();
+    let theme_attrs: Vec<ThemeAttrEntry> = css_partials
+        .partials
+        .iter()
+        .map(|(attr, val)| ThemeAttrEntry {
+            theme_attr: *attr,
+            attr_value: val.clone(),
+        })
+        .collect();
+    CssClassPartialsSnapshot {
+        entry_key: entry_key.to_owned(),
+        style_aliases_applied,
+        theme_attrs,
+        value_source,
     }
 }
 
@@ -234,14 +272,26 @@ pub fn ThemeProcessStepStylesPage(input_diagram: Signal<InputDiagram<'static>>) 
 /// [`ThemeStylesEditor`] that edits the inner `ThemeStyles` map.
 #[component]
 pub fn ThemeTypesStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
-    // Snapshot the outer keys so we can drop the borrow before event handlers.
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
+
+    // Snapshot the outer keys, merging base + overlay so that base-only
+    // entity types appear in the editor as read-only sections.
     let type_keys: Vec<String> = {
+        let base = base_diagram.read();
         let diagram = input_diagram.read();
-        diagram
-            .theme_types_styles
-            .keys()
-            .map(|k| k.as_str().to_owned())
-            .collect()
+
+        // Overlay keys first (preserving order), then base-only keys.
+        let mut keys = Vec::new();
+        for k in diagram.theme_types_styles.keys() {
+            keys.push(k.as_str().to_owned());
+        }
+        for k in base.theme_types_styles.keys() {
+            let key_str = k.as_str().to_owned();
+            if !keys.contains(&key_str) {
+                keys.push(key_str);
+            }
+        }
+        keys
     };
 
     rsx! {
@@ -260,11 +310,18 @@ pub fn ThemeTypesStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Ele
             for type_key in type_keys.iter() {
                 {
                     let type_key = type_key.clone();
+                    let value_source = {
+                        let base = base_diagram.read();
+                        let diagram = input_diagram.read();
+                        let sources = InputDiagramThemeSources::new(&base, &diagram);
+                        sources.types_styles_key_source(&type_key)
+                    };
                     rsx! {
                         TypesStylesSection {
                             key: "type_{type_key}",
                             input_diagram,
                             type_key,
+                            value_source,
                         }
                     }
                 }
@@ -370,14 +427,26 @@ pub fn ThemeDependenciesStylesPage(input_diagram: Signal<InputDiagram<'static>>)
 /// [`ThemeStylesEditor`].
 #[component]
 pub fn ThemeTagsFocusPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
-    // Snapshot the outer keys.
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
+
+    // Snapshot the outer keys, merging base + overlay so that base-only
+    // tag entries appear in the editor as read-only sections.
     let tag_keys: Vec<String> = {
+        let base = base_diagram.read();
         let diagram = input_diagram.read();
-        diagram
-            .theme_tag_things_focus
-            .keys()
-            .map(|k| k.as_str().to_owned())
-            .collect()
+
+        // Overlay keys first (preserving order), then base-only keys.
+        let mut keys = Vec::new();
+        for k in diagram.theme_tag_things_focus.keys() {
+            keys.push(k.as_str().to_owned());
+        }
+        for k in base.theme_tag_things_focus.keys() {
+            let key_str = k.as_str().to_owned();
+            if !keys.contains(&key_str) {
+                keys.push(key_str);
+            }
+        }
+        keys
     };
 
     rsx! {
@@ -394,11 +463,18 @@ pub fn ThemeTagsFocusPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
             for tag_key in tag_keys.iter() {
                 {
                     let tag_key = tag_key.clone();
+                    let value_source = {
+                        let base = base_diagram.read();
+                        let diagram = input_diagram.read();
+                        let sources = InputDiagramThemeSources::new(&base, &diagram);
+                        sources.tag_focus_key_source(&tag_key)
+                    };
                     rsx! {
                         TagFocusSection {
                             key: "tag_{tag_key}",
                             input_diagram,
                             tag_key,
+                            value_source,
                         }
                     }
                 }

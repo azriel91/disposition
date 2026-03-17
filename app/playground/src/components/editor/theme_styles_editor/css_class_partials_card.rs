@@ -24,6 +24,7 @@ use dioxus::{
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_ir_rt::ThemeValueSource;
 
 use crate::components::editor::{
     common::CardComponent,
@@ -44,6 +45,15 @@ use crate::components::editor::{
 ///
 /// Used by [`KeyboardNav`] helpers to locate the nearest ancestor card.
 pub(crate) const DATA_ATTR: &str = "data-css-card";
+
+/// CSS classes for the "revert to base" button.
+const REVERT_BTN: &str = "\
+    text-xs \
+    text-amber-400 \
+    hover:text-amber-300 \
+    cursor-pointer \
+    select-none\
+";
 
 // === CSS === //
 
@@ -98,6 +108,7 @@ pub fn CssClassPartialsCard(
     entry_key: String,
     style_aliases: Vec<String>,
     theme_attrs: Vec<ThemeAttrEntry>,
+    value_source: ThemeValueSource,
     drag_index: Signal<Option<usize>>,
     drop_target: Signal<Option<usize>>,
     mut focus_index: Signal<Option<usize>>,
@@ -118,6 +129,7 @@ pub fn CssClassPartialsCard(
     let target_for_summary = target.clone();
     let target_for_header = target.clone();
     let target_for_aliases = target.clone();
+    let target_for_revert = target.clone();
 
     rsx! {
         div {
@@ -187,6 +199,7 @@ pub fn CssClassPartialsCard(
                     entry_key: entry_key.clone(),
                     alias_count,
                     attr_count,
+                    value_source,
                     collapsed,
                 }
             } else {
@@ -206,6 +219,41 @@ pub fn CssClassPartialsCard(
                     span {
                         class: "text-xs text-gray-500",
                         "Collapse"
+                    }
+                }
+
+                // === Value source indicator === //
+                if value_source == ThemeValueSource::UserInput {
+                    // Show "Revert to base" button
+                    div {
+                        class: "flex flex-row items-center gap-2 text-xs",
+                        span {
+                            class: "text-amber-400",
+                            "Overrides base styles"
+                        }
+                        button {
+                            class: REVERT_BTN,
+                            tabindex: "0",
+                            onclick: {
+                                let entry_key = entry_key.clone();
+                                let target = target_for_revert.clone();
+                                move |_| {
+                                    if let Some(parsed) = parse_id_or_defaults(&entry_key) {
+                                        let mut diagram = input_diagram.write();
+                                        if let Some(styles) = target.write_mut(&mut diagram) {
+                                            styles.remove(&parsed);
+                                        }
+                                    }
+                                }
+                            },
+                            "Revert to base"
+                        }
+                    }
+                } else {
+                    // BaseDiagram source — show read-only indicator
+                    div {
+                        class: "text-xs text-gray-500 italic",
+                        "From disposition's base styles"
                     }
                 }
 

@@ -9,6 +9,7 @@ use dioxus::{
     signals::{Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_ir_rt::ThemeValueSource;
 
 use crate::components::editor::{
     common::{parse_tag_id_or_defaults, CARD_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE},
@@ -24,7 +25,11 @@ use crate::components::editor::{
 /// or an editable text `<input>` for custom tag IDs -- and a remove button,
 /// then embeds a [`ThemeStylesEditor`] targeting that specific tag key.
 #[component]
-pub fn TagFocusSection(input_diagram: Signal<InputDiagram<'static>>, tag_key: String) -> Element {
+pub fn TagFocusSection(
+    input_diagram: Signal<InputDiagram<'static>>,
+    tag_key: String,
+    value_source: ThemeValueSource,
+) -> Element {
     let is_defaults = tag_key == "tag_defaults";
 
     rsx! {
@@ -95,6 +100,42 @@ pub fn TagFocusSection(input_diagram: Signal<InputDiagram<'static>>, tag_key: St
                         }
                     },
                     "x Remove tag"
+                }
+            }
+
+            // === Value source indicator === //
+            if value_source == ThemeValueSource::UserInput {
+                div {
+                    class: "flex flex-row items-center gap-2 text-xs",
+                    span {
+                        class: "text-amber-400",
+                        "Overrides base styles"
+                    }
+                    button {
+                        class: "\
+                            text-xs \
+                            text-amber-400 \
+                            hover:text-amber-300 \
+                            cursor-pointer \
+                            select-none\
+                        ",
+                        tabindex: "0",
+                        onclick: {
+                            let key = tag_key.clone();
+                            move |_| {
+                                if let Some(parsed) = parse_tag_id_or_defaults(&key) {
+                                    let mut diagram = input_diagram.write();
+                                    diagram.theme_tag_things_focus.remove(&parsed);
+                                }
+                            }
+                        },
+                        "Revert to base"
+                    }
+                }
+            } else {
+                div {
+                    class: "text-xs text-gray-500 italic",
+                    "From disposition's base styles"
                 }
             }
 

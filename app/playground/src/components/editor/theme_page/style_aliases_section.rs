@@ -30,6 +30,7 @@ use disposition::{
     },
     model_common::Id,
 };
+use disposition_input_ir_rt::ThemeValueSource;
 use disposition_input_rt::StyleAliasesSectionOps;
 
 use crate::components::editor::{
@@ -102,6 +103,7 @@ pub fn StyleAliasesSection(
     alias_key: String,
     style_aliases_applied: Vec<String>,
     theme_attrs: Vec<ThemeAttrEntry>,
+    value_source: ThemeValueSource,
     index: usize,
     entry_count: usize,
     drag_index: Signal<Option<usize>>,
@@ -246,6 +248,19 @@ pub fn StyleAliasesSection(
                         "({alias_count} alias{alias_suffix}, {attr_count} attr{attr_suffix})"
                     }
 
+                    // Value source indicator
+                    if value_source == ThemeValueSource::BaseDiagram {
+                        span {
+                            class: "text-xs text-gray-500 italic",
+                            "(base)"
+                        }
+                    } else {
+                        span {
+                            class: "text-xs text-amber-400",
+                            "(override)"
+                        }
+                    }
+
                     // === Remove button === //
                     button {
                         class: REMOVE_BTN,
@@ -281,6 +296,42 @@ pub fn StyleAliasesSection(
                     span {
                         class: "text-xs text-gray-500",
                         "Collapse"
+                    }
+                }
+
+                // === Value source indicator === //
+                if value_source == ThemeValueSource::UserInput {
+                    div {
+                        class: "flex flex-row items-center gap-2 text-xs",
+                        span {
+                            class: "text-amber-400",
+                            "Overrides base styles"
+                        }
+                        button {
+                            class: "\
+                                text-xs \
+                                text-amber-400 \
+                                hover:text-amber-300 \
+                                cursor-pointer \
+                                select-none\
+                            ",
+                            tabindex: "0",
+                            onclick: {
+                                let alias_key = alias_key.clone();
+                                move |_| {
+                                    if let Some(alias) = parse_style_alias(&alias_key) {
+                                        let mut diagram = input_diagram.write();
+                                        diagram.theme_default.style_aliases.remove(&alias);
+                                    }
+                                }
+                            },
+                            "Revert to base"
+                        }
+                    }
+                } else {
+                    div {
+                        class: "text-xs text-gray-500 italic",
+                        "From disposition's base styles"
                     }
                 }
 

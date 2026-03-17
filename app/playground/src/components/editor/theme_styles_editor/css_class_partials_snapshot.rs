@@ -4,6 +4,8 @@
 //! tuple with named fields so that call sites clearly communicate the role
 //! of each element.
 
+use disposition_input_ir_rt::ThemeValueSource;
+
 use super::theme_attr_entry::ThemeAttrEntry;
 
 // === CssClassPartialsSnapshot === //
@@ -46,4 +48,8 @@ pub struct CssClassPartialsSnapshot {
 
     /// The theme attribute name-value pairs (the `partials` map).
     pub theme_attrs: Vec<ThemeAttrEntry>,
+
+    /// Whether this entry was provided by the user or comes from the
+    /// base diagram.
+    pub value_source: ThemeValueSource,
 }

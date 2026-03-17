@@ -25,6 +25,7 @@ base64 = { workspace = true }
 disposition_input_ir_model = { workspace = true }
 disposition_ir_model = { workspace = true }
 disposition_input_model = { workspace = true }
+disposition_input_rt = { workspace = true }
 disposition_model_common = { workspace = true }
 disposition_svg_model = { workspace = true }
 disposition_taffy_model = { workspace = true }

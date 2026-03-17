@@ -8,12 +8,24 @@ use dioxus::{
     signals::{Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
+use disposition_input_ir_rt::ThemeValueSource;
 
 use crate::components::editor::{
     common::{parse_entity_type_id, CARD_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
     theme_styles_editor::{ThemeStylesEditor, ThemeStylesTarget},
 };
+
+// === CSS === //
+
+/// CSS classes for the "revert to base" button.
+const REVERT_BTN: &str = "\
+    text-xs \
+    text-amber-400 \
+    hover:text-amber-300 \
+    cursor-pointer \
+    select-none\
+";
 
 // === TypesStylesSection === //
 
@@ -25,6 +37,7 @@ use crate::components::editor::{
 pub fn TypesStylesSection(
     input_diagram: Signal<InputDiagram<'static>>,
     type_key: String,
+    value_source: ThemeValueSource,
 ) -> Element {
     rsx! {
         div {
@@ -84,6 +97,36 @@ pub fn TypesStylesSection(
                         }
                     },
                     "x Remove type"
+                }
+            }
+
+            // === Value source indicator === //
+            if value_source == ThemeValueSource::UserInput {
+                div {
+                    class: "flex flex-row items-center gap-2 text-xs",
+                    span {
+                        class: "text-amber-400",
+                        "Overrides base styles"
+                    }
+                    button {
+                        class: REVERT_BTN,
+                        tabindex: "0",
+                        onclick: {
+                            let key = type_key.clone();
+                            move |_| {
+                                if let Some(type_id) = parse_entity_type_id(&key) {
+                                    let mut diagram = input_diagram.write();
+                                    diagram.theme_types_styles.remove(&type_id);
+                                }
+                            }
+                        },
+                        "Revert to base"
+                    }
+                }
+            } else {
+                div {
+                    class: "text-xs text-gray-500 italic",
+                    "From disposition's base styles"
                 }
             }
 
