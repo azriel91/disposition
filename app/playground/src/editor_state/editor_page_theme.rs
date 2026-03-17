@@ -6,19 +6,19 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, enum_iterator::Sequence)]
 #[serde(rename_all = "snake_case")]
 pub enum EditorPageTheme {
-    /// Theme: style aliases sub-page.
     #[default]
-    StyleAliases,
     /// Theme: base styles (node/edge defaults + per-entity overrides).
     BaseStyles,
-    /// Theme: process-step-selected styles.
-    ProcessStepStyles,
     /// Theme: type-based styles.
     TypesStyles,
+    /// Theme: process-step-selected styles.
+    ProcessStepStyles,
     /// Theme: thing-dependencies focus styles.
     DependenciesStyles,
     /// Theme: tag-things focus styles.
     TagsFocus,
+    /// Theme: style aliases sub-page.
+    StyleAliases,
 }
 
 impl EditorPageTheme {
@@ -28,12 +28,12 @@ impl EditorPageTheme {
     /// e.g. `"Theme: Aliases"`, `"Theme: Base"`.
     pub fn label(&self) -> &'static str {
         match self {
-            Self::StyleAliases => "Theme: Aliases",
             Self::BaseStyles => "Theme: Base",
-            Self::ProcessStepStyles => "Theme: Step Styles",
             Self::TypesStyles => "Theme: Types",
+            Self::ProcessStepStyles => "Theme: Step Styles",
             Self::DependenciesStyles => "Theme: Deps",
             Self::TagsFocus => "Theme: Tags",
+            Self::StyleAliases => "Theme: Aliases",
         }
     }
 }

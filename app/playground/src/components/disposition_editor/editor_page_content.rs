@@ -41,16 +41,16 @@ pub fn EditorPageContent(
         EditorPage::Tags => rsx! { TagsPage { input_diagram } },
         EditorPage::EntityTypes => rsx! { EntityTypesPage { input_diagram } },
         EditorPage::Theme(sub) => match sub {
-            EditorPageTheme::StyleAliases => rsx! { ThemeStyleAliasesPage { input_diagram } },
             EditorPageTheme::BaseStyles => rsx! { ThemeBaseStylesPage { input_diagram } },
+            EditorPageTheme::TypesStyles => rsx! { ThemeTypesStylesPage { input_diagram } },
             EditorPageTheme::ProcessStepStyles => {
                 rsx! { ThemeProcessStepStylesPage { input_diagram } }
             }
-            EditorPageTheme::TypesStyles => rsx! { ThemeTypesStylesPage { input_diagram } },
             EditorPageTheme::DependenciesStyles => {
                 rsx! { ThemeDependenciesStylesPage { input_diagram } }
             }
             EditorPageTheme::TagsFocus => rsx! { ThemeTagsFocusPage { input_diagram } },
+            EditorPageTheme::StyleAliases => rsx! { ThemeStyleAliasesPage { input_diagram } },
         },
         EditorPage::Text => rsx! { TextPage { input_diagram } },
     }
