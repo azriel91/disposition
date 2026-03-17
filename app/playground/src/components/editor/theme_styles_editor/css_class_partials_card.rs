@@ -20,7 +20,10 @@
 //! When collapsed, shows the entry key and number of attributes.
 
 use dioxus::{
-    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    prelude::{
+        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, use_context, Element, Memo,
+        Props,
+    },
     signals::{ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
@@ -116,6 +119,7 @@ pub fn CssClassPartialsCard(
     let card_state = CardComponent::state_init(entry_index, entry_count, &entry_key);
     let mut collapsed = card_state.collapsed;
     let border_class = drag_border_class(drag_index, drop_target, entry_index);
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
 
     let alias_count = style_aliases.len();
     let attr_count = theme_attrs.len();
@@ -147,12 +151,14 @@ pub fn CssClassPartialsCard(
                     card_state,
                     move || {
                         let target = target_for_keydown.clone();
-                        target.entry_move(input_diagram, entry_index, entry_index - 1);
+                        let base = base_diagram.read();
+                        target.entry_move(&base, input_diagram, entry_index, entry_index - 1);
                         focus_index.set(Some(entry_index - 1));
                     },
                     move || {
                         let target = target_for_keydown_down.clone();
-                        target.entry_move(input_diagram, entry_index, entry_index + 1);
+                        let base = base_diagram.read();
+                        target.entry_move(&base, input_diagram, entry_index, entry_index + 1);
                         focus_index.set(Some(entry_index + 1));
                     },
                     move || {
@@ -181,7 +187,8 @@ pub fn CssClassPartialsCard(
                 if let Some(from) = *drag_index.read()
                     && from != entry_index
                 {
-                    target_for_drop.entry_move(input_diagram, from, entry_index);
+                    let base = base_diagram.read();
+                    target_for_drop.entry_move(&base, input_diagram, from, entry_index);
                 }
                 drag_index.set(None);
                 drop_target.set(None);

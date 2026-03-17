@@ -5,8 +5,9 @@
 //! targeting that specific tag key.
 
 use dioxus::{
+    hooks::use_context,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{Signal, WritableExt},
+    signals::{Memo, ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
 use disposition_input_ir_rt::ThemeValueSource;
@@ -30,6 +31,7 @@ pub fn TagFocusSection(
     tag_key: String,
     value_source: ThemeValueSource,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
     let is_defaults = tag_key == "tag_defaults";
 
     rsx! {
@@ -66,11 +68,19 @@ pub fn TagFocusSection(
                                         parse_tag_id_or_defaults(&old_key),
                                         parse_tag_id_or_defaults(&new_val),
                                     ) {
+                                        let base = base_diagram.read();
                                         let mut diagram = input_diagram.write();
                                         if !diagram
                                             .theme_tag_things_focus
                                             .contains_key(&new_tag)
-                                            && let Some(idx) = diagram
+                                        {
+                                            // If entry exists only in base, copy it into the overlay first.
+                                            if !diagram.theme_tag_things_focus.contains_key(&old_tag) {
+                                                if let Some(base_styles) = base.theme_tag_things_focus.get(&old_tag) {
+                                                    diagram.theme_tag_things_focus.insert(old_tag.clone(), base_styles.clone());
+                                                }
+                                            }
+                                            if let Some(idx) = diagram
                                                 .theme_tag_things_focus
                                                 .get_index_of(&old_tag)
                                             {
@@ -82,6 +92,7 @@ pub fn TagFocusSection(
                                                          checked for availability above",
                                                     );
                                             }
+                                        }
                                     }
                             }
                         },

@@ -5,8 +5,9 @@
 //! `<input>`, a checkbox to toggle between them, and a remove button.
 
 use dioxus::{
+    hooks::use_context,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{ReadableExt, Signal, WritableExt},
+    signals::{Memo, ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::{theme::IdOrDefaults, InputDiagram};
 
@@ -39,7 +40,6 @@ pub fn CssClassPartialsCardHeader(
         entry_key.as_str(),
         "node_defaults" | "node_excluded_defaults" | "edge_defaults"
     );
-
     rsx! {
         div {
             class: ROW_CLASS_SIMPLE,
@@ -126,6 +126,7 @@ fn CssClassPartialsCardHeaderBuiltinSelect(
     target: ThemeStylesTarget,
     entry_key: String,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
     rsx! {
         select {
             class: SELECT_CLASS,
@@ -142,10 +143,19 @@ fn CssClassPartialsCardHeaderBuiltinSelect(
                     )
                         && old != new
                     {
+                        let base = base_diagram.read();
                         let mut diagram = input_diagram.write();
                         let Some(styles) = target.write_mut(&mut diagram) else {
                             return;
                         };
+                        // If entry exists only in base, copy it into the overlay first.
+                        if !styles.contains_key(&old) {
+                            if let Some(base_styles) = target.read(&base) {
+                                if let Some(base_partials) = base_styles.get(&old) {
+                                    styles.insert(old.clone(), base_partials.clone());
+                                }
+                            }
+                        }
                         if let Some(idx) = styles.get_index_of(&old) {
                             styles
                                 .replace_index(idx, new)
@@ -178,6 +188,7 @@ fn CssClassPartialsCardHeaderCustomInput(
     target: ThemeStylesTarget,
     entry_key: String,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
     rsx! {
         input {
             class: INPUT_CLASS,
@@ -197,10 +208,19 @@ fn CssClassPartialsCardHeaderCustomInput(
                     )
                         && old != new
                     {
+                        let base = base_diagram.read();
                         let mut diagram = input_diagram.write();
                         let Some(styles) = target.write_mut(&mut diagram) else {
                             return;
                         };
+                        // If entry exists only in base, copy it into the overlay first.
+                        if !styles.contains_key(&old) {
+                            if let Some(base_styles) = target.read(&base) {
+                                if let Some(base_partials) = base_styles.get(&old) {
+                                    styles.insert(old.clone(), base_partials.clone());
+                                }
+                            }
+                        }
                         if let Some(idx) = styles.get_index_of(&old) {
                             styles
                                 .replace_index(idx, new)
@@ -231,6 +251,7 @@ fn CssClassPartialsCardHeaderToggle(
     entry_key: String,
     is_builtin: bool,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
     rsx! {
         label {
             class: "text-xs text-gray-500 ml-1 flex items-center gap-1 select-none cursor-pointer",
@@ -253,10 +274,19 @@ fn CssClassPartialsCardHeaderToggle(
                         if let Some(new) = new_key
                             && let Some(old) = parse_id_or_defaults(&old_key)
                         {
+                            let base = base_diagram.read();
                             let mut diagram = input_diagram.write();
                             let Some(styles) = target.write_mut(&mut diagram) else {
                                 return;
                             };
+                            // If entry exists only in base, copy it into the overlay first.
+                            if !styles.contains_key(&old) {
+                                if let Some(base_styles) = target.read(&base) {
+                                    if let Some(base_partials) = base_styles.get(&old) {
+                                        styles.insert(old.clone(), base_partials.clone());
+                                    }
+                                }
+                            }
                             if let Some(idx) = styles.get_index_of(&old) {
                                 styles
                                     .replace_index(idx, new)

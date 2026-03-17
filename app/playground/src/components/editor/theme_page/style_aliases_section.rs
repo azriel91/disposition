@@ -20,8 +20,9 @@
 //! - **Space** (inside a field): stop propagation.
 
 use dioxus::{
+    hooks::use_context,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{ReadableExt, Signal, WritableExt},
+    signals::{Memo, ReadableExt, Signal, WritableExt},
 };
 use disposition::{
     input_model::{
@@ -55,6 +56,48 @@ fn parse_style_alias(s: &str) -> Option<StyleAlias<'static>> {
     Id::new(s)
         .ok()
         .map(|id| StyleAlias::from(id.into_static()).into_static())
+}
+
+/// Ensures all base diagram style alias entries are present in the
+/// user's overlay diagram.
+///
+/// This is needed before index-based operations (move, reorder) so that
+/// the indices match the merged view the user sees.
+fn style_aliases_ensure_all_entries(
+    base: &InputDiagram<'static>,
+    diagram: &mut InputDiagram<'static>,
+) {
+    for (alias, partials) in base.theme_default.style_aliases.iter() {
+        if !diagram.theme_default.style_aliases.contains_key(alias) {
+            diagram
+                .theme_default
+                .style_aliases
+                .insert(alias.clone(), partials.clone());
+        }
+    }
+}
+
+/// Returns a mutable reference to the [`CssClassPartials`] for the given
+/// alias key, copying from `base` if the entry only exists there.
+///
+/// Implements copy-on-write: when the user edits a style alias entry
+/// that only exists in the base diagram, the base value is first copied
+/// into the user's overlay.
+fn style_aliases_write_entry_mut<'diag>(
+    base: &InputDiagram<'static>,
+    diagram: &'diag mut InputDiagram<'static>,
+    alias_key: &StyleAlias<'static>,
+) -> Option<&'diag mut CssClassPartials<'static>> {
+    if !diagram.theme_default.style_aliases.contains_key(alias_key) {
+        // Entry is absent from the user overlay -- try to copy from base.
+        if let Some(base_partials) = base.theme_default.style_aliases.get(alias_key) {
+            diagram
+                .theme_default
+                .style_aliases
+                .insert(alias_key.clone(), base_partials.clone());
+        }
+    }
+    diagram.theme_default.style_aliases.get_mut(alias_key)
 }
 
 // === Data attribute for the card wrapper === //
@@ -111,6 +154,8 @@ pub fn StyleAliasesSection(
     mut focus_index: Signal<Option<usize>>,
     mut rename_refocus: Signal<Option<RenameRefocus>>,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
+
     let card_state =
         CardComponent::state_init_with_rename(index, entry_count, rename_refocus, &alias_key);
     let mut collapsed = card_state.collapsed;
@@ -137,19 +182,25 @@ pub fn StyleAliasesSection(
                     DATA_ATTR,
                     card_state,
                     move || {
-                        input_diagram
-                            .write()
+                        let base = base_diagram.read();
+                        let mut diagram = input_diagram.write();
+                        style_aliases_ensure_all_entries(&base, &mut diagram);
+                        diagram
                             .theme_default
                             .style_aliases
                             .move_index(index, index - 1);
+                        drop(diagram);
                         focus_index.set(Some(index - 1));
                     },
                     move || {
-                        input_diagram
-                            .write()
+                        let base = base_diagram.read();
+                        let mut diagram = input_diagram.write();
+                        style_aliases_ensure_all_entries(&base, &mut diagram);
+                        diagram
                             .theme_default
                             .style_aliases
                             .move_index(index, index + 1);
+                        drop(diagram);
                         focus_index.set(Some(index + 1));
                     },
                     move || {
@@ -203,8 +254,10 @@ pub fn StyleAliasesSection(
                 if let Some(from) = *drag_index.read()
                     && from != index
                 {
-                    input_diagram
-                        .write()
+                    let base = base_diagram.read();
+                    let mut diagram = input_diagram.write();
+                    style_aliases_ensure_all_entries(&base, &mut diagram);
+                    diagram
                         .theme_default
                         .style_aliases
                         .move_index(from, index);
@@ -374,6 +427,8 @@ fn StyleAliasesSectionHeader(
     rename_target: Signal<RenameRefocusTarget>,
     mut rename_refocus: Signal<Option<RenameRefocus>>,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
+
     rsx! {
         div {
             class: ROW_CLASS_SIMPLE,
@@ -395,6 +450,24 @@ fn StyleAliasesSectionHeader(
                     move |evt: dioxus::events::FormEvent| {
                         let id_new = evt.value();
                         let target = *rename_target.read();
+                        // If entry exists only in base, copy it into the
+                        // overlay so that the rename has a target.
+                        if let Some(parsed_old) = parse_style_alias(&old_key) {
+                            let base = base_diagram.read();
+                            let mut diagram = input_diagram.write();
+                            if !diagram.theme_default.style_aliases.contains_key(&parsed_old) {
+                                if let Some(base_partials) =
+                                    base.theme_default.style_aliases.get(&parsed_old)
+                                {
+                                    diagram
+                                        .theme_default
+                                        .style_aliases
+                                        .insert(parsed_old, base_partials.clone());
+                                }
+                            }
+                            drop(diagram);
+                            drop(base);
+                        }
                         StyleAliasesSectionOps::style_alias_rename(
                             &mut input_diagram.write(),
                             &old_key,
@@ -442,6 +515,7 @@ fn StyleAliasesSectionAliases(
     alias_key: String,
     style_aliases_applied: Vec<String>,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
     rsx! {
         div {
             class: "flex flex-col gap-1 pl-4",
@@ -474,9 +548,10 @@ fn StyleAliasesSectionAliases(
                     let key = alias_key.clone();
                     move |_| {
                         if let Some(parsed_key) = parse_style_alias(&key) {
+                            let base = base_diagram.read();
                             let mut diagram = input_diagram.write();
                             if let Some(partials) =
-                                diagram.theme_default.style_aliases.get_mut(&parsed_key)
+                                style_aliases_write_entry_mut(&base, &mut diagram, &parsed_key)
                             {
                                 // Default to `shade_light` as a sensible starting alias.
                                 partials
@@ -506,6 +581,7 @@ fn StyleAliasesSectionAliasRow(
     alias_index: usize,
     alias_name: String,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
     rsx! {
         div {
             class: ROW_CLASS_SIMPLE,
@@ -526,9 +602,10 @@ fn StyleAliasesSectionAliasRow(
                             && let Ok(new_alias_id) = Id::new(&new_val) {
                                 let new_alias =
                                     StyleAlias::from(new_alias_id.into_static()).into_static();
+                                let base = base_diagram.read();
                                 let mut diagram = input_diagram.write();
                                 if let Some(partials) =
-                                    diagram.theme_default.style_aliases.get_mut(&parsed_key)
+                                    style_aliases_write_entry_mut(&base, &mut diagram, &parsed_key)
                                     && alias_idx < partials.style_aliases_applied.len() {
                                         partials.style_aliases_applied[alias_idx] = new_alias;
                                     }
@@ -547,9 +624,10 @@ fn StyleAliasesSectionAliasRow(
                     let alias_idx = alias_index;
                     move |_| {
                         if let Some(parsed_key) = parse_style_alias(&key) {
+                            let base = base_diagram.read();
                             let mut diagram = input_diagram.write();
                             if let Some(partials) =
-                                diagram.theme_default.style_aliases.get_mut(&parsed_key)
+                                style_aliases_write_entry_mut(&base, &mut diagram, &parsed_key)
                                 && alias_idx < partials.style_aliases_applied.len() {
                                     partials.style_aliases_applied.remove(alias_idx);
                                 }
@@ -576,6 +654,7 @@ fn StyleAliasesSectionAttrs(
     alias_key: String,
     theme_attrs: Vec<ThemeAttrEntry>,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
     rsx! {
         div {
             class: "flex flex-col gap-1 pl-4",
@@ -610,9 +689,10 @@ fn StyleAliasesSectionAttrs(
                     let key = alias_key.clone();
                     move |_| {
                         if let Some(parsed_key) = parse_style_alias(&key) {
+                            let base = base_diagram.read();
                             let mut diagram = input_diagram.write();
                             if let Some(partials) =
-                                diagram.theme_default.style_aliases.get_mut(&parsed_key)
+                                style_aliases_write_entry_mut(&base, &mut diagram, &parsed_key)
                             {
                                 // Find first ThemeAttr not yet present.
                                 let new_attr = THEME_ATTRS
@@ -646,6 +726,7 @@ fn StyleAliasesSectionAttrRow(
     theme_attr: ThemeAttr,
     attr_value: String,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
     let attr_name = theme_attr_name(&theme_attr);
 
     rsx! {
@@ -666,9 +747,10 @@ fn StyleAliasesSectionAttrRow(
                         if let Some(new_attr) = parse_theme_attr(&new_attr_str)
                             && old_attr != new_attr
                             && let Some(parsed_key) = parse_style_alias(&key) {
+                                let base = base_diagram.read();
                                 let mut diagram = input_diagram.write();
                                 if let Some(partials) =
-                                    diagram.theme_default.style_aliases.get_mut(&parsed_key)
+                                    style_aliases_write_entry_mut(&base, &mut diagram, &parsed_key)
                                 {
                                     partials.partials.remove(&old_attr);
                                     partials
@@ -702,9 +784,10 @@ fn StyleAliasesSectionAttrRow(
                     move |evt: dioxus::events::FormEvent| {
                         let new_val = evt.value();
                         if let Some(parsed_key) = parse_style_alias(&key) {
+                            let base = base_diagram.read();
                             let mut diagram = input_diagram.write();
                             if let Some(partials) =
-                                diagram.theme_default.style_aliases.get_mut(&parsed_key)
+                                style_aliases_write_entry_mut(&base, &mut diagram, &parsed_key)
                                 && let Some(v) = partials.partials.get_mut(&attr) {
                                     *v = new_val;
                                 }
@@ -724,9 +807,10 @@ fn StyleAliasesSectionAttrRow(
                     let attr = theme_attr;
                     move |_| {
                         if let Some(parsed_key) = parse_style_alias(&key) {
+                            let base = base_diagram.read();
                             let mut diagram = input_diagram.write();
                             if let Some(partials) =
-                                diagram.theme_default.style_aliases.get_mut(&parsed_key)
+                                style_aliases_write_entry_mut(&base, &mut diagram, &parsed_key)
                             {
                                 partials.partials.remove(&attr);
                             }

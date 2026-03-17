@@ -6,8 +6,9 @@
 //! controls plus an "add alias" button.
 
 use dioxus::{
+    hooks::use_context,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{Signal, WritableExt},
+    signals::{Memo, ReadableExt, Signal, WritableExt},
 };
 use disposition::{
     input_model::{theme::StyleAlias, InputDiagram},
@@ -35,6 +36,8 @@ pub fn CssClassPartialsCardAliases(
     entry_key: String,
     style_aliases: Vec<String>,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
+
     rsx! {
         div {
             class: "flex flex-col gap-1 pl-4",
@@ -70,11 +73,9 @@ pub fn CssClassPartialsCardAliases(
                     let target = target.clone();
                     move |_| {
                         if let Some(parsed_key) = parse_id_or_defaults(&key) {
+                            let base = base_diagram.read();
                             let mut diagram = input_diagram.write();
-                            let Some(styles) = target.write_mut(&mut diagram) else {
-                                return;
-                            };
-                            if let Some(partials) = styles.get_mut(&parsed_key) {
+                            if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key) {
                                 // Default to `shade_light` as a sensible starting alias.
                                 partials
                                     .style_aliases_applied
@@ -105,6 +106,8 @@ fn CssClassPartialsCardAliasRow(
     alias_index: usize,
     alias_name: String,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
+
     rsx! {
         div {
             class: ROW_CLASS_SIMPLE,
@@ -128,11 +131,9 @@ fn CssClassPartialsCardAliasRow(
                             if let Ok(new_alias_id) = Id::new(&new_val) {
                                 let new_alias =
                                     StyleAlias::from(new_alias_id.into_static()).into_static();
+                                let base = base_diagram.read();
                                 let mut diagram = input_diagram.write();
-                                let Some(styles) = target.write_mut(&mut diagram) else {
-                                    return;
-                                };
-                                if let Some(partials) = styles.get_mut(&parsed_key)
+                                if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key)
                                     && alias_idx < partials.style_aliases_applied.len()
                                 {
                                     partials.style_aliases_applied[alias_idx] = new_alias;
@@ -156,11 +157,9 @@ fn CssClassPartialsCardAliasRow(
                     let alias_idx = alias_index;
                     move |_| {
                         if let Some(parsed_key) = parse_id_or_defaults(&key) {
+                            let base = base_diagram.read();
                             let mut diagram = input_diagram.write();
-                            let Some(styles) = target.write_mut(&mut diagram) else {
-                                return;
-                            };
-                            if let Some(partials) = styles.get_mut(&parsed_key)
+                            if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key)
                                 && alias_idx < partials.style_aliases_applied.len()
                             {
                                 partials.style_aliases_applied.remove(alias_idx);

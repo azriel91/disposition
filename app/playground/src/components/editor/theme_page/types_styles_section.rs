@@ -4,8 +4,9 @@
 //! embeds a [`ThemeStylesEditor`] targeting that specific type key.
 
 use dioxus::{
+    hooks::use_context,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{Signal, WritableExt},
+    signals::{Memo, ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
 use disposition_input_ir_rt::ThemeValueSource;
@@ -39,6 +40,8 @@ pub fn TypesStylesSection(
     type_key: String,
     value_source: ThemeValueSource,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
+
     rsx! {
         div {
             class: CARD_CLASS,
@@ -67,9 +70,16 @@ pub fn TypesStylesSection(
                                     parse_entity_type_id(&old_key),
                                     parse_entity_type_id(&new_val),
                                 ) {
+                                    let base = base_diagram.read();
                                     let mut diagram = input_diagram.write();
-                                    if !diagram.theme_types_styles.contains_key(&new_id)
-                                        && let Some(idx) =
+                                    if !diagram.theme_types_styles.contains_key(&new_id) {
+                                        // If entry exists only in base, copy it into the overlay first.
+                                        if !diagram.theme_types_styles.contains_key(&old_id) {
+                                            if let Some(base_styles) = base.theme_types_styles.get(&old_id) {
+                                                diagram.theme_types_styles.insert(old_id.clone(), base_styles.clone());
+                                            }
+                                        }
+                                        if let Some(idx) =
                                             diagram.theme_types_styles.get_index_of(&old_id)
                                         {
                                             diagram
@@ -80,6 +90,7 @@ pub fn TypesStylesSection(
                                                      checked for availability above",
                                                 );
                                         }
+                                    }
                                 }
                         }
                     },

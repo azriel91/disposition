@@ -274,6 +274,36 @@ impl ThemeStylesTarget {
         }
     }
 
+    /// Obtains a mutable reference to the [`CssClassPartials`] entry
+    /// within the targeted [`ThemeStyles`] map, copying the entry from
+    /// `base_diagram` if it does not yet exist in `diagram`.
+    ///
+    /// This implements copy-on-write semantics: when the user edits a
+    /// theme entry that only exists in the base diagram, the base
+    /// value is first copied into the user's overlay so that the
+    /// mutation has a target.
+    ///
+    /// Returns `None` when the outer key (e.g. `entity_type_key` or
+    /// `tag_key`) cannot be parsed, or when the entry does not exist
+    /// in either the base or the user diagram.
+    pub(crate) fn write_entry_mut<'diag>(
+        &self,
+        base_diagram: &InputDiagram<'static>,
+        diagram: &'diag mut InputDiagram<'static>,
+        entry_key: &IdOrDefaults<'static>,
+    ) -> Option<&'diag mut CssClassPartials<'static>> {
+        let styles = self.write_mut(diagram)?;
+        if !styles.contains_key(entry_key) {
+            // Entry is absent from the user overlay -- try to copy from base.
+            if let Some(base_styles) = Self::read_from(self, base_diagram) {
+                if let Some(base_partials) = base_styles.get(entry_key) {
+                    styles.insert(entry_key.clone(), base_partials.clone());
+                }
+            }
+        }
+        styles.get_mut(entry_key)
+    }
+
     /// Returns a merged [`ThemeStyles`] combining base and overlay
     /// entries for this target.
     ///
@@ -332,12 +362,23 @@ impl ThemeStylesTarget {
     /// targeted map.
     pub(crate) fn entry_move(
         &self,
+        base_diagram: &InputDiagram<'static>,
         mut input_diagram: Signal<InputDiagram<'static>>,
         from: usize,
         to: usize,
     ) {
         let mut diagram = input_diagram.write();
         if let Some(styles) = self.write_mut(&mut diagram) {
+            // Copy any base-only entries into the overlay so that
+            // index-based reordering operates on the full set of
+            // entries visible in the merged view.
+            if let Some(base_styles) = Self::read_from(self, base_diagram) {
+                for (key, value) in base_styles.iter() {
+                    if !styles.contains_key(key) {
+                        styles.insert(key.clone(), value.clone());
+                    }
+                }
+            }
             styles.move_index(from, to);
         }
     }

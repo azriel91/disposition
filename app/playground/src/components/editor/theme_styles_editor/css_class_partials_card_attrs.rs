@@ -7,8 +7,9 @@
 //! button.
 
 use dioxus::{
+    hooks::use_context,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{Signal, WritableExt},
+    signals::{Memo, ReadableExt, Signal, WritableExt},
 };
 use disposition::input_model::{theme::ThemeAttr, InputDiagram};
 
@@ -34,6 +35,8 @@ pub fn CssClassPartialsCardAttrs(
     entry_key: String,
     theme_attrs: Vec<ThemeAttrEntry>,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
+
     rsx! {
         div {
             class: "flex flex-col gap-1 pl-4",
@@ -71,11 +74,9 @@ pub fn CssClassPartialsCardAttrs(
                     let target = target.clone();
                     move |_| {
                         if let Some(parsed_key) = parse_id_or_defaults(&key) {
+                            let base = base_diagram.read();
                             let mut diagram = input_diagram.write();
-                            let Some(styles) = target.write_mut(&mut diagram) else {
-                                return;
-                            };
-                            if let Some(partials) = styles.get_mut(&parsed_key) {
+                            if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key) {
                                 // Find first ThemeAttr not yet present.
                                 let new_attr = THEME_ATTRS
                                     .iter()
@@ -111,6 +112,7 @@ fn CssClassPartialsCardAttrRow(
     theme_attr: ThemeAttr,
     attr_value: String,
 ) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
     let attr_name = theme_attr_name(&theme_attr);
 
     rsx! {
@@ -133,11 +135,9 @@ fn CssClassPartialsCardAttrRow(
                             && old_attr != new_attr
                             && let Some(parsed_key) = parse_id_or_defaults(&key)
                         {
+                            let base = base_diagram.read();
                             let mut diagram = input_diagram.write();
-                            let Some(styles) = target.write_mut(&mut diagram) else {
-                                return;
-                            };
-                            if let Some(partials) = styles.get_mut(&parsed_key) {
+                            if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key) {
                                 partials.partials.remove(&old_attr);
                                 partials
                                     .partials
@@ -173,11 +173,9 @@ fn CssClassPartialsCardAttrRow(
                     move |evt: dioxus::events::FormEvent| {
                         let new_val = evt.value();
                         if let Some(parsed_key) = parse_id_or_defaults(&key) {
+                            let base = base_diagram.read();
                             let mut diagram = input_diagram.write();
-                            let Some(styles) = target.write_mut(&mut diagram) else {
-                                return;
-                            };
-                            if let Some(partials) = styles.get_mut(&parsed_key)
+                            if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key)
                                 && let Some(v) = partials.partials.get_mut(&attr)
                             {
                                 *v = new_val;
@@ -201,11 +199,9 @@ fn CssClassPartialsCardAttrRow(
                     let target = target.clone();
                     move |_| {
                         if let Some(parsed_key) = parse_id_or_defaults(&key) {
+                            let base = base_diagram.read();
                             let mut diagram = input_diagram.write();
-                            let Some(styles) = target.write_mut(&mut diagram) else {
-                                return;
-                            };
-                            if let Some(partials) = styles.get_mut(&parsed_key) {
+                            if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key) {
                                 partials.partials.remove(&attr);
                             }
                         }
