@@ -899,7 +899,21 @@ impl IrToTaffyBuilder<'_> {
                     },
                     ..Default::default()
                 },
-                NodeLayout::None => Style::default(),
+                NodeLayout::Leaf(leaf_layout) => Style {
+                    margin: Rect {
+                        left: LengthPercentageAuto::length(leaf_layout.margin_left()),
+                        right: LengthPercentageAuto::length(leaf_layout.margin_right()),
+                        top: LengthPercentageAuto::length(leaf_layout.margin_top()),
+                        bottom: LengthPercentageAuto::length(leaf_layout.margin_bottom()),
+                    },
+                    padding: Rect {
+                        left: LengthPercentage::length(leaf_layout.padding_left()),
+                        right: LengthPercentage::length(leaf_layout.padding_right()),
+                        top: LengthPercentage::length(leaf_layout.padding_top()),
+                        bottom: LengthPercentage::length(leaf_layout.padding_bottom()),
+                    },
+                    ..Default::default()
+                },
             })
             .unwrap_or_default()
     }
@@ -966,7 +980,7 @@ impl IrToTaffyBuilder<'_> {
                         child_container_style,
                     }
                 }
-                NodeLayout::None => TaffyWrapperNodeStyles::default(),
+                NodeLayout::Leaf(leaf_layout) => TaffyWrapperNodeStyles::new(&leaf_layout),
             })
             .unwrap_or_default()
     }

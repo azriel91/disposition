@@ -1389,8 +1389,26 @@ node_layouts:
       margin_bottom: 0.0
       margin_left: 0.0
       gap: 4.0
-  proc_app_dev_step_repository_clone: none
-  proc_app_dev_step_project_build: none
+  proc_app_dev_step_repository_clone:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+  proc_app_dev_step_project_build:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
 
   proc_app_release:
     flex:
@@ -1405,11 +1423,56 @@ node_layouts:
       margin_bottom: 0.0
       margin_left: 0.0
       gap: 4.0
-  proc_app_release_step_crate_version_update: none
-  proc_app_release_step_pull_request_open: none
-  proc_app_release_step_tag_and_push: none
-  proc_app_release_step_gh_actions_build: none
-  proc_app_release_step_gh_actions_publish: none
+  proc_app_release_step_crate_version_update:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+  proc_app_release_step_pull_request_open:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+  proc_app_release_step_tag_and_push:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+  proc_app_release_step_gh_actions_build:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+  proc_app_release_step_gh_actions_publish:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
 
   proc_i12e_region_tier_app_deploy:
     flex:
@@ -1424,7 +1487,16 @@ node_layouts:
       margin_bottom: 0.0
       margin_left: 0.0
       gap: 4.0
-  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: none
+  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
 
   # Tags container
   #
@@ -1450,8 +1522,26 @@ node_layouts:
       gap: 4.0
 
   # Tags are leaves
-  tag_app_development: none
-  tag_deployment: none
+  tag_app_development:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+  tag_deployment:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
 
   # Things container (top-level things arranged in a row)
   _things_container:
@@ -1495,7 +1585,16 @@ node_layouts:
       margin_bottom: 0.0
       margin_left: 0.0
       gap: 4.0
-  t_aws_iam_ecs_policy: none
+  t_aws_iam_ecs_policy:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
   t_aws_ecr:
     flex:
       direction: "row"
@@ -1522,8 +1621,26 @@ node_layouts:
       margin_bottom: 0.0
       margin_left: 0.0
       gap: 4.0
-  t_aws_ecr_repo_image_1: none
-  t_aws_ecr_repo_image_2: none
+  t_aws_ecr_repo_image_1:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+  t_aws_ecr_repo_image_2:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
   t_aws_ecs:
     flex:
       direction: "row"
@@ -1550,7 +1667,16 @@ node_layouts:
       margin_bottom: 0.0
       margin_left: 0.0
       gap: 4.0
-  t_aws_ecs_cluster_task: none
+  t_aws_ecs_cluster_task:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
 
   t_github:
     flex:
@@ -1565,7 +1691,16 @@ node_layouts:
       margin_bottom: 0.0
       margin_left: 0.0
       gap: 4.0
-  t_github_user_repo: none
+  t_github_user_repo:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
 
   t_localhost:
     flex:
@@ -1593,7 +1728,16 @@ node_layouts:
       margin_bottom: 0.0
       margin_left: 0.0
       gap: 4.0
-  t_localhost_repo_src: none
+  t_localhost_repo_src:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
   t_localhost_repo_target:
     flex:
       direction: "column"
@@ -1607,8 +1751,26 @@ node_layouts:
       margin_bottom: 0.0
       margin_left: 0.0
       gap: 4.0
-  t_localhost_repo_target_file_zip: none
-  t_localhost_repo_target_dist_dir: none
+  t_localhost_repo_target_file_zip:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
+  t_localhost_repo_target_dist_dir:
+    leaf:
+      padding_top: 4.0
+      padding_right: 4.0
+      padding_bottom: 4.0
+      padding_left: 4.0
+      margin_top: 0.0
+      margin_right: 0.0
+      margin_bottom: 0.0
+      margin_left: 0.0
 
 # Shape configuration for each node.
 #

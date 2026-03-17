@@ -15,7 +15,7 @@ use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeGroups},
     entity::EntityType,
     enum_iterator,
-    layout::{FlexDirection, FlexLayout, NodeLayout, NodeLayouts},
+    layout::{FlexDirection, FlexLayout, LeafLayout, NodeLayout, NodeLayouts},
     node::{NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering, NodeShapes},
     process::ProcessStepEntities,
     IrDiagram,
@@ -861,7 +861,7 @@ impl InputToIrDiagramMapper {
             // Processes with steps get flex layout (column direction)
             let process_layout = if !process_diagram.steps.is_empty() {
                 Self::build_node_flex_layout(
-                    &process_node_id,
+                    process_node_id.clone().into_inner(),
                     FlexDirection::Column,
                     false,
                     entity_types,
@@ -869,13 +869,24 @@ impl InputToIrDiagramMapper {
                     theme_types_styles,
                 )
             } else {
-                NodeLayout::None
+                Self::build_node_leaf_layout(
+                    process_node_id.clone().into_inner(),
+                    entity_types,
+                    theme_default,
+                    theme_types_styles,
+                )
             };
 
             // Process steps are always leaves (no children)
             let step_layouts = process_diagram.steps.keys().map(|step_id| {
                 let step_node_id = NodeId::from(step_id.as_ref().clone());
-                (step_node_id, NodeLayout::None)
+                let step_node_layout = Self::build_node_leaf_layout(
+                    step_id.clone().into_inner(),
+                    entity_types,
+                    theme_default,
+                    theme_types_styles,
+                );
+                (step_node_id, step_node_layout)
             });
 
             std::iter::once((process_node_id, process_layout)).chain(step_layouts)
@@ -901,7 +912,13 @@ impl InputToIrDiagramMapper {
         // 6. Tags are always leaves
         let tag_layouts = tags.keys().map(|tag_id| {
             let tag_node_id = NodeId::from(tag_id.as_ref().clone());
-            (tag_node_id, NodeLayout::None)
+            let tag_node_layout = Self::build_node_leaf_layout(
+                tag_id.clone().into_inner(),
+                entity_types,
+                theme_default,
+                theme_types_styles,
+            );
+            (tag_node_id, tag_node_layout)
         });
 
         node_layouts.extend(tag_layouts);
@@ -984,14 +1001,13 @@ impl InputToIrDiagramMapper {
 
     /// Build a flex layout for a specific node.
     fn build_node_flex_layout<'id>(
-        node_id: &NodeId<'id>,
+        id: Id<'id>,
         direction: FlexDirection,
         wrap: bool,
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
     ) -> NodeLayout {
-        let id: Id<'id> = node_id.as_ref().clone();
         let (padding_top, padding_right, padding_bottom, padding_left) =
             ThemeAttrResolver::resolve_padding(
                 Some(&id),
@@ -1028,6 +1044,40 @@ impl InputToIrDiagramMapper {
         })
     }
 
+    /// Build a leaf layout for a specific node.
+    fn build_node_leaf_layout<'id>(
+        id: Id<'id>,
+        entity_types: &EntityTypes<'id>,
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+    ) -> NodeLayout {
+        let (padding_top, padding_right, padding_bottom, padding_left) =
+            ThemeAttrResolver::resolve_padding(
+                Some(&id),
+                entity_types,
+                theme_default,
+                theme_types_styles,
+            );
+        let (margin_top, margin_right, margin_bottom, margin_left) =
+            ThemeAttrResolver::resolve_margin(
+                Some(&id),
+                entity_types,
+                theme_default,
+                theme_types_styles,
+            );
+
+        NodeLayout::Leaf(LeafLayout {
+            padding_top,
+            padding_right,
+            padding_bottom,
+            padding_left,
+            margin_top,
+            margin_right,
+            margin_bottom,
+            margin_left,
+        })
+    }
+
     /// Recursively build layouts for things in the hierarchy.
     #[allow(clippy::too_many_arguments)] // we may reduce this during refactoring
     fn build_thing_layouts<'id, F, G>(
@@ -1050,8 +1100,13 @@ impl InputToIrDiagramMapper {
             .filter(|(node_id, _)| !is_tag(node_id) && !is_process(node_id))
             .flat_map(|(node_id, children)| {
                 let layout = if children.is_empty() {
-                    // Leaf node -- no layout needed
-                    NodeLayout::None
+                    // Leaf node
+                    Self::build_node_leaf_layout(
+                        node_id.clone().into_inner(),
+                        entity_types,
+                        theme_default,
+                        theme_types_styles,
+                    )
                 } else {
                     // Container node -- use flex layout.
                     //
@@ -1068,7 +1123,7 @@ impl InputToIrDiagramMapper {
                     });
 
                     Self::build_node_flex_layout(
-                        node_id,
+                        node_id.clone().into_inner(),
                         direction,
                         false,
                         entity_types,

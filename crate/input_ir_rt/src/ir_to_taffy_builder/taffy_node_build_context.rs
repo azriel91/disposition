@@ -1,6 +1,6 @@
 use disposition_ir_model::{
     entity::EntityTypes,
-    layout::NodeLayouts,
+    layout::{LeafLayout, NodeLayouts},
     node::{NodeHierarchy, NodeId, NodeNames, NodeShapes},
 };
 use disposition_model_common::{entity::EntityDescs, Map};
@@ -11,6 +11,7 @@ use disposition_taffy_model::{
     },
     DiagramLod, NodeContext, NodeToTaffyNodeIds,
 };
+use taffy::{LengthPercentage, LengthPercentageAuto, Rect};
 
 pub(crate) struct TaffyNodeBuildContext<'ctx> {
     pub(crate) taffy_tree: &'ctx mut TaffyTree<NodeContext>,
@@ -28,6 +29,43 @@ pub(crate) struct TaffyWrapperNodeStyles {
     pub(crate) wrapper_style: Style,
     pub(crate) text_style: Style,
     pub(crate) child_container_style: Style,
+}
+
+impl TaffyWrapperNodeStyles {
+    pub fn new(leaf_layout: &LeafLayout) -> Self {
+        Self {
+            wrapper_style: Style {
+                display: Display::Flex,
+                max_size: Size::auto(),
+                flex_direction: FlexDirection::Column,
+                flex_wrap: FlexWrap::NoWrap,
+                margin: Rect {
+                    left: LengthPercentageAuto::length(leaf_layout.margin_left()),
+                    right: LengthPercentageAuto::length(leaf_layout.margin_right()),
+                    top: LengthPercentageAuto::length(leaf_layout.margin_top()),
+                    bottom: LengthPercentageAuto::length(leaf_layout.margin_bottom()),
+                },
+                padding: Rect {
+                    left: LengthPercentage::length(leaf_layout.padding_left()),
+                    right: LengthPercentage::length(leaf_layout.padding_right()),
+                    top: LengthPercentage::length(leaf_layout.padding_top()),
+                    bottom: LengthPercentage::length(leaf_layout.padding_bottom()),
+                },
+                ..Default::default()
+            },
+            text_style: Style::default(),
+            child_container_style: Style {
+                display: Display::Flex,
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::Wrap,
+                align_items: Some(AlignItems::Start),
+                justify_items: Some(AlignItems::Start),
+                align_content: Some(AlignContent::Start),
+                justify_content: Some(AlignContent::Start),
+                ..Default::default()
+            },
+        }
+    }
 }
 
 impl Default for TaffyWrapperNodeStyles {

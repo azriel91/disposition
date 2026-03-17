@@ -19,6 +19,8 @@ use serde::{Deserialize, Serialize};
 /// This map uses [`Id`] keys, not [`ThingId`], so that layout overrides can be
 /// applied to `NodeInbuilt` keys as well.
 ///
+/// [`ThingId`]: crate::thing::ThingId
+///
 /// # Example
 ///
 /// ```yaml
