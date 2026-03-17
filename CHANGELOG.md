@@ -1,5 +1,14 @@
 # Changelog
 
+## unreleased
+
+* Add `playground`. ([#16][#16])
+* Support specifying `thing_layouts` in `InputDiagram`. ([#16][#16])
+* Apply margin and padding to leaf nodes. ([#16][#16])
+
+[#16]: https://github.com/azriel91/disposition/pull/16
+
+
 ## 0.0.4 (2026-02-22)
 
 * Support `InputDiagram` merging. ([#10][#10])
