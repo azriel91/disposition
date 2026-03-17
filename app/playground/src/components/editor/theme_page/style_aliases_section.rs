@@ -20,6 +20,7 @@
 //! - **Space** (inside a field): stop propagation.
 
 use dioxus::{
+    document,
     hooks::use_context,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{Memo, ReadableExt, Signal, WritableExt},
@@ -320,14 +321,19 @@ pub fn StyleAliasesSection(
                         class: REMOVE_BTN,
                         tabindex: "0",
                         "data-action": "remove",
+                        // TODO: this duplicates two things:
+                        //
+                        // * the `on_remove` handler passed to the `CardComponent`.
+                        // * the focus handling from `CardComponent::card_onkeydown`.
                         onclick: {
                             let alias_key = alias_key.clone();
                             move |evt: dioxus::events::MouseEvent| {
                                 evt.stop_propagation();
                                 if let Some(alias) = parse_style_alias(&alias_key) {
+                                    document::eval(&KeyboardNav::js_focus_after_field_remove());
                                     let mut diagram = input_diagram.write();
                                     diagram.theme_default.style_aliases.remove(&alias);
-                                }
+                                };
                             }
                         },
                         onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
