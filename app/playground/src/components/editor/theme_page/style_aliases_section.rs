@@ -330,6 +330,7 @@ pub fn StyleAliasesSection(
                                 }
                             }
                         },
+                        onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
                         "\u{2715}"
                     }
                 }
