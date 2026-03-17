@@ -466,8 +466,8 @@ fn StyleAliasesSectionHeader(
                         if let Some(parsed_old) = parse_style_alias(&old_key) {
                             let base = base_diagram.read();
                             let mut diagram = input_diagram.write();
-                            if !diagram.theme_default.style_aliases.contains_key(&parsed_old) {
-                                if let Some(base_partials) =
+                            if !diagram.theme_default.style_aliases.contains_key(&parsed_old)
+                                && let Some(base_partials) =
                                     base.theme_default.style_aliases.get(&parsed_old)
                                 {
                                     diagram
@@ -475,7 +475,6 @@ fn StyleAliasesSectionHeader(
                                         .style_aliases
                                         .insert(parsed_old, base_partials.clone());
                                 }
-                            }
                             drop(diagram);
                             drop(base);
                         }

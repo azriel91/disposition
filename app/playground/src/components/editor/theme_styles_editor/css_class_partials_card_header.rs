@@ -149,13 +149,11 @@ fn CssClassPartialsCardHeaderBuiltinSelect(
                             return;
                         };
                         // If entry exists only in base, copy it into the overlay first.
-                        if !styles.contains_key(&old) {
-                            if let Some(base_styles) = target.read(&base) {
-                                if let Some(base_partials) = base_styles.get(&old) {
+                        if !styles.contains_key(&old)
+                            && let Some(base_styles) = target.read(&base)
+                                && let Some(base_partials) = base_styles.get(&old) {
                                     styles.insert(old.clone(), base_partials.clone());
                                 }
-                            }
-                        }
                         if let Some(idx) = styles.get_index_of(&old) {
                             styles
                                 .replace_index(idx, new)
@@ -214,13 +212,11 @@ fn CssClassPartialsCardHeaderCustomInput(
                             return;
                         };
                         // If entry exists only in base, copy it into the overlay first.
-                        if !styles.contains_key(&old) {
-                            if let Some(base_styles) = target.read(&base) {
-                                if let Some(base_partials) = base_styles.get(&old) {
+                        if !styles.contains_key(&old)
+                            && let Some(base_styles) = target.read(&base)
+                                && let Some(base_partials) = base_styles.get(&old) {
                                     styles.insert(old.clone(), base_partials.clone());
                                 }
-                            }
-                        }
                         if let Some(idx) = styles.get_index_of(&old) {
                             styles
                                 .replace_index(idx, new)
@@ -280,13 +276,11 @@ fn CssClassPartialsCardHeaderToggle(
                                 return;
                             };
                             // If entry exists only in base, copy it into the overlay first.
-                            if !styles.contains_key(&old) {
-                                if let Some(base_styles) = target.read(&base) {
-                                    if let Some(base_partials) = base_styles.get(&old) {
+                            if !styles.contains_key(&old)
+                                && let Some(base_styles) = target.read(&base)
+                                    && let Some(base_partials) = base_styles.get(&old) {
                                         styles.insert(old.clone(), base_partials.clone());
                                     }
-                                }
-                            }
                             if let Some(idx) = styles.get_index_of(&old) {
                                 styles
                                     .replace_index(idx, new)

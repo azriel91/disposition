@@ -74,11 +74,10 @@ pub fn TypesStylesSection(
                                     let mut diagram = input_diagram.write();
                                     if !diagram.theme_types_styles.contains_key(&new_id) {
                                         // If entry exists only in base, copy it into the overlay first.
-                                        if !diagram.theme_types_styles.contains_key(&old_id) {
-                                            if let Some(base_styles) = base.theme_types_styles.get(&old_id) {
+                                        if !diagram.theme_types_styles.contains_key(&old_id)
+                                            && let Some(base_styles) = base.theme_types_styles.get(&old_id) {
                                                 diagram.theme_types_styles.insert(old_id.clone(), base_styles.clone());
                                             }
-                                        }
                                         if let Some(idx) =
                                             diagram.theme_types_styles.get_index_of(&old_id)
                                         {

@@ -295,10 +295,10 @@ impl ThemeStylesTarget {
         let styles = self.write_mut(diagram)?;
         if !styles.contains_key(entry_key) {
             // Entry is absent from the user overlay -- try to copy from base.
-            if let Some(base_styles) = Self::read_from(self, base_diagram) {
-                if let Some(base_partials) = base_styles.get(entry_key) {
-                    styles.insert(entry_key.clone(), base_partials.clone());
-                }
+            if let Some(base_styles) = Self::read_from(self, base_diagram)
+                && let Some(base_partials) = base_styles.get(entry_key)
+            {
+                styles.insert(entry_key.clone(), base_partials.clone());
             }
         }
         styles.get_mut(entry_key)

@@ -75,11 +75,10 @@ pub fn TagFocusSection(
                                             .contains_key(&new_tag)
                                         {
                                             // If entry exists only in base, copy it into the overlay first.
-                                            if !diagram.theme_tag_things_focus.contains_key(&old_tag) {
-                                                if let Some(base_styles) = base.theme_tag_things_focus.get(&old_tag) {
+                                            if !diagram.theme_tag_things_focus.contains_key(&old_tag)
+                                                && let Some(base_styles) = base.theme_tag_things_focus.get(&old_tag) {
                                                     diagram.theme_tag_things_focus.insert(old_tag.clone(), base_styles.clone());
                                                 }
-                                            }
                                             if let Some(idx) = diagram
                                                 .theme_tag_things_focus
                                                 .get_index_of(&old_tag)

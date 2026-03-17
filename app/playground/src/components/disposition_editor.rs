@@ -93,7 +93,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
     // The base diagram for comparison. Theme editor components read this
     // via `use_context` to show which values are from the base vs. user
     // overrides.
-    let base_diagram: Memo<InputDiagram<'static>> = use_memo(move || InputDiagram::base());
+    let base_diagram: Memo<InputDiagram<'static>> = use_memo(InputDiagram::base);
     use_context_provider(|| base_diagram);
 
     // After the first render, run a JS snippet that focuses the target
