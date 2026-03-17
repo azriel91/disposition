@@ -40,6 +40,7 @@ use crate::components::editor::{
         LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS,
     },
     datalists::list_ids,
+    keyboard_nav::KeyboardNav,
     reorderable::{drag_border_class, DragHandle},
     theme_styles_editor::{
         parse_theme_attr, theme_attr_entry::ThemeAttrEntry, theme_attr_name, THEME_ATTRS,
@@ -377,6 +378,9 @@ pub fn StyleAliasesSection(
                                         diagram.theme_default.style_aliases.remove(&alias);
                                     }
                                 }
+                            },
+                            onkeydown: move |evt| {
+                                KeyboardNav::field_keydown(evt, DATA_ATTR);
                             },
                             "Revert to base"
                         }
