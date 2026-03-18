@@ -1,0 +1,126 @@
+//! Things list field with reorderable rows and an add button.
+//!
+//! Extracted from [`EdgeGroupCard`] to keep the parent component concise.
+//!
+//! [`EdgeGroupCard`]: super::EdgeGroupCard
+
+use dioxus::{
+    hooks::use_signal,
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    signals::{Signal, WritableExt},
+};
+use disposition::input_model::{thing::ThingId, InputDiagram};
+use disposition_input_rt::{EdgeGroupCardOps, MapTarget};
+
+use crate::components::editor::{
+    common::{FieldNav, ADD_BTN, LABEL_CLASS},
+    reorderable::ReorderableContainer,
+    thing_dependencies_page::{
+        edge_group_card::edge_group_card_field_things_row::EdgeGroupCardFieldThingsRow, DATA_ATTR,
+    },
+};
+
+/// Things list field inside an edge group card.
+///
+/// Displays a "things" label, a [`ReorderableContainer`] of
+/// [`EdgeGroupCardFieldThingsRow`] entries, and an "+ Add thing" button.
+#[component]
+pub(crate) fn EdgeGroupCardFieldThings(
+    input_diagram: Signal<InputDiagram<'static>>,
+    target: MapTarget,
+    edge_group_id: String,
+    things: Vec<ThingId<'static>>,
+    thing_focus_idx: Signal<Option<usize>>,
+) -> Element {
+    let thing_count = things.len();
+    let thing_drag_idx: Signal<Option<usize>> = use_signal(|| None);
+    let thing_drop_target: Signal<Option<usize>> = use_signal(|| None);
+
+    rsx! {
+        div {
+            class: "flex flex-col gap-1 pl-4",
+
+            label { class: LABEL_CLASS, "things" }
+
+            ReorderableContainer {
+                data_attr: "data-edge-thing-row".to_owned(),
+                section_id: format!("edge_things_{edge_group_id}"),
+                focus_index: thing_focus_idx,
+                focus_inner_selector: Some("input".to_owned()),
+
+                for (idx, thing_id) in things.iter().enumerate() {
+                    {
+                        let thing_id = thing_id.clone();
+                        let edge_group_id = edge_group_id.clone();
+                        let edge_group_id_move = edge_group_id.clone();
+                        let edge_group_id_add = edge_group_id.clone();
+                        let edge_group_id_remove = edge_group_id.clone();
+                        rsx! {
+                            EdgeGroupCardFieldThingsRow {
+                                key: "{edge_group_id}_{idx}",
+                                input_diagram,
+                                target,
+                                edge_group_id,
+                                thing_id: thing_id.to_string(),
+                                index: idx,
+                                thing_count,
+                                thing_focus_idx,
+                                drag_index: thing_drag_idx,
+                                drop_target: thing_drop_target,
+                                on_move: move |(from, to): (usize, usize)| {
+                                    EdgeGroupCardOps::edge_thing_move(
+                                        &mut input_diagram.write(),
+                                        target,
+                                        &edge_group_id_move,
+                                        from,
+                                        to,
+                                    );
+                                },
+                                on_add: move |insert_at: usize| {
+                                    EdgeGroupCardOps::edge_thing_add(
+                                        &mut input_diagram.write(),
+                                        target,
+                                        &edge_group_id_add,
+                                    );
+                                    let last = thing_count;
+                                    EdgeGroupCardOps::edge_thing_move(
+                                        &mut input_diagram.write(),
+                                        target,
+                                        &edge_group_id_add,
+                                        last,
+                                        insert_at,
+                                    );
+                                },
+                                on_remove: move |row_index: usize| {
+                                    EdgeGroupCardOps::edge_thing_remove(
+                                        &mut input_diagram.write(),
+                                        target,
+                                        &edge_group_id_remove,
+                                        row_index,
+                                    );
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+
+            button {
+                class: ADD_BTN,
+                tabindex: -1,
+                onclick: {
+                    let edge_group_id = edge_group_id.clone();
+                    move |_| {
+                        EdgeGroupCardOps::edge_thing_add(
+                            &mut input_diagram.write(),
+                            target,
+                            &edge_group_id,
+                        );
+                    }
+                },
+                onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
+                "+ Add thing"
+            }
+        }
+    }
+}

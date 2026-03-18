@@ -23,5 +23,6 @@ workspace = true
 [dev-dependencies]
 disposition = { workspace = true, features = ["test"] }
 disposition_input_ir_rt = { workspace = true }
+disposition_input_rt = { workspace = true }
 pretty_assertions = { workspace = true }
 serde-saphyr = { workspace = true }

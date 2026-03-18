@@ -1,0 +1,161 @@
+//! A single tag-focus section within the tags focus page.
+//!
+//! Shows a header with the tag key (select for `tag_defaults`, text input for
+//! custom tags) and a remove button, then embeds a [`ThemeStylesEditor`]
+//! targeting that specific tag key.
+
+use dioxus::{
+    hooks::use_context,
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    signals::{Memo, ReadableExt, Signal, WritableExt},
+};
+use disposition::input_model::InputDiagram;
+use disposition_input_ir_rt::ThemeValueSource;
+
+use crate::components::editor::{
+    common::{parse_tag_id_or_defaults, CARD_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE},
+    datalists::list_ids,
+    theme_styles_editor::{ThemeStylesEditor, ThemeStylesTarget},
+};
+
+// === TagFocusSection === //
+
+/// A single tag-focus section within the tags focus page.
+///
+/// Shows a header with the tag key -- either a static `"tag_defaults"` label
+/// or an editable text `<input>` for custom tag IDs -- and a remove button,
+/// then embeds a [`ThemeStylesEditor`] targeting that specific tag key.
+#[component]
+pub fn TagFocusSection(
+    input_diagram: Signal<InputDiagram<'static>>,
+    tag_key: String,
+    value_source: ThemeValueSource,
+) -> Element {
+    let base_diagram: Memo<InputDiagram<'static>> = use_context();
+    let is_defaults = tag_key == "tag_defaults";
+
+    rsx! {
+        div {
+            class: CARD_CLASS,
+
+            // === Header: tag key + remove === //
+            div {
+                class: ROW_CLASS_SIMPLE,
+
+                label {
+                    class: "text-xs text-gray-500 w-14 shrink-0",
+                    "Tag"
+                }
+
+                if is_defaults {
+                    span {
+                        class: "text-sm font-mono text-gray-300 px-2 py-1",
+                        "tag_defaults"
+                    }
+                } else {
+                    input {
+                        class: INPUT_CLASS,
+                        style: "max-width:14rem",
+                        list: list_ids::TAG_IDS,
+                        placeholder: "tag_id",
+                        value: "{tag_key}",
+                        onchange: {
+                            let old_key = tag_key.clone();
+                            move |evt: dioxus::events::FormEvent| {
+                                let new_val = evt.value();
+                                if new_val != old_key
+                                    && let (Some(old_tag), Some(new_tag)) = (
+                                        parse_tag_id_or_defaults(&old_key),
+                                        parse_tag_id_or_defaults(&new_val),
+                                    ) {
+                                        let base = base_diagram.read();
+                                        let mut diagram = input_diagram.write();
+                                        if !diagram
+                                            .theme_tag_things_focus
+                                            .contains_key(&new_tag)
+                                        {
+                                            // If entry exists only in base, copy it into the overlay first.
+                                            if !diagram.theme_tag_things_focus.contains_key(&old_tag)
+                                                && let Some(base_styles) = base.theme_tag_things_focus.get(&old_tag) {
+                                                    diagram.theme_tag_things_focus.insert(old_tag.clone(), base_styles.clone());
+                                                }
+                                            if let Some(idx) = diagram
+                                                .theme_tag_things_focus
+                                                .get_index_of(&old_tag)
+                                            {
+                                                diagram
+                                                    .theme_tag_things_focus
+                                                    .replace_index(idx, new_tag)
+                                                    .expect(
+                                                        "Expected new key to be unique; \
+                                                         checked for availability above",
+                                                    );
+                                            }
+                                        }
+                                    }
+                            }
+                        },
+                    }
+                }
+
+                button {
+                    class: REMOVE_BTN,
+                    onclick: {
+                        let key = tag_key.clone();
+                        move |_| {
+                            if let Some(parsed) = parse_tag_id_or_defaults(&key) {
+                                let mut diagram = input_diagram.write();
+                                diagram.theme_tag_things_focus.remove(&parsed);
+                            }
+                        }
+                    },
+                    "x Remove tag"
+                }
+            }
+
+            // === Value source indicator === //
+            if value_source == ThemeValueSource::UserInput {
+                div {
+                    class: "flex flex-row items-center gap-2 text-xs",
+                    span {
+                        class: "text-amber-400",
+                        "Overrides base styles"
+                    }
+                    button {
+                        class: "\
+                            text-xs \
+                            text-amber-400 \
+                            hover:text-amber-300 \
+                            cursor-pointer \
+                            select-none\
+                        ",
+                        tabindex: "0",
+                        onclick: {
+                            let key = tag_key.clone();
+                            move |_| {
+                                if let Some(parsed) = parse_tag_id_or_defaults(&key) {
+                                    let mut diagram = input_diagram.write();
+                                    diagram.theme_tag_things_focus.remove(&parsed);
+                                }
+                            }
+                        },
+                        "Revert to base"
+                    }
+                }
+            } else {
+                div {
+                    class: "text-xs text-gray-500 italic",
+                    "From disposition's base styles"
+                }
+            }
+
+            // === Inner ThemeStyles editor === //
+            ThemeStylesEditor {
+                input_diagram,
+                target: ThemeStylesTarget::TagFocus {
+                    tag_key: tag_key.clone(),
+                },
+            }
+        }
+    }
+}

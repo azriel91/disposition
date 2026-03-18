@@ -1,0 +1,92 @@
+---
+# Deployment Process
+#
+# A process-only diagram showing a CI/CD deployment pipeline
+# with interactions between services and sequenced steps.
+
+things:
+  t_dev: "Developer"
+  t_repo: "Git Repository"
+  t_ci: "CI Server"
+  t_registry: "Container Registry"
+  t_staging: "Staging Environment"
+  t_prod: "Production Environment"
+
+thing_hierarchy:
+  t_dev: {}
+  t_repo: {}
+  t_ci: {}
+  t_registry: {}
+  t_staging: {}
+  t_prod: {}
+
+thing_interactions:
+  edge_ix_dev_repo_push:
+    kind: sequence
+    things:
+      - t_dev
+      - t_repo
+  edge_ix_repo_ci_trigger:
+    kind: sequence
+    things:
+      - t_repo
+      - t_ci
+  edge_ix_ci_ci_build:
+    kind: cyclic
+    things:
+      - t_ci
+  edge_ix_ci_registry_push:
+    kind: sequence
+    things:
+      - t_ci
+      - t_registry
+  edge_ix_registry_staging_deploy:
+    kind: sequence
+    things:
+      - t_registry
+      - t_staging
+  edge_ix_staging_staging_test:
+    kind: cyclic
+    things:
+      - t_staging
+  edge_ix_registry_prod_deploy:
+    kind: sequence
+    things:
+      - t_registry
+      - t_prod
+
+processes:
+  proc_deploy:
+    name: "CI/CD Deployment Pipeline"
+    desc: |-
+      End-to-end deployment pipeline from code push to production.
+    steps:
+      step_push: "Push code"
+      step_trigger: "Trigger CI build"
+      step_build: "Build and test"
+      step_publish: "Publish image"
+      step_deploy_staging: "Deploy to staging"
+      step_smoke_test: "Run smoke tests"
+      step_deploy_prod: "Deploy to production"
+    step_thing_interactions:
+      step_push: [edge_ix_dev_repo_push]
+      step_trigger: [edge_ix_repo_ci_trigger]
+      step_build: [edge_ix_ci_ci_build]
+      step_publish: [edge_ix_ci_registry_push]
+      step_deploy_staging: [edge_ix_registry_staging_deploy]
+      step_smoke_test: [edge_ix_staging_staging_test]
+      step_deploy_prod: [edge_ix_registry_prod_deploy]
+
+entity_descs:
+  t_dev: "The developer pushing code changes"
+  t_ci: "Runs automated builds and tests"
+
+entity_tooltips:
+  step_push: |-
+    ```bash
+    git push origin main
+    ```
+  step_build: |-
+    CI runs unit tests, integration tests, and builds the container image.
+  step_deploy_prod: |-
+    Rolling deployment to production after staging validation passes.

@@ -6,7 +6,10 @@ use disposition_input_model::{
         StyleAliases, ThemeDefault, ThemeStyles, ThemeTagThingsFocus, ThemeThingDependenciesStyles,
         ThemeTypesStyles,
     },
-    thing::{ThingCopyText, ThingDependencies, ThingHierarchy, ThingInteractions, ThingNames},
+    thing::{
+        ThingCopyText, ThingDependencies, ThingHierarchy, ThingInteractions, ThingLayouts,
+        ThingNames,
+    },
     InputDiagram,
 };
 use disposition_model_common::{entity::EntityTooltips, theme::Css};
@@ -52,6 +55,8 @@ impl InputDiagramMerger {
             base_diagram.thing_hierarchy,
             &overlay_diagram.thing_hierarchy,
         );
+        let thing_layouts =
+            Self::merge_thing_layouts(base_diagram.thing_layouts, &overlay_diagram.thing_layouts);
         let thing_dependencies = Self::merge_thing_dependencies(
             base_diagram.thing_dependencies,
             &overlay_diagram.thing_dependencies,
@@ -92,6 +97,7 @@ impl InputDiagramMerger {
             things,
             thing_copy_text,
             thing_hierarchy,
+            thing_layouts,
             thing_dependencies,
             thing_interactions,
             processes,
@@ -141,6 +147,17 @@ impl InputDiagramMerger {
         let mut result = base;
         overlay.iter().for_each(|(key, value)| {
             result.insert(key.clone(), value.clone());
+        });
+        result
+    }
+
+    fn merge_thing_layouts<'id>(
+        base: ThingLayouts<'static>,
+        overlay: &ThingLayouts<'id>,
+    ) -> ThingLayouts<'id> {
+        let mut result = base;
+        overlay.iter().for_each(|(key, value)| {
+            result.insert(key.clone(), *value);
         });
         result
     }

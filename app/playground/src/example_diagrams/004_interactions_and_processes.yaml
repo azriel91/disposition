@@ -1,0 +1,71 @@
+---
+# Interactions and Processes
+#
+# Demonstrates thing_interactions and processes with steps
+# that reference those interactions.
+
+things:
+  t_browser: "Browser"
+  t_api_gateway: "API Gateway"
+  t_auth_service: "Auth Service"
+  t_database: "Database"
+
+thing_hierarchy:
+  t_browser: {}
+  t_api_gateway: {}
+  t_auth_service: {}
+  t_database: {}
+
+thing_interactions:
+  edge_ix_browser__api__request:
+    kind: sequence
+    things:
+      - t_browser
+      - t_api_gateway
+  edge_ix_api__auth__verify:
+    kind: symmetric
+    things:
+      - t_api_gateway
+      - t_auth_service
+  edge_ix_auth__db__lookup:
+    kind: symmetric
+    things:
+      - t_auth_service
+      - t_database
+  edge_ix_api__db__query:
+    kind: symmetric
+    things:
+      - t_api_gateway
+      - t_database
+  edge_ix_api__browser__response:
+    kind: sequence
+    things:
+      - t_api_gateway
+      - t_browser
+
+processes:
+  proc_login:
+    name: "User Login"
+    desc: |-
+      Authentication flow when a user logs in.
+    steps:
+      step_submit_credentials: "Submit credentials"
+      step_verify_token: "Verify token"
+      step_lookup_user: "Look up user in DB"
+      step_return_session: "Return session"
+    step_thing_interactions:
+      step_submit_credentials: [edge_ix_browser__api__request]
+      step_verify_token: [edge_ix_api__auth__verify]
+      step_lookup_user: [edge_ix_auth__db__lookup]
+      step_return_session: [edge_ix_api__browser__response]
+
+  proc_data_fetch:
+    name: "Data Fetch"
+    steps:
+      step_request_data: "Request data"
+      step_query_db: "Query database"
+      step_send_response: "Send response"
+    step_thing_interactions:
+      step_request_data: [edge_ix_browser__api__request]
+      step_query_db: [edge_ix_api__db__query]
+      step_send_response: [edge_ix_api__browser__response]

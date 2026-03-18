@@ -14,6 +14,7 @@ pub use self::{
 
 pub mod edge;
 pub mod entity;
+pub mod layout;
 pub mod theme;
 
 mod id;

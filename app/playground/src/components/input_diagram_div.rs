@@ -1,6 +1,6 @@
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Props},
-    signals::{Signal, WritableExt},
+    signals::{ReadableExt, Signal, WritableExt},
 };
 
 #[component]
@@ -24,7 +24,7 @@ pub fn InputDiagramDiv(input_diagram_string: Signal<String>) -> Element {
             }
             textarea {
                 id: "input_diagram_text",
-                oninput: move |event| {
+                onchange: move |event| {
                     let event_value = event.value();
                     info!("changing value! len: {}", event_value.len());
                     input_diagram_string.set(event_value);
@@ -38,7 +38,8 @@ pub fn InputDiagramDiv(input_diagram_string: Signal<String>) -> Element {
                     p-2
                     font-mono
                     text-nowrap
-                "
+                ",
+                value: input_diagram_string.read().as_str(),
             }
         }
     }

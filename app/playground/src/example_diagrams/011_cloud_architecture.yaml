@@ -1,0 +1,218 @@
+---
+# Cloud Network Architecture
+#
+# Shows a multi-tier cloud deployment with VPCs, subnets,
+# load balancers, and application services.
+
+things:
+  t_cloud: "Cloud Platform"
+  t_vpc: "VPC 10.0.0.0/16"
+  t_public_subnet: "Public Subnet"
+  t_private_subnet: "Private Subnet"
+  t_data_subnet: "Data Subnet"
+  t_igw: "Internet Gateway"
+  t_nat: "NAT Gateway"
+  t_alb: "Application Load Balancer"
+  t_web_1: "Web Server 1"
+  t_web_2: "Web Server 2"
+  t_app_1: "App Server 1"
+  t_app_2: "App Server 2"
+  t_rds_primary: "RDS Primary"
+  t_rds_replica: "RDS Replica"
+  t_cache: "Redis Cache"
+  t_users: "Users"
+  t_dns: "DNS (Route 53)"
+
+thing_hierarchy:
+  t_cloud:
+    t_vpc:
+      t_public_subnet:
+        t_igw: {}
+        t_nat: {}
+        t_alb: {}
+      t_private_subnet:
+        t_web_1: {}
+        t_web_2: {}
+        t_app_1: {}
+        t_app_2: {}
+      t_data_subnet:
+        t_rds_primary: {}
+        t_rds_replica: {}
+        t_cache: {}
+    t_dns: {}
+  t_users: {}
+
+# Override layout directions so subnets are arranged in a row
+# and their children stack vertically within each subnet.
+thing_layouts:
+  t_cloud: "column"
+  t_vpc: "row"
+  t_public_subnet: "row"
+  t_private_subnet: "row"
+  t_data_subnet: "row"
+
+thing_dependencies:
+  edge_dep_dns_alb:
+    kind: sequence
+    things:
+      - t_dns
+      - t_alb
+  edge_dep_alb_web:
+    kind: sequence
+    things:
+      - t_alb
+      - t_web_1
+  edge_dep_alb_web2:
+    kind: sequence
+    things:
+      - t_alb
+      - t_web_2
+  edge_dep_web1_app1:
+    kind: sequence
+    things:
+      - t_web_1
+      - t_app_1
+  edge_dep_web2_app2:
+    kind: sequence
+    things:
+      - t_web_2
+      - t_app_2
+  edge_dep_app1_rds:
+    kind: sequence
+    things:
+      - t_app_1
+      - t_rds_primary
+  edge_dep_app2_rds:
+    kind: sequence
+    things:
+      - t_app_2
+      - t_rds_primary
+  edge_dep_app1_cache:
+    kind: sequence
+    things:
+      - t_app_1
+      - t_cache
+  edge_dep_app2_cache:
+    kind: sequence
+    things:
+      - t_app_2
+      - t_cache
+  edge_dep_rds_replica:
+    kind: sequence
+    things:
+      - t_rds_primary
+      - t_rds_replica
+
+thing_interactions:
+  edge_ix_user_dns:
+    kind: symmetric
+    things:
+      - t_users
+      - t_dns
+  edge_ix_dns_alb:
+    kind: sequence
+    things:
+      - t_dns
+      - t_alb
+  edge_ix_alb_web:
+    kind: sequence
+    things:
+      - t_alb
+      - t_web_1
+      - t_app_1
+      - t_rds_primary
+  edge_ix_cache_lookup:
+    kind: symmetric
+    things:
+      - t_app_1
+      - t_cache
+
+processes:
+  proc_user_request:
+    name: "User Request Flow"
+    steps:
+      proc_user_request_step_dns: "DNS Resolution"
+      proc_user_request_step_lb: "Load Balancing"
+      proc_user_request_step_app: "Application Processing"
+      proc_user_request_step_cache: "Cache Lookup"
+    step_thing_interactions:
+      proc_user_request_step_dns: [edge_ix_user_dns]
+      proc_user_request_step_lb: [edge_ix_dns_alb]
+      proc_user_request_step_app: [edge_ix_alb_web]
+      proc_user_request_step_cache: [edge_ix_cache_lookup]
+
+tags:
+  tag_networking: "Networking"
+  tag_compute: "Compute"
+  tag_data: "Data Tier"
+
+tag_things:
+  tag_networking:
+    - t_igw
+    - t_nat
+    - t_alb
+    - t_dns
+  tag_compute:
+    - t_web_1
+    - t_web_2
+    - t_app_1
+    - t_app_2
+  tag_data:
+    - t_rds_primary
+    - t_rds_replica
+    - t_cache
+
+entity_descs:
+  t_alb: "Distributes traffic across web servers"
+  t_rds_primary: "PostgreSQL primary database"
+  t_cache: "In-memory session and query cache"
+
+entity_types:
+  t_cloud: [type_cloud_provider]
+  t_vpc: [type_network]
+  t_public_subnet: [type_subnet]
+  t_private_subnet: [type_subnet]
+  t_data_subnet: [type_subnet]
+  t_igw: [type_gateway]
+  t_nat: [type_gateway]
+  t_alb: [type_load_balancer]
+  t_web_1: [type_server]
+  t_web_2: [type_server]
+  t_app_1: [type_server]
+  t_app_2: [type_server]
+  t_rds_primary: [type_database]
+  t_rds_replica: [type_database]
+  t_cache: [type_database]
+
+theme_default:
+  base_styles:
+    t_cloud:
+      shape_color: "sky"
+    t_users:
+      shape_color: "green"
+    t_dns:
+      shape_color: "orange"
+
+theme_types_styles:
+  type_cloud_provider:
+    node_defaults:
+      stroke_style: "dotted"
+  type_network:
+    node_defaults:
+      stroke_style: "dashed"
+      shape_color: "blue"
+  type_subnet:
+    node_defaults:
+      stroke_style: "dashed"
+  type_gateway:
+    node_defaults:
+      shape_color: "amber"
+  type_load_balancer:
+    node_defaults:
+      shape_color: "violet"
+  type_server:
+    node_defaults:
+      shape_color: "emerald"
+  type_database:
+    node_defaults:
+      shape_color: "rose"

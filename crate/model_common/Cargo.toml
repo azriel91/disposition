@@ -21,7 +21,7 @@ workspace = true
 
 [dependencies]
 id_newtype = { workspace = true, features = ["macros"] }
-indexmap = { workspace = true, features = ["serde"] }
+ordermap = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 utoipa = { workspace = true, optional = true }
 
@@ -31,5 +31,5 @@ default = []
 # Only enable this when you need to generate OpenAPI documentation.
 openapi = ["dep:utoipa"]
 
-# Flag so that running tests with `--all-features` still selects `indexmap` for deterministic order.
+# Flag so that running tests with `--all-features` still selects `ordermap` for deterministic order.
 test = []

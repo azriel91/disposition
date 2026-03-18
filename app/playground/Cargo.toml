@@ -15,14 +15,26 @@ license.workspace = true
 
 [dependencies]
 dioxus = { workspace = true, features = ["router"] }
+dioxus-clipboard = { workspace = true, features = ["wasm", "async"] }
 disposition = { workspace = true }
 disposition_input_ir_rt = { workspace = true }
+disposition_input_rt = { workspace = true }
+enum-iterator = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 serde-saphyr = { workspace = true }
 urlencoding = { workspace = true }
 
-[target.'wasm32-unknown-unknown'.dependencies]
+# We only support the web target, and we don't need tokio on the server.
+#
+# ```toml
+# [target.'cfg(not(target_family = "wasm"))'.dependencies]
+# tokio = { workspace = true, features = ["time"] }
+# ```
+
+[target.'cfg(target_family = "wasm")'.dependencies]
 # needed to enable `"wasm_js"` feature, transitive dep of `serde-saphyr`, `reqwest`, et. al.
 getrandom = { workspace = true, features = ["wasm_js"] }
+gloo-timers = { workspace = true }
 web-time = { workspace = true }
 
 [features]

@@ -1,0 +1,74 @@
+---
+# Themed diagram -- demonstrates styling things using
+# `entity_types`, `theme_types_styles`, and `theme_default`.
+
+things:
+  t_primary_db: "Primary DB"
+  t_replica_db: "Replica DB"
+  t_cache: "Cache Layer"
+  t_api: "API Server"
+  t_web: "Web Frontend"
+
+thing_hierarchy:
+  t_primary_db: {}
+  t_replica_db: {}
+  t_cache: {}
+  t_api: {}
+  t_web: {}
+
+thing_dependencies:
+  edge_dep_primary__replica:
+    kind: sequence
+    things:
+      - t_primary_db
+      - t_replica_db
+  edge_dep_api__primary:
+    kind: sequence
+    things:
+      - t_api
+      - t_primary_db
+  edge_dep_api__cache:
+    kind: sequence
+    things:
+      - t_api
+      - t_cache
+  edge_dep_web__api:
+    kind: sequence
+    things:
+      - t_web
+      - t_api
+
+entity_types:
+  t_primary_db: [type_database]
+  t_replica_db: [type_database]
+  t_cache: [type_cache]
+  t_api: [type_server]
+  t_web: [type_frontend]
+
+theme_default:
+  base_styles:
+    t_primary_db:
+      shape_color: "blue"
+    t_cache:
+      shape_color: "amber"
+    t_web:
+      shape_color: "emerald"
+    edge_dep_primary__replica:
+      stroke_style: "dashed"
+
+theme_types_styles:
+  type_database:
+    node_defaults:
+      shape_color: "indigo"
+      stroke_width: "2"
+  type_cache:
+    node_defaults:
+      shape_color: "amber"
+      stroke_style: "dashed"
+  type_server:
+    node_defaults:
+      shape_color: "sky"
+  type_frontend:
+    node_defaults:
+      shape_color: "emerald"
+      stroke_width: "2"

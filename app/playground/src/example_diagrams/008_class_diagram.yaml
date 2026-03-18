@@ -1,0 +1,83 @@
+---
+# Class Diagram -- object-oriented design
+#
+# Models classes, their attributes, and inheritance/composition
+# relationships in a typical OOP system.
+
+things:
+  t_animal: "Animal"
+  t_animal_name: "name: String"
+  t_animal_age: "age: u32"
+  t_dog: "Dog"
+  t_dog_breed: "breed: String"
+  t_cat: "Cat"
+  t_cat_indoor: "indoor: bool"
+  t_owner: "Owner"
+  t_owner_name: "name: String"
+  t_owner_pets: "pets: Vec<Animal>"
+
+thing_hierarchy:
+  t_animal:
+    t_animal_name: {}
+    t_animal_age: {}
+  t_dog:
+    t_dog_breed: {}
+  t_cat:
+    t_cat_indoor: {}
+  t_owner:
+    t_owner_name: {}
+    t_owner_pets: {}
+
+thing_dependencies:
+  edge_dep_dog_extends_animal:
+    kind: sequence
+    things:
+      - t_dog
+      - t_animal
+  edge_dep_cat_extends_animal:
+    kind: sequence
+    things:
+      - t_cat
+      - t_animal
+  edge_dep_owner_has_animals:
+    kind: sequence
+    things:
+      - t_owner
+      - t_animal
+
+entity_descs:
+  t_animal: "Abstract base class"
+  t_dog: "Concrete subclass"
+  t_cat: "Concrete subclass"
+  t_owner: "Composition root"
+  edge_dep_dog_extends_animal: "inherits"
+  edge_dep_cat_extends_animal: "inherits"
+  edge_dep_owner_has_animals: "has many"
+
+entity_types:
+  t_animal: [type_abstract_class]
+  t_dog: [type_concrete_class]
+  t_cat: [type_concrete_class]
+  t_owner: [type_concrete_class]
+
+tags:
+  tag_inheritance: "Inheritance"
+  tag_composition: "Composition"
+
+tag_things:
+  tag_inheritance:
+    - t_animal
+    - t_dog
+    - t_cat
+  tag_composition:
+    - t_owner
+    - t_animal
+
+theme_types_styles:
+  type_abstract_class:
+    node_defaults:
+      stroke_style: "dashed"
+      shape_color: "violet"
+  type_concrete_class:
+    node_defaults:
+      shape_color: "sky"

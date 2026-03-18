@@ -3,7 +3,7 @@ use disposition::{
     input_model::InputDiagram,
     ir_model::{
         entity::EntityType,
-        layout::{FlexDirection, NodeLayout},
+        layout::{FlexDirection, LeafLayout, NodeLayout},
         node::NodeId,
         IrDiagram,
     },
@@ -448,11 +448,35 @@ fn test_node_layout_processes() {
     // Process steps are leaves, should have None layout
     let step_id = NodeId::from(id!("proc_app_dev_step_repository_clone"));
     let step_layout = diagram.node_layouts.get(&step_id).unwrap();
-    assert_eq!(&NodeLayout::None, step_layout);
+    assert_eq!(
+        &NodeLayout::Leaf(LeafLayout {
+            padding_top: 4.0,
+            padding_right: 4.0,
+            padding_bottom: 4.0,
+            padding_left: 4.0,
+            margin_top: 0.0,
+            margin_right: 0.0,
+            margin_bottom: 0.0,
+            margin_left: 0.0
+        }),
+        step_layout
+    );
 
     let step2_id = NodeId::from(id!("proc_app_dev_step_project_build"));
     let step2_layout = diagram.node_layouts.get(&step2_id).unwrap();
-    assert_eq!(&NodeLayout::None, step2_layout);
+    assert_eq!(
+        &NodeLayout::Leaf(LeafLayout {
+            padding_top: 4.0,
+            padding_right: 4.0,
+            padding_bottom: 4.0,
+            padding_left: 4.0,
+            margin_top: 0.0,
+            margin_right: 0.0,
+            margin_bottom: 0.0,
+            margin_left: 0.0
+        }),
+        step2_layout
+    );
 }
 
 #[test]
@@ -464,11 +488,35 @@ fn test_node_layout_tags() {
 
     let tag_0_id = NodeId::from(id!("tag_app_development"));
     let tag_0_layout = diagram.node_layouts.get(&tag_0_id).unwrap();
-    assert_eq!(&NodeLayout::None, tag_0_layout);
+    assert_eq!(
+        &NodeLayout::Leaf(LeafLayout {
+            padding_top: 4.0,
+            padding_right: 4.0,
+            padding_bottom: 4.0,
+            padding_left: 4.0,
+            margin_top: 0.0,
+            margin_right: 0.0,
+            margin_bottom: 0.0,
+            margin_left: 0.0
+        }),
+        tag_0_layout
+    );
 
     let tag_1_id = NodeId::from(id!("tag_deployment"));
     let tag_1_layout = diagram.node_layouts.get(&tag_1_id).unwrap();
-    assert_eq!(&NodeLayout::None, tag_1_layout);
+    assert_eq!(
+        &NodeLayout::Leaf(LeafLayout {
+            padding_top: 4.0,
+            padding_right: 4.0,
+            padding_bottom: 4.0,
+            padding_left: 4.0,
+            margin_top: 0.0,
+            margin_right: 0.0,
+            margin_bottom: 0.0,
+            margin_left: 0.0
+        }),
+        tag_1_layout
+    );
 }
 
 #[test]
@@ -503,7 +551,19 @@ fn test_node_layout_things_hierarchy() {
     // t_aws_iam_ecs_policy is a leaf, should have None layout
     let leaf_id = NodeId::from(id!("t_aws_iam_ecs_policy"));
     let leaf_layout = diagram.node_layouts.get(&leaf_id).unwrap();
-    assert_eq!(&NodeLayout::None, leaf_layout);
+    assert_eq!(
+        &NodeLayout::Leaf(LeafLayout {
+            padding_top: 4.0,
+            padding_right: 4.0,
+            padding_bottom: 4.0,
+            padding_left: 4.0,
+            margin_top: 0.0,
+            margin_right: 0.0,
+            margin_bottom: 0.0,
+            margin_left: 0.0
+        }),
+        leaf_layout
+    );
 
     // t_aws_ecr_repo has children (images), should have column flex (depth 2)
     let t_aws_ecr_repo_id = NodeId::from(id!("t_aws_ecr_repo"));
@@ -517,7 +577,19 @@ fn test_node_layout_things_hierarchy() {
     // t_aws_ecr_repo_image_1 is a leaf
     let image_id = NodeId::from(id!("t_aws_ecr_repo_image_1"));
     let image_layout = diagram.node_layouts.get(&image_id).unwrap();
-    assert_eq!(&NodeLayout::None, image_layout);
+    assert_eq!(
+        &NodeLayout::Leaf(LeafLayout {
+            padding_top: 4.0,
+            padding_right: 4.0,
+            padding_bottom: 4.0,
+            padding_left: 4.0,
+            margin_top: 0.0,
+            margin_right: 0.0,
+            margin_bottom: 0.0,
+            margin_left: 0.0
+        }),
+        image_layout
+    );
 }
 
 #[test]
