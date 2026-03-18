@@ -40,7 +40,7 @@ pub(crate) fn ProcessCardFieldName(
                 tabindex: "-1",
                 placeholder: "Display name",
                 value: "{entry_name}",
-                oninput: {
+                onchange: {
                     let process_id = process_id.clone();
                     move |evt: dioxus::events::FormEvent| {
                         ProcessesPageOps::process_name_update(&mut input_diagram.write(), &process_id, &evt.value());

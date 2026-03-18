@@ -304,7 +304,7 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                                 placeholder: "node_inbuilt or thing_id",
                                 pattern: "{pattern_clone}",
                                 value: "{add_input_value}",
-                                oninput: move |evt: dioxus::events::FormEvent| {
+                                onchange: move |evt: dioxus::events::FormEvent| {
                                     add_input_value.set(evt.value());
                                 },
                                 onkeydown: {

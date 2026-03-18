@@ -24,7 +24,7 @@ pub fn InputDiagramDiv(input_diagram_string: Signal<String>) -> Element {
             }
             textarea {
                 id: "input_diagram_text",
-                oninput: move |event| {
+                onchange: move |event| {
                     let event_value = event.value();
                     info!("changing value! len: {}", event_value.len());
                     input_diagram_string.set(event_value);

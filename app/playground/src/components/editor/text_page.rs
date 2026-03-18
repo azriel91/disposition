@@ -161,7 +161,7 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
             textarea {
                 class: TEXTAREA_CLASS,
                 value: "{current_text}",
-                oninput: move |evt| {
+                onchange: move |evt| {
                     let new_text = evt.value();
                     text_buffer.set(new_text.clone());
 

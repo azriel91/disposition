@@ -529,7 +529,7 @@ pub fn ThemeTagsFocusPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
                     textarea {
                         class: TEXTAREA_CLASS,
                         value: "{css_yaml}",
-                        oninput: move |evt| {
+                        onchange: move |evt| {
                             let text = evt.value();
                             if let Ok(css) = serde_saphyr::from_str(&text) {
                                 input_diagram.write().css = css;

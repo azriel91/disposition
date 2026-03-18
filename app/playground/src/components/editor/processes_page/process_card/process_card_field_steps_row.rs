@@ -159,7 +159,7 @@ pub(crate) fn ProcessCardFieldStepsRow(
                 tabindex: "-1",
                 placeholder: "Step label",
                 value: "{step_label}",
-                oninput: {
+                onchange: {
                     let process_id = process_id.clone();
                     let step_id = step_id.clone();
                     move |evt: dioxus::events::FormEvent| {

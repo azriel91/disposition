@@ -40,7 +40,7 @@ pub(crate) fn ProcessCardFieldDesc(
                 tabindex: "-1",
                 placeholder: "Process description (markdown)",
                 value: "{entry_desc}",
-                oninput: {
+                onchange: {
                     let process_id = process_id.clone();
                     move |evt: dioxus::events::FormEvent| {
                         ProcessesPageOps::process_desc_update(&mut input_diagram.write(), &process_id, &evt.value());

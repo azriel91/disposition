@@ -195,7 +195,7 @@ pub fn IdValueRow(
                 tabindex: "-1",
                 placeholder: "{value_placeholder}",
                 value: "{entry_value}",
-                oninput: {
+                onchange: {
                     let entry_id = entry_id.clone();
                     move |evt: dioxus::events::FormEvent| {
                         let new_value = evt.value();
