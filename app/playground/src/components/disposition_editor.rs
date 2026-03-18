@@ -21,7 +21,7 @@ use dioxus::{
     document,
     hooks::{use_context_provider, use_effect, use_memo, use_signal},
     prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, Element, Key,
+        component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, use_drop, Element, Key,
         ModifiersInteraction, Props,
     },
     router::navigator,
@@ -81,6 +81,10 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
     // The active editor page.
     let mut active_page: Signal<EditorPage> = use_signal(|| editor_state.read().page.clone());
 
+    // Whether the SVG preview is expanded to fill the entire viewport.
+    let mut svg_preview_expanded: Signal<bool> =
+        use_signal(|| editor_state.read().svg_preview_expanded);
+
     // === Focus field: expand + focus a specific field on page load === //
 
     // Capture the initial `focus_field` from the URL. This signal is provided
@@ -118,6 +122,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 editor_state: EditorState {
                     page,
                     focus_field: None,
+                    svg_preview_expanded: *svg_preview_expanded.peek(),
                     input_diagram: diagram,
                 },
             });
@@ -140,6 +145,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
     let mut editor_state_for_share: Signal<EditorState> = use_signal(|| EditorState {
         page: active_page.peek().clone(),
         focus_field: None,
+        svg_preview_expanded: *svg_preview_expanded.peek(),
         input_diagram: input_diagram.peek().clone(),
     });
     use_memo(move || {
@@ -165,6 +171,81 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
     // Help tooltip visibility.
     let mut show_help: Signal<bool> = use_signal(|| false);
 
+    // === Global JS keydown listener for `f` / `Escape` expand toggle === //
+    //
+    // We use a JS-level listener so we can inspect the focused element and
+    // skip the shortcut when the user is typing in an input / textarea /
+    // select / contentEditable field. A Rust `onkeydown` handler cannot
+    // synchronously query the DOM target.
+    //
+    // The listener is registered once on mount and removed on drop. It sends
+    // `"toggle"` or `"escape"` strings back to Rust via `dioxus.send()`.
+
+    static LISTENER_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let listener_name = use_signal(|| {
+        let id = LISTENER_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        format!("__disposition_expand_listener_{id}")
+    });
+
+    // Register the listener once (no reactive reads inside this effect).
+    use_effect(move || {
+        let name = listener_name.read().clone();
+        let js = format!(
+            r#"
+            if (window["{name}"]) {{
+                document.removeEventListener("keydown", window["{name}"]);
+            }}
+            window["{name}"] = function(e) {{
+                // Skip if modifier keys are held.
+                if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+                // Skip if focus is in an editable element.
+                var tag = (e.target.tagName || "").toLowerCase();
+                if (tag === "input" || tag === "textarea" || tag === "select") return;
+                if (e.target.isContentEditable) return;
+
+                if (e.key === "f") {{
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dioxus.send("toggle");
+                }} else if (e.key === "Escape") {{
+                    dioxus.send("escape");
+                }}
+            }};
+            document.addEventListener("keydown", window["{name}"]);
+            "#
+        );
+        spawn(async move {
+            let mut eval = document::eval(&js);
+            loop {
+                match eval.recv::<String>().await {
+                    Ok(msg) if msg == "toggle" => {
+                        let current = *svg_preview_expanded.read();
+                        svg_preview_expanded.set(!current);
+                    }
+                    Ok(msg) if msg == "escape" => {
+                        if *svg_preview_expanded.read() {
+                            svg_preview_expanded.set(false);
+                        }
+                    }
+                    _ => break,
+                }
+            }
+        });
+    });
+
+    // Clean up the global listener when the component is unmounted.
+    use_drop(move || {
+        let name = listener_name.read().clone();
+        document::eval(&format!(
+            r#"
+            if (window["{name}"]) {{
+                document.removeEventListener("keydown", window["{name}"]);
+                delete window["{name}"];
+            }}
+            "#
+        ));
+    });
+
     // JavaScript snippet that captures the `data-input-diagram-field`
     // attribute of the focused element and sends it back to Rust via
     // `dioxus.send()`. Used in the `onfocusin` handler below.
@@ -183,6 +264,9 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         if *active_page.peek() != state.page {
             active_page.set(state.page.clone());
         }
+        if *svg_preview_expanded.peek() != state.svg_preview_expanded {
+            svg_preview_expanded.set(state.svg_preview_expanded);
+        }
     });
 
     // === Sync: local signals -> URL hash (EditorState) === //
@@ -190,12 +274,17 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
     use_memo(move || {
         let diagram = input_diagram.read().clone();
         let page = active_page.read().clone();
+        let expanded = *svg_preview_expanded.read();
         let current_state = editor_state.peek().clone();
-        if current_state.input_diagram != diagram || current_state.page != page {
+        if current_state.input_diagram != diagram
+            || current_state.page != page
+            || current_state.svg_preview_expanded != expanded
+        {
             navigator().replace(Route::Home {
                 editor_state: EditorState {
                     page,
                     focus_field: None,
+                    svg_preview_expanded: expanded,
                     input_diagram: diagram,
                 },
             });
@@ -411,6 +500,8 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
 
             // Global keyboard shortcuts:
             //
+            // - f = toggle SVG preview expand.
+            // - Escape = collapse SVG preview (when expanded).
             // - ctrl + z = undo, ctrl + shift + z / ctrl + y = redo.
             // - alt + 1..9 = switch to top-level tab N.
             // - alt + 0 = switch to the last top-level tab.
@@ -576,6 +667,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                             SvgPreview {
                                 svg,
                                 show_share_modal,
+                                svg_preview_expanded,
                             }
                         },
                     },
@@ -600,6 +692,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
             show: show_share_modal,
             editor_state: editor_state_for_share,
             last_focused_field,
+            svg_preview_expanded,
         }
     }
 }

@@ -114,11 +114,15 @@ const COPY_BTN_CLASS: &str = "\
 /// * `last_focused_field`: the `data-input-diagram-field` value of the last
 ///   focused editor field, if any. Used to populate `focus_field` in the URL
 ///   when the checkbox is ticked.
+/// * `svg_preview_expanded`: the current expand state of the SVG preview. The
+///   modal shows a checkbox so the user can choose whether recipients see the
+///   diagram in expanded (full-page) mode.
 #[component]
 pub fn ShareModal(
     mut show: Signal<bool>,
     editor_state: Signal<EditorState>,
     last_focused_field: Signal<Option<String>>,
+    svg_preview_expanded: Signal<bool>,
 ) -> Element {
     if !*show.read() {
         return rsx! {};
@@ -126,6 +130,9 @@ pub fn ShareModal(
 
     // Whether the "Include focused field" checkbox is checked.
     let mut include_focus = use_signal(|| true);
+
+    // Whether the "Expand SVG preview" checkbox is checked.
+    let mut include_expand = use_signal(move || *svg_preview_expanded.read());
 
     // Build the share URL reactively.
     let share_url = use_memo(move || {
@@ -135,9 +142,11 @@ pub fn ShareModal(
         } else {
             None
         };
+        let expanded = *include_expand.read();
         let share_state = EditorState {
             page: state.page,
             focus_field: focus,
+            svg_preview_expanded: expanded,
             input_diagram: state.input_diagram,
         };
         // The URL is `/#<yaml>`. We build it by serializing the state
@@ -279,6 +288,25 @@ pub fn ShareModal(
                             "Include focused field (none focused)"
                         }
                     }
+                }
+
+                // === Expand SVG preview checkbox === //
+                label {
+                    class: CHECKBOX_ROW_CLASS,
+                    input {
+                        r#type: "checkbox",
+                        checked: *include_expand.read(),
+                        onchange: move |evt| {
+                            include_expand.set(evt.checked());
+                        },
+                    }
+                    span {
+                        "Expand SVG preview on open"
+                    }
+                }
+                div {
+                    class: "text-xs text-gray-500 -mt-1 ml-6",
+                    "When checked, the recipient sees the diagram in full-page mode, hiding the editor."
                 }
 
                 // === Copy button === //

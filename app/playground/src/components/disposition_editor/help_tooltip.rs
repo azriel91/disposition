@@ -323,6 +323,22 @@ pub fn HelpTooltip(show_help: Signal<bool>) -> Element {
 
                         div { class: DIVIDER }
 
+                        // === SVG Preview === //
+                        div { class: SECTION_HEADING, "SVG Preview" }
+
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "f" }
+                            span { "Toggle expand / collapse the SVG preview to fill the page." }
+                        }
+                        div {
+                            class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "Escape" }
+                            span { "Collapse the SVG preview back to the editor layout." }
+                        }
+
+                        div { class: DIVIDER }
+
                         // === Help === //
                         div { class: SECTION_HEADING, "Help" }
 

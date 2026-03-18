@@ -53,9 +53,27 @@ pub struct EditorState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub focus_field: Option<String>,
 
+    /// Whether the SVG preview should be expanded to fill the entire
+    /// viewport, hiding the editor panels and navigation.
+    ///
+    /// Defaults to `false`. Only serialized when `true`, so most URLs
+    /// remain compact.
+    ///
+    /// # Examples
+    ///
+    /// * `true` -- the SVG preview fills the page on load.
+    /// * `false` -- normal editor layout (the default).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub svg_preview_expanded: bool,
+
     /// The input diagram being edited.
     #[serde(default)]
     pub input_diagram: InputDiagram<'static>,
+}
+
+/// Helper for `skip_serializing_if` on `bool` fields.
+fn is_false(v: &bool) -> bool {
+    !v
 }
 
 // === Display / FromStr: used by dioxus_router for the URL hash fragment === //
@@ -167,6 +185,7 @@ input_diagram:
             let state = EditorState {
                 page: page.clone(),
                 focus_field: None,
+                svg_preview_expanded: false,
                 input_diagram: InputDiagram::default(),
             };
             let yaml = state.to_string();
@@ -204,6 +223,7 @@ input_diagram:
         let state = EditorState {
             page: EditorPage::default(),
             focus_field: None,
+            svg_preview_expanded: false,
             input_diagram: InputDiagram::default(),
         };
         let yaml = state.to_string();
@@ -218,6 +238,7 @@ input_diagram:
         let state = EditorState {
             page: EditorPage::Processes,
             focus_field: Some(String::from("proc_app_dev_step_2")),
+            svg_preview_expanded: false,
             input_diagram: InputDiagram::default(),
         };
         let yaml = state.to_string();
@@ -244,6 +265,55 @@ input_diagram:
         assert_eq!(
             state.focus_field, None,
             "Missing focus_field should default to None"
+        );
+    }
+
+    #[test]
+    fn svg_preview_expanded_false_not_serialized() {
+        let state = EditorState {
+            page: EditorPage::default(),
+            focus_field: None,
+            svg_preview_expanded: false,
+            input_diagram: InputDiagram::default(),
+        };
+        let yaml = state.to_string();
+        assert!(
+            !yaml.contains("svg_preview_expanded"),
+            "svg_preview_expanded: false should be omitted from serialized YAML, got:\n{yaml}"
+        );
+    }
+
+    #[test]
+    fn svg_preview_expanded_true_round_trips() {
+        let state = EditorState {
+            page: EditorPage::Processes,
+            focus_field: None,
+            svg_preview_expanded: true,
+            input_diagram: InputDiagram::default(),
+        };
+        let yaml = state.to_string();
+        assert!(
+            yaml.contains("svg_preview_expanded"),
+            "svg_preview_expanded: true should appear in serialized YAML, got:\n{yaml}"
+        );
+        let parsed: EditorState = yaml.parse().expect("parse failed");
+        assert_eq!(
+            state.svg_preview_expanded, parsed.svg_preview_expanded,
+            "svg_preview_expanded must survive round-trip"
+        );
+    }
+
+    #[test]
+    fn svg_preview_expanded_missing_in_yaml_defaults_to_false() {
+        let yaml_input = "\
+page: thing_dependencies
+input_diagram:
+  things: {}
+";
+        let state: EditorState = yaml_input.parse().expect("parse failed");
+        assert!(
+            !state.svg_preview_expanded,
+            "Missing svg_preview_expanded should default to false"
         );
     }
 
