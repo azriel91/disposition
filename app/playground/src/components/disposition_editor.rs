@@ -612,7 +612,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                     flex
                     flex-col
                     gap-2
-                    min-w-0
+                    min-w-3xl
                 ",
 
                 // === Tab bar + undo/redo toolbar === //
@@ -625,22 +625,40 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                     ",
 
                     div {
-                        class: "flex-1 min-w-0",
+                        class: "flex-1",
                         EditorTabBar {
                             active_page,
                         }
                     }
 
-                    ExampleDiagramSelect {
-                        input_diagram,
-                    }
+                    div {
+                        class: "\
+                            flex-shrink \
+                            flex \
+                            flex-col \
+                            gap-2 \
+                            justify-between\
+                        ",
 
-                    UndoRedoToolbar {
-                        input_diagram,
-                        undo_history,
-                    }
+                        div {
+                            class: "\
+                                flex \
+                                gap-2 \
+                                items-center \
+                                justify-between\
+                            ",
+                            UndoRedoToolbar {
+                                input_diagram,
+                                undo_history,
+                            }
 
-                    HelpTooltip { show_help }
+                            HelpTooltip { show_help }
+                        }
+
+                        ExampleDiagramSelect {
+                            input_diagram,
+                        }
+                    }
                 }
 
                 div {
