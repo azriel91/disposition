@@ -5,7 +5,7 @@
 
 use dioxus::{
     document,
-    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Key, Props},
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{Memo, ReadableExt, Signal, WritableExt},
 };
 
@@ -54,27 +54,12 @@ pub fn SvgPreview(
                 tabindex: "-1",
                 "data-svg-expanded": "",
 
-                // Handle f / Escape on the expanded overlay itself so the
-                // hotkeys work even when focus is inside the overlay (which
-                // sits above `#disposition_editor`).
-                onkeydown: move |evt| {
-                    match evt.key() {
-                        Key::Escape => {
-                            evt.prevent_default();
-                            evt.stop_propagation();
-                            svg_preview_expanded.set(false);
-                        }
-                        Key::Character(ref c) if c == "f" => {
-                            evt.prevent_default();
-                            evt.stop_propagation();
-                            svg_preview_expanded.set(false);
-                        }
-                        _ => {}
-                    }
-                },
-
-                // Auto-focus the overlay so keyboard events are captured
-                // immediately.
+                // Auto-focus the overlay so the global JS keydown listener
+                // (registered in `DispositionEditor`) sees key events while
+                // the overlay is open. We do NOT add a Dioxus `onkeydown`
+                // here because the global listener already handles `f` and
+                // `Escape`; having both would double-fire and toggle the
+                // state back.
                 onmounted: move |_| {
                     document::eval(
                         "requestAnimationFrame(() => {\
