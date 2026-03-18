@@ -980,7 +980,7 @@ impl IrToTaffyBuilder<'_> {
                         child_container_style,
                     }
                 }
-                NodeLayout::Leaf(leaf_layout) => TaffyWrapperNodeStyles::new(&leaf_layout),
+                NodeLayout::Leaf(leaf_layout) => TaffyWrapperNodeStyles::new(leaf_layout),
             })
             .unwrap_or_default()
     }
