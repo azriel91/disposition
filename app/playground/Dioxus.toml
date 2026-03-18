@@ -1,6 +1,7 @@
 [application]
 
 [web.app]
+base_path = "disposition"
 
 # HTML title tag content
 title = "🛝 disposition playground"
