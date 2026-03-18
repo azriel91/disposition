@@ -4,8 +4,8 @@
 //! app. Each layout and route in our [`Route`] enum will render one of these
 //! components.
 //!
-//! The [`Home`] and [`Blog`] components will be rendered when the current route
-//! is [`Route::Home`] or [`Route::Blog`] respectively.
+//! The [`Home`] component will be rendered when the current route is
+//! [`Route::Home`].
 //!
 //! The [`Navbar`] component will be rendered on all pages of our app since
 //! every page is under the layout. The layout defines a common wrapper around
@@ -13,10 +13,8 @@
 //!
 //! [`Route`]: crate::Route
 //! [`Route::Home`]: crate::Route::Home
-//! [`Route::Blog`]: crate::Route::Blog
 
-pub use self::{blog::Blog, home::Home, navbar::Navbar};
+pub use self::{home::Home, navbar::Navbar};
 
-mod blog;
 mod home;
 mod navbar;
