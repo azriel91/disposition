@@ -3,7 +3,7 @@
 [web.app]
 
 # HTML title tag content
-title = "playground"
+title = "🛝 disposition playground"
 
 # include `assets` in web platform
 [web.resource]
