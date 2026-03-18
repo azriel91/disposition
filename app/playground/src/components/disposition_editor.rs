@@ -21,8 +21,8 @@ use dioxus::{
     document,
     hooks::{use_context_provider, use_effect, use_memo, use_signal},
     prelude::{
-        component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, use_drop, Element, Key,
-        ModifiersInteraction, Props,
+        component, dioxus_core, dioxus_elements, dioxus_signals, info, rsx, use_drop, Element,
+        Props,
     },
     router::navigator,
     signals::{Memo, ReadSignal, ReadableExt, Signal, WritableExt},
@@ -196,19 +196,74 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 document.removeEventListener("keydown", window["{name}"]);
             }}
             window["{name}"] = function(e) {{
-                // Skip if modifier keys are held.
-                if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
-                // Skip if focus is in an editable element.
                 var tag = (e.target.tagName || "").toLowerCase();
-                if (tag === "input" || tag === "textarea" || tag === "select") return;
-                if (e.target.isContentEditable) return;
+                var inEditable = (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable);
+                var ctrl = e.ctrlKey || e.metaKey;
 
-                if (e.key === "f") {{
+                // === f: toggle SVG preview expand === //
+                // Skip if any modifier is held or focus is in an editable element.
+                if (!ctrl && !e.altKey && !e.shiftKey && !inEditable) {{
+                    if (e.key === "f") {{
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dioxus.send("svg_toggle");
+                        return;
+                    }}
+                    if (e.key === "Escape") {{
+                        dioxus.send("svg_escape");
+                        return;
+                    }}
+                }}
+
+                // === Shift + ?: toggle help tooltip === //
+                // Skip if focus is in an editable element.
+                if (e.shiftKey && !ctrl && !e.altKey && !inEditable) {{
+                    if (e.key === "?") {{
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dioxus.send("help_toggle");
+                        return;
+                    }}
+                }}
+
+                // === Alt + 0..9: switch top-level tabs === //
+                if (e.altKey && !ctrl && !e.shiftKey) {{
+                    var digit = e.key.length === 1 ? e.key.charCodeAt(0) - 48 : -1;
+                    if (digit >= 0 && digit <= 9) {{
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dioxus.send("tab_" + digit);
+                        return;
+                    }}
+                }}
+
+                // === Ctrl / Meta shortcuts === //
+                if (!ctrl) return;
+
+                // Ctrl+K: open share modal (works even inside inputs).
+                if ((e.key === "k" || e.key === "K") && !e.shiftKey) {{
                     e.preventDefault();
                     e.stopPropagation();
-                    dioxus.send("toggle");
-                }} else if (e.key === "Escape") {{
-                    dioxus.send("escape");
+                    dioxus.send("share");
+                    return;
+                }}
+
+                // Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y: undo / redo.
+                // Skip when focus is in an editable element so the
+                // browser's native input undo/redo works.
+                if (inEditable) return;
+
+                if (e.key === "z" || e.key === "Z") {{
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dioxus.send(e.shiftKey ? "redo" : "undo");
+                    return;
+                }}
+                if (e.key === "y" || e.key === "Y") {{
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dioxus.send("redo");
+                    return;
                 }}
             }};
             document.addEventListener("keydown", window["{name}"]);
@@ -218,13 +273,60 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
             let mut eval = document::eval(&js);
             loop {
                 match eval.recv::<String>().await {
-                    Ok(msg) if msg == "toggle" => {
+                    Ok(msg) if msg == "svg_toggle" => {
                         let current = *svg_preview_expanded.read();
                         svg_preview_expanded.set(!current);
                     }
-                    Ok(msg) if msg == "escape" => {
+                    Ok(msg) if msg == "svg_escape" => {
                         if *svg_preview_expanded.read() {
                             svg_preview_expanded.set(false);
+                        }
+                    }
+                    Ok(msg) if msg == "help_toggle" => {
+                        let current = *show_help.read();
+                        show_help.set(!current);
+                    }
+                    Ok(msg) if msg.starts_with("tab_") => {
+                        if let Ok(digit) = msg[4..].parse::<u32>() {
+                            let target_index = if digit == 0 {
+                                let top_level = EditorPage::top_level_pages();
+                                if top_level.is_empty() {
+                                    continue;
+                                }
+                                top_level.len() - 1
+                            } else {
+                                (digit - 1) as usize
+                            };
+                            if let Some(page) = EditorPage::default_page(target_index) {
+                                if !active_page.peek().same_top_level(&page) {
+                                    active_page.set(page);
+                                }
+                                document::eval(&format!(
+                                    "requestAnimationFrame(() => {{\
+                                        var el = document.querySelector(\
+                                            '[data-top-level-index=\"{target_index}\"]'\
+                                        );\
+                                        if (el) el.focus();\
+                                    }})"
+                                ));
+                            }
+                        }
+                    }
+                    Ok(msg) if msg == "share" => {
+                        show_share_modal.set(true);
+                    }
+                    Ok(msg) if msg == "undo" => {
+                        if let Some(diagram) = history_undo(undo_history) {
+                            document::eval(JS_FOCUS_SAVE);
+                            input_diagram.set(diagram);
+                            document::eval(JS_FOCUS_RESTORE);
+                        }
+                    }
+                    Ok(msg) if msg == "redo" => {
+                        if let Some(diagram) = history_redo(undo_history) {
+                            document::eval(JS_FOCUS_SAVE);
+                            input_diagram.set(diagram);
+                            document::eval(JS_FOCUS_RESTORE);
                         }
                     }
                     _ => break,
@@ -498,106 +600,11 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 });
             },
 
-            // Global keyboard shortcuts:
-            //
-            // - f = toggle SVG preview expand.
-            // - Escape = collapse SVG preview (when expanded).
-            // - ctrl + z = undo, ctrl + shift + z / ctrl + y = redo.
-            // - alt + 1..9 = switch to top-level tab N.
-            // - alt + 0 = switch to the last top-level tab.
-            // - shift + ? = show help tooltip (keyboard shortcuts).
-            // - ctrl + shift + s = open share modal.
-            //
-            // Meta (Cmd on macOS) is also supported for undo/redo and share.
-            onkeydown: move |evt| {
-                if evt.modifiers().shift() && let Key::Character(ref c) = evt.key() && c == "?" {
-                    let show_help_current = *show_help.read();
-                    show_help.set(!show_help_current);
-                }
-
-                // === alt + 0..9: switch top-level tabs === //
-                if evt.modifiers().alt()
-                    && let Key::Character(ref c) = evt.key()
-                        && let Some(digit) = c.chars().next().and_then(|ch| ch.to_digit(10)) {
-                            let target_index = if digit == 0 {
-                                // Alt+0 -> last tab.
-                                let top_level = EditorPage::top_level_pages();
-                                if top_level.is_empty() {
-                                    return;
-                                }
-                                top_level.len() - 1
-                            } else {
-                                // Alt+1..9 -> tab at index digit-1.
-                                (digit - 1) as usize
-                            };
-                            if let Some(page) = EditorPage::default_page(target_index) {
-                                evt.prevent_default();
-                                evt.stop_propagation();
-                                // For grouped tabs (Thing/Theme), preserve
-                                // the current sub-tab if already in the
-                                // same group.
-                                if !active_page.peek().same_top_level(&page) {
-                                    active_page.set(page);
-                                }
-                                // Focus the tab span so subsequent
-                                // hotkeys are captured by the editor.
-                                let js = format!(
-                                    "requestAnimationFrame(() => {{\
-                                        var el = document.querySelector(\
-                                            '[data-top-level-index=\"{target_index}\"]'\
-                                        );\
-                                        if (el) el.focus();\
-                                    }})"
-                                );
-                                document::eval(&js);
-                            }
-                            return;
-                        }
-
-                // === ctrl / meta shortcuts: undo / redo === //
-                let ctrl_or_meta = evt.modifiers().ctrl() || evt.modifiers().meta();
-                if !ctrl_or_meta {
-                    return;
-                }
-
-                match evt.key() {
-                    Key::Character(ref c) if c.eq_ignore_ascii_case("k") => {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        show_share_modal.set(true);
-                    }
-                    Key::Character(ref c) if c.eq_ignore_ascii_case("z") => {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        if evt.modifiers().shift() {
-                            // Ctrl+Shift+Z -> redo
-                            if let Some(diagram) = history_redo(undo_history) {
-                                document::eval(JS_FOCUS_SAVE);
-                                input_diagram.set(diagram);
-                                document::eval(JS_FOCUS_RESTORE);
-                            }
-                        } else {
-                            // Ctrl+Z -> undo
-                            if let Some(diagram) = history_undo(undo_history) {
-                                document::eval(JS_FOCUS_SAVE);
-                                input_diagram.set(diagram);
-                                document::eval(JS_FOCUS_RESTORE);
-                            }
-                        }
-                    }
-                    Key::Character(ref c) if c.eq_ignore_ascii_case("y") => {
-                        evt.prevent_default();
-                        evt.stop_propagation();
-                        // Ctrl+Y -> redo
-                        if let Some(diagram) = history_redo(undo_history) {
-                            document::eval(JS_FOCUS_SAVE);
-                            input_diagram.set(diagram);
-                            document::eval(JS_FOCUS_RESTORE);
-                        }
-                    }
-                    _ => {}
-                }
-            },
+            // All global keyboard shortcuts are handled by the JS-level
+            // `document` keydown listener registered above. This avoids
+            // Dioxus `onkeydown` intercepting Ctrl+Z/Y inside `<input>`
+            // elements, which would prevent the browser's native
+            // input undo/redo from working.
 
             // === Left column: editor tabs + status + intermediates === //
             div {
