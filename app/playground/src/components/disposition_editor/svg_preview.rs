@@ -79,15 +79,7 @@ pub fn SvgPreview(
                     ",
                     ShareButton { show_share_modal }
                     CopyButton { text_to_copy: svg }
-                    button {
-                        class: EXPAND_BTN_CLASS,
-                        tabindex: "0",
-                        title: "Restore editor (Escape / f)",
-                        onclick: move |_| {
-                            svg_preview_expanded.set(false);
-                        },
-                        CollapseIcon {}
-                    }
+                    CollapseButton { svg_preview_expanded }
                 }
 
                 // === SVG fills remaining space === //
@@ -112,15 +104,7 @@ pub fn SvgPreview(
                 ",
                 ShareButton { show_share_modal }
                 CopyButton { text_to_copy: svg }
-                button {
-                    class: EXPAND_BTN_CLASS,
-                    tabindex: "0",
-                    title: "Expand SVG preview (f)",
-                    onclick: move |_| {
-                        svg_preview_expanded.set(true);
-                    },
-                    ExpandIcon {}
-                }
+                ExpandButton { svg_preview_expanded }
             },
             object {
                 class: "
@@ -129,6 +113,21 @@ pub fn SvgPreview(
                 r#type: "image/svg+xml",
                 data: format!("data:image/svg+xml,{}", urlencoding::encode(svg().as_str())),
             }
+        }
+    }
+}
+
+#[component]
+fn ExpandButton(svg_preview_expanded: Signal<bool>) -> Element {
+    rsx! {
+        button {
+            class: EXPAND_BTN_CLASS,
+            tabindex: "0",
+            title: "Expand SVG preview (f)",
+            onclick: move |_| {
+                svg_preview_expanded.set(true);
+            },
+            ExpandIcon {}
         }
     }
 }
@@ -164,6 +163,21 @@ fn ExpandIcon() -> Element {
             // Bottom-right corner.
             polyline { points: "16 21 21 21 21 16" }
             line { x1: "21", y1: "21", x2: "14", y2: "14" }
+        }
+    }
+}
+
+#[component]
+fn CollapseButton(svg_preview_expanded: Signal<bool>) -> Element {
+    rsx! {
+        button {
+            class: EXPAND_BTN_CLASS,
+            tabindex: "0",
+            title: "Restore editor (Escape / f)",
+            onclick: move |_| {
+                svg_preview_expanded.set(false);
+            },
+            CollapseIcon {}
         }
     }
 }
