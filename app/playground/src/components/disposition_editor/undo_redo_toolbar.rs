@@ -22,8 +22,10 @@ use super::focus_restore::{JS_FOCUS_RESTORE, JS_FOCUS_SAVE};
 /// CSS classes for the undo/redo buttons when enabled.
 const BTN_ENABLED: &str = "\
     rounded \
-    px-2 py-1 \
-    text-sm \
+    w-8 h-8 \
+    flex \
+    items-center \
+    justify-center \
     font-semibold \
     cursor-pointer \
     select-none \
@@ -39,8 +41,10 @@ const BTN_ENABLED: &str = "\
 /// CSS classes for the undo/redo buttons when disabled.
 const BTN_DISABLED: &str = "\
     rounded \
-    px-2 py-1 \
-    text-sm \
+    w-8 h-8 \
+    flex \
+    items-center \
+    justify-center \
     font-semibold \
     select-none \
     bg-gray-800 \
@@ -107,8 +111,24 @@ pub fn UndoRedoToolbar(
                         document::eval(JS_FOCUS_RESTORE);
                     }
                 },
-                // Left-pointing arrow + "Undo"
-                "\u{21A9} Undo"
+                // Left-pointing arrow
+                svg {
+                    width: "24",
+                    height: "24",
+                    view_box: "0 0 24 24",
+                    fill: "none",
+                    stroke: "currentColor",
+                    stroke_width: "2",
+                    stroke_linecap: "round",
+                    stroke_linejoin: "round",
+                    path {
+                        d: "M6.5 11a6 6 0 1 1 2.5 5.0"
+                    },
+                    path {
+                        d: "M5.5 7 v5 h5",
+                        transform: "rotate(-20 6 11)",
+                    }
+                }
             }
 
             button {
@@ -123,8 +143,24 @@ pub fn UndoRedoToolbar(
                         document::eval(JS_FOCUS_RESTORE);
                     }
                 },
-                // "Redo" + right-pointing arrow
-                "Redo \u{21AA}"
+                // right-pointing arrow
+                svg {
+                    width: "24",
+                    height: "24",
+                    view_box: "0 0 24 24",
+                    fill: "none",
+                    stroke: "currentColor",
+                    stroke_width: "2",
+                    stroke_linecap: "round",
+                    stroke_linejoin: "round",
+                    path {
+                        d: "M17.5 11a6 6 0 1 0 -2.5 5.0"
+                    },
+                    path {
+                        d: "M18.5 7 v5 h-5",
+                        transform: "rotate(20 18 11)",
+                    }
+                }
             }
         }
     }
