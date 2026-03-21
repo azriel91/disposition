@@ -83,10 +83,13 @@ pub fn SvgPreview(
                 }
 
                 // === SVG fills remaining space === //
-                object {
-                    class: "flex-1",
-                    r#type: "image/svg+xml",
-                    data: format!("data:image/svg+xml,{}", urlencoding::encode(svg().as_str())),
+                SvgScrollable {
+                    class: "
+                        flex-1 \
+                        fit-content \
+                        overflow-auto\
+                    ",
+                    svg,
                 }
             }
         };
@@ -112,14 +115,24 @@ pub fn SvgPreview(
                 CopyButton { text_to_copy: svg }
                 ExpandButton { svg_preview_expanded }
             },
-            div {
+            SvgScrollable {
                 class: "
                     flex-1 \
                     fit-content \
                     overflow-auto\
                 ",
-                dangerous_inner_html: svg(),
+                svg,
             }
+        }
+    }
+}
+
+#[component]
+fn SvgScrollable(class: &'static str, svg: Memo<String>) -> Element {
+    rsx! {
+        div {
+            class,
+            dangerous_inner_html: svg(),
         }
     }
 }
