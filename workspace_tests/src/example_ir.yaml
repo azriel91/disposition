@@ -1772,6 +1772,44 @@ node_layouts:
       margin_bottom: 0.0
       margin_left: 0.0
 
+# Computed ranks for nodes based on dependency edges.
+#
+# Nodes with higher ranks are positioned further along the flex direction
+# axis (further down for column layouts, further right for row layouts).
+# Nodes without any dependency edges default to rank 0.
+node_ranks:
+  tag_app_development: 0
+  tag_deployment: 0
+  proc_app_dev: 0
+  proc_app_dev_step_repository_clone: 0
+  proc_app_dev_step_project_build: 0
+  proc_app_release: 0
+  proc_app_release_step_crate_version_update: 0
+  proc_app_release_step_pull_request_open: 0
+  proc_app_release_step_tag_and_push: 0
+  proc_app_release_step_gh_actions_build: 0
+  proc_app_release_step_gh_actions_publish: 0
+  proc_i12e_region_tier_app_deploy: 0
+  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: 0
+  t_aws: 0
+  t_aws_iam: 0
+  t_aws_iam_ecs_policy: 0
+  t_aws_ecr: 0
+  t_aws_ecr_repo: 1
+  t_aws_ecr_repo_image_1: 0
+  t_aws_ecr_repo_image_2: 0
+  t_aws_ecs: 0
+  t_aws_ecs_cluster: 2
+  t_aws_ecs_cluster_task: 0
+  t_github: 0
+  t_github_user_repo: 0
+  t_localhost: 0
+  t_localhost_repo: 0
+  t_localhost_repo_src: 0
+  t_localhost_repo_target: 0
+  t_localhost_repo_target_file_zip: 0
+  t_localhost_repo_target_dist_dir: 0
+
 # Shape configuration for each node.
 #
 # Defines the shape and corner radii for each node in the diagram.

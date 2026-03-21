@@ -29,6 +29,7 @@ use disposition_model_common::{
 use self::{
     tailwind_classes_builder::TailwindClassesBuilder, theme_attr_resolver::ThemeAttrResolver,
 };
+use crate::node_ranks_calculator::NodeRanksCalculator;
 
 mod tailwind_class_state;
 mod tailwind_classes_builder;
@@ -128,6 +129,10 @@ impl InputToIrDiagramMapper {
         // 12. Build ProcessStepEntities from step_thing_interactions
         let process_step_entities = Self::build_process_step_entities(processes);
 
+        // 13. Compute NodeRanks from dependency edges
+        let node_ranks =
+            NodeRanksCalculator::calculate(&node_hierarchy, &edge_groups, &ir_entity_types);
+
         let diagram = IrDiagram {
             nodes,
             node_copy_text,
@@ -139,6 +144,7 @@ impl InputToIrDiagramMapper {
             entity_types: ir_entity_types,
             tailwind_classes,
             node_layouts,
+            node_ranks,
             node_shapes,
             process_step_entities,
             css: css.clone(),

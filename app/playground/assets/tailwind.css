@@ -389,9 +389,6 @@
   .shrink-0 {
     flex-shrink: 0;
   }
-  .grow-0 {
-    flex-grow: 0;
-  }
   .rotate-90 {
     rotate: 90deg;
   }

@@ -20,6 +20,7 @@ mod input_diagram_merger;
 mod input_diagram_theme_sources;
 mod input_to_ir_diagram_mapper;
 mod ir_to_taffy_builder;
+mod node_ranks_calculator;
 mod svg_elements_to_svg_mapper;
 mod taffy_to_svg_elements_mapper;
 mod theme_value_source;

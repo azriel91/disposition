@@ -5,7 +5,7 @@ use crate::{
     edge::EdgeGroups,
     entity::{EntityDescs, EntityTailwindClasses, EntityTypes},
     layout::NodeLayouts,
-    node::{NodeCopyText, NodeHierarchy, NodeNames, NodeOrdering, NodeShapes},
+    node::{NodeCopyText, NodeHierarchy, NodeNames, NodeOrdering, NodeRanks, NodeShapes},
     process::ProcessStepEntities,
 };
 
@@ -154,6 +154,14 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "NodeLayouts::is_empty")]
     pub node_layouts: NodeLayouts<'id>,
 
+    /// Computed ranks for nodes based on dependency edges.
+    ///
+    /// Nodes with higher ranks are positioned further along the flex direction
+    /// axis (further down for column layouts, further right for row layouts).
+    /// Nodes without any dependency edges default to rank `0`.
+    #[serde(default, skip_serializing_if = "NodeRanks::is_empty")]
+    pub node_ranks: NodeRanks<'id>,
+
     /// Shape configuration for each node.
     ///
     /// Defines the shape and corner radii for each node in the diagram.
@@ -199,6 +207,7 @@ impl<'id> IrDiagram<'id> {
             entity_types: self.entity_types.into_static(),
             tailwind_classes: self.tailwind_classes.into_static(),
             node_layouts: self.node_layouts.into_static(),
+            node_ranks: self.node_ranks.into_static(),
             node_shapes: self.node_shapes.into_static(),
             process_step_entities: self.process_step_entities.into_static(),
             css: self.css,
