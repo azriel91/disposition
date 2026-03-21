@@ -417,7 +417,11 @@ impl IrToTaffyBuilder<'_> {
         // The things container's children are rank sub-containers (each of
         // which uses the `_things_container` row/wrap style internally).
         // The things container itself uses a column layout to stack rank
-        // groups vertically.
+        // groups vertically, with `align_items: Stretch` so that each rank
+        // sub-container stretches to the column width. This ensures width
+        // constraints from ancestor containers propagate down, allowing the
+        // row-wrap rank containers to wrap their children correctly and
+        // report an accurate height.
         let things_container_base_style = Self::taffy_container_style(
             node_layouts,
             &NodeInbuilt::ThingsContainer.id(),
@@ -426,6 +430,7 @@ impl IrToTaffyBuilder<'_> {
         let things_container_style = Style {
             flex_direction: FlexDirection::Column,
             flex_wrap: FlexWrap::NoWrap,
+            align_items: Some(AlignItems::Stretch),
             ..things_container_base_style
         };
         let things_container = taffy_tree
@@ -1066,6 +1071,11 @@ impl IrToTaffyBuilder<'_> {
                     let child_container_style = Style {
                         display: Display::Flex,
                         max_size: Size::auto(),
+                        // Rank sub-containers must not shrink below their
+                        // content size; otherwise the column wrapper parent
+                        // compresses them when space is tight, causing wrapped
+                        // rows to overlap with the next rank container.
+                        flex_shrink: 0.0,
                         gap: Size::length(flex_layout.gap()),
                         flex_direction: flex_direction_to_taffy(flex_layout.direction()),
                         flex_wrap: if flex_layout.wrap() {
