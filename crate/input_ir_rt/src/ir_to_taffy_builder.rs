@@ -246,31 +246,42 @@ impl IrToTaffyBuilder<'_> {
         node_id_to_taffy
             .iter()
             .for_each(|(node_id, &taffy_node_ids)| {
-                let (layout, node_context) = match taffy_node_ids {
-                    NodeToTaffyNodeIds::Leaf { text_node_id }
-                    | NodeToTaffyNodeIds::Wrapper {
-                        wrapper_node_id: _,
+                let (wrapper_node_layout, text_node_layout, node_context) = match taffy_node_ids {
+                    NodeToTaffyNodeIds::Leaf { text_node_id } => {
+                        let Ok(text_node_layout) = taffy_tree.layout(text_node_id) else {
+                            return;
+                        };
+                        let Some(node_context) = taffy_tree.get_node_context(text_node_id) else {
+                            return;
+                        };
+                        (text_node_layout, text_node_layout, node_context)
+                    }
+                    NodeToTaffyNodeIds::Wrapper {
+                        wrapper_node_id,
                         text_node_id,
                     }
                     | NodeToTaffyNodeIds::LeafWithCircle {
-                        wrapper_node_id: _,
+                        wrapper_node_id,
                         circle_node_id: _,
                         text_node_id,
                     }
                     | NodeToTaffyNodeIds::WrapperCircle {
-                        wrapper_node_id: _,
+                        wrapper_node_id,
                         label_wrapper_node_id: _,
                         circle_node_id: _,
                         text_node_id,
                     } => {
-                        let Ok(layout) = taffy_tree.layout(text_node_id) else {
+                        let Ok(wrapper_node_layout) = taffy_tree.layout(wrapper_node_id) else {
+                            return;
+                        };
+                        let Ok(text_node_layout) = taffy_tree.layout(text_node_id) else {
                             return;
                         };
                         let Some(node_context) = taffy_tree.get_node_context(text_node_id) else {
                             return;
                         };
 
-                        (layout, node_context)
+                        (wrapper_node_layout, text_node_layout, node_context)
                     }
                 };
                 let text_label_offset = match taffy_node_ids {
@@ -295,7 +306,7 @@ impl IrToTaffyBuilder<'_> {
                             // ```
                             //
                             // but we don't have the gap value
-                            layout.location.x - circle_node_layout.location.x
+                            text_node_layout.location.x - circle_node_layout.location.x
                         })
                         .unwrap_or_default(),
                 };
@@ -324,14 +335,14 @@ impl IrToTaffyBuilder<'_> {
                 }
 
                 // Use the computed layout width as constraint
-                let max_width = layout.size.width;
+                let max_width = text_node_layout.size.width;
 
                 // Compute line wrapping using simple monospace calculation
                 let wrapped_lines = wrap_text_monospace(&text, char_width, max_width);
 
                 // Get style info for padding calculations
-                let padding_left = layout.padding.left;
-                let padding_top = layout.padding.top;
+                let padding_left = text_node_layout.padding.left;
+                let padding_top = wrapper_node_layout.padding.top;
 
                 // Note: we shift the text by half a character width because even though we have
                 // padding, the text still reaches the left and right edges of the node.
