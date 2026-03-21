@@ -46,7 +46,7 @@ thing_hierarchy:
 # and their children stack vertically within each subnet.
 thing_layouts:
   t_cloud: "column"
-  t_vpc: "row"
+  t_vpc: "column"
   t_public_subnet: "row"
   t_private_subnet: "row"
   t_data_subnet: "row"

@@ -20,6 +20,9 @@ thing_hierarchy:
   t_staging: {}
   t_prod: {}
 
+thing_layouts:
+  _things_container: "column"
+
 thing_interactions:
   edge_ix_dev_repo_push:
     kind: sequence
