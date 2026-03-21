@@ -95,7 +95,13 @@ pub fn SvgPreview(
     // Normal (non-expanded) view.
     rsx! {
         div {
-            class: "flex-1 flex flex-col",
+            class: "\
+                flex-1 \
+                flex \
+                flex-col \
+                [&>*]:shrink \
+                overflow-auto\
+            ",
             div {
                 class: "\
                     flex \
@@ -106,12 +112,13 @@ pub fn SvgPreview(
                 CopyButton { text_to_copy: svg }
                 ExpandButton { svg_preview_expanded }
             },
-            object {
+            div {
                 class: "
-                    flex-1
+                    flex-1 \
+                    fit-content \
+                    overflow-auto\
                 ",
-                r#type: "image/svg+xml",
-                data: format!("data:image/svg+xml,{}", urlencoding::encode(svg().as_str())),
+                dangerous_inner_html: svg(),
             }
         }
     }

@@ -7,6 +7,71 @@ use disposition_taffy_model::{TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
 
 use crate::NOTO_SANS_MONO_TTF;
 
+/// CSS variables to ensure CSS works correctly with `encre-css`.
+///
+/// These are copied from `DEFAULT_PREFLIGHT` in [`encre-css/src/preflight.rs`].
+///
+/// We use inline `<styles>` in an SVG, but when the SVG is embedded directly
+/// into an HTML DOM, those styles leak to the global scope. `encre-css`'s
+/// default `Preflight::Full` variant includes styling that resets all elements'
+/// styles, which can break web pages.
+///
+/// However, for `encre-css`'s generated styles to work, the variables it
+/// defines must still be present in the document, otherwise the styles (e.g.
+/// transform) won't be applied.
+///
+/// [`encre-css/src/preflight.rs`]: https://gitlab.com/encre-org/encre-css/-/blob/v0.21.2/crates/encre-css/src/preflight.rs?ref_type=tags#L369-416
+const ENCRE_CSS_VARIABLES: &str = "svg {
+    --en-border-spacing-x: 0;
+    --en-border-spacing-y: 0;
+    --en-translate-x: 0;
+    --en-translate-y: 0;
+    --en-translate-z: 0;
+    --en-rotate-x: 0;
+    --en-rotate-y: 0;
+    --en-rotate-z: 0;
+    --en-skew-x: 0;
+    --en-skew-y: 0;
+    --en-scale-x: 1;
+    --en-scale-y: 1;
+    --en-scale-z: 1;
+    --en-pan-x: ;
+    --en-pan-y: ;
+    --en-pinch-zoom: ;
+    --en-scroll-snap-strictness: proximity;
+    --en-ordinal: ;
+    --en-slashed-zero: ;
+    --en-numeric-figure: ;
+    --en-numeric-spacing: ;
+    --en-numeric-fraction: ;
+    --en-ring-inset: ;
+    --en-ring-offset-width: 0px;
+    --en-ring-offset-color: #fff;
+    --en-ring-color: currentColor;
+    --en-ring-offset-shadow: 0 0 #0000;
+    --en-ring-shadow: 0 0 #0000;
+    --en-shadow: 0 0 #0000;
+    --en-shadow-colored: 0 0 #0000;
+    --en-blur: ;
+    --en-brightness: ;
+    --en-contrast: ;
+    --en-grayscale: ;
+    --en-hue-rotate: ;
+    --en-invert: ;
+    --en-saturate: ;
+    --en-sepia: ;
+    --en-drop-shadow: ;
+    --en-backdrop-blur: ;
+    --en-backdrop-brightness: ;
+    --en-backdrop-contrast: ;
+    --en-backdrop-grayscale: ;
+    --en-backdrop-hue-rotate: ;
+    --en-backdrop-invert: ;
+    --en-backdrop-opacity: ;
+    --en-backdrop-saturate: ;
+    --en-backdrop-sepia: ;
+}";
+
 #[derive(Clone, Copy, Debug)]
 pub struct SvgElementsToSvgMapper;
 
@@ -75,9 +140,15 @@ impl SvgElementsToSvgMapper {
                 .flat_map(|svg_node_info| svg_node_info.wrapper_tailwind_classes.iter())
                 .map(|wrapper_tailwind_classes| wrapper_tailwind_classes.as_ref()),
         );
+        // TODO: generate an ID for the SVG so that the `<styles>` don't leak to outer
+        // document.
+        let encre_css_config = {
+            let mut encre_css_config = encre_css::Config::default();
+            encre_css_config.preflight = encre_css::Preflight::new_custom(ENCRE_CSS_VARIABLES);
+            encre_css_config
+        };
         let generated_css =
-            encre_css::generate(tailwind_classes_iter, &encre_css::Config::default())
-                .replace("&", "&amp;");
+            encre_css::generate(tailwind_classes_iter, &encre_css_config).replace("&", "&amp;");
 
         // Build the style content
         let mut style_content =
