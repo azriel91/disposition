@@ -6,7 +6,7 @@ Diagram generation from an `InputDiagram` into an SVG goes through the following
 
     Source: `InputDiagramMerger` in `crate/input_ir_rt/src/input_diagram_merger.rs`.
 
-2. Calculate diagram intemediate representation (`IrDiagram`) from the merged `InputDiagram`.
+2. Calculate diagram intermediate representation (`IrDiagram`) from the merged `InputDiagram`.
 
     Source: `InputToIrDiagramMapper` in `crate/input_ir_rt/src/input_to_ir_diagram_mapper.rs`.
 
