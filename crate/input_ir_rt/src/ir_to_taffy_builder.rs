@@ -153,26 +153,46 @@ impl IrToTaffyBuilder<'_> {
             taffy_node_build_context,
             processes_included,
         );
-        let thing_taffy_node_ids = first_level_taffy_nodes
+        let thing_rank_to_taffy_ids = first_level_taffy_nodes
             .get(&EntityType::ThingDefault)
-            .map(Vec::as_slice)
+            .cloned()
             .unwrap_or_default();
-        let tag_taffy_node_ids = first_level_taffy_nodes
+        let tag_taffy_node_ids: Vec<taffy::NodeId> = first_level_taffy_nodes
             .get(&EntityType::TagDefault)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
-        let process_taffy_node_ids = first_level_taffy_nodes
+            .into_iter()
+            .flat_map(|rank_map| rank_map.values().flatten().copied())
+            .collect();
+        let process_taffy_node_ids: Vec<taffy::NodeId> = first_level_taffy_nodes
             .get(&EntityType::ProcessDefault)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
+            .into_iter()
+            .flat_map(|rank_map| rank_map.values().flatten().copied())
+            .collect();
+
+        // Create rank sub-containers for top-level thing nodes, mirroring the
+        // rank-based child container logic used inside
+        // `build_taffy_nodes_for_node_with_child_hierarchy`.
+        let things_container_style = Self::taffy_container_style(
+            node_layouts,
+            &NodeInbuilt::ThingsContainer.id(),
+            Size::auto(),
+        );
+        let thing_rank_container_ids: Vec<taffy::NodeId> = thing_rank_to_taffy_ids
+            .into_iter()
+            .map(|(_rank, taffy_ids)| {
+                taffy_tree
+                    .new_with_children(things_container_style.clone(), &taffy_ids)
+                    .expect("Expected to create rank container node for top-level things.")
+            })
+            .collect();
+
         let node_inbuilt_to_taffy = Self::build_taffy_container_nodes(
             &mut taffy_tree,
             &mut taffy_id_to_node,
             node_layouts,
             dimension,
-            thing_taffy_node_ids,
-            process_taffy_node_ids,
-            tag_taffy_node_ids,
+            &thing_rank_container_ids,
+            &process_taffy_node_ids,
+            &tag_taffy_node_ids,
         );
 
         let Some(root) = node_inbuilt_to_taffy.get(&NodeInbuilt::Root).copied() else {
@@ -390,17 +410,27 @@ impl IrToTaffyBuilder<'_> {
         taffy_id_to_node: &mut Map<taffy::NodeId, NodeId>,
         node_layouts: &NodeLayouts,
         dimension: &disposition_taffy_model::Dimension,
-        thing_taffy_node_ids: &[taffy::NodeId],
+        thing_rank_container_ids: &[taffy::NodeId],
         process_taffy_node_ids: &[taffy::NodeId],
         tag_taffy_node_ids: &[taffy::NodeId],
     ) -> Map<NodeInbuilt, taffy::NodeId> {
-        let things_container = Self::taffy_container_node(
-            taffy_tree,
+        // The things container's children are rank sub-containers (each of
+        // which uses the `_things_container` row/wrap style internally).
+        // The things container itself uses a column layout to stack rank
+        // groups vertically.
+        let things_container_base_style = Self::taffy_container_style(
             node_layouts,
-            NodeInbuilt::ThingsContainer,
+            &NodeInbuilt::ThingsContainer.id(),
             Size::auto(),
-            thing_taffy_node_ids,
         );
+        let things_container_style = Style {
+            flex_direction: FlexDirection::Column,
+            flex_wrap: FlexWrap::NoWrap,
+            ..things_container_base_style
+        };
+        let things_container = taffy_tree
+            .new_with_children(things_container_style, thing_rank_container_ids)
+            .expect("`TaffyTree::new_with_children` should be infallible.");
         let processes_container = Self::taffy_container_node(
             taffy_tree,
             node_layouts,
@@ -469,10 +499,14 @@ impl IrToTaffyBuilder<'_> {
     ///
     /// This is different from `build_taffy_nodes_for_node` in that the parent
     /// node is one of the container nodes.
+    ///
+    /// Returns a map from `EntityType` to a `BTreeMap<NodeRank, Vec<NodeId>>`,
+    /// so that callers can create rank-based sub-containers for each entity
+    /// type (e.g. grouping top-level thing nodes by rank).
     fn build_taffy_nodes_for_first_level_nodes(
         taffy_node_build_context: TaffyNodeBuildContext<'_>,
         processes_included: &ProcessesIncluded,
-    ) -> Map<EntityType, Vec<taffy::NodeId>> {
+    ) -> Map<EntityType, BTreeMap<NodeRank, Vec<taffy::NodeId>>> {
         let TaffyNodeBuildContext {
             nodes,
             taffy_tree,
@@ -486,7 +520,7 @@ impl IrToTaffyBuilder<'_> {
         } = taffy_node_build_context;
 
         node_hierarchy.iter().fold(
-            Map::<EntityType, Vec<taffy::NodeId>>::new(),
+            Map::<EntityType, BTreeMap<NodeRank, Vec<taffy::NodeId>>>::new(),
             |mut entity_type_to_nodes, (node_id, child_hierarchy)| {
                 let node_id: &Id = node_id.as_ref();
                 let Some(entity_type) = entity_types
@@ -536,8 +570,16 @@ impl IrToTaffyBuilder<'_> {
                     )
                 };
 
+                let ir_node_id = NodeId::from(node_id.clone());
+                let rank = node_ranks
+                    .get(&ir_node_id)
+                    .copied()
+                    .unwrap_or(NodeRank::new(0));
+
                 entity_type_to_nodes
                     .entry(entity_type.clone())
+                    .or_default()
+                    .entry(rank)
                     .or_default()
                     .push(wrapper_node_id);
 
