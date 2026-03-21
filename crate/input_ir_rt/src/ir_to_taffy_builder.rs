@@ -177,8 +177,8 @@ impl IrToTaffyBuilder<'_> {
             Size::auto(),
         );
         let thing_rank_container_ids: Vec<taffy::NodeId> = thing_rank_to_taffy_ids
-            .into_iter()
-            .map(|(_rank, taffy_ids)| {
+            .into_values()
+            .map(|taffy_ids| {
                 taffy_tree
                     .new_with_children(things_container_style.clone(), &taffy_ids)
                     .expect("Expected to create rank container node for top-level things.")
@@ -836,8 +836,8 @@ impl IrToTaffyBuilder<'_> {
         //   child_container_2: {} # nodes with rank n + 2
         // ```
         let rank_container_ids: Vec<taffy::NodeId> = rank_to_taffy_ids
-            .into_iter()
-            .map(|(_rank, taffy_ids)| {
+            .into_values()
+            .map(|taffy_ids| {
                 taffy_tree
                     .new_with_children(child_container_style.clone(), &taffy_ids)
                     .unwrap_or_else(|e| {

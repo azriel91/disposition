@@ -116,11 +116,7 @@ impl NodeRanksCalculator {
             // Check if this edge group is a dependency type.
             let is_dependency = entity_types
                 .get(edge_group_id)
-                .map(|types| {
-                    types
-                        .iter()
-                        .any(|entity_type| Self::entity_type_is_dependency_edge_group(entity_type))
-                })
+                .map(|types| types.iter().any(Self::entity_type_is_dependency_edge_group))
                 .unwrap_or(false);
 
             if !is_dependency {
@@ -217,11 +213,11 @@ impl NodeRanksCalculator {
         }
         // Recompute in-degrees after dedup.
         scc_in_degree.fill(0);
-        for scc_idx in 0..scc_count {
-            for &to_scc in &scc_adjacency[scc_idx] {
+        scc_adjacency.iter().take(scc_count).for_each(|scc_idx| {
+            scc_idx.iter().copied().for_each(|to_scc| {
                 scc_in_degree[to_scc] += 1;
-            }
-        }
+            });
+        });
 
         // === Compute Ranks on SCC DAG (Longest Path / Topological Order) === //
         let scc_ranks = Self::scc_dag_ranks_compute(&scc_adjacency, &scc_in_degree, scc_count);
@@ -321,10 +317,10 @@ impl NodeRanksCalculator {
 
                 // "Return" from v: propagate lowlink to caller.
                 call_stack.pop();
-                if let Some(&mut (caller, _)) = call_stack.last_mut() {
-                    if state.lowlink[v] < state.lowlink[caller] {
-                        state.lowlink[caller] = state.lowlink[v];
-                    }
+                if let Some(&mut (caller, _)) = call_stack.last_mut()
+                    && state.lowlink[v] < state.lowlink[caller]
+                {
+                    state.lowlink[caller] = state.lowlink[v];
                 }
             }
         }
@@ -345,11 +341,13 @@ impl NodeRanksCalculator {
 
         // Seed the queue with all SCCs that have no incoming edges.
         let mut queue: std::collections::VecDeque<usize> = std::collections::VecDeque::new();
-        for scc_idx in 0..scc_count {
-            if in_degree[scc_idx] == 0 {
-                queue.push_back(scc_idx);
-            }
-        }
+        in_degree
+            .iter()
+            .copied()
+            .enumerate()
+            .take(scc_count)
+            .filter(|(_scc_idx, in_degree_item)| *in_degree_item == 0)
+            .for_each(|(scc_idx, _in_degree_item)| queue.push_back(scc_idx));
 
         while let Some(scc_idx) = queue.pop_front() {
             for &to_scc in &scc_adjacency[scc_idx] {
