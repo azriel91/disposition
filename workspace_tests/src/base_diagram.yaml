@@ -148,6 +148,7 @@ theme_default:
       stroke_width: "2"
       text_color: "neutral"
       visibility: "visible"
+      gap: "24.0"
     edge_defaults:
       text_color: "neutral"
 
