@@ -482,6 +482,7 @@ fn base_theme_styles() -> ThemeStyles<'static> {
                     (ThemeAttr::StrokeWidth, "2"),
                     (ThemeAttr::TextColor, "neutral"),
                     (ThemeAttr::Visibility, "visible"),
+                    (ThemeAttr::Gap, "24.0"),
                 ],
             ),
         ),

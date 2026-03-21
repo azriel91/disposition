@@ -16,6 +16,8 @@ use crate::example_diagrams::ExampleDiagram;
 const SELECT_CLASS: &str = "\
     rounded \
     px-2 py-1 \
+    w-24 \
+    sm:w-fit \
     text-sm \
     font-semibold \
     cursor-pointer \

@@ -1,9 +1,11 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::BTreeMap};
 
 use disposition_ir_model::{
     entity::{EntityDescs, EntityType, EntityTypes},
     layout::{FlexDirection as ModelFlexDirection, NodeLayout, NodeLayouts},
-    node::{NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeShape, NodeShapes},
+    node::{
+        NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeRank, NodeRanks, NodeShape, NodeShapes,
+    },
     IrDiagram,
 };
 use disposition_model_common::{Id, Map};
@@ -124,6 +126,7 @@ impl IrToTaffyBuilder<'_> {
             entity_types,
             tailwind_classes: _,
             node_layouts,
+            node_ranks,
             node_shapes,
             process_step_entities: _,
             css: _,
@@ -142,6 +145,7 @@ impl IrToTaffyBuilder<'_> {
             node_hierarchy,
             entity_types,
             node_shapes,
+            node_ranks,
             node_id_to_taffy: &mut node_id_to_taffy,
             taffy_id_to_node: &mut taffy_id_to_node,
         };
@@ -149,26 +153,46 @@ impl IrToTaffyBuilder<'_> {
             taffy_node_build_context,
             processes_included,
         );
-        let thing_taffy_node_ids = first_level_taffy_nodes
+        let thing_rank_to_taffy_ids = first_level_taffy_nodes
             .get(&EntityType::ThingDefault)
-            .map(Vec::as_slice)
+            .cloned()
             .unwrap_or_default();
-        let tag_taffy_node_ids = first_level_taffy_nodes
+        let tag_taffy_node_ids: Vec<taffy::NodeId> = first_level_taffy_nodes
             .get(&EntityType::TagDefault)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
-        let process_taffy_node_ids = first_level_taffy_nodes
+            .into_iter()
+            .flat_map(|rank_map| rank_map.values().flatten().copied())
+            .collect();
+        let process_taffy_node_ids: Vec<taffy::NodeId> = first_level_taffy_nodes
             .get(&EntityType::ProcessDefault)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
+            .into_iter()
+            .flat_map(|rank_map| rank_map.values().flatten().copied())
+            .collect();
+
+        // Create rank sub-containers for top-level thing nodes, mirroring the
+        // rank-based child container logic used inside
+        // `build_taffy_nodes_for_node_with_child_hierarchy`.
+        let things_container_style = Self::taffy_container_style(
+            node_layouts,
+            &NodeInbuilt::ThingsContainer.id(),
+            Size::auto(),
+        );
+        let thing_rank_container_ids: Vec<taffy::NodeId> = thing_rank_to_taffy_ids
+            .into_values()
+            .map(|taffy_ids| {
+                taffy_tree
+                    .new_with_children(things_container_style.clone(), &taffy_ids)
+                    .expect("Expected to create rank container node for top-level things.")
+            })
+            .collect();
+
         let node_inbuilt_to_taffy = Self::build_taffy_container_nodes(
             &mut taffy_tree,
             &mut taffy_id_to_node,
             node_layouts,
             dimension,
-            thing_taffy_node_ids,
-            process_taffy_node_ids,
-            tag_taffy_node_ids,
+            &thing_rank_container_ids,
+            &process_taffy_node_ids,
+            &tag_taffy_node_ids,
         );
 
         let Some(root) = node_inbuilt_to_taffy.get(&NodeInbuilt::Root).copied() else {
@@ -246,31 +270,42 @@ impl IrToTaffyBuilder<'_> {
         node_id_to_taffy
             .iter()
             .for_each(|(node_id, &taffy_node_ids)| {
-                let (layout, node_context) = match taffy_node_ids {
-                    NodeToTaffyNodeIds::Leaf { text_node_id }
-                    | NodeToTaffyNodeIds::Wrapper {
-                        wrapper_node_id: _,
+                let (wrapper_node_layout, text_node_layout, node_context) = match taffy_node_ids {
+                    NodeToTaffyNodeIds::Leaf { text_node_id } => {
+                        let Ok(text_node_layout) = taffy_tree.layout(text_node_id) else {
+                            return;
+                        };
+                        let Some(node_context) = taffy_tree.get_node_context(text_node_id) else {
+                            return;
+                        };
+                        (text_node_layout, text_node_layout, node_context)
+                    }
+                    NodeToTaffyNodeIds::Wrapper {
+                        wrapper_node_id,
                         text_node_id,
                     }
                     | NodeToTaffyNodeIds::LeafWithCircle {
-                        wrapper_node_id: _,
+                        wrapper_node_id,
                         circle_node_id: _,
                         text_node_id,
                     }
                     | NodeToTaffyNodeIds::WrapperCircle {
-                        wrapper_node_id: _,
+                        wrapper_node_id,
                         label_wrapper_node_id: _,
                         circle_node_id: _,
                         text_node_id,
                     } => {
-                        let Ok(layout) = taffy_tree.layout(text_node_id) else {
+                        let Ok(wrapper_node_layout) = taffy_tree.layout(wrapper_node_id) else {
+                            return;
+                        };
+                        let Ok(text_node_layout) = taffy_tree.layout(text_node_id) else {
                             return;
                         };
                         let Some(node_context) = taffy_tree.get_node_context(text_node_id) else {
                             return;
                         };
 
-                        (layout, node_context)
+                        (wrapper_node_layout, text_node_layout, node_context)
                     }
                 };
                 let text_label_offset = match taffy_node_ids {
@@ -295,7 +330,7 @@ impl IrToTaffyBuilder<'_> {
                             // ```
                             //
                             // but we don't have the gap value
-                            layout.location.x - circle_node_layout.location.x
+                            text_node_layout.location.x - circle_node_layout.location.x
                         })
                         .unwrap_or_default(),
                 };
@@ -324,14 +359,14 @@ impl IrToTaffyBuilder<'_> {
                 }
 
                 // Use the computed layout width as constraint
-                let max_width = layout.size.width;
+                let max_width = text_node_layout.size.width;
 
                 // Compute line wrapping using simple monospace calculation
                 let wrapped_lines = wrap_text_monospace(&text, char_width, max_width);
 
                 // Get style info for padding calculations
-                let padding_left = layout.padding.left;
-                let padding_top = layout.padding.top;
+                let padding_left = text_node_layout.padding.left;
+                let padding_top = wrapper_node_layout.padding.top;
 
                 // Note: we shift the text by half a character width because even though we have
                 // padding, the text still reaches the left and right edges of the node.
@@ -375,17 +410,32 @@ impl IrToTaffyBuilder<'_> {
         taffy_id_to_node: &mut Map<taffy::NodeId, NodeId>,
         node_layouts: &NodeLayouts,
         dimension: &disposition_taffy_model::Dimension,
-        thing_taffy_node_ids: &[taffy::NodeId],
+        thing_rank_container_ids: &[taffy::NodeId],
         process_taffy_node_ids: &[taffy::NodeId],
         tag_taffy_node_ids: &[taffy::NodeId],
     ) -> Map<NodeInbuilt, taffy::NodeId> {
-        let things_container = Self::taffy_container_node(
-            taffy_tree,
+        // The things container's children are rank sub-containers (each of
+        // which uses the `_things_container` row/wrap style internally).
+        // The things container itself uses a column layout to stack rank
+        // groups vertically, with `align_items: Stretch` so that each rank
+        // sub-container stretches to the column width. This ensures width
+        // constraints from ancestor containers propagate down, allowing the
+        // row-wrap rank containers to wrap their children correctly and
+        // report an accurate height.
+        let things_container_base_style = Self::taffy_container_style(
             node_layouts,
-            NodeInbuilt::ThingsContainer,
+            &NodeInbuilt::ThingsContainer.id(),
             Size::auto(),
-            thing_taffy_node_ids,
         );
+        let things_container_style = Style {
+            flex_direction: FlexDirection::Column,
+            flex_wrap: FlexWrap::NoWrap,
+            align_items: Some(AlignItems::Stretch),
+            ..things_container_base_style
+        };
+        let things_container = taffy_tree
+            .new_with_children(things_container_style, thing_rank_container_ids)
+            .expect("`TaffyTree::new_with_children` should be infallible.");
         let processes_container = Self::taffy_container_node(
             taffy_tree,
             node_layouts,
@@ -454,10 +504,14 @@ impl IrToTaffyBuilder<'_> {
     ///
     /// This is different from `build_taffy_nodes_for_node` in that the parent
     /// node is one of the container nodes.
+    ///
+    /// Returns a map from `EntityType` to a `BTreeMap<NodeRank, Vec<NodeId>>`,
+    /// so that callers can create rank-based sub-containers for each entity
+    /// type (e.g. grouping top-level thing nodes by rank).
     fn build_taffy_nodes_for_first_level_nodes(
         taffy_node_build_context: TaffyNodeBuildContext<'_>,
         processes_included: &ProcessesIncluded,
-    ) -> Map<EntityType, Vec<taffy::NodeId>> {
+    ) -> Map<EntityType, BTreeMap<NodeRank, Vec<taffy::NodeId>>> {
         let TaffyNodeBuildContext {
             nodes,
             taffy_tree,
@@ -465,12 +519,13 @@ impl IrToTaffyBuilder<'_> {
             node_hierarchy,
             entity_types,
             node_shapes,
+            node_ranks,
             node_id_to_taffy,
             taffy_id_to_node,
         } = taffy_node_build_context;
 
         node_hierarchy.iter().fold(
-            Map::<EntityType, Vec<taffy::NodeId>>::new(),
+            Map::<EntityType, BTreeMap<NodeRank, Vec<taffy::NodeId>>>::new(),
             |mut entity_type_to_nodes, (node_id, child_hierarchy)| {
                 let node_id: &Id = node_id.as_ref();
                 let Some(entity_type) = entity_types
@@ -511,6 +566,7 @@ impl IrToTaffyBuilder<'_> {
                         node_layouts,
                         node_shapes,
                         entity_types,
+                        node_ranks,
                         node_id_to_taffy,
                         taffy_id_to_node,
                         child_hierarchy,
@@ -519,8 +575,16 @@ impl IrToTaffyBuilder<'_> {
                     )
                 };
 
+                let ir_node_id = NodeId::from(node_id.clone());
+                let rank = node_ranks
+                    .get(&ir_node_id)
+                    .copied()
+                    .unwrap_or(NodeRank::new(0));
+
                 entity_type_to_nodes
                     .entry(entity_type.clone())
+                    .or_default()
+                    .entry(rank)
                     .or_default()
                     .push(wrapper_node_id);
 
@@ -529,10 +593,14 @@ impl IrToTaffyBuilder<'_> {
         )
     }
 
-    /// Adds the child taffy nodes for a given IR diagram node.
-    fn build_taffy_child_nodes_for_node(
+    /// Adds the child taffy nodes for a given IR diagram node, grouped by rank.
+    ///
+    /// Returns a `BTreeMap` from `NodeRank` to the list of taffy node IDs at
+    /// that rank. This allows the caller to create separate child containers
+    /// for each rank level.
+    fn build_taffy_child_nodes_for_node_by_rank(
         taffy_node_build_context: TaffyNodeBuildContext<'_>,
-    ) -> Vec<taffy::NodeId> {
+    ) -> BTreeMap<NodeRank, Vec<taffy::NodeId>> {
         let TaffyNodeBuildContext {
             nodes,
             taffy_tree,
@@ -540,51 +608,63 @@ impl IrToTaffyBuilder<'_> {
             node_hierarchy,
             entity_types,
             node_shapes,
+            node_ranks,
             node_id_to_taffy,
             taffy_id_to_node,
         } = taffy_node_build_context;
 
-        node_hierarchy
-            .iter()
-            .filter_map(|(node_id, child_hierarchy)| {
-                let node_id: &Id = node_id.as_ref();
-                let Some(entity_type) = entity_types
-                    .get(node_id)
-                    .and_then(|entity_types| entity_types.first())
-                else {
-                    // Skip nodes without an entity type -- probably something extra in the
-                    // hierarchy without a node name.
-                    return None;
-                };
+        let mut rank_to_taffy_ids: BTreeMap<NodeRank, Vec<taffy::NodeId>> = BTreeMap::new();
 
-                let taffy_node_id = if child_hierarchy.is_empty() {
-                    Self::build_taffy_nodes_for_node_without_child_hierarchy(
-                        taffy_tree,
-                        node_layouts,
-                        node_shapes,
-                        node_id_to_taffy,
-                        taffy_id_to_node,
-                        node_id,
-                        entity_type,
-                    )
-                } else {
-                    Self::build_taffy_nodes_for_node_with_child_hierarchy(
-                        nodes,
-                        taffy_tree,
-                        node_layouts,
-                        node_shapes,
-                        entity_types,
-                        node_id_to_taffy,
-                        taffy_id_to_node,
-                        child_hierarchy,
-                        node_id,
-                        entity_type,
-                    )
-                };
+        for (node_id, child_hierarchy) in node_hierarchy.iter() {
+            let node_id: &Id = node_id.as_ref();
+            let Some(entity_type) = entity_types
+                .get(node_id)
+                .and_then(|entity_types| entity_types.first())
+            else {
+                // Skip nodes without an entity type -- probably something extra in the
+                // hierarchy without a node name.
+                continue;
+            };
 
-                Some(taffy_node_id)
-            })
-            .collect::<Vec<taffy::NodeId>>()
+            let taffy_node_id = if child_hierarchy.is_empty() {
+                Self::build_taffy_nodes_for_node_without_child_hierarchy(
+                    taffy_tree,
+                    node_layouts,
+                    node_shapes,
+                    node_id_to_taffy,
+                    taffy_id_to_node,
+                    node_id,
+                    entity_type,
+                )
+            } else {
+                Self::build_taffy_nodes_for_node_with_child_hierarchy(
+                    nodes,
+                    taffy_tree,
+                    node_layouts,
+                    node_shapes,
+                    entity_types,
+                    node_ranks,
+                    node_id_to_taffy,
+                    taffy_id_to_node,
+                    child_hierarchy,
+                    node_id,
+                    entity_type,
+                )
+            };
+
+            let ir_node_id = NodeId::from(node_id.clone());
+            let rank = node_ranks
+                .get(&ir_node_id)
+                .copied()
+                .unwrap_or(NodeRank::new(0));
+
+            rank_to_taffy_ids
+                .entry(rank)
+                .or_default()
+                .push(taffy_node_id);
+        }
+
+        rank_to_taffy_ids
     }
 
     fn build_taffy_nodes_for_node_without_child_hierarchy(
@@ -702,6 +782,7 @@ impl IrToTaffyBuilder<'_> {
         node_layouts: &NodeLayouts<'static>,
         node_shapes: &NodeShapes<'static>,
         entity_types: &EntityTypes<'static>,
+        node_ranks: &NodeRanks<'static>,
         node_id_to_taffy: &mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
         taffy_id_to_node: &mut Map<taffy::NodeId, NodeId<'static>>,
         child_hierarchy: &NodeHierarchy<'static>,
@@ -733,15 +814,40 @@ impl IrToTaffyBuilder<'_> {
             node_hierarchy: child_hierarchy,
             entity_types,
             node_shapes,
+            node_ranks,
             node_id_to_taffy,
             taffy_id_to_node,
         };
-        let taffy_children_ids = Self::build_taffy_child_nodes_for_node(taffy_node_build_context);
-        let taffy_children_container_id = taffy_tree
-            .new_with_children(child_container_style, &taffy_children_ids)
-            .unwrap_or_else(|e| {
-                panic!("Expected to create child container node for {node_id}. Error: {e}")
-            });
+        let rank_to_taffy_ids =
+            Self::build_taffy_child_nodes_for_node_by_rank(taffy_node_build_context);
+
+        // === Build Rank-Based Child Containers === //
+        //
+        // Instead of a single child container with all children, we create one
+        // child container per rank level. This causes higher-ranked nodes to be
+        // positioned further along the wrapper's flex direction (down for
+        // column, right for row).
+        //
+        // ```yaml
+        // wrapper_node:
+        //   text_node: 'node text'
+        //   child_container_0: {} # nodes with rank n
+        //   child_container_1: {} # nodes with rank n + 1
+        //   child_container_2: {} # nodes with rank n + 2
+        // ```
+        let rank_container_ids: Vec<taffy::NodeId> = rank_to_taffy_ids
+            .into_values()
+            .map(|taffy_ids| {
+                taffy_tree
+                    .new_with_children(child_container_style.clone(), &taffy_ids)
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "Expected to create rank child container node for {node_id}. \
+                             Error: {e}"
+                        )
+                    })
+            })
+            .collect();
 
         let node_shape = node_shapes
             .get(&ir_node_id)
@@ -749,11 +855,11 @@ impl IrToTaffyBuilder<'_> {
 
         match node_shape {
             NodeShape::Rect(_node_shape_rect) => {
+                let mut wrapper_children = vec![taffy_text_node_id];
+                wrapper_children.extend(rank_container_ids);
+
                 let wrapper_node_id = taffy_tree
-                    .new_with_children(
-                        wrapper_style,
-                        &[taffy_text_node_id, taffy_children_container_id],
-                    )
+                    .new_with_children(wrapper_style, &wrapper_children)
                     .unwrap_or_else(|e| {
                         panic!("Expected to create wrapper node for {node_id}. Error: {e}")
                     });
@@ -777,7 +883,8 @@ impl IrToTaffyBuilder<'_> {
                 //   - label_wrapper_node: # flex row
                 //     - circle_node
                 //     - text_node
-                //   - child_container
+                //   - child_container_0  # rank n
+                //   - child_container_1  # rank n + 1
                 // ```
                 let circle_radius = node_shape_circle.radius();
                 let circle_diameter = circle_radius * 2.0;
@@ -809,11 +916,11 @@ impl IrToTaffyBuilder<'_> {
                         panic!("Expected to create label wrapper node for {node_id}. Error: {e}")
                     });
 
+                let mut wrapper_children = vec![label_wrapper_node_id];
+                wrapper_children.extend(rank_container_ids);
+
                 let wrapper_node_id = taffy_tree
-                    .new_with_children(
-                        wrapper_style,
-                        &[label_wrapper_node_id, taffy_children_container_id],
-                    )
+                    .new_with_children(wrapper_style, &wrapper_children)
                     .unwrap_or_else(|e| {
                         panic!("Expected to create wrapper node for {node_id}. Error: {e}")
                     });
@@ -964,6 +1071,11 @@ impl IrToTaffyBuilder<'_> {
                     let child_container_style = Style {
                         display: Display::Flex,
                         max_size: Size::auto(),
+                        // Rank sub-containers must not shrink below their
+                        // content size; otherwise the column wrapper parent
+                        // compresses them when space is tight, causing wrapped
+                        // rows to overlap with the next rank container.
+                        flex_shrink: 0.0,
                         gap: Size::length(flex_layout.gap()),
                         flex_direction: flex_direction_to_taffy(flex_layout.direction()),
                         flex_wrap: if flex_layout.wrap() {

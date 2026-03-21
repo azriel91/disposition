@@ -6,13 +6,19 @@
 use dioxus::{
     document,
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
-    signals::{Memo, ReadableExt, Signal, WritableExt},
+    signals::{Memo, ReadableExt, Signal},
 };
 
 use crate::components::disposition_editor::{CopyButton, ShareButton};
 
+use self::{collapse_button::CollapseButton, expand_button::ExpandButton, svg_div::SvgDiv};
+
+mod collapse_button;
+mod expand_button;
+mod svg_div;
+
 /// CSS classes for the expand / collapse toggle button.
-const EXPAND_BTN_CLASS: &str = "\
+const BTN_CLASS: &str = "\
     flex-none \
     flex \
     justify-center \
@@ -79,22 +85,17 @@ pub fn SvgPreview(
                     ",
                     ShareButton { show_share_modal }
                     CopyButton { text_to_copy: svg }
-                    button {
-                        class: EXPAND_BTN_CLASS,
-                        tabindex: "0",
-                        title: "Restore editor (Escape / f)",
-                        onclick: move |_| {
-                            svg_preview_expanded.set(false);
-                        },
-                        CollapseIcon {}
-                    }
+                    CollapseButton { svg_preview_expanded }
                 }
 
                 // === SVG fills remaining space === //
-                object {
-                    class: "flex-1",
-                    r#type: "image/svg+xml",
-                    data: format!("data:image/svg+xml,{}", urlencoding::encode(svg().as_str())),
+                SvgDiv {
+                    class: "
+                        flex-1 \
+                        fit-content \
+                        overflow-auto\
+                    ",
+                    svg,
                 }
             }
         };
@@ -103,7 +104,13 @@ pub fn SvgPreview(
     // Normal (non-expanded) view.
     rsx! {
         div {
-            class: "flex-1 flex flex-col",
+            class: "\
+                flex-1 \
+                flex \
+                flex-col \
+                [&>*]:shrink \
+                overflow-auto\
+            ",
             div {
                 class: "\
                     flex \
@@ -112,93 +119,16 @@ pub fn SvgPreview(
                 ",
                 ShareButton { show_share_modal }
                 CopyButton { text_to_copy: svg }
-                button {
-                    class: EXPAND_BTN_CLASS,
-                    tabindex: "0",
-                    title: "Expand SVG preview (f)",
-                    onclick: move |_| {
-                        svg_preview_expanded.set(true);
-                    },
-                    ExpandIcon {}
-                }
+                ExpandButton { svg_preview_expanded }
             },
-            object {
+            SvgDiv {
                 class: "
-                    flex-1
+                    flex-1 \
+                    fit-content \
+                    overflow-auto\
                 ",
-                r#type: "image/svg+xml",
-                data: format!("data:image/svg+xml,{}", urlencoding::encode(svg().as_str())),
+                svg,
             }
-        }
-    }
-}
-
-/// Expand icon: arrows pointing outward to the four corners.
-#[component]
-fn ExpandIcon() -> Element {
-    rsx! {
-        svg {
-            xmlns: "http://www.w3.org/2000/svg",
-            class: "h-5 w-5",
-            width: "24",
-            height: "24",
-            view_box: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-
-            // Top-left corner.
-            polyline { points: "8 3 3 3 3 8" }
-            line { x1: "3", y1: "3", x2: "10", y2: "10" }
-
-            // Top-right corner.
-            polyline { points: "16 3 21 3 21 8" }
-            line { x1: "21", y1: "3", x2: "14", y2: "10" }
-
-            // Bottom-left corner.
-            polyline { points: "8 21 3 21 3 16" }
-            line { x1: "3", y1: "21", x2: "10", y2: "14" }
-
-            // Bottom-right corner.
-            polyline { points: "16 21 21 21 21 16" }
-            line { x1: "21", y1: "21", x2: "14", y2: "14" }
-        }
-    }
-}
-
-/// Collapse icon: arrows pointing inward from the four corners.
-#[component]
-fn CollapseIcon() -> Element {
-    rsx! {
-        svg {
-            xmlns: "http://www.w3.org/2000/svg",
-            class: "h-5 w-5",
-            width: "24",
-            height: "24",
-            view_box: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-
-            // From top-left corner inward.
-            polyline { points: "4 14 10 14 10 20" }
-            line { x1: "3", y1: "21", x2: "10", y2: "14" }
-
-            // From top-right corner inward.
-            polyline { points: "20 14 14 14 14 20" }
-            line { x1: "21", y1: "21", x2: "14", y2: "14" }
-
-            // From bottom-left corner inward.
-            polyline { points: "4 10 10 10 10 4" }
-            line { x1: "3", y1: "3", x2: "10", y2: "10" }
-
-            // From bottom-right corner inward.
-            polyline { points: "20 10 14 10 14 4" }
-            line { x1: "21", y1: "3", x2: "14", y2: "10" }
         }
     }
 }
