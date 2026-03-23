@@ -414,35 +414,11 @@ impl IrToTaffyBuilder<'_> {
         process_taffy_node_ids: &[taffy::NodeId],
         tag_taffy_node_ids: &[taffy::NodeId],
     ) -> Map<NodeInbuilt, taffy::NodeId> {
-        // The things container's children are rank sub-containers (each of
-        // which uses the `_things_container` row/wrap style internally).
-        // The things container itself uses a column layout to stack rank
-        // groups vertically, with `align_items: Stretch` so that each rank
-        // sub-container stretches to the column width. This ensures width
-        // constraints from ancestor containers propagate down, allowing the
-        // row-wrap rank containers to wrap their children correctly and
-        // report an accurate height.
-        let things_container_base_style = Self::taffy_container_style(
+        let things_container_style = Self::taffy_container_style(
             node_layouts,
             &NodeInbuilt::ThingsContainer.id(),
             Size::auto(),
         );
-        let flex_direction_things_container = Self::flex_direction_for_node_ranks(
-            node_layouts
-                .get(&NodeInbuilt::ThingsAndProcessesContainer.id())
-                .and_then(|node_layout| match node_layout {
-                    NodeLayout::Flex(flex_layout) => Some(flex_layout.direction()),
-                    NodeLayout::Leaf(_leaf_layout) => None,
-                })
-                .map(flex_direction_to_taffy)
-                .unwrap_or_default(),
-        );
-        let things_container_style = Style {
-            flex_direction: flex_direction_things_container,
-            flex_wrap: FlexWrap::NoWrap,
-            align_items: Some(AlignItems::Stretch),
-            ..things_container_base_style
-        };
         let things_container = taffy_tree
             .new_with_children(things_container_style, thing_rank_container_ids)
             .expect("`TaffyTree::new_with_children` should be infallible.");
@@ -948,20 +924,6 @@ impl IrToTaffyBuilder<'_> {
 
                 wrapper_node_id
             }
-        }
-    }
-
-    /// Returns the flex direction that represents the ranks of a node, based on
-    /// the parent's flex direction.
-    ///
-    /// i.e. if the parent's flex direction is `Row`, the ranks will be laid out
-    /// vertically (i.e. `Column`).
-    fn flex_direction_for_node_ranks(flex_direction_parent: FlexDirection) -> FlexDirection {
-        match flex_direction_parent {
-            FlexDirection::Row => FlexDirection::Column,
-            FlexDirection::Column => FlexDirection::Row,
-            FlexDirection::RowReverse => FlexDirection::ColumnReverse,
-            FlexDirection::ColumnReverse => FlexDirection::RowReverse,
         }
     }
 
