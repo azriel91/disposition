@@ -427,8 +427,18 @@ impl IrToTaffyBuilder<'_> {
             &NodeInbuilt::ThingsContainer.id(),
             Size::auto(),
         );
+        let flex_direction_things_container = Self::flex_direction_for_node_ranks(
+            node_layouts
+                .get(&NodeInbuilt::ThingsAndProcessesContainer.id())
+                .and_then(|node_layout| match node_layout {
+                    NodeLayout::Flex(flex_layout) => Some(flex_layout.direction()),
+                    NodeLayout::Leaf(_leaf_layout) => None,
+                })
+                .map(flex_direction_to_taffy)
+                .unwrap_or_default(),
+        );
         let things_container_style = Style {
-            flex_direction: FlexDirection::Column,
+            flex_direction: flex_direction_things_container,
             flex_wrap: FlexWrap::NoWrap,
             align_items: Some(AlignItems::Stretch),
             ..things_container_base_style
@@ -938,6 +948,20 @@ impl IrToTaffyBuilder<'_> {
 
                 wrapper_node_id
             }
+        }
+    }
+
+    /// Returns the flex direction that represents the ranks of a node, based on
+    /// the parent's flex direction.
+    ///
+    /// i.e. if the parent's flex direction is `Row`, the ranks will be laid out
+    /// vertically (i.e. `Column`).
+    fn flex_direction_for_node_ranks(flex_direction_parent: FlexDirection) -> FlexDirection {
+        match flex_direction_parent {
+            FlexDirection::Row => FlexDirection::Column,
+            FlexDirection::Column => FlexDirection::Row,
+            FlexDirection::RowReverse => FlexDirection::ColumnReverse,
+            FlexDirection::ColumnReverse => FlexDirection::RowReverse,
         }
     }
 
