@@ -149,41 +149,47 @@ impl IrToTaffyBuilder<'_> {
             node_id_to_taffy: &mut node_id_to_taffy,
             taffy_id_to_node: &mut taffy_id_to_node,
         };
-        let first_level_taffy_nodes = Self::build_taffy_nodes_for_first_level_nodes(
+        let node_rank_to_nodes_by_entity_type = Self::build_taffy_nodes_for_first_level_nodes(
             taffy_node_build_context,
             processes_included,
         );
-        let thing_rank_to_taffy_ids = first_level_taffy_nodes
+        let thing_rank_to_taffy_ids = node_rank_to_nodes_by_entity_type
             .get(&EntityType::ThingDefault)
             .cloned()
             .unwrap_or_default();
-        let tag_taffy_node_ids: Vec<taffy::NodeId> = first_level_taffy_nodes
+        let tag_rank_to_taffy_ids = node_rank_to_nodes_by_entity_type
             .get(&EntityType::TagDefault)
-            .into_iter()
-            .flat_map(|rank_map| rank_map.values().flatten().copied())
-            .collect();
-        let process_taffy_node_ids: Vec<taffy::NodeId> = first_level_taffy_nodes
+            .cloned()
+            .unwrap_or_default();
+        let process_rank_to_taffy_ids = node_rank_to_nodes_by_entity_type
             .get(&EntityType::ProcessDefault)
-            .into_iter()
-            .flat_map(|rank_map| rank_map.values().flatten().copied())
-            .collect();
+            .cloned()
+            .unwrap_or_default();
 
-        // Create rank sub-containers for top-level thing nodes, mirroring the
+        // Create rank sub-containers for top-level nodes, mirroring the
         // rank-based child container logic used inside
         // `build_taffy_nodes_for_node_with_child_hierarchy`.
-        let things_container_style = Self::taffy_container_style(
+        //
+        // Each entity type gets its own set of rank containers using the
+        // style of its parent container.
+        let thing_rank_container_ids = Self::build_taffy_rank_containers_for_first_level_nodes(
+            &mut taffy_tree,
             node_layouts,
-            &NodeInbuilt::ThingsContainer.id(),
-            Size::auto(),
+            NodeInbuilt::ThingsContainer,
+            thing_rank_to_taffy_ids,
         );
-        let thing_rank_container_ids: Vec<taffy::NodeId> = thing_rank_to_taffy_ids
-            .into_values()
-            .map(|taffy_ids| {
-                taffy_tree
-                    .new_with_children(things_container_style.clone(), &taffy_ids)
-                    .expect("Expected to create rank container node for top-level things.")
-            })
-            .collect();
+        let tag_rank_container_ids = Self::build_taffy_rank_containers_for_first_level_nodes(
+            &mut taffy_tree,
+            node_layouts,
+            NodeInbuilt::TagsContainer,
+            tag_rank_to_taffy_ids,
+        );
+        let process_rank_container_ids = Self::build_taffy_rank_containers_for_first_level_nodes(
+            &mut taffy_tree,
+            node_layouts,
+            NodeInbuilt::ProcessesContainer,
+            process_rank_to_taffy_ids,
+        );
 
         let node_inbuilt_to_taffy = Self::build_taffy_container_nodes(
             &mut taffy_tree,
@@ -191,8 +197,8 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             dimension,
             &thing_rank_container_ids,
-            &process_taffy_node_ids,
-            &tag_taffy_node_ids,
+            &process_rank_container_ids,
+            &tag_rank_container_ids,
         );
 
         let Some(root) = node_inbuilt_to_taffy.get(&NodeInbuilt::Root).copied() else {
@@ -404,6 +410,48 @@ impl IrToTaffyBuilder<'_> {
         entity_highlighted_spans
     }
 
+    /// Creates rank sub-containers for first-level nodes of a given entity
+    /// type.
+    ///
+    /// Each rank level gets its own flex container using the style of the
+    /// parent `NodeInbuilt` container. The returned `Vec` contains one taffy
+    /// node per rank, ordered by rank.
+    fn build_taffy_rank_containers_for_first_level_nodes(
+        taffy_tree: &mut TaffyTree<NodeContext>,
+        node_layouts: &NodeLayouts,
+        node_inbuilt: NodeInbuilt,
+        rank_to_taffy_ids: BTreeMap<NodeRank, Vec<taffy::NodeId>>,
+    ) -> Vec<taffy::NodeId> {
+        // Not sure if this is the best way to handle the container styles, but we use
+        // the `NodeInbuilt` container style for the rank children containers, and
+        // invert the `FlexDirection` on the actual `NodeInbuilt` container style.
+        let rank_container_style =
+            Self::taffy_container_style(node_layouts, &node_inbuilt.id(), Size::auto());
+        // Creates a new taffy node for each rank to be placed in the container.
+        //
+        // i.e.
+        //
+        // ```yaml
+        // container_node:
+        //   child_container_0: {} # nodes with rank n
+        //   child_container_1: {} # nodes with rank n + 1
+        //   child_container_2: {} # nodes with rank n + 2
+        // ```
+        rank_to_taffy_ids
+            .into_values()
+            .map(|taffy_ids| {
+                taffy_tree
+                    .new_with_children(rank_container_style.clone(), &taffy_ids)
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "Expected to create rank container node for \
+                             top-level {node_inbuilt}. Error: {e}"
+                        )
+                    })
+            })
+            .collect()
+    }
+
     /// Adds the inbuilt container nodes to the `TaffyTree`.
     fn build_taffy_container_nodes(
         taffy_tree: &mut TaffyTree<NodeContext>,
@@ -411,38 +459,31 @@ impl IrToTaffyBuilder<'_> {
         node_layouts: &NodeLayouts,
         dimension: &disposition_taffy_model::Dimension,
         thing_rank_container_ids: &[taffy::NodeId],
-        process_taffy_node_ids: &[taffy::NodeId],
-        tag_taffy_node_ids: &[taffy::NodeId],
+        process_rank_container_ids: &[taffy::NodeId],
+        tag_rank_container_ids: &[taffy::NodeId],
     ) -> Map<NodeInbuilt, taffy::NodeId> {
-        // The things container's children are rank sub-containers (each of
-        // which uses the `_things_container` row/wrap style internally).
-        // The things container itself uses a column layout to stack rank
-        // groups vertically, with `align_items: Stretch` so that each rank
-        // sub-container stretches to the column width. This ensures width
-        // constraints from ancestor containers propagate down, allowing the
-        // row-wrap rank containers to wrap their children correctly and
-        // report an accurate height.
-        let things_container_base_style = Self::taffy_container_style(
-            node_layouts,
-            &NodeInbuilt::ThingsContainer.id(),
-            Size::auto(),
-        );
-        let things_container_style = Style {
-            flex_direction: FlexDirection::Column,
-            flex_wrap: FlexWrap::NoWrap,
-            align_items: Some(AlignItems::Stretch),
-            ..things_container_base_style
+        let things_container_style = {
+            let container_style = Self::taffy_container_style(
+                node_layouts,
+                &NodeInbuilt::ThingsContainer.id(),
+                Size::auto(),
+            );
+            Self::container_style_invert_and_stretch(container_style)
         };
         let things_container = taffy_tree
             .new_with_children(things_container_style, thing_rank_container_ids)
             .expect("`TaffyTree::new_with_children` should be infallible.");
-        let processes_container = Self::taffy_container_node(
-            taffy_tree,
-            node_layouts,
-            NodeInbuilt::ProcessesContainer,
-            Size::auto(),
-            process_taffy_node_ids,
-        );
+        let processes_container_style = {
+            let container_style = Self::taffy_container_style(
+                node_layouts,
+                &NodeInbuilt::ProcessesContainer.id(),
+                Size::auto(),
+            );
+            Self::container_style_invert_and_stretch(container_style)
+        };
+        let processes_container = taffy_tree
+            .new_with_children(processes_container_style, process_rank_container_ids)
+            .expect("`TaffyTree::new_with_children` should be infallible.");
         let things_and_processes_container = Self::taffy_container_node(
             taffy_tree,
             node_layouts,
@@ -450,13 +491,17 @@ impl IrToTaffyBuilder<'_> {
             Size::auto(),
             &[processes_container, things_container],
         );
-        let tags_container = Self::taffy_container_node(
-            taffy_tree,
-            node_layouts,
-            NodeInbuilt::TagsContainer,
-            Size::auto(),
-            tag_taffy_node_ids,
-        );
+        let tags_container_style = {
+            let container_style = Self::taffy_container_style(
+                node_layouts,
+                &NodeInbuilt::TagsContainer.id(),
+                Size::auto(),
+            );
+            Self::container_style_invert_and_stretch(container_style)
+        };
+        let tags_container = taffy_tree
+            .new_with_children(tags_container_style, tag_rank_container_ids)
+            .expect("`TaffyTree::new_with_children` should be infallible.");
 
         let root = Self::taffy_container_node(
             taffy_tree,
@@ -498,6 +543,33 @@ impl IrToTaffyBuilder<'_> {
         taffy_id_to_node.insert(root, NodeId::from(NodeInbuilt::Root.id()));
 
         node_inbuilt_to_taffy
+    }
+
+    /// Sets the flex direction to the opposite of the container style, and
+    /// sets `align_items` to `Stretch`.
+    ///
+    /// The flex direction inversion is because the desired flex direction is
+    /// set on the rank container nodes, so when the user has requested `Row`,
+    /// each rank container uses the `Row` layout, and the parent of the ranked
+    /// containers should be `Column`.
+    ///
+    /// The `align_items: Some(AlignItems::Stretch)` is a hack -- sometimes a
+    /// node that is on a particular rank which should be on the same row is
+    /// wrapped to the next line, even though there is space for it. The wrapped
+    /// node is then overlapped by the next rank's nodes. The `Stretch`
+    /// constraint somehow avoids the first node from wrapping.
+    fn container_style_invert_and_stretch(container_style: Style) -> Style {
+        let flex_direction = match container_style.flex_direction {
+            FlexDirection::Row => FlexDirection::Column,
+            FlexDirection::Column => FlexDirection::Row,
+            FlexDirection::RowReverse => FlexDirection::ColumnReverse,
+            FlexDirection::ColumnReverse => FlexDirection::RowReverse,
+        };
+        Style {
+            flex_direction,
+            align_items: Some(AlignItems::Stretch),
+            ..container_style
+        }
     }
 
     /// Adds the tags, things, and process nodes to the taffy tree.
@@ -1054,6 +1126,7 @@ impl IrToTaffyBuilder<'_> {
                         justify_items: Some(AlignItems::FlexStart),
                         align_content: Some(AlignContent::FlexStart),
                         justify_content: Some(AlignContent::FlexStart),
+                        gap: Size::length(flex_layout.gap()),
                         flex_direction: FlexDirection::Column,
                         flex_wrap: FlexWrap::NoWrap,
                         ..Default::default()
