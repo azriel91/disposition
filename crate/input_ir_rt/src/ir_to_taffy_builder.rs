@@ -423,22 +423,10 @@ impl IrToTaffyBuilder<'_> {
         rank_to_taffy_ids: BTreeMap<NodeRank, Vec<taffy::NodeId>>,
     ) -> Vec<taffy::NodeId> {
         // Not sure if this is the best way to handle the container styles, but we use
-        // the `NodeInbuilt` container style for the rank children containers, but
-        // invert the `FlexDirection`.
-        let rank_container_style = {
-            let node_inbuilt_container_style =
-                Self::taffy_container_style(node_layouts, &node_inbuilt.id(), Size::auto());
-            let flex_direction = match node_inbuilt_container_style.flex_direction {
-                FlexDirection::Row => FlexDirection::Column,
-                FlexDirection::Column => FlexDirection::Row,
-                FlexDirection::RowReverse => FlexDirection::ColumnReverse,
-                FlexDirection::ColumnReverse => FlexDirection::RowReverse,
-            };
-            Style {
-                flex_direction,
-                ..node_inbuilt_container_style
-            }
-        };
+        // the `NodeInbuilt` container style for the rank children containers, and
+        // invert the `FlexDirection` on the actual `NodeInbuilt` container style.
+        let rank_container_style =
+            Self::taffy_container_style(node_layouts, &node_inbuilt.id(), Size::auto());
         // Creates a new taffy node for each rank to be placed in the container.
         //
         // i.e.
@@ -474,19 +462,25 @@ impl IrToTaffyBuilder<'_> {
         process_rank_container_ids: &[taffy::NodeId],
         tag_rank_container_ids: &[taffy::NodeId],
     ) -> Map<NodeInbuilt, taffy::NodeId> {
-        let things_container_style = Self::taffy_container_style(
-            node_layouts,
-            &NodeInbuilt::ThingsContainer.id(),
-            Size::auto(),
-        );
+        let things_container_style = {
+            let container_style = Self::taffy_container_style(
+                node_layouts,
+                &NodeInbuilt::ThingsContainer.id(),
+                Size::auto(),
+            );
+            Self::container_style_invert(container_style)
+        };
         let things_container = taffy_tree
             .new_with_children(things_container_style, thing_rank_container_ids)
             .expect("`TaffyTree::new_with_children` should be infallible.");
-        let processes_container_style = Self::taffy_container_style(
-            node_layouts,
-            &NodeInbuilt::ProcessesContainer.id(),
-            Size::auto(),
-        );
+        let processes_container_style = {
+            let container_style = Self::taffy_container_style(
+                node_layouts,
+                &NodeInbuilt::ProcessesContainer.id(),
+                Size::auto(),
+            );
+            Self::container_style_invert(container_style)
+        };
         let processes_container = taffy_tree
             .new_with_children(processes_container_style, process_rank_container_ids)
             .expect("`TaffyTree::new_with_children` should be infallible.");
@@ -497,11 +491,14 @@ impl IrToTaffyBuilder<'_> {
             Size::auto(),
             &[processes_container, things_container],
         );
-        let tags_container_style = Self::taffy_container_style(
-            node_layouts,
-            &NodeInbuilt::TagsContainer.id(),
-            Size::auto(),
-        );
+        let tags_container_style = {
+            let container_style = Self::taffy_container_style(
+                node_layouts,
+                &NodeInbuilt::TagsContainer.id(),
+                Size::auto(),
+            );
+            Self::container_style_invert(container_style)
+        };
         let tags_container = taffy_tree
             .new_with_children(tags_container_style, tag_rank_container_ids)
             .expect("`TaffyTree::new_with_children` should be infallible.");
@@ -546,6 +543,19 @@ impl IrToTaffyBuilder<'_> {
         taffy_id_to_node.insert(root, NodeId::from(NodeInbuilt::Root.id()));
 
         node_inbuilt_to_taffy
+    }
+
+    fn container_style_invert(container_style: Style) -> Style {
+        let flex_direction = match container_style.flex_direction {
+            FlexDirection::Row => FlexDirection::Column,
+            FlexDirection::Column => FlexDirection::Row,
+            FlexDirection::RowReverse => FlexDirection::ColumnReverse,
+            FlexDirection::ColumnReverse => FlexDirection::RowReverse,
+        };
+        Style {
+            flex_direction,
+            ..container_style
+        }
     }
 
     /// Adds the tags, things, and process nodes to the taffy tree.
