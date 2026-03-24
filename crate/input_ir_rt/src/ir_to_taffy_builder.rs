@@ -1102,6 +1102,7 @@ impl IrToTaffyBuilder<'_> {
                         justify_items: Some(AlignItems::FlexStart),
                         align_content: Some(AlignContent::FlexStart),
                         justify_content: Some(AlignContent::FlexStart),
+                        gap: Size::length(flex_layout.gap()),
                         flex_direction: FlexDirection::Column,
                         flex_wrap: FlexWrap::NoWrap,
                         ..Default::default()
