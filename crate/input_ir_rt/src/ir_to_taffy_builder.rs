@@ -468,7 +468,7 @@ impl IrToTaffyBuilder<'_> {
                 &NodeInbuilt::ThingsContainer.id(),
                 Size::auto(),
             );
-            Self::container_style_invert(container_style)
+            Self::container_style_invert_and_stretch(container_style)
         };
         let things_container = taffy_tree
             .new_with_children(things_container_style, thing_rank_container_ids)
@@ -479,7 +479,7 @@ impl IrToTaffyBuilder<'_> {
                 &NodeInbuilt::ProcessesContainer.id(),
                 Size::auto(),
             );
-            Self::container_style_invert(container_style)
+            Self::container_style_invert_and_stretch(container_style)
         };
         let processes_container = taffy_tree
             .new_with_children(processes_container_style, process_rank_container_ids)
@@ -497,7 +497,7 @@ impl IrToTaffyBuilder<'_> {
                 &NodeInbuilt::TagsContainer.id(),
                 Size::auto(),
             );
-            Self::container_style_invert(container_style)
+            Self::container_style_invert_and_stretch(container_style)
         };
         let tags_container = taffy_tree
             .new_with_children(tags_container_style, tag_rank_container_ids)
@@ -545,7 +545,20 @@ impl IrToTaffyBuilder<'_> {
         node_inbuilt_to_taffy
     }
 
-    fn container_style_invert(container_style: Style) -> Style {
+    /// Sets the flex direction to the opposite of the container style, and
+    /// sets `align_items` to `Stretch`.
+    ///
+    /// The flex direction inversion is because the desired flex direction is
+    /// set on the rank container nodes, so when the user has requested `Row`,
+    /// each rank container uses the `Row` layout, and the parent of the ranked
+    /// containers should be `Column`.
+    ///
+    /// The `align_items: Some(AlignItems::Stretch)` is a hack -- sometimes a
+    /// node that is on a particular rank which should be on the same row is
+    /// wrapped to the next line, even though there is space for it. The wrapped
+    /// node is then overlapped by the next rank's nodes. The `Stretch`
+    /// constraint somehow avoids the first node from wrapping.
+    fn container_style_invert_and_stretch(container_style: Style) -> Style {
         let flex_direction = match container_style.flex_direction {
             FlexDirection::Row => FlexDirection::Column,
             FlexDirection::Column => FlexDirection::Row,
@@ -554,6 +567,7 @@ impl IrToTaffyBuilder<'_> {
         };
         Style {
             flex_direction,
+            align_items: Some(AlignItems::Stretch),
             ..container_style
         }
     }
