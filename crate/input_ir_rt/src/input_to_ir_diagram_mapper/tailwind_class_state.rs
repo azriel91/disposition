@@ -27,6 +27,33 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         }
     }
 
+    /// Invert a tailwind shade number for dark mode.
+    ///
+    /// Uses the following mapping:
+    ///
+    /// * `50` <-> `950`
+    /// * `100` <-> `900`
+    /// * `200` <-> `800`
+    /// * `300` <-> `700`
+    /// * `400` <-> `600`
+    /// * `500` <-> `500`
+    fn shade_inverted(shade: &str) -> &str {
+        match shade {
+            "50" => "950",
+            "100" => "900",
+            "200" => "800",
+            "300" => "700",
+            "400" => "600",
+            "500" => "500",
+            "600" => "400",
+            "700" => "300",
+            "800" => "200",
+            "900" => "100",
+            "950" => "50",
+            other => other,
+        }
+    }
+
     /// Get the resolved fill color for a state.
     fn get_fill_color(&self, state: HighlightState) -> Option<&str> {
         let (state_specific, base, shape) = match state {
@@ -137,7 +164,23 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     /// - If [`ThemeAttr::Animate`] or fill/stroke shade normals are set, writes
     ///   the animation class (if present) followed by full fill/stroke peer
     ///   classes.
+    ///
+    /// Each class that contains a colour shade also emits a corresponding
+    /// `dark:` variant with the shade inverted so that the diagram works on
+    /// both light and dark themed backgrounds.
+    ///
+    /// The `dark:` modifier is placed before the peer prefix so that tailwind
+    /// generates the correct CSS nesting order, e.g.
+    /// `dark:peer-[:focus-within]/tag:hover:fill-slate-950`.
     pub(crate) fn write_peer_classes(&self, classes: &mut String, prefix: &str) {
+        // Build the dark-mode prefix by prepending `dark:` before the peer
+        // prefix.  When `prefix` is empty the dark prefix is simply `"dark:"`.
+        let dark_prefix = if prefix.is_empty() {
+            "dark:".to_string()
+        } else {
+            format!("dark:{prefix}")
+        };
+
         // Visibility
         if let Some(visibility) = self.attrs.get(&ThemeAttr::Visibility) {
             writeln!(classes, "{prefix}{visibility}").expect(CLASSES_BUFFER_WRITE_FAIL);
@@ -181,84 +224,135 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         let stroke_color_active = self.get_stroke_color(HighlightState::Active);
         let stroke_shade_active = self.get_stroke_shade(HighlightState::Active);
 
-        // Fill classes with peer prefix
-        if let Some((fill_color_hover, fill_shade_hover)) = fill_color_hover.zip(fill_shade_hover) {
-            writeln!(
-                classes,
-                "{prefix}hover:fill-{fill_color_hover}-{fill_shade_hover}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-        if let Some((fill_color_normal, fill_shade_normal)) =
-            fill_color_normal.zip(fill_shade_normal)
-        {
-            writeln!(
-                classes,
-                "{prefix}fill-{fill_color_normal}-{fill_shade_normal}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-        if let Some((fill_color_focus, fill_shade_focus)) = fill_color_focus.zip(fill_shade_focus) {
-            writeln!(
-                classes,
-                "{prefix}focus:fill-{fill_color_focus}-{fill_shade_focus}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-        if let Some((fill_color_active, fill_shade_active)) =
-            fill_color_active.zip(fill_shade_active)
-        {
-            writeln!(
-                classes,
-                "{prefix}active:fill-{fill_color_active}-{fill_shade_active}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
+        // === Fill classes === //
 
-        // Stroke classes with peer prefix
-        if let Some((stroke_color_hover, stroke_shade_hover)) =
-            stroke_color_hover.zip(stroke_shade_hover)
-        {
-            writeln!(
-                classes,
-                "{prefix}hover:stroke-{stroke_color_hover}-{stroke_shade_hover}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-        if let Some((stroke_color_normal, stroke_shade_normal)) =
-            stroke_color_normal.zip(stroke_shade_normal)
-        {
-            writeln!(
-                classes,
-                "{prefix}stroke-{stroke_color_normal}-{stroke_shade_normal}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-        if let Some((stroke_color_focus, stroke_shade_focus)) =
-            stroke_color_focus.zip(stroke_shade_focus)
-        {
-            writeln!(
-                classes,
-                "{prefix}focus:stroke-{stroke_color_focus}-{stroke_shade_focus}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
-        if let Some((stroke_color_active, stroke_shade_active)) =
-            stroke_color_active.zip(stroke_shade_active)
-        {
-            writeln!(
-                classes,
-                "{prefix}active:stroke-{stroke_color_active}-{stroke_shade_active}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
+        Self::write_shade_class(
+            classes,
+            prefix,
+            &dark_prefix,
+            "hover:",
+            "fill",
+            fill_color_hover,
+            fill_shade_hover,
+        );
+        Self::write_shade_class(
+            classes,
+            prefix,
+            &dark_prefix,
+            "",
+            "fill",
+            fill_color_normal,
+            fill_shade_normal,
+        );
+        Self::write_shade_class(
+            classes,
+            prefix,
+            &dark_prefix,
+            "focus:",
+            "fill",
+            fill_color_focus,
+            fill_shade_focus,
+        );
+        Self::write_shade_class(
+            classes,
+            prefix,
+            &dark_prefix,
+            "active:",
+            "fill",
+            fill_color_active,
+            fill_shade_active,
+        );
 
-        // Text classes
+        // === Stroke classes === //
+
+        Self::write_shade_class(
+            classes,
+            prefix,
+            &dark_prefix,
+            "hover:",
+            "stroke",
+            stroke_color_hover,
+            stroke_shade_hover,
+        );
+        Self::write_shade_class(
+            classes,
+            prefix,
+            &dark_prefix,
+            "",
+            "stroke",
+            stroke_color_normal,
+            stroke_shade_normal,
+        );
+        Self::write_shade_class(
+            classes,
+            prefix,
+            &dark_prefix,
+            "focus:",
+            "stroke",
+            stroke_color_focus,
+            stroke_shade_focus,
+        );
+        Self::write_shade_class(
+            classes,
+            prefix,
+            &dark_prefix,
+            "active:",
+            "stroke",
+            stroke_color_active,
+            stroke_shade_active,
+        );
+
+        // === Text classes === //
+        // Text uses shade inversion for dark mode.
+        // The `[&>text]` selector is not prefixed with the peer prefix because
+        // text colour does not change based on peer state.
+
         let text_color = self.attrs.get(&ThemeAttr::TextColor).map(|c| c.as_ref());
         let text_shade = self.attrs.get(&ThemeAttr::TextShade).map(|c| c.as_ref());
         if let Some((text_color, text_shade)) = text_color.zip(text_shade) {
+            let dark_shade = Self::shade_inverted(text_shade);
             writeln!(classes, "[&>text]:fill-{text_color}-{text_shade}")
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
+            writeln!(classes, "dark:[&>text]:fill-{text_color}-{dark_shade}")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+        }
+    }
+
+    /// Write a light-mode shade class and its `dark:` counterpart.
+    ///
+    /// # Parameters
+    ///
+    /// * `classes`: The string buffer to write to.
+    /// * `prefix`: The peer prefix for the light-mode class, e.g.
+    ///   `"peer-[:focus-within]/tag:"` or `""`.
+    /// * `dark_prefix`: The dark-mode prefix (`"dark:"` prepended before the
+    ///   peer prefix).
+    /// * `state_modifier`: The highlight state modifier, e.g. `"hover:"`,
+    ///   `"focus:"`, `"active:"`, or `""` for normal.
+    /// * `property`: `"fill"` or `"stroke"`.
+    /// * `color`: The resolved colour name, e.g. `"yellow"`, `"slate"`.
+    /// * `shade`: The resolved shade value, e.g. `"100"`, `"300"`.
+    fn write_shade_class(
+        classes: &mut String,
+        prefix: &str,
+        dark_prefix: &str,
+        state_modifier: &str,
+        property: &str,
+        color: Option<&str>,
+        shade: Option<&str>,
+    ) {
+        if let Some((color, shade)) = color.zip(shade) {
+            let dark_shade = Self::shade_inverted(shade);
+            writeln!(
+                classes,
+                "{prefix}{state_modifier}{property}-{color}-{shade}"
+            )
+            .expect(CLASSES_BUFFER_WRITE_FAIL);
+            writeln!(
+                classes,
+                "{dark_prefix}{state_modifier}{property}-{color}-{dark_shade}"
+            )
+            .expect(CLASSES_BUFFER_WRITE_FAIL);
         }
     }
 }

@@ -447,6 +447,15 @@ tailwind_classes:
   #
   # * `[&>text]:fill-{color}-{shade}` for text in all states.
   #
+  # Dark mode (`dark:`) variants
+  # ----------------------------
+  # Every class that contains a colour shade also has a `dark:` counterpart with
+  # the shade inverted (50<->950, 100<->900, 200<->800, 300<->700, 400<->600,
+  # 500<->500).  This applies to fill, stroke, and text classes alike.
+  #
+  # For peer-prefixed classes the `dark:` modifier comes first, e.g.
+  # `dark:peer-[:focus-within]/tag:hover:fill-slate-950`.
+  #
   # The following classes are used to highlight the `thing`'s `<path>` when a related process step
   # is focused:
   #
@@ -464,14 +473,23 @@ tailwind_classes:
     [stroke-dasharray:2]
     stroke-2
     hover:fill-yellow-50
+    dark:hover:fill-yellow-950
     fill-yellow-100
+    dark:fill-yellow-900
     focus:fill-yellow-200
+    dark:focus:fill-yellow-800
     active:fill-yellow-300
+    dark:active:fill-yellow-700
     hover:stroke-yellow-100
+    dark:hover:stroke-yellow-900
     stroke-yellow-200
+    dark:stroke-yellow-800
     focus:stroke-yellow-300
+    dark:focus:stroke-yellow-700
     active:stroke-yellow-400
+    dark:active:stroke-yellow-600
     [&>text]:fill-neutral-800
+    dark:[&>text]:fill-neutral-200
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_iam: |
@@ -479,14 +497,23 @@ tailwind_classes:
     [stroke-dasharray:3]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_iam_ecs_policy: |
@@ -494,14 +521,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_ecr: |
@@ -509,14 +545,23 @@ tailwind_classes:
     [stroke-dasharray:3]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_ecr_repo: |
@@ -524,50 +569,80 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:[stroke-dasharray:3]
     peer-[:focus-within]/tag_deployment:stroke-2
     peer-[:focus-within]/tag_deployment:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/tag_deployment:hover:fill-slate-50
+    dark:peer-[:focus-within]/tag_deployment:hover:fill-slate-950
     peer-[:focus-within]/tag_deployment:fill-slate-100
+    dark:peer-[:focus-within]/tag_deployment:fill-slate-900
     peer-[:focus-within]/tag_deployment:focus:fill-slate-200
+    dark:peer-[:focus-within]/tag_deployment:focus:fill-slate-800
     peer-[:focus-within]/tag_deployment:active:fill-slate-300
+    dark:peer-[:focus-within]/tag_deployment:active:fill-slate-700
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:[stroke-dasharray:3]
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:stroke-2
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:fill-slate-50
+    dark:peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:fill-slate-950
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:fill-slate-100
+    dark:peer-[:focus-within]/proc_app_release_step_gh_actions_publish:fill-slate-900
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:fill-slate-200
+    dark:peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:fill-slate-800
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:fill-slate-300
+    dark:peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:fill-slate-700
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:[stroke-dasharray:3]
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:stroke-2
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:fill-slate-50
+    dark:peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:fill-slate-950
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:fill-slate-100
+    dark:peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:fill-slate-900
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:fill-slate-200
+    dark:peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:fill-slate-800
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:fill-slate-300
+    dark:peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:fill-slate-700
 
   t_aws_ecr_repo_image_1: |
     visible
     [stroke-dasharray:none]
     stroke-2
     hover:fill-sky-200
+    dark:hover:fill-sky-800
     fill-sky-300
+    dark:fill-sky-700
     focus:fill-sky-400
+    dark:focus:fill-sky-600
     active:fill-sky-500
+    dark:active:fill-sky-500
     hover:stroke-sky-300
+    dark:hover:stroke-sky-700
     stroke-sky-400
+    dark:stroke-sky-600
     focus:stroke-sky-500
+    dark:focus:stroke-sky-500
     active:stroke-sky-600
+    dark:active:stroke-sky-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_ecr_repo_image_2: |
@@ -575,14 +650,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-sky-200
+    dark:hover:fill-sky-800
     fill-sky-300
+    dark:fill-sky-700
     focus:fill-sky-400
+    dark:focus:fill-sky-600
     active:fill-sky-500
+    dark:active:fill-sky-500
     hover:stroke-sky-300
+    dark:hover:stroke-sky-700
     stroke-sky-400
+    dark:stroke-sky-600
     focus:stroke-sky-500
+    dark:focus:stroke-sky-500
     active:stroke-sky-600
+    dark:active:stroke-sky-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_ecs: |
@@ -590,14 +674,23 @@ tailwind_classes:
     [stroke-dasharray:3]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
   t_aws_ecs_cluster: |
@@ -605,37 +698,59 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:[stroke-dasharray:3]
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:stroke-2
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:fill-slate-50
+    dark:peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:fill-slate-950
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:fill-slate-100
+    dark:peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:fill-slate-900
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:fill-slate-200
+    dark:peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:fill-slate-800
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:fill-slate-300
+    dark:peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:fill-slate-700
 
   t_aws_ecs_cluster_task: |
     visible
     [stroke-dasharray:none]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
   t_github: |
@@ -643,14 +758,23 @@ tailwind_classes:
     [stroke-dasharray:2]
     stroke-2
     hover:fill-neutral-50
+    dark:hover:fill-neutral-950
     fill-neutral-100
+    dark:fill-neutral-900
     focus:fill-neutral-200
+    dark:focus:fill-neutral-800
     active:fill-neutral-300
+    dark:active:fill-neutral-700
     hover:stroke-neutral-100
+    dark:hover:stroke-neutral-900
     stroke-neutral-200
+    dark:stroke-neutral-800
     focus:stroke-neutral-300
+    dark:focus:stroke-neutral-700
     active:stroke-neutral-400
+    dark:active:stroke-neutral-600
     [&>text]:fill-neutral-800
+    dark:[&>text]:fill-neutral-200
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
   t_github_user_repo: |
@@ -658,134 +782,213 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:[stroke-dasharray:3]
     peer-[:focus-within]/tag_app_development:stroke-2
     peer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/tag_app_development:hover:fill-slate-50
+    dark:peer-[:focus-within]/tag_app_development:hover:fill-slate-950
     peer-[:focus-within]/tag_app_development:fill-slate-100
+    dark:peer-[:focus-within]/tag_app_development:fill-slate-900
     peer-[:focus-within]/tag_app_development:focus:fill-slate-200
+    dark:peer-[:focus-within]/tag_app_development:focus:fill-slate-800
     peer-[:focus-within]/tag_app_development:active:fill-slate-300
+    dark:peer-[:focus-within]/tag_app_development:active:fill-slate-700
     peer-[:focus-within]/tag_deployment:[stroke-dasharray:3]
     peer-[:focus-within]/tag_deployment:stroke-2
     peer-[:focus-within]/tag_deployment:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/tag_deployment:hover:fill-slate-50
+    dark:peer-[:focus-within]/tag_deployment:hover:fill-slate-950
     peer-[:focus-within]/tag_deployment:fill-slate-100
+    dark:peer-[:focus-within]/tag_deployment:fill-slate-900
     peer-[:focus-within]/tag_deployment:focus:fill-slate-200
+    dark:peer-[:focus-within]/tag_deployment:focus:fill-slate-800
     peer-[:focus-within]/tag_deployment:active:fill-slate-300
+    dark:peer-[:focus-within]/tag_deployment:active:fill-slate-700
     peer-[:focus-within]/proc_app_dev_step_repository_clone:[stroke-dasharray:3]
     peer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-2
     peer-[:focus-within]/proc_app_dev_step_repository_clone:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:fill-slate-50
+    dark:peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:fill-slate-950
     peer-[:focus-within]/proc_app_dev_step_repository_clone:fill-slate-100
+    dark:peer-[:focus-within]/proc_app_dev_step_repository_clone:fill-slate-900
     peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:fill-slate-200
+    dark:peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:fill-slate-800
     peer-[:focus-within]/proc_app_dev_step_repository_clone:active:fill-slate-300
+    dark:peer-[:focus-within]/proc_app_dev_step_repository_clone:active:fill-slate-700
     peer-[:focus-within]/proc_app_release_step_pull_request_open:[stroke-dasharray:3]
     peer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-2
     peer-[:focus-within]/proc_app_release_step_pull_request_open:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:fill-slate-50
+    dark:peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:fill-slate-950
     peer-[:focus-within]/proc_app_release_step_pull_request_open:fill-slate-100
+    dark:peer-[:focus-within]/proc_app_release_step_pull_request_open:fill-slate-900
     peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:fill-slate-200
+    dark:peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:fill-slate-800
     peer-[:focus-within]/proc_app_release_step_pull_request_open:active:fill-slate-300
+    dark:peer-[:focus-within]/proc_app_release_step_pull_request_open:active:fill-slate-700
     peer-[:focus-within]/proc_app_release_step_tag_and_push:[stroke-dasharray:3]
     peer-[:focus-within]/proc_app_release_step_tag_and_push:stroke-2
     peer-[:focus-within]/proc_app_release_step_tag_and_push:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_tag_and_push:hover:fill-slate-50
+    dark:peer-[:focus-within]/proc_app_release_step_tag_and_push:hover:fill-slate-950
     peer-[:focus-within]/proc_app_release_step_tag_and_push:fill-slate-100
+    dark:peer-[:focus-within]/proc_app_release_step_tag_and_push:fill-slate-900
     peer-[:focus-within]/proc_app_release_step_tag_and_push:focus:fill-slate-200
+    dark:peer-[:focus-within]/proc_app_release_step_tag_and_push:focus:fill-slate-800
     peer-[:focus-within]/proc_app_release_step_tag_and_push:active:fill-slate-300
+    dark:peer-[:focus-within]/proc_app_release_step_tag_and_push:active:fill-slate-700
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:[stroke-dasharray:3]
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:stroke-2
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:hover:fill-slate-50
+    dark:peer-[:focus-within]/proc_app_release_step_gh_actions_build:hover:fill-slate-950
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:fill-slate-100
+    dark:peer-[:focus-within]/proc_app_release_step_gh_actions_build:fill-slate-900
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:focus:fill-slate-200
+    dark:peer-[:focus-within]/proc_app_release_step_gh_actions_build:focus:fill-slate-800
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:active:fill-slate-300
+    dark:peer-[:focus-within]/proc_app_release_step_gh_actions_build:active:fill-slate-700
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:[stroke-dasharray:3]
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:stroke-2
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:fill-slate-50
+    dark:peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:fill-slate-950
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:fill-slate-100
+    dark:peer-[:focus-within]/proc_app_release_step_gh_actions_publish:fill-slate-900
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:fill-slate-200
+    dark:peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:fill-slate-800
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:fill-slate-300
+    dark:peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:fill-slate-700
 
   t_localhost: |
     visible
     [stroke-dasharray:none]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:[stroke-dasharray:3]
     peer-[:focus-within]/tag_app_development:stroke-2
     peer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/tag_app_development:hover:fill-slate-50
+    dark:peer-[:focus-within]/tag_app_development:hover:fill-slate-950
     peer-[:focus-within]/tag_app_development:fill-slate-100
+    dark:peer-[:focus-within]/tag_app_development:fill-slate-900
     peer-[:focus-within]/tag_app_development:focus:fill-slate-200
+    dark:peer-[:focus-within]/tag_app_development:focus:fill-slate-800
     peer-[:focus-within]/tag_app_development:active:fill-slate-300
+    dark:peer-[:focus-within]/tag_app_development:active:fill-slate-700
     peer-[:focus-within]/tag_deployment:opacity-75
     peer-[:focus-within]/proc_app_dev_step_repository_clone:[stroke-dasharray:3]
     peer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-2
     peer-[:focus-within]/proc_app_dev_step_repository_clone:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:fill-slate-50
+    dark:peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:fill-slate-950
     peer-[:focus-within]/proc_app_dev_step_repository_clone:fill-slate-100
+    dark:peer-[:focus-within]/proc_app_dev_step_repository_clone:fill-slate-900
     peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:fill-slate-200
+    dark:peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:fill-slate-800
     peer-[:focus-within]/proc_app_dev_step_repository_clone:active:fill-slate-300
+    dark:peer-[:focus-within]/proc_app_dev_step_repository_clone:active:fill-slate-700
     peer-[:focus-within]/proc_app_dev_step_project_build:[stroke-dasharray:3]
     peer-[:focus-within]/proc_app_dev_step_project_build:stroke-2
     peer-[:focus-within]/proc_app_dev_step_project_build:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_dev_step_project_build:hover:fill-slate-50
+    dark:peer-[:focus-within]/proc_app_dev_step_project_build:hover:fill-slate-950
     peer-[:focus-within]/proc_app_dev_step_project_build:fill-slate-100
+    dark:peer-[:focus-within]/proc_app_dev_step_project_build:fill-slate-900
     peer-[:focus-within]/proc_app_dev_step_project_build:focus:fill-slate-200
+    dark:peer-[:focus-within]/proc_app_dev_step_project_build:focus:fill-slate-800
     peer-[:focus-within]/proc_app_dev_step_project_build:active:fill-slate-300
+    dark:peer-[:focus-within]/proc_app_dev_step_project_build:active:fill-slate-700
     peer-[:focus-within]/proc_app_release_step_crate_version_update:[stroke-dasharray:3]
     peer-[:focus-within]/proc_app_release_step_crate_version_update:stroke-2
     peer-[:focus-within]/proc_app_release_step_crate_version_update:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_crate_version_update:hover:fill-slate-50
+    dark:peer-[:focus-within]/proc_app_release_step_crate_version_update:hover:fill-slate-950
     peer-[:focus-within]/proc_app_release_step_crate_version_update:fill-slate-100
+    dark:peer-[:focus-within]/proc_app_release_step_crate_version_update:fill-slate-900
     peer-[:focus-within]/proc_app_release_step_crate_version_update:focus:fill-slate-200
+    dark:peer-[:focus-within]/proc_app_release_step_crate_version_update:focus:fill-slate-800
     peer-[:focus-within]/proc_app_release_step_crate_version_update:active:fill-slate-300
+    dark:peer-[:focus-within]/proc_app_release_step_crate_version_update:active:fill-slate-700
     peer-[:focus-within]/proc_app_release_step_pull_request_open:[stroke-dasharray:3]
     peer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-2
     peer-[:focus-within]/proc_app_release_step_pull_request_open:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:fill-slate-50
+    dark:peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:fill-slate-950
     peer-[:focus-within]/proc_app_release_step_pull_request_open:fill-slate-100
+    dark:peer-[:focus-within]/proc_app_release_step_pull_request_open:fill-slate-900
     peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:fill-slate-200
+    dark:peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:fill-slate-800
     peer-[:focus-within]/proc_app_release_step_pull_request_open:active:fill-slate-300
+    dark:peer-[:focus-within]/proc_app_release_step_pull_request_open:active:fill-slate-700
     peer-[:focus-within]/proc_app_release_step_tag_and_push:[stroke-dasharray:3]
     peer-[:focus-within]/proc_app_release_step_tag_and_push:stroke-2
     peer-[:focus-within]/proc_app_release_step_tag_and_push:animate-[stroke-dashoffset-move_2s_linear_infinite]
     peer-[:focus-within]/proc_app_release_step_tag_and_push:hover:fill-slate-50
+    dark:peer-[:focus-within]/proc_app_release_step_tag_and_push:hover:fill-slate-950
     peer-[:focus-within]/proc_app_release_step_tag_and_push:fill-slate-100
+    dark:peer-[:focus-within]/proc_app_release_step_tag_and_push:fill-slate-900
     peer-[:focus-within]/proc_app_release_step_tag_and_push:focus:fill-slate-200
+    dark:peer-[:focus-within]/proc_app_release_step_tag_and_push:focus:fill-slate-800
     peer-[:focus-within]/proc_app_release_step_tag_and_push:active:fill-slate-300
+    dark:peer-[:focus-within]/proc_app_release_step_tag_and_push:active:fill-slate-700
 
   t_localhost_repo: |
     visible
     [stroke-dasharray:none]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
   t_localhost_repo_src: |
@@ -793,14 +996,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
   t_localhost_repo_target: |
@@ -808,14 +1020,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
   t_localhost_repo_target_file_zip: |
@@ -823,14 +1044,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
   t_localhost_repo_target_dist_dir: |
@@ -838,14 +1068,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-slate-200
+    dark:hover:fill-slate-800
     fill-slate-300
+    dark:fill-slate-700
     focus:fill-slate-400
+    dark:focus:fill-slate-600
     active:fill-slate-500
+    dark:active:fill-slate-500
     hover:stroke-slate-300
+    dark:hover:stroke-slate-700
     stroke-slate-400
+    dark:stroke-slate-600
     focus:stroke-slate-500
+    dark:focus:stroke-slate-500
     active:stroke-slate-600
+    dark:active:stroke-slate-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/tag_app_development:opacity-50
     peer-[:focus-within]/tag_deployment:opacity-75
 
@@ -855,14 +1094,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-emerald-400
+    dark:hover:fill-emerald-600
     fill-emerald-500
+    dark:fill-emerald-500
     focus:fill-emerald-600
+    dark:focus:fill-emerald-400
     active:fill-emerald-700
+    dark:active:fill-emerald-300
     hover:stroke-emerald-500
+    dark:hover:stroke-emerald-500
     stroke-emerald-600
+    dark:stroke-emerald-400
     focus:stroke-emerald-700
+    dark:focus:stroke-emerald-300
     active:stroke-emerald-800
+    dark:active:stroke-emerald-200
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     peer/tag_app_development
 
   tag_deployment: |
@@ -870,14 +1118,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-emerald-400
+    dark:hover:fill-emerald-600
     fill-emerald-500
+    dark:fill-emerald-500
     focus:fill-emerald-600
+    dark:focus:fill-emerald-400
     active:fill-emerald-700
+    dark:active:fill-emerald-300
     hover:stroke-emerald-500
+    dark:hover:stroke-emerald-500
     stroke-emerald-600
+    dark:stroke-emerald-400
     focus:stroke-emerald-700
+    dark:focus:stroke-emerald-300
     active:stroke-emerald-800
+    dark:active:stroke-emerald-200
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     peer/tag_deployment
 
   # Processes and process steps.
@@ -896,28 +1153,46 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-blue-400
+    dark:hover:fill-blue-600
     fill-blue-500
+    dark:fill-blue-500
     focus:fill-blue-600
+    dark:focus:fill-blue-400
     active:fill-blue-700
+    dark:active:fill-blue-300
     hover:stroke-blue-500
+    dark:hover:stroke-blue-500
     stroke-blue-600
+    dark:stroke-blue-400
     focus:stroke-blue-700
+    dark:focus:stroke-blue-300
     active:stroke-blue-800
+    dark:active:stroke-blue-200
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     peer/proc_app_dev
   proc_app_dev_step_repository_clone: |
     invisible
     [stroke-dasharray:none]
     stroke-2
     hover:fill-sky-400
+    dark:hover:fill-sky-600
     fill-sky-500
+    dark:fill-sky-500
     focus:fill-sky-600
+    dark:focus:fill-sky-400
     active:fill-sky-700
+    dark:active:fill-sky-300
     hover:stroke-sky-500
+    dark:hover:stroke-sky-500
     stroke-sky-600
+    dark:stroke-sky-400
     focus:stroke-sky-700
+    dark:focus:stroke-sky-300
     active:stroke-sky-800
+    dark:active:stroke-sky-200
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     group-has-[#proc_app_dev:focus-within]:visible
     group-has-[#proc_app_dev_step_repository_clone:focus-within]:visible
     group-has-[#proc_app_dev_step_project_build:focus-within]:visible
@@ -927,14 +1202,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-sky-400
+    dark:hover:fill-sky-600
     fill-sky-500
+    dark:fill-sky-500
     focus:fill-sky-600
+    dark:focus:fill-sky-400
     active:fill-sky-700
+    dark:active:fill-sky-300
     hover:stroke-sky-500
+    dark:hover:stroke-sky-500
     stroke-sky-600
+    dark:stroke-sky-400
     focus:stroke-sky-700
+    dark:focus:stroke-sky-300
     active:stroke-sky-800
+    dark:active:stroke-sky-200
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     group-has-[#proc_app_dev:focus-within]:visible
     group-has-[#proc_app_dev_step_repository_clone:focus-within]:visible
     group-has-[#proc_app_dev_step_project_build:focus-within]:visible
@@ -945,28 +1229,46 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-blue-400
+    dark:hover:fill-blue-600
     fill-blue-500
+    dark:fill-blue-500
     focus:fill-blue-600
+    dark:focus:fill-blue-400
     active:fill-blue-700
+    dark:active:fill-blue-300
     hover:stroke-blue-500
+    dark:hover:stroke-blue-500
     stroke-blue-600
+    dark:stroke-blue-400
     focus:stroke-blue-700
+    dark:focus:stroke-blue-300
     active:stroke-blue-800
+    dark:active:stroke-blue-200
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     peer/proc_app_release
   proc_app_release_step_crate_version_update: |
     invisible
     [stroke-dasharray:none]
     stroke-2
     hover:fill-sky-400
+    dark:hover:fill-sky-600
     fill-sky-500
+    dark:fill-sky-500
     focus:fill-sky-600
+    dark:focus:fill-sky-400
     active:fill-sky-700
+    dark:active:fill-sky-300
     hover:stroke-sky-500
+    dark:hover:stroke-sky-500
     stroke-sky-600
+    dark:stroke-sky-400
     focus:stroke-sky-700
+    dark:focus:stroke-sky-300
     active:stroke-sky-800
+    dark:active:stroke-sky-200
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     group-has-[#proc_app_release:focus-within]:visible
     group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
     group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
@@ -979,14 +1281,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-sky-400
+    dark:hover:fill-sky-600
     fill-sky-500
+    dark:fill-sky-500
     focus:fill-sky-600
+    dark:focus:fill-sky-400
     active:fill-sky-700
+    dark:active:fill-sky-300
     hover:stroke-sky-500
+    dark:hover:stroke-sky-500
     stroke-sky-600
+    dark:stroke-sky-400
     focus:stroke-sky-700
+    dark:focus:stroke-sky-300
     active:stroke-sky-800
+    dark:active:stroke-sky-200
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     group-has-[#proc_app_release:focus-within]:visible
     group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
     group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
@@ -999,14 +1310,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-sky-400
+    dark:hover:fill-sky-600
     fill-sky-500
+    dark:fill-sky-500
     focus:fill-sky-600
+    dark:focus:fill-sky-400
     active:fill-sky-700
+    dark:active:fill-sky-300
     hover:stroke-sky-500
+    dark:hover:stroke-sky-500
     stroke-sky-600
+    dark:stroke-sky-400
     focus:stroke-sky-700
+    dark:focus:stroke-sky-300
     active:stroke-sky-800
+    dark:active:stroke-sky-200
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     group-has-[#proc_app_release:focus-within]:visible
     group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
     group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
@@ -1019,14 +1339,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-sky-400
+    dark:hover:fill-sky-600
     fill-sky-500
+    dark:fill-sky-500
     focus:fill-sky-600
+    dark:focus:fill-sky-400
     active:fill-sky-700
+    dark:active:fill-sky-300
     hover:stroke-sky-500
+    dark:hover:stroke-sky-500
     stroke-sky-600
+    dark:stroke-sky-400
     focus:stroke-sky-700
+    dark:focus:stroke-sky-300
     active:stroke-sky-800
+    dark:active:stroke-sky-200
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     group-has-[#proc_app_release:focus-within]:visible
     group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
     group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
@@ -1039,14 +1368,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-sky-400
+    dark:hover:fill-sky-600
     fill-sky-500
+    dark:fill-sky-500
     focus:fill-sky-600
+    dark:focus:fill-sky-400
     active:fill-sky-700
+    dark:active:fill-sky-300
     hover:stroke-sky-500
+    dark:hover:stroke-sky-500
     stroke-sky-600
+    dark:stroke-sky-400
     focus:stroke-sky-700
+    dark:focus:stroke-sky-300
     active:stroke-sky-800
+    dark:active:stroke-sky-200
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     group-has-[#proc_app_release:focus-within]:visible
     group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
     group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
@@ -1060,28 +1398,46 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-blue-400
+    dark:hover:fill-blue-600
     fill-blue-500
+    dark:fill-blue-500
     focus:fill-blue-600
+    dark:focus:fill-blue-400
     active:fill-blue-700
+    dark:active:fill-blue-300
     hover:stroke-blue-500
+    dark:hover:stroke-blue-500
     stroke-blue-600
+    dark:stroke-blue-400
     focus:stroke-blue-700
+    dark:focus:stroke-blue-300
     active:stroke-blue-800
+    dark:active:stroke-blue-200
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     peer/proc_i12e_region_tier_app_deploy
   proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: |
     invisible
     [stroke-dasharray:none]
     stroke-2
     hover:fill-sky-400
+    dark:hover:fill-sky-600
     fill-sky-500
+    dark:fill-sky-500
     focus:fill-sky-600
+    dark:focus:fill-sky-400
     active:fill-sky-700
+    dark:active:fill-sky-300
     hover:stroke-sky-500
+    dark:hover:stroke-sky-500
     stroke-sky-600
+    dark:stroke-sky-400
     focus:stroke-sky-700
+    dark:focus:stroke-sky-300
     active:stroke-sky-800
+    dark:active:stroke-sky-200
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     group-has-[#proc_i12e_region_tier_app_deploy:focus-within]:visible
     group-has-[#proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus-within]:visible
     peer/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update
@@ -1103,14 +1459,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-neutral-600
+    dark:hover:fill-neutral-400
     fill-neutral-700
+    dark:fill-neutral-300
     focus:fill-neutral-800
+    dark:focus:fill-neutral-200
     active:fill-neutral-900
+    dark:active:fill-neutral-100
     hover:stroke-neutral-700
+    dark:hover:stroke-neutral-300
     stroke-neutral-800
+    dark:stroke-neutral-200
     focus:stroke-neutral-900
+    dark:focus:stroke-neutral-100
     active:stroke-neutral-950
+    dark:active:stroke-neutral-50
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
   edge_dep_t_localhost__t_github_user_repo__pull__0: |
     stroke-2
   edge_dep_t_localhost__t_github_user_repo__pull__1: |
@@ -1121,14 +1486,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-neutral-600
+    dark:hover:fill-neutral-400
     fill-neutral-700
+    dark:fill-neutral-300
     focus:fill-neutral-800
+    dark:focus:fill-neutral-200
     active:fill-neutral-900
+    dark:active:fill-neutral-100
     hover:stroke-neutral-700
+    dark:hover:stroke-neutral-300
     stroke-neutral-800
+    dark:stroke-neutral-200
     focus:stroke-neutral-900
+    dark:focus:stroke-neutral-100
     active:stroke-neutral-950
+    dark:active:stroke-neutral-50
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
   edge_dep_t_localhost__t_github_user_repo__push__0: |
     stroke-2
 
@@ -1137,14 +1511,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-neutral-600
+    dark:hover:fill-neutral-400
     fill-neutral-700
+    dark:fill-neutral-300
     focus:fill-neutral-800
+    dark:focus:fill-neutral-200
     active:fill-neutral-900
+    dark:active:fill-neutral-100
     hover:stroke-neutral-700
+    dark:hover:stroke-neutral-300
     stroke-neutral-800
+    dark:stroke-neutral-200
     focus:stroke-neutral-900
+    dark:focus:stroke-neutral-100
     active:stroke-neutral-950
+    dark:active:stroke-neutral-50
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
   edge_dep_t_localhost__t_localhost__within__0: |
     stroke-2
 
@@ -1153,14 +1536,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-neutral-600
+    dark:hover:fill-neutral-400
     fill-neutral-700
+    dark:fill-neutral-300
     focus:fill-neutral-800
+    dark:focus:fill-neutral-200
     active:fill-neutral-900
+    dark:active:fill-neutral-100
     hover:stroke-neutral-700
+    dark:hover:stroke-neutral-300
     stroke-neutral-800
+    dark:stroke-neutral-200
     focus:stroke-neutral-900
+    dark:focus:stroke-neutral-100
     active:stroke-neutral-950
+    dark:active:stroke-neutral-50
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
   edge_dep_t_github_user_repo__t_github_user_repo__within__0: |
     stroke-2
   edge_dep_t_github_user_repo__t_github_user_repo__within__1: |
@@ -1171,14 +1563,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-neutral-600
+    dark:hover:fill-neutral-400
     fill-neutral-700
+    dark:fill-neutral-300
     focus:fill-neutral-800
+    dark:focus:fill-neutral-200
     active:fill-neutral-900
+    dark:active:fill-neutral-100
     hover:stroke-neutral-700
+    dark:hover:stroke-neutral-300
     stroke-neutral-800
+    dark:stroke-neutral-200
     focus:stroke-neutral-900
+    dark:focus:stroke-neutral-100
     active:stroke-neutral-950
+    dark:active:stroke-neutral-50
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
   edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0: |
     stroke-2
 
@@ -1187,14 +1588,23 @@ tailwind_classes:
     [stroke-dasharray:none]
     stroke-2
     hover:fill-neutral-600
+    dark:hover:fill-neutral-400
     fill-neutral-700
+    dark:fill-neutral-300
     focus:fill-neutral-800
+    dark:focus:fill-neutral-200
     active:fill-neutral-900
+    dark:active:fill-neutral-100
     hover:stroke-neutral-700
+    dark:hover:stroke-neutral-300
     stroke-neutral-800
+    dark:stroke-neutral-200
     focus:stroke-neutral-900
+    dark:focus:stroke-neutral-100
     active:stroke-neutral-950
+    dark:active:stroke-neutral-50
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
   edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push__0: |
     stroke-2
 
@@ -1203,14 +1613,23 @@ tailwind_classes:
     invisible
     stroke-2
     hover:fill-blue-200
+    dark:hover:fill-blue-800
     fill-blue-300
+    dark:fill-blue-700
     focus:fill-blue-400
+    dark:focus:fill-blue-600
     active:fill-blue-500
+    dark:active:fill-blue-500
     hover:stroke-blue-300
+    dark:hover:stroke-blue-700
     stroke-blue-400
+    dark:stroke-blue-600
     focus:stroke-blue-500
+    dark:focus:stroke-blue-500
     active:stroke-blue-600
+    dark:active:stroke-blue-400
     [&>text]:fill-neutral-900
+    dark:[&>text]:fill-neutral-100
     peer-[:focus-within]/proc_app_dev_step_repository_clone:visible
     peer-[:focus-within]/proc_app_release_step_pull_request_open:visible
   edge_ix_t_localhost__t_github_user_repo__pull__0: ""
@@ -1220,28 +1639,46 @@ tailwind_classes:
     invisible
     stroke-2
     hover:fill-violet-600
+    dark:hover:fill-violet-400
     fill-violet-700
+    dark:fill-violet-300
     focus:fill-violet-800
+    dark:focus:fill-violet-200
     active:fill-violet-900
+    dark:active:fill-violet-100
     hover:stroke-violet-700
+    dark:hover:stroke-violet-300
     stroke-violet-800
+    dark:stroke-violet-200
     focus:stroke-violet-900
+    dark:focus:stroke-violet-100
     active:stroke-violet-950
+    dark:active:stroke-violet-50
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     peer-[:focus-within]/proc_app_release_step_tag_and_push:visible
   edge_ix_t_localhost__t_github_user_repo__push__0: ""
   edge_ix_t_localhost__t_localhost__within: |
     invisible
     stroke-2
     hover:fill-violet-600
+    dark:hover:fill-violet-400
     fill-violet-700
+    dark:fill-violet-300
     focus:fill-violet-800
+    dark:focus:fill-violet-200
     active:fill-violet-900
+    dark:active:fill-violet-100
     hover:stroke-violet-700
+    dark:hover:stroke-violet-300
     stroke-violet-800
+    dark:stroke-violet-200
     focus:stroke-violet-900
+    dark:focus:stroke-violet-100
     active:stroke-violet-950
+    dark:active:stroke-violet-50
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     peer-[:focus-within]/proc_app_dev_step_project_build:visible
     peer-[:focus-within]/proc_app_release_step_crate_version_update:visible
   edge_ix_t_localhost__t_localhost__within__0: ""
@@ -1249,14 +1686,23 @@ tailwind_classes:
     invisible
     stroke-2
     hover:fill-violet-600
+    dark:hover:fill-violet-400
     fill-violet-700
+    dark:fill-violet-300
     focus:fill-violet-800
+    dark:focus:fill-violet-200
     active:fill-violet-900
+    dark:active:fill-violet-100
     hover:stroke-violet-700
+    dark:hover:stroke-violet-300
     stroke-violet-800
+    dark:stroke-violet-200
     focus:stroke-violet-900
+    dark:focus:stroke-violet-100
     active:stroke-violet-950
+    dark:active:stroke-violet-50
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     peer-[:focus-within]/proc_app_release_step_gh_actions_build:visible
   edge_ix_t_github_user_repo__t_github_user_repo__within__0: ""
   edge_ix_t_github_user_repo__t_github_user_repo__within__1: ""
@@ -1265,32 +1711,48 @@ tailwind_classes:
     invisible
     stroke-2
     hover:fill-violet-600
+    dark:hover:fill-violet-400
     fill-violet-700
+    dark:fill-violet-300
     focus:fill-violet-800
+    dark:focus:fill-violet-200
     active:fill-violet-900
+    dark:active:fill-violet-100
     hover:stroke-violet-700
+    dark:hover:stroke-violet-300
     stroke-violet-800
+    dark:stroke-violet-200
     focus:stroke-violet-900
+    dark:focus:stroke-violet-100
     active:stroke-violet-950
+    dark:active:stroke-violet-50
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     peer-[:focus-within]/proc_app_release_step_gh_actions_publish:visible
   edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: ""
   edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push: |
     invisible
     stroke-2
     hover:fill-violet-600
+    dark:hover:fill-violet-400
     fill-violet-700
+    dark:fill-violet-300
     focus:fill-violet-800
+    dark:focus:fill-violet-200
     active:fill-violet-900
+    dark:active:fill-violet-100
     hover:stroke-violet-700
+    dark:hover:stroke-violet-300
     stroke-violet-800
+    dark:stroke-violet-200
     focus:stroke-violet-900
+    dark:focus:stroke-violet-100
     active:stroke-violet-950
+    dark:active:stroke-violet-50
     [&>text]:fill-neutral-950
+    dark:[&>text]:fill-neutral-50
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:visible
   edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0: ""
-
-# Layout configuration for nodes.
 node_layouts:
   # Root container
   #
