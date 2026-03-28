@@ -1,9 +1,10 @@
-use std::fmt::Write;
+use std::{borrow::Cow, fmt::Write};
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use disposition_ir_model::entity::EntityTailwindClasses;
 use disposition_svg_model::{SvgEdgeInfo, SvgElements, SvgNodeInfo};
 use disposition_taffy_model::{TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
+use encre_css::config::DarkMode;
 
 use crate::NOTO_SANS_MONO_TTF;
 

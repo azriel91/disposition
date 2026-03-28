@@ -3,6 +3,8 @@ use std::{borrow::Cow, fmt::Write};
 use disposition_input_model::theme::ThemeAttr;
 use disposition_model_common::Map;
 
+use super::css_theme_vars::CssThemeVars;
+
 const CLASSES_BUFFER_WRITE_FAIL: &str = "Failed to write string to buffer";
 
 /// State for accumulating resolved tailwind class attributes.
@@ -53,6 +55,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             other => other,
         }
     }
+
+    // === Attribute Getters === //
 
     /// Get the resolved fill color for a state.
     fn get_fill_color(&self, state: HighlightState) -> Option<&str> {
@@ -148,9 +152,15 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             .map(|c| c.as_ref())
     }
 
+    // === Class Writers === //
+
     /// Write tailwind classes to the given string.
-    pub(crate) fn write_classes(&self, classes: &mut String) {
-        self.write_peer_classes(classes, "");
+    ///
+    /// Colour classes use CSS variables registered in `css_theme_vars` so that
+    /// light/dark mode is handled through variable overrides rather than
+    /// `dark:` prefixed tailwind classes.
+    pub(crate) fn write_classes(&self, classes: &mut String, css_theme_vars: &mut CssThemeVars) {
+        self.write_peer_classes(classes, "", css_theme_vars);
     }
 
     /// Write peer-prefixed classes to the given string for tag/step
@@ -165,22 +175,18 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     ///   the animation class (if present) followed by full fill/stroke peer
     ///   classes.
     ///
-    /// Each class that contains a colour shade also emits a corresponding
-    /// `dark:` variant with the shade inverted so that the diagram works on
-    /// both light and dark themed backgrounds.
-    ///
-    /// The `dark:` modifier is placed before the peer prefix so that tailwind
-    /// generates the correct CSS nesting order, e.g.
-    /// `dark:peer-[:focus-within]/tag:hover:fill-slate-950`.
-    pub(crate) fn write_peer_classes(&self, classes: &mut String, prefix: &str) {
-        // Build the dark-mode prefix by prepending `dark:` before the peer
-        // prefix.  When `prefix` is empty the dark prefix is simply `"dark:"`.
-        let dark_prefix = if prefix.is_empty() {
-            "dark:".to_string()
-        } else {
-            format!("dark:{prefix}")
-        };
-
+    /// Each class that contains a colour shade registers a CSS variable in
+    /// `css_theme_vars` with both the light and dark (shade-inverted) oklch
+    /// values.  The element then references the variable via the
+    /// `fill-[var(--tw-...)]` / `stroke-[var(--tw-...)]` syntax so that the
+    /// active colour changes automatically when the user's preferred colour
+    /// scheme changes.
+    pub(crate) fn write_peer_classes(
+        &self,
+        classes: &mut String,
+        prefix: &str,
+        css_theme_vars: &mut CssThemeVars,
+    ) {
         // Visibility
         if let Some(visibility) = self.attrs.get(&ThemeAttr::Visibility) {
             writeln!(classes, "{prefix}{visibility}").expect(CLASSES_BUFFER_WRITE_FAIL);
@@ -228,8 +234,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
 
         Self::write_shade_class(
             classes,
+            css_theme_vars,
             prefix,
-            &dark_prefix,
             "hover:",
             "fill",
             fill_color_hover,
@@ -237,8 +243,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         );
         Self::write_shade_class(
             classes,
+            css_theme_vars,
             prefix,
-            &dark_prefix,
             "",
             "fill",
             fill_color_normal,
@@ -246,8 +252,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         );
         Self::write_shade_class(
             classes,
+            css_theme_vars,
             prefix,
-            &dark_prefix,
             "focus:",
             "fill",
             fill_color_focus,
@@ -255,8 +261,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         );
         Self::write_shade_class(
             classes,
+            css_theme_vars,
             prefix,
-            &dark_prefix,
             "active:",
             "fill",
             fill_color_active,
@@ -267,8 +273,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
 
         Self::write_shade_class(
             classes,
+            css_theme_vars,
             prefix,
-            &dark_prefix,
             "hover:",
             "stroke",
             stroke_color_hover,
@@ -276,8 +282,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         );
         Self::write_shade_class(
             classes,
+            css_theme_vars,
             prefix,
-            &dark_prefix,
             "",
             "stroke",
             stroke_color_normal,
@@ -285,8 +291,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         );
         Self::write_shade_class(
             classes,
+            css_theme_vars,
             prefix,
-            &dark_prefix,
             "focus:",
             "stroke",
             stroke_color_focus,
@@ -294,8 +300,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         );
         Self::write_shade_class(
             classes,
+            css_theme_vars,
             prefix,
-            &dark_prefix,
             "active:",
             "stroke",
             stroke_color_active,
@@ -311,22 +317,35 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         let text_shade = self.attrs.get(&ThemeAttr::TextShade).map(|c| c.as_ref());
         if let Some((text_color, text_shade)) = text_color.zip(text_shade) {
             let dark_shade = Self::shade_inverted(text_shade);
-            writeln!(classes, "[&>text]:fill-{text_color}-{text_shade}")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-            writeln!(classes, "dark:[&>text]:fill-{text_color}-{dark_shade}")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            if let Some(var_name) = css_theme_vars.register(text_color, text_shade, dark_shade) {
+                writeln!(classes, "[&>text]:fill-[var({var_name})]")
+                    .expect(CLASSES_BUFFER_WRITE_FAIL);
+            } else {
+                // Fallback: colour not in the tailwind lookup table, emit
+                // the original class without dark mode support.
+                writeln!(classes, "[&>text]:fill-{text_color}-{text_shade}")
+                    .expect(CLASSES_BUFFER_WRITE_FAIL);
+            }
         }
     }
 
-    /// Write a light-mode shade class and its `dark:` counterpart.
+    /// Write a shade class that references a CSS variable for dark/light mode.
+    ///
+    /// When the colour and shade are known in the tailwind colour table, a CSS
+    /// variable is registered in `css_theme_vars` with both the light-mode and
+    /// dark-mode (shade-inverted) oklch values.  The emitted class then
+    /// references the variable, e.g. `fill-[var(--tw-blue-100-900)]`, so that
+    /// a single class works for both colour schemes.
+    ///
+    /// If the colour is not found in the lookup table the original tailwind
+    /// class (e.g. `fill-blue-100`) is emitted without dark mode support.
     ///
     /// # Parameters
     ///
     /// * `classes`: The string buffer to write to.
-    /// * `prefix`: The peer prefix for the light-mode class, e.g.
+    /// * `css_theme_vars`: Collector for CSS variable definitions.
+    /// * `prefix`: The peer prefix for the class, e.g.
     ///   `"peer-[:focus-within]/tag:"` or `""`.
-    /// * `dark_prefix`: The dark-mode prefix (`"dark:"` prepended before the
-    ///   peer prefix).
     /// * `state_modifier`: The highlight state modifier, e.g. `"hover:"`,
     ///   `"focus:"`, `"active:"`, or `""` for normal.
     /// * `property`: `"fill"` or `"stroke"`.
@@ -334,8 +353,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     /// * `shade`: The resolved shade value, e.g. `"100"`, `"300"`.
     fn write_shade_class(
         classes: &mut String,
+        css_theme_vars: &mut CssThemeVars,
         prefix: &str,
-        dark_prefix: &str,
         state_modifier: &str,
         property: &str,
         color: Option<&str>,
@@ -343,16 +362,21 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     ) {
         if let Some((color, shade)) = color.zip(shade) {
             let dark_shade = Self::shade_inverted(shade);
-            writeln!(
-                classes,
-                "{prefix}{state_modifier}{property}-{color}-{shade}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-            writeln!(
-                classes,
-                "{dark_prefix}{state_modifier}{property}-{color}-{dark_shade}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
+            if let Some(var_name) = css_theme_vars.register(color, shade, dark_shade) {
+                writeln!(
+                    classes,
+                    "{prefix}{state_modifier}{property}-[var({var_name})]"
+                )
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            } else {
+                // Fallback: colour not in the tailwind lookup table, emit
+                // the original class without dark mode support.
+                writeln!(
+                    classes,
+                    "{prefix}{state_modifier}{property}-{color}-{shade}"
+                )
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            }
         }
     }
 }
