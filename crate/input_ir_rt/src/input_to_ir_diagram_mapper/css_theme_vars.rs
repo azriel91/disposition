@@ -30,9 +30,9 @@ struct CssThemeVar {
 /// whose values change based on the user's preferred color scheme.
 ///
 /// Each unique `(color, light_shade, dark_shade)` combination produces one
-/// CSS variable. The variable is defined in an `svg { ... }` block for
+/// CSS variable. The variable is defined in an `svg { .. }` block for
 /// light mode and overridden inside
-/// `@media (prefers-color-scheme: dark) { svg { ... } }` for dark mode.
+/// `:root.dark svg { .. }` for dark mode.
 ///
 /// Elements then reference these variables via tailwind's
 /// `fill-(--var-name)` / `stroke-(--var-name)` syntax instead of using
@@ -99,11 +99,9 @@ impl CssThemeVars {
     ///   --tw-blue-100-900: oklch(93.2% 0.032 255.585);
     ///   --tw-neutral-900-100: oklch(20.5% 0 0);
     /// }
-    /// @media (prefers-color-scheme: dark) {
-    ///   svg {
-    ///     --tw-blue-100-900: oklch(37.9% 0.146 265.522);
-    ///     --tw-neutral-900-100: oklch(97% 0 0);
-    ///   }
+    /// :root.dark svg {
+    ///   --tw-blue-100-900: oklch(37.9% 0.146 265.522);
+    ///   --tw-neutral-900-100: oklch(97% 0 0);
     /// }
     /// ```
     ///
@@ -132,16 +130,16 @@ impl CssThemeVars {
         css.push_str("}\n");
 
         // === Dark mode variables === //
-        css.push_str("@media (prefers-color-scheme: dark) {\n  svg {\n");
+        css.push_str(":root.dark svg {\n");
         for css_theme_var in &sorted_vars {
             writeln!(
                 css,
-                "    {}: {};",
+                "  {}: {};",
                 css_theme_var.var_name, css_theme_var.dark_value
             )
             .expect("Failed to write CSS variable");
         }
-        css.push_str("  }\n}");
+        css.push('}');
 
         css
     }
@@ -226,8 +224,8 @@ mod tests {
             "should contain light mode value: {css}"
         );
         assert!(
-            css.contains("@media (prefers-color-scheme: dark)"),
-            "should contain dark mode media query: {css}"
+            css.contains(":root.dark svg {"),
+            "should contain dark mode SVG selector: {css}"
         );
         assert!(
             css.contains("--tw-blue-100-900: oklch(37.9% 0.146 265.522);"),
