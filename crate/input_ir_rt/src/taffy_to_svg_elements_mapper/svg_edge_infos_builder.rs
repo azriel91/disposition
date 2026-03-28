@@ -568,12 +568,12 @@ impl SvgEdgeInfosBuilder {
                     node_x + node_w
                 };
 
-                // Perpendicular axis (X): use extremal bound in the
-                // direction the edges extend.
+                // Perpendicular axis (X): use extremal bound opposite
+                // to the direction the edges extend.
                 let cx = if mean_x < face_x {
-                    bounds_x_min
-                } else {
                     bounds_x_max
+                } else {
+                    bounds_x_min
                 };
 
                 // Parallel axis (Y): use extremal bound when outside
@@ -581,9 +581,9 @@ impl SvgEdgeInfosBuilder {
                 let node_y_min = node_y;
                 let node_y_max = node_y + node_h;
                 let cy = if mean_y < node_y_min {
-                    bounds_y_min
-                } else if mean_y > node_y_max {
                     bounds_y_max
+                } else if mean_y > node_y_max {
+                    bounds_y_min
                 } else {
                     mean_y
                 };
@@ -600,12 +600,12 @@ impl SvgEdgeInfosBuilder {
                     node_y + node_h
                 };
 
-                // Perpendicular axis (Y): use extremal bound in the
-                // direction the edges extend.
+                // Perpendicular axis (Y): use extremal bound opposite
+                // to the direction the edges extend.
                 let cy = if mean_y < face_y {
-                    bounds_y_min
-                } else {
                     bounds_y_max
+                } else {
+                    bounds_y_min
                 };
 
                 // Parallel axis (X): use extremal bound when outside
@@ -613,9 +613,9 @@ impl SvgEdgeInfosBuilder {
                 let node_x_min = node_x;
                 let node_x_max = node_x + node_w;
                 let cx = if mean_x < node_x_min {
-                    bounds_x_min
-                } else if mean_x > node_x_max {
                     bounds_x_max
+                } else if mean_x > node_x_max {
+                    bounds_x_min
                 } else {
                     mean_x
                 };
