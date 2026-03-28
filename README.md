@@ -29,11 +29,11 @@ SVG diagram generator.
 * [x] Edge animations representing requests/responses.
 * [x] Arrows on edges.
 * [x] Circle as node shape.
-* [ ] Dependencies between process steps.
+* [x] Light and dark modes.
+* [x] Dependencies between process steps.
 * [ ] Tooltips.
 * [ ] Images in nodes.
 * [ ] Responsive layout.
-* [ ] Light and dark modes.
 
 </details>
 
