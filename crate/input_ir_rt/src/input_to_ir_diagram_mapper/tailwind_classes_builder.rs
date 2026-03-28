@@ -426,6 +426,7 @@ impl TailwindClassesBuilder {
     }
 
     /// Write tag-related peer classes for a thing node.
+    #[allow(clippy::too_many_arguments)]
     fn build_thing_tailwind_classes_tags<'id>(
         state: &TailwindClassState<'_>,
         classes: &mut String,
