@@ -2,7 +2,7 @@ use disposition_ir_model::edge::{Edge, EdgeId};
 use kurbo::BezPath;
 
 /// Represents a face/side of a rectangular node.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub(super) enum NodeFace {
     Top,
     Bottom,
