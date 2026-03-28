@@ -14,7 +14,10 @@ use disposition_model_common::edge::EdgeGroupId;
 
 use crate::taffy_to_svg_elements_mapper::{
     edge_face_contact_tracker::EdgeFaceContactTracker,
-    edge_model::{EdgeAnimationParams, EdgePathInfo, EdgeType, NodeFace},
+    edge_model::{
+        EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeFace,
+        NodeIdAndFace, PathMidpoint,
+    },
     edge_path_builder::EdgeFaceOffset,
     ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilder, StringCharReplacer,
 };
@@ -96,19 +99,19 @@ impl SvgEdgeInfosBuilder {
         let mut all_pass1_groups: Vec<EdgeGroupPass1<'_, 'id>> = Vec::new();
 
         for (edge_group_id, edge_group) in edge_groups.iter() {
-            let pass1 = Self::build_edge_pass1_infos(
+            let edge_group_pass1 = Self::build_edge_pass1_infos(
                 edge_group_id,
                 edge_group,
                 entity_types,
                 svg_node_info_map,
                 &mut face_contact_tracker,
             );
-            all_pass1_groups.push(pass1);
+            all_pass1_groups.push(edge_group_pass1);
         }
 
         // === Global sort and offset computation === //
 
-        let face_offsets = Self::face_offsets_compute(
+        let face_offsets_by_node_face = Self::face_offsets_compute(
             &mut all_pass1_groups,
             svg_node_info_map,
             &mut face_contact_tracker,
@@ -118,22 +121,22 @@ impl SvgEdgeInfosBuilder {
 
         let mut svg_edge_infos = Vec::new();
 
-        for pass1_group in all_pass1_groups {
+        for edge_group_pass1 in all_pass1_groups {
             let EdgeGroupPass1 {
                 edge_group_id,
                 edge_animation_params,
                 pass1_infos,
-                from_slot,
-                to_slot,
-            } = pass1_group;
+                from_slot_indices,
+                to_slot_indices,
+            } = edge_group_pass1;
 
             let visible_segments_length = edge_animation_params.visible_segments_length;
 
             let edge_path_infos = Self::build_edge_path_infos_with_offsets(
                 &pass1_infos,
-                &from_slot,
-                &to_slot,
-                &face_offsets,
+                &from_slot_indices,
+                &to_slot_indices,
+                &face_offsets_by_node_face,
                 svg_node_info_map,
                 visible_segments_length,
             );
@@ -254,16 +257,16 @@ impl SvgEdgeInfosBuilder {
             let faces = EdgePathBuilder::faces_select(from_info, to_info);
 
             let (from_face, to_face) = match faces {
-                Some((ff, tf)) => (Some(ff), Some(tf)),
+                Some((from_face, to_face)) => (Some(from_face), Some(to_face)),
                 None => (None, None),
             };
 
             // Register contacts.
-            if let Some(ff) = from_face {
-                face_contact_tracker.contact_register(edge.from.clone(), ff);
+            if let Some(from_face) = from_face {
+                face_contact_tracker.contact_register(edge.from.clone(), from_face);
             }
-            if let Some(tf) = to_face {
-                face_contact_tracker.contact_register(edge.to.clone(), tf);
+            if let Some(to_face) = to_face {
+                face_contact_tracker.contact_register(edge.to.clone(), to_face);
             }
 
             // Compute path midpoint for curvature-center sorting.
@@ -280,13 +283,11 @@ impl SvgEdgeInfosBuilder {
             });
         }
 
-        // === Sort contacts per face within this group === //
-        //
         // Slot assignment is deferred to the global phase; here we just
         // prepare per-face entry lists that the global phase will merge.
 
-        let from_slot: Vec<Option<usize>> = vec![None; pass1_infos.len()];
-        let to_slot: Vec<Option<usize>> = vec![None; pass1_infos.len()];
+        let from_slot_indices: Vec<Option<usize>> = vec![None; pass1_infos.len()];
+        let to_slot_indices: Vec<Option<usize>> = vec![None; pass1_infos.len()];
 
         // These will be filled globally by `face_offsets_compute`.
 
@@ -294,8 +295,8 @@ impl SvgEdgeInfosBuilder {
             edge_group_id,
             edge_animation_params,
             pass1_infos,
-            from_slot,
-            to_slot,
+            from_slot_indices,
+            to_slot_indices,
         }
     }
 
@@ -320,32 +321,41 @@ impl SvgEdgeInfosBuilder {
         all_pass1_groups: &mut Vec<EdgeGroupPass1<'edge, 'id>>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
         face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
-    ) -> Map<(NodeId<'id>, NodeFace), Vec<f32>> {
-        // Collect (path_midpoint, group_idx, edge_idx, is_from) per (node, face).
-        let mut face_entries: Map<(NodeId<'id>, NodeFace), Vec<FaceContactEntry>> = Map::new();
+    ) -> Map<NodeIdAndFace<'id>, EdgeContactPointOffsets> {
+        // Collect face contact entries per (node, face) across all groups.
+        let mut face_contact_entries_by_node_face: Map<NodeIdAndFace<'id>, Vec<FaceContactEntry>> =
+            Map::new();
 
-        for (group_idx, group) in all_pass1_groups.iter().enumerate() {
-            for (edge_idx, info) in group.pass1_infos.iter().enumerate() {
-                if let Some(ff) = info.from_face {
-                    face_entries
-                        .entry((info.edge.from.clone(), ff))
+        for (pass1_group_index, edge_group_pass1) in all_pass1_groups.iter().enumerate() {
+            for (edge_index, pass1_info) in edge_group_pass1.pass1_infos.iter().enumerate() {
+                if let Some(from_face) = pass1_info.from_face {
+                    let node_id_and_face = NodeIdAndFace {
+                        node_id: pass1_info.edge.from.clone(),
+                        face: from_face,
+                    };
+                    face_contact_entries_by_node_face
+                        .entry(node_id_and_face)
                         .or_default()
                         .push(FaceContactEntry {
-                            midpoint: info.path_midpoint,
-                            group_idx,
-                            edge_idx,
-                            is_from: true,
+                            path_midpoint: pass1_info.path_midpoint,
+                            pass1_group_index,
+                            edge_index,
+                            is_from_endpoint: true,
                         });
                 }
-                if let Some(tf) = info.to_face {
-                    face_entries
-                        .entry((info.edge.to.clone(), tf))
+                if let Some(to_face) = pass1_info.to_face {
+                    let node_id_and_face = NodeIdAndFace {
+                        node_id: pass1_info.edge.to.clone(),
+                        face: to_face,
+                    };
+                    face_contact_entries_by_node_face
+                        .entry(node_id_and_face)
                         .or_default()
                         .push(FaceContactEntry {
-                            midpoint: info.path_midpoint,
-                            group_idx,
-                            edge_idx,
-                            is_from: false,
+                            path_midpoint: pass1_info.path_midpoint,
+                            pass1_group_index,
+                            edge_index,
+                            is_from_endpoint: false,
                         });
                 }
             }
@@ -353,14 +363,22 @@ impl SvgEdgeInfosBuilder {
 
         // Sort each face's entries using curvature-center ordering, then
         // assign slot indices.
-        for ((node_id, face), entries) in face_entries.iter_mut() {
-            Self::face_entries_sort_by_curvature(node_id, *face, entries, svg_node_info_map);
+        for (node_id_and_face, face_contact_entries) in face_contact_entries_by_node_face.iter_mut()
+        {
+            Self::face_entries_sort_by_curvature(
+                &node_id_and_face.node_id,
+                node_id_and_face.face,
+                face_contact_entries,
+                svg_node_info_map,
+            );
 
-            for (slot_idx, entry) in entries.iter().enumerate() {
-                if entry.is_from {
-                    all_pass1_groups[entry.group_idx].from_slot[entry.edge_idx] = Some(slot_idx);
+            for (slot_index, face_contact_entry) in face_contact_entries.iter().enumerate() {
+                if face_contact_entry.is_from_endpoint {
+                    all_pass1_groups[face_contact_entry.pass1_group_index].from_slot_indices
+                        [face_contact_entry.edge_index] = Some(slot_index);
                 } else {
-                    all_pass1_groups[entry.group_idx].to_slot[entry.edge_idx] = Some(slot_idx);
+                    all_pass1_groups[face_contact_entry.pass1_group_index].to_slot_indices
+                        [face_contact_entry.edge_index] = Some(slot_index);
                 }
             }
         }
@@ -371,17 +389,32 @@ impl SvgEdgeInfosBuilder {
 
         // Pre-compute per-face ordered offset values so we can index by
         // slot rather than relying on call order.
-        let mut face_offsets: Map<(NodeId<'id>, NodeFace), Vec<f32>> = Map::new();
-        for ((node_id, face), entries) in &face_entries {
-            let count = entries.len();
-            let face_length = Self::face_length_for_node(node_id, *face, svg_node_info_map);
-            let offsets: Vec<f32> = (0..count)
-                .map(|_| face_contact_tracker.offset_calculate(node_id, *face, face_length))
+        let mut face_offsets_by_node_face: Map<NodeIdAndFace<'id>, EdgeContactPointOffsets> =
+            Map::new();
+
+        for (node_id_and_face, face_contact_entries) in &face_contact_entries_by_node_face {
+            let contact_count = face_contact_entries.len();
+            let face_length = Self::face_length_for_node(
+                &node_id_and_face.node_id,
+                node_id_and_face.face,
+                svg_node_info_map,
+            );
+            let offsets: Vec<f32> = (0..contact_count)
+                .map(|_| {
+                    face_contact_tracker.offset_calculate(
+                        &node_id_and_face.node_id,
+                        node_id_and_face.face,
+                        face_length,
+                    )
+                })
                 .collect();
-            face_offsets.insert((node_id.clone(), *face), offsets);
+            face_offsets_by_node_face.insert(
+                node_id_and_face.clone(),
+                EdgeContactPointOffsets::new(offsets),
+            );
         }
 
-        face_offsets
+        face_offsets_by_node_face
     }
 
     /// Sorts the entries for a single (node, face) so that edges with a
@@ -409,21 +442,32 @@ impl SvgEdgeInfosBuilder {
     fn face_entries_sort_by_curvature<'id>(
         node_id: &NodeId<'id>,
         face: NodeFace,
-        entries: &mut Vec<FaceContactEntry>,
+        face_contact_entries: &mut Vec<FaceContactEntry>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
     ) {
-        let count = entries.len();
-        if count <= 1 {
+        let contact_count = face_contact_entries.len();
+        if contact_count <= 1 {
             return;
         }
 
         // Compute curvature center = mean of all midpoints.
-        let center_x = entries.iter().map(|e| e.midpoint.0).sum::<f64>() / count as f64;
-        let center_y = entries.iter().map(|e| e.midpoint.1).sum::<f64>() / count as f64;
+        let curvature_center_x = face_contact_entries
+            .iter()
+            .map(|face_contact_entry| face_contact_entry.path_midpoint.x)
+            .sum::<f64>()
+            / contact_count as f64;
+        let curvature_center_y = face_contact_entries
+            .iter()
+            .map(|face_contact_entry| face_contact_entry.path_midpoint.y)
+            .sum::<f64>()
+            / contact_count as f64;
+        let curvature_center = PathMidpoint {
+            x: curvature_center_x,
+            y: curvature_center_y,
+        };
 
         // Face midpoint in absolute coordinates.
-        let (face_mid_x, face_mid_y) =
-            Self::face_midpoint_absolute(node_id, face, svg_node_info_map);
+        let face_midpoint = Self::face_midpoint_absolute(node_id, face, svg_node_info_map);
 
         // Determine whether the curvature center lies in the "negative"
         // direction along the face axis relative to the face midpoint.
@@ -433,15 +477,17 @@ impl SvgEdgeInfosBuilder {
         // For Top/Bottom faces the axis is horizontal (x increases rightward):
         //   center to the left => center_x < face_mid_x => negative.
         let center_toward_negative = match face {
-            NodeFace::Left | NodeFace::Right => center_y < face_mid_y,
-            NodeFace::Top | NodeFace::Bottom => center_x < face_mid_x,
+            NodeFace::Left | NodeFace::Right => curvature_center.y < face_midpoint.y,
+            NodeFace::Top | NodeFace::Bottom => curvature_center.x < face_midpoint.x,
         };
 
         // Sort by radius ascending (smallest / tightest curve first).
-        entries.sort_by(|a, b| {
-            let ra = Self::distance(a.midpoint, (center_x, center_y));
-            let rb = Self::distance(b.midpoint, (center_x, center_y));
-            ra.partial_cmp(&rb).unwrap_or(std::cmp::Ordering::Equal)
+        face_contact_entries.sort_by(|entry_a, entry_b| {
+            let radius_a = Self::path_midpoint_distance(entry_a.path_midpoint, curvature_center);
+            let radius_b = Self::path_midpoint_distance(entry_b.path_midpoint, curvature_center);
+            radius_a
+                .partial_cmp(&radius_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         // If the center is toward the negative direction, the tightest
@@ -453,7 +499,7 @@ impl SvgEdgeInfosBuilder {
         // edge should get the *last* slot (most-positive offset), so we
         // reverse the order.
         if !center_toward_negative {
-            entries.reverse();
+            face_contact_entries.reverse();
         }
     }
 
@@ -461,38 +507,48 @@ impl SvgEdgeInfosBuilder {
     /// globally computed face offsets.
     fn build_edge_path_infos_with_offsets<'edge, 'id>(
         pass1_infos: &[EdgePass1Info<'edge, 'id>],
-        from_slot: &[Option<usize>],
-        to_slot: &[Option<usize>],
-        face_offsets: &Map<(NodeId<'id>, NodeFace), Vec<f32>>,
+        from_slot_indices: &[Option<usize>],
+        to_slot_indices: &[Option<usize>],
+        face_offsets_by_node_face: &Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
         visible_segments_length: f64,
     ) -> Vec<EdgePathInfo<'edge, 'id>> {
         pass1_infos
             .iter()
             .enumerate()
-            .map(|(idx, info)| {
+            .map(|(pass1_info_index, pass1_info)| {
                 let from_info = svg_node_info_map
-                    .get(&info.edge.from)
+                    .get(&pass1_info.edge.from)
                     .expect("from node validated in pass 1");
                 let to_info = svg_node_info_map
-                    .get(&info.edge.to)
+                    .get(&pass1_info.edge.to)
                     .expect("to node validated in pass 1");
 
-                let from_offset = info
+                let from_offset = pass1_info
                     .from_face
-                    .and_then(|ff| {
-                        let slot = from_slot[idx]?;
-                        let offsets = face_offsets.get(&(info.edge.from.clone(), ff))?;
-                        Some(offsets[slot])
+                    .and_then(|from_face| {
+                        let slot_index = from_slot_indices[pass1_info_index]?;
+                        let node_id_and_face = NodeIdAndFace {
+                            node_id: pass1_info.edge.from.clone(),
+                            face: from_face,
+                        };
+                        let contact_point_offsets =
+                            face_offsets_by_node_face.get(&node_id_and_face)?;
+                        contact_point_offsets.get(slot_index)
                     })
                     .unwrap_or(0.0);
 
-                let to_offset = info
+                let to_offset = pass1_info
                     .to_face
-                    .and_then(|tf| {
-                        let slot = to_slot[idx]?;
-                        let offsets = face_offsets.get(&(info.edge.to.clone(), tf))?;
-                        Some(offsets[slot])
+                    .and_then(|to_face| {
+                        let slot_index = to_slot_indices[pass1_info_index]?;
+                        let node_id_and_face = NodeIdAndFace {
+                            node_id: pass1_info.edge.to.clone(),
+                            face: to_face,
+                        };
+                        let contact_point_offsets =
+                            face_offsets_by_node_face.get(&node_id_and_face)?;
+                        contact_point_offsets.get(slot_index)
                     })
                     .unwrap_or(0.0);
 
@@ -504,7 +560,7 @@ impl SvgEdgeInfosBuilder {
                 let path = EdgePathBuilder::build_with_offsets(
                     from_info,
                     to_info,
-                    info.edge_type,
+                    pass1_info.edge_type,
                     face_offset,
                 );
                 let path_length = {
@@ -513,12 +569,12 @@ impl SvgEdgeInfosBuilder {
                 };
 
                 EdgePathInfo {
-                    edge_id: info.edge_id.clone(),
-                    edge: info.edge,
-                    edge_type: info.edge_type,
+                    edge_id: pass1_info.edge_id.clone(),
+                    edge: pass1_info.edge,
+                    edge_type: pass1_info.edge_type,
                     path,
                     path_length,
-                    preceding_visible_segments_lengths: info.edge_index as f64
+                    preceding_visible_segments_lengths: pass1_info.edge_index as f64
                         * visible_segments_length,
                 }
             })
@@ -571,60 +627,69 @@ impl SvgEdgeInfosBuilder {
     /// points (MoveTo, LineTo, and the final point of CurveTo / QuadTo
     /// elements).
     ///
-    /// Returns `(mean_x, mean_y)` in absolute SVG coordinates.
-    fn path_midpoint_compute(path: &kurbo::BezPath) -> (f64, f64) {
+    /// Returns a `PathMidpoint` in absolute SVG coordinates.
+    fn path_midpoint_compute(path: &kurbo::BezPath) -> PathMidpoint {
         let mut sum_x: f64 = 0.0;
         let mut sum_y: f64 = 0.0;
-        let mut count: usize = 0;
+        let mut point_count: usize = 0;
 
-        for el in path.elements() {
-            let pt = match el {
+        for element in path.elements() {
+            let point = match element {
                 kurbo::PathEl::MoveTo(p) | kurbo::PathEl::LineTo(p) => Some(p),
                 kurbo::PathEl::CurveTo(_, _, p) => Some(p),
                 kurbo::PathEl::QuadTo(_, p) => Some(p),
                 kurbo::PathEl::ClosePath => None,
             };
-            if let Some(p) = pt {
+            if let Some(p) = point {
                 sum_x += p.x;
                 sum_y += p.y;
-                count += 1;
+                point_count += 1;
             }
         }
 
-        if count == 0 {
-            (0.0, 0.0)
+        if point_count == 0 {
+            PathMidpoint::default()
         } else {
-            (sum_x / count as f64, sum_y / count as f64)
+            PathMidpoint {
+                x: sum_x / point_count as f64,
+                y: sum_y / point_count as f64,
+            }
         }
     }
 
-    /// Returns the absolute midpoint of a node face.
+    /// Returns the absolute midpoint of a node face as a `PathMidpoint`.
     fn face_midpoint_absolute<'id>(
         node_id: &NodeId<'id>,
         face: NodeFace,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
-    ) -> (f64, f64) {
-        let Some(info) = svg_node_info_map.get(node_id) else {
-            return (0.0, 0.0);
+    ) -> PathMidpoint {
+        let Some(node_info) = svg_node_info_map.get(node_id) else {
+            return PathMidpoint::default();
         };
         match face {
-            NodeFace::Top => ((info.x + info.width / 2.0) as f64, info.y as f64),
-            NodeFace::Bottom => (
-                (info.x + info.width / 2.0) as f64,
-                (info.y + info.height_collapsed) as f64,
-            ),
-            NodeFace::Left => (info.x as f64, (info.y + info.height_collapsed / 2.0) as f64),
-            NodeFace::Right => (
-                (info.x + info.width) as f64,
-                (info.y + info.height_collapsed / 2.0) as f64,
-            ),
+            NodeFace::Top => PathMidpoint {
+                x: (node_info.x + node_info.width / 2.0) as f64,
+                y: node_info.y as f64,
+            },
+            NodeFace::Bottom => PathMidpoint {
+                x: (node_info.x + node_info.width / 2.0) as f64,
+                y: (node_info.y + node_info.height_collapsed) as f64,
+            },
+            NodeFace::Left => PathMidpoint {
+                x: node_info.x as f64,
+                y: (node_info.y + node_info.height_collapsed / 2.0) as f64,
+            },
+            NodeFace::Right => PathMidpoint {
+                x: (node_info.x + node_info.width) as f64,
+                y: (node_info.y + node_info.height_collapsed / 2.0) as f64,
+            },
         }
     }
 
-    /// Euclidean distance between two 2D points.
-    fn distance(a: (f64, f64), b: (f64, f64)) -> f64 {
-        let dx = a.0 - b.0;
-        let dy = a.1 - b.1;
+    /// Euclidean distance between two `PathMidpoint` values.
+    fn path_midpoint_distance(a: PathMidpoint, b: PathMidpoint) -> f64 {
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
         (dx * dx + dy * dy).sqrt()
     }
 
@@ -637,12 +702,12 @@ impl SvgEdgeInfosBuilder {
         face: NodeFace,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
     ) -> f32 {
-        let Some(info) = svg_node_info_map.get(node_id) else {
+        let Some(node_info) = svg_node_info_map.get(node_id) else {
             return 100.0; // fallback
         };
         match face {
-            NodeFace::Top | NodeFace::Bottom => info.width,
-            NodeFace::Left | NodeFace::Right => info.height_collapsed,
+            NodeFace::Top | NodeFace::Bottom => node_info.width,
+            NodeFace::Left | NodeFace::Right => node_info.height_collapsed,
         }
     }
 
@@ -769,48 +834,83 @@ impl SvgEdgeInfosBuilder {
 
 // === Supporting types === //
 
-/// A single contact entry for the per-face sorting phase.
+/// A single contact entry used during the per-face curvature-center
+/// sorting phase.
 ///
-/// Stored in `face_offsets_compute` to track which edge touches a given
-/// (node, face) and the path midpoint needed for curvature-center
-/// sorting.
+/// Tracks which edge touches a given (node, face) and the path midpoint
+/// needed to compute the edge's distance to the curvature center.
 struct FaceContactEntry {
-    /// Mean anchor point of the edge's zero-offset path.
-    midpoint: (f64, f64),
-    /// Index into `all_pass1_groups`.
-    group_idx: usize,
-    /// Index into the group's `pass1_infos`.
-    edge_idx: usize,
-    /// `true` if this contact is at the "from" endpoint, `false` for "to".
-    is_from: bool,
+    /// Mean anchor point of the edge's zero-offset path, used to
+    /// determine curvature radius during sorting.
+    path_midpoint: PathMidpoint,
+    /// Index into the `all_pass1_groups` vector identifying which edge
+    /// group this contact belongs to.
+    pass1_group_index: usize,
+    /// Index into the group's `pass1_infos` vector identifying which
+    /// edge within the group this contact belongs to.
+    edge_index: usize,
+    /// `true` if this contact is at the "from" endpoint of the edge,
+    /// `false` for the "to" endpoint.
+    is_from_endpoint: bool,
 }
 
-/// Intermediate per-edge data collected in pass 1 and consumed in pass 2.
+/// Intermediate per-edge data collected in pass 1 and consumed in
+/// pass 2.
+///
+/// Stores everything about an edge that is needed to rebuild its path
+/// with face contact offsets.
 struct EdgePass1Info<'edge, 'id> {
+    /// The edge's position within its edge group (0-based).
     edge_index: usize,
+    /// Reference to the IR edge (source and target node IDs).
     edge: &'edge Edge<'id>,
+    /// Generated unique ID for this edge.
     edge_id: EdgeId<'id>,
+    /// Whether this edge is unpaired or part of a request/response pair.
     edge_type: EdgeType,
+    /// Which face of the "from" node this edge connects to.
+    ///
     /// `None` when the edge connects a contained node (no face offset
     /// applies).
     from_face: Option<NodeFace>,
+    /// Which face of the "to" node this edge connects to.
+    ///
+    /// `None` when the edge connects a contained node (no face offset
+    /// applies).
     to_face: Option<NodeFace>,
     /// Mean anchor point of the zero-offset path, used to determine
     /// curvature-center distance during the sort phase.
-    path_midpoint: (f64, f64),
+    path_midpoint: PathMidpoint,
 }
 
 /// All pass-1 data for a single edge group.
+///
+/// Contains the per-edge metadata from pass 1 together with the slot
+/// index assignments that are filled in by the global
+/// `face_offsets_compute` phase.
 struct EdgeGroupPass1<'edge, 'id> {
+    /// The edge group this data belongs to.
     edge_group_id: &'edge EdgeGroupId<'id>,
+    /// Animation parameters for this edge group.
     edge_animation_params: EdgeAnimationParams,
+    /// Per-edge pass-1 data.
     pass1_infos: Vec<EdgePass1Info<'edge, 'id>>,
     /// Per-edge assigned slot index for the "from" face contact.
-    from_slot: Vec<Option<usize>>,
+    ///
+    /// `from_slot_indices[i]` is the slot index assigned to
+    /// `pass1_infos[i]`'s "from" endpoint, or `None` if no face offset
+    /// applies (e.g. contained edges).
+    from_slot_indices: Vec<Option<usize>>,
     /// Per-edge assigned slot index for the "to" face contact.
-    to_slot: Vec<Option<usize>>,
+    ///
+    /// `to_slot_indices[i]` is the slot index assigned to
+    /// `pass1_infos[i]`'s "to" endpoint, or `None` if no face offset
+    /// applies (e.g. contained edges).
+    to_slot_indices: Vec<Option<usize>>,
 }
 
+/// Parameters passed to `css_animation_append` to generate edge
+/// animation CSS.
 struct CssAnimationAppendParams<'f, 'edge, 'id> {
     tailwind_classes: &'f mut EntityTailwindClasses<'id>,
     css: &'f mut Css,

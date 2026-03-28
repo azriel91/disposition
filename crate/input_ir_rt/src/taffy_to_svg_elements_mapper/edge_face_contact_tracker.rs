@@ -1,17 +1,7 @@
 use disposition_ir_model::node::NodeId;
 use disposition_model_common::Map;
 
-use super::edge_model::NodeFace;
-
-/// Key identifying a specific face of a specific node.
-///
-/// Used to group edges that connect to the same face of the same node,
-/// so that their contact points can be spread out evenly.
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-struct NodeFaceKey<'id> {
-    node_id: NodeId<'id>,
-    face: NodeFace,
-}
+use super::edge_model::{NodeFace, NodeIdAndFace};
 
 /// Tracks which edges contact which face of which node, and computes
 /// pixel offsets so that multiple edges sharing a face are spread evenly
@@ -43,10 +33,10 @@ struct NodeFaceKey<'id> {
 #[derive(Clone, Debug)]
 pub(super) struct EdgeFaceContactTracker<'id> {
     /// For each (node, face), the total number of contact points.
-    contact_counts: Map<NodeFaceKey<'id>, usize>,
+    contact_counts: Map<NodeIdAndFace<'id>, usize>,
     /// For each (node, face), the next index to hand out (auto-incrementing
     /// counter used by `offset_calculate`).
-    contact_next_index: Map<NodeFaceKey<'id>, usize>,
+    contact_next_index: Map<NodeIdAndFace<'id>, usize>,
 }
 
 /// Minimum gap in pixels between adjacent edge contact points on the
@@ -70,8 +60,8 @@ impl<'id> EdgeFaceContactTracker<'id> {
     /// Call this once per edge endpoint. For a self-loop edge that
     /// touches the same face twice, call this twice.
     pub(super) fn contact_register(&mut self, node_id: NodeId<'id>, face: NodeFace) {
-        let key = NodeFaceKey { node_id, face };
-        *self.contact_counts.entry(key).or_insert(0) += 1;
+        let node_id_and_face = NodeIdAndFace { node_id, face };
+        *self.contact_counts.entry(node_id_and_face).or_insert(0) += 1;
     }
 
     /// Calculates the pixel offset for the next contact point on the
@@ -93,45 +83,49 @@ impl<'id> EdgeFaceContactTracker<'id> {
         face: NodeFace,
         face_length: f32,
     ) -> f32 {
-        let key = NodeFaceKey {
+        let node_id_and_face = NodeIdAndFace {
             node_id: node_id.clone(),
             face,
         };
 
-        let count = self.contact_counts.get(&key).copied().unwrap_or(1);
-        let index = {
-            let idx = self.contact_next_index.entry(key).or_insert(0);
-            let current = *idx;
-            *idx += 1;
-            current
+        let contact_count = self
+            .contact_counts
+            .get(&node_id_and_face)
+            .copied()
+            .unwrap_or(1);
+        let contact_index = {
+            let next_index = self.contact_next_index.entry(node_id_and_face).or_insert(0);
+            let current_index = *next_index;
+            *next_index += 1;
+            current_index
         };
 
-        Self::offset_for_index(index, count, face_length)
+        Self::offset_for_index(contact_index, contact_count, face_length)
     }
 
     /// Computes the pixel offset for the `index`-th contact out of
     /// `count` total contacts on a face of the given `face_length`.
     ///
     /// This is a pure function suitable for testing.
-    fn offset_for_index(index: usize, count: usize, face_length: f32) -> f32 {
-        if count <= 1 {
+    fn offset_for_index(contact_index: usize, contact_count: usize, face_length: f32) -> f32 {
+        if contact_count <= 1 {
             return 0.0;
         }
 
-        let gap = Self::gap_calculate(count, face_length);
-        let center = (count as f32 - 1.0) / 2.0;
-        (index as f32 - center) * gap
+        let gap = Self::gap_calculate(contact_count, face_length);
+        let center = (contact_count as f32 - 1.0) / 2.0;
+        (contact_index as f32 - center) * gap
     }
 
     /// Computes the gap between adjacent contact points.
     ///
     /// * 10% of `face_length`, clamped to at least 5 px.
     /// * Shrunk if all contacts would exceed the face length.
-    fn gap_calculate(count: usize, face_length: f32) -> f32 {
+    fn gap_calculate(contact_count: usize, face_length: f32) -> f32 {
         let gap = (face_length * CONTACT_GAP_RATIO).max(CONTACT_GAP_MIN_PX);
 
-        if count as f32 * gap > face_length {
-            face_length / count as f32
+        if contact_count as f32 * gap > face_length {
+            face_length / contact_count as f32
         } else {
             gap
         }
@@ -158,21 +152,24 @@ mod tests {
 
     #[test]
     fn two_contacts_are_symmetric() {
-        let o0 = EdgeFaceContactTracker::offset_for_index(0, 2, 100.0);
-        let o1 = EdgeFaceContactTracker::offset_for_index(1, 2, 100.0);
-        assert!((o0 + o1).abs() < f32::EPSILON, "offsets should sum to 0");
-        assert!(o0 < 0.0, "first offset should be negative");
-        assert!(o1 > 0.0, "second offset should be positive");
+        let offset_0 = EdgeFaceContactTracker::offset_for_index(0, 2, 100.0);
+        let offset_1 = EdgeFaceContactTracker::offset_for_index(1, 2, 100.0);
+        assert!(
+            (offset_0 + offset_1).abs() < f32::EPSILON,
+            "offsets should sum to 0"
+        );
+        assert!(offset_0 < 0.0, "first offset should be negative");
+        assert!(offset_1 > 0.0, "second offset should be positive");
     }
 
     #[test]
     fn three_contacts_middle_is_zero() {
-        let o0 = EdgeFaceContactTracker::offset_for_index(0, 3, 100.0);
-        let o1 = EdgeFaceContactTracker::offset_for_index(1, 3, 100.0);
-        let o2 = EdgeFaceContactTracker::offset_for_index(2, 3, 100.0);
-        assert!(o0 < 0.0);
-        assert!((o1).abs() < f32::EPSILON, "middle offset should be 0");
-        assert!(o2 > 0.0);
+        let offset_0 = EdgeFaceContactTracker::offset_for_index(0, 3, 100.0);
+        let offset_1 = EdgeFaceContactTracker::offset_for_index(1, 3, 100.0);
+        let offset_2 = EdgeFaceContactTracker::offset_for_index(2, 3, 100.0);
+        assert!(offset_0 < 0.0);
+        assert!((offset_1).abs() < f32::EPSILON, "middle offset should be 0");
+        assert!(offset_2 > 0.0);
     }
 
     #[test]
