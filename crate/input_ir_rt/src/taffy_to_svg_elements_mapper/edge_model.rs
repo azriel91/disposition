@@ -51,6 +51,31 @@ pub(super) struct PathMidpoint {
     pub(super) y: f64,
 }
 
+/// Axis-aligned bounding box of a `BezPath`'s anchor points in absolute
+/// SVG coordinates.
+///
+/// Computed from the same anchor points as `PathMidpoint` (MoveTo,
+/// LineTo, and final CurveTo / QuadTo points). Used to determine the
+/// extremal coordinates when computing the curvature center for
+/// face-contact sorting.
+///
+/// # Examples
+///
+/// ```text
+/// PathBounds { x_min: 100.0, x_max: 200.0, y_min: 50.0, y_max: 130.0 }
+/// ```
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(super) struct PathBounds {
+    /// Minimum x coordinate among the path's anchor points.
+    pub(super) x_min: f64,
+    /// Maximum x coordinate among the path's anchor points.
+    pub(super) x_max: f64,
+    /// Minimum y coordinate among the path's anchor points.
+    pub(super) y_min: f64,
+    /// Maximum y coordinate among the path's anchor points.
+    pub(super) y_max: f64,
+}
+
 /// Ordered pixel offsets for each edge contact point on a single node
 /// face.
 ///
