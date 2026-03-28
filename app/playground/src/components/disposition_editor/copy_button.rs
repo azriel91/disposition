@@ -39,7 +39,7 @@ pub fn CopyButton(text_to_copy: Memo<String>) -> Element {
                 focus:ring-2 \
                 focus:ring-blue-600 \
                 focus:ring-offset-2 \
-                focus:ring-offset-gray-100\
+                focus:ring-offset-gray-800\
             ",
             tabindex: "0",
             title: "Copy to clipboard",

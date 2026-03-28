@@ -3,6 +3,8 @@ use dioxus::prelude::{
     component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Link, Outlet,
 };
 
+use super::theme_toggle::ThemeToggle;
+
 /// The `Navbar` component that will be rendered on all pages of our app since
 /// every page is under the layout.
 ///
@@ -16,6 +18,7 @@ pub fn Navbar() -> Element {
             id: "navbar",
             class: "
                 flex
+                items-center
                 gap-6
                 [&>a]:hover:text-blue-300
                 [&>a]:transition-colors
@@ -34,6 +37,11 @@ pub fn Navbar() -> Element {
                 new_tab: true,
                 "github"
             }
+
+            // Spacer to push the theme toggle to the right.
+            div { class: "flex-1" }
+
+            ThemeToggle {}
         }
 
         // The `Outlet` component is used to render the next component inside

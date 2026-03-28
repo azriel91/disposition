@@ -18,3 +18,4 @@ pub use self::{home::Home, navbar::Navbar};
 
 mod home;
 mod navbar;
+pub(crate) mod theme_toggle;
