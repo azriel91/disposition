@@ -7,11 +7,13 @@
 * Apply margin and padding to leaf nodes. ([#16][#16])
 * Support laying out things by ranks, based on Thing Dependencies. ([#17][#17], [#18][#18])
 * Offset edges so they don't overlap where they contact the node. ([#19][#19])
+* Support light and dark mode diagrams. ([#20][#20])
 
 [#16]: https://github.com/azriel91/disposition/pull/16
 [#17]: https://github.com/azriel91/disposition/pull/17
 [#18]: https://github.com/azriel91/disposition/pull/18
 [#19]: https://github.com/azriel91/disposition/pull/19
+[#20]: https://github.com/azriel91/disposition/pull/20
 
 
 ## 0.0.4 (2026-02-22)
