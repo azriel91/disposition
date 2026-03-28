@@ -43,7 +43,7 @@ pub(super) struct NodeIdAndFace<'id> {
 /// ```text
 /// PathMidpoint { x: 150.0, y: 80.0 }
 /// ```
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(super) struct PathMidpoint {
     /// Mean x coordinate of the path's anchor points.
     pub(super) x: f64,

@@ -365,12 +365,7 @@ impl SvgEdgeInfosBuilder {
         // assign slot indices.
         for (node_id_and_face, face_contact_entries) in face_contact_entries_by_node_face.iter_mut()
         {
-            Self::face_entries_sort_by_curvature(
-                &node_id_and_face.node_id,
-                node_id_and_face.face,
-                face_contact_entries,
-                svg_node_info_map,
-            );
+            Self::face_entries_sort_by_curvature(node_id_and_face.face, face_contact_entries);
 
             for (slot_index, face_contact_entry) in face_contact_entries.iter().enumerate() {
                 if face_contact_entry.is_from_endpoint {
@@ -417,33 +412,32 @@ impl SvgEdgeInfosBuilder {
         face_offsets_by_node_face
     }
 
-    /// Sorts the entries for a single (node, face) so that edges with a
-    /// tighter curve (smaller radius to the common curvature center) are
-    /// placed closer to the curvature center along the face.
+    /// Sorts the entries for a single (node, face) by the angle from the
+    /// common curvature center to each entry's path midpoint, so that
+    /// edges connecting to the same face are ordered to reduce crossovers.
     ///
     /// # Algorithm
     ///
     /// 1. Compute the curvature center as the mean of all path midpoints.
-    /// 2. Determine which direction along the face axis the center lies
-    ///    relative to the node face midpoint.
-    /// 3. For each entry, compute its radius (distance from its midpoint to the
-    ///    curvature center).
-    /// 4. Sort by radius ascending -- smallest radius first.
-    /// 5. Assign sorted entries to slots starting from the slot nearest the
-    ///    curvature center and progressing outward.
+    /// 2. For each entry, compute the angle from the curvature center to its
+    ///    path midpoint, using an `atan2` formulation chosen per face so that
+    ///    the angle increases along the face axis (top-to-bottom for Left/Right
+    ///    faces, left-to-right for Top/Bottom faces).
+    /// 3. Sort by angle ascending and assign to slots in that order.
     ///
-    /// The slot ordering produced is:
+    /// The per-face `atan2` formulations place the `atan2` discontinuity
+    /// (at +/- pi) behind the node -- opposite the face normal -- where
+    /// no path midpoints should lie, avoiding wrap-around artefacts.
     ///
-    /// * If the center is in the "negative" direction along the face (left for
-    ///   Top/Bottom, up for Left/Right), then the smallest radius gets slot 0
-    ///   (most negative offset) and subsequent radii get slots 1, 2, ...
-    /// * If the center is in the "positive" direction, the smallest radius gets
-    ///   the last slot and subsequent radii get decreasing slot indices.
-    fn face_entries_sort_by_curvature<'id>(
-        node_id: &NodeId<'id>,
+    /// | Face   | Midpoints  | `atan2` args      | Increases     |
+    /// |--------|------------|-------------------|---------------|
+    /// | Left   | dx < 0     | `(dy, -dx)`       | top to bottom |
+    /// | Right  | dx > 0     | `(dy,  dx)`       | top to bottom |
+    /// | Top    | dy < 0     | `(dx, -dy)`       | left to right |
+    /// | Bottom | dy > 0     | `(dx,  dy)`       | left to right |
+    fn face_entries_sort_by_curvature(
         face: NodeFace,
         face_contact_entries: &mut Vec<FaceContactEntry>,
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
     ) {
         let contact_count = face_contact_entries.len();
         if contact_count <= 1 {
@@ -466,40 +460,50 @@ impl SvgEdgeInfosBuilder {
             y: curvature_center_y,
         };
 
-        // Face midpoint in absolute coordinates.
-        let face_midpoint = Self::face_midpoint_absolute(node_id, face, svg_node_info_map);
-
-        // Determine whether the curvature center lies in the "negative"
-        // direction along the face axis relative to the face midpoint.
+        // Sort by angle from the curvature center to each midpoint.
         //
-        // For Left/Right faces the axis is vertical (y increases downward):
-        //   center above face midpoint => center_y < face_mid_y => negative.
-        // For Top/Bottom faces the axis is horizontal (x increases rightward):
-        //   center to the left => center_x < face_mid_x => negative.
-        let center_toward_negative = match face {
-            NodeFace::Left | NodeFace::Right => curvature_center.y < face_midpoint.y,
-            NodeFace::Top | NodeFace::Bottom => curvature_center.x < face_midpoint.x,
-        };
-
-        // Sort by radius ascending (smallest / tightest curve first).
+        // The `atan2` argument pair is chosen per face so that:
+        //
+        // * The angle increases along the face axis (top-to-bottom for vertical faces,
+        //   left-to-right for horizontal faces).
+        // * The atan2 discontinuity at +/- pi sits behind the node, opposite the
+        //   direction midpoints extend, so no midpoint straddles the wrap-around.
         face_contact_entries.sort_by(|entry_a, entry_b| {
-            let radius_a = Self::path_midpoint_distance(entry_a.path_midpoint, curvature_center);
-            let radius_b = Self::path_midpoint_distance(entry_b.path_midpoint, curvature_center);
-            radius_a
-                .partial_cmp(&radius_b)
+            let angle_a = Self::face_curvature_angle(face, entry_a.path_midpoint, curvature_center);
+            let angle_b = Self::face_curvature_angle(face, entry_b.path_midpoint, curvature_center);
+            angle_a
+                .partial_cmp(&angle_b)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
+    }
 
-        // If the center is toward the negative direction, the tightest
-        // edge (index 0 after the sort above) should get slot 0, which
-        // maps to the most-negative offset -- already in the correct
-        // order.
-        //
-        // If the center is toward the positive direction, the tightest
-        // edge should get the *last* slot (most-positive offset), so we
-        // reverse the order.
-        if !center_toward_negative {
-            face_contact_entries.reverse();
+    /// Returns the angle from `curvature_center` to `midpoint`, using an
+    /// `atan2` formulation specific to `face`.
+    ///
+    /// The formulation is chosen so that the returned angle increases
+    /// along the face axis (top-to-bottom for Left/Right, left-to-right
+    /// for Top/Bottom) and the atan2 discontinuity is placed behind the
+    /// node where no midpoints should be.
+    fn face_curvature_angle(
+        face: NodeFace,
+        midpoint: PathMidpoint,
+        curvature_center: PathMidpoint,
+    ) -> f64 {
+        let dx = midpoint.x - curvature_center.x;
+        let dy = midpoint.y - curvature_center.y;
+        match face {
+            // Left face: midpoints extend to the left (dx < 0).
+            // atan2(dy, -dx) increases top-to-bottom, discontinuity to the right.
+            NodeFace::Left => f64::atan2(dy, -dx),
+            // Right face: midpoints extend to the right (dx > 0).
+            // atan2(dy, dx) increases top-to-bottom, discontinuity to the left.
+            NodeFace::Right => f64::atan2(dy, dx),
+            // Top face: midpoints extend upward (dy < 0).
+            // atan2(dx, -dy) increases left-to-right, discontinuity below.
+            NodeFace::Top => f64::atan2(dx, -dy),
+            // Bottom face: midpoints extend downward (dy > 0).
+            // atan2(dx, dy) increases left-to-right, discontinuity above.
+            NodeFace::Bottom => f64::atan2(dx, dy),
         }
     }
 
@@ -657,42 +661,6 @@ impl SvgEdgeInfosBuilder {
         }
     }
 
-    /// Returns the absolute midpoint of a node face as a `PathMidpoint`.
-    fn face_midpoint_absolute<'id>(
-        node_id: &NodeId<'id>,
-        face: NodeFace,
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
-    ) -> PathMidpoint {
-        let Some(node_info) = svg_node_info_map.get(node_id) else {
-            return PathMidpoint::default();
-        };
-        match face {
-            NodeFace::Top => PathMidpoint {
-                x: (node_info.x + node_info.width / 2.0) as f64,
-                y: node_info.y as f64,
-            },
-            NodeFace::Bottom => PathMidpoint {
-                x: (node_info.x + node_info.width / 2.0) as f64,
-                y: (node_info.y + node_info.height_collapsed) as f64,
-            },
-            NodeFace::Left => PathMidpoint {
-                x: node_info.x as f64,
-                y: (node_info.y + node_info.height_collapsed / 2.0) as f64,
-            },
-            NodeFace::Right => PathMidpoint {
-                x: (node_info.x + node_info.width) as f64,
-                y: (node_info.y + node_info.height_collapsed / 2.0) as f64,
-            },
-        }
-    }
-
-    /// Euclidean distance between two `PathMidpoint` values.
-    fn path_midpoint_distance(a: PathMidpoint, b: PathMidpoint) -> f64 {
-        let dx = a.x - b.x;
-        let dy = a.y - b.y;
-        (dx * dx + dy * dy).sqrt()
-    }
-
     /// Returns the face length (in pixels) for the given node and face.
     ///
     /// For `Top` / `Bottom` this is the node width; for `Left` / `Right`
@@ -839,6 +807,7 @@ impl SvgEdgeInfosBuilder {
 ///
 /// Tracks which edge touches a given (node, face) and the path midpoint
 /// needed to compute the edge's distance to the curvature center.
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct FaceContactEntry {
     /// Mean anchor point of the edge's zero-offset path, used to
     /// determine curvature radius during sorting.
