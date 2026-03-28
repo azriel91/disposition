@@ -1,1 +1,193 @@
 @import "tailwindcss";
+
+/*
+ * Override the default Tailwind v4 colour palette with CSS custom properties
+ * so that the same utility classes (e.g. `bg-gray-800`, `text-blue-400`)
+ * resolve to different colours depending on whether `.dark` is present on
+ * `<html>`.
+ *
+ * Light mode = default (no class on <html>).
+ * Dark mode  = `.dark` class on <html>.
+ *
+ * The playground was originally designed for dark mode, so the dark-mode
+ * values here match the standard Tailwind palette that was previously in use.
+ * Light-mode values are chosen to preserve the same visual hierarchy (page bg,
+ * card bg, input bg, borders, text) while feeling natural on a light surface.
+ */
+
+@theme {
+    /* --- gray --- */
+    --color-gray-50: var(--theme-gray-50);
+    --color-gray-100: var(--theme-gray-100);
+    --color-gray-200: var(--theme-gray-200);
+    --color-gray-300: var(--theme-gray-300);
+    --color-gray-400: var(--theme-gray-400);
+    --color-gray-500: var(--theme-gray-500);
+    --color-gray-600: var(--theme-gray-600);
+    --color-gray-700: var(--theme-gray-700);
+    --color-gray-800: var(--theme-gray-800);
+    --color-gray-850: var(--theme-gray-850);
+    --color-gray-900: var(--theme-gray-900);
+    --color-gray-950: var(--theme-gray-950);
+
+    /* --- blue --- */
+    --color-blue-300: var(--theme-blue-300);
+    --color-blue-400: var(--theme-blue-400);
+    --color-blue-500: var(--theme-blue-500);
+    --color-blue-600: var(--theme-blue-600);
+    --color-blue-700: var(--theme-blue-700);
+
+    /* --- red --- */
+    --color-red-300: var(--theme-red-300);
+    --color-red-400: var(--theme-red-400);
+    --color-red-700: var(--theme-red-700);
+    --color-red-950: var(--theme-red-950);
+
+    /* --- amber --- */
+    --color-amber-300: var(--theme-amber-300);
+    --color-amber-400: var(--theme-amber-400);
+
+    /* --- yellow --- */
+    --color-yellow-100: var(--theme-yellow-100);
+    --color-yellow-600: var(--theme-yellow-600);
+    --color-yellow-700: var(--theme-yellow-700);
+
+    /* --- black (used for bg-black/50 backdrop) --- */
+    --color-black: #000000;
+    --color-white: #ffffff;
+}
+
+/* ================================================================== */
+/*  Light mode  (default -- no `.dark` on <html>)                      */
+/* ================================================================== */
+/*
+ * Mapping rationale (dark-theme role -> light-theme value):
+ *
+ *   gray-900  page section bg       ->  #f3f4f6  (light grey)
+ *   gray-850  inner card bg         ->  #f9fafb  (very light grey)
+ *   gray-800  card / input surface  ->  #ffffff  (white)
+ *   gray-700  borders, dividers     ->  #e5e7eb  (light border)
+ *   gray-600  input/button borders  ->  #d1d5db  (medium border)
+ *   gray-500  label / hint text     ->  #6b7280  (muted text)
+ *   gray-400  secondary text        ->  #4b5563  (medium text)
+ *   gray-300  heading / status text ->  #374151  (dark-medium text)
+ *   gray-200  primary body text     ->  #1f2937  (near-black text)
+ *   gray-100  brightest text/hover  ->  #111827  (near-black)
+ *   gray-50   near-white accent     ->  #f9fafb
+ *   gray-950  deepest bg            ->  #e5e7eb
+ *
+ * Accent colours (blue, red, amber, yellow) keep the same hue but are
+ * adjusted for contrast on light backgrounds where necessary.
+ */
+
+:root {
+    /* --- gray --- */
+    --theme-gray-50: #f9fafb;
+    --theme-gray-100: #111827;
+    --theme-gray-200: #1f2937;
+    --theme-gray-300: #374151;
+    --theme-gray-400: #4b5563;
+    --theme-gray-500: #6b7280;
+    --theme-gray-600: #d1d5db;
+    --theme-gray-700: #e5e7eb;
+    --theme-gray-800: #ffffff;
+    --theme-gray-850: #f9fafb;
+    --theme-gray-900: #f3f4f6;
+    --theme-gray-950: #e5e7eb;
+
+    /* --- blue --- */
+    --theme-blue-300: #2563eb;
+    --theme-blue-400: #2563eb;
+    --theme-blue-500: #3b82f6;
+    --theme-blue-600: #2563eb;
+    --theme-blue-700: #1d4ed8;
+
+    /* --- red --- */
+    --theme-red-300: #dc2626;
+    --theme-red-400: #ef4444;
+    --theme-red-700: #fca5a5;
+    --theme-red-950: #fef2f2;
+
+    /* --- amber --- */
+    --theme-amber-300: #b45309;
+    --theme-amber-400: #d97706;
+
+    /* --- yellow --- */
+    --theme-yellow-100: #422006;
+    --theme-yellow-600: #d97706;
+    --theme-yellow-700: #b45309;
+
+    /* --- body --- */
+    --body-bg: #f8f9fb;
+    --body-color: #1a1d23;
+
+    /* --- legacy #links hover --- */
+    --links-hover-bg: #e8e8e8;
+
+    /* --- SVG icon strokes / fills (used via arbitrary variants) --- */
+    --icon-stroke: #4b5563;
+    --icon-stroke-hover: #1f2937;
+    --icon-fill: #4b5563;
+    --icon-fill-hover: #1f2937;
+
+    /* checkbox accent */
+    --accent-blue-500: #3b82f6;
+}
+
+/* ================================================================== */
+/*  Dark mode  (.dark on <html>)                                       */
+/* ================================================================== */
+
+:root.dark {
+    /* --- gray (standard Tailwind dark palette) --- */
+    --theme-gray-50: #f9fafb;
+    --theme-gray-100: #f3f4f6;
+    --theme-gray-200: #e5e7eb;
+    --theme-gray-300: #d1d5db;
+    --theme-gray-400: #9ca3af;
+    --theme-gray-500: #6b7280;
+    --theme-gray-600: #4b5563;
+    --theme-gray-700: #374151;
+    --theme-gray-800: #1f2937;
+    --theme-gray-850: #1a202c;
+    --theme-gray-900: #111827;
+    --theme-gray-950: #030712;
+
+    /* --- blue --- */
+    --theme-blue-300: #93c5fd;
+    --theme-blue-400: #60a5fa;
+    --theme-blue-500: #3b82f6;
+    --theme-blue-600: #2563eb;
+    --theme-blue-700: #1d4ed8;
+
+    /* --- red --- */
+    --theme-red-300: #fca5a5;
+    --theme-red-400: #f87171;
+    --theme-red-700: #b91c1c;
+    --theme-red-950: #450a0a;
+
+    /* --- amber --- */
+    --theme-amber-300: #fcd34d;
+    --theme-amber-400: #fbbf24;
+
+    /* --- yellow --- */
+    --theme-yellow-100: #fefce8;
+    --theme-yellow-600: #ca8a04;
+    --theme-yellow-700: #a16207;
+
+    /* --- body --- */
+    --body-bg: #0f1116;
+    --body-color: #ffffff;
+
+    /* --- legacy #links hover --- */
+    --links-hover-bg: #1f1f1f;
+
+    /* --- SVG icon strokes / fills --- */
+    --icon-stroke: #d1d5db;
+    --icon-stroke-hover: #f3f4f6;
+    --icon-fill: #d1d5db;
+    --icon-fill-hover: #f3f4f6;
+
+    /* checkbox accent */
+    --accent-blue-500: #3b82f6;
+}

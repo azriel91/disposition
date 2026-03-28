@@ -34,7 +34,7 @@ const BTN_CLASS: &str = "\
     focus:ring-2 \
     focus:ring-blue-600 \
     focus:ring-offset-2 \
-    focus:ring-offset-gray-100\
+    focus:ring-offset-gray-800\
 ";
 
 #[component]

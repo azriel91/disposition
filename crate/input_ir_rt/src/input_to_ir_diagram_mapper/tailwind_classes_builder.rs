@@ -15,9 +15,18 @@ use disposition_ir_model::{
 };
 use disposition_model_common::{edge::EdgeGroupId, entity::EntityTypes, Id, Map, Set};
 
-use super::tailwind_class_state::TailwindClassState;
+use super::{css_theme_vars::CssThemeVars, tailwind_class_state::TailwindClassState};
 
 const CLASSES_BUFFER_WRITE_FAIL: &str = "Failed to write string to buffer";
+
+/// Result of building tailwind classes, containing both the per-entity
+/// classes and the collected CSS theme variable definitions.
+pub(crate) struct TailwindClassesBuildResult<'id> {
+    /// Per-entity tailwind CSS classes.
+    pub(crate) tailwind_classes: EntityTailwindClasses<'id>,
+    /// CSS variable definitions for light/dark mode colour pairs.
+    pub(crate) css_theme_vars: CssThemeVars,
+}
 
 /// Builds tailwind CSS classes for all entities (nodes, edge groups, edges).
 #[derive(Clone, Copy, Debug)]
@@ -25,6 +34,10 @@ pub(crate) struct TailwindClassesBuilder;
 
 impl TailwindClassesBuilder {
     /// Build tailwind classes for all entities (nodes, edge groups, edges).
+    ///
+    /// Returns both the per-entity tailwind classes and the collected CSS
+    /// theme variable definitions that should be prepended to the diagram's
+    /// CSS.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn build<'id>(
         nodes: &NodeNames<'id>,
@@ -36,7 +49,9 @@ impl TailwindClassesBuilder {
         tags: &TagNames<'id>,
         tag_things: &TagThings<'id>,
         processes: &Processes<'id>,
-    ) -> EntityTailwindClasses<'id> {
+    ) -> TailwindClassesBuildResult<'id> {
+        let mut css_theme_vars = CssThemeVars::default();
+
         // Build a map of process step ID to (process ID, edge IDs they interact with)
         let step_interactions = Self::build_step_interactions_map(processes);
 
@@ -49,101 +64,115 @@ impl TailwindClassesBuilder {
             Self::build_thing_to_interaction_steps_map(edge_groups, &step_interactions);
 
         // Build classes for each node
-        let node_classes = nodes.keys().map(|node_id| {
-            // Determine node kind
-            let is_tag = tags.contains_key(node_id);
-            let is_process = processes.contains_key(node_id);
-            let is_process_step = processes
-                .values()
-                .any(|process_diagram| process_diagram.steps.contains_key(node_id));
+        let node_classes: Vec<_> = nodes
+            .keys()
+            .map(|node_id| {
+                // Determine node kind
+                let is_tag = tags.contains_key(node_id);
+                let is_process = processes.contains_key(node_id);
+                let is_process_step = processes
+                    .values()
+                    .any(|process_diagram| process_diagram.steps.contains_key(node_id));
 
-            let classes = if is_tag {
-                Self::build_tag_tailwind_classes(
-                    node_id,
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                )
-            } else if is_process {
-                Self::build_process_tailwind_classes(
-                    node_id,
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                )
-            } else if is_process_step {
-                // Find the parent process diagram
-                let parent_process_id_and_diagram =
-                    processes.iter().find_map(|(process_id, process_diagram)| {
-                        if process_diagram.steps.contains_key(node_id) {
-                            Some((process_id, process_diagram))
-                        } else {
-                            None
-                        }
-                    });
+                let classes = if is_tag {
+                    Self::build_tag_tailwind_classes(
+                        node_id,
+                        entity_types,
+                        theme_default,
+                        theme_types_styles,
+                        &mut css_theme_vars,
+                    )
+                } else if is_process {
+                    Self::build_process_tailwind_classes(
+                        node_id,
+                        entity_types,
+                        theme_default,
+                        theme_types_styles,
+                        &mut css_theme_vars,
+                    )
+                } else if is_process_step {
+                    // Find the parent process diagram
+                    let parent_process_id_and_diagram =
+                        processes.iter().find_map(|(process_id, process_diagram)| {
+                            if process_diagram.steps.contains_key(node_id) {
+                                Some((process_id, process_diagram))
+                            } else {
+                                None
+                            }
+                        });
 
-                Self::build_process_step_tailwind_classes(
-                    node_id,
-                    parent_process_id_and_diagram,
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                )
-            } else {
-                // Regular thing node
-                Self::build_thing_tailwind_classes(
-                    node_id,
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                    theme_tag_things_focus,
-                    tags,
-                    tag_things,
-                    &thing_to_interaction_steps,
-                )
-            };
+                    Self::build_process_step_tailwind_classes(
+                        node_id,
+                        parent_process_id_and_diagram,
+                        entity_types,
+                        theme_default,
+                        theme_types_styles,
+                        &mut css_theme_vars,
+                    )
+                } else {
+                    // Regular thing node
+                    Self::build_thing_tailwind_classes(
+                        node_id,
+                        entity_types,
+                        theme_default,
+                        theme_types_styles,
+                        theme_tag_things_focus,
+                        tags,
+                        tag_things,
+                        &thing_to_interaction_steps,
+                        &mut css_theme_vars,
+                    )
+                };
 
-            (node_id.clone().into_inner(), classes)
-        });
+                (node_id.clone().into_inner(), classes)
+            })
+            .collect();
 
         // Build classes for edge groups and edges
-        let edge_group_and_edge_classes = edge_groups.iter().flat_map(|(edge_group_id, edges)| {
-            let edge_group_classes = {
-                // Get the process steps that interact with this edge group
-                let interaction_steps = edge_group_to_steps
-                    .get(edge_group_id)
-                    .cloned()
-                    .unwrap_or_default();
+        let mut edge_group_and_edge_classes: Vec<(Id<'id>, String)> = Vec::new();
+        for (edge_group_id, edges) in edge_groups.iter() {
+            // Get the process steps that interact with this edge group
+            let interaction_steps = edge_group_to_steps
+                .get(edge_group_id)
+                .cloned()
+                .unwrap_or_default();
 
-                let classes = Self::build_edge_group_tailwind_classes(
-                    edge_group_id,
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                    &interaction_steps,
-                );
+            let edge_group_classes_str = Self::build_edge_group_tailwind_classes(
+                edge_group_id,
+                entity_types,
+                theme_default,
+                theme_types_styles,
+                &interaction_steps,
+                &mut css_theme_vars,
+            );
 
-                (edge_group_id.clone().into_inner(), classes)
-            };
+            edge_group_and_edge_classes
+                .push((edge_group_id.clone().into_inner(), edge_group_classes_str));
 
-            let edge_classes = edges.iter().enumerate().map(move |(index, _edge)| {
+            for (index, _edge) in edges.iter().enumerate() {
                 let edge_id_str = format!("{edge_group_id}__{index}");
                 let edge_id = Id::try_from(edge_id_str).expect("valid ID string");
 
-                // Check if this edge has a symmetric type (request or response)
                 let classes = Self::build_edge_tailwind_classes(
                     &edge_id,
                     entity_types,
                     theme_default,
                     theme_types_styles,
+                    &mut css_theme_vars,
                 );
-                (edge_id, classes)
-            });
+                edge_group_and_edge_classes.push((edge_id, classes));
+            }
+        }
 
-            std::iter::once(edge_group_classes).chain(edge_classes)
-        });
+        let tailwind_classes = node_classes
+            .into_iter()
+            .chain(edge_group_and_edge_classes)
+            .collect();
 
-        node_classes.chain(edge_group_and_edge_classes).collect()
+        TailwindClassesBuildResult {
+            tailwind_classes,
+            css_theme_vars,
+        }
     }
 
     // === Interaction Maps === //
@@ -234,6 +263,7 @@ impl TailwindClassesBuilder {
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -247,7 +277,7 @@ impl TailwindClassesBuilder {
         );
 
         let mut classes = String::new();
-        state.write_classes(&mut classes);
+        state.write_classes(&mut classes, css_theme_vars);
 
         // Tags get peer/{id} class
         writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);
@@ -261,6 +291,7 @@ impl TailwindClassesBuilder {
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -274,7 +305,7 @@ impl TailwindClassesBuilder {
         );
 
         let mut classes = String::new();
-        state.write_classes(&mut classes);
+        state.write_classes(&mut classes, css_theme_vars);
 
         // Processes get `peer/{id}` class
         writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);
@@ -289,6 +320,7 @@ impl TailwindClassesBuilder {
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -302,7 +334,7 @@ impl TailwindClassesBuilder {
         );
 
         let mut classes = String::new();
-        state.write_classes(&mut classes);
+        state.write_classes(&mut classes, css_theme_vars);
 
         // Process steps get:
         //
@@ -351,6 +383,7 @@ impl TailwindClassesBuilder {
         tags: &TagNames<'id>,
         tag_things: &TagThings<'id>,
         thing_to_interaction_steps: &Map<&'f NodeId<'id>, Set<&'f ProcessStepId<'id>>>,
+        css_theme_vars: &mut CssThemeVars,
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -364,7 +397,7 @@ impl TailwindClassesBuilder {
         );
 
         let mut classes = String::new();
-        state.write_classes(&mut classes);
+        state.write_classes(&mut classes, css_theme_vars);
 
         // Add peer classes for each tag
         Self::build_thing_tailwind_classes_tags(
@@ -375,6 +408,7 @@ impl TailwindClassesBuilder {
             theme_tag_things_focus,
             tags,
             tag_things,
+            css_theme_vars,
         );
 
         // Add peer classes for process steps that interact with edges involving this
@@ -385,12 +419,14 @@ impl TailwindClassesBuilder {
             node_id,
             theme_default,
             thing_to_interaction_steps,
+            css_theme_vars,
         );
 
         classes
     }
 
     /// Write tag-related peer classes for a thing node.
+    #[allow(clippy::too_many_arguments)]
     fn build_thing_tailwind_classes_tags<'id>(
         state: &TailwindClassState<'_>,
         classes: &mut String,
@@ -399,6 +435,7 @@ impl TailwindClassesBuilder {
         theme_tag_things_focus: &ThemeTagThingsFocus<'id>,
         tags: &TagNames<'id>,
         tag_things: &TagThings<'id>,
+        css_theme_vars: &mut CssThemeVars,
     ) {
         tags.keys().for_each(|tag_id| {
             let is_thing_in_tag = tag_things
@@ -458,7 +495,7 @@ impl TailwindClassesBuilder {
             }
 
             let peer_prefix = format!("peer-[:focus-within]/{tag_id}:");
-            tag_focus_state.write_peer_classes(classes, &peer_prefix);
+            tag_focus_state.write_peer_classes(classes, &peer_prefix, css_theme_vars);
         });
     }
 
@@ -469,6 +506,7 @@ impl TailwindClassesBuilder {
         node_id: &NodeId<'id>,
         theme_default: &ThemeDefault<'id>,
         thing_to_interaction_steps: &Map<&'f NodeId<'id>, Set<&'f ProcessStepId<'id>>>,
+        css_theme_vars: &mut CssThemeVars,
     ) {
         if let Some(interaction_steps) = thing_to_interaction_steps.get(node_id) {
             interaction_steps.iter().for_each(|step_id| {
@@ -513,7 +551,7 @@ impl TailwindClassesBuilder {
                 });
 
                 let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
-                step_selected_state.write_peer_classes(classes, &peer_prefix);
+                step_selected_state.write_peer_classes(classes, &peer_prefix, css_theme_vars);
             });
         }
     }
@@ -528,12 +566,14 @@ impl TailwindClassesBuilder {
     /// * `theme_types_styles`: Styles for each entity type.
     /// * `interaction_process_step_ids`: The process step IDs that interact
     ///   with this edge.
+    /// * `css_theme_vars`: Collector for CSS variable definitions.
     fn build_edge_group_tailwind_classes<'id>(
         edge_group_id: &EdgeGroupId<'id>,
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
         interaction_process_step_ids: &[&ProcessStepId<'id>],
+        css_theme_vars: &mut CssThemeVars,
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -547,7 +587,7 @@ impl TailwindClassesBuilder {
         );
 
         let mut classes = String::new();
-        state.write_classes(&mut classes);
+        state.write_classes(&mut classes, css_theme_vars);
 
         // Add peer classes for each process step that interacts with this edge
         // using styles from `theme_default.process_step_selected_styles.edge_defaults`
@@ -576,7 +616,7 @@ impl TailwindClassesBuilder {
             });
 
             let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
-            step_selected_state.write_peer_classes(&mut classes, &peer_prefix);
+            step_selected_state.write_peer_classes(&mut classes, &peer_prefix, css_theme_vars);
         });
 
         classes
@@ -589,6 +629,7 @@ impl TailwindClassesBuilder {
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
     ) -> String {
         let mut state = TailwindClassState::default();
 
@@ -602,7 +643,7 @@ impl TailwindClassesBuilder {
         );
 
         let mut classes = String::new();
-        state.write_classes(&mut classes);
+        state.write_classes(&mut classes, css_theme_vars);
         classes
     }
 

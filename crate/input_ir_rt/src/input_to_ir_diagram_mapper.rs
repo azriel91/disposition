@@ -23,16 +23,21 @@ use disposition_ir_model::{
 use disposition_model_common::{
     edge::EdgeGroupId,
     entity::{EntityDescs, EntityTooltips},
+    theme::Css,
     Id, Map, Set,
 };
 
-use self::{
-    tailwind_classes_builder::TailwindClassesBuilder, theme_attr_resolver::ThemeAttrResolver,
-};
 use crate::node_ranks_calculator::NodeRanksCalculator;
 
+use self::{
+    css_theme_vars::CssThemeVars, tailwind_classes_builder::TailwindClassesBuilder,
+    theme_attr_resolver::ThemeAttrResolver,
+};
+
+mod css_theme_vars;
 mod tailwind_class_state;
 mod tailwind_classes_builder;
+mod tailwind_colors;
 mod theme_attr_resolver;
 
 /// Maps an input diagram to an intermediate representation diagram.
@@ -114,7 +119,7 @@ impl InputToIrDiagramMapper {
             Self::build_node_shapes(&nodes, &ir_entity_types, theme_default, theme_types_styles);
 
         // 11. Build TailwindClasses from theme
-        let tailwind_classes = TailwindClassesBuilder::build(
+        let tailwind_classes_build_result = TailwindClassesBuilder::build(
             &nodes,
             &edge_groups,
             &ir_entity_types,
@@ -125,6 +130,8 @@ impl InputToIrDiagramMapper {
             tag_things,
             processes,
         );
+        let tailwind_classes = tailwind_classes_build_result.tailwind_classes;
+        let css_theme_vars = tailwind_classes_build_result.css_theme_vars;
 
         // 12. Build ProcessStepEntities from step_thing_interactions
         let process_step_entities = Self::build_process_step_entities(processes);
@@ -147,10 +154,28 @@ impl InputToIrDiagramMapper {
             node_ranks,
             node_shapes,
             process_step_entities,
-            css: css.clone(),
+            css: Self::css_with_theme_vars(css, &css_theme_vars),
         };
 
         IrDiagramAndIssues { diagram, issues }
+    }
+
+    /// Prepend CSS theme variable definitions to the diagram's CSS.
+    ///
+    /// When `css_theme_vars` is empty the original CSS is returned unchanged.
+    /// Otherwise the variable blocks are placed before any existing CSS so
+    /// that the custom properties are available to all subsequent rules.
+    fn css_with_theme_vars(css: &Css, css_theme_vars: &CssThemeVars) -> Css {
+        if css_theme_vars.is_empty() {
+            return css.clone();
+        }
+
+        let vars_css = css_theme_vars.to_css();
+        if css.is_empty() {
+            Css::from_string(vars_css)
+        } else {
+            Css::from_string(format!("{vars_css}\n{}", css.as_str()))
+        }
     }
 
     /// Creates an Id from a String.
