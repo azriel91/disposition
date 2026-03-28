@@ -450,7 +450,7 @@ impl SvgEdgeInfosBuilder {
     fn face_entries_sort_by_curvature<'id>(
         node_id: &NodeId<'id>,
         face: NodeFace,
-        face_contact_entries: &mut Vec<FaceContactEntry>,
+        face_contact_entries: &mut [FaceContactEntry],
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
     ) {
         let contact_count = face_contact_entries.len();
