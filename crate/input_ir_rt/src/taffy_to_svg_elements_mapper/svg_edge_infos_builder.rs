@@ -36,8 +36,9 @@ impl SvgEdgeInfosBuilder {
     /// the face midpoint:
     ///
     /// 1. **Pass 1** -- iterate every edge group, build paths with zero
-    ///    offsets, register face contacts, and compute sort keys.
-    /// 2. Sort contacts per face globally and compute offsets.
+    ///    offsets, register face contacts, and store path midpoints.
+    /// 2. Sort contacts per face globally using curvature-center-based ordering
+    ///    and compute offsets.
     /// 3. **Pass 2** -- rebuild every path using the calculated offsets, then
     ///    emit `SvgEdgeInfo`s and animation CSS.
     pub(super) fn build<'id>(
@@ -219,8 +220,9 @@ impl SvgEdgeInfosBuilder {
     }
 
     /// **Pass 1** for a single edge group: determines edge types, builds
-    /// zero-offset paths, registers face contacts, computes sort keys,
-    /// and assigns slot indices per face.
+    /// zero-offset paths, registers face contacts, and stores the path
+    /// midpoint for each endpoint so that the global sort phase can
+    /// compute curvature-center-based ordering.
     ///
     /// The returned `EdgeGroupPass1` contains everything needed for
     /// pass 2 to rebuild the paths with offsets.
@@ -264,8 +266,8 @@ impl SvgEdgeInfosBuilder {
                 face_contact_tracker.contact_register(edge.to.clone(), tf);
             }
 
-            // Compute sort keys from the natural path.
-            let (from_sort_key, to_sort_key) = Self::sort_keys_from_path(&path, from_face, to_face);
+            // Compute path midpoint for curvature-center sorting.
+            let path_midpoint = Self::path_midpoint_compute(&path);
 
             pass1_infos.push(EdgePass1Info {
                 edge_index,
@@ -274,8 +276,7 @@ impl SvgEdgeInfosBuilder {
                 edge_type,
                 from_face,
                 to_face,
-                from_sort_key,
-                to_sort_key,
+                path_midpoint,
             });
         }
 
@@ -298,25 +299,30 @@ impl SvgEdgeInfosBuilder {
         }
     }
 
-    /// Computes per-face offset vectors across **all** edge groups.
+    /// Computes per-face offset vectors across **all** edge groups using
+    /// curvature-center-based sorting.
     ///
-    /// This:
-    /// 1. Collects (sort_key, group_index, edge_index, is_from) entries per
-    ///    (node, face) across every group.
-    /// 2. Sorts each face's entries by sort key so spatially leftmost / topmost
-    ///    edges receive the leftmost / topmost offset slot.
-    /// 3. Writes the assigned slot index back into each group's `from_slot` /
-    ///    `to_slot` vectors.
-    /// 4. Computes the actual pixel offset for each slot.
+    /// For each (node, face) the algorithm:
+    ///
+    /// 1. Gathers path midpoints from every edge touching that face.
+    /// 2. Computes a common curvature center -- the mean of all midpoints.
+    /// 3. Projects the curvature center onto the face axis to determine which
+    ///    direction along the face is "toward the center".
+    /// 4. Sorts edges by radius (distance from their midpoint to the curvature
+    ///    center), smallest first.
+    /// 5. Assigns offset slots so that the tightest-radius edge gets the slot
+    ///    nearest to the curvature center along the face, and each successive
+    ///    edge (with a larger radius) gets the next slot away from the center.
+    ///
+    /// This prevents edges from crossing each other: inner curves stay
+    /// on the inside and outer curves stay on the outside.
     fn face_offsets_compute<'edge, 'id>(
         all_pass1_groups: &mut Vec<EdgeGroupPass1<'edge, 'id>>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
         face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
     ) -> Map<(NodeId<'id>, NodeFace), Vec<f32>> {
-        // Collect (sort_key, group_idx, edge_idx_within_group, is_from)
-        // per (node, face).
-        let mut face_entries: Map<(NodeId<'id>, NodeFace), Vec<(f64, usize, usize, bool)>> =
-            Map::new();
+        // Collect (path_midpoint, group_idx, edge_idx, is_from) per (node, face).
+        let mut face_entries: Map<(NodeId<'id>, NodeFace), Vec<FaceContactEntry>> = Map::new();
 
         for (group_idx, group) in all_pass1_groups.iter().enumerate() {
             for (edge_idx, info) in group.pass1_infos.iter().enumerate() {
@@ -324,25 +330,37 @@ impl SvgEdgeInfosBuilder {
                     face_entries
                         .entry((info.edge.from.clone(), ff))
                         .or_default()
-                        .push((info.from_sort_key, group_idx, edge_idx, true));
+                        .push(FaceContactEntry {
+                            midpoint: info.path_midpoint,
+                            group_idx,
+                            edge_idx,
+                            is_from: true,
+                        });
                 }
                 if let Some(tf) = info.to_face {
                     face_entries
                         .entry((info.edge.to.clone(), tf))
                         .or_default()
-                        .push((info.to_sort_key, group_idx, edge_idx, false));
+                        .push(FaceContactEntry {
+                            midpoint: info.path_midpoint,
+                            group_idx,
+                            edge_idx,
+                            is_from: false,
+                        });
                 }
             }
         }
 
-        // Sort each face's entries by sort key and assign slot indices.
-        for (_face_key, entries) in face_entries.iter_mut() {
-            entries.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-            for (slot_idx, &(_, group_idx, edge_idx, is_from)) in entries.iter().enumerate() {
-                if is_from {
-                    all_pass1_groups[group_idx].from_slot[edge_idx] = Some(slot_idx);
+        // Sort each face's entries using curvature-center ordering, then
+        // assign slot indices.
+        for ((node_id, face), entries) in face_entries.iter_mut() {
+            Self::face_entries_sort_by_curvature(node_id, *face, entries, svg_node_info_map);
+
+            for (slot_idx, entry) in entries.iter().enumerate() {
+                if entry.is_from {
+                    all_pass1_groups[entry.group_idx].from_slot[entry.edge_idx] = Some(slot_idx);
                 } else {
-                    all_pass1_groups[group_idx].to_slot[edge_idx] = Some(slot_idx);
+                    all_pass1_groups[entry.group_idx].to_slot[entry.edge_idx] = Some(slot_idx);
                 }
             }
         }
@@ -364,6 +382,79 @@ impl SvgEdgeInfosBuilder {
         }
 
         face_offsets
+    }
+
+    /// Sorts the entries for a single (node, face) so that edges with a
+    /// tighter curve (smaller radius to the common curvature center) are
+    /// placed closer to the curvature center along the face.
+    ///
+    /// # Algorithm
+    ///
+    /// 1. Compute the curvature center as the mean of all path midpoints.
+    /// 2. Determine which direction along the face axis the center lies
+    ///    relative to the node face midpoint.
+    /// 3. For each entry, compute its radius (distance from its midpoint to the
+    ///    curvature center).
+    /// 4. Sort by radius ascending -- smallest radius first.
+    /// 5. Assign sorted entries to slots starting from the slot nearest the
+    ///    curvature center and progressing outward.
+    ///
+    /// The slot ordering produced is:
+    ///
+    /// * If the center is in the "negative" direction along the face (left for
+    ///   Top/Bottom, up for Left/Right), then the smallest radius gets slot 0
+    ///   (most negative offset) and subsequent radii get slots 1, 2, ...
+    /// * If the center is in the "positive" direction, the smallest radius gets
+    ///   the last slot and subsequent radii get decreasing slot indices.
+    fn face_entries_sort_by_curvature<'id>(
+        node_id: &NodeId<'id>,
+        face: NodeFace,
+        entries: &mut Vec<FaceContactEntry>,
+        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+    ) {
+        let count = entries.len();
+        if count <= 1 {
+            return;
+        }
+
+        // Compute curvature center = mean of all midpoints.
+        let center_x = entries.iter().map(|e| e.midpoint.0).sum::<f64>() / count as f64;
+        let center_y = entries.iter().map(|e| e.midpoint.1).sum::<f64>() / count as f64;
+
+        // Face midpoint in absolute coordinates.
+        let (face_mid_x, face_mid_y) =
+            Self::face_midpoint_absolute(node_id, face, svg_node_info_map);
+
+        // Determine whether the curvature center lies in the "negative"
+        // direction along the face axis relative to the face midpoint.
+        //
+        // For Left/Right faces the axis is vertical (y increases downward):
+        //   center above face midpoint => center_y < face_mid_y => negative.
+        // For Top/Bottom faces the axis is horizontal (x increases rightward):
+        //   center to the left => center_x < face_mid_x => negative.
+        let center_toward_negative = match face {
+            NodeFace::Left | NodeFace::Right => center_y < face_mid_y,
+            NodeFace::Top | NodeFace::Bottom => center_x < face_mid_x,
+        };
+
+        // Sort by radius ascending (smallest / tightest curve first).
+        entries.sort_by(|a, b| {
+            let ra = Self::distance(a.midpoint, (center_x, center_y));
+            let rb = Self::distance(b.midpoint, (center_x, center_y));
+            ra.partial_cmp(&rb).unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        // If the center is toward the negative direction, the tightest
+        // edge (index 0 after the sort above) should get slot 0, which
+        // maps to the most-negative offset -- already in the correct
+        // order.
+        //
+        // If the center is toward the positive direction, the tightest
+        // edge should get the *last* slot (most-positive offset), so we
+        // reverse the order.
+        if !center_toward_negative {
+            entries.reverse();
+        }
     }
 
     /// **Pass 2** for a single edge group: rebuilds every path using the
@@ -476,53 +567,65 @@ impl SvgEdgeInfosBuilder {
             .unwrap_or(EdgeType::Unpaired)
     }
 
-    /// Computes sort keys for the from and to endpoints of an edge path.
+    /// Computes the midpoint of a `BezPath` as the mean of its anchor
+    /// points (MoveTo, LineTo, and the final point of CurveTo / QuadTo
+    /// elements).
     ///
-    /// For `Left` / `Right` faces the sort key is the mean y coordinate
-    /// of the path (so that topmost edges get the topmost slot).
-    /// For `Top` / `Bottom` faces the sort key is the mean x coordinate
-    /// (so that leftmost edges get the leftmost slot).
-    ///
-    /// When a face is `None` (contained edge), the sort key is 0.
-    fn sort_keys_from_path(
-        path: &kurbo::BezPath,
-        from_face: Option<NodeFace>,
-        to_face: Option<NodeFace>,
-    ) -> (f64, f64) {
-        let points: Vec<kurbo::Point> = path
-            .elements()
-            .iter()
-            .filter_map(|el| match el {
-                kurbo::PathEl::MoveTo(p) | kurbo::PathEl::LineTo(p) => Some(*p),
-                kurbo::PathEl::CurveTo(_, _, p) => Some(*p),
-                kurbo::PathEl::QuadTo(_, p) => Some(*p),
+    /// Returns `(mean_x, mean_y)` in absolute SVG coordinates.
+    fn path_midpoint_compute(path: &kurbo::BezPath) -> (f64, f64) {
+        let mut sum_x: f64 = 0.0;
+        let mut sum_y: f64 = 0.0;
+        let mut count: usize = 0;
+
+        for el in path.elements() {
+            let pt = match el {
+                kurbo::PathEl::MoveTo(p) | kurbo::PathEl::LineTo(p) => Some(p),
+                kurbo::PathEl::CurveTo(_, _, p) => Some(p),
+                kurbo::PathEl::QuadTo(_, p) => Some(p),
                 kurbo::PathEl::ClosePath => None,
-            })
-            .collect();
+            };
+            if let Some(p) = pt {
+                sum_x += p.x;
+                sum_y += p.y;
+                count += 1;
+            }
+        }
 
-        let mean_x = if points.is_empty() {
-            0.0
+        if count == 0 {
+            (0.0, 0.0)
         } else {
-            points.iter().map(|p| p.x).sum::<f64>() / points.len() as f64
-        };
-        let mean_y = if points.is_empty() {
-            0.0
-        } else {
-            points.iter().map(|p| p.y).sum::<f64>() / points.len() as f64
-        };
+            (sum_x / count as f64, sum_y / count as f64)
+        }
+    }
 
-        let from_key = match from_face {
-            Some(NodeFace::Left | NodeFace::Right) => mean_y,
-            Some(NodeFace::Top | NodeFace::Bottom) => mean_x,
-            None => 0.0,
+    /// Returns the absolute midpoint of a node face.
+    fn face_midpoint_absolute<'id>(
+        node_id: &NodeId<'id>,
+        face: NodeFace,
+        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+    ) -> (f64, f64) {
+        let Some(info) = svg_node_info_map.get(node_id) else {
+            return (0.0, 0.0);
         };
-        let to_key = match to_face {
-            Some(NodeFace::Left | NodeFace::Right) => mean_y,
-            Some(NodeFace::Top | NodeFace::Bottom) => mean_x,
-            None => 0.0,
-        };
+        match face {
+            NodeFace::Top => ((info.x + info.width / 2.0) as f64, info.y as f64),
+            NodeFace::Bottom => (
+                (info.x + info.width / 2.0) as f64,
+                (info.y + info.height_collapsed) as f64,
+            ),
+            NodeFace::Left => (info.x as f64, (info.y + info.height_collapsed / 2.0) as f64),
+            NodeFace::Right => (
+                (info.x + info.width) as f64,
+                (info.y + info.height_collapsed / 2.0) as f64,
+            ),
+        }
+    }
 
-        (from_key, to_key)
+    /// Euclidean distance between two 2D points.
+    fn distance(a: (f64, f64), b: (f64, f64)) -> f64 {
+        let dx = a.0 - b.0;
+        let dy = a.1 - b.1;
+        (dx * dx + dy * dy).sqrt()
     }
 
     /// Returns the face length (in pixels) for the given node and face.
@@ -666,6 +769,22 @@ impl SvgEdgeInfosBuilder {
 
 // === Supporting types === //
 
+/// A single contact entry for the per-face sorting phase.
+///
+/// Stored in `face_offsets_compute` to track which edge touches a given
+/// (node, face) and the path midpoint needed for curvature-center
+/// sorting.
+struct FaceContactEntry {
+    /// Mean anchor point of the edge's zero-offset path.
+    midpoint: (f64, f64),
+    /// Index into `all_pass1_groups`.
+    group_idx: usize,
+    /// Index into the group's `pass1_infos`.
+    edge_idx: usize,
+    /// `true` if this contact is at the "from" endpoint, `false` for "to".
+    is_from: bool,
+}
+
 /// Intermediate per-edge data collected in pass 1 and consumed in pass 2.
 struct EdgePass1Info<'edge, 'id> {
     edge_index: usize,
@@ -676,12 +795,9 @@ struct EdgePass1Info<'edge, 'id> {
     /// applies).
     from_face: Option<NodeFace>,
     to_face: Option<NodeFace>,
-    /// Sort key for the "from" contact on its face. For Left/Right faces
-    /// this is the mean y of the path; for Top/Bottom faces this is the
-    /// mean x.
-    from_sort_key: f64,
-    /// Sort key for the "to" contact on its face.
-    to_sort_key: f64,
+    /// Mean anchor point of the zero-offset path, used to determine
+    /// curvature-center distance during the sort phase.
+    path_midpoint: (f64, f64),
 }
 
 /// All pass-1 data for a single edge group.
