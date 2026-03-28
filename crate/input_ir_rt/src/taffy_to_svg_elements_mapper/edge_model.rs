@@ -1,13 +1,106 @@
-use disposition_ir_model::edge::{Edge, EdgeId};
+use disposition_ir_model::{
+    edge::{Edge, EdgeId},
+    node::NodeId,
+};
 use kurbo::BezPath;
 
 /// Represents a face/side of a rectangular node.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub(super) enum NodeFace {
     Top,
     Bottom,
     Left,
     Right,
+}
+
+/// Identifies a specific face of a specific node.
+///
+/// Used as a map key to group edges that connect to the same face of
+/// the same node, e.g. for spreading contact points or computing
+/// offsets.
+///
+/// # Examples
+///
+/// ```text
+/// NodeIdAndFace { node_id: "server", face: NodeFace::Right }
+/// ```
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub(super) struct NodeIdAndFace<'id> {
+    /// The node this face belongs to.
+    pub(super) node_id: NodeId<'id>,
+    /// Which face of the node.
+    pub(super) face: NodeFace,
+}
+
+/// Mean anchor point of a `BezPath` in absolute SVG coordinates.
+///
+/// Computed from the MoveTo, LineTo, and final CurveTo / QuadTo points
+/// of the path. Used during curvature-center sorting to determine how
+/// tightly each edge curves relative to a common center.
+///
+/// # Examples
+///
+/// ```text
+/// PathMidpoint { x: 150.0, y: 80.0 }
+/// ```
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(super) struct PathMidpoint {
+    /// Mean x coordinate of the path's anchor points.
+    pub(super) x: f64,
+    /// Mean y coordinate of the path's anchor points.
+    pub(super) y: f64,
+}
+
+/// Axis-aligned bounding box of a `BezPath`'s anchor points in absolute
+/// SVG coordinates.
+///
+/// Computed from the same anchor points as `PathMidpoint` (MoveTo,
+/// LineTo, and final CurveTo / QuadTo points). Used to determine the
+/// extremal coordinates when computing the curvature center for
+/// face-contact sorting.
+///
+/// # Examples
+///
+/// ```text
+/// PathBounds { x_min: 100.0, x_max: 200.0, y_min: 50.0, y_max: 130.0 }
+/// ```
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(super) struct PathBounds {
+    /// Minimum x coordinate among the path's anchor points.
+    pub(super) x_min: f64,
+    /// Maximum x coordinate among the path's anchor points.
+    pub(super) x_max: f64,
+    /// Minimum y coordinate among the path's anchor points.
+    pub(super) y_min: f64,
+    /// Maximum y coordinate among the path's anchor points.
+    pub(super) y_max: f64,
+}
+
+/// Ordered pixel offsets for each edge contact point on a single node
+/// face.
+///
+/// The offsets are distributed symmetrically around the face midpoint.
+/// Slot 0 corresponds to the first contact in sorted order (nearest the
+/// curvature center), and subsequent slots progress away from it.
+///
+/// # Examples
+///
+/// For 3 contacts with a 10 px gap: `[-10.0, 0.0, 10.0]`.
+#[derive(Clone, Debug, Default)]
+pub(super) struct EdgeContactPointOffsets(Vec<f32>);
+
+impl EdgeContactPointOffsets {
+    /// Creates a new `EdgeContactPointOffsets` from a vector of pixel
+    /// offsets.
+    pub(super) fn new(offsets: Vec<f32>) -> Self {
+        Self(offsets)
+    }
+
+    /// Returns the offset at the given slot index, or `None` if out of
+    /// bounds.
+    pub(super) fn get(&self, slot: usize) -> Option<f32> {
+        self.0.get(slot).copied()
+    }
 }
 
 /// Whether an edge represents an unpaired forward edge, or the request or

@@ -24,6 +24,7 @@ use self::{
 
 mod arrow_head_builder;
 mod edge_animation_calculator;
+mod edge_face_contact_tracker;
 mod edge_model;
 mod edge_path_builder;
 mod process_step_heights;

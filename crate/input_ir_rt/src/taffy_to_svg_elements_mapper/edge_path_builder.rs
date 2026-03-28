@@ -4,6 +4,18 @@ use kurbo::{BezPath, Point};
 
 use super::edge_model::{EdgeType, NodeFace};
 
+/// Per-endpoint face offset in pixels, applied perpendicular to the
+/// face normal (i.e. along the face).
+///
+/// Positive values shift right / down; negative values shift left / up.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct EdgeFaceOffset {
+    /// Pixel offset applied to the "from" node's contact point.
+    pub(super) from_offset: f32,
+    /// Pixel offset applied to the "to" node's contact point.
+    pub(super) to_offset: f32,
+}
+
 /// Represents the connection geometry for an edge endpoint on a node.
 /// Either the standard rectangular face, or a circle perimeter point.
 #[derive(Clone, Copy, Debug)]
@@ -47,10 +59,27 @@ impl EdgePathBuilder {
     ///
     /// The path is a curved bezier curve that connects the appropriate faces
     /// of the source and target nodes based on their relative positions.
+    ///
+    /// This is a convenience wrapper around `build_with_offsets` with zero
+    /// offsets.
     pub(super) fn build(
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
         edge_type: EdgeType,
+    ) -> BezPath {
+        Self::build_with_offsets(from_info, to_info, edge_type, EdgeFaceOffset::default())
+    }
+
+    /// Builds the SVG path with per-face contact point offsets.
+    ///
+    /// `face_offset.from_offset` shifts the "from" contact point along
+    /// the face (perpendicular to its outward normal). Likewise for
+    /// `face_offset.to_offset`.
+    pub(super) fn build_with_offsets(
+        from_info: &SvgNodeInfo,
+        to_info: &SvgNodeInfo,
+        edge_type: EdgeType,
+        face_offset: EdgeFaceOffset,
     ) -> BezPath {
         // Handle self-loop case
         if from_info.node_id == to_info.node_id {
@@ -79,6 +108,15 @@ impl EdgePathBuilder {
         // Get base connection points
         let (mut start_x, mut start_y) = Self::get_face_center(from_info, from_face);
         let (mut end_x, mut end_y) = Self::get_face_center(to_info, to_face);
+
+        // Apply face contact offsets (spread edges along the face).
+        Self::face_offset_apply(
+            &mut start_x,
+            &mut start_y,
+            from_face,
+            face_offset.from_offset,
+        );
+        Self::face_offset_apply(&mut end_x, &mut end_y, to_face, face_offset.to_offset);
 
         // Apply bidirectional offset
         if edge_type == EdgeType::PairRequest || edge_type == EdgeType::PairResponse {
@@ -134,6 +172,38 @@ impl EdgePathBuilder {
             to_face,
             CURVE_CONTROL_RATIO,
         )
+    }
+
+    /// Returns the (from_face, to_face) that would be selected for an
+    /// edge between two nodes, without building the full path.
+    ///
+    /// For self-loops both faces are `NodeFace::Bottom`.
+    /// For contained edges both faces are `None` (no face-based offset
+    /// applies).
+    pub(super) fn faces_select(
+        from_info: &SvgNodeInfo,
+        to_info: &SvgNodeInfo,
+    ) -> Option<(NodeFace, NodeFace)> {
+        if from_info.node_id == to_info.node_id {
+            // Self-loop: both endpoints touch the bottom face.
+            return Some((NodeFace::Bottom, NodeFace::Bottom));
+        }
+        if Self::is_node_contained_in(from_info, to_info) {
+            // Contained edges bypass face-based contact points.
+            return None;
+        }
+        Some(Self::select_edge_faces(from_info, to_info))
+    }
+
+    /// Applies a pixel offset along a face.
+    ///
+    /// For `Left` / `Right` faces the offset shifts vertically.
+    /// For `Top` / `Bottom` faces the offset shifts horizontally.
+    fn face_offset_apply(x: &mut f32, y: &mut f32, face: NodeFace, offset: f32) {
+        match face {
+            NodeFace::Left | NodeFace::Right => *y += offset,
+            NodeFace::Top | NodeFace::Bottom => *x += offset,
+        }
     }
 
     /// Returns the edge connection geometry for a node.
