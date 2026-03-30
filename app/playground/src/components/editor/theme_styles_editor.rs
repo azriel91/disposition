@@ -27,6 +27,7 @@ pub(crate) mod css_class_partials_card_header;
 pub(crate) mod css_class_partials_card_summary;
 pub(crate) mod css_class_partials_snapshot;
 pub(crate) mod theme_attr_entry;
+pub(crate) mod theme_style_focus_restore;
 
 use dioxus::{
     hooks::{use_context, use_signal},

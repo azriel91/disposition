@@ -17,7 +17,8 @@ use crate::components::editor::{
     common::{ADD_BTN, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS},
     theme_styles_editor::{
         css_class_partials_card::css_card_field_keydown, parse_id_or_defaults, parse_theme_attr,
-        theme_attr_entry::ThemeAttrEntry, theme_attr_name, ThemeStylesTarget, THEME_ATTRS,
+        theme_attr_entry::ThemeAttrEntry, theme_attr_name,
+        theme_style_focus_restore::theme_style_focus_save_restore, ThemeStylesTarget, THEME_ATTRS,
     },
 };
 
@@ -73,20 +74,22 @@ pub fn CssClassPartialsCardAttrs(
                     let key = entry_key.clone();
                     let target = target.clone();
                     move |_| {
-                        if let Some(parsed_key) = parse_id_or_defaults(&key) {
-                            let base = base_diagram.read();
-                            let mut diagram = input_diagram.write();
-                            if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key) {
-                                // Find first ThemeAttr not yet present.
-                                let new_attr = THEME_ATTRS
-                                    .iter()
-                                    .find(|(_, attr)| !partials.partials.contains_key(attr))
-                                    .map(|(_, attr)| *attr);
-                                if let Some(attr) = new_attr {
-                                    partials.partials.insert(attr, String::new());
+                        theme_style_focus_save_restore(|| {
+                            if let Some(parsed_key) = parse_id_or_defaults(&key) {
+                                let base = base_diagram.read();
+                                let mut diagram = input_diagram.write();
+                                if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key) {
+                                    // Find first ThemeAttr not yet present.
+                                    let new_attr = THEME_ATTRS
+                                        .iter()
+                                        .find(|(_, attr)| !partials.partials.contains_key(attr))
+                                        .map(|(_, attr)| *attr);
+                                    if let Some(attr) = new_attr {
+                                        partials.partials.insert(attr, String::new());
+                                    }
                                 }
                             }
-                        }
+                        });
                     }
                 },
                 onkeydown: move |evt| {
@@ -135,14 +138,16 @@ fn CssClassPartialsCardAttrRow(
                             && old_attr != new_attr
                             && let Some(parsed_key) = parse_id_or_defaults(&key)
                         {
-                            let base = base_diagram.read();
-                            let mut diagram = input_diagram.write();
-                            if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key) {
-                                partials.partials.remove(&old_attr);
-                                partials
-                                    .partials
-                                    .insert(new_attr, current_value.clone());
-                            }
+                            theme_style_focus_save_restore(|| {
+                                let base = base_diagram.read();
+                                let mut diagram = input_diagram.write();
+                                if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key) {
+                                    partials.partials.remove(&old_attr);
+                                    partials
+                                        .partials
+                                        .insert(new_attr, current_value.clone());
+                                }
+                            });
                         }
                     }
                 },
@@ -173,13 +178,15 @@ fn CssClassPartialsCardAttrRow(
                     move |evt: dioxus::events::FormEvent| {
                         let new_val = evt.value();
                         if let Some(parsed_key) = parse_id_or_defaults(&key) {
-                            let base = base_diagram.read();
-                            let mut diagram = input_diagram.write();
-                            if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key)
-                                && let Some(v) = partials.partials.get_mut(&attr)
-                            {
-                                *v = new_val;
-                            }
+                            theme_style_focus_save_restore(|| {
+                                let base = base_diagram.read();
+                                let mut diagram = input_diagram.write();
+                                if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key)
+                                    && let Some(v) = partials.partials.get_mut(&attr)
+                                {
+                                    *v = new_val.clone();
+                                }
+                            });
                         }
                     }
                 },
@@ -198,13 +205,15 @@ fn CssClassPartialsCardAttrRow(
                     let attr = theme_attr;
                     let target = target.clone();
                     move |_| {
-                        if let Some(parsed_key) = parse_id_or_defaults(&key) {
-                            let base = base_diagram.read();
-                            let mut diagram = input_diagram.write();
-                            if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key) {
-                                partials.partials.remove(&attr);
+                        theme_style_focus_save_restore(|| {
+                            if let Some(parsed_key) = parse_id_or_defaults(&key) {
+                                let base = base_diagram.read();
+                                let mut diagram = input_diagram.write();
+                                if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key) {
+                                    partials.partials.remove(&attr);
+                                }
                             }
-                        }
+                        });
                     }
                 },
                 onkeydown: move |evt| {

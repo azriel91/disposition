@@ -19,7 +19,8 @@ use crate::components::editor::{
     common::{ADD_BTN, INPUT_CLASS, LABEL_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
     theme_styles_editor::{
-        css_class_partials_card::css_card_field_keydown, parse_id_or_defaults, ThemeStylesTarget,
+        css_class_partials_card::css_card_field_keydown, parse_id_or_defaults,
+        theme_style_focus_restore::theme_style_focus_save_restore, ThemeStylesTarget,
     },
 };
 
@@ -72,16 +73,18 @@ pub fn CssClassPartialsCardAliases(
                     let key = entry_key.clone();
                     let target = target.clone();
                     move |_| {
-                        if let Some(parsed_key) = parse_id_or_defaults(&key) {
-                            let base = base_diagram.read();
-                            let mut diagram = input_diagram.write();
-                            if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key) {
-                                // Default to `shade_light` as a sensible starting alias.
-                                partials
-                                    .style_aliases_applied
-                                    .push(StyleAlias::ShadeLight);
+                        theme_style_focus_save_restore(|| {
+                            if let Some(parsed_key) = parse_id_or_defaults(&key) {
+                                let base = base_diagram.read();
+                                let mut diagram = input_diagram.write();
+                                if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key) {
+                                    // Default to `shade_light` as a sensible starting alias.
+                                    partials
+                                        .style_aliases_applied
+                                        .push(StyleAlias::ShadeLight);
+                                }
                             }
-                        }
+                        });
                     }
                 },
                 onkeydown: move |evt| {
@@ -131,13 +134,15 @@ fn CssClassPartialsCardAliasRow(
                             if let Ok(new_alias_id) = Id::new(&new_val) {
                                 let new_alias =
                                     StyleAlias::from(new_alias_id.into_static()).into_static();
-                                let base = base_diagram.read();
-                                let mut diagram = input_diagram.write();
-                                if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key)
-                                    && alias_idx < partials.style_aliases_applied.len()
-                                {
-                                    partials.style_aliases_applied[alias_idx] = new_alias;
-                                }
+                                theme_style_focus_save_restore(|| {
+                                    let base = base_diagram.read();
+                                    let mut diagram = input_diagram.write();
+                                    if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key)
+                                        && alias_idx < partials.style_aliases_applied.len()
+                                    {
+                                        partials.style_aliases_applied[alias_idx] = new_alias.clone();
+                                    }
+                                });
                             }
                         }
                     }
@@ -156,15 +161,17 @@ fn CssClassPartialsCardAliasRow(
                     let target = target.clone();
                     let alias_idx = alias_index;
                     move |_| {
-                        if let Some(parsed_key) = parse_id_or_defaults(&key) {
-                            let base = base_diagram.read();
-                            let mut diagram = input_diagram.write();
-                            if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key)
-                                && alias_idx < partials.style_aliases_applied.len()
-                            {
-                                partials.style_aliases_applied.remove(alias_idx);
+                        theme_style_focus_save_restore(|| {
+                            if let Some(parsed_key) = parse_id_or_defaults(&key) {
+                                let base = base_diagram.read();
+                                let mut diagram = input_diagram.write();
+                                if let Some(partials) = target.write_entry_mut(&base, &mut diagram, &parsed_key)
+                                    && alias_idx < partials.style_aliases_applied.len()
+                                {
+                                    partials.style_aliases_applied.remove(alias_idx);
+                                }
                             }
-                        }
+                        });
                     }
                 },
                 onkeydown: move |evt| {

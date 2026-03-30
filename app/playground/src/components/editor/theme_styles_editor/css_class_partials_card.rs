@@ -38,7 +38,8 @@ use crate::components::editor::{
         css_class_partials_card_attrs::CssClassPartialsCardAttrs,
         css_class_partials_card_header::CssClassPartialsCardHeader,
         css_class_partials_card_summary::CssClassPartialsCardSummary, parse_id_or_defaults,
-        theme_attr_entry::ThemeAttrEntry, ThemeStylesTarget,
+        theme_attr_entry::ThemeAttrEntry,
+        theme_style_focus_restore::theme_style_focus_save_restore, ThemeStylesTarget,
     },
 };
 
@@ -245,12 +246,14 @@ pub fn CssClassPartialsCard(
                                 let entry_key = entry_key.clone();
                                 let target = target_for_revert.clone();
                                 move |_| {
-                                    if let Some(parsed) = parse_id_or_defaults(&entry_key) {
-                                        let mut diagram = input_diagram.write();
-                                        if let Some(styles) = target.write_mut(&mut diagram) {
-                                            styles.remove(&parsed);
+                                    theme_style_focus_save_restore(|| {
+                                        if let Some(parsed) = parse_id_or_defaults(&entry_key) {
+                                            let mut diagram = input_diagram.write();
+                                            if let Some(styles) = target.write_mut(&mut diagram) {
+                                                styles.remove(&parsed);
+                                            }
                                         }
-                                    }
+                                    });
                                 }
                             },
                             onkeydown: move |evt| {

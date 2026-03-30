@@ -15,7 +15,8 @@ use crate::components::editor::{
     common::{INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE, SELECT_CLASS},
     datalists::list_ids,
     theme_styles_editor::{
-        css_class_partials_card::css_card_field_keydown, parse_id_or_defaults, ThemeStylesTarget,
+        css_class_partials_card::css_card_field_keydown, parse_id_or_defaults,
+        theme_style_focus_restore::theme_style_focus_save_restore, ThemeStylesTarget,
         ID_OR_DEFAULTS_BUILTINS,
     },
 };
@@ -143,22 +144,24 @@ fn CssClassPartialsCardHeaderBuiltinSelect(
                     )
                         && old != new
                     {
-                        let base = base_diagram.read();
-                        let mut diagram = input_diagram.write();
-                        let Some(styles) = target.write_mut(&mut diagram) else {
-                            return;
-                        };
-                        // If entry exists only in base, copy it into the overlay first.
-                        if !styles.contains_key(&old)
-                            && let Some(base_styles) = target.read(&base)
-                                && let Some(base_partials) = base_styles.get(&old) {
-                                    styles.insert(old.clone(), base_partials.clone());
-                                }
-                        if let Some(idx) = styles.get_index_of(&old) {
-                            styles
-                                .replace_index(idx, new)
-                                .expect("Expected new key to be unique after equality check");
-                        }
+                        theme_style_focus_save_restore(|| {
+                            let base = base_diagram.read();
+                            let mut diagram = input_diagram.write();
+                            let Some(styles) = target.write_mut(&mut diagram) else {
+                                return;
+                            };
+                            // If entry exists only in base, copy it into the overlay first.
+                            if !styles.contains_key(&old)
+                                && let Some(base_styles) = target.read(&base)
+                                    && let Some(base_partials) = base_styles.get(&old) {
+                                        styles.insert(old.clone(), base_partials.clone());
+                                    }
+                            if let Some(idx) = styles.get_index_of(&old) {
+                                styles
+                                    .replace_index(idx, new.clone())
+                                    .expect("Expected new key to be unique after equality check");
+                            }
+                        });
                     }
                 }
             },
@@ -206,22 +209,24 @@ fn CssClassPartialsCardHeaderCustomInput(
                     )
                         && old != new
                     {
-                        let base = base_diagram.read();
-                        let mut diagram = input_diagram.write();
-                        let Some(styles) = target.write_mut(&mut diagram) else {
-                            return;
-                        };
-                        // If entry exists only in base, copy it into the overlay first.
-                        if !styles.contains_key(&old)
-                            && let Some(base_styles) = target.read(&base)
-                                && let Some(base_partials) = base_styles.get(&old) {
-                                    styles.insert(old.clone(), base_partials.clone());
-                                }
-                        if let Some(idx) = styles.get_index_of(&old) {
-                            styles
-                                .replace_index(idx, new)
-                                .expect("Expected new key to be unique after equality check");
-                        }
+                        theme_style_focus_save_restore(|| {
+                            let base = base_diagram.read();
+                            let mut diagram = input_diagram.write();
+                            let Some(styles) = target.write_mut(&mut diagram) else {
+                                return;
+                            };
+                            // If entry exists only in base, copy it into the overlay first.
+                            if !styles.contains_key(&old)
+                                && let Some(base_styles) = target.read(&base)
+                                    && let Some(base_partials) = base_styles.get(&old) {
+                                        styles.insert(old.clone(), base_partials.clone());
+                                    }
+                            if let Some(idx) = styles.get_index_of(&old) {
+                                styles
+                                    .replace_index(idx, new.clone())
+                                    .expect("Expected new key to be unique after equality check");
+                            }
+                        });
                     }
                 }
             },
@@ -270,25 +275,27 @@ fn CssClassPartialsCardHeaderToggle(
                         if let Some(new) = new_key
                             && let Some(old) = parse_id_or_defaults(&old_key)
                         {
-                            let base = base_diagram.read();
-                            let mut diagram = input_diagram.write();
-                            let Some(styles) = target.write_mut(&mut diagram) else {
-                                return;
-                            };
-                            // If entry exists only in base, copy it into the overlay first.
-                            if !styles.contains_key(&old)
-                                && let Some(base_styles) = target.read(&base)
-                                    && let Some(base_partials) = base_styles.get(&old) {
-                                        styles.insert(old.clone(), base_partials.clone());
-                                    }
-                            if let Some(idx) = styles.get_index_of(&old) {
-                                styles
-                                    .replace_index(idx, new)
-                                    .expect(
-                                        "Expected new key to be unique; \
-                                         checked for availability above",
-                                    );
-                            }
+                            theme_style_focus_save_restore(|| {
+                                let base = base_diagram.read();
+                                let mut diagram = input_diagram.write();
+                                let Some(styles) = target.write_mut(&mut diagram) else {
+                                    return;
+                                };
+                                // If entry exists only in base, copy it into the overlay first.
+                                if !styles.contains_key(&old)
+                                    && let Some(base_styles) = target.read(&base)
+                                        && let Some(base_partials) = base_styles.get(&old) {
+                                            styles.insert(old.clone(), base_partials.clone());
+                                        }
+                                if let Some(idx) = styles.get_index_of(&old) {
+                                    styles
+                                        .replace_index(idx, new.clone())
+                                        .expect(
+                                            "Expected new key to be unique; \
+                                             checked for availability above",
+                                        );
+                                }
+                            });
                         }
                     }
                 },
