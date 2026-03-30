@@ -50,6 +50,7 @@ use crate::{
         TaffyNodeMappingsDiv,
     },
     editor_state::{EditorPage, EditorState},
+    hooks::{dark_mode_toggle, use_dark_mode},
     route::Route,
     undo_history::{history_push, history_redo, history_undo, UndoHistory},
 };
@@ -168,7 +169,10 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         history_push(undo_history, diagram);
     });
 
-    // Help tooltip visibility.
+    // === Light / Dark mode === //
+    let dark_mode = use_dark_mode();
+
+    // === Help tooltip visibility === //
     let mut show_help: Signal<bool> = use_signal(|| false);
 
     // === Global JS keydown listener for `f` / `Escape` expand toggle === //
@@ -200,9 +204,16 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 var inEditable = (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable);
                 var ctrl = e.ctrlKey || e.metaKey;
 
+                // === l: toggle light/dark mode === //
                 // === f: toggle SVG preview expand === //
                 // Skip if any modifier is held or focus is in an editable element.
                 if (!ctrl && !e.altKey && !e.shiftKey && !inEditable) {{
+                    if (e.key === "l") {{
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dioxus.send("dark_mode_toggle");
+                        return;
+                    }}
                     if (e.key === "f") {{
                         e.preventDefault();
                         e.stopPropagation();
@@ -273,6 +284,9 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
             let mut eval = document::eval(&js);
             loop {
                 match eval.recv::<String>().await {
+                    Ok(msg) if msg == "dark_mode_toggle" => {
+                        dark_mode_toggle(dark_mode);
+                    }
                     Ok(msg) if msg == "svg_toggle" => {
                         let current = *svg_preview_expanded.read();
                         svg_preview_expanded.set(!current);
