@@ -14,7 +14,10 @@ use disposition_input_ir_rt::ThemeValueSource;
 use crate::components::editor::{
     common::{parse_entity_type_id, CARD_CLASS, INPUT_CLASS, REMOVE_BTN, ROW_CLASS_SIMPLE},
     datalists::list_ids,
-    theme_styles_editor::{ThemeStylesEditor, ThemeStylesTarget},
+    theme_styles_editor::{
+        theme_style_focus_restore::theme_style_focus_save_restore, ThemeStylesEditor,
+        ThemeStylesTarget,
+    },
 };
 
 // === CSS === //
@@ -71,26 +74,28 @@ pub fn TypesStylesSection(
                                     parse_entity_type_id(&old_key),
                                     parse_entity_type_id(&new_val),
                                 ) {
-                                    let base = base_diagram.read();
-                                    let mut diagram = input_diagram.write();
-                                    if !diagram.theme_types_styles.contains_key(&new_id) {
-                                        // If entry exists only in base, copy it into the overlay first.
-                                        if !diagram.theme_types_styles.contains_key(&old_id)
-                                            && let Some(base_styles) = base.theme_types_styles.get(&old_id) {
-                                                diagram.theme_types_styles.insert(old_id.clone(), base_styles.clone());
+                                    theme_style_focus_save_restore(|| {
+                                        let base = base_diagram.read();
+                                        let mut diagram = input_diagram.write();
+                                        if !diagram.theme_types_styles.contains_key(&new_id) {
+                                            // If entry exists only in base, copy it into the overlay first.
+                                            if !diagram.theme_types_styles.contains_key(&old_id)
+                                                && let Some(base_styles) = base.theme_types_styles.get(&old_id) {
+                                                    diagram.theme_types_styles.insert(old_id.clone(), base_styles.clone());
+                                                }
+                                            if let Some(idx) =
+                                                diagram.theme_types_styles.get_index_of(&old_id)
+                                            {
+                                                diagram
+                                                    .theme_types_styles
+                                                    .replace_index(idx, new_id.clone())
+                                                    .expect(
+                                                        "Expected new key to be unique; \
+                                                         checked for availability above",
+                                                    );
                                             }
-                                        if let Some(idx) =
-                                            diagram.theme_types_styles.get_index_of(&old_id)
-                                        {
-                                            diagram
-                                                .theme_types_styles
-                                                .replace_index(idx, new_id)
-                                                .expect(
-                                                    "Expected new key to be unique; \
-                                                     checked for availability above",
-                                                );
                                         }
-                                    }
+                                    });
                                 }
                         }
                     },
@@ -125,10 +130,12 @@ pub fn TypesStylesSection(
                         onclick: {
                             let key = type_key.clone();
                             move |_| {
-                                if let Some(type_id) = parse_entity_type_id(&key) {
-                                    let mut diagram = input_diagram.write();
-                                    diagram.theme_types_styles.remove(&type_id);
-                                }
+                                theme_style_focus_save_restore(|| {
+                                    if let Some(type_id) = parse_entity_type_id(&key) {
+                                        let mut diagram = input_diagram.write();
+                                        diagram.theme_types_styles.remove(&type_id);
+                                    }
+                                });
                             }
                         },
                         "Revert to base"

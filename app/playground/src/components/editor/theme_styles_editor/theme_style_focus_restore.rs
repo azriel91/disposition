@@ -11,14 +11,18 @@
 //! work together to fix this:
 //!
 //! 1. [`JS_THEME_FOCUS_SAVE`] -- captures the `data-input-diagram-field` value
-//!    of the card that contains the currently focused element, plus information
-//!    about the inner focused element (tag name, index among siblings of the
-//!    same type, and a `data-action` attribute if present). The snapshot is
-//!    stored on `window.__themeStyleFocusRestore`.
+//!    of the card that contains the currently focused element, **plus** the
+//!    field IDs of all ancestor `[data-input-diagram-field]` elements. This
+//!    ancestor chain allows the restore logic to scope its search to the
+//!    correct section when multiple sections share the same inner card key
+//!    (e.g. multiple `TypesStylesSection` instances each containing a
+//!    `"node_defaults"` card). The snapshot is stored on
+//!    `window.__themeStyleFocusRestore`.
 //!
 //! 2. [`JS_THEME_FOCUS_RESTORE`] -- runs inside `requestAnimationFrame` (so the
 //!    DOM has been updated by Dioxus) and:
-//!    - Finds the card by its `data-input-diagram-field` value.
+//!    - Walks the ancestor chain from outermost to innermost to find the
+//!      correct scoping container, then locates the card within it.
 //!    - If the card is collapsed (has a click-to-expand summary row), expands
 //!      it by clicking the summary.
 //!    - Scrolls the card into view.
@@ -37,6 +41,11 @@ use dioxus::document;
 ///
 /// - `fieldId`: the `data-input-diagram-field` value of the nearest ancestor
 ///   card. This is the stable identifier that survives the positional "jump".
+/// - `ancestorFieldIds`: an array of `data-input-diagram-field` values from the
+///   card's parent elements, ordered from nearest ancestor outward. Used to
+///   scope the restore search when multiple sections share the same inner card
+///   key (e.g. multiple `TypesStylesSection` components each containing a
+///   `"node_defaults"` card).
 /// - `tagName`: the lowercase tag name of the focused element (e.g. `"input"`,
 ///   `"select"`, `"button"`).
 /// - `innerIndex`: the zero-based index of the focused element among siblings
@@ -59,6 +68,16 @@ const JS_THEME_FOCUS_SAVE: &str = "\
     if (!el || el === document.body) { window.__themeStyleFocusRestore = null; return; }\
     var card = el.closest('[' + FIELD_ATTR + ']');\
     var fieldId = card ? card.getAttribute(FIELD_ATTR) : null;\
+    var ancestorFieldIds = [];\
+    if (card) {\
+        var ancestor = card.parentElement;\
+        while (ancestor) {\
+            if (ancestor.hasAttribute && ancestor.hasAttribute(FIELD_ATTR)) {\
+                ancestorFieldIds.push(ancestor.getAttribute(FIELD_ATTR));\
+            }\
+            ancestor = ancestor.parentElement;\
+        }\
+    }\
     var tagName = el.tagName ? el.tagName.toLowerCase() : null;\
     var dataAction = el.getAttribute ? (el.getAttribute('data-action') || null) : null;\
     var placeholder = el.getAttribute ? (el.getAttribute('placeholder') || null) : null;\
@@ -73,6 +92,7 @@ const JS_THEME_FOCUS_SAVE: &str = "\
     }\
     window.__themeStyleFocusRestore = {\
         fieldId: fieldId,\
+        ancestorFieldIds: ancestorFieldIds,\
         tagName: tagName,\
         innerIndex: innerIndex,\
         dataAction: dataAction,\
@@ -86,22 +106,43 @@ const JS_THEME_FOCUS_SAVE: &str = "\
 ///
 /// Uses a two-phase `requestAnimationFrame` approach:
 ///
-/// 1. **Phase 1** (first rAF): find the card, detect collapsed state by
-///    checking for the absence of `input`/`select` elements, expand it by
-///    clicking the first child div (the summary row), and scroll it into view.
+/// 1. **Phase 1** (first rAF): find the card by walking the ancestor chain from
+///    outermost to innermost, detect collapsed state by checking for the
+///    absence of `input`/`select` elements, expand it by clicking the first
+///    child div (the summary row), and scroll it into view.
 /// 2. **Phase 2** (second rAF): the expanded content has rendered, so find and
 ///    focus the inner element.
+///
+/// The ancestor chain (`ancestorFieldIds`) is used to scope the search so
+/// that when multiple sections share the same inner card key (e.g. two
+/// `TypesStylesSection` components both containing a `"node_defaults"` card),
+/// the correct section's card is found.
 ///
 /// Call this **after** the signal write that triggers the re-render.
 const JS_THEME_FOCUS_RESTORE: &str = "\
 requestAnimationFrame(() => {\
     var restore = window.__themeStyleFocusRestore;\
     window.__themeStyleFocusRestore = null;\
-    if (!restore) return;\
+    if (!restore || !restore.fieldId) return;\
     var FIELD_ATTR = 'data-input-diagram-field';\
-    var card = restore.fieldId\
-        ? document.querySelector('[' + FIELD_ATTR + '=\"' + restore.fieldId + '\"]')\
-        : null;\
+    var sel = '[' + FIELD_ATTR + '=\"' + restore.fieldId + '\"]';\
+    var card = null;\
+    var ancestors = restore.ancestorFieldIds || [];\
+    if (ancestors.length > 0) {\
+        var scope = null;\
+        for (var i = ancestors.length - 1; i >= 0; i--) {\
+            var ancSel = '[' + FIELD_ATTR + '=\"' + ancestors[i] + '\"]';\
+            var searchIn = scope || document;\
+            scope = searchIn.querySelector(ancSel);\
+            if (!scope) break;\
+        }\
+        if (scope) {\
+            card = scope.querySelector(sel);\
+        }\
+    }\
+    if (!card) {\
+        card = document.querySelector(sel);\
+    }\
     if (!card) return;\
     var needsExpand = false;\
     var hasInputs = card.querySelector('input, select');\
