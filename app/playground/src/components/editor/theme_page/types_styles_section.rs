@@ -45,6 +45,7 @@ pub fn TypesStylesSection(
     rsx! {
         div {
             class: CARD_CLASS,
+            "data-input-diagram-field": "{type_key}_type_styles_section",
 
             // === Header: type key + remove === //
             div {
