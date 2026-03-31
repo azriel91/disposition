@@ -46,6 +46,12 @@ use dioxus::document;
 ///   scope the restore search when multiple sections share the same inner card
 ///   key (e.g. multiple `TypesStylesSection` components each containing a
 ///   `"node_defaults"` card).
+/// - `isButton`: whether the focused element is a `<button>`.
+/// - `precedingFieldIndex`: when `isButton` is true, the zero-based index of
+///   the closest `input`/`select`/`textarea` that appears before the button in
+///   DOM order within the card. On restore, the element at index
+///   `precedingFieldIndex + 1` is focused -- i.e. the newly inserted field.
+///   `-1` if no preceding field exists (restore will target index `0`).
 /// - `tagName`: the lowercase tag name of the focused element (e.g. `"input"`,
 ///   `"select"`, `"button"`).
 /// - `innerIndex`: the zero-based index of the focused element among siblings
@@ -53,10 +59,6 @@ use dioxus::document;
 ///   correct input when there are multiple inputs in a card.
 /// - `dataAction`: the `data-action` attribute of the focused element, if any
 ///   (e.g. `"remove"`). This disambiguates buttons.
-/// - `isButton`: whether the focused element is a `<button>` (including "Add"
-///   buttons that live outside the card).
-/// - `buttonText`: trimmed `textContent` of the button, used to find "Add"
-///   buttons that don't live inside a card.
 /// - `placeholder`: the `placeholder` attribute of the focused element, if any.
 ///   Used as a secondary disambiguator for inputs.
 ///
@@ -64,6 +66,7 @@ use dioxus::document;
 const JS_THEME_FOCUS_SAVE: &str = "\
 (() => {\
     var FIELD_ATTR = 'data-input-diagram-field';\
+    var FIELD_SEL = 'input, select, textarea';\
     var el = document.activeElement;\
     if (!el || el === document.body) { window.__themeStyleFocusRestore = null; return; }\
     var card = el.closest('[' + FIELD_ATTR + ']');\
@@ -82,7 +85,17 @@ const JS_THEME_FOCUS_SAVE: &str = "\
     var dataAction = el.getAttribute ? (el.getAttribute('data-action') || null) : null;\
     var placeholder = el.getAttribute ? (el.getAttribute('placeholder') || null) : null;\
     var isButton = tagName === 'button';\
-    var buttonText = isButton ? (el.textContent || '').trim() : null;\
+    var precedingFieldIndex = -1;\
+    if (isButton && card) {\
+        var allFields = card.querySelectorAll(FIELD_SEL);\
+        for (var fi = allFields.length - 1; fi >= 0; fi--) {\
+            var cmp = el.compareDocumentPosition(allFields[fi]);\
+            if (cmp & Node.DOCUMENT_POSITION_PRECEDING) {\
+                precedingFieldIndex = fi;\
+                break;\
+            }\
+        }\
+    }\
     var innerIndex = 0;\
     if (card && tagName) {\
         var siblings = card.querySelectorAll(tagName);\
@@ -93,12 +106,12 @@ const JS_THEME_FOCUS_SAVE: &str = "\
     window.__themeStyleFocusRestore = {\
         fieldId: fieldId,\
         ancestorFieldIds: ancestorFieldIds,\
+        isButton: isButton,\
+        precedingFieldIndex: precedingFieldIndex,\
         tagName: tagName,\
         innerIndex: innerIndex,\
         dataAction: dataAction,\
-        placeholder: placeholder,\
-        isButton: isButton,\
-        buttonText: buttonText\
+        placeholder: placeholder\
     };\
 })()";
 
@@ -118,6 +131,10 @@ const JS_THEME_FOCUS_SAVE: &str = "\
 /// `TypesStylesSection` components both containing a `"node_defaults"` card),
 /// the correct section's card is found.
 ///
+/// For button-triggered actions (e.g. "+ Add attribute"), the restore logic
+/// focuses the `input`/`select`/`textarea` at index `precedingFieldIndex + 1`
+/// within the card -- i.e. the first field in the newly inserted row.
+///
 /// Call this **after** the signal write that triggers the re-render.
 const JS_THEME_FOCUS_RESTORE: &str = "\
 requestAnimationFrame(() => {\
@@ -125,6 +142,7 @@ requestAnimationFrame(() => {\
     window.__themeStyleFocusRestore = null;\
     if (!restore || !restore.fieldId) return;\
     var FIELD_ATTR = 'data-input-diagram-field';\
+    var FIELD_SEL = 'input, select, textarea';\
     var sel = '[' + FIELD_ATTR + '=\"' + restore.fieldId + '\"]';\
     var card = null;\
     var ancestors = restore.ancestorFieldIds || [];\
@@ -155,6 +173,24 @@ requestAnimationFrame(() => {\
     }\
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });\
     function tryFocusInner() {\
+        if (restore.isButton) {\
+            var allFields = card.querySelectorAll(FIELD_SEL);\
+            var targetIdx = restore.precedingFieldIndex + 1;\
+            if (targetIdx >= 0 && targetIdx < allFields.length) {\
+                var t = allFields[targetIdx];\
+                t.focus();\
+                if (t.tagName.toLowerCase() === 'input' && t.type !== 'checkbox') {\
+                    try { t.select(); } catch(e) {}\
+                }\
+                return;\
+            }\
+            if (allFields.length > 0) {\
+                allFields[allFields.length - 1].focus();\
+                return;\
+            }\
+            card.focus();\
+            return;\
+        }\
         if (!restore.tagName) { card.focus(); return; }\
         var candidates = card.querySelectorAll(restore.tagName);\
         if (candidates.length === 0) { card.focus(); return; }\
