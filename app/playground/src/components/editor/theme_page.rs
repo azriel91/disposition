@@ -10,6 +10,7 @@
 //! - Tag-things focus styles (`theme_tag_things_focus`)
 //! - Additional CSS (`css`)
 
+pub(crate) mod dark_mode_editor;
 pub(crate) mod style_aliases_section;
 pub(crate) mod tag_focus_section;
 pub(crate) mod types_styles_section;
@@ -40,8 +41,8 @@ use crate::components::editor::{
 };
 
 use self::{
-    style_aliases_section::StyleAliasesSection, tag_focus_section::TagFocusSection,
-    types_styles_section::TypesStylesSection,
+    dark_mode_editor::DarkModeEditor, style_aliases_section::StyleAliasesSection,
+    tag_focus_section::TagFocusSection, types_styles_section::TypesStylesSection,
 };
 
 // === Style Aliases sub-page === //
@@ -230,6 +231,8 @@ pub fn ThemeBaseStylesPage(input_diagram: Signal<InputDiagram<'static>>) -> Elem
                 input_diagram,
                 target: ThemeStylesTarget::BaseStyles,
             }
+
+            DarkModeEditor { input_diagram }
         }
     }
 }
