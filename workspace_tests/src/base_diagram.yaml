@@ -169,13 +169,13 @@ theme_types_styles:
       stroke_width: "2"
   type_tag_default:
     node_defaults:
-      style_aliases_applied: [rounded_sm, shade_medium]
+      style_aliases_applied: [rounded_sm, shade_light]
       stroke_style: "solid"
       shape_color: "emerald"
       stroke_width: "2"
   type_process_default:
     node_defaults:
-      style_aliases_applied: [rounded_sm, shade_medium]
+      style_aliases_applied: [rounded_sm, shade_light]
       stroke_style: "solid"
       shape_color: "blue"
       stroke_width: "2"

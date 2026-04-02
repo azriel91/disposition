@@ -567,7 +567,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             [(
                 IdOrDefaults::NodeDefaults,
                 css_class_partials(
-                    vec![StyleAlias::RoundedSm, StyleAlias::ShadeMedium],
+                    vec![StyleAlias::RoundedSm, StyleAlias::ShadeLight],
                     vec![
                         (ThemeAttr::StrokeStyle, "solid"),
                         (ThemeAttr::ShapeColor, "emerald"),
@@ -584,7 +584,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             [(
                 IdOrDefaults::NodeDefaults,
                 css_class_partials(
-                    vec![StyleAlias::RoundedSm, StyleAlias::ShadeMedium],
+                    vec![StyleAlias::RoundedSm, StyleAlias::ShadeLight],
                     vec![
                         (ThemeAttr::StrokeStyle, "solid"),
                         (ThemeAttr::ShapeColor, "blue"),
