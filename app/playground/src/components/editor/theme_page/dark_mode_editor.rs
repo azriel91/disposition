@@ -1,23 +1,31 @@
-//! Dark mode shade configuration editor.
+//! Dark mode configuration editor.
 //!
 //! Provides radio buttons to select between `Disable`, `Invert`, and
 //! `Shift` variants of `DarkModeShadeConfig`, with a slider for the
 //! shift levels when `Shift` is selected.
+//!
+//! Also provides radio buttons to toggle between `MediaQuery` and
+//! `RootDarkClass` variants of `DarkModeCssSelector`.
 
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
-use disposition::input_model::{theme::DarkModeShadeConfig, InputDiagram};
+use disposition::input_model::{
+    theme::{DarkModeCssSelector, DarkModeShadeConfig},
+    InputDiagram,
+};
 
 use crate::components::editor::common::{LABEL_CLASS, SECTION_HEADING};
 
 // === DarkModeEditor === //
 
-/// Editor for `theme_default.dark_mode_shade_config`.
+/// Editor for `theme_default.dark_mode_config`.
 ///
-/// Displays radio buttons for `Disable`, `Invert`, and `Shift` variants,
-/// plus a levels slider (1--10, default 5) when `Shift` is selected.
+/// Displays radio buttons for `Disable`, `Invert`, and `Shift` shade
+/// variants, plus a levels slider (1--10, default 5) when `Shift` is
+/// selected. Also displays radio buttons for the CSS selector strategy
+/// (`MediaQuery` vs `RootDarkClass`).
 #[component]
 pub fn DarkModeEditor(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let config = input_diagram.read().theme_default.dark_mode_config.shade;
@@ -30,16 +38,20 @@ pub fn DarkModeEditor(input_diagram: Signal<InputDiagram<'static>>) -> Element {
         _ => 5,
     };
 
+    let selector = input_diagram.read().theme_default.dark_mode_config.selector;
+    let is_media_query = matches!(selector, DarkModeCssSelector::MediaQuery);
+    let is_root_dark_class = matches!(selector, DarkModeCssSelector::RootDarkClass);
+
     rsx! {
         div {
             class: "flex flex-col gap-2",
 
-            h3 { class: SECTION_HEADING, "Dark Mode" }
+            // === Shade Config section === //
+
+            h3 { class: SECTION_HEADING, "Dark Mode Shades" }
             p {
                 class: LABEL_CLASS,
-                "Controls how shades are adjusted for dark mode. \
-                 'Disable' emits no dark-mode classes, 'Invert' mirrors shades around 500, \
-                 and 'Shift' offsets shades by a number of levels."
+                "Controls how fill, stroke, and text shades are adjusted for dark mode."
             }
 
             // Radio group
@@ -148,6 +160,68 @@ pub fn DarkModeEditor(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                                     DarkModeShadeConfig::Shift { levels };
                             }
                         },
+                    }
+                }
+            }
+
+            // === CSS Selector section === //
+
+            h3 { class: SECTION_HEADING, "Dark Mode CSS Selector" }
+            p {
+                class: LABEL_CLASS,
+                "Controls which CSS selector wraps the dark-mode variable overrides."
+            }
+
+            div {
+                class: "flex flex-col gap-1",
+
+                // MediaQuery
+                div {
+                    class: "flex flex-col gap-0.5",
+                    label {
+                        class: "flex items-center gap-2 text-sm text-gray-300 cursor-pointer",
+                        "data-input-diagram-field": "theme_dark_mode_selector_media_query",
+                        input {
+                            r#type: "radio",
+                            name: "dark_mode_css_selector",
+                            value: "media_query",
+                            checked: is_media_query,
+                            "data-input-diagram-field": "theme_dark_mode_selector_media_query",
+                            onchange: move |_| {
+                                input_diagram.write().theme_default.dark_mode_config.selector =
+                                    DarkModeCssSelector::MediaQuery;
+                            },
+                        }
+                        "Media Query"
+                    }
+                    p {
+                        class: "text-xs text-gray-500 pl-6",
+                        "Uses @media (prefers-color-scheme: dark). The browser switches automatically based on the OS or browser preference."
+                    }
+                }
+
+                // RootDarkClass
+                div {
+                    class: "flex flex-col gap-0.5",
+                    label {
+                        class: "flex items-center gap-2 text-sm text-gray-300 cursor-pointer",
+                        "data-input-diagram-field": "theme_dark_mode_selector_root_dark_class",
+                        input {
+                            r#type: "radio",
+                            name: "dark_mode_css_selector",
+                            value: "root_dark_class",
+                            checked: is_root_dark_class,
+                            "data-input-diagram-field": "theme_dark_mode_selector_root_dark_class",
+                            onchange: move |_| {
+                                input_diagram.write().theme_default.dark_mode_config.selector =
+                                    DarkModeCssSelector::RootDarkClass;
+                            },
+                        }
+                        "Root Dark Class"
+                    }
+                    p {
+                        class: "text-xs text-gray-500 pl-6",
+                        "Uses :root.dark svg. A surrounding page can toggle dark mode by adding or removing a 'dark' class on the <html> element."
                     }
                 }
             }
