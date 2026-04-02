@@ -1,18 +1,11 @@
 use std::{borrow::Cow, fmt::Write};
 
-use disposition_input_model::theme::ThemeAttr;
+use disposition_input_model::theme::{DarkModeShadeConfig, ThemeAttr};
 use disposition_model_common::Map;
 
 use super::{css_theme_vars::CssThemeVars, tailwind_color_shade::TailwindColorShade};
 
 const CLASSES_BUFFER_WRITE_FAIL: &str = "Failed to write string to buffer";
-
-/// Number of shade levels to shift fill/stroke colours when computing the
-/// dark-mode counterpart.
-///
-/// For example, a light-mode shade of `_100` (index 1) shifted darker by 4
-/// levels becomes `_500` (index 5).
-const DARK_MODE_SHADE_SHIFT: u8 = 4;
 
 /// State for accumulating resolved tailwind class attributes.
 ///
@@ -100,6 +93,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     /// cannot be parsed as a known tailwind shade.
     fn shade_shifted<'a>(
         shade: &'a str,
+        levels: u8,
         shade_normal: Option<&str>,
         shade_hover: Option<&str>,
         shade_focus: Option<&str>,
@@ -113,9 +107,9 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             Self::shade_shift_is_darker(shade_normal, shade_hover, shade_focus, shade_active);
 
         let dark_shade = if shift_darker {
-            shade_parsed.darker(DARK_MODE_SHADE_SHIFT)
+            shade_parsed.darker(levels)
         } else {
-            shade_parsed.lighter(DARK_MODE_SHADE_SHIFT)
+            shade_parsed.lighter(levels)
         };
 
         dark_shade.as_str()
@@ -285,8 +279,13 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     /// Colour classes use CSS variables registered in `css_theme_vars` so that
     /// light/dark mode is handled through variable overrides rather than
     /// `dark:` prefixed tailwind classes.
-    pub(crate) fn write_classes(&self, classes: &mut String, css_theme_vars: &mut CssThemeVars) {
-        self.write_peer_classes(classes, "", css_theme_vars);
+    pub(crate) fn write_classes(
+        &self,
+        classes: &mut String,
+        css_theme_vars: &mut CssThemeVars,
+        dark_mode_shade_config: DarkModeShadeConfig,
+    ) {
+        self.write_peer_classes(classes, "", css_theme_vars, dark_mode_shade_config);
     }
 
     /// Write peer-prefixed classes to the given string for tag/step
@@ -302,15 +301,15 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     ///   classes.
     ///
     /// Each class that contains a colour shade registers a CSS variable in
-    /// `css_theme_vars` with both the light and dark oklch values. Fill and
-    /// stroke shades use a constant **shift** so that the relative ordering of
-    /// highlight-state shades is preserved in dark mode. Text shades use
-    /// **inversion** (mirror around 500).
+    /// `css_theme_vars` with both the light and dark oklch values. The
+    /// `dark_mode_shade_config` parameter controls how dark-mode shades are
+    /// computed: disabled, inverted, or shifted by a number of levels.
     pub(crate) fn write_peer_classes(
         &self,
         classes: &mut String,
         prefix: &str,
         css_theme_vars: &mut CssThemeVars,
+        dark_mode_shade_config: DarkModeShadeConfig,
     ) {
         // Visibility
         if let Some(visibility) = self.attrs.get(&ThemeAttr::Visibility) {
@@ -365,6 +364,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             prefix,
             "hover:",
             "fill",
+            dark_mode_shade_config,
             fill_color_hover,
             fill_shade_hover,
             fill_shade_normal,
@@ -378,6 +378,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             prefix,
             "",
             "fill",
+            dark_mode_shade_config,
             fill_color_normal,
             fill_shade_normal,
             fill_shade_normal,
@@ -391,6 +392,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             prefix,
             "focus:",
             "fill",
+            dark_mode_shade_config,
             fill_color_focus,
             fill_shade_focus,
             fill_shade_normal,
@@ -404,6 +406,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             prefix,
             "active:",
             "fill",
+            dark_mode_shade_config,
             fill_color_active,
             fill_shade_active,
             fill_shade_normal,
@@ -421,6 +424,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             prefix,
             "hover:",
             "stroke",
+            dark_mode_shade_config,
             stroke_color_hover,
             stroke_shade_hover,
             stroke_shade_normal,
@@ -434,6 +438,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             prefix,
             "",
             "stroke",
+            dark_mode_shade_config,
             stroke_color_normal,
             stroke_shade_normal,
             stroke_shade_normal,
@@ -447,6 +452,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             prefix,
             "focus:",
             "stroke",
+            dark_mode_shade_config,
             stroke_color_focus,
             stroke_shade_focus,
             stroke_shade_normal,
@@ -460,6 +466,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             prefix,
             "active:",
             "stroke",
+            dark_mode_shade_config,
             stroke_color_active,
             stroke_shade_active,
             stroke_shade_normal,
@@ -476,33 +483,46 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         let text_color = self.attrs.get(&ThemeAttr::TextColor).map(|c| c.as_ref());
         let text_shade = self.attrs.get(&ThemeAttr::TextShade).map(|c| c.as_ref());
         if let Some((text_color, text_shade)) = text_color.zip(text_shade) {
-            let dark_shade = Self::shade_inverted(text_shade);
-            if let Some(var_name) = css_theme_vars.register(text_color, text_shade, dark_shade) {
-                writeln!(classes, "[&>text]:fill-[var({var_name})]")
-                    .expect(CLASSES_BUFFER_WRITE_FAIL);
-            } else {
-                // Fallback: colour not in the tailwind lookup table, emit
-                // the original class without dark mode support.
-                writeln!(classes, "[&>text]:fill-{text_color}-{text_shade}")
-                    .expect(CLASSES_BUFFER_WRITE_FAIL);
+            match dark_mode_shade_config {
+                DarkModeShadeConfig::Disable => {
+                    writeln!(classes, "[&>text]:fill-{text_color}-{text_shade}")
+                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                }
+                DarkModeShadeConfig::Invert | DarkModeShadeConfig::Shift { .. } => {
+                    let dark_shade = Self::shade_inverted(text_shade);
+                    if let Some(var_name) =
+                        css_theme_vars.register(text_color, text_shade, dark_shade)
+                    {
+                        writeln!(classes, "[&>text]:fill-[var({var_name})]")
+                            .expect(CLASSES_BUFFER_WRITE_FAIL);
+                    } else {
+                        writeln!(classes, "[&>text]:fill-{text_color}-{text_shade}")
+                            .expect(CLASSES_BUFFER_WRITE_FAIL);
+                    }
+                }
             }
         }
     }
 
-    /// Write a shade class for fill or stroke using shade **shifting** for
-    /// dark mode.
+    /// Write a shade class for fill or stroke, handling all three dark-mode
+    /// configurations.
     ///
-    /// Unlike text (which uses shade inversion), fill and stroke dark-mode
-    /// shades are computed by shifting all highlight-state shades by a constant
-    /// number of levels ([`DARK_MODE_SHADE_SHIFT`]). This preserves the
-    /// relative ordering so that, for example, `hover < normal < focus <
-    /// active` in light mode remains `hover < normal < focus < active` in dark
-    /// mode.
+    /// The behaviour depends on `dark_mode_shade_config`:
+    ///
+    /// * [`DarkModeShadeConfig::Disable`] -- emit a plain tailwind class with
+    ///   no dark-mode support.
+    /// * [`DarkModeShadeConfig::Invert`] -- compute the dark-mode shade by
+    ///   inverting (mirroring around 500) and register a CSS variable.
+    /// * [`DarkModeShadeConfig::Shift`] -- compute the dark-mode shade by
+    ///   shifting all highlight-state shades by the configured number of
+    ///   levels. This preserves the relative ordering so that, for example,
+    ///   `hover < normal < focus < active` in light mode remains `hover <
+    ///   normal < focus < active` in dark mode.
     ///
     /// When the colour and shade are known in the tailwind colour table, a CSS
     /// variable is registered in `css_theme_vars` with both the light-mode and
-    /// dark-mode (shade-shifted) oklch values. The emitted class then
-    /// references the variable, e.g. `fill-[var(--tw-blue-100-500)]`.
+    /// dark-mode oklch values. The emitted class then references the variable,
+    /// e.g. `fill-[var(--tw-blue-100-500)]`.
     ///
     /// If the colour is not found in the lookup table the original tailwind
     /// class (e.g. `fill-blue-100`) is emitted without dark mode support.
@@ -518,6 +538,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     /// * `property`: `"fill"` or `"stroke"`.
     /// * `color`: The resolved colour name, e.g. `"yellow"`, `"slate"`.
     /// * `shade`: The resolved shade value for this state, e.g. `"100"`.
+    /// * `dark_mode_shade_config`: Controls how dark-mode shades are computed.
     /// * `shade_normal`: The shade for `HighlightState::Normal` (used to
     ///   determine shift direction).
     /// * `shade_hover`: The shade for `HighlightState::Hover` (used as
@@ -533,6 +554,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         prefix: &str,
         state_modifier: &str,
         property: &str,
+        dark_mode_shade_config: DarkModeShadeConfig,
         color: Option<&str>,
         shade: Option<&str>,
         shade_normal: Option<&str>,
@@ -541,22 +563,54 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         shade_active: Option<&str>,
     ) {
         if let Some((color, shade)) = color.zip(shade) {
-            let dark_shade =
-                Self::shade_shifted(shade, shade_normal, shade_hover, shade_focus, shade_active);
-            if let Some(var_name) = css_theme_vars.register(color, shade, dark_shade) {
-                writeln!(
-                    classes,
-                    "{prefix}{state_modifier}{property}-[var({var_name})]"
-                )
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-            } else {
-                // Fallback: colour not in the tailwind lookup table, emit
-                // the original class without dark mode support.
-                writeln!(
-                    classes,
-                    "{prefix}{state_modifier}{property}-{color}-{shade}"
-                )
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            match dark_mode_shade_config {
+                DarkModeShadeConfig::Disable => {
+                    // No dark mode -- emit plain tailwind class.
+                    writeln!(
+                        classes,
+                        "{prefix}{state_modifier}{property}-{color}-{shade}"
+                    )
+                    .expect(CLASSES_BUFFER_WRITE_FAIL);
+                }
+                DarkModeShadeConfig::Invert => {
+                    let dark_shade = Self::shade_inverted(shade);
+                    if let Some(var_name) = css_theme_vars.register(color, shade, dark_shade) {
+                        writeln!(
+                            classes,
+                            "{prefix}{state_modifier}{property}-[var({var_name})]"
+                        )
+                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                    } else {
+                        writeln!(
+                            classes,
+                            "{prefix}{state_modifier}{property}-{color}-{shade}"
+                        )
+                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                    }
+                }
+                DarkModeShadeConfig::Shift { levels } => {
+                    let dark_shade = Self::shade_shifted(
+                        shade,
+                        levels,
+                        shade_normal,
+                        shade_hover,
+                        shade_focus,
+                        shade_active,
+                    );
+                    if let Some(var_name) = css_theme_vars.register(color, shade, dark_shade) {
+                        writeln!(
+                            classes,
+                            "{prefix}{state_modifier}{property}-[var({var_name})]"
+                        )
+                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                    } else {
+                        writeln!(
+                            classes,
+                            "{prefix}{state_modifier}{property}-{color}-{shade}"
+                        )
+                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                    }
+                }
             }
         }
     }

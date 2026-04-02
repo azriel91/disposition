@@ -277,7 +277,11 @@ impl TailwindClassesBuilder {
         );
 
         let mut classes = String::new();
-        state.write_classes(&mut classes, css_theme_vars);
+        state.write_classes(
+            &mut classes,
+            css_theme_vars,
+            theme_default.dark_mode_shade_config,
+        );
 
         // Tags get peer/{id} class
         writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);
@@ -305,7 +309,11 @@ impl TailwindClassesBuilder {
         );
 
         let mut classes = String::new();
-        state.write_classes(&mut classes, css_theme_vars);
+        state.write_classes(
+            &mut classes,
+            css_theme_vars,
+            theme_default.dark_mode_shade_config,
+        );
 
         // Processes get `peer/{id}` class
         writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);
@@ -334,7 +342,11 @@ impl TailwindClassesBuilder {
         );
 
         let mut classes = String::new();
-        state.write_classes(&mut classes, css_theme_vars);
+        state.write_classes(
+            &mut classes,
+            css_theme_vars,
+            theme_default.dark_mode_shade_config,
+        );
 
         // Process steps get:
         //
@@ -397,7 +409,11 @@ impl TailwindClassesBuilder {
         );
 
         let mut classes = String::new();
-        state.write_classes(&mut classes, css_theme_vars);
+        state.write_classes(
+            &mut classes,
+            css_theme_vars,
+            theme_default.dark_mode_shade_config,
+        );
 
         // Add peer classes for each tag
         Self::build_thing_tailwind_classes_tags(
@@ -495,7 +511,12 @@ impl TailwindClassesBuilder {
             }
 
             let peer_prefix = format!("peer-[:focus-within]/{tag_id}:");
-            tag_focus_state.write_peer_classes(classes, &peer_prefix, css_theme_vars);
+            tag_focus_state.write_peer_classes(
+                classes,
+                &peer_prefix,
+                css_theme_vars,
+                theme_default.dark_mode_shade_config,
+            );
         });
     }
 
@@ -551,7 +572,12 @@ impl TailwindClassesBuilder {
                 });
 
                 let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
-                step_selected_state.write_peer_classes(classes, &peer_prefix, css_theme_vars);
+                step_selected_state.write_peer_classes(
+                    classes,
+                    &peer_prefix,
+                    css_theme_vars,
+                    theme_default.dark_mode_shade_config,
+                );
             });
         }
     }
@@ -587,7 +613,11 @@ impl TailwindClassesBuilder {
         );
 
         let mut classes = String::new();
-        state.write_classes(&mut classes, css_theme_vars);
+        state.write_classes(
+            &mut classes,
+            css_theme_vars,
+            theme_default.dark_mode_shade_config,
+        );
 
         // Add peer classes for each process step that interacts with this edge
         // using styles from `theme_default.process_step_selected_styles.edge_defaults`
@@ -616,7 +646,12 @@ impl TailwindClassesBuilder {
             });
 
             let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
-            step_selected_state.write_peer_classes(&mut classes, &peer_prefix, css_theme_vars);
+            step_selected_state.write_peer_classes(
+                &mut classes,
+                &peer_prefix,
+                css_theme_vars,
+                theme_default.dark_mode_shade_config,
+            );
         });
 
         classes
@@ -643,7 +678,11 @@ impl TailwindClassesBuilder {
         );
 
         let mut classes = String::new();
-        state.write_classes(&mut classes, css_theme_vars);
+        state.write_classes(
+            &mut classes,
+            css_theme_vars,
+            theme_default.dark_mode_shade_config,
+        );
         classes
     }
 

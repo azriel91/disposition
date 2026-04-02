@@ -158,6 +158,9 @@ theme_default:
     edge_defaults:
       visibility: "visible"
 
+  dark_mode_shade_config:
+    mode: invert
+
 # Styles applied to things / edges of a particular `type` specified in `thing_types`.
 theme_types_styles:
   # These are default styles that are built into `disposition`, but may be overridden by users.
