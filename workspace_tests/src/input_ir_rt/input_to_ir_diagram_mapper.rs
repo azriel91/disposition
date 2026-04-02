@@ -698,12 +698,12 @@ fn test_tailwind_classes_shade_resolution() {
     let t_aws_id = id!("t_aws");
     let t_aws_classes = String::from("\n") + diagram.tailwind_classes.get(&t_aws_id).unwrap();
     assert!(
-        t_aws_classes.contains("\nfill-[var(--tw-yellow-100-900)]"),
-        "t_aws should have fill via CSS variable --tw-yellow-100-900 from shade_pale. Got: {t_aws_classes}"
+        t_aws_classes.contains("\nfill-[var(--tw-yellow-100-500)]"),
+        "t_aws should have fill via CSS variable --tw-yellow-100-500 from shade_pale (shifted +4). Got: {t_aws_classes}"
     );
     assert!(
-        t_aws_classes.contains("\nhover:fill-[var(--tw-yellow-50-950)]"),
-        "t_aws should have hover fill via CSS variable --tw-yellow-50-950 from shade_pale. Got: {t_aws_classes}"
+        t_aws_classes.contains("\nhover:fill-[var(--tw-yellow-50-400)]"),
+        "t_aws should have hover fill via CSS variable --tw-yellow-50-400 from shade_pale (shifted +4). Got: {t_aws_classes}"
     );
 
     // t_aws_iam has type_thing_default (shade_light) and type_service
