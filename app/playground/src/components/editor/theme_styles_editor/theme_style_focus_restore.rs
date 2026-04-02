@@ -149,9 +149,9 @@ requestAnimationFrame(() => {\
     if (ancestors.length > 0) {\
         var scope = null;\
         for (var i = ancestors.length - 1; i >= 0; i--) {\
-            var ancSel = '[' + FIELD_ATTR + '=\"' + ancestors[i] + '\"]';\
+            var ancestorSelector = '[' + FIELD_ATTR + '=\"' + ancestors[i] + '\"]';\
             var searchIn = scope || document;\
-            scope = searchIn.querySelector(ancSel);\
+            scope = searchIn.querySelector(ancestorSelector);\
             if (!scope) break;\
         }\
         if (scope) {\
