@@ -50,7 +50,7 @@ impl TailwindClassesBuilder {
         tag_things: &TagThings<'id>,
         processes: &Processes<'id>,
     ) -> TailwindClassesBuildResult<'id> {
-        let mut css_theme_vars = CssThemeVars::default();
+        let mut css_theme_vars = CssThemeVars::new(theme_default.dark_mode_config.selector);
 
         // Build a map of process step ID to (process ID, edge IDs they interact with)
         let step_interactions = Self::build_step_interactions_map(processes);
@@ -280,7 +280,7 @@ impl TailwindClassesBuilder {
         state.write_classes(
             &mut classes,
             css_theme_vars,
-            theme_default.dark_mode_shade_config,
+            theme_default.dark_mode_config.shade,
         );
 
         // Tags get peer/{id} class
@@ -312,7 +312,7 @@ impl TailwindClassesBuilder {
         state.write_classes(
             &mut classes,
             css_theme_vars,
-            theme_default.dark_mode_shade_config,
+            theme_default.dark_mode_config.shade,
         );
 
         // Processes get `peer/{id}` class
@@ -345,7 +345,7 @@ impl TailwindClassesBuilder {
         state.write_classes(
             &mut classes,
             css_theme_vars,
-            theme_default.dark_mode_shade_config,
+            theme_default.dark_mode_config.shade,
         );
 
         // Process steps get:
@@ -412,7 +412,7 @@ impl TailwindClassesBuilder {
         state.write_classes(
             &mut classes,
             css_theme_vars,
-            theme_default.dark_mode_shade_config,
+            theme_default.dark_mode_config.shade,
         );
 
         // Add peer classes for each tag
@@ -515,7 +515,7 @@ impl TailwindClassesBuilder {
                 classes,
                 &peer_prefix,
                 css_theme_vars,
-                theme_default.dark_mode_shade_config,
+                theme_default.dark_mode_config.shade,
             );
         });
     }
@@ -576,7 +576,7 @@ impl TailwindClassesBuilder {
                     classes,
                     &peer_prefix,
                     css_theme_vars,
-                    theme_default.dark_mode_shade_config,
+                    theme_default.dark_mode_config.shade,
                 );
             });
         }
@@ -616,7 +616,7 @@ impl TailwindClassesBuilder {
         state.write_classes(
             &mut classes,
             css_theme_vars,
-            theme_default.dark_mode_shade_config,
+            theme_default.dark_mode_config.shade,
         );
 
         // Add peer classes for each process step that interacts with this edge
@@ -650,7 +650,7 @@ impl TailwindClassesBuilder {
                 &mut classes,
                 &peer_prefix,
                 css_theme_vars,
-                theme_default.dark_mode_shade_config,
+                theme_default.dark_mode_config.shade,
             );
         });
 
@@ -681,7 +681,7 @@ impl TailwindClassesBuilder {
         state.write_classes(
             &mut classes,
             css_theme_vars,
-            theme_default.dark_mode_shade_config,
+            theme_default.dark_mode_config.shade,
         );
         classes
     }

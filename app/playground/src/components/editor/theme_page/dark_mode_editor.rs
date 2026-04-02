@@ -20,7 +20,7 @@ use crate::components::editor::common::{LABEL_CLASS, SECTION_HEADING};
 /// plus a levels slider (1--10, default 5) when `Shift` is selected.
 #[component]
 pub fn DarkModeEditor(input_diagram: Signal<InputDiagram<'static>>) -> Element {
-    let config = input_diagram.read().theme_default.dark_mode_shade_config;
+    let config = input_diagram.read().theme_default.dark_mode_config.shade;
 
     let is_disable = matches!(config, DarkModeShadeConfig::Disable);
     let is_invert = matches!(config, DarkModeShadeConfig::Invert);
@@ -59,7 +59,7 @@ pub fn DarkModeEditor(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                             checked: is_disable,
                             "data-input-diagram-field": "theme_dark_mode_disable",
                             onchange: move |_| {
-                                input_diagram.write().theme_default.dark_mode_shade_config =
+                                input_diagram.write().theme_default.dark_mode_config.shade =
                                     DarkModeShadeConfig::Disable;
                             },
                         }
@@ -84,7 +84,7 @@ pub fn DarkModeEditor(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                             checked: is_invert,
                             "data-input-diagram-field": "theme_dark_mode_invert",
                             onchange: move |_| {
-                                input_diagram.write().theme_default.dark_mode_shade_config =
+                                input_diagram.write().theme_default.dark_mode_config.shade =
                                     DarkModeShadeConfig::Invert;
                             },
                         }
@@ -109,7 +109,7 @@ pub fn DarkModeEditor(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                             checked: is_shift,
                             "data-input-diagram-field": "theme_dark_mode_shift",
                             onchange: move |_| {
-                                input_diagram.write().theme_default.dark_mode_shade_config =
+                                input_diagram.write().theme_default.dark_mode_config.shade =
                                     DarkModeShadeConfig::Shift { levels: shift_levels };
                             },
                         }
@@ -144,7 +144,7 @@ pub fn DarkModeEditor(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                         "data-input-diagram-field": "theme_dark_mode_shift_levels",
                         onchange: move |evt: dioxus::events::FormEvent| {
                             if let Ok(levels) = evt.value().parse::<u8>() {
-                                input_diagram.write().theme_default.dark_mode_shade_config =
+                                input_diagram.write().theme_default.dark_mode_config.shade =
                                     DarkModeShadeConfig::Shift { levels };
                             }
                         },

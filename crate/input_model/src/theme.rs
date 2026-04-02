@@ -1,5 +1,6 @@
 pub use self::{
-    css_class_partials::CssClassPartials, dark_mode_shade_config::DarkModeShadeConfig,
+    css_class_partials::CssClassPartials, dark_mode_config::DarkModeConfig,
+    dark_mode_css_selector::DarkModeCssSelector, dark_mode_shade_config::DarkModeShadeConfig,
     id_or_defaults::IdOrDefaults, style_alias::StyleAlias, style_aliases::StyleAliases,
     tag_id_or_defaults::TagIdOrDefaults, theme_attr::ThemeAttr, theme_default::ThemeDefault,
     theme_styles::ThemeStyles, theme_tag_things_focus::ThemeTagThingsFocus,
@@ -8,6 +9,8 @@ pub use self::{
 };
 
 mod css_class_partials;
+mod dark_mode_config;
+mod dark_mode_css_selector;
 mod dark_mode_shade_config;
 mod id_or_defaults;
 mod style_alias;

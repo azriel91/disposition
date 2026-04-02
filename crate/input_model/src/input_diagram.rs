@@ -10,9 +10,9 @@ use crate::{
     process::Processes,
     tag::{TagNames, TagThings},
     theme::{
-        CssClassPartials, DarkModeShadeConfig, IdOrDefaults, StyleAlias, StyleAliases,
-        TagIdOrDefaults, ThemeAttr, ThemeDefault, ThemeStyles, ThemeTagThingsFocus,
-        ThemeThingDependenciesStyles, ThemeTypesStyles,
+        CssClassPartials, DarkModeConfig, IdOrDefaults, StyleAlias, StyleAliases, TagIdOrDefaults,
+        ThemeAttr, ThemeDefault, ThemeStyles, ThemeTagThingsFocus, ThemeThingDependenciesStyles,
+        ThemeTypesStyles,
     },
     thing::{
         ThingCopyText, ThingDependencies, ThingHierarchy, ThingInteractions, ThingLayouts,
@@ -166,7 +166,7 @@ impl InputDiagram<'static> {
             style_aliases,
             base_styles,
             process_step_selected_styles,
-            dark_mode_shade_config: DarkModeShadeConfig::default(),
+            dark_mode_config: DarkModeConfig::default(),
         };
 
         let theme_types_styles = base_theme_types_styles();
