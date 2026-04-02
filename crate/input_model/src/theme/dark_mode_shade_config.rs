@@ -38,6 +38,7 @@ use serde::{Deserialize, Serialize};
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(tag = "mode", rename_all = "snake_case")]
+#[derive(Default)]
 pub enum DarkModeShadeConfig {
     /// Disables dark mode tailwind classes from being added.
     Disable,
@@ -45,6 +46,7 @@ pub enum DarkModeShadeConfig {
     /// Inverts the shades -- mirrors around 500.
     ///
     /// For example, shade `100` becomes `900`, and `200` becomes `800`.
+    #[default]
     Invert,
 
     /// Shifts shades by a specified number of levels.
@@ -64,9 +66,3 @@ pub enum DarkModeShadeConfig {
 }
 
 // === Trait Implementations === //
-
-impl Default for DarkModeShadeConfig {
-    fn default() -> Self {
-        Self::Invert
-    }
-}

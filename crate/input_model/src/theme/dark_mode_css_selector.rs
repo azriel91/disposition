@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum DarkModeCssSelector {
     /// Uses `@media (prefers-color-scheme: dark) { svg { .. } }`.
     ///
@@ -39,11 +40,6 @@ pub enum DarkModeCssSelector {
     ///
     /// Allows a surrounding website to control dark mode by toggling a
     /// `dark` class on the `<html>` element.
+    #[default]
     RootDarkClass,
-}
-
-impl Default for DarkModeCssSelector {
-    fn default() -> Self {
-        Self::RootDarkClass
-    }
 }
