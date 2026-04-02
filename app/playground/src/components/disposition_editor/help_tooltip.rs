@@ -328,6 +328,11 @@ pub fn HelpTooltip(show_help: Signal<bool>) -> Element {
 
                         div {
                             class: SHORTCUT_ROW,
+                            span { class: KBD_CLASS, "l" }
+                            span { "Toggle light / dark mode." }
+                        }
+                        div {
+                            class: SHORTCUT_ROW,
                             span { class: KBD_CLASS, "f" }
                             span { "Toggle expand / collapse the SVG preview to fill the page." }
                         }

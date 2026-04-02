@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::theme::{StyleAliases, ThemeStyles};
+use crate::theme::{DarkModeConfig, StyleAliases, ThemeStyles};
 
 /// Default theme styles when the diagram has no user interaction.
 ///
@@ -55,6 +55,10 @@ use crate::theme::{StyleAliases, ThemeStyles};
 ///       style_aliases_applied: [shade_pale, stroke_dashed_animated]
 ///     edge_defaults:
 ///       visibility: "visible"
+///   dark_mode_config:
+///     shade:
+///       mode: invert
+///     selector: root_dark_class
 /// ```
 #[cfg_attr(
     all(feature = "openapi", not(feature = "test")),
@@ -79,6 +83,16 @@ pub struct ThemeDefault<'id> {
     /// Styles applied to entities when a process step is selected.
     #[serde(default, skip_serializing_if = "ThemeStyles::is_empty")]
     pub process_step_selected_styles: ThemeStyles<'id>,
+
+    /// Dark mode configuration.
+    ///
+    /// Controls shade adjustment strategy and the CSS selector used for
+    /// dark-mode variable overrides.
+    ///
+    /// Defaults to `DarkModeConfig::default()` (shade: invert, selector:
+    /// root_dark_class).
+    #[serde(default)]
+    pub dark_mode_config: DarkModeConfig,
 }
 
 impl<'id> ThemeDefault<'id> {
@@ -92,5 +106,6 @@ impl<'id> ThemeDefault<'id> {
         self.style_aliases.is_empty()
             && self.base_styles.is_empty()
             && self.process_step_selected_styles.is_empty()
+            && self.dark_mode_config.is_default()
     }
 }

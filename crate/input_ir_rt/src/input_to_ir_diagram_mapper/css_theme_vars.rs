@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+use disposition_input_model::theme::DarkModeCssSelector;
 use disposition_model_common::Set;
 
 use super::tailwind_colors::tailwind_color_lookup;
@@ -31,19 +32,33 @@ struct CssThemeVar {
 ///
 /// Each unique `(color, light_shade, dark_shade)` combination produces one
 /// CSS variable. The variable is defined in an `svg { .. }` block for
-/// light mode and overridden inside
-/// `:root.dark svg { .. }` for dark mode.
+/// light mode and overridden inside a dark-mode block whose selector
+/// depends on the configured [`DarkModeCssSelector`]:
+///
+/// * [`DarkModeCssSelector::MediaQuery`] -- `@media (prefers-color-scheme:
+///   dark) { svg { .. } }`
+/// * [`DarkModeCssSelector::RootDarkClass`] -- `:root.dark svg { .. }`
 ///
 /// Elements then reference these variables via tailwind's
 /// `fill-(--var-name)` / `stroke-(--var-name)` syntax instead of using
 /// separate light and dark class pairs.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub(crate) struct CssThemeVars {
+    /// CSS selector strategy for dark mode overrides.
+    dark_mode_css_selector: DarkModeCssSelector,
     /// Deduplicated set of CSS variable entries.
     vars: Set<CssThemeVar>,
 }
 
 impl CssThemeVars {
+    /// Creates a new `CssThemeVars` with the given dark mode CSS selector.
+    pub(crate) fn new(dark_mode_css_selector: DarkModeCssSelector) -> Self {
+        Self {
+            dark_mode_css_selector,
+            vars: Set::default(),
+        }
+    }
+
     /// Register a color+shade pair and return the CSS variable name.
     ///
     /// If the `(color, light_shade, dark_shade)` combination has already been
@@ -92,16 +107,27 @@ impl CssThemeVars {
     /// Generate the CSS text containing variable definitions for both light
     /// and dark modes.
     ///
-    /// The output looks like:
+    /// When the selector is [`DarkModeCssSelector::RootDarkClass`]:
     ///
     /// ```css
     /// svg {
     ///   --tw-blue-100-900: oklch(93.2% 0.032 255.585);
-    ///   --tw-neutral-900-100: oklch(20.5% 0 0);
     /// }
     /// :root.dark svg {
     ///   --tw-blue-100-900: oklch(37.9% 0.146 265.522);
-    ///   --tw-neutral-900-100: oklch(97% 0 0);
+    /// }
+    /// ```
+    ///
+    /// When the selector is [`DarkModeCssSelector::MediaQuery`]:
+    ///
+    /// ```css
+    /// svg {
+    ///   --tw-blue-100-900: oklch(93.2% 0.032 255.585);
+    /// }
+    /// @media (prefers-color-scheme: dark) {
+    ///   svg {
+    ///     --tw-blue-100-900: oklch(37.9% 0.146 265.522);
+    ///   }
     /// }
     /// ```
     ///
@@ -130,16 +156,32 @@ impl CssThemeVars {
         css.push_str("}\n");
 
         // === Dark mode variables === //
-        css.push_str(":root.dark svg {\n");
-        for css_theme_var in &sorted_vars {
-            writeln!(
-                css,
-                "  {}: {};",
-                css_theme_var.var_name, css_theme_var.dark_value
-            )
-            .expect("Failed to write CSS variable");
+        match self.dark_mode_css_selector {
+            DarkModeCssSelector::MediaQuery => {
+                css.push_str("@media (prefers-color-scheme: dark) {\n  svg {\n");
+                for css_theme_var in &sorted_vars {
+                    writeln!(
+                        css,
+                        "    {}: {};",
+                        css_theme_var.var_name, css_theme_var.dark_value
+                    )
+                    .expect("Failed to write CSS variable");
+                }
+                css.push_str("  }\n}");
+            }
+            DarkModeCssSelector::RootDarkClass => {
+                css.push_str(":root.dark svg {\n");
+                for css_theme_var in &sorted_vars {
+                    writeln!(
+                        css,
+                        "  {}: {};",
+                        css_theme_var.var_name, css_theme_var.dark_value
+                    )
+                    .expect("Failed to write CSS variable");
+                }
+                css.push('}');
+            }
         }
-        css.push('}');
 
         css
     }
@@ -149,32 +191,34 @@ impl CssThemeVars {
 
 #[cfg(test)]
 mod tests {
+    use disposition_input_model::theme::DarkModeCssSelector;
+
     use super::*;
 
     #[test]
     fn register_returns_var_name_for_known_color() {
-        let mut css_theme_vars = CssThemeVars::default();
+        let mut css_theme_vars = CssThemeVars::new(DarkModeCssSelector::RootDarkClass);
         let var_name = css_theme_vars.register("blue", "100", "900");
         assert_eq!(var_name, Some("--tw-blue-100-900".to_string()));
     }
 
     #[test]
     fn register_returns_none_for_unknown_color() {
-        let mut css_theme_vars = CssThemeVars::default();
+        let mut css_theme_vars = CssThemeVars::new(DarkModeCssSelector::RootDarkClass);
         let var_name = css_theme_vars.register("nonexistent", "100", "900");
         assert_eq!(var_name, None);
     }
 
     #[test]
     fn register_returns_none_for_unknown_shade() {
-        let mut css_theme_vars = CssThemeVars::default();
+        let mut css_theme_vars = CssThemeVars::new(DarkModeCssSelector::RootDarkClass);
         let var_name = css_theme_vars.register("blue", "100", "999");
         assert_eq!(var_name, None);
     }
 
     #[test]
     fn register_deduplicates_same_combination() {
-        let mut css_theme_vars = CssThemeVars::default();
+        let mut css_theme_vars = CssThemeVars::new(DarkModeCssSelector::RootDarkClass);
         css_theme_vars.register("blue", "100", "900");
         css_theme_vars.register("blue", "100", "900");
         assert_eq!(css_theme_vars.vars.len(), 1);
@@ -182,7 +226,7 @@ mod tests {
 
     #[test]
     fn register_tracks_different_combinations() {
-        let mut css_theme_vars = CssThemeVars::default();
+        let mut css_theme_vars = CssThemeVars::new(DarkModeCssSelector::RootDarkClass);
         css_theme_vars.register("blue", "100", "900");
         css_theme_vars.register("blue", "200", "800");
         css_theme_vars.register("red", "100", "900");
@@ -191,26 +235,26 @@ mod tests {
 
     #[test]
     fn is_empty_returns_true_when_no_vars_registered() {
-        let css_theme_vars = CssThemeVars::default();
+        let css_theme_vars = CssThemeVars::new(DarkModeCssSelector::RootDarkClass);
         assert!(css_theme_vars.is_empty());
     }
 
     #[test]
     fn is_empty_returns_false_after_registration() {
-        let mut css_theme_vars = CssThemeVars::default();
+        let mut css_theme_vars = CssThemeVars::new(DarkModeCssSelector::RootDarkClass);
         css_theme_vars.register("blue", "100", "900");
         assert!(!css_theme_vars.is_empty());
     }
 
     #[test]
     fn to_css_returns_empty_string_when_no_vars() {
-        let css_theme_vars = CssThemeVars::default();
+        let css_theme_vars = CssThemeVars::new(DarkModeCssSelector::RootDarkClass);
         assert_eq!(css_theme_vars.to_css(), "");
     }
 
     #[test]
     fn to_css_generates_light_and_dark_blocks() {
-        let mut css_theme_vars = CssThemeVars::default();
+        let mut css_theme_vars = CssThemeVars::new(DarkModeCssSelector::RootDarkClass);
         css_theme_vars.register("blue", "100", "900");
 
         let css = css_theme_vars.to_css();
@@ -235,7 +279,7 @@ mod tests {
 
     #[test]
     fn to_css_sorts_variables_by_name() {
-        let mut css_theme_vars = CssThemeVars::default();
+        let mut css_theme_vars = CssThemeVars::new(DarkModeCssSelector::RootDarkClass);
         css_theme_vars.register("red", "100", "900");
         css_theme_vars.register("blue", "100", "900");
 
@@ -251,7 +295,7 @@ mod tests {
 
     #[test]
     fn to_css_handles_same_shade_for_light_and_dark() {
-        let mut css_theme_vars = CssThemeVars::default();
+        let mut css_theme_vars = CssThemeVars::new(DarkModeCssSelector::RootDarkClass);
         css_theme_vars.register("blue", "500", "500");
 
         let css = css_theme_vars.to_css();
@@ -259,6 +303,27 @@ mod tests {
         assert!(
             css.contains("--tw-blue-500-500: oklch(62.3% 0.214 259.815);"),
             "should use the 500 shade value for both: {css}"
+        );
+    }
+
+    #[test]
+    fn to_css_generates_media_query_when_configured() {
+        let mut css_theme_vars = CssThemeVars::new(DarkModeCssSelector::MediaQuery);
+        css_theme_vars.register("blue", "100", "900");
+
+        let css = css_theme_vars.to_css();
+
+        assert!(
+            css.contains("svg {"),
+            "should contain light mode svg block: {css}"
+        );
+        assert!(
+            css.contains("@media (prefers-color-scheme: dark) {"),
+            "should contain media query dark mode block: {css}"
+        );
+        assert!(
+            !css.contains(":root.dark svg {"),
+            "should NOT contain root.dark selector: {css}"
         );
     }
 }

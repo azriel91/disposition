@@ -37,6 +37,7 @@ use self::{
 mod css_theme_vars;
 mod tailwind_class_state;
 mod tailwind_classes_builder;
+mod tailwind_color_shade;
 mod tailwind_colors;
 mod theme_attr_resolver;
 

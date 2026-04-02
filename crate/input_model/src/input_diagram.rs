@@ -10,8 +10,8 @@ use crate::{
     process::Processes,
     tag::{TagNames, TagThings},
     theme::{
-        CssClassPartials, IdOrDefaults, StyleAlias, StyleAliases, TagIdOrDefaults, ThemeAttr,
-        ThemeDefault, ThemeStyles, ThemeTagThingsFocus, ThemeThingDependenciesStyles,
+        CssClassPartials, DarkModeConfig, IdOrDefaults, StyleAlias, StyleAliases, TagIdOrDefaults,
+        ThemeAttr, ThemeDefault, ThemeStyles, ThemeTagThingsFocus, ThemeThingDependenciesStyles,
         ThemeTypesStyles,
     },
     thing::{
@@ -166,6 +166,7 @@ impl InputDiagram<'static> {
             style_aliases,
             base_styles,
             process_step_selected_styles,
+            dark_mode_config: DarkModeConfig::default(),
         };
 
         let theme_types_styles = base_theme_types_styles();
@@ -567,7 +568,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             [(
                 IdOrDefaults::NodeDefaults,
                 css_class_partials(
-                    vec![StyleAlias::RoundedSm, StyleAlias::ShadeMedium],
+                    vec![StyleAlias::RoundedSm, StyleAlias::ShadeLight],
                     vec![
                         (ThemeAttr::StrokeStyle, "solid"),
                         (ThemeAttr::ShapeColor, "emerald"),
@@ -584,7 +585,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             [(
                 IdOrDefaults::NodeDefaults,
                 css_class_partials(
-                    vec![StyleAlias::RoundedSm, StyleAlias::ShadeMedium],
+                    vec![StyleAlias::RoundedSm, StyleAlias::ShadeLight],
                     vec![
                         (ThemeAttr::StrokeStyle, "solid"),
                         (ThemeAttr::ShapeColor, "blue"),

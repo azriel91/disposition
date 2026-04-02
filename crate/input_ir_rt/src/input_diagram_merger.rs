@@ -252,10 +252,15 @@ impl InputDiagramMerger {
             &overlay.process_step_selected_styles,
         );
 
+        // Overlay's dark_mode_config takes precedence over base when
+        // the overlay specifies a non-default value.
+        let dark_mode_config = overlay.dark_mode_config;
+
         ThemeDefault {
             style_aliases,
             base_styles,
             process_step_selected_styles,
+            dark_mode_config,
         }
     }
 

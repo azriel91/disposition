@@ -27,6 +27,7 @@ pub(crate) mod css_class_partials_card_header;
 pub(crate) mod css_class_partials_card_summary;
 pub(crate) mod css_class_partials_snapshot;
 pub(crate) mod theme_attr_entry;
+pub(crate) mod theme_style_focus_restore;
 
 use dioxus::{
     hooks::{use_context, use_signal},
@@ -485,30 +486,30 @@ pub fn ThemeStylesEditor(
                 focus_index: css_card_focus_idx,
 
                 for (idx, entry) in entries.iter().enumerate() {
-                        {
-                            let entry_key = entry.entry_key.clone();
-                            let style_aliases = entry.style_aliases_applied.clone();
-                            let theme_attrs = entry.theme_attrs.clone();
-                            let value_source = entry.value_source;
-                            let target = target.clone();
-                            rsx! {
-                                CssClassPartialsCard {
-                                    key: "entry_{idx}_{entry_key}",
-                                    input_diagram,
-                                    target,
-                                    entry_index: idx,
-                                    entry_count,
-                                    entry_key,
-                                    style_aliases,
-                                    theme_attrs,
-                                    value_source,
-                                    drag_index: css_card_drag_idx,
-                                    drop_target: css_card_drop_target,
-                                    focus_index: css_card_focus_idx,
-                                }
+                    {
+                        let entry_key = entry.entry_key.clone();
+                        let style_aliases = entry.style_aliases_applied.clone();
+                        let theme_attrs = entry.theme_attrs.clone();
+                        let value_source = entry.value_source;
+                        let target = target.clone();
+                        rsx! {
+                            CssClassPartialsCard {
+                                key: "entry_{idx}_{entry_key}",
+                                input_diagram,
+                                target,
+                                entry_index: idx,
+                                entry_count,
+                                entry_key,
+                                style_aliases,
+                                theme_attrs,
+                                value_source,
+                                drag_index: css_card_drag_idx,
+                                drop_target: css_card_drop_target,
+                                focus_index: css_card_focus_idx,
                             }
                         }
                     }
+                }
             }
 
             // === Add entry button === //
