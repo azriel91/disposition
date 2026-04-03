@@ -793,9 +793,15 @@ impl SvgEdgeInfosBuilder {
                 }
 
                 let cx = x_acc + layout.size.width / 2.0;
-                let cy = y_acc + layout.size.height / 2.0;
-                Some((*rank, cx, cy))
+                // Previously this was used when a single waypoint in the middle of the spacer
+                // node was provided.
+                //
+                // ```rust
+                // let cy = y_acc + layout.size.height / 2.0;
+                // ```
+                Some([(*rank, cx, y_acc), (*rank, cx, y_acc + layout.size.height)])
             })
+            .flatten()
             .collect();
 
         rank_positions.sort_by_key(|(rank, _, _)| *rank);
