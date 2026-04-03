@@ -602,6 +602,8 @@ impl IrToTaffyBuilder<'_> {
     /// wrapped to the next line, even though there is space for it. The wrapped
     /// node is then overlapped by the next rank's nodes. The `Stretch`
     /// constraint somehow avoids the first node from wrapping.
+    ///
+    /// Possibly the same issue as <https://github.com/DioxusLabs/taffy/issues/884>.
     fn container_style_invert_and_stretch(container_style: Style) -> Style {
         let flex_direction = match container_style.flex_direction {
             FlexDirection::Row => FlexDirection::Column,
@@ -1106,10 +1108,19 @@ impl IrToTaffyBuilder<'_> {
                         bottom: LengthPercentage::length(flex_layout.padding_bottom()),
                     },
                     border: Rect::length(1.0f32),
-                    // We use `AlignItems::Start` because we want coordinates to be as close to the
-                    // top-left corner as possible. If we use `AlignItems::Center`, the coordinates
-                    // may be negative when the content width exceeds the diagram dimension.
-                    align_items: Some(AlignItems::Start),
+                    // We use `AlignItems::Stretch` because when we use `AlignItems::Start`, even
+                    // though we specify `FlexWrap::NoWrap`, it still wraps -- e.g. when
+                    // `_things_container` is `FlexDirection::Column`, with rank containers being
+                    // `FlexDirection::Row`, for some reason the diagram does not increase in height
+                    // to fit the content when the bottom row would overlap the `_tags_container`.
+                    //
+                    // Previously we used `AlignItems::Start` because we want coordinates to be as
+                    // close to the top-left corner as possible. If we use `AlignItems::Center`, the
+                    // coordinates may be negative when the content width exceeds the diagram
+                    // dimension, and starts outside the diagram bounds.
+                    //
+                    // Possibly the same issue as <https://github.com/DioxusLabs/taffy/issues/884>.
+                    align_items: Some(AlignItems::Stretch),
                     justify_items: Some(AlignItems::Start),
                     align_content: Some(AlignContent::Start),
                     justify_content: Some(AlignContent::Start),
