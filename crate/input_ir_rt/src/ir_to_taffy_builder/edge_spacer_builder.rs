@@ -28,16 +28,22 @@ pub(crate) struct EdgeSpacerBuilder;
 /// A node `b` nested inside `a` at position 0 would have:
 ///
 /// ```text
-/// NodeNestingInfo { nesting_level: 1, nesting_path: [0, 0] }
+/// NodeNestingInfo {
+///     nesting_path: [0, 0],
+///     ancestor_chain: [NodeId("a"), NodeId("b")],
+/// }
 /// ```
 #[derive(Clone, Debug)]
 struct NodeNestingInfo {
-    /// Depth of this node in the hierarchy tree (0 = top-level).
-    nesting_level: u32,
-    /// Sequence of indices at each level from root to this node.
+    /// Sequence of sibling indices at each level from root to this node.
     ///
     /// For example, `[2, 0]` means "third top-level node, first child".
     nesting_path: Vec<usize>,
+    /// Sequence of `NodeId`s from root to this node (inclusive).
+    ///
+    /// For example, for node `c01` inside `c0`, this would be
+    /// `[NodeId("c0"), NodeId("c01")]`.
+    ancestor_chain: Vec<NodeId<'static>>,
 }
 
 // === EdgeSpacerBuilder === //
@@ -91,8 +97,19 @@ impl EdgeSpacerBuilder {
 
     /// Builds spacer taffy nodes for a single edge if it crosses ranks.
     ///
-    /// Returns `None` if the edge does not cross ranks (from and to are
-    /// at the same rank) or if there are no intermediate ranks between them.
+    /// To determine whether an edge visually crosses ranks, we cannot
+    /// simply compare the raw ranks of the edge's `from` and `to` nodes,
+    /// because nested nodes may have ranks computed from their own
+    /// incoming edges rather than from their position in the visual
+    /// layout. Instead, we find the lowest common ancestor (LCA) of the
+    /// two endpoints in the node hierarchy, then compare the ranks of the
+    /// children-of-LCA on each side. Those "divergent ancestor" ranks
+    /// reflect the actual visual rank rows that the edge must cross.
+    ///
+    /// Returns `None` if the edge does not visually cross ranks, or if
+    /// the two endpoints share a non-root common ancestor (in which case
+    /// the spacer would need to be inserted at a nested level, which is
+    /// not yet supported).
     fn edge_spacers_build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge: &Edge<'static>,
@@ -102,35 +119,34 @@ impl EdgeSpacerBuilder {
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
         rank_spacer_counts: &mut BTreeMap<NodeRank, Vec<usize>>,
     ) -> Option<EdgeSpacerTaffyNodes> {
-        let rank_from = node_ranks
-            .get(&edge.from)
-            .copied()
-            .unwrap_or(NodeRank::new(0));
-        let rank_to = node_ranks
-            .get(&edge.to)
-            .copied()
-            .unwrap_or(NodeRank::new(0));
+        let nesting_info_from = node_nesting_info_map.get(&edge.from)?;
+        let nesting_info_to = node_nesting_info_map.get(&edge.to)?;
+
+        // === Find divergent ancestors and their ranks === //
+        let (rank_low, rank_high) =
+            Self::divergent_ancestor_ranks(nesting_info_from, nesting_info_to, node_ranks)?;
 
         // Only insert spacers for edges crossing ranks.
-        if rank_from == rank_to {
+        if rank_low == rank_high {
             return None;
         }
-
-        let (rank_low, rank_high) = if rank_from < rank_to {
-            (rank_from, rank_to)
-        } else {
-            (rank_to, rank_from)
-        };
 
         // If there are no intermediate ranks, no spacers needed.
         if rank_high.value() - rank_low.value() <= 1 {
             return None;
         }
 
-        // Compute the insertion index based on nesting info.
-        let nesting_info_from = node_nesting_info_map.get(&edge.from);
-        let nesting_info_to = node_nesting_info_map.get(&edge.to);
+        // Only insert spacers at the top level when the LCA is the root.
+        // When endpoints share a non-root common ancestor, the spacer
+        // would need to go inside that ancestor's child container, which
+        // is not available in `rank_to_taffy_ids`.
+        let lca_depth = Self::lca_depth(nesting_info_from, nesting_info_to);
+        if lca_depth > 0 {
+            // TODO: support nested spacer insertion.
+            return None;
+        }
 
+        // Compute the insertion index based on nesting info.
         let insertion_base_index =
             Self::insertion_base_index_compute(nesting_info_from, nesting_info_to);
 
@@ -192,44 +208,134 @@ impl EdgeSpacerBuilder {
         Some(spacer_taffy_nodes)
     }
 
+    // === Ancestor chain and LCA === //
+
+    /// Returns the depth of the lowest common ancestor (LCA) of two nodes.
+    ///
+    /// The LCA depth is the length of the longest common prefix of the two
+    /// nodes' `ancestor_chain`s. A depth of `0` means they diverge at the
+    /// top level (no shared ancestor within the hierarchy).
+    ///
+    /// # Examples
+    ///
+    /// * `[a, a01]` and `[c, c01]` -> LCA depth `0` (diverge immediately).
+    /// * `[outer, a, a01]` and `[outer, b, b01]` -> LCA depth `1` (share
+    ///   `outer`).
+    /// * `[outer, inner, x]` and `[outer, inner, y]` -> LCA depth `2` (share
+    ///   `outer` and `inner`).
+    fn lca_depth(info_from: &NodeNestingInfo, info_to: &NodeNestingInfo) -> usize {
+        let max_compare = info_from
+            .ancestor_chain
+            .len()
+            .min(info_to.ancestor_chain.len());
+        let mut depth = 0;
+        for i in 0..max_compare {
+            if info_from.ancestor_chain[i] == info_to.ancestor_chain[i] {
+                depth = i + 1;
+            } else {
+                break;
+            }
+        }
+        depth
+    }
+
+    /// Finds the ranks of the "divergent ancestors" for an edge's two
+    /// endpoints.
+    ///
+    /// The divergent ancestors are the first nodes in each endpoint's
+    /// ancestor chain where the chains differ. Their ranks determine the
+    /// visual rank span that the edge crosses.
+    ///
+    /// For example, given:
+    ///
+    /// ```text
+    /// t_a0 (rank 0):
+    ///   t_a01 (rank 0)
+    /// t_b0 (rank 1)
+    /// t_c0 (rank 2):
+    ///   t_c01 (rank 1)
+    /// ```
+    ///
+    /// An edge from `t_a01` to `t_c01` has ancestor chains `[t_a0, t_a01]`
+    /// and `[t_c0, t_c01]`. The chains diverge at index 0, so the
+    /// divergent ancestors are `t_a0` (rank 0) and `t_c0` (rank 2).
+    /// The returned ranks are `(0, 2)`.
+    ///
+    /// Returns `None` if either endpoint is the same node as the other's
+    /// ancestor (one chain is a prefix of the other), since no
+    /// cross-rank spacer is meaningful in that case.
+    fn divergent_ancestor_ranks(
+        info_from: &NodeNestingInfo,
+        info_to: &NodeNestingInfo,
+        node_ranks: &NodeRanks<'static>,
+    ) -> Option<(NodeRank, NodeRank)> {
+        let lca_depth = Self::lca_depth(info_from, info_to);
+
+        // The divergent ancestor for each endpoint is the node at
+        // `ancestor_chain[lca_depth]` -- the first node after the shared
+        // prefix.
+        let divergent_from = info_from.ancestor_chain.get(lca_depth)?;
+        let divergent_to = info_to.ancestor_chain.get(lca_depth)?;
+
+        let rank_from = node_ranks
+            .get(divergent_from)
+            .copied()
+            .unwrap_or(NodeRank::new(0));
+        let rank_to = node_ranks
+            .get(divergent_to)
+            .copied()
+            .unwrap_or(NodeRank::new(0));
+
+        let (rank_low, rank_high) = if rank_from < rank_to {
+            (rank_from, rank_to)
+        } else {
+            (rank_to, rank_from)
+        };
+
+        Some((rank_low, rank_high))
+    }
+
     // === Nesting info === //
 
     /// Computes the nesting info for all nodes in the hierarchy.
     ///
     /// Walks the hierarchy tree recursively, recording each node's depth
-    /// (nesting level) and index path.
+    /// (nesting level), index path, and ancestor chain.
     fn node_nesting_info_map_build(
         node_hierarchy: &NodeHierarchy<'static>,
     ) -> Map<NodeId<'static>, NodeNestingInfo> {
         let mut result = Map::new();
-        Self::node_nesting_info_map_build_recursive(node_hierarchy, 0, &[], &mut result);
+        Self::node_nesting_info_map_build_recursive(node_hierarchy, &[], &[], &mut result);
         result
     }
 
     /// Recursive helper for building the nesting info map.
     fn node_nesting_info_map_build_recursive(
         hierarchy: &NodeHierarchy<'static>,
-        depth: u32,
         parent_path: &[usize],
+        parent_ancestor_chain: &[NodeId<'static>],
         result: &mut Map<NodeId<'static>, NodeNestingInfo>,
     ) {
         for (index, (node_id, child_hierarchy)) in hierarchy.iter().enumerate() {
             let mut nesting_path = parent_path.to_vec();
             nesting_path.push(index);
 
+            let mut ancestor_chain = parent_ancestor_chain.to_vec();
+            ancestor_chain.push(node_id.clone());
+
             result.insert(
                 node_id.clone(),
                 NodeNestingInfo {
-                    nesting_level: depth,
                     nesting_path: nesting_path.clone(),
+                    ancestor_chain: ancestor_chain.clone(),
                 },
             );
 
             if !child_hierarchy.is_empty() {
                 Self::node_nesting_info_map_build_recursive(
                     child_hierarchy,
-                    depth + 1,
                     &nesting_path,
+                    &ancestor_chain,
                     result,
                 );
             }
@@ -240,31 +346,31 @@ impl EdgeSpacerBuilder {
 
     /// Computes the base insertion index from the nesting info of two nodes.
     ///
-    /// Takes the minimum nesting level of both nodes, gets the nesting
-    /// path index at that level for each node, and returns
-    /// `(from_index + to_index) / 2 + 1`.
+    /// Finds the depth at which the two ancestor chains diverge, then
+    /// uses the sibling indices at that depth to compute a midpoint
+    /// position. Returns `(from_index + to_index) / 2 + 1`.
+    ///
+    /// When the ancestor chains share a common prefix (the nodes have a
+    /// common ancestor), the comparison is done at the first level where
+    /// the chains differ, ensuring the spacer is placed between the
+    /// correct subtrees.
     fn insertion_base_index_compute(
-        nesting_info_from: Option<&NodeNestingInfo>,
-        nesting_info_to: Option<&NodeNestingInfo>,
+        nesting_info_from: &NodeNestingInfo,
+        nesting_info_to: &NodeNestingInfo,
     ) -> usize {
-        let (info_from, info_to) = match (nesting_info_from, nesting_info_to) {
-            (Some(from), Some(to)) => (from, to),
-            // If either node is not in the hierarchy, default to inserting
-            // at position 1.
-            _ => return 1,
-        };
+        let lca_depth = Self::lca_depth(nesting_info_from, nesting_info_to);
 
-        let min_nesting_level = info_from.nesting_level.min(info_to.nesting_level) as usize;
-
-        // Get the index at the minimum nesting level for each node.
-        let from_index = info_from
+        // Get the sibling index at the divergence depth for each node.
+        // This is the position of each node's subtree among the children
+        // of their lowest common ancestor.
+        let from_index = nesting_info_from
             .nesting_path
-            .get(min_nesting_level)
+            .get(lca_depth)
             .copied()
             .unwrap_or(0);
-        let to_index = info_to
+        let to_index = nesting_info_to
             .nesting_path
-            .get(min_nesting_level)
+            .get(lca_depth)
             .copied()
             .unwrap_or(0);
 
