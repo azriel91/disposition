@@ -11,7 +11,7 @@ use disposition_taffy_model::{
     EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx,
 };
 
-const EDGE_SPACER_WIDTH: f32 = 5.0;
+const EDGE_SPACER_LENGTH: f32 = 5.0;
 
 /// Builds spacer taffy nodes for edges that cross multiple ranks.
 ///
@@ -180,8 +180,8 @@ impl EdgeSpacerBuilder {
 
         let spacer_style = Style {
             size: Size {
-                width: taffy::Dimension::length(EDGE_SPACER_WIDTH),
-                height: taffy::Dimension::percent(1.0),
+                width: taffy::Dimension::length(EDGE_SPACER_LENGTH),
+                height: taffy::Dimension::length(EDGE_SPACER_LENGTH),
             },
             ..Default::default()
         };
