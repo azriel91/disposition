@@ -843,7 +843,7 @@ impl InputToIrDiagramMapper {
                 .get(&root_id)
                 .copied()
                 .unwrap_or(FlexDirection::ColumnReverse),
-            true,
+            false,
             entity_types,
             theme_default,
             theme_types_styles,
@@ -858,7 +858,7 @@ impl InputToIrDiagramMapper {
                 .get(&things_and_processes_id)
                 .copied()
                 .unwrap_or(FlexDirection::RowReverse),
-            true,
+            false,
             entity_types,
             theme_default,
             theme_types_styles,
@@ -934,7 +934,7 @@ impl InputToIrDiagramMapper {
                 .get(&tags_container_id)
                 .copied()
                 .unwrap_or(FlexDirection::Row),
-            true,
+            false,
             entity_types,
             theme_default,
             theme_types_styles,
@@ -963,7 +963,7 @@ impl InputToIrDiagramMapper {
                 .get(&things_container_id)
                 .copied()
                 .unwrap_or(FlexDirection::Row),
-            true,
+            false,
             entity_types,
             theme_default,
             theme_types_styles,

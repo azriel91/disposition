@@ -589,21 +589,12 @@ impl IrToTaffyBuilder<'_> {
         node_inbuilt_to_taffy
     }
 
-    /// Sets the flex direction to the opposite of the container style, and
-    /// sets `align_items` to `Stretch`.
+    /// Sets the flex direction to the opposite of the container style.
     ///
     /// The flex direction inversion is because the desired flex direction is
     /// set on the rank container nodes, so when the user has requested `Row`,
     /// each rank container uses the `Row` layout, and the parent of the ranked
     /// containers should be `Column`.
-    ///
-    /// The `align_items: Some(AlignItems::Stretch)` is a hack -- sometimes a
-    /// node that is on a particular rank which should be on the same row is
-    /// wrapped to the next line, even though there is space for it. The wrapped
-    /// node is then overlapped by the next rank's nodes. The `Stretch`
-    /// constraint somehow avoids the first node from wrapping.
-    ///
-    /// Possibly the same issue as <https://github.com/DioxusLabs/taffy/issues/884>.
     fn container_style_invert_and_stretch(container_style: Style) -> Style {
         let flex_direction = match container_style.flex_direction {
             FlexDirection::Row => FlexDirection::Column,
@@ -613,7 +604,6 @@ impl IrToTaffyBuilder<'_> {
         };
         Style {
             flex_direction,
-            align_items: Some(AlignItems::Stretch),
             ..container_style
         }
     }
@@ -1108,19 +1098,11 @@ impl IrToTaffyBuilder<'_> {
                         bottom: LengthPercentage::length(flex_layout.padding_bottom()),
                     },
                     border: Rect::length(1.0f32),
-                    // We use `AlignItems::Stretch` because when we use `AlignItems::Start`, even
-                    // though we specify `FlexWrap::NoWrap`, it still wraps -- e.g. when
-                    // `_things_container` is `FlexDirection::Column`, with rank containers being
-                    // `FlexDirection::Row`, for some reason the diagram does not increase in height
-                    // to fit the content when the bottom row would overlap the `_tags_container`.
-                    //
-                    // Previously we used `AlignItems::Start` because we want coordinates to be as
-                    // close to the top-left corner as possible. If we use `AlignItems::Center`, the
-                    // coordinates may be negative when the content width exceeds the diagram
-                    // dimension, and starts outside the diagram bounds.
-                    //
-                    // Possibly the same issue as <https://github.com/DioxusLabs/taffy/issues/884>.
-                    align_items: Some(AlignItems::Stretch),
+                    // We use `AlignItems::Start` because we want coordinates to be as close to the
+                    // top-left corner as possible. If we use `AlignItems::Center`, the coordinates
+                    // may be negative when the content width exceeds the diagram dimension, and
+                    // starts outside the diagram bounds.
+                    align_items: Some(AlignItems::Start),
                     justify_items: Some(AlignItems::Start),
                     align_content: Some(AlignContent::Start),
                     justify_content: Some(AlignContent::Start),
