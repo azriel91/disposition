@@ -7,7 +7,7 @@ use disposition_ir_model::{
 use disposition_model_common::{edge::EdgeGroupId, Id, Map};
 use disposition_taffy_model::{
     taffy::{self, Size, Style, TaffyTree},
-    EdgeSpacerTaffyNodes, NodeContext, TEXT_LINE_HEIGHT,
+    EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 
 /// Builds spacer taffy nodes for edges that cross multiple ranks.
@@ -50,7 +50,7 @@ impl EdgeSpacerBuilder {
     ///
     /// Returns a map from edge ID to the spacer taffy node IDs at each rank.
     pub(crate) fn build(
-        taffy_tree: &mut TaffyTree<NodeContext>,
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge_groups: &EdgeGroups<'static>,
         node_hierarchy: &NodeHierarchy<'static>,
         node_ranks: &NodeRanks<'static>,
@@ -93,7 +93,7 @@ impl EdgeSpacerBuilder {
     /// Returns `None` if the edge does not cross ranks (from and to are
     /// at the same rank) or if there are no intermediate ranks between them.
     fn edge_spacers_build(
-        taffy_tree: &mut TaffyTree<NodeContext>,
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge: &Edge<'static>,
         node_nesting_info_map: &Map<NodeId<'static>, NodeNestingInfo>,
         node_ranks: &NodeRanks<'static>,
@@ -144,7 +144,10 @@ impl EdgeSpacerBuilder {
             let rank = NodeRank::new(rank_value);
 
             let spacer_taffy_node_id = taffy_tree
-                .new_leaf(spacer_style.clone())
+                .new_leaf_with_context(
+                    spacer_style.clone(),
+                    TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {}),
+                )
                 .expect("Expected to create spacer leaf node.");
 
             // Determine actual insertion index accounting for existing spacers.

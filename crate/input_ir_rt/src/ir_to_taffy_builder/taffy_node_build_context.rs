@@ -9,12 +9,12 @@ use disposition_taffy_model::{
         self, style::FlexDirection, AlignContent, AlignItems, Display, FlexWrap, Size, Style,
         TaffyTree,
     },
-    DiagramLod, NodeContext, NodeToTaffyNodeIds,
+    DiagramLod, NodeToTaffyNodeIds, TaffyNodeCtx,
 };
 use taffy::{LengthPercentage, LengthPercentageAuto, Rect};
 
 pub(crate) struct TaffyNodeBuildContext<'ctx> {
-    pub(crate) taffy_tree: &'ctx mut TaffyTree<NodeContext>,
+    pub(crate) taffy_tree: &'ctx mut TaffyTree<TaffyNodeCtx>,
     pub(crate) nodes: &'ctx NodeNames<'static>,
     pub(crate) node_layouts: &'ctx NodeLayouts<'static>,
     pub(crate) node_hierarchy: &'ctx NodeHierarchy<'static>,

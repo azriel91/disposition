@@ -7,7 +7,7 @@ use disposition_ir_model::{
 };
 use disposition_model_common::{entity::EntityType, theme::Css, Id, Map};
 use disposition_svg_model::{SvgEdgeInfo, SvgNodeInfo};
-use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, NodeContext};
+use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
 use kurbo::Shape;
 
 use disposition_ir_model::entity::EntityTailwindClasses;
@@ -49,7 +49,7 @@ impl SvgEdgeInfosBuilder {
         edge_groups: &EdgeGroups<'id>,
         entity_types: &EntityTypes<'id>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
-        taffy_tree: &TaffyTree<NodeContext>,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
         tailwind_classes: &mut EntityTailwindClasses<'id>,
         css: &mut Css,
@@ -673,7 +673,7 @@ impl SvgEdgeInfosBuilder {
         to_slot_indices: &[Option<usize>],
         face_offsets_by_node_face: &Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
-        taffy_tree: &TaffyTree<NodeContext>,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
         visible_segments_length: f64,
     ) -> Vec<EdgePathInfo<'edge, 'id>> {
@@ -764,7 +764,7 @@ impl SvgEdgeInfosBuilder {
     /// Returns an empty `Vec` when the edge has no spacer nodes.
     fn waypoints_from_spacers<'id>(
         edge_id: &EdgeId<'id>,
-        taffy_tree: &TaffyTree<NodeContext>,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
     ) -> Vec<(f32, f32)> {
         let Some(spacer_nodes) = edge_spacer_taffy_nodes.get(edge_id) else {

@@ -1,6 +1,6 @@
 use disposition_ir_model::{entity::EntityType, node::NodeId, IrDiagram};
 use disposition_model_common::{Map, Set};
-use disposition_taffy_model::{NodeContext, NodeToTaffyNodeIds};
+use disposition_taffy_model::{NodeToTaffyNodeIds, TaffyNodeCtx};
 use taffy::TaffyTree;
 
 use crate::taffy_to_svg_elements_mapper::ProcessStepsHeight;
@@ -16,7 +16,7 @@ impl ProcessStepHeightsCalculator {
     /// node_ordering.
     pub fn calculate<'id>(
         ir_diagram: &IrDiagram<'id>,
-        taffy_tree: &TaffyTree<NodeContext>,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
         node_id_to_taffy: &Map<NodeId<'id>, NodeToTaffyNodeIds>,
     ) -> Vec<ProcessStepsHeight<'id>> {
         let mut process_steps_height = Vec::new();

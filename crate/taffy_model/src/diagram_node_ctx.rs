@@ -1,12 +1,12 @@
 use disposition_model_common::{entity::EntityType, Id};
 
-/// Data stored with each node in the taffy tree.
+/// Context data stored with diagram nodes in the taffy tree.
 #[cfg_attr(
     all(feature = "openapi", not(feature = "test")),
     derive(utoipa::ToSchema)
 )]
 #[derive(Clone, Debug, PartialEq)]
-pub struct NodeContext {
+pub struct DiagramNodeCtx {
     /// ID of the entity from the input / IR diagram.
     pub entity_id: Id<'static>,
     /// Tracks whether this is a `thing`, `process`, `tag`, etc.

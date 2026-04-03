@@ -5,13 +5,13 @@ use disposition_ir_model::{
 use disposition_model_common::Map;
 use taffy::TaffyTree;
 
-use crate::{EdgeSpacerTaffyNodes, EntityHighlightedSpans, NodeContext, NodeToTaffyNodeIds};
+use crate::{EdgeSpacerTaffyNodes, EntityHighlightedSpans, NodeToTaffyNodeIds, TaffyNodeCtx};
 
 /// The taffy tree and mappings from each IR node ID to its `taffy` node ID.
 #[derive(Clone, Debug)]
 pub struct TaffyNodeMappings<'id> {
     /// The taffy tree that contains the layout information for each node.
-    pub taffy_tree: TaffyTree<NodeContext>,
+    pub taffy_tree: TaffyTree<TaffyNodeCtx>,
     /// Map of each inbuilt node (root, thing container, etc.) to its `taffy`
     /// node ID.
     pub node_inbuilt_to_taffy: Map<NodeInbuilt, taffy::NodeId>,
@@ -51,9 +51,9 @@ impl<'id> PartialEq for TaffyNodeMappings<'id> {
 }
 
 fn taffy_nodes_eq(
-    self_taffy_tree: &TaffyTree<NodeContext>,
+    self_taffy_tree: &TaffyTree<TaffyNodeCtx>,
     self_root: Option<taffy::NodeId>,
-    other_taffy_tree: &TaffyTree<NodeContext>,
+    other_taffy_tree: &TaffyTree<TaffyNodeCtx>,
     other_root: Option<taffy::NodeId>,
 ) -> bool {
     self_root == other_root

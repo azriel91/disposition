@@ -17,9 +17,9 @@ use disposition_taffy_model::{
         AlignContent, AlignItems, AvailableSpace, Display, FlexWrap, LengthPercentage, Rect, Size,
         Style, TaffyTree,
     },
-    DiagramLod, Dimension, DimensionAndLod, EdgeSpacerTaffyNodes, EntityHighlightedSpan,
-    EntityHighlightedSpans, IrToTaffyError, NodeContext, NodeToTaffyNodeIds, ProcessesIncluded,
-    TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
+    DiagramLod, DiagramNodeCtx, Dimension, DimensionAndLod, EdgeSpacerTaffyNodes,
+    EntityHighlightedSpan, EntityHighlightedSpans, IrToTaffyError, NodeToTaffyNodeIds,
+    ProcessesIncluded, TaffyNodeCtx, TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
 };
 use taffy::prelude::TaffyZero;
 use typed_builder::TypedBuilder;
@@ -255,12 +255,12 @@ impl IrToTaffyBuilder<'_> {
                     width: AvailableSpace::Definite(dimension.width()),
                     height: AvailableSpace::Definite(dimension.height()),
                 },
-                |known_dimensions, available_space, _taffy_node_id, node_context, style| {
+                |known_dimensions, available_space, _taffy_node_id, taffy_node_ctx, style| {
                     Self::node_size_measure(
                         &mut node_measure_context,
                         known_dimensions,
                         available_space,
-                        node_context,
+                        taffy_node_ctx,
                         style,
                     )
                 },
@@ -294,7 +294,7 @@ impl IrToTaffyBuilder<'_> {
     /// This is much more efficient than doing it during measure() which gets
     /// called multiple times.
     fn highlighted_spans_compute(
-        taffy_tree: &TaffyTree<NodeContext>,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
         node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
         nodes: &NodeNames<'static>,
         entity_descs: &EntityDescs<'static>,
@@ -309,15 +309,18 @@ impl IrToTaffyBuilder<'_> {
         node_id_to_taffy
             .iter()
             .for_each(|(node_id, &taffy_node_ids)| {
-                let (wrapper_node_layout, text_node_layout, node_context) = match taffy_node_ids {
+                let (wrapper_node_layout, text_node_layout, diagram_node_ctx) = match taffy_node_ids
+                {
                     NodeToTaffyNodeIds::Leaf { text_node_id } => {
                         let Ok(text_node_layout) = taffy_tree.layout(text_node_id) else {
                             return;
                         };
-                        let Some(node_context) = taffy_tree.get_node_context(text_node_id) else {
+                        let Some(TaffyNodeCtx::DiagramNode(diagram_node_ctx)) =
+                            taffy_tree.get_node_context(text_node_id)
+                        else {
                             return;
                         };
-                        (text_node_layout, text_node_layout, node_context)
+                        (text_node_layout, text_node_layout, diagram_node_ctx)
                     }
                     NodeToTaffyNodeIds::Wrapper {
                         wrapper_node_id,
@@ -340,11 +343,13 @@ impl IrToTaffyBuilder<'_> {
                         let Ok(text_node_layout) = taffy_tree.layout(text_node_id) else {
                             return;
                         };
-                        let Some(node_context) = taffy_tree.get_node_context(text_node_id) else {
+                        let Some(TaffyNodeCtx::DiagramNode(diagram_node_ctx)) =
+                            taffy_tree.get_node_context(text_node_id)
+                        else {
                             return;
                         };
 
-                        (wrapper_node_layout, text_node_layout, node_context)
+                        (wrapper_node_layout, text_node_layout, diagram_node_ctx)
                     }
                 };
                 let text_label_offset = match taffy_node_ids {
@@ -374,7 +379,7 @@ impl IrToTaffyBuilder<'_> {
                         .unwrap_or_default(),
                 };
 
-                let entity_id = &node_context.entity_id;
+                let entity_id = &diagram_node_ctx.entity_id;
 
                 // Build the text content
                 let node_name = nodes
@@ -450,7 +455,7 @@ impl IrToTaffyBuilder<'_> {
     /// parent `NodeInbuilt` container. The returned `Vec` contains one taffy
     /// node per rank, ordered by rank.
     fn build_taffy_rank_containers_for_first_level_nodes(
-        taffy_tree: &mut TaffyTree<NodeContext>,
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         node_layouts: &NodeLayouts,
         node_inbuilt: NodeInbuilt,
         rank_to_taffy_ids: BTreeMap<NodeRank, Vec<taffy::NodeId>>,
@@ -487,7 +492,7 @@ impl IrToTaffyBuilder<'_> {
 
     /// Adds the inbuilt container nodes to the `TaffyTree`.
     fn build_taffy_container_nodes(
-        taffy_tree: &mut TaffyTree<NodeContext>,
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         taffy_id_to_node: &mut Map<taffy::NodeId, NodeId>,
         node_layouts: &NodeLayouts,
         dimension: &disposition_taffy_model::Dimension,
@@ -773,7 +778,7 @@ impl IrToTaffyBuilder<'_> {
     }
 
     fn build_taffy_nodes_for_node_without_child_hierarchy(
-        taffy_tree: &mut TaffyTree<NodeContext>,
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         node_layouts: &NodeLayouts<'static>,
         node_shapes: &NodeShapes<'static>,
         node_id_to_taffy: &mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
@@ -791,10 +796,10 @@ impl IrToTaffyBuilder<'_> {
                 let taffy_text_node_id = taffy_tree
                     .new_leaf_with_context(
                         taffy_style,
-                        NodeContext {
+                        TaffyNodeCtx::DiagramNode(DiagramNodeCtx {
                             entity_id: node_id.clone(),
                             entity_type: entity_type.clone(),
-                        },
+                        }),
                     )
                     .unwrap_or_else(|e| {
                         panic!("Expected to create text leaf node for {node_id}. Error: {e}")
@@ -838,10 +843,10 @@ impl IrToTaffyBuilder<'_> {
                 let taffy_text_node_id = taffy_tree
                     .new_leaf_with_context(
                         text_style,
-                        NodeContext {
+                        TaffyNodeCtx::DiagramNode(DiagramNodeCtx {
                             entity_id: node_id.clone(),
                             entity_type: entity_type.clone(),
-                        },
+                        }),
                     )
                     .unwrap_or_else(|e| {
                         panic!("Expected to create text leaf node for {node_id}. Error: {e}")
@@ -883,7 +888,7 @@ impl IrToTaffyBuilder<'_> {
     #[allow(clippy::too_many_arguments)]
     fn build_taffy_nodes_for_node_with_child_hierarchy(
         nodes: &NodeNames<'static>,
-        taffy_tree: &mut TaffyTree<NodeContext>,
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         node_layouts: &NodeLayouts<'static>,
         node_shapes: &NodeShapes<'static>,
         entity_types: &EntityTypes<'static>,
@@ -904,10 +909,10 @@ impl IrToTaffyBuilder<'_> {
         let taffy_text_node_id = taffy_tree
             .new_leaf_with_context(
                 text_style,
-                NodeContext {
+                TaffyNodeCtx::DiagramNode(DiagramNodeCtx {
                     entity_id: node_id.clone(),
                     entity_type: entity_type.clone(),
-                },
+                }),
             )
             .unwrap_or_else(|e| {
                 panic!("Expected to create text leaf node for {node_id}. Error: {e}")
@@ -1057,7 +1062,7 @@ impl IrToTaffyBuilder<'_> {
     /// * `max_size`: Maximum size of the node.
     /// * `child_node_ids`: IDs of child nodes to add to the container.
     fn taffy_container_node(
-        taffy_tree: &mut TaffyTree<NodeContext>,
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         node_layouts: &NodeLayouts,
         node_inbuilt: NodeInbuilt,
         max_size: Size<taffy::Dimension>,
@@ -1210,7 +1215,7 @@ impl IrToTaffyBuilder<'_> {
         node_measure_context: &mut NodeMeasureContext<'_>,
         known_dimensions: Size<Option<f32>>,
         available_space: Size<AvailableSpace>,
-        node_context: Option<&mut NodeContext>,
+        taffy_node_ctx: Option<&mut TaffyNodeCtx>,
         style: &taffy::Style,
     ) -> Size<f32> {
         if let Size {
@@ -1228,26 +1233,29 @@ impl IrToTaffyBuilder<'_> {
             lod,
         } = node_measure_context;
 
-        let text = node_context
+        let text = taffy_node_ctx
             .as_ref()
-            .map(|node_context| {
-                let entity_id = &node_context.entity_id;
-                let node_name = nodes
-                    .get(entity_id)
-                    .map(String::as_str)
-                    .unwrap_or_else(|| entity_id.as_str());
+            .and_then(|taffy_node_ctx| match taffy_node_ctx {
+                TaffyNodeCtx::DiagramNode(diagram_node_ctx) => {
+                    let entity_id = &diagram_node_ctx.entity_id;
+                    let node_name = nodes
+                        .get(entity_id)
+                        .map(String::as_str)
+                        .unwrap_or_else(|| entity_id.as_str());
 
-                match lod {
-                    DiagramLod::Simple => Cow::Borrowed(node_name),
-                    DiagramLod::Normal => {
-                        let node_desc = entity_descs.get(entity_id).map(String::as_str);
+                    match lod {
+                        DiagramLod::Simple => Some(Cow::Borrowed(node_name)),
+                        DiagramLod::Normal => {
+                            let node_desc = entity_descs.get(entity_id).map(String::as_str);
 
-                        match node_desc {
-                            Some(desc) => Cow::Owned(format!("# {node_name}\n\n{desc}")),
-                            None => Cow::Borrowed(node_name),
+                            match node_desc {
+                                Some(desc) => Some(Cow::Owned(format!("# {node_name}\n\n{desc}"))),
+                                None => Some(Cow::Borrowed(node_name)),
+                            }
                         }
                     }
                 }
+                TaffyNodeCtx::EdgeSpacer(_) => None,
             })
             .unwrap_or(Cow::Borrowed(""));
 
