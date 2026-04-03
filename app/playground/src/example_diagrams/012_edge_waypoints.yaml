@@ -1,0 +1,55 @@
+# Should render something like this:
+#
+# ```text
+# .------------------.
+# |    A0            |
+# | .-----.  .-----. |
+# | | A01 |  | A02 | |
+# | '-+-+-'  '-----' |
+# '---|--\-----------'
+#     |   \
+# .---+--. \
+# |  B0  | |
+# '---+--' |
+#     |    |
+# .---+----|-.
+# |    C0 /  |
+# | .----+.  |
+# | | C01 |  |
+# | '-----'  |
+# '----------'
+# ```
+things:
+  t_a0: A0
+  t_a01: A01
+  t_a02: A02
+  t_b0: B0
+  t_c0: C0
+  t_c01: C01
+
+thing_hierarchy:
+  t_a0:
+    t_a01: {}
+    t_a02: {}
+  t_b0: {}
+  t_c0:
+    t_c01: {}
+
+thing_dependencies:
+  e_dep_a01_b0:
+    kind: sequence
+    things:
+      - t_a01
+      - t_b0
+
+  e_dep_b0_c0:
+    kind: sequence
+    things:
+      - t_b0
+      - t_c0
+
+  e_dep_a01_c01:
+    kind: sequence
+    things:
+      - t_a01
+      - t_c01
