@@ -160,6 +160,8 @@ impl TaffyToSvgElementsMapper {
             &ir_diagram.edge_groups,
             &ir_diagram.entity_types,
             &svg_node_info_map,
+            taffy_tree,
+            edge_spacer_taffy_nodes,
             &mut tailwind_classes,
             &mut css,
             edge_animation_active,

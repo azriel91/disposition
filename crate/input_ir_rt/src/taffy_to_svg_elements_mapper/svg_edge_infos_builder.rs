@@ -2,11 +2,12 @@ use disposition_input_ir_model::EdgeAnimationActive;
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeGroups, EdgeId},
     entity::EntityTypes,
-    node::NodeId,
+    node::{NodeId, NodeRank},
     process::ProcessStepEntities,
 };
 use disposition_model_common::{entity::EntityType, theme::Css, Id, Map};
 use disposition_svg_model::{SvgEdgeInfo, SvgNodeInfo};
+use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, NodeContext};
 use kurbo::Shape;
 
 use disposition_ir_model::entity::EntityTailwindClasses;
@@ -48,6 +49,8 @@ impl SvgEdgeInfosBuilder {
         edge_groups: &EdgeGroups<'id>,
         entity_types: &EntityTypes<'id>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        taffy_tree: &TaffyTree<NodeContext>,
+        edge_spacer_taffy_nodes: &Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
         tailwind_classes: &mut EntityTailwindClasses<'id>,
         css: &mut Css,
         edge_animation_active: EdgeAnimationActive,
@@ -138,6 +141,8 @@ impl SvgEdgeInfosBuilder {
                 &to_slot_indices,
                 &face_offsets_by_node_face,
                 svg_node_info_map,
+                taffy_tree,
+                edge_spacer_taffy_nodes,
                 visible_segments_length,
             );
 
@@ -668,6 +673,8 @@ impl SvgEdgeInfosBuilder {
         to_slot_indices: &[Option<usize>],
         face_offsets_by_node_face: &Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        taffy_tree: &TaffyTree<NodeContext>,
+        edge_spacer_taffy_nodes: &Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
         visible_segments_length: f64,
     ) -> Vec<EdgePathInfo<'edge, 'id>> {
         pass1_infos
@@ -714,11 +721,20 @@ impl SvgEdgeInfosBuilder {
                     to_offset,
                 };
 
-                let path = EdgePathBuilder::build_with_offsets(
+                // Compute waypoints from spacer taffy nodes if this edge
+                // has any intermediate-rank spacers.
+                let waypoints = Self::waypoints_from_spacers(
+                    &pass1_info.edge_id,
+                    taffy_tree,
+                    edge_spacer_taffy_nodes,
+                );
+
+                let path = EdgePathBuilder::build_with_offsets_and_waypoints(
                     from_info,
                     to_info,
                     pass1_info.edge_type,
                     face_offset,
+                    &waypoints,
                 );
                 let path_length = {
                     let accuracy = 1.0;
@@ -736,6 +752,44 @@ impl SvgEdgeInfosBuilder {
                 }
             })
             .collect::<Vec<EdgePathInfo>>()
+    }
+
+    /// Computes waypoint coordinates from spacer taffy nodes for an edge.
+    ///
+    /// If the edge has spacer nodes at intermediate ranks, their layout
+    /// positions (center x, center y) are returned in rank order. These
+    /// waypoints guide the bezier path so it avoids overlapping other
+    /// nodes.
+    ///
+    /// Returns an empty `Vec` when the edge has no spacer nodes.
+    fn waypoints_from_spacers<'id>(
+        edge_id: &EdgeId<'id>,
+        taffy_tree: &TaffyTree<NodeContext>,
+        edge_spacer_taffy_nodes: &Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
+    ) -> Vec<(f32, f32)> {
+        let Some(spacer_nodes) = edge_spacer_taffy_nodes.get(edge_id) else {
+            return Vec::new();
+        };
+
+        // Collect spacer positions sorted by rank so the waypoints are
+        // in the correct order from the from-node towards the to-node.
+        let mut rank_positions: Vec<(NodeRank, f32, f32)> = spacer_nodes
+            .rank_to_spacer_taffy_node_id
+            .iter()
+            .filter_map(|(rank, &taffy_node_id)| {
+                let layout = taffy_tree.layout(taffy_node_id).ok()?;
+                let cx = layout.location.x + layout.size.width / 2.0;
+                let cy = layout.location.y + layout.size.height / 2.0;
+                Some((*rank, cx, cy))
+            })
+            .collect();
+
+        rank_positions.sort_by_key(|(rank, _, _)| *rank);
+
+        rank_positions
+            .into_iter()
+            .map(|(_, cx, cy)| (cx, cy))
+            .collect()
     }
 
     /// Determines the `EdgeType` for an edge based on the entity types
