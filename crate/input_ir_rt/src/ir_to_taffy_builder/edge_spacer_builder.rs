@@ -8,8 +8,10 @@ use disposition_ir_model::{
 use disposition_model_common::{edge::EdgeGroupId, Id, Map};
 use disposition_taffy_model::{
     taffy::{self, Size, Style, TaffyTree},
-    EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx,
 };
+
+const EDGE_SPACER_WIDTH: f32 = 5.0;
 
 /// Builds spacer taffy nodes for edges that cross multiple ranks.
 ///
@@ -177,7 +179,10 @@ impl EdgeSpacerBuilder {
             Self::insertion_base_index_compute(nesting_info_from, nesting_info_to);
 
         let spacer_style = Style {
-            size: Size::from_lengths(5.0, TEXT_LINE_HEIGHT),
+            size: Size {
+                width: taffy::Dimension::length(EDGE_SPACER_WIDTH),
+                height: taffy::Dimension::percent(1.0),
+            },
             ..Default::default()
         };
 
