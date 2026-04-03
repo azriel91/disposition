@@ -34,7 +34,7 @@ urlencoding = { workspace = true }
 [target.'cfg(target_family = "wasm")'.dependencies]
 # needed to enable `"wasm_js"` feature, transitive dep of `serde-saphyr`, `reqwest`, et. al.
 getrandom = { workspace = true, features = ["wasm_js"] }
-gloo-timers = { workspace = true }
+gloo-timers = { workspace = true, features = ["futures"] }
 web-time = { workspace = true }
 
 [features]
