@@ -10,8 +10,8 @@ use disposition::{
     ir_model::node::{NodeId, NodeInbuilt},
     model_common::Map,
     taffy_model::{
-        taffy::{self, PrintTree},
-        TaffyNodeMappings,
+        taffy::{self, PrintTree, TaffyTree, TraversePartialTree},
+        TaffyNodeCtx, TaffyNodeMappings,
     },
 };
 
@@ -55,18 +55,30 @@ impl TaffyTreeFmt {
     /// Recursively writes each node in the tree to `buffer`.
     fn fmt_node(
         buffer: &mut String,
-        tree: &impl PrintTree,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
         taffy_id_to_node: &Map<taffy::NodeId, NodeId>,
         taffy_node_id: taffy::NodeId,
         has_sibling: bool,
         lines_string: String,
     ) {
-        let layout = &tree.get_final_layout(taffy_node_id);
+        let layout = &taffy_tree.get_final_layout(taffy_node_id);
         let display = taffy_id_to_node
             .get(&taffy_node_id)
             .map(|node_id| node_id.as_str())
-            .unwrap_or_else(|| tree.get_debug_label(taffy_node_id));
-        let num_children = tree.child_count(taffy_node_id);
+            .or_else(|| {
+                taffy_tree.get_node_context(taffy_node_id).map(
+                    |taffy_node_ctx| match taffy_node_ctx {
+                        TaffyNodeCtx::DiagramNode(diagram_node_ctx) => {
+                            diagram_node_ctx.entity_id.as_str()
+                        }
+                        TaffyNodeCtx::EdgeSpacer(edge_spacer_ctx) => {
+                            edge_spacer_ctx.edge_id.as_str()
+                        }
+                    },
+                )
+            })
+            .unwrap_or_else(|| taffy_tree.get_debug_label(taffy_node_id));
+        let num_children = taffy_tree.child_count(taffy_node_id);
 
         let fork_string = if has_sibling {
             "├── "
@@ -95,13 +107,14 @@ impl TaffyTreeFmt {
         let new_string = lines_string + bar;
 
         // Recurse into children.
-        tree.child_ids(taffy_node_id)
+        taffy_tree
+            .child_ids(taffy_node_id)
             .enumerate()
             .for_each(|(index, child)| {
                 let has_sibling = index < num_children - 1;
                 Self::fmt_node(
                     buffer,
-                    tree,
+                    taffy_tree,
                     taffy_id_to_node,
                     child,
                     has_sibling,

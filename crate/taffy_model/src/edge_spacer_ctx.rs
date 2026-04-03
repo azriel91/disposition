@@ -1,3 +1,5 @@
+use disposition_ir_model::edge::EdgeId;
+
 /// Context data stored with edge spacer nodes in the taffy tree.
 ///
 /// Edge spacer nodes are inserted at intermediate rank levels for
@@ -6,4 +8,7 @@
 /// positions, reducing the chance of edges being drawn over other
 /// nodes.
 #[derive(Clone, Debug, PartialEq)]
-pub struct EdgeSpacerCtx {}
+pub struct EdgeSpacerCtx {
+    /// The edge ID this spacer is for.
+    pub edge_id: EdgeId<'static>,
+}

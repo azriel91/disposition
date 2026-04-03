@@ -73,6 +73,7 @@ impl EdgeSpacerBuilder {
                 let spacer_nodes = Self::edge_spacers_build(
                     taffy_tree,
                     edge,
+                    &edge_id,
                     &node_nesting_info_map,
                     node_ranks,
                     rank_to_taffy_ids,
@@ -95,6 +96,7 @@ impl EdgeSpacerBuilder {
     fn edge_spacers_build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge: &Edge<'static>,
+        edge_id: &EdgeId<'static>,
         node_nesting_info_map: &Map<NodeId<'static>, NodeNestingInfo>,
         node_ranks: &NodeRanks<'static>,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
@@ -146,7 +148,9 @@ impl EdgeSpacerBuilder {
             let spacer_taffy_node_id = taffy_tree
                 .new_leaf_with_context(
                     spacer_style.clone(),
-                    TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {}),
+                    TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
+                        edge_id: edge_id.clone(),
+                    }),
                 )
                 .expect("Expected to create spacer leaf node.");
 
