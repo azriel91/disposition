@@ -1,4 +1,4 @@
-use disposition_ir_model::edge::EdgeId;
+use disposition_ir_model::{edge::EdgeId, node::NodeRank};
 
 /// Context data stored with edge spacer nodes in the taffy tree.
 ///
@@ -11,4 +11,6 @@ use disposition_ir_model::edge::EdgeId;
 pub struct EdgeSpacerCtx {
     /// The edge ID this spacer is for.
     pub edge_id: EdgeId<'static>,
+    /// Rank that the spacer node is at.
+    pub rank: NodeRank,
 }

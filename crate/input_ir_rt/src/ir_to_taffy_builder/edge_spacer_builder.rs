@@ -150,6 +150,7 @@ impl EdgeSpacerBuilder {
                     spacer_style.clone(),
                     TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
                         edge_id: edge_id.clone(),
+                        rank,
                     }),
                 )
                 .expect("Expected to create spacer leaf node.");

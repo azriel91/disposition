@@ -4,7 +4,7 @@
 //! representation of a Taffy layout tree, annotated with disposition
 //! diagram node IDs.
 
-use std::fmt::Write;
+use std::{borrow::Cow, fmt::Write};
 
 use disposition::{
     ir_model::node::{NodeId, NodeInbuilt},
@@ -64,20 +64,22 @@ impl TaffyTreeFmt {
         let layout = &taffy_tree.get_final_layout(taffy_node_id);
         let display = taffy_id_to_node
             .get(&taffy_node_id)
-            .map(|node_id| node_id.as_str())
+            .map(|node_id| Cow::Borrowed(node_id.as_str()))
             .or_else(|| {
                 taffy_tree.get_node_context(taffy_node_id).map(
                     |taffy_node_ctx| match taffy_node_ctx {
                         TaffyNodeCtx::DiagramNode(diagram_node_ctx) => {
-                            diagram_node_ctx.entity_id.as_str()
+                            Cow::Borrowed(diagram_node_ctx.entity_id.as_str())
                         }
                         TaffyNodeCtx::EdgeSpacer(edge_spacer_ctx) => {
-                            edge_spacer_ctx.edge_id.as_str()
+                            let edge_id = &edge_spacer_ctx.edge_id;
+                            let rank = edge_spacer_ctx.rank;
+                            Cow::Owned(format!("edge_spacer_{edge_id}_{rank}"))
                         }
                     },
                 )
             })
-            .unwrap_or_else(|| taffy_tree.get_debug_label(taffy_node_id));
+            .unwrap_or_else(|| Cow::Borrowed(taffy_tree.get_debug_label(taffy_node_id)));
         let num_children = taffy_tree.child_count(taffy_node_id);
 
         let fork_string = if has_sibling {
