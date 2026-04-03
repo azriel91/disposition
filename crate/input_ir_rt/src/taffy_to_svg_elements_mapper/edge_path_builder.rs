@@ -174,6 +174,124 @@ impl EdgePathBuilder {
         )
     }
 
+    /// Builds the SVG path with per-face contact point offsets and
+    /// intermediate waypoints.
+    ///
+    /// When `waypoints` is empty this delegates to `build_with_offsets`.
+    /// Otherwise the path passes smoothly through every waypoint using
+    /// cubic bezier segments with C1 continuity.
+    ///
+    /// Self-loops and contained-edge special cases ignore waypoints.
+    ///
+    /// # Parameters
+    ///
+    /// * `waypoints` - Intermediate `(x, y)` coordinates the edge must pass
+    ///   through, e.g. `&[(150.0, 200.0), (300.0, 250.0)]`.
+    pub(super) fn build_with_offsets_and_waypoints(
+        from_info: &SvgNodeInfo,
+        to_info: &SvgNodeInfo,
+        edge_type: EdgeType,
+        face_offset: EdgeFaceOffset,
+        waypoints: &[(f32, f32)],
+    ) -> BezPath {
+        if waypoints.is_empty() {
+            return Self::build_with_offsets(from_info, to_info, edge_type, face_offset);
+        }
+
+        // Handle self-loop case (waypoints ignored)
+        if from_info.node_id == to_info.node_id {
+            return Self::build_self_loop_path(
+                from_info,
+                edge_type,
+                SELF_LOOP_X_OFFSET_RATIO,
+                SELF_LOOP_Y_EXTENSION_RATIO,
+                SELF_LOOP_X_EXTENSION_RATIO,
+            );
+        }
+
+        // Determine circle geometry for from/to nodes
+        let from_geom = Self::node_edge_geometry(from_info);
+        let to_geom = Self::node_edge_geometry(to_info);
+
+        // Determine which faces to use based on relative positions
+        let (from_face, to_face) = Self::select_edge_faces(from_info, to_info);
+
+        // Check if from is contained inside to (waypoints ignored)
+        let from_contained_in_to = Self::is_node_contained_in(from_info, to_info);
+        if from_contained_in_to {
+            return Self::build_contained_edge_path(from_info, to_info, CURVE_CONTROL_RATIO);
+        }
+
+        // Get base connection points
+        let (mut start_x, mut start_y) = Self::get_face_center(from_info, from_face);
+        let (mut end_x, mut end_y) = Self::get_face_center(to_info, to_face);
+
+        // Apply face contact offsets (spread edges along the face).
+        Self::face_offset_apply(
+            &mut start_x,
+            &mut start_y,
+            from_face,
+            face_offset.from_offset,
+        );
+        Self::face_offset_apply(&mut end_x, &mut end_y, to_face, face_offset.to_offset);
+
+        // Apply bidirectional offset
+        if edge_type == EdgeType::PairRequest || edge_type == EdgeType::PairResponse {
+            let offset_direction = if edge_type == EdgeType::PairResponse {
+                1.0
+            } else {
+                -1.0
+            };
+
+            // Move start point down if this is the `PairRequest` edge.
+            match from_face {
+                NodeFace::Right | NodeFace::Left => {
+                    start_y +=
+                        from_info.height_collapsed * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+                }
+                NodeFace::Top | NodeFace::Bottom => {
+                    start_x += from_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+                }
+            }
+
+            // Move end point down if this is the `PairResponse` edge.
+            match to_face {
+                NodeFace::Right | NodeFace::Left => {
+                    end_y +=
+                        to_info.height_collapsed * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+                }
+                NodeFace::Top | NodeFace::Bottom => {
+                    end_x += to_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+                }
+            }
+        }
+
+        // If either node has a circle, snap the connection point to the circle
+        // perimeter instead of the rectangular face center.
+        if let NodeEdgeGeometry::Circle { cx, cy, radius } = from_geom {
+            let (sx, sy) = Self::circle_perimeter_point(cx, cy, radius, end_x, end_y);
+            start_x = sx;
+            start_y = sy;
+        }
+        if let NodeEdgeGeometry::Circle { cx, cy, radius } = to_geom {
+            let (ex, ey) = Self::circle_perimeter_point(cx, cy, radius, start_x, start_y);
+            end_x = ex;
+            end_y = ey;
+        }
+
+        // Build waypoint path
+        Self::build_waypoint_edge_path(
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+            from_face,
+            to_face,
+            waypoints,
+            CURVE_CONTROL_RATIO,
+        )
+    }
+
     /// Returns the (from_face, to_face) that would be selected for an
     /// edge between two nodes, without building the full path.
     ///
@@ -505,6 +623,92 @@ impl EdgePathBuilder {
         let mut path = BezPath::new();
         path.move_to(end);
         path.curve_to(ctrl2, ctrl1, start);
+
+        path
+    }
+
+    /// Builds a smooth bezier path from `start` through `waypoints` to `end`.
+    ///
+    /// The first segment exits the from-face using a control point offset
+    /// based on `from_face`. The last segment enters the to-face using a
+    /// control point offset based on `to_face`. Intermediate segments
+    /// use control points that maintain smooth curvature (C1 continuity).
+    ///
+    /// Like `build_curved_edge_path`, the path is built in reverse order
+    /// (from `end` to `start`) for correct SVG rendering direction.
+    ///
+    /// # Example values
+    ///
+    /// * `start_x = 100.0, start_y = 50.0` -- from-node contact point
+    /// * `end_x = 400.0, end_y = 250.0` -- to-node contact point
+    /// * `waypoints = &[(200.0, 150.0), (300.0, 200.0)]`
+    /// * `curve_ratio = 0.3`
+    fn build_waypoint_edge_path(
+        start_x: f32,
+        start_y: f32,
+        end_x: f32,
+        end_y: f32,
+        from_face: NodeFace,
+        to_face: NodeFace,
+        waypoints: &[(f32, f32)],
+        curve_ratio: f32,
+    ) -> BezPath {
+        // Build the full list of points: end, waypoints (reversed), start.
+        // We build in reverse because SVG paths render start-to-end.
+        let all_points: Vec<(f32, f32)> = {
+            let mut pts = vec![(end_x, end_y)];
+            for &(wx, wy) in waypoints.iter().rev() {
+                pts.push((wx, wy));
+            }
+            pts.push((start_x, start_y));
+            pts
+        };
+
+        let n = all_points.len();
+        let mut path = BezPath::new();
+        path.move_to(Point::new(all_points[0].0 as f64, all_points[0].1 as f64));
+
+        for i in 0..(n - 1) {
+            let (px, py) = all_points[i];
+            let (qx, qy) = all_points[i + 1];
+
+            let dx = qx - px;
+            let dy = qy - py;
+            let distance = (dx * dx + dy * dy).sqrt();
+            let ctrl_distance = distance * curve_ratio;
+
+            // Control point leaving current point.
+            let (c1x, c1y) = if i == 0 {
+                // First point is `end` (to-face) -- control point
+                // offset based on to_face direction.
+                let (ox, oy) = Self::get_control_point_offset(to_face, ctrl_distance);
+                (px + ox, py + oy)
+            } else {
+                // Intermediate waypoint: control point towards next point.
+                let dir_x = dx / distance;
+                let dir_y = dy / distance;
+                (px + dir_x * ctrl_distance, py + dir_y * ctrl_distance)
+            };
+
+            // Control point arriving at next point.
+            let (c2x, c2y) = if i == n - 2 {
+                // Last point is `start` (from-face) -- control point
+                // offset based on from_face direction.
+                let (ox, oy) = Self::get_control_point_offset(from_face, ctrl_distance);
+                (qx + ox, qy + oy)
+            } else {
+                // Intermediate waypoint: control point from previous point.
+                let dir_x = -dx / distance;
+                let dir_y = -dy / distance;
+                (qx + dir_x * ctrl_distance, qy + dir_y * ctrl_distance)
+            };
+
+            path.curve_to(
+                Point::new(c1x as f64, c1y as f64),
+                Point::new(c2x as f64, c2y as f64),
+                Point::new(qx as f64, qy as f64),
+            );
+        }
 
         path
     }
