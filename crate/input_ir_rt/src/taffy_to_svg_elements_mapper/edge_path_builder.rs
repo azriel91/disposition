@@ -687,6 +687,7 @@ impl EdgePathBuilder {
     /// * `spacers = &[SpacerCoordinates { entry_x: 200.0, entry_y: 130.0,
     ///   exit_x: 200.0, exit_y: 135.0 }]`
     /// * `curve_ratio = 0.3`
+    #[allow(clippy::too_many_arguments)]
     fn build_spacer_edge_path(
         start_x: f32,
         start_y: f32,
@@ -794,6 +795,7 @@ impl EdgePathBuilder {
     ///   outward side so the bezier arrives from that direction). For a
     ///   `Direction`, the unit vector is negated to produce an inward control
     ///   point.
+    #[allow(clippy::too_many_arguments)]
     fn build_spacer_edge_path_curve_segment(
         path: &mut BezPath,
         px: f32,

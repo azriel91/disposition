@@ -10,7 +10,7 @@ use disposition_taffy_model::{
     taffy::{self, Size, Style, TaffyTree},
     EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx,
 };
-use taffy::{AlignContent, AlignSelf};
+use taffy::AlignSelf;
 
 const EDGE_SPACER_LENGTH: f32 = 5.0;
 
@@ -118,6 +118,7 @@ impl EdgeSpacerBuilder {
     /// the two endpoints share a non-root common ancestor (in which case
     /// the spacer would need to be inserted at a nested level, which is
     /// not yet supported).
+    #[allow(clippy::too_many_arguments)]
     fn edge_spacers_build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge: &Edge<'static>,

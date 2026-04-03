@@ -45,6 +45,7 @@ impl SvgEdgeInfosBuilder {
     ///    and compute offsets.
     /// 3. **Pass 2** -- rebuild every path using the calculated offsets, then
     ///    emit `SvgEdgeInfo`s and animation CSS.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn build<'id>(
         edge_groups: &EdgeGroups<'id>,
         entity_types: &EntityTypes<'id>,
@@ -667,6 +668,7 @@ impl SvgEdgeInfosBuilder {
 
     /// **Pass 2** for a single edge group: rebuilds every path using the
     /// globally computed face offsets.
+    #[allow(clippy::too_many_arguments)]
     fn build_edge_path_infos_with_offsets<'edge, 'id>(
         pass1_infos: &[EdgePass1Info<'edge, 'id>],
         from_slot_indices: &[Option<usize>],
