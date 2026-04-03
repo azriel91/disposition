@@ -10,6 +10,7 @@ use disposition_taffy_model::{
     taffy::{self, Size, Style, TaffyTree},
     EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx,
 };
+use taffy::{AlignContent, AlignSelf};
 
 const EDGE_SPACER_LENGTH: f32 = 5.0;
 
@@ -179,10 +180,11 @@ impl EdgeSpacerBuilder {
             Self::insertion_base_index_compute(nesting_info_from, nesting_info_to);
 
         let spacer_style = Style {
-            size: Size {
+            min_size: Size {
                 width: taffy::Dimension::length(EDGE_SPACER_LENGTH),
                 height: taffy::Dimension::length(EDGE_SPACER_LENGTH),
             },
+            align_self: Some(AlignSelf::Stretch),
             ..Default::default()
         };
 

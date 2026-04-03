@@ -19,7 +19,7 @@ use crate::taffy_to_svg_elements_mapper::{
         EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeFace,
         NodeIdAndFace, PathBounds, PathMidpoint,
     },
-    edge_path_builder::EdgeFaceOffset,
+    edge_path_builder::{EdgeFaceOffset, SpacerCoordinates},
     ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilder, StringCharReplacer,
 };
 
@@ -721,20 +721,20 @@ impl SvgEdgeInfosBuilder {
                     to_offset,
                 };
 
-                // Compute waypoints from spacer taffy nodes if this edge
-                // has any intermediate-rank spacers.
-                let waypoints = Self::waypoints_from_spacers(
+                // Compute spacer coordinates from spacer taffy nodes if
+                // this edge has any intermediate-rank spacers.
+                let spacer_coordinates = Self::spacer_coordinates_from_spacers(
                     &pass1_info.edge_id,
                     taffy_tree,
                     edge_spacer_taffy_nodes,
                 );
 
-                let path = EdgePathBuilder::build_with_offsets_and_waypoints(
+                let path = EdgePathBuilder::build_with_offsets_and_spacers(
                     from_info,
                     to_info,
                     pass1_info.edge_type,
                     face_offset,
-                    &waypoints,
+                    &spacer_coordinates,
                 );
                 let path_length = {
                     let accuracy = 1.0;
@@ -754,26 +754,27 @@ impl SvgEdgeInfosBuilder {
             .collect::<Vec<EdgePathInfo>>()
     }
 
-    /// Computes waypoint coordinates from spacer taffy nodes for an edge.
+    /// Computes spacer coordinates from spacer taffy nodes for an edge.
     ///
     /// If the edge has spacer nodes at intermediate ranks, their layout
-    /// positions (center x, center y) are returned in rank order. These
-    /// waypoints guide the bezier path so it avoids overlapping other
-    /// nodes.
+    /// positions are returned in rank order as `SpacerCoordinates`. Each
+    /// spacer has an entry point and an exit point that slice the spacer
+    /// in half, so the edge path is perfectly straight while passing
+    /// through the spacer area.
     ///
     /// Returns an empty `Vec` when the edge has no spacer nodes.
-    fn waypoints_from_spacers<'id>(
+    fn spacer_coordinates_from_spacers<'id>(
         edge_id: &EdgeId<'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
-    ) -> Vec<(f32, f32)> {
+    ) -> Vec<SpacerCoordinates> {
         let Some(spacer_nodes) = edge_spacer_taffy_nodes.get(edge_id) else {
             return Vec::new();
         };
 
-        // Collect spacer positions sorted by rank so the waypoints are
-        // in the correct order from the from-node towards the to-node.
-        let mut rank_positions: Vec<(NodeRank, f32, f32)> = spacer_nodes
+        // Collect spacer coordinates sorted by rank so they are in the
+        // correct order from the from-node towards the to-node.
+        let mut rank_spacers: Vec<(NodeRank, SpacerCoordinates)> = spacer_nodes
             .rank_to_spacer_taffy_node_id
             .iter()
             .filter_map(|(rank, &taffy_node_id)| {
@@ -792,24 +793,27 @@ impl SvgEdgeInfosBuilder {
                     current_node_id = parent_taffy_node_id;
                 }
 
+                // Slice the spacer in half vertically: the entry is the
+                // top midpoint and the exit is the bottom midpoint.
                 let cx = x_acc + layout.size.width / 2.0;
-                // Previously this was used when a single waypoint in the middle of the spacer
-                // node was provided.
-                //
-                // ```rust
-                // let cy = y_acc + layout.size.height / 2.0;
-                // ```
-                Some([(*rank, cx, y_acc), (*rank, cx, y_acc + layout.size.height)])
+                let top_y = y_acc;
+                let bottom_y = y_acc + layout.size.height;
+
+                Some((
+                    *rank,
+                    SpacerCoordinates {
+                        entry_x: cx,
+                        entry_y: top_y,
+                        exit_x: cx,
+                        exit_y: bottom_y,
+                    },
+                ))
             })
-            .flatten()
             .collect();
 
-        rank_positions.sort_by_key(|(rank, _, _)| *rank);
+        rank_spacers.sort_by_key(|(rank, _)| *rank);
 
-        rank_positions
-            .into_iter()
-            .map(|(_, cx, cy)| (cx, cy))
-            .collect()
+        rank_spacers.into_iter().map(|(_, coords)| coords).collect()
     }
 
     /// Determines the `EdgeType` for an edge based on the entity types
