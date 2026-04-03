@@ -87,9 +87,13 @@ impl TaffyTreeFmt {
         } else {
             "└── "
         };
+        let flex_direction = taffy_tree
+            .style(taffy_node_id)
+            .map(|style| Cow::Owned(format!("{:?}", style.flex_direction)))
+            .unwrap_or(Cow::Borrowed("unknown"));
         writeln!(
             buffer,
-            "{lines}{fork} {display} [x: {x:<4} y: {y:<4} w: {width:<4} h: {height:<4} content_w: {content_width:<4} content_h: {content_height:<4}, padding: l:{pl} r:{pr} t:{pt} b:{pb}]",
+            "{lines}{fork} {display} {{ flex_direction: {flex_direction}, x: {x} y: {y} w: {width} h: {height} content_w: {content_width} content_h: {content_height}, padding: l: {pl} r: {pr} t: {pt} b: {pb} }}",
             lines = lines_string,
             fork = fork_string,
             display = display,
