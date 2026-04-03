@@ -1,8 +1,11 @@
-use disposition_ir_model::node::{NodeId, NodeInbuilt};
+use disposition_ir_model::{
+    edge::EdgeId,
+    node::{NodeId, NodeInbuilt},
+};
 use disposition_model_common::Map;
 use taffy::TaffyTree;
 
-use crate::{EntityHighlightedSpans, NodeContext, NodeToTaffyNodeIds};
+use crate::{EdgeSpacerTaffyNodes, EntityHighlightedSpans, NodeContext, NodeToTaffyNodeIds};
 
 /// The taffy tree and mappings from each IR node ID to its `taffy` node ID.
 #[derive(Clone, Debug)]
@@ -16,6 +19,13 @@ pub struct TaffyNodeMappings<'id> {
     pub node_id_to_taffy: Map<NodeId<'id>, NodeToTaffyNodeIds>,
     /// Map of each `taffy` node ID to its corresponding IR node ID.
     pub taffy_id_to_node: Map<taffy::NodeId, NodeId<'id>>,
+    /// Map of each edge to its spacer taffy node IDs at intermediate ranks.
+    ///
+    /// When an edge crosses multiple ranks, spacer nodes are inserted in
+    /// the flex layout at each intermediate rank. The edge path is then
+    /// routed through these spacer positions to avoid overlapping other
+    /// nodes.
+    pub edge_spacer_taffy_nodes: Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
     /// Syntax highlighted spans of entity descriptions.
     ///
     /// Currently this does not contain any styling information, because diagram
@@ -35,6 +45,7 @@ impl<'id> PartialEq for TaffyNodeMappings<'id> {
             && self.node_inbuilt_to_taffy == other.node_inbuilt_to_taffy
             && self.node_id_to_taffy == other.node_id_to_taffy
             && self.taffy_id_to_node == other.taffy_id_to_node
+            && self.edge_spacer_taffy_nodes == other.edge_spacer_taffy_nodes
             && self.entity_highlighted_spans == other.entity_highlighted_spans
     }
 }

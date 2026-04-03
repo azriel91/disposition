@@ -31,6 +31,7 @@ use self::{
     },
 };
 
+mod edge_spacer_builder;
 mod taffy_node_build_context;
 mod text_measure;
 
@@ -253,6 +254,7 @@ impl IrToTaffyBuilder<'_> {
             node_inbuilt_to_taffy,
             node_id_to_taffy,
             taffy_id_to_node,
+            edge_spacer_taffy_nodes: Map::new(),
             entity_highlighted_spans,
         })
     }

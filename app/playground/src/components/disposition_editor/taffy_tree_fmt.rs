@@ -33,6 +33,7 @@ impl TaffyTreeFmt {
             taffy_tree,
             node_inbuilt_to_taffy,
             node_id_to_taffy: _,
+            edge_spacer_taffy_nodes: _,
             entity_highlighted_spans: _,
             taffy_id_to_node,
         } = taffy_node_mappings;

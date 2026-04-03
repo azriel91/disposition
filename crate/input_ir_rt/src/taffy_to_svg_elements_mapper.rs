@@ -54,6 +54,7 @@ impl TaffyToSvgElementsMapper {
             node_inbuilt_to_taffy,
             node_id_to_taffy,
             taffy_id_to_node: _,
+            edge_spacer_taffy_nodes,
             entity_highlighted_spans,
         } = taffy_node_mappings;
 

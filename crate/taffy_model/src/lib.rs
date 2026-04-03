@@ -18,7 +18,7 @@ pub const TEXT_LINE_HEIGHT: f32 = 17.0f32;
 
 pub use crate::{
     diagram_lod::DiagramLod, dimension::Dimension, dimension_and_lod::DimensionAndLod,
-    entity_highlighted_span::EntityHighlightedSpan,
+    edge_spacer_taffy_nodes::EdgeSpacerTaffyNodes, entity_highlighted_span::EntityHighlightedSpan,
     entity_highlighted_spans::EntityHighlightedSpans, error::IrToTaffyError,
     node_context::NodeContext, node_to_taffy_node_ids::NodeToTaffyNodeIds,
     processes_included::ProcessesIncluded, taffy_node_mappings::TaffyNodeMappings,
@@ -27,6 +27,7 @@ pub use crate::{
 mod diagram_lod;
 mod dimension;
 mod dimension_and_lod;
+mod edge_spacer_taffy_nodes;
 mod entity_highlighted_span;
 mod entity_highlighted_spans;
 mod error;
