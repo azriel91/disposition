@@ -1,6 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use disposition_ir_model::{
+    edge::EdgeId,
     entity::{EntityDescs, EntityType, EntityTypes},
     layout::{FlexDirection as ModelFlexDirection, NodeLayout, NodeLayouts},
     node::{
@@ -16,14 +17,15 @@ use disposition_taffy_model::{
         AlignContent, AlignItems, AvailableSpace, Display, FlexWrap, LengthPercentage, Rect, Size,
         Style, TaffyTree,
     },
-    DiagramLod, Dimension, DimensionAndLod, EntityHighlightedSpan, EntityHighlightedSpans,
-    IrToTaffyError, NodeContext, NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeMappings,
-    TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
+    DiagramLod, Dimension, DimensionAndLod, EdgeSpacerTaffyNodes, EntityHighlightedSpan,
+    EntityHighlightedSpans, IrToTaffyError, NodeContext, NodeToTaffyNodeIds, ProcessesIncluded,
+    TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
 };
 use taffy::prelude::TaffyZero;
 use typed_builder::TypedBuilder;
 
 use self::{
+    edge_spacer_builder::EdgeSpacerBuilder,
     taffy_node_build_context::{NodeMeasureContext, TaffyNodeBuildContext, TaffyWrapperNodeStyles},
     text_measure::{
         compute_text_dimensions, line_width_measure, wrap_text_monospace,
@@ -121,7 +123,7 @@ impl IrToTaffyBuilder<'_> {
             node_copy_text: _,
             node_hierarchy,
             node_ordering: _,
-            edge_groups: _,
+            edge_groups,
             entity_descs,
             entity_tooltips: _,
             entity_types,
@@ -154,18 +156,47 @@ impl IrToTaffyBuilder<'_> {
             taffy_node_build_context,
             processes_included,
         );
-        let thing_rank_to_taffy_ids = node_rank_to_nodes_by_entity_type
+        let mut thing_rank_to_taffy_ids = node_rank_to_nodes_by_entity_type
             .get(&EntityType::ThingDefault)
             .cloned()
             .unwrap_or_default();
-        let tag_rank_to_taffy_ids = node_rank_to_nodes_by_entity_type
+        let mut tag_rank_to_taffy_ids = node_rank_to_nodes_by_entity_type
             .get(&EntityType::TagDefault)
             .cloned()
             .unwrap_or_default();
-        let process_rank_to_taffy_ids = node_rank_to_nodes_by_entity_type
+        let mut process_rank_to_taffy_ids = node_rank_to_nodes_by_entity_type
             .get(&EntityType::ProcessDefault)
             .cloned()
             .unwrap_or_default();
+
+        // === Insert spacer taffy nodes for cross-rank edges === //
+        //
+        // For each edge that crosses multiple ranks, we insert small spacer
+        // leaf nodes at every intermediate rank. The edge path will later
+        // be routed through these spacer positions to avoid overlapping
+        // other nodes.
+        let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
+        edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
+            &mut taffy_tree,
+            edge_groups,
+            node_hierarchy,
+            node_ranks,
+            &mut thing_rank_to_taffy_ids,
+        ));
+        edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
+            &mut taffy_tree,
+            edge_groups,
+            node_hierarchy,
+            node_ranks,
+            &mut tag_rank_to_taffy_ids,
+        ));
+        edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
+            &mut taffy_tree,
+            edge_groups,
+            node_hierarchy,
+            node_ranks,
+            &mut process_rank_to_taffy_ids,
+        ));
 
         // Create rank sub-containers for top-level nodes, mirroring the
         // rank-based child container logic used inside
@@ -254,7 +285,7 @@ impl IrToTaffyBuilder<'_> {
             node_inbuilt_to_taffy,
             node_id_to_taffy,
             taffy_id_to_node,
-            edge_spacer_taffy_nodes: Map::new(),
+            edge_spacer_taffy_nodes,
             entity_highlighted_spans,
         })
     }
