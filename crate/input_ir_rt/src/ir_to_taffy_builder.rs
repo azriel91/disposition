@@ -181,6 +181,8 @@ impl IrToTaffyBuilder<'_> {
             edge_groups,
             node_hierarchy,
             node_ranks,
+            entity_types,
+            &EntityType::ThingDefault,
             &mut thing_rank_to_taffy_ids,
         ));
         edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
@@ -188,6 +190,8 @@ impl IrToTaffyBuilder<'_> {
             edge_groups,
             node_hierarchy,
             node_ranks,
+            entity_types,
+            &EntityType::TagDefault,
             &mut tag_rank_to_taffy_ids,
         ));
         edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
@@ -195,6 +199,8 @@ impl IrToTaffyBuilder<'_> {
             edge_groups,
             node_hierarchy,
             node_ranks,
+            entity_types,
+            &EntityType::ProcessDefault,
             &mut process_rank_to_taffy_ids,
         ));
 

@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use disposition_ir_model::{
     edge::{Edge, EdgeGroups, EdgeId},
+    entity::{EntityType, EntityTypes},
     node::{NodeHierarchy, NodeId, NodeRank, NodeRanks},
 };
 use disposition_model_common::{edge::EdgeGroupId, Id, Map};
@@ -60,6 +61,8 @@ impl EdgeSpacerBuilder {
         edge_groups: &EdgeGroups<'static>,
         node_hierarchy: &NodeHierarchy<'static>,
         node_ranks: &NodeRanks<'static>,
+        entity_types: &EntityTypes<'static>,
+        target_entity_type: &EntityType,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
     ) -> Map<EdgeId<'static>, EdgeSpacerTaffyNodes> {
         // === Compute nesting info for all nodes === //
@@ -82,6 +85,8 @@ impl EdgeSpacerBuilder {
                     &edge_id,
                     &node_nesting_info_map,
                     node_ranks,
+                    entity_types,
+                    target_entity_type,
                     rank_to_taffy_ids,
                     &mut rank_spacer_counts,
                 );
@@ -116,11 +121,31 @@ impl EdgeSpacerBuilder {
         edge_id: &EdgeId<'static>,
         node_nesting_info_map: &Map<NodeId<'static>, NodeNestingInfo>,
         node_ranks: &NodeRanks<'static>,
+        entity_types: &EntityTypes<'static>,
+        target_entity_type: &EntityType,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
         rank_spacer_counts: &mut BTreeMap<NodeRank, Vec<usize>>,
     ) -> Option<EdgeSpacerTaffyNodes> {
         let nesting_info_from = node_nesting_info_map.get(&edge.from)?;
         let nesting_info_to = node_nesting_info_map.get(&edge.to)?;
+
+        // === Check that the edge's top-level ancestors match the target entity type
+        // === //
+        let lca_depth = Self::lca_depth(nesting_info_from, nesting_info_to);
+        let divergent_from = nesting_info_from.ancestor_chain.get(lca_depth)?;
+        let divergent_to = nesting_info_to.ancestor_chain.get(lca_depth)?;
+
+        let from_matches = entity_types
+            .get(divergent_from.as_ref())
+            .map(|types| types.contains(target_entity_type))
+            .unwrap_or(false);
+        let to_matches = entity_types
+            .get(divergent_to.as_ref())
+            .map(|types| types.contains(target_entity_type))
+            .unwrap_or(false);
+        if !from_matches || !to_matches {
+            return None;
+        }
 
         // === Find divergent ancestors and their ranks === //
         let (rank_low, rank_high) =
@@ -140,7 +165,8 @@ impl EdgeSpacerBuilder {
         // When endpoints share a non-root common ancestor, the spacer
         // would need to go inside that ancestor's child container, which
         // is not available in `rank_to_taffy_ids`.
-        let lca_depth = Self::lca_depth(nesting_info_from, nesting_info_to);
+        // Note: `lca_depth` was already computed above for entity type
+        // filtering.
         if lca_depth > 0 {
             // TODO: support nested spacer insertion.
             return None;
