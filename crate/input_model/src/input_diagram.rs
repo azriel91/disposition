@@ -1,7 +1,7 @@
 use disposition_model_common::{
     entity::{EntityTooltips, EntityType},
     theme::Css,
-    Map,
+    Map, RenderOptions,
 };
 use serde::{Deserialize, Serialize};
 
@@ -132,6 +132,12 @@ pub struct InputDiagram<'id> {
     #[serde(default, skip_serializing_if = "ThemeTagThingsFocus::is_empty")]
     pub theme_tag_things_focus: ThemeTagThingsFocus<'id>,
 
+    /// Options that control how the diagram is rendered.
+    ///
+    /// Includes edge curvature and rank direction settings.
+    #[serde(default, skip_serializing_if = "RenderOptions::is_default")]
+    pub render_options: RenderOptions,
+
     /// Additional CSS to place in the SVG's inline `<styles>` section.
     #[serde(default, skip_serializing_if = "Css::is_empty")]
     pub css: Css,
@@ -196,6 +202,7 @@ impl InputDiagram<'static> {
             theme_types_styles,
             theme_thing_dependencies_styles: ThemeThingDependenciesStyles::default(),
             theme_tag_things_focus,
+            render_options: RenderOptions::default(),
             css,
         }
     }
@@ -438,14 +445,14 @@ fn base_style_aliases() -> StyleAliases<'static> {
             css_class_partials(
                 vec![],
                 vec![
-                    (ThemeAttr::FillShadeHover, "600"),
-                    (ThemeAttr::FillShadeNormal, "700"),
-                    (ThemeAttr::FillShadeFocus, "800"),
-                    (ThemeAttr::FillShadeActive, "900"),
-                    (ThemeAttr::StrokeShadeHover, "700"),
-                    (ThemeAttr::StrokeShadeNormal, "800"),
-                    (ThemeAttr::StrokeShadeFocus, "900"),
-                    (ThemeAttr::StrokeShadeActive, "950"),
+                    (ThemeAttr::FillShadeHover, "500"),
+                    (ThemeAttr::FillShadeNormal, "600"),
+                    (ThemeAttr::FillShadeFocus, "700"),
+                    (ThemeAttr::FillShadeActive, "800"),
+                    (ThemeAttr::StrokeShadeHover, "600"),
+                    (ThemeAttr::StrokeShadeNormal, "700"),
+                    (ThemeAttr::StrokeShadeFocus, "800"),
+                    (ThemeAttr::StrokeShadeActive, "900"),
                     (ThemeAttr::TextShade, "950"),
                 ],
             ),

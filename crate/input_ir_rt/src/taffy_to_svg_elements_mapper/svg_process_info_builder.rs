@@ -1,6 +1,6 @@
 use disposition_ir_model::node::NodeId;
 use disposition_svg_model::SvgProcessInfo;
-use disposition_taffy_model::NodeContext;
+use disposition_taffy_model::TaffyNodeCtx;
 use taffy::TaffyTree;
 
 use super::{
@@ -65,7 +65,7 @@ impl SvgProcessInfoBuilder {
     /// Computes the absolute y coordinate of a node by walking up the taffy
     /// tree and accumulating parent layout offsets.
     fn compute_absolute_y(
-        taffy_tree: &TaffyTree<NodeContext>,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
         taffy_node_id: taffy::NodeId,
         layout: &taffy::Layout,
     ) -> f32 {

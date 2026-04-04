@@ -8,6 +8,9 @@
 * Support laying out things by ranks, based on Thing Dependencies. ([#17][#17], [#18][#18])
 * Offset edges so they don't overlap where they contact the node. ([#19][#19])
 * Support light and dark mode diagrams. ([#20][#20], [#21][#21])
+* Route edge path between nodes. ([#22][#22])
+* Support orthogonal edge paths. ([#22][#22])
+* Set default `FlexDirection` based on `RankDir`. ([#22][#22])
 
 [#16]: https://github.com/azriel91/disposition/pull/16
 [#17]: https://github.com/azriel91/disposition/pull/17
@@ -15,6 +18,7 @@
 [#19]: https://github.com/azriel91/disposition/pull/19
 [#20]: https://github.com/azriel91/disposition/pull/20
 [#21]: https://github.com/azriel91/disposition/pull/21
+[#22]: https://github.com/azriel91/disposition/pull/22
 
 
 ## 0.0.4 (2026-02-22)

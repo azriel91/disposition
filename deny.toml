@@ -73,10 +73,7 @@ yanked = "warn"
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
 ignore = [
-    # Bincode is unmaintained
-    #
-    # <https://rustsec.org/advisories/RUSTSEC-2025-0141>
-    "RUSTSEC-2025-0141",
+    # "RUSTSEC-2026-0000",
 ]
 
 # If this is true, then cargo deny will use the git executable to fetch advisory database.
@@ -106,6 +103,12 @@ allow = [
     "MIT",
     "Unicode-3.0",
     "Zlib",
+    # must link to source.
+    #
+    # * `dtoa-short`: https://github.com/upsuper/dtoa-short
+    # * `cssparser`: https://github.com/servo/rust-cssparser
+    # * `cssparser-macros`: https://github.com/servo/rust-cssparser
+    "MPL-2.0",
 ]
 # The confidence threshold for detecting a license from license text.
 # The higher the value, the more closely the license text must be to the

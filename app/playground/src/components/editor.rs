@@ -9,6 +9,7 @@ pub use self::{
     datalists::EditorDataLists,
     entity_types_page::EntityTypesPage,
     processes_page::ProcessesPage,
+    render_options_page::RenderOptionsPage,
     tags_page::TagsPage,
     text_page::TextPage,
     theme_page::{
@@ -32,6 +33,7 @@ pub(crate) mod theme_styles_editor;
 
 pub(crate) mod entity_types_page;
 pub(crate) mod processes_page;
+pub(crate) mod render_options_page;
 pub(crate) mod tags_page;
 pub(crate) mod text_page;
 pub(crate) mod theme_page;

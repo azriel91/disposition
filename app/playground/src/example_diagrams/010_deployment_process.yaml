@@ -20,9 +20,6 @@ thing_hierarchy:
   t_staging: {}
   t_prod: {}
 
-thing_layouts:
-  _things_container: "column"
-
 thing_interactions:
   edge_ix_dev_repo_push:
     kind: sequence
@@ -93,3 +90,6 @@ entity_tooltips:
     CI runs unit tests, integration tests, and builds the container image.
   step_deploy_prod: |-
     Rolling deployment to production after staging validation passes.
+
+render_options:
+  rank_dir: horizontal

@@ -9,4 +9,11 @@ accepted = [
     "MIT",
     "Unicode-3.0",
     "Zlib",
+
+    # must link to source.
+    #
+    # * `dtoa-short`: https://github.com/upsuper/dtoa-short
+    # * `cssparser`: https://github.com/servo/rust-cssparser
+    # * `cssparser-macros`: https://github.com/servo/rust-cssparser
+    "MPL-2.0",
 ]

@@ -1,7 +1,7 @@
 use disposition_ir_model::{node::NodeId, IrDiagram};
 use disposition_model_common::{entity::EntityType, Map};
 use disposition_svg_model::{SvgNodeInfo, SvgNodeInfoCircle, SvgProcessInfo, SvgTextSpan};
-use disposition_taffy_model::{NodeContext, NodeToTaffyNodeIds};
+use disposition_taffy_model::{NodeToTaffyNodeIds, TaffyNodeCtx};
 use taffy::TaffyTree;
 
 use disposition_ir_model::{entity::EntityTailwindClasses, node::NodeShape};
@@ -172,7 +172,7 @@ impl SvgNodeInfoBuilder {
     /// node's parent, whereas we need them to be absolute when rendering the
     /// SVG.
     fn node_absolute_xy_coordinates(
-        taffy_tree: &TaffyTree<NodeContext>,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
         taffy_node_id: taffy::NodeId,
         layout: &taffy::Layout,
     ) -> (f32, f32) {
