@@ -2,7 +2,7 @@ use disposition_input_ir_model::EdgeAnimationActive;
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeId},
     entity::EntityTypes,
-    node::{NodeId, NodeRank},
+    node::{NodeId, NodeRank, NodeRanks},
     IrDiagram,
 };
 use disposition_model_common::{entity::EntityType, theme::Css, Id, Map, RankDir};
@@ -40,9 +40,10 @@ impl SvgEdgeInfosBuilder {
     /// the face midpoint:
     ///
     /// 1. **Pass 1** -- iterate every edge group, build paths with zero
-    ///    offsets, register face contacts, and store path midpoints.
-    /// 2. Sort contacts per face globally using curvature-center-based ordering
-    ///    and compute offsets.
+    ///    offsets, register face contacts, and store rank distances and target
+    ///    node coordinates.
+    /// 2. Sort contacts per face globally by rank distance and target
+    ///    coordinate, then compute offsets.
     /// 3. **Pass 2** -- rebuild every path using the calculated offsets, then
     ///    emit `SvgEdgeInfo`s and animation CSS.
     #[allow(clippy::too_many_arguments)]
@@ -116,6 +117,7 @@ impl SvgEdgeInfosBuilder {
                 edge_group,
                 entity_types,
                 svg_node_info_map,
+                &ir_diagram.node_ranks,
                 &mut face_contact_tracker,
             );
             all_pass1_groups.push(edge_group_pass1);
@@ -238,9 +240,9 @@ impl SvgEdgeInfosBuilder {
     }
 
     /// **Pass 1** for a single edge group: determines edge types, builds
-    /// zero-offset paths, registers face contacts, and stores the path
-    /// midpoint for each endpoint so that the global sort phase can
-    /// compute curvature-center-based ordering.
+    /// zero-offset paths, registers face contacts, and stores the rank
+    /// distance and target node coordinates needed for the global
+    /// rank-and-coordinate sorting phase.
     ///
     /// The returned `EdgeGroupPass1` contains everything needed for
     /// pass 2 to rebuild the paths with offsets.
@@ -250,6 +252,7 @@ impl SvgEdgeInfosBuilder {
         edge_group: &'edge EdgeGroup<'id>,
         entity_types: &'edge EntityTypes<'id>,
         svg_node_info_map: &'edge Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        node_ranks: &NodeRanks<'id>,
         face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
     ) -> EdgeGroupPass1<'edge, 'id> {
         let edge_animation_params = EdgeAnimationParams::default();
@@ -289,6 +292,15 @@ impl SvgEdgeInfosBuilder {
             let path_midpoint = Self::path_midpoint_compute(&path);
             let path_bounds = Self::path_bounds_compute(&path);
 
+            // Compute rank distance between from and to nodes.
+            let rank_from = node_ranks.get(&edge.from).copied().unwrap_or_default();
+            let rank_to = node_ranks.get(&edge.to).copied().unwrap_or_default();
+            let rank_distance = rank_to.value().abs_diff(rank_from.value());
+
+            // Store to-node coordinates for tie-breaking during sorting.
+            let to_node_x = to_info.x;
+            let to_node_y = to_info.y;
+
             pass1_infos.push(EdgePass1Info {
                 edge_index,
                 edge,
@@ -298,6 +310,9 @@ impl SvgEdgeInfosBuilder {
                 to_face,
                 path_midpoint,
                 path_bounds,
+                rank_distance,
+                to_node_x,
+                to_node_y,
             });
         }
 
@@ -319,22 +334,19 @@ impl SvgEdgeInfosBuilder {
     }
 
     /// Computes per-face offset vectors across **all** edge groups using
-    /// curvature-center-based sorting.
+    /// rank-distance and target-coordinate sorting.
     ///
     /// For each (node, face) the algorithm:
     ///
-    /// 1. Gathers path midpoints from every edge touching that face.
-    /// 2. Computes a common curvature center -- the mean of all midpoints.
-    /// 3. Projects the curvature center onto the face axis to determine which
-    ///    direction along the face is "toward the center".
-    /// 4. Sorts edges by radius (distance from their midpoint to the curvature
-    ///    center), smallest first.
-    /// 5. Assigns offset slots so that the tightest-radius edge gets the slot
-    ///    nearest to the curvature center along the face, and each successive
-    ///    edge (with a larger radius) gets the next slot away from the center.
+    /// 1. Gathers contact entries from every edge touching that face.
+    /// 2. Sorts entries by rank distance ascending, then by target node
+    ///    coordinate along the face axis (x for Top/Bottom, y for Left/Right)
+    ///    as a tie-breaker.
+    /// 3. Assigns offset slots so that short-range edges get slots nearest to
+    ///    the face midpoint, and longer-range edges fan outward.
     ///
-    /// This prevents edges from crossing each other: inner curves stay
-    /// on the inside and outer curves stay on the outside.
+    /// This prevents edges from crossing each other: short-range edges
+    /// stay tight against the node and long-range edges arc around them.
     fn face_offsets_compute<'edge, 'id>(
         all_pass1_groups: &mut Vec<EdgeGroupPass1<'edge, 'id>>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
@@ -357,6 +369,9 @@ impl SvgEdgeInfosBuilder {
                         .push(FaceContactEntry {
                             path_midpoint: pass1_info.path_midpoint,
                             path_bounds: pass1_info.path_bounds,
+                            rank_distance: pass1_info.rank_distance,
+                            to_node_x: pass1_info.to_node_x,
+                            to_node_y: pass1_info.to_node_y,
                             pass1_group_index,
                             edge_index,
                             is_from_endpoint: true,
@@ -373,6 +388,9 @@ impl SvgEdgeInfosBuilder {
                         .push(FaceContactEntry {
                             path_midpoint: pass1_info.path_midpoint,
                             path_bounds: pass1_info.path_bounds,
+                            rank_distance: pass1_info.rank_distance,
+                            to_node_x: pass1_info.to_node_x,
+                            to_node_y: pass1_info.to_node_y,
                             pass1_group_index,
                             edge_index,
                             is_from_endpoint: false,
@@ -381,15 +399,13 @@ impl SvgEdgeInfosBuilder {
             }
         }
 
-        // Sort each face's entries using curvature-center ordering, then
-        // assign slot indices.
+        // Sort each face's entries by rank distance and target coordinate,
+        // then assign slot indices.
         for (node_id_and_face, face_contact_entries) in face_contact_entries_by_node_face.iter_mut()
         {
-            Self::face_entries_sort_by_curvature(
-                &node_id_and_face.node_id,
+            Self::face_entries_sort_by_rank_and_coordinate(
                 node_id_and_face.face,
                 face_contact_entries,
-                svg_node_info_map,
             );
 
             for (slot_index, face_contact_entry) in face_contact_entries.iter().enumerate() {
@@ -437,243 +453,52 @@ impl SvgEdgeInfosBuilder {
         face_offsets_by_node_face
     }
 
-    /// Sorts the entries for a single (node, face) by the angle from the
-    /// curvature center to each entry's path midpoint, so that edges
-    /// connecting to the same face are ordered to reduce crossovers.
+    /// Sorts the entries for a single (node, face) by rank distance
+    /// and target node coordinate, so that edges connecting to the same
+    /// face are ordered to reduce crossovers.
     ///
     /// # Algorithm
     ///
-    /// 1. Compute the curvature center via `curvature_center_compute`, which
-    ///    uses the extremal path-bounds coordinates in the direction the edges
-    ///    extend away from the face, falling back to the mean along the
-    ///    parallel axis when the edges don't overshoot the node extent.
-    /// 2. For each entry, compute the angle from the curvature center to its
-    ///    path midpoint, using an `atan2` formulation chosen per face so that
-    ///    the angle increases along the face axis (top-to-bottom for
-    ///    Left/Right, left-to-right for Top/Bottom).
-    /// 3. Sort by angle ascending and assign to slots in that order.
+    /// 1. **Primary key** -- `rank_distance` ascending. Edges spanning fewer
+    ///    ranks get slots closer to the face midpoint so their shorter paths
+    ///    stay on the inside.
+    /// 2. **Secondary key** (tie-breaker when rank distances are equal):
+    ///    * For Top / Bottom faces: the `to` node's `x` coordinate ascending
+    ///      (left-to-right).
+    ///    * For Left / Right faces: the `to` node's `y` coordinate ascending
+    ///      (top-to-bottom).
     ///
-    /// The per-face `atan2` formulations place the `atan2` discontinuity
-    /// (at +/- pi) behind the node -- opposite the face normal -- where
-    /// no path midpoints should lie, avoiding wrap-around artefacts.
-    ///
-    /// | Face   | Midpoints  | `atan2` args      | Increases     |
-    /// |--------|------------|-------------------|---------------|
-    /// | Left   | dx < 0     | `(dy, -dx)`       | top to bottom |
-    /// | Right  | dx > 0     | `(dy,  dx)`       | top to bottom |
-    /// | Top    | dy < 0     | `(dx, -dy)`       | left to right |
-    /// | Bottom | dy > 0     | `(dx,  dy)`       | left to right |
-    fn face_entries_sort_by_curvature<'id>(
-        node_id: &NodeId<'id>,
+    /// This keeps short-range edges tight against the node and fans
+    /// long-range edges outward, while co-ranked edges follow the
+    /// spatial order of their targets along the face axis.
+    fn face_entries_sort_by_rank_and_coordinate(
         face: NodeFace,
         face_contact_entries: &mut [FaceContactEntry],
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
     ) {
-        let contact_count = face_contact_entries.len();
-        if contact_count <= 1 {
+        if face_contact_entries.len() <= 1 {
             return;
         }
 
-        let curvature_center =
-            Self::curvature_center_compute(node_id, face, face_contact_entries, svg_node_info_map);
-
-        // Sort by angle from the curvature center to each midpoint.
-        //
-        // The `atan2` argument pair is chosen per face so that:
-        //
-        // * The angle increases along the face axis (top-to-bottom for vertical faces,
-        //   left-to-right for horizontal faces).
-        // * The atan2 discontinuity at +/- pi sits behind the node, opposite the
-        //   direction midpoints extend, so no midpoint straddles the wrap-around.
         face_contact_entries.sort_by(|entry_a, entry_b| {
-            let angle_a = Self::face_curvature_angle(face, entry_a.path_midpoint, curvature_center);
-            let angle_b = Self::face_curvature_angle(face, entry_b.path_midpoint, curvature_center);
-            angle_a
-                .partial_cmp(&angle_b)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-    }
+            // Primary: smaller rank distance first.
+            let rank_cmp = entry_a.rank_distance.cmp(&entry_b.rank_distance);
+            if rank_cmp != std::cmp::Ordering::Equal {
+                return rank_cmp;
+            }
 
-    /// Computes the curvature center used for angle-based sorting of
-    /// face contact entries.
-    ///
-    /// Instead of using the simple mean of all path midpoints, the
-    /// curvature center is placed at the extremal (min or max)
-    /// coordinate of the edges' full path bounds in the direction the
-    /// paths extend away from the node face. This pulls the center
-    /// toward the "apex" of the fan of edges, producing more
-    /// discriminating angles.
-    ///
-    /// # Per-axis logic
-    ///
-    /// For the axis **perpendicular** to the face (the direction edges
-    /// extend away from the node):
-    ///
-    /// * If the mean of the path midpoints is on the outward side of the face,
-    ///   the extremal coordinate (min or max) of all path bounds in that
-    ///   direction is used.
-    /// * Otherwise (edges curving back toward the node) the opposite extremal
-    ///   coordinate is used.
-    ///
-    /// For the axis **parallel** to the face:
-    ///
-    /// * If the mean is outside the node's extent on that axis, the
-    ///   corresponding extremal coordinate (min or max) of the path bounds is
-    ///   used.
-    /// * If the mean falls within the node's extent, the mean itself is kept.
-    fn curvature_center_compute<'id>(
-        node_id: &NodeId<'id>,
-        face: NodeFace,
-        face_contact_entries: &[FaceContactEntry],
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
-    ) -> PathMidpoint {
-        let contact_count = face_contact_entries.len() as f64;
-
-        // Mean of path midpoints.
-        let mean_x = face_contact_entries
-            .iter()
-            .map(|e| e.path_midpoint.x)
-            .sum::<f64>()
-            / contact_count;
-        let mean_y = face_contact_entries
-            .iter()
-            .map(|e| e.path_midpoint.y)
-            .sum::<f64>()
-            / contact_count;
-
-        // Aggregate path bounds across all entries.
-        let bounds_x_min = face_contact_entries
-            .iter()
-            .map(|e| e.path_bounds.x_min)
-            .fold(f64::INFINITY, f64::min);
-        let bounds_x_max = face_contact_entries
-            .iter()
-            .map(|e| e.path_bounds.x_max)
-            .fold(f64::NEG_INFINITY, f64::max);
-        let bounds_y_min = face_contact_entries
-            .iter()
-            .map(|e| e.path_bounds.y_min)
-            .fold(f64::INFINITY, f64::min);
-        let bounds_y_max = face_contact_entries
-            .iter()
-            .map(|e| e.path_bounds.y_max)
-            .fold(f64::NEG_INFINITY, f64::max);
-
-        // Node geometry.
-        let (node_x, node_y, node_w, node_h) = if let Some(info) = svg_node_info_map.get(node_id) {
-            (
-                info.x as f64,
-                info.y as f64,
-                info.width as f64,
-                info.height_collapsed as f64,
-            )
-        } else {
-            return PathMidpoint {
-                x: mean_x,
-                y: mean_y,
+            // Secondary: coordinate along the face axis.
+            let coord_cmp = match face {
+                NodeFace::Top | NodeFace::Bottom => entry_a
+                    .to_node_x
+                    .partial_cmp(&entry_b.to_node_x)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                NodeFace::Left | NodeFace::Right => entry_a
+                    .to_node_y
+                    .partial_cmp(&entry_b.to_node_y)
+                    .unwrap_or(std::cmp::Ordering::Equal),
             };
-        };
-
-        let (center_x, center_y) = match face {
-            // Left / Right faces: edges extend along X (perpendicular),
-            // spread along Y (parallel).
-            NodeFace::Left | NodeFace::Right => {
-                let face_x = if face == NodeFace::Left {
-                    node_x
-                } else {
-                    node_x + node_w
-                };
-
-                // Perpendicular axis (X): use extremal bound opposite
-                // to the direction the edges extend.
-                let cx = if mean_x < face_x {
-                    bounds_x_max
-                } else {
-                    bounds_x_min
-                };
-
-                // Parallel axis (Y): use extremal bound when outside
-                // the node's vertical extent, otherwise keep the mean.
-                let node_y_min = node_y;
-                let node_y_max = node_y + node_h;
-                let cy = if mean_y < node_y_min {
-                    bounds_y_max
-                } else if mean_y > node_y_max {
-                    bounds_y_min
-                } else {
-                    mean_y
-                };
-
-                (cx, cy)
-            }
-
-            // Top / Bottom faces: edges extend along Y (perpendicular),
-            // spread along X (parallel).
-            NodeFace::Top | NodeFace::Bottom => {
-                let face_y = if face == NodeFace::Top {
-                    node_y
-                } else {
-                    node_y + node_h
-                };
-
-                // Perpendicular axis (Y): use extremal bound opposite
-                // to the direction the edges extend.
-                let cy = if mean_y < face_y {
-                    bounds_y_max
-                } else {
-                    bounds_y_min
-                };
-
-                // Parallel axis (X): use extremal bound when outside
-                // the node's horizontal extent, otherwise keep the mean.
-                let node_x_min = node_x;
-                let node_x_max = node_x + node_w;
-                let cx = if mean_x < node_x_min {
-                    bounds_x_max
-                } else if mean_x > node_x_max {
-                    bounds_x_min
-                } else {
-                    mean_x
-                };
-
-                (cx, cy)
-            }
-        };
-
-        PathMidpoint {
-            x: center_x,
-            y: center_y,
-        }
-    }
-
-    /// Returns the angle from `curvature_center` to `midpoint`, using an
-    /// `atan2` formulation specific to `face`.
-    ///
-    /// The formulation is chosen so that the returned angle increases
-    /// along the face axis (top-to-bottom for Left/Right, left-to-right
-    /// for Top/Bottom) and the atan2 discontinuity is placed behind the
-    /// node where no midpoints should be.
-    fn face_curvature_angle(
-        face: NodeFace,
-        midpoint: PathMidpoint,
-        curvature_center: PathMidpoint,
-    ) -> f64 {
-        let dx = midpoint.x - curvature_center.x;
-        let dy = midpoint.y - curvature_center.y;
-        match face {
-            // Left face: midpoints extend to the left (dx < 0).
-            // atan2(dy, -dx) increases top-to-bottom, discontinuity to the right.
-            NodeFace::Left => f64::atan2(dy, -dx),
-            // Right face: midpoints extend to the right (dx > 0).
-            // atan2(dy, dx) increases top-to-bottom, discontinuity to the left.
-            NodeFace::Right => f64::atan2(dy, dx),
-            // Top face: midpoints extend upward (dy < 0).
-            // atan2(dx, -dy) increases left-to-right, discontinuity below.
-            NodeFace::Top => f64::atan2(dx, -dy),
-            // Bottom face: midpoints extend downward (dy > 0).
-            // atan2(dx, dy) increases left-to-right, discontinuity above.
-            NodeFace::Bottom => f64::atan2(dx, dy),
-        }
+            coord_cmp
+        });
     }
 
     /// **Pass 2** for a single edge group: rebuilds every path using the
@@ -1085,19 +910,51 @@ impl SvgEdgeInfosBuilder {
 
 // === Supporting types === //
 
-/// A single contact entry used during the per-face curvature-center
-/// sorting phase.
+/// A single contact entry used during the per-face sorting phase.
 ///
-/// Tracks which edge touches a given (node, face) and the path midpoint
-/// and bounds needed to compute the curvature center for sorting.
+/// Tracks which edge touches a given (node, face) together with the
+/// rank distance and target node coordinates needed for the
+/// rank-and-coordinate sorting, as well as the path midpoint and bounds
+/// retained for potential future use.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct FaceContactEntry {
-    /// Mean anchor point of the edge's zero-offset path, used to
-    /// determine curvature angle during sorting.
+    /// Mean anchor point of the edge's zero-offset path.
+    ///
+    /// Retained for diagnostics and potential future sorting refinements.
     path_midpoint: PathMidpoint,
-    /// Axis-aligned bounding box of the edge's zero-offset path, used
-    /// to compute the curvature center extremal coordinates.
+    /// Axis-aligned bounding box of the edge's zero-offset path.
+    ///
+    /// Retained for diagnostics and potential future sorting refinements.
     path_bounds: PathBounds,
+    /// Absolute difference in `NodeRank` between the edge's `from` and
+    /// `to` nodes.
+    ///
+    /// Used as the primary sort key -- edges spanning fewer ranks are
+    /// ordered first so their contact points stay innermost on the
+    /// face.
+    ///
+    /// # Examples
+    ///
+    /// An edge from rank 0 to rank 1 has `rank_distance = 1`.
+    rank_distance: u32,
+    /// X coordinate of the edge's `to` node (absolute position).
+    ///
+    /// Used as a secondary sort key for Top / Bottom faces when two
+    /// edges share the same `rank_distance`.
+    ///
+    /// # Examples
+    ///
+    /// `120.0` for a node positioned 120 px from the left edge.
+    to_node_x: f32,
+    /// Y coordinate of the edge's `to` node (absolute position).
+    ///
+    /// Used as a secondary sort key for Left / Right faces when two
+    /// edges share the same `rank_distance`.
+    ///
+    /// # Examples
+    ///
+    /// `80.0` for a node positioned 80 px from the top edge.
+    to_node_y: f32,
     /// Index into the `all_pass1_groups` vector identifying which edge
     /// group this contact belongs to.
     pass1_group_index: usize,
@@ -1113,7 +970,8 @@ struct FaceContactEntry {
 /// pass 2.
 ///
 /// Stores everything about an edge that is needed to rebuild its path
-/// with face contact offsets.
+/// with face contact offsets, including the rank distance and target
+/// node coordinates used for face-contact sorting.
 struct EdgePass1Info<'edge, 'id> {
     /// The edge's position within its edge group (0-based).
     edge_index: usize,
@@ -1133,13 +991,34 @@ struct EdgePass1Info<'edge, 'id> {
     /// `None` when the edge connects a contained node (no face offset
     /// applies).
     to_face: Option<NodeFace>,
-    /// Mean anchor point of the zero-offset path, used to determine
-    /// curvature-center distance during the sort phase.
+    /// Mean anchor point of the zero-offset path.
+    ///
+    /// Retained for diagnostics and potential future sorting refinements.
     path_midpoint: PathMidpoint,
     /// Axis-aligned bounding box of the zero-offset path's anchor
-    /// points, used to compute the curvature center extremal
-    /// coordinates.
+    /// points.
+    ///
+    /// Retained for diagnostics and potential future sorting refinements.
     path_bounds: PathBounds,
+    /// Absolute difference in `NodeRank` between the edge's `from` and
+    /// `to` nodes.
+    ///
+    /// # Examples
+    ///
+    /// An edge from rank 0 to rank 2 has `rank_distance = 2`.
+    rank_distance: u32,
+    /// X coordinate of the edge's `to` node (absolute position).
+    ///
+    /// # Examples
+    ///
+    /// `120.0`
+    to_node_x: f32,
+    /// Y coordinate of the edge's `to` node (absolute position).
+    ///
+    /// # Examples
+    ///
+    /// `80.0`
+    to_node_y: f32,
 }
 
 /// All pass-1 data for a single edge group.
