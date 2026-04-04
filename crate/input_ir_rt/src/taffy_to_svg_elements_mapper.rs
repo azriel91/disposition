@@ -10,8 +10,8 @@ use disposition_taffy_model::TaffyNodeMappings;
 use self::{
     arrow_head_builder::ArrowHeadBuilder,
     edge_animation_calculator::EdgeAnimationCalculator,
-    edge_path_builder::EdgePathBuilderPass1,
-    edge_path_builder_pass2::EdgePathBuilderPass2,
+    edge_path_builder_pass_1::EdgePathBuilderPass1,
+    edge_path_builder_pass_2::EdgePathBuilderPass2,
     process_step_heights::ProcessStepsHeight,
     process_step_heights_calculator::ProcessStepHeightsCalculator,
     string_char_replacer::StringCharReplacer,
@@ -27,8 +27,8 @@ mod arrow_head_builder;
 mod edge_animation_calculator;
 mod edge_face_contact_tracker;
 mod edge_model;
-mod edge_path_builder;
-mod edge_path_builder_pass2;
+mod edge_path_builder_pass_1;
+mod edge_path_builder_pass_2;
 mod process_step_heights;
 mod process_step_heights_calculator;
 mod string_char_replacer;

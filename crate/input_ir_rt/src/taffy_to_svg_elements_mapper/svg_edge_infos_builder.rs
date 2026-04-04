@@ -21,7 +21,7 @@ use crate::taffy_to_svg_elements_mapper::{
         EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeFace,
         NodeIdAndFace, PathBounds, PathMidpoint,
     },
-    edge_path_builder::{EdgeFaceOffset, SpacerCoordinates},
+    edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
     ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
     StringCharReplacer,
 };

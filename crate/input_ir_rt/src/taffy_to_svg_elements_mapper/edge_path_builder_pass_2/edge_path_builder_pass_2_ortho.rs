@@ -1,8 +1,8 @@
 use kurbo::{BezPath, Point};
 
 use crate::taffy_to_svg_elements_mapper::{
-    edge_model::NodeFace, edge_path_builder::SpacerCoordinates,
-    edge_path_builder_pass2::FaceOrDirection,
+    edge_model::NodeFace, edge_path_builder_pass_1::SpacerCoordinates,
+    edge_path_builder_pass_2::FaceOrDirection,
 };
 
 /// Arc radius in pixels for orthogonal path corners.

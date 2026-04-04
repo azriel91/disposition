@@ -2,8 +2,8 @@ use kurbo::{BezPath, Point};
 
 use crate::taffy_to_svg_elements_mapper::{
     edge_model::NodeFace,
-    edge_path_builder::{EdgePathBuilderPass1, SpacerCoordinates, CURVE_CONTROL_RATIO},
-    edge_path_builder_pass2::FaceOrDirection,
+    edge_path_builder_pass_1::{EdgePathBuilderPass1, SpacerCoordinates, CURVE_CONTROL_RATIO},
+    edge_path_builder_pass_2::FaceOrDirection,
 };
 
 /// Builds pass-2 edge paths using smooth bezier curves between spacers.

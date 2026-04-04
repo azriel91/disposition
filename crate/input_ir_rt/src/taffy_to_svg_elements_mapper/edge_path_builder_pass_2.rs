@@ -4,7 +4,7 @@ use kurbo::BezPath;
 
 use crate::taffy_to_svg_elements_mapper::{
     edge_model::{EdgeType, NodeFace},
-    edge_path_builder::{
+    edge_path_builder_pass_1::{
         EdgeFaceOffset, EdgePathBuilderPass1, NodeEdgeGeometry, SpacerCoordinates,
         BIDIRECTIONAL_OFFSET_RATIO, CURVE_CONTROL_RATIO, SELF_LOOP_X_EXTENSION_RATIO,
         SELF_LOOP_X_OFFSET_RATIO, SELF_LOOP_Y_EXTENSION_RATIO,
@@ -12,12 +12,12 @@ use crate::taffy_to_svg_elements_mapper::{
 };
 
 use self::{
-    edge_path_builder_pass2_curve::EdgePathBuilderPass2Curve,
-    edge_path_builder_pass2_ortho::EdgePathBuilderPass2Ortho,
+    edge_path_builder_pass_2_curve::EdgePathBuilderPass2Curve,
+    edge_path_builder_pass_2_ortho::EdgePathBuilderPass2Ortho,
 };
 
-mod edge_path_builder_pass2_curve;
-mod edge_path_builder_pass2_ortho;
+mod edge_path_builder_pass_2_curve;
+mod edge_path_builder_pass_2_ortho;
 
 /// Direction specification for a curve or orthogonal endpoint: either
 /// an outward node face normal or an explicit unit direction vector.
