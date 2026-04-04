@@ -29,6 +29,7 @@ mod edge_face_contact_tracker;
 mod edge_model;
 mod edge_path_builder_pass_1;
 mod edge_path_builder_pass_2;
+mod ortho_protrusion_calculator;
 mod process_step_heights;
 mod process_step_heights_calculator;
 mod string_char_replacer;

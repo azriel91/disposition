@@ -17,7 +17,7 @@ use self::{
 };
 
 mod edge_path_builder_pass_2_curve;
-mod edge_path_builder_pass_2_ortho;
+pub(super) mod edge_path_builder_pass_2_ortho;
 
 /// Direction specification for a curve or orthogonal endpoint: either
 /// an outward node face normal or an explicit unit direction vector.
@@ -71,6 +71,8 @@ impl EdgePathBuilderPass2 {
     /// * `spacers` -- intermediate spacer coordinates the edge must pass
     ///   through, e.g. `&[SpacerCoordinates { entry_x: 150.0, entry_y: 200.0,
     ///   exit_x: 150.0, exit_y: 205.0 }]`.
+    /// * `ortho_protrusion` -- precomputed protrusion lengths for orthogonal
+    ///   edge endpoints. Ignored when `edge_curvature` is `Curved`.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn build(
         edge_curvature: EdgeCurvature,
@@ -80,6 +82,7 @@ impl EdgePathBuilderPass2 {
         edge_type: EdgeType,
         face_offset: EdgeFaceOffset,
         spacers: &[SpacerCoordinates],
+        ortho_protrusion: OrthoProtrusionParams,
     ) -> BezPath {
         // Handle self-loop case (curvature mode and spacers ignored).
         if from_info.node_id == to_info.node_id {
@@ -196,160 +199,29 @@ impl EdgePathBuilderPass2 {
                 }
             }
             EdgeCurvature::Orthogonal => {
-                let protrusion = Self::ortho_protrusion_compute(
-                    start_x,
-                    start_y,
-                    end_x,
-                    end_y,
-                    from_face,
-                    to_face,
-                    from_info,
-                    to_info,
-                    &face_offset,
-                    spacers,
-                );
-
                 if spacers.is_empty() {
                     EdgePathBuilderPass2Ortho::build_ortho_edge_path(
-                        start_x, start_y, end_x, end_y, from_face, to_face, protrusion,
+                        start_x,
+                        start_y,
+                        end_x,
+                        end_y,
+                        from_face,
+                        to_face,
+                        ortho_protrusion,
                     )
                 } else {
                     EdgePathBuilderPass2Ortho::build_spacer_edge_path(
-                        start_x, start_y, end_x, end_y, from_face, to_face, spacers, protrusion,
+                        start_x,
+                        start_y,
+                        end_x,
+                        end_y,
+                        from_face,
+                        to_face,
+                        spacers,
+                        ortho_protrusion,
                     )
                 }
             }
         }
-    }
-
-    /// Computes orthogonal protrusion lengths for the from-node and
-    /// to-node endpoints.
-    ///
-    /// The protrusion is a short stub that exits the node face
-    /// perpendicular to the face line before the main routing begins.
-    /// Its length is inversely proportional to the face offset
-    /// magnitude: edges closer to the face midpoint (smaller offset)
-    /// get longer protrusions, edges further from the midpoint get
-    /// shorter protrusions. This visually separates parallel edges
-    /// exiting the same face.
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// protrusion = rank_gap / face_length * (max_offset - |offset|)
-    /// ```
-    ///
-    /// where `rank_gap` is the distance (in the rank direction) between
-    /// the node contact point and the nearest spacer entry/exit (or the
-    /// other endpoint if there are no spacers), `face_length` is the
-    /// length of the node face, `max_offset` is the largest absolute
-    /// offset on that face, and `|offset|` is the absolute offset for
-    /// this edge.
-    #[allow(clippy::too_many_arguments)]
-    fn ortho_protrusion_compute(
-        start_x: f32,
-        start_y: f32,
-        end_x: f32,
-        end_y: f32,
-        from_face: NodeFace,
-        to_face: NodeFace,
-        from_info: &SvgNodeInfo,
-        to_info: &SvgNodeInfo,
-        face_offset: &EdgeFaceOffset,
-        spacers: &[SpacerCoordinates],
-    ) -> OrthoProtrusionParams {
-        // === From-node protrusion === //
-        let from_face_length = Self::face_length(from_info, from_face);
-        let from_rank_gap = if spacers.is_empty() {
-            Self::rank_gap(start_x, start_y, end_x, end_y, from_face)
-        } else {
-            let first_spacer = &spacers[0];
-            Self::rank_gap(
-                start_x,
-                start_y,
-                first_spacer.entry_x,
-                first_spacer.entry_y,
-                from_face,
-            )
-        };
-        let from_protrusion = Self::protrusion_length(
-            from_rank_gap,
-            from_face_length,
-            face_offset.from_max_offset,
-            face_offset.from_offset,
-        );
-
-        // === To-node protrusion === //
-        let to_face_length = Self::face_length(to_info, to_face);
-        let to_rank_gap = if spacers.is_empty() {
-            Self::rank_gap(end_x, end_y, start_x, start_y, to_face)
-        } else {
-            let last_spacer = &spacers[spacers.len() - 1];
-            Self::rank_gap(
-                end_x,
-                end_y,
-                last_spacer.exit_x,
-                last_spacer.exit_y,
-                to_face,
-            )
-        };
-        let to_protrusion = Self::protrusion_length(
-            to_rank_gap,
-            to_face_length,
-            face_offset.to_max_offset,
-            face_offset.to_offset,
-        );
-
-        OrthoProtrusionParams {
-            from_protrusion,
-            to_protrusion,
-        }
-    }
-
-    /// Returns the length of the given face of a node.
-    ///
-    /// For `Top` / `Bottom` faces this is the node width; for `Left` /
-    /// `Right` faces this is the collapsed height.
-    fn face_length(info: &SvgNodeInfo, face: NodeFace) -> f32 {
-        match face {
-            NodeFace::Top | NodeFace::Bottom => info.width,
-            NodeFace::Left | NodeFace::Right => info.height_collapsed,
-        }
-    }
-
-    /// Computes the distance in the rank direction between two points,
-    /// using the face orientation to determine which axis is the rank
-    /// axis.
-    ///
-    /// For `Top` / `Bottom` faces the rank direction is vertical (Y
-    /// axis). For `Left` / `Right` faces the rank direction is
-    /// horizontal (X axis).
-    fn rank_gap(ax: f32, ay: f32, bx: f32, by: f32, face: NodeFace) -> f32 {
-        match face {
-            NodeFace::Top | NodeFace::Bottom => (by - ay).abs(),
-            NodeFace::Left | NodeFace::Right => (bx - ax).abs(),
-        }
-    }
-
-    /// Computes the protrusion length for a single endpoint.
-    ///
-    /// Returns `0.0` when `max_offset` is zero (only one edge on the
-    /// face) or when `face_length` is zero.
-    ///
-    /// # Parameters
-    ///
-    /// * `rank_gap` -- distance in the rank direction to the nearest spacer or
-    ///   the other endpoint, e.g. `80.0`.
-    /// * `face_length` -- length of the node face in pixels, e.g. `120.0`.
-    /// * `max_offset` -- largest absolute offset on this face, e.g. `10.0`.
-    /// * `offset` -- this edge's offset on the face, e.g. `-5.0`.
-    fn protrusion_length(rank_gap: f32, face_length: f32, max_offset: f32, offset: f32) -> f32 {
-        if max_offset < 1e-6 || face_length < 1e-6 {
-            return 0.0;
-        }
-
-        let ratio = rank_gap / face_length;
-        let remaining = max_offset - offset.abs();
-        (ratio * remaining).max(0.0)
     }
 }
