@@ -1,3 +1,4 @@
+use disposition_model_common::RankDir;
 use disposition_svg_model::SvgNodeInfo;
 use disposition_taffy_model::TEXT_LINE_HEIGHT;
 use kurbo::{BezPath, Point};
@@ -98,11 +99,18 @@ impl EdgePathBuilder {
     /// This is a convenience wrapper around `build_with_offsets` with zero
     /// offsets.
     pub(super) fn build(
+        rank_dir: RankDir,
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
         edge_type: EdgeType,
     ) -> BezPath {
-        Self::build_with_offsets(from_info, to_info, edge_type, EdgeFaceOffset::default())
+        Self::build_with_offsets(
+            rank_dir,
+            from_info,
+            to_info,
+            edge_type,
+            EdgeFaceOffset::default(),
+        )
     }
 
     /// Builds the SVG path with per-face contact point offsets.
@@ -111,6 +119,7 @@ impl EdgePathBuilder {
     /// the face (perpendicular to its outward normal). Likewise for
     /// `face_offset.to_offset`.
     pub(super) fn build_with_offsets(
+        rank_dir: RankDir,
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
         edge_type: EdgeType,
@@ -132,7 +141,7 @@ impl EdgePathBuilder {
         let to_geom = Self::node_edge_geometry(to_info);
 
         // Determine which faces to use based on relative positions
-        let (from_face, to_face) = Self::select_edge_faces(from_info, to_info);
+        let (from_face, to_face) = Self::select_edge_faces(rank_dir, from_info, to_info);
 
         // Check if from is contained inside to
         let from_contained_in_to = Self::is_node_contained_in(from_info, to_info);
@@ -225,6 +234,7 @@ impl EdgePathBuilder {
     ///   through, e.g. `&[SpacerCoordinates { entry_x: 150.0, entry_y: 200.0,
     ///   exit_x: 150.0, exit_y: 205.0 }]`.
     pub(super) fn build_with_offsets_and_spacers(
+        rank_dir: RankDir,
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
         edge_type: EdgeType,
@@ -232,7 +242,7 @@ impl EdgePathBuilder {
         spacers: &[SpacerCoordinates],
     ) -> BezPath {
         if spacers.is_empty() {
-            return Self::build_with_offsets(from_info, to_info, edge_type, face_offset);
+            return Self::build_with_offsets(rank_dir, from_info, to_info, edge_type, face_offset);
         }
 
         // Handle self-loop case (waypoints ignored)
@@ -251,7 +261,7 @@ impl EdgePathBuilder {
         let to_geom = Self::node_edge_geometry(to_info);
 
         // Determine which faces to use based on relative positions
-        let (from_face, to_face) = Self::select_edge_faces(from_info, to_info);
+        let (from_face, to_face) = Self::select_edge_faces(rank_dir, from_info, to_info);
 
         // Check if from is contained inside to (waypoints ignored)
         let from_contained_in_to = Self::is_node_contained_in(from_info, to_info);
@@ -336,6 +346,7 @@ impl EdgePathBuilder {
     /// For contained edges both faces are `None` (no face-based offset
     /// applies).
     pub(super) fn faces_select(
+        rank_dir: RankDir,
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
     ) -> Option<(NodeFace, NodeFace)> {
@@ -347,7 +358,7 @@ impl EdgePathBuilder {
             // Contained edges bypass face-based contact points.
             return None;
         }
-        Some(Self::select_edge_faces(from_info, to_info))
+        Some(Self::select_edge_faces(rank_dir, from_info, to_info))
     }
 
     /// Applies a pixel offset along a face.
@@ -491,7 +502,11 @@ impl EdgePathBuilder {
 
     /// Selects the appropriate faces for connecting two nodes based on their
     /// relative positions, choosing the faces that produce the shortest path.
-    fn select_edge_faces(from_info: &SvgNodeInfo, to_info: &SvgNodeInfo) -> (NodeFace, NodeFace) {
+    fn select_edge_faces(
+        rank_dir: RankDir,
+        from_info: &SvgNodeInfo,
+        to_info: &SvgNodeInfo,
+    ) -> (NodeFace, NodeFace) {
         let from_center_x = from_info.x + from_info.width / 2.0;
         let from_center_y = from_info.y + from_info.height_collapsed / 2.0;
         let to_center_x = to_info.x + to_info.width / 2.0;
@@ -511,8 +526,7 @@ impl EdgePathBuilder {
             if from_bottom < to_info.y {
                 // Diagonal: from is above-left of to
                 return Self::select_diagonal_faces(
-                    from_info,
-                    to_info,
+                    rank_dir,
                     NodeFace::Right,
                     NodeFace::Bottom,
                     NodeFace::Left,
@@ -521,8 +535,7 @@ impl EdgePathBuilder {
             } else if from_info.y > to_bottom {
                 // Diagonal: from is below-left of to
                 return Self::select_diagonal_faces(
-                    from_info,
-                    to_info,
+                    rank_dir,
                     NodeFace::Right,
                     NodeFace::Top,
                     NodeFace::Left,
@@ -537,8 +550,7 @@ impl EdgePathBuilder {
             if from_bottom < to_info.y {
                 // Diagonal: from is above-right of to
                 return Self::select_diagonal_faces(
-                    from_info,
-                    to_info,
+                    rank_dir,
                     NodeFace::Left,
                     NodeFace::Bottom,
                     NodeFace::Right,
@@ -547,8 +559,7 @@ impl EdgePathBuilder {
             } else if from_info.y > to_bottom {
                 // Diagonal: from is below-right of to
                 return Self::select_diagonal_faces(
-                    from_info,
-                    to_info,
+                    rank_dir,
                     NodeFace::Left,
                     NodeFace::Top,
                     NodeFace::Right,
@@ -582,28 +593,18 @@ impl EdgePathBuilder {
         }
     }
 
-    /// Selects the best faces for diagonal connections by comparing distances.
+    /// Selects the best faces for diagonal connections based on the rank
+    /// direction.
     fn select_diagonal_faces(
-        from_info: &SvgNodeInfo,
-        to_info: &SvgNodeInfo,
+        rank_dir: RankDir,
         from_horiz: NodeFace,
         from_vert: NodeFace,
         to_horiz: NodeFace,
         to_vert: NodeFace,
     ) -> (NodeFace, NodeFace) {
-        // Calculate distances for horizontal-to-vertical vs vertical-to-horizontal
-        let (from_h_x, from_h_y) = Self::get_face_center(from_info, from_horiz);
-        let (to_v_x, to_v_y) = Self::get_face_center(to_info, to_vert);
-        let dist_h_to_v = ((to_v_x - from_h_x).powi(2) + (to_v_y - from_h_y).powi(2)).sqrt();
-
-        let (from_v_x, from_v_y) = Self::get_face_center(from_info, from_vert);
-        let (to_h_x, to_h_y) = Self::get_face_center(to_info, to_horiz);
-        let dist_v_to_h = ((to_h_x - from_v_x).powi(2) + (to_h_y - from_v_y).powi(2)).sqrt();
-
-        if dist_h_to_v <= dist_v_to_h {
-            (from_horiz, to_vert)
-        } else {
-            (from_vert, to_horiz)
+        match rank_dir {
+            RankDir::Horizontal => (from_horiz, to_horiz),
+            RankDir::Vertical => (from_vert, to_vert),
         }
     }
 

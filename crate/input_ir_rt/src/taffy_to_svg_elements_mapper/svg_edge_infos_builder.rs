@@ -1,11 +1,11 @@
 use disposition_input_ir_model::EdgeAnimationActive;
 use disposition_ir_model::{
-    edge::{Edge, EdgeGroup, EdgeGroups, EdgeId},
+    edge::{Edge, EdgeGroup, EdgeId},
     entity::EntityTypes,
     node::{NodeId, NodeRank},
-    process::ProcessStepEntities,
+    IrDiagram,
 };
-use disposition_model_common::{entity::EntityType, theme::Css, Id, Map};
+use disposition_model_common::{entity::EntityType, theme::Css, Id, Map, RankDir};
 use disposition_svg_model::{SvgEdgeInfo, SvgNodeInfo};
 use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
 use kurbo::Shape;
@@ -47,16 +47,23 @@ impl SvgEdgeInfosBuilder {
     ///    emit `SvgEdgeInfo`s and animation CSS.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn build<'id>(
-        edge_groups: &EdgeGroups<'id>,
-        entity_types: &EntityTypes<'id>,
+        ir_diagram: &IrDiagram<'id>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
         tailwind_classes: &mut EntityTailwindClasses<'id>,
         css: &mut Css,
         edge_animation_active: EdgeAnimationActive,
-        process_step_entities: &ProcessStepEntities<'id>,
     ) -> Vec<SvgEdgeInfo<'id>> {
+        let IrDiagram {
+            edge_groups,
+            entity_types,
+            process_step_entities,
+            rank_dir,
+            ..
+        } = ir_diagram;
+        let rank_dir = *rank_dir;
+
         // Build a reverse map: entity (edge group) ID -> list of process step NodeIds.
         // This allows efficient lookup of which process steps reference a given edge
         // group when `OnProcessStepFocus` is selected.
@@ -104,6 +111,7 @@ impl SvgEdgeInfosBuilder {
 
         for (edge_group_id, edge_group) in edge_groups.iter() {
             let edge_group_pass1 = Self::build_edge_pass1_infos(
+                rank_dir,
                 edge_group_id,
                 edge_group,
                 entity_types,
@@ -137,6 +145,7 @@ impl SvgEdgeInfosBuilder {
             let visible_segments_length = edge_animation_params.visible_segments_length;
 
             let edge_path_infos = Self::build_edge_path_infos_with_offsets(
+                rank_dir,
                 &pass1_infos,
                 &from_slot_indices,
                 &to_slot_indices,
@@ -236,6 +245,7 @@ impl SvgEdgeInfosBuilder {
     /// The returned `EdgeGroupPass1` contains everything needed for
     /// pass 2 to rebuild the paths with offsets.
     fn build_edge_pass1_infos<'edge, 'id>(
+        rank_dir: RankDir,
         edge_group_id: &'edge EdgeGroupId<'id>,
         edge_group: &'edge EdgeGroup<'id>,
         entity_types: &'edge EntityTypes<'id>,
@@ -259,8 +269,8 @@ impl SvgEdgeInfosBuilder {
             let edge_type = Self::edge_type_determine(&edge_id, entity_types);
 
             // Build the path with zero offsets to determine natural coordinates.
-            let path = EdgePathBuilder::build(from_info, to_info, edge_type);
-            let faces = EdgePathBuilder::faces_select(from_info, to_info);
+            let path = EdgePathBuilder::build(rank_dir, from_info, to_info, edge_type);
+            let faces = EdgePathBuilder::faces_select(rank_dir, from_info, to_info);
 
             let (from_face, to_face) = match faces {
                 Some((from_face, to_face)) => (Some(from_face), Some(to_face)),
@@ -670,6 +680,7 @@ impl SvgEdgeInfosBuilder {
     /// globally computed face offsets.
     #[allow(clippy::too_many_arguments)]
     fn build_edge_path_infos_with_offsets<'edge, 'id>(
+        rank_dir: RankDir,
         pass1_infos: &[EdgePass1Info<'edge, 'id>],
         from_slot_indices: &[Option<usize>],
         to_slot_indices: &[Option<usize>],
@@ -732,6 +743,7 @@ impl SvgEdgeInfosBuilder {
                 );
 
                 let path = EdgePathBuilder::build_with_offsets_and_spacers(
+                    rank_dir,
                     from_info,
                     to_info,
                     pass1_info.edge_type,

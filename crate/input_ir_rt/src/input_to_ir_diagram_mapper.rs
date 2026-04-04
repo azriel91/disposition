@@ -70,6 +70,7 @@ impl InputToIrDiagramMapper {
             theme_types_styles,
             theme_thing_dependencies_styles: _,
             theme_tag_things_focus,
+            rank_dir,
             css,
         } = input_diagram;
 
@@ -155,6 +156,7 @@ impl InputToIrDiagramMapper {
             node_ranks,
             node_shapes,
             process_step_entities,
+            rank_dir: *rank_dir,
             css: Self::css_with_theme_vars(css, &css_theme_vars),
         };
 

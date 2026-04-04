@@ -157,15 +157,13 @@ impl TaffyToSvgElementsMapper {
         // Build edge information and compute animation data for interaction
         // edges.
         let svg_edge_infos = SvgEdgeInfosBuilder::build(
-            &ir_diagram.edge_groups,
-            &ir_diagram.entity_types,
+            ir_diagram,
             &svg_node_info_map,
             taffy_tree,
             edge_spacer_taffy_nodes,
             &mut tailwind_classes,
             &mut css,
             edge_animation_active,
-            &ir_diagram.process_step_entities,
         );
 
         SvgElements::new(

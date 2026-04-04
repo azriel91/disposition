@@ -773,6 +773,8 @@ theme_tag_things_focus:
     node_defaults:
       style_aliases_applied: [stroke_dashed_animated]
 
+rank_dir: "vertical"
+
 # Additional CSS to place in the SVG's inline `<styles>` section.
 css: |-
   @keyframes stroke-dashoffset-move {

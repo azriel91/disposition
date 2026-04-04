@@ -6,9 +6,10 @@ extern crate id_newtype;
 
 pub use id_newtype::id;
 
-pub use self::{
+pub use crate::{
     id::{Id, IdInvalidFmt},
     map::{Keys, Map},
+    rank_dir::RankDir,
     set::Set,
 };
 
@@ -19,4 +20,5 @@ pub mod theme;
 
 mod id;
 mod map;
+mod rank_dir;
 mod set;
