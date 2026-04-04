@@ -21,7 +21,7 @@ use disposition_taffy_model::{
     EntityHighlightedSpan, EntityHighlightedSpans, IrToTaffyError, NodeToTaffyNodeIds,
     ProcessesIncluded, TaffyNodeCtx, TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
 };
-use taffy::prelude::TaffyZero;
+use taffy::{prelude::TaffyZero, JustifyContent, JustifyItems};
 use typed_builder::TypedBuilder;
 
 use self::{
@@ -1099,14 +1099,17 @@ impl IrToTaffyBuilder<'_> {
                         bottom: LengthPercentage::length(flex_layout.padding_bottom()),
                     },
                     border: Rect::length(1.0f32),
-                    // We use `AlignItems::Start` because we want coordinates to be as close to the
-                    // top-left corner as possible. If we use `AlignItems::Center`, the coordinates
+                    // We use `AlignItems::Stretch` because we want coordinates to be as close to
+                    // the top-left corner as possible, as well as resizing each node to be as wide
+                    // as the widest node which looks more visually aesthetic.
+                    //
+                    // If we use `AlignItems::Center`, the coordinates
                     // may be negative when the content width exceeds the diagram dimension, and
                     // starts outside the diagram bounds.
-                    align_items: Some(AlignItems::Start),
-                    justify_items: Some(AlignItems::Start),
+                    align_items: Some(AlignItems::Stretch),
                     align_content: Some(AlignContent::Start),
-                    justify_content: Some(AlignContent::Start),
+                    justify_items: Some(JustifyItems::Start),
+                    justify_content: Some(JustifyContent::Start),
                     gap: Size::length(flex_layout.gap()),
                     flex_direction: flex_direction_to_taffy(flex_layout.direction()),
                     flex_wrap: if flex_layout.wrap() {
@@ -1161,9 +1164,9 @@ impl IrToTaffyBuilder<'_> {
                         },
                         border: Rect::length(1.0f32),
                         align_items: Some(AlignItems::FlexStart),
-                        justify_items: Some(AlignItems::FlexStart),
                         align_content: Some(AlignContent::FlexStart),
-                        justify_content: Some(AlignContent::FlexStart),
+                        justify_items: Some(JustifyItems::FlexStart),
+                        justify_content: Some(JustifyContent::FlexStart),
                         gap: Size::length(flex_layout.gap()),
                         flex_direction: FlexDirection::Column,
                         flex_wrap: FlexWrap::NoWrap,
