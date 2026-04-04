@@ -101,6 +101,20 @@ impl EdgeContactPointOffsets {
     pub(super) fn get(&self, slot: usize) -> Option<f32> {
         self.0.get(slot).copied()
     }
+
+    /// Returns the largest absolute offset value, or `0.0` if the
+    /// offsets are empty.
+    ///
+    /// # Example values
+    ///
+    /// For offsets `[-10.0, 0.0, 10.0]`, returns `10.0`.
+    pub(super) fn max_abs(&self) -> f32 {
+        self.0
+            .iter()
+            .map(|o| o.abs())
+            .reduce(f32::max)
+            .unwrap_or(0.0)
+    }
 }
 
 /// Whether an edge represents an unpaired forward edge, or the request or

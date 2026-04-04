@@ -9,12 +9,46 @@ use super::edge_model::{EdgeType, NodeFace};
 /// face normal (i.e. along the face).
 ///
 /// Positive values shift right / down; negative values shift left / up.
+///
+/// The `*_max_offset` fields record the largest absolute offset across
+/// all edges sharing the same node face, so that downstream builders
+/// (e.g. the orthogonal path builder) can scale protrusion lengths
+/// inversely to the offset magnitude.
 #[derive(Clone, Copy, Debug, Default)]
 pub(super) struct EdgeFaceOffset {
     /// Pixel offset applied to the "from" node's contact point.
+    ///
+    /// # Example values
+    ///
+    /// `0.0` -- edge at the face midpoint.
+    /// `-10.0` -- edge shifted 10 px left/up from the face midpoint.
     pub(super) from_offset: f32,
     /// Pixel offset applied to the "to" node's contact point.
+    ///
+    /// # Example values
+    ///
+    /// `0.0` -- edge at the face midpoint.
+    /// `10.0` -- edge shifted 10 px right/down from the face midpoint.
     pub(super) to_offset: f32,
+    /// Largest absolute offset across all edges sharing the "from"
+    /// node's face.
+    ///
+    /// Used to compute orthogonal protrusion lengths: edges closer to
+    /// the midpoint (smaller offset) get longer protrusions.
+    ///
+    /// # Example values
+    ///
+    /// `10.0` -- when 3 edges share the face with offsets
+    /// `[-10.0, 0.0, 10.0]`.
+    pub(super) from_max_offset: f32,
+    /// Largest absolute offset across all edges sharing the "to"
+    /// node's face.
+    ///
+    /// # Example values
+    ///
+    /// `10.0` -- when 3 edges share the face with offsets
+    /// `[-10.0, 0.0, 10.0]`.
+    pub(super) to_max_offset: f32,
 }
 
 /// Absolute coordinates of a spacer node's entry and exit edges,

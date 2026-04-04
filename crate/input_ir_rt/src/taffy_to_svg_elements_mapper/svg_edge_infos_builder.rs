@@ -532,7 +532,7 @@ impl SvgEdgeInfosBuilder {
                     .get(&pass1_info.edge.to)
                     .expect("to node validated in pass 1");
 
-                let from_offset = pass1_info
+                let (from_offset, from_max_offset) = pass1_info
                     .from_face
                     .and_then(|from_face| {
                         let slot_index = from_slot_indices[pass1_info_index]?;
@@ -542,11 +542,13 @@ impl SvgEdgeInfosBuilder {
                         };
                         let contact_point_offsets =
                             face_offsets_by_node_face.get(&node_id_and_face)?;
-                        contact_point_offsets.get(slot_index)
+                        let offset = contact_point_offsets.get(slot_index)?;
+                        let max_abs = contact_point_offsets.max_abs();
+                        Some((offset, max_abs))
                     })
-                    .unwrap_or(0.0);
+                    .unwrap_or((0.0, 0.0));
 
-                let to_offset = pass1_info
+                let (to_offset, to_max_offset) = pass1_info
                     .to_face
                     .and_then(|to_face| {
                         let slot_index = to_slot_indices[pass1_info_index]?;
@@ -556,13 +558,17 @@ impl SvgEdgeInfosBuilder {
                         };
                         let contact_point_offsets =
                             face_offsets_by_node_face.get(&node_id_and_face)?;
-                        contact_point_offsets.get(slot_index)
+                        let offset = contact_point_offsets.get(slot_index)?;
+                        let max_abs = contact_point_offsets.max_abs();
+                        Some((offset, max_abs))
                     })
-                    .unwrap_or(0.0);
+                    .unwrap_or((0.0, 0.0));
 
                 let face_offset = EdgeFaceOffset {
                     from_offset,
                     to_offset,
+                    from_max_offset,
+                    to_max_offset,
                 };
 
                 // Compute spacer coordinates from spacer taffy nodes if

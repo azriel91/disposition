@@ -18,12 +18,47 @@ const ARC_RADIUS: f32 = 4.0;
 /// Equal to `(4.0 / 3.0) * (sqrt(2) - 1)`, approximately `0.5522847498`.
 const KAPPA: f32 = 0.552_284_8;
 
+/// Protrusion lengths for the from-node and to-node endpoints of an
+/// orthogonal edge path.
+///
+/// A protrusion is a short stub that exits the node face perpendicular
+/// to the face line before the main orthogonal routing begins. This
+/// separates parallel edges that share the same node face.
+///
+/// # Example values
+///
+/// ```text
+/// OrthoProtrusionParams { from_protrusion: 12.0, to_protrusion: 8.0 }
+/// ```
+///
+/// An edge whose from-node is close to the face midpoint gets a longer
+/// `from_protrusion`; an edge further from the midpoint gets a shorter
+/// one.
+#[derive(Clone, Copy, Debug, Default)]
+pub(in crate::taffy_to_svg_elements_mapper) struct OrthoProtrusionParams {
+    /// Protrusion length in pixels at the from-node endpoint.
+    ///
+    /// `0.0` means no protrusion (the path routes directly from the
+    /// contact point).
+    pub(in crate::taffy_to_svg_elements_mapper) from_protrusion: f32,
+
+    /// Protrusion length in pixels at the to-node endpoint.
+    ///
+    /// `0.0` means no protrusion.
+    pub(in crate::taffy_to_svg_elements_mapper) to_protrusion: f32,
+}
+
 /// Builds pass-2 edge paths using orthogonal (90-degree) lines with
 /// rounded arc corners between spacers.
 ///
 /// This handles the `EdgeCurvature::Orthogonal` variant where segments
 /// between nodes and spacers are drawn as horizontal/vertical lines
 /// that turn at 90-degree angles, with small arcs rounding each corner.
+///
+/// When `OrthoProtrusionParams` specifies non-zero protrusions, a
+/// short perpendicular stub is drawn exiting/entering each node face
+/// before the main routing segment. This turns each L-shaped segment
+/// into a Z-shaped or S-shaped segment with two 90-degree turns.
 #[derive(Clone, Copy, Debug)]
 pub(in crate::taffy_to_svg_elements_mapper) struct EdgePathBuilderPass2Ortho;
 
@@ -59,9 +94,22 @@ impl EdgePathBuilderPass2Ortho {
         from_face: NodeFace,
         to_face: NodeFace,
         spacers: &[SpacerCoordinates],
+        protrusion: OrthoProtrusionParams,
     ) -> BezPath {
         let mut path = BezPath::new();
-        path.move_to(Point::new(end_x as f64, end_y as f64));
+
+        // === To-node protrusion === //
+        //
+        // The path is built in reverse (end -> start). The to-node
+        // protrusion is the first thing drawn: a short stub exiting the
+        // to-node face perpendicular to the face line.
+        let (eff_end_x, eff_end_y) = Self::protrusion_apply_start(
+            &mut path,
+            end_x,
+            end_y,
+            to_face,
+            protrusion.to_protrusion,
+        );
 
         let spacer_count = spacers.len();
 
@@ -72,8 +120,8 @@ impl EdgePathBuilderPass2Ortho {
             let seg_start_y;
             let seg_start_dir: FaceOrDirection;
             if rev_index == 0 {
-                seg_start_x = end_x;
-                seg_start_y = end_y;
+                seg_start_x = eff_end_x;
+                seg_start_y = eff_end_y;
                 seg_start_dir = FaceOrDirection::Face(to_face);
             } else {
                 let prev_spacer = &spacers[spacer_count - rev_index];
@@ -101,15 +149,26 @@ impl EdgePathBuilderPass2Ortho {
         // === Final orthogonal segment from first spacer's entry to start === //
         let first_spacer = &spacers[0];
         let (fdx, fdy) = Self::spacer_passthrough_direction(first_spacer);
+
+        // Compute the effective start point (after from-node protrusion).
+        let (eff_start_x, eff_start_y) =
+            Self::protrusion_offset(start_x, start_y, from_face, protrusion.from_protrusion);
+
         Self::ortho_segment_append(
             &mut path,
             first_spacer.entry_x,
             first_spacer.entry_y,
-            start_x,
-            start_y,
+            eff_start_x,
+            eff_start_y,
             FaceOrDirection::Direction((-fdx, -fdy)),
             FaceOrDirection::Face(from_face),
         );
+
+        // === From-node protrusion === //
+        //
+        // Draw from the effective start back to the actual start
+        // (protrusion stub entering the from-node).
+        Self::protrusion_apply_end(&mut path, start_x, start_y, protrusion.from_protrusion);
 
         path
     }
@@ -132,22 +191,103 @@ impl EdgePathBuilderPass2Ortho {
         end_y: f32,
         from_face: NodeFace,
         to_face: NodeFace,
+        protrusion: OrthoProtrusionParams,
     ) -> BezPath {
         let mut path = BezPath::new();
-        // Path is built in reverse (end -> start) for SVG rendering.
-        path.move_to(Point::new(end_x as f64, end_y as f64));
 
-        Self::ortho_segment_append(
+        // === To-node protrusion === //
+        let (eff_end_x, eff_end_y) = Self::protrusion_apply_start(
             &mut path,
             end_x,
             end_y,
-            start_x,
-            start_y,
+            to_face,
+            protrusion.to_protrusion,
+        );
+
+        // Compute the effective start point (after from-node protrusion).
+        let (eff_start_x, eff_start_y) =
+            Self::protrusion_offset(start_x, start_y, from_face, protrusion.from_protrusion);
+
+        // Path is built in reverse (end -> start) for SVG rendering.
+        Self::ortho_segment_append(
+            &mut path,
+            eff_end_x,
+            eff_end_y,
+            eff_start_x,
+            eff_start_y,
             FaceOrDirection::Face(to_face),
             FaceOrDirection::Face(from_face),
         );
 
+        // === From-node protrusion === //
+        Self::protrusion_apply_end(&mut path, start_x, start_y, protrusion.from_protrusion);
+
         path
+    }
+
+    /// Applies a protrusion at the start of the path (the to-node
+    /// endpoint, since the path is built in reverse).
+    ///
+    /// Moves to the node contact point, draws a short perpendicular
+    /// stub outward from the face, and returns the effective endpoint
+    /// (the tip of the protrusion) that the main routing should start
+    /// from.
+    ///
+    /// When `protrusion_len` is zero or near-zero, the path simply
+    /// starts at the contact point and no stub is drawn.
+    fn protrusion_apply_start(
+        path: &mut BezPath,
+        x: f32,
+        y: f32,
+        face: NodeFace,
+        protrusion_len: f32,
+    ) -> (f32, f32) {
+        path.move_to(Point::new(x as f64, y as f64));
+
+        if protrusion_len < 1e-3 {
+            return (x, y);
+        }
+
+        let (eff_x, eff_y) = Self::protrusion_offset(x, y, face, protrusion_len);
+        path.line_to(Point::new(eff_x as f64, eff_y as f64));
+        (eff_x, eff_y)
+    }
+
+    /// Applies a protrusion at the end of the path (the from-node
+    /// endpoint, since the path is built in reverse).
+    ///
+    /// Draws a line from the current path position to the actual node
+    /// contact point, closing the protrusion stub.
+    ///
+    /// When `protrusion_len` is zero or near-zero, no extra line is
+    /// drawn (the main routing already ends at the contact point).
+    fn protrusion_apply_end(path: &mut BezPath, x: f32, y: f32, protrusion_len: f32) {
+        if protrusion_len < 1e-3 {
+            return;
+        }
+
+        path.line_to(Point::new(x as f64, y as f64));
+    }
+
+    /// Computes the point offset from `(x, y)` along the outward normal
+    /// of `face` by `protrusion_len` pixels.
+    ///
+    /// This is the tip of the protrusion stub: the point where the main
+    /// orthogonal routing begins or ends.
+    ///
+    /// # Example values
+    ///
+    /// * `(100.0, 50.0)` with `NodeFace::Bottom` and `protrusion_len = 10.0`
+    ///   returns `(100.0, 60.0)`.
+    /// * `(100.0, 50.0)` with `NodeFace::Top` and `protrusion_len = 10.0`
+    ///   returns `(100.0, 40.0)`.
+    fn protrusion_offset(x: f32, y: f32, face: NodeFace, protrusion_len: f32) -> (f32, f32) {
+        match face {
+            NodeFace::Top => (x, y - protrusion_len),
+            NodeFace::Bottom => (x, y + protrusion_len),
+            NodeFace::Left => (x - protrusion_len, y),
+            NodeFace::Right => (x + protrusion_len, y),
+        }
     }
 
     /// Appends an orthogonal segment from `(px, py)` to `(qx, qy)`.
