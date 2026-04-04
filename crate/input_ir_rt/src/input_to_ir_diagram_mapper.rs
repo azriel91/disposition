@@ -24,7 +24,7 @@ use disposition_model_common::{
     edge::EdgeGroupId,
     entity::{EntityDescs, EntityTooltips},
     theme::Css,
-    Id, Map, Set,
+    Id, Map, RankDir, Set,
 };
 
 use crate::node_ranks_calculator::NodeRanksCalculator;
@@ -106,8 +106,13 @@ impl InputToIrDiagramMapper {
         );
 
         // 9. Build NodeLayouts from node_hierarchy and theme
+        let flex_direction_default = match render_options.rank_dir {
+            RankDir::Horizontal => FlexDirection::Column,
+            RankDir::Vertical => FlexDirection::Row,
+        };
         let node_layouts = Self::build_node_layouts(
             &node_hierarchy,
+            flex_direction_default,
             &ir_entity_types,
             theme_default,
             theme_types_styles,
@@ -822,6 +827,7 @@ impl InputToIrDiagramMapper {
     /// Build NodeLayouts from node_hierarchy and theme data.
     fn build_node_layouts<'id>(
         node_hierarchy: &NodeHierarchy<'id>,
+        flex_direction_default: FlexDirection,
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
@@ -964,7 +970,7 @@ impl InputToIrDiagramMapper {
             thing_layouts
                 .get(&things_container_id)
                 .copied()
-                .unwrap_or(FlexDirection::Row),
+                .unwrap_or(flex_direction_default),
             false,
             entity_types,
             theme_default,
@@ -975,6 +981,7 @@ impl InputToIrDiagramMapper {
         // 8. Build layouts for all things in hierarchy
         Self::build_thing_layouts(
             node_hierarchy,
+            flex_direction_default,
             0,
             entity_types,
             theme_default,
@@ -1116,6 +1123,7 @@ impl InputToIrDiagramMapper {
     #[allow(clippy::too_many_arguments)] // we may reduce this during refactoring
     fn build_thing_layouts<'id, F, G>(
         hierarchy: &NodeHierarchy<'id>,
+        flex_direction_default: FlexDirection,
         depth: usize,
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
@@ -1148,13 +1156,10 @@ impl InputToIrDiagramMapper {
                     // that. Otherwise alternate based on depth: column at even
                     // depths, row at odd depths.
                     let thing_id = node_id.as_ref().clone();
-                    let direction = thing_layouts.get(&thing_id).copied().unwrap_or_else(|| {
-                        if depth.is_multiple_of(2) {
-                            FlexDirection::Column
-                        } else {
-                            FlexDirection::Row
-                        }
-                    });
+                    let direction = thing_layouts
+                        .get(&thing_id)
+                        .copied()
+                        .unwrap_or(flex_direction_default);
 
                     Self::build_node_flex_layout(
                         node_id.clone().into_inner(),
@@ -1186,6 +1191,7 @@ impl InputToIrDiagramMapper {
                 if let Some(children) = children_opt {
                     Self::build_thing_layouts(
                         &children,
+                        flex_direction_default,
                         depth + 1,
                         entity_types,
                         theme_default,

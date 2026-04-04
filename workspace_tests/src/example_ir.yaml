@@ -584,7 +584,7 @@ node_layouts:
       gap: 4.0
   t_aws:
     flex:
-      direction: column
+      direction: row
       wrap: false
       padding_top: 4.0
       padding_right: 4.0
@@ -633,7 +633,7 @@ node_layouts:
       gap: 4.0
   t_aws_ecr_repo:
     flex:
-      direction: column
+      direction: row
       wrap: false
       padding_top: 4.0
       padding_right: 4.0
@@ -679,7 +679,7 @@ node_layouts:
       gap: 4.0
   t_aws_ecs_cluster:
     flex:
-      direction: column
+      direction: row
       wrap: false
       padding_top: 4.0
       padding_right: 4.0
@@ -702,7 +702,7 @@ node_layouts:
       margin_left: 0.0
   t_github:
     flex:
-      direction: column
+      direction: row
       wrap: false
       padding_top: 4.0
       padding_right: 4.0
@@ -725,7 +725,7 @@ node_layouts:
       margin_left: 0.0
   t_localhost:
     flex:
-      direction: column
+      direction: row
       wrap: false
       padding_top: 4.0
       padding_right: 4.0
@@ -761,7 +761,7 @@ node_layouts:
       margin_left: 0.0
   t_localhost_repo_target:
     flex:
-      direction: column
+      direction: row
       wrap: false
       padding_top: 4.0
       padding_right: 4.0
