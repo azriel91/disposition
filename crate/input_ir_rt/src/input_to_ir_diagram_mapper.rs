@@ -825,6 +825,7 @@ impl InputToIrDiagramMapper {
     // === Node Layouts === //
 
     /// Build NodeLayouts from node_hierarchy and theme data.
+    #[allow(clippy::too_many_arguments)]
     fn build_node_layouts<'id>(
         node_hierarchy: &NodeHierarchy<'id>,
         flex_direction_default: FlexDirection,
@@ -982,7 +983,6 @@ impl InputToIrDiagramMapper {
         Self::build_thing_layouts(
             node_hierarchy,
             flex_direction_default,
-            0,
             entity_types,
             theme_default,
             theme_types_styles,
@@ -1124,7 +1124,6 @@ impl InputToIrDiagramMapper {
     fn build_thing_layouts<'id, F, G>(
         hierarchy: &NodeHierarchy<'id>,
         flex_direction_default: FlexDirection,
-        depth: usize,
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
@@ -1192,7 +1191,6 @@ impl InputToIrDiagramMapper {
                     Self::build_thing_layouts(
                         &children,
                         flex_direction_default,
-                        depth + 1,
                         entity_types,
                         theme_default,
                         theme_types_styles,

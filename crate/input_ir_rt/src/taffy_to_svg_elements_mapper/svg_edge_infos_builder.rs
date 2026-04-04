@@ -492,7 +492,8 @@ impl SvgEdgeInfosBuilder {
             }
 
             // Secondary: coordinate along the face axis.
-            let coord_cmp = match face {
+
+            match face {
                 NodeFace::Top | NodeFace::Bottom => entry_a
                     .to_node_x
                     .partial_cmp(&entry_b.to_node_x)
@@ -501,8 +502,7 @@ impl SvgEdgeInfosBuilder {
                     .to_node_y
                     .partial_cmp(&entry_b.to_node_y)
                     .unwrap_or(std::cmp::Ordering::Equal),
-            };
-            coord_cmp
+            }
         });
     }
 

@@ -16,7 +16,7 @@ const ARC_RADIUS: f32 = 4.0;
 /// bezier curve.
 ///
 /// Equal to `(4.0 / 3.0) * (sqrt(2) - 1)`, approximately `0.5522847498`.
-const KAPPA: f32 = 0.5522847498;
+const KAPPA: f32 = 0.552_284_8;
 
 /// Builds pass-2 edge paths using orthogonal (90-degree) lines with
 /// rounded arc corners between spacers.
