@@ -1,7 +1,7 @@
 use disposition_model_common::{
     entity::{EntityTooltips, EntityType},
     theme::Css,
-    Map, RankDir,
+    Map, RenderOptions,
 };
 use serde::{Deserialize, Serialize};
 
@@ -132,14 +132,11 @@ pub struct InputDiagram<'id> {
     #[serde(default, skip_serializing_if = "ThemeTagThingsFocus::is_empty")]
     pub theme_tag_things_focus: ThemeTagThingsFocus<'id>,
 
-    /// Direction of edges in the diagram.
+    /// Options that control how the diagram is rendered.
     ///
-    /// * `RankDir::Vertical`: edges connect nodes using their top / bottom
-    ///   faces.
-    /// * `RankDir::Horizontal`: edges connect nodes using their left / right
-    ///   faces.
-    #[serde(default, skip_serializing_if = "RankDir::is_default")]
-    pub rank_dir: RankDir,
+    /// Includes edge curvature and rank direction settings.
+    #[serde(default, skip_serializing_if = "RenderOptions::is_default")]
+    pub render_options: RenderOptions,
 
     /// Additional CSS to place in the SVG's inline `<styles>` section.
     #[serde(default, skip_serializing_if = "Css::is_empty")]
@@ -205,7 +202,7 @@ impl InputDiagram<'static> {
             theme_types_styles,
             theme_thing_dependencies_styles: ThemeThingDependenciesStyles::default(),
             theme_tag_things_focus,
-            rank_dir: RankDir::default(),
+            render_options: RenderOptions::default(),
             css,
         }
     }

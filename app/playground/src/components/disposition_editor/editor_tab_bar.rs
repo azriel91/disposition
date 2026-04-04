@@ -133,6 +133,7 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
                 EditorPage::Processes |
                 EditorPage::Tags |
                 EditorPage::EntityTypes |
+                EditorPage::RenderOptions |
                 EditorPage::Text => rsx! {},
             }
         }

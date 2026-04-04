@@ -1,4 +1,4 @@
-use disposition_model_common::{entity::EntityTooltips, theme::Css, RankDir};
+use disposition_model_common::{entity::EntityTooltips, theme::Css, RenderOptions};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -177,14 +177,11 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "ProcessStepEntities::is_empty")]
     pub process_step_entities: ProcessStepEntities<'id>,
 
-    /// Direction of edges in the diagram.
+    /// Options that control how the diagram is rendered.
     ///
-    /// * `RankDir::Vertical`: edges connect nodes using their top / bottom
-    ///   faces.
-    /// * `RankDir::Horizontal`: edges connect nodes using their left / right
-    ///   faces.
-    #[serde(default, skip_serializing_if = "RankDir::is_default")]
-    pub rank_dir: RankDir,
+    /// Includes edge curvature and rank direction settings.
+    #[serde(default, skip_serializing_if = "RenderOptions::is_default")]
+    pub render_options: RenderOptions,
 
     /// Additional CSS to place in the SVG's inline `<styles>` section.
     ///
@@ -219,7 +216,7 @@ impl<'id> IrDiagram<'id> {
             node_ranks: self.node_ranks.into_static(),
             node_shapes: self.node_shapes.into_static(),
             process_step_entities: self.process_step_entities.into_static(),
-            rank_dir: self.rank_dir,
+            render_options: self.render_options,
             css: self.css,
         }
     }

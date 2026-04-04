@@ -91,7 +91,7 @@ impl InputDiagramMerger {
             base_diagram.theme_tag_things_focus,
             &overlay_diagram.theme_tag_things_focus,
         );
-        let rank_dir = overlay_diagram.rank_dir;
+        let render_options = overlay_diagram.render_options;
         let css = Self::merge_css(base_diagram.css, &overlay_diagram.css);
 
         InputDiagram {
@@ -111,7 +111,7 @@ impl InputDiagramMerger {
             theme_types_styles,
             theme_thing_dependencies_styles,
             theme_tag_things_focus,
-            rank_dir,
+            render_options,
             css,
         }
     }

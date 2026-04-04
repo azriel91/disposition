@@ -63,10 +63,11 @@ impl SvgEdgeInfosBuilder {
             edge_groups,
             entity_types,
             process_step_entities,
-            rank_dir,
+            render_options,
             ..
         } = ir_diagram;
-        let rank_dir = *rank_dir;
+        let edge_curvature = render_options.edge_curvature;
+        let rank_dir = render_options.rank_dir;
 
         // Build a reverse map: entity (edge group) ID -> list of process step NodeIds.
         // This allows efficient lookup of which process steps reference a given edge
@@ -150,6 +151,7 @@ impl SvgEdgeInfosBuilder {
             let visible_segments_length = edge_animation_params.visible_segments_length;
 
             let edge_path_infos = Self::build_edge_path_infos_with_offsets(
+                edge_curvature,
                 rank_dir,
                 &pass1_infos,
                 &from_slot_indices,
@@ -508,6 +510,7 @@ impl SvgEdgeInfosBuilder {
     /// globally computed face offsets.
     #[allow(clippy::too_many_arguments)]
     fn build_edge_path_infos_with_offsets<'edge, 'id>(
+        edge_curvature: EdgeCurvature,
         rank_dir: RankDir,
         pass1_infos: &[EdgePass1Info<'edge, 'id>],
         from_slot_indices: &[Option<usize>],
@@ -571,7 +574,7 @@ impl SvgEdgeInfosBuilder {
                 );
 
                 let path = EdgePathBuilderPass2::build(
-                    EdgeCurvature::Curved,
+                    edge_curvature,
                     rank_dir,
                     from_info,
                     to_info,

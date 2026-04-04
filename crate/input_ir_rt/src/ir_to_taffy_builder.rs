@@ -132,7 +132,7 @@ impl IrToTaffyBuilder<'_> {
             node_ranks,
             node_shapes,
             process_step_entities: _,
-            rank_dir: _,
+            render_options: _,
             css: _,
         } = ir_diagram;
 

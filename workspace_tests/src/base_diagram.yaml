@@ -283,12 +283,6 @@ theme_tag_things_focus:
     node_defaults:
       style_aliases_applied: [stroke_dashed_animated]
 
-# Direction of edges in the diagram.
-#
-# * `vertical`: edges connect nodes using their top / bottom faces.
-# * `horizontal`: edges connect nodes using their left / right faces.
-rank_dir: "vertical"
-
 # Additional CSS to place in the SVG's inline `<styles>` section.
 css: |-
   @keyframes stroke-dashoffset-move {
