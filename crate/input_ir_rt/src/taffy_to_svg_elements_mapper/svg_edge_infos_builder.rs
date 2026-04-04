@@ -5,7 +5,9 @@ use disposition_ir_model::{
     node::{NodeId, NodeRank, NodeRanks},
     IrDiagram,
 };
-use disposition_model_common::{entity::EntityType, theme::Css, Id, Map, RankDir};
+use disposition_model_common::{
+    edge::EdgeCurvature, entity::EntityType, theme::Css, Id, Map, RankDir,
+};
 use disposition_svg_model::{SvgEdgeInfo, SvgNodeInfo};
 use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
 use kurbo::Shape;
@@ -20,7 +22,8 @@ use crate::taffy_to_svg_elements_mapper::{
         NodeIdAndFace, PathBounds, PathMidpoint,
     },
     edge_path_builder::{EdgeFaceOffset, SpacerCoordinates},
-    ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilder, StringCharReplacer,
+    ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
+    StringCharReplacer,
 };
 
 /// Builds [`SvgEdgeInfo`]s for all edges in the diagram from edge groups and
@@ -272,8 +275,8 @@ impl SvgEdgeInfosBuilder {
             let edge_type = Self::edge_type_determine(&edge_id, entity_types);
 
             // Build the path with zero offsets to determine natural coordinates.
-            let path = EdgePathBuilder::build(rank_dir, from_info, to_info, edge_type);
-            let faces = EdgePathBuilder::faces_select(rank_dir, from_info, to_info);
+            let path = EdgePathBuilderPass1::build(rank_dir, from_info, to_info, edge_type);
+            let faces = EdgePathBuilderPass1::faces_select(rank_dir, from_info, to_info);
 
             let (from_face, to_face) = match faces {
                 Some((from_face, to_face)) => (Some(from_face), Some(to_face)),
@@ -567,7 +570,8 @@ impl SvgEdgeInfosBuilder {
                     edge_spacer_taffy_nodes,
                 );
 
-                let path = EdgePathBuilder::build_with_offsets_and_spacers(
+                let path = EdgePathBuilderPass2::build(
+                    EdgeCurvature::Curved,
                     rank_dir,
                     from_info,
                     to_info,

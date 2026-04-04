@@ -55,7 +55,7 @@ pub(super) struct SpacerCoordinates {
 /// Represents the connection geometry for an edge endpoint on a node.
 /// Either the standard rectangular face, or a circle perimeter point.
 #[derive(Clone, Copy, Debug)]
-enum NodeEdgeGeometry {
+pub(super) enum NodeEdgeGeometry {
     /// Standard rectangular face connection.
     Rect,
     /// Circle connection: the edge should connect to the perimeter of the
@@ -70,27 +70,28 @@ enum NodeEdgeGeometry {
     },
 }
 
-// Constants for edge layout
+// === Constants for edge layout === //
 
 /// Percentage of the node's width to offset the edge's x coordinate
 /// from the midpoint of the node.
-const SELF_LOOP_X_OFFSET_RATIO: f32 = 0.2;
+pub(super) const SELF_LOOP_X_OFFSET_RATIO: f32 = 0.2;
 /// Percentage of the node's height to extend the edge vertically.
-const SELF_LOOP_Y_EXTENSION_RATIO: f32 = 0.2;
+pub(super) const SELF_LOOP_Y_EXTENSION_RATIO: f32 = 0.2;
 /// Percentage of the node's width to curve the edge horizontally
 /// outward.
-const SELF_LOOP_X_EXTENSION_RATIO: f32 = 0.2;
+pub(super) const SELF_LOOP_X_EXTENSION_RATIO: f32 = 0.2;
 /// Percentage of the node's width/height to offset the edge when
 /// connecting to another edge.
-const BIDIRECTIONAL_OFFSET_RATIO: f32 = 0.1;
+pub(super) const BIDIRECTIONAL_OFFSET_RATIO: f32 = 0.1;
 /// Percentage of the node's width/height to curve the edge outward.
-const CURVE_CONTROL_RATIO: f32 = 0.3;
+pub(super) const CURVE_CONTROL_RATIO: f32 = 0.3;
 
-/// Builds SVG bezier curve paths for edges connecting two nodes.
+/// Builds SVG bezier curve paths for pass-1 edge layout (zero-offset
+/// paths for metadata collection).
 #[derive(Clone, Copy, Debug)]
-pub(super) struct EdgePathBuilder;
+pub(super) struct EdgePathBuilderPass1;
 
-impl EdgePathBuilder {
+impl EdgePathBuilderPass1 {
     /// Builds the SVG path `d` attribute for an edge between two nodes.
     ///
     /// The path is a curved bezier curve that connects the appropriate faces
@@ -218,127 +219,6 @@ impl EdgePathBuilder {
         )
     }
 
-    /// Builds the SVG path with per-face contact point offsets and
-    /// intermediate spacer passthrough segments.
-    ///
-    /// When `spacers` is empty this delegates to `build_with_offsets`.
-    /// Otherwise the path curves from the from-node face to the first
-    /// spacer, passes straight through each spacer, curves between
-    /// spacers, and curves from the last spacer to the to-node face.
-    ///
-    /// Self-loops and contained-edge special cases ignore spacers.
-    ///
-    /// # Parameters
-    ///
-    /// * `spacers` - Intermediate spacer coordinates the edge must pass
-    ///   through, e.g. `&[SpacerCoordinates { entry_x: 150.0, entry_y: 200.0,
-    ///   exit_x: 150.0, exit_y: 205.0 }]`.
-    pub(super) fn build_with_offsets_and_spacers(
-        rank_dir: RankDir,
-        from_info: &SvgNodeInfo,
-        to_info: &SvgNodeInfo,
-        edge_type: EdgeType,
-        face_offset: EdgeFaceOffset,
-        spacers: &[SpacerCoordinates],
-    ) -> BezPath {
-        if spacers.is_empty() {
-            return Self::build_with_offsets(rank_dir, from_info, to_info, edge_type, face_offset);
-        }
-
-        // Handle self-loop case (waypoints ignored)
-        if from_info.node_id == to_info.node_id {
-            return Self::build_self_loop_path(
-                from_info,
-                edge_type,
-                SELF_LOOP_X_OFFSET_RATIO,
-                SELF_LOOP_Y_EXTENSION_RATIO,
-                SELF_LOOP_X_EXTENSION_RATIO,
-            );
-        }
-
-        // Determine circle geometry for from/to nodes
-        let from_geom = Self::node_edge_geometry(from_info);
-        let to_geom = Self::node_edge_geometry(to_info);
-
-        // Determine which faces to use based on relative positions
-        let (from_face, to_face) = Self::select_edge_faces(rank_dir, from_info, to_info);
-
-        // Check if from is contained inside to (waypoints ignored)
-        let from_contained_in_to = Self::is_node_contained_in(from_info, to_info);
-        if from_contained_in_to {
-            return Self::build_contained_edge_path(from_info, to_info, CURVE_CONTROL_RATIO);
-        }
-
-        // Get base connection points
-        let (mut start_x, mut start_y) = Self::get_face_center(from_info, from_face);
-        let (mut end_x, mut end_y) = Self::get_face_center(to_info, to_face);
-
-        // Apply face contact offsets (spread edges along the face).
-        Self::face_offset_apply(
-            &mut start_x,
-            &mut start_y,
-            from_face,
-            face_offset.from_offset,
-        );
-        Self::face_offset_apply(&mut end_x, &mut end_y, to_face, face_offset.to_offset);
-
-        // Apply bidirectional offset
-        if edge_type == EdgeType::PairRequest || edge_type == EdgeType::PairResponse {
-            let offset_direction = if edge_type == EdgeType::PairResponse {
-                1.0
-            } else {
-                -1.0
-            };
-
-            // Move start point down if this is the `PairRequest` edge.
-            match from_face {
-                NodeFace::Right | NodeFace::Left => {
-                    start_y +=
-                        from_info.height_collapsed * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                }
-                NodeFace::Top | NodeFace::Bottom => {
-                    start_x += from_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                }
-            }
-
-            // Move end point down if this is the `PairResponse` edge.
-            match to_face {
-                NodeFace::Right | NodeFace::Left => {
-                    end_y +=
-                        to_info.height_collapsed * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                }
-                NodeFace::Top | NodeFace::Bottom => {
-                    end_x += to_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                }
-            }
-        }
-
-        // If either node has a circle, snap the connection point to the circle
-        // perimeter instead of the rectangular face center.
-        if let NodeEdgeGeometry::Circle { cx, cy, radius } = from_geom {
-            let (sx, sy) = Self::circle_perimeter_point(cx, cy, radius, end_x, end_y);
-            start_x = sx;
-            start_y = sy;
-        }
-        if let NodeEdgeGeometry::Circle { cx, cy, radius } = to_geom {
-            let (ex, ey) = Self::circle_perimeter_point(cx, cy, radius, start_x, start_y);
-            end_x = ex;
-            end_y = ey;
-        }
-
-        // Build spacer path
-        Self::build_spacer_edge_path(
-            start_x,
-            start_y,
-            end_x,
-            end_y,
-            from_face,
-            to_face,
-            spacers,
-            CURVE_CONTROL_RATIO,
-        )
-    }
-
     /// Returns the (from_face, to_face) that would be selected for an
     /// edge between two nodes, without building the full path.
     ///
@@ -365,7 +245,7 @@ impl EdgePathBuilder {
     ///
     /// For `Left` / `Right` faces the offset shifts vertically.
     /// For `Top` / `Bottom` faces the offset shifts horizontally.
-    fn face_offset_apply(x: &mut f32, y: &mut f32, face: NodeFace, offset: f32) {
+    pub(super) fn face_offset_apply(x: &mut f32, y: &mut f32, face: NodeFace, offset: f32) {
         match face {
             NodeFace::Left | NodeFace::Right => *y += offset,
             NodeFace::Top | NodeFace::Bottom => *x += offset,
@@ -377,7 +257,7 @@ impl EdgePathBuilder {
     /// If the node has a circle, returns `NodeEdgeGeometry::Circle` with
     /// the circle's absolute center and radius. Otherwise returns
     /// `NodeEdgeGeometry::Rect`.
-    fn node_edge_geometry(node_info: &SvgNodeInfo) -> NodeEdgeGeometry {
+    pub(super) fn node_edge_geometry(node_info: &SvgNodeInfo) -> NodeEdgeGeometry {
         if let Some(ref circle) = node_info.circle {
             NodeEdgeGeometry::Circle {
                 cx: node_info.x + circle.cx,
@@ -394,7 +274,7 @@ impl EdgePathBuilder {
     /// Given a circle at `(cx, cy)` with `radius`, computes the point on
     /// its perimeter that lies on the line from the center to
     /// `(target_x, target_y)`.
-    fn circle_perimeter_point(
+    pub(super) fn circle_perimeter_point(
         cx: f32,
         cy: f32,
         radius: f32,
@@ -416,7 +296,7 @@ impl EdgePathBuilder {
 
     /// Builds a self-loop path that goes from the bottom of a node, extends
     /// down, curves left, and returns to the bottom of the same node.
-    fn build_self_loop_path(
+    pub(super) fn build_self_loop_path(
         node_info: &SvgNodeInfo,
         edge_type: EdgeType,
         x_offset_ratio: f32,
@@ -470,7 +350,7 @@ impl EdgePathBuilder {
 
     /// Builds a path for an edge where the source node is contained inside the
     /// target node.
-    fn build_contained_edge_path(
+    pub(super) fn build_contained_edge_path(
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
         curve_ratio: f32,
@@ -502,7 +382,7 @@ impl EdgePathBuilder {
 
     /// Selects the appropriate faces for connecting two nodes based on their
     /// relative positions, choosing the faces that produce the shortest path.
-    fn select_edge_faces(
+    pub(super) fn select_edge_faces(
         rank_dir: RankDir,
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
@@ -579,7 +459,7 @@ impl EdgePathBuilder {
             return (NodeFace::Top, NodeFace::Bottom);
         }
 
-        // Overlapping nodes - use primary direction
+        // Overlapping nodes -- use primary direction
         if dx.abs() > dy.abs() {
             if dx > 0.0 {
                 (NodeFace::Right, NodeFace::Left)
@@ -609,7 +489,7 @@ impl EdgePathBuilder {
     }
 
     /// Gets the center point of a node's face.
-    fn get_face_center(node_info: &SvgNodeInfo, face: NodeFace) -> (f32, f32) {
+    pub(super) fn get_face_center(node_info: &SvgNodeInfo, face: NodeFace) -> (f32, f32) {
         match face {
             NodeFace::Top => (node_info.x + node_info.width / 2.0, node_info.y),
             NodeFace::Bottom => (
@@ -625,7 +505,7 @@ impl EdgePathBuilder {
     }
 
     /// Checks if a node is geometrically contained within another node.
-    fn is_node_contained_in(inner: &SvgNodeInfo, outer: &SvgNodeInfo) -> bool {
+    pub(super) fn is_node_contained_in(inner: &SvgNodeInfo, outer: &SvgNodeInfo) -> bool {
         inner.x >= outer.x
             && inner.y >= outer.y
             && inner.x + inner.width <= outer.x + outer.width
@@ -634,7 +514,7 @@ impl EdgePathBuilder {
 
     /// Builds a curved bezier path between two points with control points
     /// based on the faces being connected.
-    fn build_curved_edge_path(
+    pub(super) fn build_curved_edge_path(
         start_x: f32,
         start_y: f32,
         end_x: f32,
@@ -665,210 +545,8 @@ impl EdgePathBuilder {
         path
     }
 
-    /// Builds a smooth bezier path from `start` through spacers to `end`.
-    ///
-    /// The path structure is:
-    ///
-    /// 1. A curved segment from `end` (to-face) to the last spacer's exit.
-    /// 2. A straight line through each spacer (exit to entry, in reversed
-    ///    order).
-    /// 3. Curved segments between adjacent spacers (connecting one spacer's
-    ///    entry to the next spacer's exit).
-    /// 4. A curved segment from the first spacer's entry to `start`
-    ///    (from-face).
-    ///
-    /// The path is built in reverse order (from `end` to `start`) for
-    /// correct SVG rendering direction, consistent with
-    /// `build_curved_edge_path`.
-    ///
-    /// # Example values
-    ///
-    /// * `start_x = 100.0, start_y = 50.0` -- from-node contact point
-    /// * `end_x = 400.0, end_y = 250.0` -- to-node contact point
-    /// * `spacers = &[SpacerCoordinates { entry_x: 200.0, entry_y: 130.0,
-    ///   exit_x: 200.0, exit_y: 135.0 }]`
-    /// * `curve_ratio = 0.3`
-    #[allow(clippy::too_many_arguments)]
-    fn build_spacer_edge_path(
-        start_x: f32,
-        start_y: f32,
-        end_x: f32,
-        end_y: f32,
-        from_face: NodeFace,
-        to_face: NodeFace,
-        spacers: &[SpacerCoordinates],
-        curve_ratio: f32,
-    ) -> BezPath {
-        // === Build the ordered list of curve/line segments === //
-        //
-        // The path is built in reverse (end -> start) for SVG rendering.
-        // In reversed order the spacers are traversed last-to-first, and
-        // within each spacer we go from exit to entry.
-        //
-        // Segment sequence (reversed):
-        //   end -> last_spacer.exit  (curve)
-        //   last_spacer.exit -> last_spacer.entry  (line)
-        //   last_spacer.entry -> second_last_spacer.exit  (curve)
-        //   ...
-        //   first_spacer.exit -> first_spacer.entry  (line)
-        //   first_spacer.entry -> start  (curve)
-
-        let mut path = BezPath::new();
-        path.move_to(Point::new(end_x as f64, end_y as f64));
-
-        let spacer_count = spacers.len();
-
-        // Iterate spacers in reverse (last spacer first in the reversed
-        // path).
-        for (rev_index, spacer) in spacers.iter().rev().enumerate() {
-            // === Curve into spacer exit === //
-            let curve_start_x;
-            let curve_start_y;
-            let curve_start_face_or_dir: FaceOrDirection;
-            if rev_index == 0 {
-                // First curve: from `end` (to-face).
-                curve_start_x = end_x;
-                curve_start_y = end_y;
-                curve_start_face_or_dir = FaceOrDirection::Face(to_face);
-            } else {
-                // Curve from previous spacer's entry point.
-                // The reversed path leaves the entry point going
-                // opposite to the spacer's passthrough direction
-                // (passthrough is entry -> exit; we leave entry going
-                // away from exit).
-                let prev_spacer = &spacers[spacer_count - rev_index];
-                curve_start_x = prev_spacer.entry_x;
-                curve_start_y = prev_spacer.entry_y;
-                let (pdx, pdy) = Self::spacer_passthrough_direction(prev_spacer);
-                curve_start_face_or_dir = FaceOrDirection::Direction((-pdx, -pdy));
-            }
-
-            // The curve arrives at spacer.exit. In the reversed path the
-            // straight line through the spacer goes exit -> entry, which
-            // is the reverse of the passthrough direction. The curve
-            // should arrive at exit aligned with that reversed direction
-            // so the transition into the straight line is smooth.
-            let (sdx, sdy) = Self::spacer_passthrough_direction(spacer);
-            Self::build_spacer_edge_path_curve_segment(
-                &mut path,
-                curve_start_x,
-                curve_start_y,
-                spacer.exit_x,
-                spacer.exit_y,
-                curve_start_face_or_dir,
-                FaceOrDirection::Direction((-sdx, -sdy)),
-                curve_ratio,
-            );
-
-            // === Straight line through spacer (exit -> entry) === //
-            path.line_to(Point::new(spacer.entry_x as f64, spacer.entry_y as f64));
-        }
-
-        // === Final curve from first spacer's entry to start === //
-        // The reversed path leaves the entry point going opposite to
-        // the spacer's passthrough direction.
-        let first_spacer = &spacers[0];
-        let (fdx, fdy) = Self::spacer_passthrough_direction(first_spacer);
-        Self::build_spacer_edge_path_curve_segment(
-            &mut path,
-            first_spacer.entry_x,
-            first_spacer.entry_y,
-            start_x,
-            start_y,
-            FaceOrDirection::Direction((-fdx, -fdy)),
-            FaceOrDirection::Face(from_face),
-            curve_ratio,
-        );
-
-        path
-    }
-
-    /// Appends a single cubic bezier curve segment to `path`.
-    ///
-    /// The segment goes from `(px, py)` to `(qx, qy)`. Control points
-    /// are computed from the endpoint directions:
-    ///
-    /// * `p_dir` -- the direction the path should leave `(px, py)`. For a
-    ///   `Face`, the outward normal is used. For a `Direction`, the unit vector
-    ///   is used directly.
-    /// * `q_dir` -- the direction the path should arrive at `(qx, qy)`. For a
-    ///   `Face`, the outward normal is used (the control point is placed on the
-    ///   outward side so the bezier arrives from that direction). For a
-    ///   `Direction`, the unit vector is negated to produce an inward control
-    ///   point.
-    #[allow(clippy::too_many_arguments)]
-    fn build_spacer_edge_path_curve_segment(
-        path: &mut BezPath,
-        px: f32,
-        py: f32,
-        qx: f32,
-        qy: f32,
-        p_dir: FaceOrDirection,
-        q_dir: FaceOrDirection,
-        curve_ratio: f32,
-    ) {
-        let dx = qx - px;
-        let dy = qy - py;
-        let distance = (dx * dx + dy * dy).sqrt();
-        let ctrl_distance = distance * curve_ratio;
-
-        // Control point leaving p.
-        let (c1x, c1y) = match p_dir {
-            FaceOrDirection::Face(face) => {
-                let (ox, oy) = Self::get_control_point_offset(face, ctrl_distance);
-                (px + ox, py + oy)
-            }
-            FaceOrDirection::Direction((dir_x, dir_y)) => {
-                (px + dir_x * ctrl_distance, py + dir_y * ctrl_distance)
-            }
-        };
-
-        // Control point arriving at q.
-        let (c2x, c2y) = match q_dir {
-            FaceOrDirection::Face(face) => {
-                // Place the control point on the outward side of the
-                // face so the bezier approaches q from outside.
-                let (ox, oy) = Self::get_control_point_offset(face, ctrl_distance);
-                (qx + ox, qy + oy)
-            }
-            FaceOrDirection::Direction((dir_x, dir_y)) => {
-                // Negate to get an inward control point (the bezier
-                // should arrive along this direction).
-                (qx - dir_x * ctrl_distance, qy - dir_y * ctrl_distance)
-            }
-        };
-
-        path.curve_to(
-            Point::new(c1x as f64, c1y as f64),
-            Point::new(c2x as f64, c2y as f64),
-            Point::new(qx as f64, qy as f64),
-        );
-    }
-
-    /// Computes the unit passthrough direction for a spacer.
-    ///
-    /// The direction vector points from the spacer's entry to its exit.
-    /// For a vertical spacer (entry and exit share the same x) this is
-    /// `(0.0, 1.0)` or `(0.0, -1.0)`. For a horizontal spacer it is
-    /// `(1.0, 0.0)` or `(-1.0, 0.0)`.
-    ///
-    /// # Example values
-    ///
-    /// * Vertical spacer: entry `(150, 200)`, exit `(150, 205)` returns `(0.0,
-    ///   1.0)`.
-    fn spacer_passthrough_direction(spacer: &SpacerCoordinates) -> (f32, f32) {
-        let dx = spacer.exit_x - spacer.entry_x;
-        let dy = spacer.exit_y - spacer.entry_y;
-        let len = (dx * dx + dy * dy).sqrt();
-        if len < 1e-6 {
-            (0.0, 1.0)
-        } else {
-            (dx / len, dy / len)
-        }
-    }
-
     /// Gets the control point offset direction based on the face.
-    fn get_control_point_offset(face: NodeFace, distance: f32) -> (f32, f32) {
+    pub(super) fn get_control_point_offset(face: NodeFace, distance: f32) -> (f32, f32) {
         match face {
             NodeFace::Top => (0.0, -distance),
             NodeFace::Bottom => (0.0, distance),
@@ -876,17 +554,4 @@ impl EdgePathBuilder {
             NodeFace::Right => (distance, 0.0),
         }
     }
-}
-
-/// Direction specification for a curve endpoint: either an outward
-/// node face normal or an explicit unit direction vector.
-///
-/// Used by `build_spacer_edge_path_curve_segment` to compute control
-/// points.
-#[derive(Clone, Copy, Debug)]
-enum FaceOrDirection {
-    /// Outward normal of a node face (e.g. `NodeFace::Bottom`).
-    Face(NodeFace),
-    /// Explicit unit direction vector, e.g. `(0.0, 1.0)` for downward.
-    Direction((f32, f32)),
 }
