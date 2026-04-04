@@ -617,14 +617,6 @@ impl SvgEdgeInfosBuilder {
             .rank_to_spacer_taffy_node_id
             .iter()
             .filter_map(|(rank, &taffy_node_id)| {
-                if let Some(parent_taffy_node_id) = taffy_tree.parent(taffy_node_id)
-                    && let Ok(siblings) = taffy_tree.children(parent_taffy_node_id)
-                {
-                    let spacer_is_last_taffy_node = matches!(siblings.last().copied(), Some(last_sibling) if last_sibling == taffy_node_id);
-                    if spacer_is_last_taffy_node {
-                        return None;
-                    }
-                }
                 let layout = taffy_tree.layout(taffy_node_id).ok()?;
 
                 // === Absolute Coordinates === //
