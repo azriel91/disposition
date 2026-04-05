@@ -20,12 +20,12 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum EdgeCurvature {
     /// Edges use smooth bezier curves between nodes and spacers.
-    #[default]
     Curved,
     /// Edges use orthogonal (90-degree) lines between nodes and spacers.
     ///
     /// Corners where the path changes from horizontal to vertical (or
     /// vice versa) are rounded with a small arc.
+    #[default]
     Orthogonal,
 }
 
