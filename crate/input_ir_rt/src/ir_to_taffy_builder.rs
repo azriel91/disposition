@@ -635,7 +635,7 @@ impl IrToTaffyBuilder<'_> {
 
         node_hierarchy.iter().fold(
             Map::<EntityType, BTreeMap<NodeRank, Vec<taffy::NodeId>>>::new(),
-            |mut entity_type_to_nodes, (node_id, child_hierarchy)| {
+            |mut entity_type_to_node_rank_to_taffy_node_ids, (node_id, child_hierarchy)| {
                 let node_id: &Id = node_id.as_ref();
                 let Some(entity_type) = entity_types
                     .get(node_id)
@@ -643,7 +643,7 @@ impl IrToTaffyBuilder<'_> {
                 else {
                     // Skip nodes without an entity type -- probably something extra in the
                     // hierarchy without a node name.
-                    return entity_type_to_nodes;
+                    return entity_type_to_node_rank_to_taffy_node_ids;
                 };
 
                 if matches!(entity_type, EntityType::ProcessDefault) {
@@ -652,7 +652,7 @@ impl IrToTaffyBuilder<'_> {
                         ProcessesIncluded::Filter { process_ids } => {
                             if process_ids.contains(node_id) {
                                 // Don't add this process.
-                                return entity_type_to_nodes;
+                                return entity_type_to_node_rank_to_taffy_node_ids;
                             }
                         }
                     };
@@ -690,14 +690,14 @@ impl IrToTaffyBuilder<'_> {
                     .copied()
                     .unwrap_or(NodeRank::new(0));
 
-                entity_type_to_nodes
+                entity_type_to_node_rank_to_taffy_node_ids
                     .entry(entity_type.clone())
                     .or_default()
                     .entry(rank)
                     .or_default()
                     .push(wrapper_node_id);
 
-                entity_type_to_nodes
+                entity_type_to_node_rank_to_taffy_node_ids
             },
         )
     }
