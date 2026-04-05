@@ -316,7 +316,7 @@ impl OrthoProtrusionCalculator {
             let offset_cmp = rank_gap_entry_a
                 .face_offset
                 .abs()
-                .partial_cmp(&rank_gap_entry_b.face_offset.abs())
+                .partial_cmp(&rank_gap_entry_b.face_offset)
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .reverse();
             if offset_cmp != std::cmp::Ordering::Equal {
