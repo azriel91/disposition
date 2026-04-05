@@ -280,15 +280,18 @@ impl OrthoProtrusionCalculator {
     ///    offset get distinct depths.
     /// 4. Assign protrusion depths evenly spaced from `MIN_PROTRUSION_PX` to
     ///    `max_protrusion`.
-    fn protrusions_assign(entries: &mut [RankGapEntry], result: &mut [Vec<OrthoProtrusionParams>]) {
-        if entries.is_empty() {
+    fn protrusions_assign(
+        rank_gap_entries: &mut [RankGapEntry],
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        if rank_gap_entries.is_empty() {
             return;
         }
 
         // Find the tightest rank gap constraint.
-        let min_gap_px = entries
+        let min_gap_px = rank_gap_entries
             .iter()
-            .map(|e| e.rank_gap_px)
+            .map(|rank_gap_entry| rank_gap_entry.rank_gap_px)
             .reduce(f32::min)
             .unwrap_or(0.0);
 
@@ -297,44 +300,52 @@ impl OrthoProtrusionCalculator {
         if max_protrusion < MIN_PROTRUSION_PX {
             // Gap is too small for meaningful protrusions; assign
             // minimum protrusions to all.
-            for entry in entries.iter() {
-                Self::protrusion_write(entry, MIN_PROTRUSION_PX.min(min_gap_px * 0.5), result);
+            for rank_gap_entry in rank_gap_entries.iter() {
+                Self::protrusion_write(
+                    rank_gap_entry,
+                    MIN_PROTRUSION_PX.min(min_gap_px * 0.5),
+                    result,
+                );
             }
             return;
         }
 
         // Sort: outer-face edges first (larger |face_offset| -> shorter
         // protrusion), then by cross-axis coordinate for tie-breaking.
-        entries.sort_by(|a, b| {
-            let offset_cmp = a
+        rank_gap_entries.sort_by(|rank_gap_entry_a, rank_gap_entry_b| {
+            let offset_cmp = rank_gap_entry_a
                 .face_offset
                 .abs()
-                .partial_cmp(&b.face_offset.abs())
+                .partial_cmp(&rank_gap_entry_b.face_offset.abs())
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .reverse();
             if offset_cmp != std::cmp::Ordering::Equal {
                 return offset_cmp;
             }
-            a.cross_axis_coord
-                .partial_cmp(&b.cross_axis_coord)
+            rank_gap_entry_a
+                .cross_axis_coord
+                .partial_cmp(&rank_gap_entry_b.cross_axis_coord)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        let count = entries.len();
-        if count == 1 {
+        let rank_gap_entry_count = rank_gap_entries.len();
+        if rank_gap_entry_count == 1 {
             // Single edge: use half the available protrusion space.
             let protrusion = (max_protrusion * 0.5).max(MIN_PROTRUSION_PX);
-            Self::protrusion_write(&entries[0], protrusion, result);
+            Self::protrusion_write(&rank_gap_entries[0], protrusion, result);
             return;
         }
 
         // Distribute evenly from MIN_PROTRUSION_PX to max_protrusion.
         // Index 0 (outermost face offset) gets the shortest protrusion;
         // index count-1 (innermost) gets the longest.
-        for (i, entry) in entries.iter().enumerate() {
-            let t = i as f32 / (count - 1) as f32;
-            let protrusion = MIN_PROTRUSION_PX + t * (max_protrusion - MIN_PROTRUSION_PX);
-            Self::protrusion_write(entry, protrusion, result);
+        let protrusion_growable_space = max_protrusion - MIN_PROTRUSION_PX;
+        for (rank_gap_entry_index, rank_gap_entry) in rank_gap_entries.iter().enumerate() {
+            let rank_gap_entry_proportion =
+                rank_gap_entry_index as f32 / (rank_gap_entry_count - 1) as f32;
+            let protrusion =
+                MIN_PROTRUSION_PX + rank_gap_entry_proportion * protrusion_growable_space;
+            Self::protrusion_write(rank_gap_entry, protrusion, result);
         }
     }
 
