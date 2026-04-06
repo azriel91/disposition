@@ -992,6 +992,22 @@ impl IrToTaffyBuilder<'_> {
             ));
         }
 
+        // === Insert spacer nodes for edges crossing this container === //
+        //
+        // When an edge has one endpoint outside this container and the
+        // other deeply nested inside, the edge path needs waypoints
+        // alongside the intermediate sibling children so it routes
+        // around them instead of drawing over them.
+        edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build_cross_container_spacers(
+            taffy_tree,
+            edge_groups,
+            node_hierarchy_full,
+            node_ranks,
+            &ir_node_id,
+            child_hierarchy,
+            &mut rank_to_taffy_ids,
+        ));
+
         // === Build Rank-Based Child Containers === //
         //
         // Instead of a single child container with all children, we create one

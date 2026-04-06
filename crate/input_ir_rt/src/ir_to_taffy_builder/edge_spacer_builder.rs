@@ -105,6 +105,171 @@ impl EdgeSpacerBuilder {
         edge_spacer_taffy_nodes
     }
 
+    /// Inserts spacer taffy nodes for edges that cross container boundaries.
+    ///
+    /// When an edge has one endpoint inside a container and the other
+    /// outside (or at a different nesting depth), the edge path may
+    /// need to route alongside the container's children to reach the
+    /// deeply nested endpoint. This method identifies such edges and
+    /// inserts spacer nodes at the positions of intermediate sibling
+    /// children within the container.
+    ///
+    /// # Parameters
+    ///
+    /// * `taffy_tree`: The taffy tree to insert spacer nodes into.
+    /// * `edge_groups`: All edge groups in the diagram.
+    /// * `node_hierarchy`: The full node hierarchy.
+    /// * `node_ranks`: Node ranks for all nodes.
+    /// * `container_node_id`: The ID of the container node being built.
+    /// * `child_hierarchy`: The children of `container_node_id`.
+    /// * `rank_to_taffy_ids`: Mutable reference to the container's
+    ///   rank-to-taffy-node mapping, for inserting spacer nodes.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn build_cross_container_spacers(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        edge_groups: &EdgeGroups<'static>,
+        node_hierarchy: &NodeHierarchy<'static>,
+        node_ranks: &NodeRanks<'static>,
+        container_node_id: &NodeId<'static>,
+        child_hierarchy: &NodeHierarchy<'static>,
+        rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
+    ) -> Map<EdgeId<'static>, EdgeSpacerTaffyNodes> {
+        let node_nesting_info_map = Self::node_nesting_info_map_build(node_hierarchy);
+
+        // Collect direct child IDs of this container.
+        let direct_child_ids: Vec<NodeId<'static>> = child_hierarchy
+            .iter()
+            .map(|(child_id, _)| child_id.clone())
+            .collect();
+
+        if direct_child_ids.len() <= 1 {
+            // No siblings to route around.
+            return Map::new();
+        }
+
+        let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
+        let mut rank_spacer_counts: BTreeMap<NodeRank, Vec<usize>> = BTreeMap::new();
+
+        for (edge_group_id, edge_group) in edge_groups.iter() {
+            for (edge_index, edge) in edge_group.iter().enumerate() {
+                let edge_id = Self::edge_id_generate(edge_group_id, edge_index);
+
+                let Some(nesting_info_from) = node_nesting_info_map.get(&edge.from) else {
+                    continue;
+                };
+                let Some(nesting_info_to) = node_nesting_info_map.get(&edge.to) else {
+                    continue;
+                };
+
+                // Determine if exactly one endpoint is inside this container
+                // and the other is outside.
+                let from_inside = nesting_info_from.ancestor_chain.contains(container_node_id);
+                let to_inside = nesting_info_to.ancestor_chain.contains(container_node_id);
+
+                // We want edges where one is inside and one is outside.
+                // Also skip if the container itself is one of the endpoints
+                // (ancestor_chain includes self, so check that the inside
+                // endpoint is not the container itself).
+                if from_inside == to_inside {
+                    continue;
+                }
+
+                // Determine which endpoint is inside and which is outside.
+                let inside_nesting_info = if from_inside {
+                    nesting_info_from
+                } else {
+                    nesting_info_to
+                };
+
+                // Find which direct child of this container is the ancestor
+                // of the inside endpoint. The ancestor chain includes the
+                // inside endpoint itself, so we look for the container in the
+                // chain and take the next element.
+                let container_depth_in_chain = inside_nesting_info
+                    .ancestor_chain
+                    .iter()
+                    .position(|id| id == container_node_id);
+                let Some(container_depth) = container_depth_in_chain else {
+                    continue;
+                };
+                let target_child_id = inside_nesting_info.ancestor_chain.get(container_depth + 1);
+                let Some(target_child_id) = target_child_id else {
+                    // The inside endpoint IS the container node — skip.
+                    continue;
+                };
+
+                // Find the index of the target child among the direct
+                // children.
+                let target_child_index =
+                    direct_child_ids.iter().position(|id| id == target_child_id);
+                let Some(_target_child_index) = target_child_index else {
+                    continue;
+                };
+
+                // Insert spacers alongside each sibling of the target child.
+                let spacer_style = Style {
+                    min_size: Size {
+                        width: taffy::Dimension::length(EDGE_SPACER_LENGTH),
+                        height: taffy::Dimension::length(EDGE_SPACER_LENGTH),
+                    },
+                    align_self: Some(AlignSelf::Stretch),
+                    ..Default::default()
+                };
+
+                let mut spacer_taffy_nodes = EdgeSpacerTaffyNodes::new();
+
+                for sibling_id in &direct_child_ids {
+                    if sibling_id == target_child_id {
+                        continue;
+                    }
+
+                    let sibling_rank = node_ranks
+                        .get(sibling_id)
+                        .copied()
+                        .unwrap_or(NodeRank::new(0));
+
+                    let spacer_taffy_node_id = taffy_tree
+                        .new_leaf_with_context(
+                            spacer_style.clone(),
+                            TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
+                                edge_id: edge_id.clone(),
+                                rank: sibling_rank,
+                            }),
+                        )
+                        .expect("Expected to create cross-container spacer leaf node.");
+
+                    // Insert into rank_to_taffy_ids at the sibling's rank.
+                    let taffy_ids = rank_to_taffy_ids.entry(sibling_rank).or_default();
+                    let spacer_counts = rank_spacer_counts.entry(sibling_rank).or_default();
+
+                    if spacer_counts.len() < taffy_ids.len() + 1 {
+                        spacer_counts.resize(taffy_ids.len() + 1, 0);
+                    }
+
+                    // Place the spacer at the end of the rank's children.
+                    taffy_ids.push(spacer_taffy_node_id);
+
+                    spacer_taffy_nodes
+                        .cross_container_spacer_taffy_node_ids
+                        .push(spacer_taffy_node_id);
+                }
+
+                if !spacer_taffy_nodes
+                    .cross_container_spacer_taffy_node_ids
+                    .is_empty()
+                {
+                    edge_spacer_taffy_nodes
+                        .entry(edge_id)
+                        .or_default()
+                        .cross_container_spacer_taffy_node_ids
+                        .extend(spacer_taffy_nodes.cross_container_spacer_taffy_node_ids);
+                }
+            }
+        }
+
+        edge_spacer_taffy_nodes
+    }
+
     /// Builds spacer taffy nodes for a single edge if it crosses ranks.
     ///
     /// To determine whether an edge visually crosses ranks, we cannot

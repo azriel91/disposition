@@ -648,6 +648,12 @@ impl SvgEdgeInfosBuilder {
     /// in half, so the edge path is perfectly straight while passing
     /// through the spacer area.
     ///
+    /// Cross-container spacer nodes (inserted alongside sibling
+    /// containers for edges that cross container boundaries) are also
+    /// included. All spacer coordinates are sorted by absolute
+    /// y-coordinate so they appear in the correct visual order along the
+    /// edge path.
+    ///
     /// Returns an empty `Vec` when the edge has no spacer nodes.
     fn spacer_coordinates_from_spacers<'id>(
         edge_id: &EdgeId<'id>,
@@ -658,48 +664,85 @@ impl SvgEdgeInfosBuilder {
             return Vec::new();
         };
 
-        // Collect spacer coordinates sorted by rank so they are in the
-        // correct order from the from-node towards the to-node.
-        let mut rank_spacers: Vec<(NodeRank, SpacerCoordinates)> = spacer_nodes
+        // Collect rank-based spacer coordinates.
+        let rank_spacers: Vec<(NodeRank, SpacerCoordinates)> = spacer_nodes
             .rank_to_spacer_taffy_node_id
             .iter()
             .filter_map(|(rank, &taffy_node_id)| {
-                let layout = taffy_tree.layout(taffy_node_id).ok()?;
-
-                // === Absolute Coordinates === //
-                let mut x_acc = layout.location.x;
-                let mut y_acc = layout.location.y;
-                let mut current_node_id = taffy_node_id;
-                while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
-                    let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
-                        break;
-                    };
-                    x_acc += parent_layout.location.x;
-                    y_acc += parent_layout.location.y;
-                    current_node_id = parent_taffy_node_id;
-                }
-
-                // Slice the spacer in half vertically: the entry is the
-                // top midpoint and the exit is the bottom midpoint.
-                let cx = x_acc + layout.size.width / 2.0;
-                let top_y = y_acc;
-                let bottom_y = y_acc + layout.size.height;
-
-                Some((
-                    *rank,
-                    SpacerCoordinates {
-                        entry_x: cx,
-                        entry_y: top_y,
-                        exit_x: cx,
-                        exit_y: bottom_y,
-                    },
-                ))
+                let coords = Self::spacer_absolute_coordinates(taffy_tree, taffy_node_id)?;
+                Some((*rank, coords))
             })
             .collect();
 
-        rank_spacers.sort_by_key(|(rank, _)| *rank);
+        // Collect cross-container spacer coordinates.
+        let cross_container_spacers: Vec<SpacerCoordinates> = spacer_nodes
+            .cross_container_spacer_taffy_node_ids
+            .iter()
+            .filter_map(|&taffy_node_id| {
+                Self::spacer_absolute_coordinates(taffy_tree, taffy_node_id)
+            })
+            .collect();
 
-        rank_spacers.into_iter().map(|(_, coords)| coords).collect()
+        if cross_container_spacers.is_empty() {
+            // Fast path: only rank-based spacers -- sort by rank as before.
+            let mut rank_spacers = rank_spacers;
+            rank_spacers.sort_by_key(|(rank, _)| *rank);
+            return rank_spacers.into_iter().map(|(_, coords)| coords).collect();
+        }
+
+        // Merge both kinds and sort by absolute y-coordinate so the
+        // spacers appear in the correct visual order along the edge path.
+        let mut all_spacers: Vec<SpacerCoordinates> = rank_spacers
+            .into_iter()
+            .map(|(_, coords)| coords)
+            .chain(cross_container_spacers)
+            .collect();
+
+        all_spacers.sort_by(|a, b| {
+            a.entry_y
+                .partial_cmp(&b.entry_y)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        all_spacers
+    }
+
+    /// Computes absolute spacer coordinates for a single taffy node.
+    ///
+    /// Walks up the taffy tree to accumulate the absolute position, then
+    /// returns `SpacerCoordinates` with the entry at the top midpoint
+    /// and the exit at the bottom midpoint.
+    fn spacer_absolute_coordinates(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        taffy_node_id: taffy::NodeId,
+    ) -> Option<SpacerCoordinates> {
+        let layout = taffy_tree.layout(taffy_node_id).ok()?;
+
+        // === Absolute Coordinates === //
+        let mut x_acc = layout.location.x;
+        let mut y_acc = layout.location.y;
+        let mut current_node_id = taffy_node_id;
+        while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
+            let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
+                break;
+            };
+            x_acc += parent_layout.location.x;
+            y_acc += parent_layout.location.y;
+            current_node_id = parent_taffy_node_id;
+        }
+
+        // Slice the spacer in half vertically: the entry is the
+        // top midpoint and the exit is the bottom midpoint.
+        let cx = x_acc + layout.size.width / 2.0;
+        let top_y = y_acc;
+        let bottom_y = y_acc + layout.size.height;
+
+        Some(SpacerCoordinates {
+            entry_x: cx,
+            entry_y: top_y,
+            exit_x: cx,
+            exit_y: bottom_y,
+        })
     }
 
     /// Determines the `EdgeType` for an edge based on the entity types
