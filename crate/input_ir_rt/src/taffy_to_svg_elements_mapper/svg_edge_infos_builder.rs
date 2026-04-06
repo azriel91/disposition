@@ -601,10 +601,15 @@ impl SvgEdgeInfosBuilder {
 
                 // Compute spacer coordinates from spacer taffy nodes if
                 // this edge has any intermediate-rank spacers.
+                // The from/to y-coordinates are passed so that
+                // cross-container spacers can be clipped to the
+                // relevant vertical range of the edge.
                 let spacer_coordinates = Self::spacer_coordinates_from_spacers(
                     &pass1_info.edge_id,
                     taffy_tree,
                     edge_spacer_taffy_nodes,
+                    from_info.y,
+                    to_info.y,
                 );
 
                 let ortho_protrusion = ortho_protrusions
@@ -655,10 +660,22 @@ impl SvgEdgeInfosBuilder {
     /// edge path.
     ///
     /// Returns an empty `Vec` when the edge has no spacer nodes.
+    /// # Parameters
+    ///
+    /// * `edge_id`: The edge whose spacers to collect.
+    /// * `taffy_tree`: The taffy layout tree for absolute coordinate lookup.
+    /// * `edge_spacer_taffy_nodes`: Map of edge spacer nodes.
+    /// * `from_y`: The y-coordinate of the edge's from-node. Used to clip
+    ///   cross-container spacers so the edge path does not overshoot past the
+    ///   node it connects to, e.g. `250.0`.
+    /// * `to_y`: The y-coordinate of the edge's to-node. Used together with
+    ///   `from_y` to define the vertical range for clipping, e.g. `706.0`.
     fn spacer_coordinates_from_spacers<'id>(
         edge_id: &EdgeId<'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
+        from_y: f32,
+        to_y: f32,
     ) -> Vec<SpacerCoordinates> {
         let Some(spacer_nodes) = edge_spacer_taffy_nodes.get(edge_id) else {
             return Vec::new();
@@ -674,12 +691,33 @@ impl SvgEdgeInfosBuilder {
             })
             .collect();
 
-        // Collect cross-container spacer coordinates.
+        // Collect cross-container spacer coordinates, clipping
+        // entry/exit to the vertical range between the from-node and
+        // to-node. Without clipping the spacer spans the full height
+        // of its parent container, which causes the edge path to
+        // overshoot past the target node and then backtrack.
+        let y_min = from_y.min(to_y);
+        let y_max = from_y.max(to_y);
         let cross_container_spacers: Vec<SpacerCoordinates> = spacer_nodes
             .cross_container_spacer_taffy_node_ids
             .iter()
             .filter_map(|&taffy_node_id| {
-                Self::spacer_absolute_coordinates(taffy_tree, taffy_node_id)
+                let mut coords = Self::spacer_absolute_coordinates(taffy_tree, taffy_node_id)?;
+
+                // Clip the spacer's entry (top) and exit (bottom) to
+                // the y-range of the edge endpoints so the edge path
+                // only traverses the portion of the spacer that lies
+                // between the two connected nodes.
+                coords.entry_y = coords.entry_y.max(y_min);
+                coords.exit_y = coords.exit_y.min(y_max);
+
+                // If clipping inverted the range (spacer is entirely
+                // outside the from/to y-range), discard it.
+                if coords.entry_y >= coords.exit_y {
+                    return None;
+                }
+
+                Some(coords)
             })
             .collect();
 
