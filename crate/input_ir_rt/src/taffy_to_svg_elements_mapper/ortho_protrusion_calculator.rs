@@ -789,13 +789,17 @@ impl OrthoProtrusionCalculator {
             .collect();
 
         let protrusion_growable_space = max_protrusion - MIN_PROTRUSION_PX;
-        let denominator = (total_count - 1).max(1) as f32;
+        let denominator = total_count.max(1) as f32;
 
         let slot_value = |slot: usize| -> f32 {
             // Slot 0 gets the longest protrusion, last slot gets the
             // shortest. Earlier edges (sorted first) receive longer
             // protrusions for visual clarity (less cross-over).
-            let proportion = 1.0 - (slot as f32 / denominator);
+            //
+            // Each slot is shifted down by one slot-proportion so
+            // that the earliest edge does not reach the full
+            // `max_protrusion`, leaving room for the arrow head.
+            let proportion = 1.0 - ((slot + 1) as f32 / denominator);
             MIN_PROTRUSION_PX + proportion * protrusion_growable_space
         };
 
