@@ -17,16 +17,16 @@ use super::svg_edge_infos_builder::{EdgeGroupPass1, EdgePass1Info};
 ///
 /// # Example values
 ///
-/// `0.45` -- each side (from and to) may use up to 45% of the gap,
-/// leaving at least 10% for the horizontal routing segment in between.
-const MAX_GAP_FRACTION: f32 = 0.45;
+/// `0.48` -- each side (from and to) may use up to 48% of the gap,
+/// leaving at least 4% for the horizontal routing segment in between.
+const MAX_GAP_FRACTION: f32 = 0.48;
 
 /// Minimum protrusion length in pixels.
 ///
 /// When an edge is not perfectly straight (i.e. the from and to
 /// contact points differ on the cross-axis), the protrusion is at
 /// least this many pixels so the perpendicular stub is visible.
-const MIN_PROTRUSION_PX: f32 = 5.0;
+const MIN_PROTRUSION_PX: f32 = 3.0;
 
 /// Computes orthogonal protrusion parameters globally across all edge
 /// groups.
