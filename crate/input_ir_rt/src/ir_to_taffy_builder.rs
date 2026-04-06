@@ -9,7 +9,7 @@ use disposition_ir_model::{
     },
     IrDiagram,
 };
-use disposition_model_common::{Id, Map};
+use disposition_model_common::{Id, Map, RankDir};
 use disposition_taffy_model::{
     taffy::{
         self,
@@ -132,11 +132,16 @@ impl IrToTaffyBuilder<'_> {
             node_ranks,
             node_shapes,
             process_step_entities: _,
-            render_options: _,
+            render_options,
             css: _,
         } = ir_diagram;
 
         let DimensionAndLod { dimension, lod } = dimension_and_lod;
+
+        let flex_direction_default = match render_options.rank_dir {
+            RankDir::Horizontal => FlexDirection::Column,
+            RankDir::Vertical => FlexDirection::Row,
+        };
 
         let mut taffy_tree = TaffyTree::new();
         let mut node_id_to_taffy = Map::new();
@@ -150,6 +155,7 @@ impl IrToTaffyBuilder<'_> {
             entity_types,
             node_shapes,
             node_ranks,
+            flex_direction_default,
             node_id_to_taffy: &mut node_id_to_taffy,
             taffy_id_to_node: &mut taffy_id_to_node,
         };
@@ -641,6 +647,7 @@ impl IrToTaffyBuilder<'_> {
             entity_types,
             node_shapes,
             node_ranks,
+            flex_direction_default,
             node_id_to_taffy,
             taffy_id_to_node,
         } = taffy_node_build_context;
@@ -698,6 +705,7 @@ impl IrToTaffyBuilder<'_> {
                             entity_type,
                             edge_groups,
                             node_hierarchy_full,
+                            flex_direction_default,
                         );
                     edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
                     wrapper_node_id
@@ -747,6 +755,7 @@ impl IrToTaffyBuilder<'_> {
             entity_types,
             node_shapes,
             node_ranks,
+            flex_direction_default,
             node_id_to_taffy,
             taffy_id_to_node,
         } = taffy_node_build_context;
@@ -791,6 +800,7 @@ impl IrToTaffyBuilder<'_> {
                         entity_type,
                         edge_groups,
                         node_hierarchy_full,
+                        flex_direction_default,
                     );
                 edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
                 wrapper_node_id
@@ -934,6 +944,7 @@ impl IrToTaffyBuilder<'_> {
         entity_type: &EntityType,
         edge_groups: &EdgeGroups<'static>,
         node_hierarchy_full: &NodeHierarchy<'static>,
+        flex_direction_default: FlexDirection,
     ) -> (taffy::NodeId, Map<EdgeId<'static>, EdgeSpacerTaffyNodes>) {
         let ir_node_id = NodeId::from(node_id.clone());
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
@@ -962,6 +973,7 @@ impl IrToTaffyBuilder<'_> {
             entity_types,
             node_shapes,
             node_ranks,
+            flex_direction_default,
             node_id_to_taffy,
             taffy_id_to_node,
         };
@@ -972,6 +984,77 @@ impl IrToTaffyBuilder<'_> {
                 node_hierarchy_full,
             );
         edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
+
+        // === Split same-rank children when direction differs === //
+        //
+        // When a node's flex direction differs from the default (derived
+        // from RankDir), children at the same rank are laid out in the
+        // cross direction. To allow edge spacers between them, we treat
+        // each child as its own synthetic rank by assigning sequential
+        // rank values. This enables the existing rank-based spacer system
+        // to insert spacers at intermediate positions.
+        let direction_differs = {
+            let node_direction = node_layouts
+                .get(node_id)
+                .and_then(|nl| match nl {
+                    NodeLayout::Flex(fl) => Some(flex_direction_to_taffy(fl.direction())),
+                    _ => None,
+                })
+                .unwrap_or(flex_direction_default);
+            node_direction != flex_direction_default
+        };
+
+        // When direction differs, we also build a synthetic `NodeRanks`
+        // so that the spacer builder sees the direct children of this
+        // container at different ranks and can insert spacers between
+        // them. Without this, all same-rank children would cause
+        // `divergent_ancestor_ranks` to return `rank_low == rank_high`,
+        // which skips spacer insertion entirely.
+        //
+        // We iterate `child_hierarchy` once to build both the synthetic
+        // `rank_to_taffy_ids` and the synthetic `NodeRanks` in the same
+        // order, so the taffy layout rank and the spacer builder rank
+        // are always consistent.
+        let synthetic_node_ranks_storage;
+        let effective_node_ranks: &NodeRanks<'static> = if direction_differs {
+            let mut synthetic_rank_to_taffy_ids: BTreeMap<NodeRank, Vec<taffy::NodeId>> =
+                BTreeMap::new();
+            let mut synthetic_ranks = node_ranks.clone();
+
+            // Build a lookup from NodeId to taffy NodeId for the direct
+            // children so we can iterate `child_hierarchy` once and
+            // populate both structures.
+            let child_node_id_to_taffy_id: Map<NodeId<'static>, taffy::NodeId> = rank_to_taffy_ids
+                .values()
+                .flat_map(|taffy_ids| taffy_ids.iter().copied())
+                .filter_map(|taffy_id| {
+                    taffy_id_to_node
+                        .get(&taffy_id)
+                        .map(|nid| (nid.clone(), taffy_id))
+                })
+                .collect();
+
+            let mut next_synthetic_rank = 0u32;
+            for (child_node_id, _child_sub_hierarchy) in child_hierarchy.iter() {
+                let synthetic_rank = NodeRank::new(next_synthetic_rank);
+                synthetic_ranks.insert(child_node_id.clone(), synthetic_rank);
+
+                if let Some(&taffy_id) = child_node_id_to_taffy_id.get(child_node_id) {
+                    synthetic_rank_to_taffy_ids
+                        .entry(synthetic_rank)
+                        .or_default()
+                        .push(taffy_id);
+                }
+
+                next_synthetic_rank += 1;
+            }
+
+            rank_to_taffy_ids = synthetic_rank_to_taffy_ids;
+            synthetic_node_ranks_storage = synthetic_ranks;
+            &synthetic_node_ranks_storage
+        } else {
+            node_ranks
+        };
 
         // === Insert spacer nodes for edges nested within this node === //
         let lca_node_id = NodeId::from(node_id.clone());
@@ -984,7 +1067,7 @@ impl IrToTaffyBuilder<'_> {
                 taffy_tree,
                 edge_groups,
                 node_hierarchy_full,
-                node_ranks,
+                effective_node_ranks,
                 entity_types,
                 target_entity_type,
                 &mut rank_to_taffy_ids,
@@ -1002,7 +1085,7 @@ impl IrToTaffyBuilder<'_> {
             taffy_tree,
             edge_groups,
             node_hierarchy_full,
-            node_ranks,
+            effective_node_ranks,
             &ir_node_id,
             child_hierarchy,
             &mut rank_to_taffy_ids,
@@ -1022,11 +1105,20 @@ impl IrToTaffyBuilder<'_> {
         //   child_container_1: {} # nodes with rank n + 1
         //   child_container_2: {} # nodes with rank n + 2
         // ```
+        let effective_child_container_style = if direction_differs {
+            Style {
+                flex_direction: flex_direction_default,
+                ..child_container_style
+            }
+        } else {
+            child_container_style
+        };
+
         let rank_container_ids: Vec<taffy::NodeId> = rank_to_taffy_ids
             .into_values()
             .map(|taffy_ids| {
                 taffy_tree
-                    .new_with_children(child_container_style.clone(), &taffy_ids)
+                    .new_with_children(effective_child_container_style.clone(), &taffy_ids)
                     .unwrap_or_else(|e| {
                         panic!(
                             "Expected to create rank child container node for {node_id}. \
