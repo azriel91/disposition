@@ -323,11 +323,19 @@ impl OrthoProtrusionCalculator {
                 //
                 // For an edge from rank 0 to rank 3 with spacers at
                 // ranks 1 and 2:
-                //   - spacer[0] entry side is in gap (0, 1) -- shared with from_protrusion
+                //   - spacer[0] entry side is in gap (0, 1)
                 //   - spacer[0] exit side is in gap (1, 2)
                 //   - spacer[1] entry side is in gap (1, 2)
-                //   - spacer[1] exit side is in gap (2, 3) -- shared with to_protrusion
-                if spacer_coordinates.len() >= 2 {
+                //   - spacer[1] exit side is in gap (2, 3)
+                //
+                // The first spacer's entry and the last spacer's exit
+                // share the same rank gap as the from-endpoint and
+                // to-endpoint respectively, but they protrude from the
+                // **opposite side** of the gap. They must be registered
+                // so they compete for distinct protrusion depths with
+                // other edges on the same side (e.g. from-endpoints of
+                // edges originating at that spacer's rank).
+                if !spacer_coordinates.is_empty() {
                     let from_face_for_axis = pass1_info.from_face.unwrap_or(NodeFace::Bottom);
 
                     for spacer_idx in 0..spacer_coordinates.len() {
@@ -341,19 +349,13 @@ impl OrthoProtrusionCalculator {
                         // --- Entry side of this spacer --- //
                         //
                         // The entry side protrudes into the gap BEFORE
-                        // this spacer. For the first spacer (index 0),
-                        // that gap is the same as the from-endpoint
-                        // gap, which is already registered above.
-                        // Only register for spacers beyond the first.
+                        // this spacer.
                         if spacer_idx > 0 {
+                            // Gap between previous spacer and this one.
                             let prev_spacer = &spacer_coordinates[spacer_idx - 1];
                             let gap_px =
                                 Self::spacer_gap_px(prev_spacer, spacer, from_face_for_axis);
 
-                            // Gap between the rank of prev_spacer and
-                            // the rank of this spacer. Since spacers
-                            // are sorted by rank, use consecutive rank
-                            // values.
                             let entry_gap_key = Self::spacer_gap_key(
                                 rank_from,
                                 rank_to,
@@ -374,16 +376,54 @@ impl OrthoProtrusionCalculator {
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
                                 });
+                        } else if let Some(from_face) = pass1_info.from_face {
+                            // First spacer (index 0): entry shares the
+                            // same gap as the from-endpoint, but
+                            // protrudes from the opposite side. Register
+                            // it so it competes with other edges' to-
+                            // endpoints at this spacer's rank.
+                            let gap_px = Self::rank_gap_px(
+                                pass1_info,
+                                from_face,
+                                true,
+                                svg_node_info_map,
+                                &spacer_coordinates,
+                            );
+
+                            let from_gap_key = if rank_from < rank_to {
+                                RankGapKey {
+                                    rank_low: rank_from,
+                                    rank_high: NodeRank::new(rank_from.value() + 1),
+                                }
+                            } else {
+                                RankGapKey {
+                                    rank_low: NodeRank::new(rank_from.value() - 1),
+                                    rank_high: rank_from,
+                                }
+                            };
+
+                            rank_gap_entries
+                                .entry(from_gap_key)
+                                .or_default()
+                                .push(RankGapEntry {
+                                    pass1_group_index: group_idx,
+                                    edge_index: edge_idx,
+                                    endpoint_kind: RankGapEndpointKind::SpacerEntry {
+                                        spacer_index: 0,
+                                    },
+                                    cross_axis_coord: spacer_cross,
+                                    face_offset: 0.0,
+                                    rank_gap_px: gap_px,
+                                });
                         }
 
                         // --- Exit side of this spacer --- //
                         //
                         // The exit side protrudes into the gap AFTER
-                        // this spacer. For the last spacer, that gap
-                        // is the same as the to-endpoint gap, which
-                        // is already registered above. Only register
-                        // for spacers before the last.
-                        if spacer_idx < spacer_coordinates.len() - 1 {
+                        // this spacer.
+                        let last_spacer_idx = spacer_coordinates.len() - 1;
+                        if spacer_idx < last_spacer_idx {
+                            // Gap between this spacer and the next one.
                             let next_spacer = &spacer_coordinates[spacer_idx + 1];
                             let gap_px =
                                 Self::spacer_gap_px(spacer, next_spacer, from_face_for_axis);
@@ -408,13 +448,47 @@ impl OrthoProtrusionCalculator {
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
                                 });
+                        } else if let Some(to_face) = pass1_info.to_face {
+                            // Last spacer: exit shares the same gap as
+                            // the to-endpoint, but protrudes from the
+                            // opposite side. Register it so it competes
+                            // with other edges' from-endpoints at this
+                            // spacer's rank.
+                            let gap_px = Self::rank_gap_px(
+                                pass1_info,
+                                to_face,
+                                false,
+                                svg_node_info_map,
+                                &spacer_coordinates,
+                            );
+
+                            let to_gap_key = if rank_to > rank_from {
+                                RankGapKey {
+                                    rank_low: NodeRank::new(rank_to.value() - 1),
+                                    rank_high: rank_to,
+                                }
+                            } else {
+                                RankGapKey {
+                                    rank_low: rank_to,
+                                    rank_high: NodeRank::new(rank_to.value() + 1),
+                                }
+                            };
+
+                            rank_gap_entries
+                                .entry(to_gap_key)
+                                .or_default()
+                                .push(RankGapEntry {
+                                    pass1_group_index: group_idx,
+                                    edge_index: edge_idx,
+                                    endpoint_kind: RankGapEndpointKind::SpacerExit {
+                                        spacer_index: last_spacer_idx,
+                                    },
+                                    cross_axis_coord: spacer_cross,
+                                    face_offset: 0.0,
+                                    rank_gap_px: gap_px,
+                                });
                         }
                     }
-                } else if spacer_coordinates.len() == 1 {
-                    // Single spacer: entry side shares gap with
-                    // from-endpoint, exit side shares gap with
-                    // to-endpoint. Both are already registered.
-                    // No additional entries needed.
                 }
             }
         }
@@ -424,19 +498,15 @@ impl OrthoProtrusionCalculator {
             Self::protrusions_assign(entries, &mut result);
         }
 
-        // === Step 4: Propagate node protrusions to shared spacer sides === //
+        // === Step 4: Propagate node protrusions to shared spacer sides (fallback) ===
+        // //
         //
-        // The first spacer's entry side shares the same rank gap as the
-        // from-node protrusion. The last spacer's exit side shares the
-        // same rank gap as the to-node protrusion. Since both the node
-        // endpoint and the spacer side participate in the same gap, they
-        // were assigned depths by the same `protrusions_assign` call.
-        //
-        // However, for single-spacer edges, no intermediate spacer
-        // entries were registered (only from/to endpoints). In that
-        // case the spacer protrusions are still at their default (0.0).
-        // Propagate the node protrusion values so the spacer sides
-        // match the node endpoints they share a gap with.
+        // The first spacer's entry and last spacer's exit are now
+        // registered as separate rank-gap entries and assigned their
+        // own protrusion depths in Step 3. This propagation only acts
+        // as a safety net for edges where a face was not available
+        // (e.g. `from_face` or `to_face` was `None`), which prevented
+        // registration of the spacer side in Step 2.
         for group_params in &mut result {
             for params in group_params.iter_mut() {
                 if params.spacer_protrusions.is_empty() {
