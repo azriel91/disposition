@@ -996,17 +996,17 @@ impl IrToTaffyBuilder<'_> {
         //
         // When an edge has one endpoint outside this container and the
         // other deeply nested inside, the edge path needs waypoints
-        // beside the rank containers so the edge routes around them
-        // instead of drawing over them.
-        let (cross_container_edge_spacer_taffy_nodes, cross_container_spacer_layout_ids) =
-            EdgeSpacerBuilder::build_cross_container_spacers(
-                taffy_tree,
-                edge_groups,
-                node_hierarchy_full,
-                &ir_node_id,
-                child_hierarchy,
-            );
-        edge_spacer_taffy_nodes.extend(cross_container_edge_spacer_taffy_nodes);
+        // alongside the intermediate sibling children so it routes
+        // around them instead of drawing over them.
+        edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build_cross_container_spacers(
+            taffy_tree,
+            edge_groups,
+            node_hierarchy_full,
+            node_ranks,
+            &ir_node_id,
+            child_hierarchy,
+            &mut rank_to_taffy_ids,
+        ));
 
         // === Build Rank-Based Child Containers === //
         //
@@ -1036,51 +1036,6 @@ impl IrToTaffyBuilder<'_> {
             })
             .collect();
 
-        // === Wrap rank containers with edge routing if needed === //
-        //
-        // When cross-container spacers exist, wrap the rank containers
-        // in an edge_routing_container so the spacers sit beside the
-        // ranks (perpendicular) rather than inside them.
-        let child_layout_ids: Vec<taffy::NodeId> = if cross_container_spacer_layout_ids.is_empty() {
-            rank_container_ids
-        } else {
-            let ranks_column_style = Style {
-                display: Display::Flex,
-                flex_direction: wrapper_style.flex_direction,
-                gap: wrapper_style.gap,
-                ..Default::default()
-            };
-            let ranks_column_id = taffy_tree
-                .new_with_children(ranks_column_style, &rank_container_ids)
-                .unwrap_or_else(|e| {
-                    panic!("Expected to create ranks column node for {node_id}. Error: {e}")
-                });
-
-            let routing_direction = match child_container_style.flex_direction {
-                FlexDirection::Column | FlexDirection::ColumnReverse => FlexDirection::Row,
-                FlexDirection::Row | FlexDirection::RowReverse => FlexDirection::Column,
-            };
-            let edge_routing_style = Style {
-                display: Display::Flex,
-                flex_direction: routing_direction,
-                ..Default::default()
-            };
-
-            let mut edge_routing_children = vec![ranks_column_id];
-            edge_routing_children.extend(cross_container_spacer_layout_ids);
-
-            let edge_routing_container_id = taffy_tree
-                .new_with_children(edge_routing_style, &edge_routing_children)
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "Expected to create edge routing container node for {node_id}. \
-                             Error: {e}"
-                    )
-                });
-
-            vec![edge_routing_container_id]
-        };
-
         let node_shape = node_shapes
             .get(&ir_node_id)
             .unwrap_or_else(|| panic!("There was no node shape for {ir_node_id}."));
@@ -1088,7 +1043,7 @@ impl IrToTaffyBuilder<'_> {
         match node_shape {
             NodeShape::Rect(_node_shape_rect) => {
                 let mut wrapper_children = vec![taffy_text_node_id];
-                wrapper_children.extend(child_layout_ids);
+                wrapper_children.extend(rank_container_ids);
 
                 let wrapper_node_id = taffy_tree
                     .new_with_children(wrapper_style, &wrapper_children)
@@ -1149,7 +1104,7 @@ impl IrToTaffyBuilder<'_> {
                     });
 
                 let mut wrapper_children = vec![label_wrapper_node_id];
-                wrapper_children.extend(child_layout_ids);
+                wrapper_children.extend(rank_container_ids);
 
                 let wrapper_node_id = taffy_tree
                     .new_with_children(wrapper_style, &wrapper_children)
