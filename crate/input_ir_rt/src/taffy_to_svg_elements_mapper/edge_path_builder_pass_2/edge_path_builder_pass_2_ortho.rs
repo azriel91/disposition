@@ -427,27 +427,30 @@ impl EdgePathBuilderPass2Ortho {
             // Both directions are the same axis (both vertical or both
             // horizontal). Route with three legs and two corners.
             //
-            // For vertical departure and arrival: go vertically to the
-            // midpoint y, turn horizontally to qx, turn vertically to
-            // qy.
+            // The bend is placed at the `wp_to` coordinate (the
+            // from-node / spacer-exit side, since waypoints are
+            // collected in reverse order). This means the protrusion
+            // length directly controls the distance from the
+            // from-node face to the bend, keeping the routing
+            // segment on the from-node side of the gap.
             //
-            // For horizontal departure and arrival: go horizontally to
-            // the midpoint x, turn vertically to qy, turn horizontally
-            // to qx.
+            // For vertical departure and arrival: go vertically to
+            // qy, turn horizontally to qx.
+            //
+            // For horizontal departure and arrival: go horizontally
+            // to qx, turn vertically to qy.
             if p_is_vertical {
-                let mid_y = (py + qy) * 0.5;
                 let corner1_x = px;
-                let corner1_y = mid_y;
+                let corner1_y = qy;
                 let corner2_x = qx;
-                let corner2_y = mid_y;
+                let corner2_y = qy;
                 Self::three_leg_segment_append(
                     path, px, py, corner1_x, corner1_y, corner2_x, corner2_y, qx, qy,
                 );
             } else {
-                let mid_x = (px + qx) * 0.5;
-                let corner1_x = mid_x;
+                let corner1_x = qx;
                 let corner1_y = py;
-                let corner2_x = mid_x;
+                let corner2_x = qx;
                 let corner2_y = qy;
                 Self::three_leg_segment_append(
                     path, px, py, corner1_x, corner1_y, corner2_x, corner2_y, qx, qy,

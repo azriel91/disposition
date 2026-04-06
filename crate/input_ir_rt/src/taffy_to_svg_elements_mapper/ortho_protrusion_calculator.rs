@@ -749,13 +749,13 @@ impl OrthoProtrusionCalculator {
         //
         // 1. Single-side low entries get the first slots (0, 1, ...) -- longest
         //    protrusions.
-        // 2. Crossing low entries get the next slots.
-        // 3. Crossing high entries get slots in REVERSE order (from the top of the
-        //    high-side allocation). This ensures that the i-th crossing edge's low slot
-        //    is `single_low_count + i` and its high slot is `total_count - 1 - i`,
-        //    giving a difference of `(single_low_count + i) - (total_count - 1 - i)` =
-        //    `single_low_count + 2i - total_count + 1`, which is unique per `i` (since
-        //    the `2i` term varies).
+        // 2. Crossing low entries (from-endpoints) get the next slots.
+        // 3. Crossing high entries (to-endpoints) get slots in REVERSE order (from the
+        //    top of the high-side allocation). This ensures that the i-th crossing
+        //    edge's low slot is `single_low_count + i` and its high slot is
+        //    `total_count - 1 - single_high_count - i`, giving a difference of
+        //    `(single_low_count + i) - (total_count - 1 - i)` = `single_low_count + 2i
+        //    - total_count + 1`, which is unique per `i` (since the `2i` term varies).
         // 4. Single-side high entries fill the remaining slots -- shortest protrusions.
 
         // Separate low_entries into single-side and crossing, preserving
@@ -801,8 +801,8 @@ impl OrthoProtrusionCalculator {
 
         // Slot assignment:
         //   [0 .. SL)                        -> single-side low
-        //   [SL .. SL + NC)                  -> crossing low
-        //   [total - SH - NC .. total - SH)  -> crossing high (reversed)
+        //   [SL .. SL + NC)                  -> crossing low (from-endpoints)
+        //   [total - SH - NC .. total - SH)  -> crossing high (to-endpoints, reversed)
         //   [total - SH .. total)            -> single-side high
         //
         // where SL = single_low.len(), SH = single_high.len(),
@@ -816,17 +816,16 @@ impl OrthoProtrusionCalculator {
             slot += 1;
         }
 
-        // 2. Crossing low entries (in crossing_pairs order).
-
+        // 2. Crossing low entries (from-endpoints, in crossing_pairs order).
         for entry in &crossing_low_ordered {
             Self::protrusion_write(entry, slot_value(slot), result);
             slot += 1;
         }
 
-        // 3. Crossing high entries -- assigned in REVERSE slot order so that crossing
-        //    pair i gets: low_slot  = single_low.len() + i high_slot = total_count - 1
-        //    - single_high.len() - i The difference low_slot - high_slot changes by +2
-        //    per i, guaranteeing uniqueness.
+        // 3. Crossing high entries (to-endpoints) -- assigned in REVERSE slot order so
+        //    that crossing pair i gets: low_slot = single_low.len() + i, high_slot =
+        //    total_count - 1 - single_high.len() - i. The difference low_slot -
+        //    high_slot changes by +2 per i, guaranteeing uniqueness.
         let crossing_high_top = total_count - single_high.len();
         for (i, entry) in crossing_high_ordered.iter().enumerate() {
             let high_slot = crossing_high_top - 1 - i;
