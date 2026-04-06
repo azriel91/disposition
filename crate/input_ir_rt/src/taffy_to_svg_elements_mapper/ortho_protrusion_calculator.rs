@@ -45,10 +45,10 @@ const MIN_PROTRUSION_PX: f32 = 3.0;
 /// 2. Group these endpoints by `(rank_low, rank_high)` -- the rank gap they
 ///    occupy.
 /// 3. Within each group, sort endpoints by their cross-axis coordinate (the
-///    coordinate perpendicular to the rank direction). Edges further from the
-///    centre of the gap's cross-axis spread get shorter protrusions; edges
-///    closer to the centre get longer ones. This reduces the chance of crossing
-///    edges sharing the same horizontal/vertical channel.
+///    coordinate perpendicular to the rank direction). Earlier edges (those
+///    further from the centre of the gap's cross-axis spread) get longer
+///    protrusions; later edges (closer to the centre) get shorter ones. This
+///    reduces visual cross-over between edge paths.
 /// 4. Distribute protrusion depths evenly within the available gap space
 ///    (capped at `MAX_GAP_FRACTION` of the pixel distance between ranks).
 ///
@@ -84,7 +84,7 @@ struct RankGapEntry {
     /// The face offset (slot offset) for this endpoint.
     ///
     /// Edges further from the face midpoint (larger absolute offset)
-    /// receive shorter protrusions. For spacer endpoints this is
+    /// receive longer protrusions. For spacer endpoints this is
     /// `0.0` since spacers do not have face offsets.
     face_offset: f32,
     /// Pixel distance in the rank direction for this endpoint's rank
@@ -739,11 +739,16 @@ impl OrthoProtrusionCalculator {
         //
         // We use `total_count` evenly-spaced slots in
         // [MIN_PROTRUSION_PX, max_protrusion]:
-        //   slot[k] = MIN + k * growable / (total_count - 1)
+        //   slot[k] = MAX - k * growable / (total_count - 1)
+        //
+        // Slot 0 gets the longest protrusion, last slot gets the
+        // shortest. Earlier edges (sorted first) receive longer
+        // protrusions for visual clarity (less cross-over).
         //
         // The assignment proceeds as follows:
         //
-        // 1. Single-side low entries get the lowest slots (0, 1, ...).
+        // 1. Single-side low entries get the first slots (0, 1, ...) -- longest
+        //    protrusions.
         // 2. Crossing low entries get the next slots.
         // 3. Crossing high entries get slots in REVERSE order (from the top of the
         //    high-side allocation). This ensures that the i-th crossing edge's low slot
@@ -751,7 +756,7 @@ impl OrthoProtrusionCalculator {
         //    giving a difference of `(single_low_count + i) - (total_count - 1 - i)` =
         //    `single_low_count + 2i - total_count + 1`, which is unique per `i` (since
         //    the `2i` term varies).
-        // 4. Single-side high entries fill the remaining slots.
+        // 4. Single-side high entries fill the remaining slots -- shortest protrusions.
 
         // Separate low_entries into single-side and crossing, preserving
         // their sorted order.
@@ -787,7 +792,10 @@ impl OrthoProtrusionCalculator {
         let denominator = (total_count - 1).max(1) as f32;
 
         let slot_value = |slot: usize| -> f32 {
-            let proportion = slot as f32 / denominator;
+            // Slot 0 gets the longest protrusion, last slot gets the
+            // shortest. Earlier edges (sorted first) receive longer
+            // protrusions for visual clarity (less cross-over).
+            let proportion = 1.0 - (slot as f32 / denominator);
             MIN_PROTRUSION_PX + proportion * protrusion_growable_space
         };
 
