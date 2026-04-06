@@ -37,6 +37,8 @@ mod edge_spacer_builder;
 mod taffy_node_build_context;
 mod text_measure;
 
+type NodeRankToTaffyNodeId = BTreeMap<NodeRank, Vec<taffy::NodeId>>;
+
 /// Converts a model [`FlexDirection`](ModelFlexDirection) to a
 /// [`taffy::style::FlexDirection`].
 fn flex_direction_to_taffy(direction: ModelFlexDirection) -> FlexDirection {
@@ -472,7 +474,7 @@ impl IrToTaffyBuilder<'_> {
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         node_layouts: &NodeLayouts,
         node_inbuilt: NodeInbuilt,
-        rank_to_taffy_ids: BTreeMap<NodeRank, Vec<taffy::NodeId>>,
+        rank_to_taffy_ids: NodeRankToTaffyNodeId,
     ) -> Vec<taffy::NodeId> {
         // Not sure if this is the best way to handle the container styles, but we use
         // the `NodeInbuilt` container style for the rank children containers, and
@@ -630,7 +632,7 @@ impl IrToTaffyBuilder<'_> {
         edge_groups: &EdgeGroups<'static>,
         node_hierarchy_full: &NodeHierarchy<'static>,
     ) -> (
-        Map<EntityType, BTreeMap<NodeRank, Vec<taffy::NodeId>>>,
+        Map<EntityType, NodeRankToTaffyNodeId>,
         Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
     ) {
         let TaffyNodeBuildContext {
@@ -648,7 +650,7 @@ impl IrToTaffyBuilder<'_> {
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
 
         let entity_type_to_node_rank_to_taffy_node_ids = node_hierarchy.iter().fold(
-            Map::<EntityType, BTreeMap<NodeRank, Vec<taffy::NodeId>>>::new(),
+            Map::<EntityType, NodeRankToTaffyNodeId>::new(),
             |mut entity_type_to_node_rank_to_taffy_node_ids, (node_id, child_hierarchy)| {
                 let node_id: &Id = node_id.as_ref();
                 let Some(entity_type) = entity_types
@@ -736,7 +738,7 @@ impl IrToTaffyBuilder<'_> {
         edge_groups: &EdgeGroups<'static>,
         node_hierarchy_full: &NodeHierarchy<'static>,
     ) -> (
-        BTreeMap<NodeRank, Vec<taffy::NodeId>>,
+        NodeRankToTaffyNodeId,
         Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
     ) {
         let TaffyNodeBuildContext {
@@ -751,7 +753,7 @@ impl IrToTaffyBuilder<'_> {
             taffy_id_to_node,
         } = taffy_node_build_context;
 
-        let mut rank_to_taffy_ids: BTreeMap<NodeRank, Vec<taffy::NodeId>> = BTreeMap::new();
+        let mut rank_to_taffy_ids: NodeRankToTaffyNodeId = BTreeMap::new();
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
 
         for (node_id, child_hierarchy) in node_hierarchy.iter() {

@@ -251,7 +251,7 @@ impl OrthoProtrusionCalculator {
                         from_face,
                         true,
                         svg_node_info_map,
-                        &spacer_coordinates,
+                        spacer_coordinates,
                     );
 
                     let cross_axis_from = Self::cross_axis_coord(
@@ -312,7 +312,7 @@ impl OrthoProtrusionCalculator {
                         to_face,
                         false,
                         svg_node_info_map,
-                        &spacer_coordinates,
+                        spacer_coordinates,
                     );
 
                     let cross_axis_to =
@@ -439,7 +439,7 @@ impl OrthoProtrusionCalculator {
                                 from_face,
                                 true,
                                 svg_node_info_map,
-                                &spacer_coordinates,
+                                spacer_coordinates,
                             );
 
                             let from_gap_key = if rank_from < rank_to {
@@ -527,7 +527,7 @@ impl OrthoProtrusionCalculator {
                                 to_face,
                                 false,
                                 svg_node_info_map,
-                                &spacer_coordinates,
+                                spacer_coordinates,
                             );
 
                             let to_gap_key = if rank_to > rank_from {

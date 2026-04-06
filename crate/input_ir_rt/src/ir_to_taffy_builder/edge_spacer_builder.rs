@@ -59,6 +59,7 @@ impl EdgeSpacerBuilder {
     /// leaf nodes at the computed positions within each intermediate rank.
     ///
     /// Returns a map from edge ID to the spacer taffy node IDs at each rank.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge_groups: &EdgeGroups<'static>,
