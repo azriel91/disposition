@@ -8,6 +8,6 @@ use utoipa::OpenApi;
     crate::DiagramLod,
     crate::DimensionAndLod,
     crate::Dimension,
-    crate::NodeContext
+    crate::DiagramNodeCtx
 )))]
 pub struct ApiDoc;

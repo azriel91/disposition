@@ -370,7 +370,7 @@ fn test_node_layout_containers() {
     let root_layout = diagram.node_layouts.get(&root_id).unwrap();
     if let NodeLayout::Flex(flex) = root_layout {
         assert_eq!(FlexDirection::ColumnReverse, flex.direction);
-        assert!(flex.wrap);
+        assert!(!flex.wrap);
         // Padding comes from node_defaults -> padding_normal -> 4.0
         assert_eq!(4.0, flex.padding_top);
         assert_eq!(4.0, flex.padding_right);
@@ -389,7 +389,7 @@ fn test_node_layout_containers() {
         .unwrap();
     if let NodeLayout::Flex(flex) = things_and_processes_layout {
         assert_eq!(FlexDirection::RowReverse, flex.direction);
-        assert!(flex.wrap);
+        assert!(!flex.wrap);
     } else {
         panic!("Expected Flex layout for _things_and_processes_container");
     }
@@ -409,7 +409,7 @@ fn test_node_layout_containers() {
     let tags_layout = diagram.node_layouts.get(&tags_container_id).unwrap();
     if let NodeLayout::Flex(flex) = tags_layout {
         assert_eq!(FlexDirection::Row, flex.direction);
-        assert!(flex.wrap);
+        assert!(!flex.wrap);
     } else {
         panic!("Expected Flex layout for _tags_container");
     }
@@ -419,7 +419,7 @@ fn test_node_layout_containers() {
     let things_layout = diagram.node_layouts.get(&things_container_id).unwrap();
     if let NodeLayout::Flex(flex) = things_layout {
         assert_eq!(FlexDirection::Row, flex.direction);
-        assert!(flex.wrap);
+        assert!(!flex.wrap);
     } else {
         panic!("Expected Flex layout for _things_container");
     }
@@ -526,12 +526,12 @@ fn test_node_layout_things_hierarchy() {
     let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
     let diagram = ir_and_issues.diagram;
 
-    // t_aws has children (t_aws_iam, t_aws_ecr, t_aws_ecs), should have column flex
-    // (depth 0)
+    // `RankDir` is vertical, so things should have `FlexDirection::Row` unless
+    // overridden.
     let t_aws_id = NodeId::from(id!("t_aws"));
     let t_aws_layout = diagram.node_layouts.get(&t_aws_id).unwrap();
     if let NodeLayout::Flex(flex) = t_aws_layout {
-        assert_eq!(FlexDirection::Column, flex.direction);
+        assert_eq!(FlexDirection::Row, flex.direction);
         // Padding from node_defaults -> padding_normal -> 4.0
         assert_eq!(4.0, flex.padding_top);
         assert_eq!(4.0, flex.gap);
@@ -539,7 +539,6 @@ fn test_node_layout_things_hierarchy() {
         panic!("Expected Flex layout for t_aws");
     }
 
-    // t_aws_iam has children (t_aws_iam_ecs_policy), should have row flex (depth 1)
     let t_aws_iam_id = NodeId::from(id!("t_aws_iam"));
     let t_aws_iam_layout = diagram.node_layouts.get(&t_aws_iam_id).unwrap();
     if let NodeLayout::Flex(flex) = t_aws_iam_layout {
@@ -565,11 +564,10 @@ fn test_node_layout_things_hierarchy() {
         leaf_layout
     );
 
-    // t_aws_ecr_repo has children (images), should have column flex (depth 2)
     let t_aws_ecr_repo_id = NodeId::from(id!("t_aws_ecr_repo"));
     let t_aws_ecr_repo_layout = diagram.node_layouts.get(&t_aws_ecr_repo_id).unwrap();
     if let NodeLayout::Flex(flex) = t_aws_ecr_repo_layout {
-        assert_eq!(FlexDirection::Column, flex.direction);
+        assert_eq!(FlexDirection::Row, flex.direction);
     } else {
         panic!("Expected Flex layout for t_aws_ecr_repo");
     }

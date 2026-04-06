@@ -45,7 +45,7 @@ fn test_example_ir_mapping_to_taffy_tree_and_root() -> Result<(), TaffyError> {
         taffy_node_mappings_lg,
         MeasurementsExpected {
             diagram_width: 1024.0,
-            diagram_height: 768.0,
+            diagram_height: 521.0,
         },
     )?;
 
@@ -71,6 +71,7 @@ fn assert_taffy_measurements(
         // TODO: make assertions for node positioning
         node_id_to_taffy: _,
         taffy_id_to_node: _,
+        edge_spacer_taffy_nodes: _,
         entity_highlighted_spans: _,
     } = taffy_node_mappings;
     let root_layout = node_inbuilt_to_taffy

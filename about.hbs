@@ -1,17 +1,12 @@
 <!DOCTYPE html>
 <html>
-
+<!-- cargo about generate about.hbs -o app/playground/assets/licenses.html -->
 <head>
     <meta charset="utf-8">
     <style>
-        @media (prefers-color-scheme: dark) {
-            body {
-                background: #333;
-                color: white;
-            }
-            a {
-                color: skyblue;
-            }
+        body {
+            background: #f8f9fb;
+            color: #1a1d23;
         }
         .container {
             font-family: sans-serif;
@@ -20,6 +15,9 @@
         }
         .intro {
             text-align: center;
+        }
+        .license {
+            margin-bottom: 30px;
         }
         .licenses-list {
             list-style-type: none;
@@ -33,6 +31,23 @@
             max-height: 200px;
             overflow-y: scroll;
             white-space: pre-wrap;
+            padding: 20px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            background: #f3f4f6;
+        }
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: #0f1116;
+                color: white;
+            }
+            a {
+                color: skyblue;
+            }
+            .license-text {
+                border: 1px solid #111122;
+                background: #000409;
+            }
         }
     </style>
 </head>
@@ -41,7 +56,7 @@
     <main class="container">
         <div class="intro">
             <h1>Third Party Licenses</h1>
-            <p>This page lists the licenses of the projects used in Stacktrace.</p>
+            <p>This page lists the licenses of the projects used in disposition.</p>
         </div>
 
         <h2>Overview of licenses:</h2>

@@ -1,7 +1,7 @@
 use disposition_ir_model::{node::NodeId, IrDiagram};
 use disposition_model_common::Map;
 use disposition_svg_model::SvgProcessInfo;
-use disposition_taffy_model::{EntityHighlightedSpans, NodeContext};
+use disposition_taffy_model::{EntityHighlightedSpans, TaffyNodeCtx};
 use taffy::TaffyTree;
 
 use disposition_ir_model::node::NodeShape;
@@ -14,7 +14,7 @@ pub(super) struct SvgProcessInfoBuildContext<'ctx, 'id> {
     /// tailwind classes.
     pub(super) ir_diagram: &'ctx IrDiagram<'id>,
     /// Holds the computed layout information for each node.
-    pub(super) taffy_tree: &'ctx TaffyTree<NodeContext>,
+    pub(super) taffy_tree: &'ctx TaffyTree<TaffyNodeCtx>,
     /// Default shape to when rendering a node.
     pub(super) default_shape: &'ctx NodeShape,
     /// Heights of all process steps for each process.
@@ -27,7 +27,7 @@ pub(super) struct SvgNodeInfoBuildContext<'ctx, 'id> {
     /// tailwind classes.
     pub(super) ir_diagram: &'ctx IrDiagram<'id>,
     /// Holds the computed layout information for each node.
-    pub(super) taffy_tree: &'ctx TaffyTree<NodeContext>,
+    pub(super) taffy_tree: &'ctx TaffyTree<TaffyNodeCtx>,
     /// Holds the spans of text for each node.
     pub(super) entity_highlighted_spans: &'ctx EntityHighlightedSpans<'id>,
     /// Default shape to when rendering a node.

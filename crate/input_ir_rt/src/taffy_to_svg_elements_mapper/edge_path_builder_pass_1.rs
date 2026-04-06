@@ -1,3 +1,4 @@
+use disposition_model_common::RankDir;
 use disposition_svg_model::SvgNodeInfo;
 use disposition_taffy_model::TEXT_LINE_HEIGHT;
 use kurbo::{BezPath, Point};
@@ -11,15 +12,60 @@ use super::edge_model::{EdgeType, NodeFace};
 #[derive(Clone, Copy, Debug, Default)]
 pub(super) struct EdgeFaceOffset {
     /// Pixel offset applied to the "from" node's contact point.
+    ///
+    /// # Example values
+    ///
+    /// `0.0` -- edge at the face midpoint.
+    /// `-10.0` -- edge shifted 10 px left/up from the face midpoint.
     pub(super) from_offset: f32,
     /// Pixel offset applied to the "to" node's contact point.
+    ///
+    /// # Example values
+    ///
+    /// `0.0` -- edge at the face midpoint.
+    /// `10.0` -- edge shifted 10 px right/down from the face midpoint.
     pub(super) to_offset: f32,
+}
+
+/// Absolute coordinates of a spacer node's entry and exit edges,
+/// slicing the spacer in half so that the edge path is perfectly
+/// horizontal or vertical while passing through.
+///
+/// Coordinates are ordered from the from-node towards the to-node:
+/// the path enters at `(entry_x, entry_y)` and exits at
+/// `(exit_x, exit_y)`.
+///
+/// # Example values
+///
+/// Vertical passthrough (ranks stacked top-to-bottom):
+///
+/// ```text
+/// SpacerCoordinates { entry_x: 150.0, entry_y: 200.0,
+///                     exit_x:  150.0, exit_y:  205.0 }
+/// ```
+///
+/// Horizontal passthrough (ranks stacked left-to-right):
+///
+/// ```text
+/// SpacerCoordinates { entry_x: 200.0, entry_y: 150.0,
+///                     exit_x:  205.0, exit_y:  150.0 }
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct SpacerCoordinates {
+    /// X coordinate where the path enters the spacer.
+    pub(super) entry_x: f32,
+    /// Y coordinate where the path enters the spacer.
+    pub(super) entry_y: f32,
+    /// X coordinate where the path exits the spacer.
+    pub(super) exit_x: f32,
+    /// Y coordinate where the path exits the spacer.
+    pub(super) exit_y: f32,
 }
 
 /// Represents the connection geometry for an edge endpoint on a node.
 /// Either the standard rectangular face, or a circle perimeter point.
 #[derive(Clone, Copy, Debug)]
-enum NodeEdgeGeometry {
+pub(super) enum NodeEdgeGeometry {
     /// Standard rectangular face connection.
     Rect,
     /// Circle connection: the edge should connect to the perimeter of the
@@ -34,27 +80,28 @@ enum NodeEdgeGeometry {
     },
 }
 
-// Constants for edge layout
+// === Constants for edge layout === //
 
 /// Percentage of the node's width to offset the edge's x coordinate
 /// from the midpoint of the node.
-const SELF_LOOP_X_OFFSET_RATIO: f32 = 0.2;
+pub(super) const SELF_LOOP_X_OFFSET_RATIO: f32 = 0.2;
 /// Percentage of the node's height to extend the edge vertically.
-const SELF_LOOP_Y_EXTENSION_RATIO: f32 = 0.2;
+pub(super) const SELF_LOOP_Y_EXTENSION_RATIO: f32 = 0.2;
 /// Percentage of the node's width to curve the edge horizontally
 /// outward.
-const SELF_LOOP_X_EXTENSION_RATIO: f32 = 0.2;
+pub(super) const SELF_LOOP_X_EXTENSION_RATIO: f32 = 0.2;
 /// Percentage of the node's width/height to offset the edge when
 /// connecting to another edge.
-const BIDIRECTIONAL_OFFSET_RATIO: f32 = 0.1;
+pub(super) const BIDIRECTIONAL_OFFSET_RATIO: f32 = 0.1;
 /// Percentage of the node's width/height to curve the edge outward.
-const CURVE_CONTROL_RATIO: f32 = 0.3;
+pub(super) const CURVE_CONTROL_RATIO: f32 = 0.3;
 
-/// Builds SVG bezier curve paths for edges connecting two nodes.
+/// Builds SVG bezier curve paths for pass-1 edge layout (zero-offset
+/// paths for metadata collection).
 #[derive(Clone, Copy, Debug)]
-pub(super) struct EdgePathBuilder;
+pub(super) struct EdgePathBuilderPass1;
 
-impl EdgePathBuilder {
+impl EdgePathBuilderPass1 {
     /// Builds the SVG path `d` attribute for an edge between two nodes.
     ///
     /// The path is a curved bezier curve that connects the appropriate faces
@@ -63,11 +110,18 @@ impl EdgePathBuilder {
     /// This is a convenience wrapper around `build_with_offsets` with zero
     /// offsets.
     pub(super) fn build(
+        rank_dir: RankDir,
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
         edge_type: EdgeType,
     ) -> BezPath {
-        Self::build_with_offsets(from_info, to_info, edge_type, EdgeFaceOffset::default())
+        Self::build_with_offsets(
+            rank_dir,
+            from_info,
+            to_info,
+            edge_type,
+            EdgeFaceOffset::default(),
+        )
     }
 
     /// Builds the SVG path with per-face contact point offsets.
@@ -75,7 +129,8 @@ impl EdgePathBuilder {
     /// `face_offset.from_offset` shifts the "from" contact point along
     /// the face (perpendicular to its outward normal). Likewise for
     /// `face_offset.to_offset`.
-    pub(super) fn build_with_offsets(
+    fn build_with_offsets(
+        rank_dir: RankDir,
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
         edge_type: EdgeType,
@@ -97,7 +152,7 @@ impl EdgePathBuilder {
         let to_geom = Self::node_edge_geometry(to_info);
 
         // Determine which faces to use based on relative positions
-        let (from_face, to_face) = Self::select_edge_faces(from_info, to_info);
+        let (from_face, to_face) = Self::select_edge_faces(rank_dir, from_info, to_info);
 
         // Check if from is contained inside to
         let from_contained_in_to = Self::is_node_contained_in(from_info, to_info);
@@ -181,6 +236,7 @@ impl EdgePathBuilder {
     /// For contained edges both faces are `None` (no face-based offset
     /// applies).
     pub(super) fn faces_select(
+        rank_dir: RankDir,
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
     ) -> Option<(NodeFace, NodeFace)> {
@@ -192,14 +248,14 @@ impl EdgePathBuilder {
             // Contained edges bypass face-based contact points.
             return None;
         }
-        Some(Self::select_edge_faces(from_info, to_info))
+        Some(Self::select_edge_faces(rank_dir, from_info, to_info))
     }
 
     /// Applies a pixel offset along a face.
     ///
     /// For `Left` / `Right` faces the offset shifts vertically.
     /// For `Top` / `Bottom` faces the offset shifts horizontally.
-    fn face_offset_apply(x: &mut f32, y: &mut f32, face: NodeFace, offset: f32) {
+    pub(super) fn face_offset_apply(x: &mut f32, y: &mut f32, face: NodeFace, offset: f32) {
         match face {
             NodeFace::Left | NodeFace::Right => *y += offset,
             NodeFace::Top | NodeFace::Bottom => *x += offset,
@@ -211,7 +267,7 @@ impl EdgePathBuilder {
     /// If the node has a circle, returns `NodeEdgeGeometry::Circle` with
     /// the circle's absolute center and radius. Otherwise returns
     /// `NodeEdgeGeometry::Rect`.
-    fn node_edge_geometry(node_info: &SvgNodeInfo) -> NodeEdgeGeometry {
+    pub(super) fn node_edge_geometry(node_info: &SvgNodeInfo) -> NodeEdgeGeometry {
         if let Some(ref circle) = node_info.circle {
             NodeEdgeGeometry::Circle {
                 cx: node_info.x + circle.cx,
@@ -228,7 +284,7 @@ impl EdgePathBuilder {
     /// Given a circle at `(cx, cy)` with `radius`, computes the point on
     /// its perimeter that lies on the line from the center to
     /// `(target_x, target_y)`.
-    fn circle_perimeter_point(
+    pub(super) fn circle_perimeter_point(
         cx: f32,
         cy: f32,
         radius: f32,
@@ -250,7 +306,7 @@ impl EdgePathBuilder {
 
     /// Builds a self-loop path that goes from the bottom of a node, extends
     /// down, curves left, and returns to the bottom of the same node.
-    fn build_self_loop_path(
+    pub(super) fn build_self_loop_path(
         node_info: &SvgNodeInfo,
         edge_type: EdgeType,
         x_offset_ratio: f32,
@@ -304,7 +360,7 @@ impl EdgePathBuilder {
 
     /// Builds a path for an edge where the source node is contained inside the
     /// target node.
-    fn build_contained_edge_path(
+    pub(super) fn build_contained_edge_path(
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
         curve_ratio: f32,
@@ -336,7 +392,11 @@ impl EdgePathBuilder {
 
     /// Selects the appropriate faces for connecting two nodes based on their
     /// relative positions, choosing the faces that produce the shortest path.
-    fn select_edge_faces(from_info: &SvgNodeInfo, to_info: &SvgNodeInfo) -> (NodeFace, NodeFace) {
+    pub(super) fn select_edge_faces(
+        rank_dir: RankDir,
+        from_info: &SvgNodeInfo,
+        to_info: &SvgNodeInfo,
+    ) -> (NodeFace, NodeFace) {
         let from_center_x = from_info.x + from_info.width / 2.0;
         let from_center_y = from_info.y + from_info.height_collapsed / 2.0;
         let to_center_x = to_info.x + to_info.width / 2.0;
@@ -356,8 +416,7 @@ impl EdgePathBuilder {
             if from_bottom < to_info.y {
                 // Diagonal: from is above-left of to
                 return Self::select_diagonal_faces(
-                    from_info,
-                    to_info,
+                    rank_dir,
                     NodeFace::Right,
                     NodeFace::Bottom,
                     NodeFace::Left,
@@ -366,8 +425,7 @@ impl EdgePathBuilder {
             } else if from_info.y > to_bottom {
                 // Diagonal: from is below-left of to
                 return Self::select_diagonal_faces(
-                    from_info,
-                    to_info,
+                    rank_dir,
                     NodeFace::Right,
                     NodeFace::Top,
                     NodeFace::Left,
@@ -382,8 +440,7 @@ impl EdgePathBuilder {
             if from_bottom < to_info.y {
                 // Diagonal: from is above-right of to
                 return Self::select_diagonal_faces(
-                    from_info,
-                    to_info,
+                    rank_dir,
                     NodeFace::Left,
                     NodeFace::Bottom,
                     NodeFace::Right,
@@ -392,8 +449,7 @@ impl EdgePathBuilder {
             } else if from_info.y > to_bottom {
                 // Diagonal: from is below-right of to
                 return Self::select_diagonal_faces(
-                    from_info,
-                    to_info,
+                    rank_dir,
                     NodeFace::Left,
                     NodeFace::Top,
                     NodeFace::Right,
@@ -413,7 +469,7 @@ impl EdgePathBuilder {
             return (NodeFace::Top, NodeFace::Bottom);
         }
 
-        // Overlapping nodes - use primary direction
+        // Overlapping nodes -- use primary direction
         if dx.abs() > dy.abs() {
             if dx > 0.0 {
                 (NodeFace::Right, NodeFace::Left)
@@ -427,33 +483,23 @@ impl EdgePathBuilder {
         }
     }
 
-    /// Selects the best faces for diagonal connections by comparing distances.
+    /// Selects the best faces for diagonal connections based on the rank
+    /// direction.
     fn select_diagonal_faces(
-        from_info: &SvgNodeInfo,
-        to_info: &SvgNodeInfo,
+        rank_dir: RankDir,
         from_horiz: NodeFace,
         from_vert: NodeFace,
         to_horiz: NodeFace,
         to_vert: NodeFace,
     ) -> (NodeFace, NodeFace) {
-        // Calculate distances for horizontal-to-vertical vs vertical-to-horizontal
-        let (from_h_x, from_h_y) = Self::get_face_center(from_info, from_horiz);
-        let (to_v_x, to_v_y) = Self::get_face_center(to_info, to_vert);
-        let dist_h_to_v = ((to_v_x - from_h_x).powi(2) + (to_v_y - from_h_y).powi(2)).sqrt();
-
-        let (from_v_x, from_v_y) = Self::get_face_center(from_info, from_vert);
-        let (to_h_x, to_h_y) = Self::get_face_center(to_info, to_horiz);
-        let dist_v_to_h = ((to_h_x - from_v_x).powi(2) + (to_h_y - from_v_y).powi(2)).sqrt();
-
-        if dist_h_to_v <= dist_v_to_h {
-            (from_horiz, to_vert)
-        } else {
-            (from_vert, to_horiz)
+        match rank_dir {
+            RankDir::Horizontal => (from_horiz, to_horiz),
+            RankDir::Vertical => (from_vert, to_vert),
         }
     }
 
     /// Gets the center point of a node's face.
-    fn get_face_center(node_info: &SvgNodeInfo, face: NodeFace) -> (f32, f32) {
+    pub(super) fn get_face_center(node_info: &SvgNodeInfo, face: NodeFace) -> (f32, f32) {
         match face {
             NodeFace::Top => (node_info.x + node_info.width / 2.0, node_info.y),
             NodeFace::Bottom => (
@@ -469,7 +515,7 @@ impl EdgePathBuilder {
     }
 
     /// Checks if a node is geometrically contained within another node.
-    fn is_node_contained_in(inner: &SvgNodeInfo, outer: &SvgNodeInfo) -> bool {
+    pub(super) fn is_node_contained_in(inner: &SvgNodeInfo, outer: &SvgNodeInfo) -> bool {
         inner.x >= outer.x
             && inner.y >= outer.y
             && inner.x + inner.width <= outer.x + outer.width
@@ -478,7 +524,7 @@ impl EdgePathBuilder {
 
     /// Builds a curved bezier path between two points with control points
     /// based on the faces being connected.
-    fn build_curved_edge_path(
+    pub(super) fn build_curved_edge_path(
         start_x: f32,
         start_y: f32,
         end_x: f32,
@@ -510,7 +556,7 @@ impl EdgePathBuilder {
     }
 
     /// Gets the control point offset direction based on the face.
-    fn get_control_point_offset(face: NodeFace, distance: f32) -> (f32, f32) {
+    pub(super) fn get_control_point_offset(face: NodeFace, distance: f32) -> (f32, f32) {
         match face {
             NodeFace::Top => (0.0, -distance),
             NodeFace::Bottom => (0.0, distance),

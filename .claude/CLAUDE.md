@@ -33,6 +33,7 @@ Rust SVG diagram generation library with a dioxus web frontend.
 
 1. When editing the `disposition_playground` crate, see <@agent/dioxus.md> if you need context on working wtih dioxus `0.7`.
 2. See `<@doc/src/diagram_generation.md> for a high level overview of the diagram generation process.
+2. See `<@doc/src/edge_paths.md> for context about how paths are calculated.
 
 
 ## Tests

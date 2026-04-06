@@ -34,6 +34,8 @@ pub enum EditorPage {
     Tags,
     /// Entity Types: entity type assignments for common styling.
     EntityTypes,
+    /// Render options: edge curvature and rank direction.
+    RenderOptions,
     /// Theme group: sub-pages for style aliases, base styles, etc.
     Theme(EditorPageTheme),
     /// Raw YAML text editor.
@@ -78,6 +80,7 @@ impl EditorPage {
             Self::Processes => "Processes",
             Self::Tags => "Tags",
             Self::EntityTypes => "Entity Types",
+            Self::RenderOptions => "Render Options",
             Self::Theme(sub) => sub.label(),
             Self::Text => "Text",
         }

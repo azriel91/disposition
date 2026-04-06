@@ -1,4 +1,4 @@
-use disposition_model_common::{entity::EntityTooltips, theme::Css};
+use disposition_model_common::{entity::EntityTooltips, theme::Css, RenderOptions};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -177,6 +177,12 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "ProcessStepEntities::is_empty")]
     pub process_step_entities: ProcessStepEntities<'id>,
 
+    /// Options that control how the diagram is rendered.
+    ///
+    /// Includes edge curvature and rank direction settings.
+    #[serde(default, skip_serializing_if = "RenderOptions::is_default")]
+    pub render_options: RenderOptions,
+
     /// Additional CSS to place in the SVG's inline `<styles>` section.
     ///
     /// Allows for custom CSS rules such as keyframe animations that
@@ -210,6 +216,7 @@ impl<'id> IrDiagram<'id> {
             node_ranks: self.node_ranks.into_static(),
             node_shapes: self.node_shapes.into_static(),
             process_step_entities: self.process_step_entities.into_static(),
+            render_options: self.render_options,
             css: self.css,
         }
     }

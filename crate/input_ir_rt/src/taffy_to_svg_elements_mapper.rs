@@ -10,7 +10,8 @@ use disposition_taffy_model::TaffyNodeMappings;
 use self::{
     arrow_head_builder::ArrowHeadBuilder,
     edge_animation_calculator::EdgeAnimationCalculator,
-    edge_path_builder::EdgePathBuilder,
+    edge_path_builder_pass_1::EdgePathBuilderPass1,
+    edge_path_builder_pass_2::EdgePathBuilderPass2,
     process_step_heights::ProcessStepsHeight,
     process_step_heights_calculator::ProcessStepHeightsCalculator,
     string_char_replacer::StringCharReplacer,
@@ -26,7 +27,9 @@ mod arrow_head_builder;
 mod edge_animation_calculator;
 mod edge_face_contact_tracker;
 mod edge_model;
-mod edge_path_builder;
+mod edge_path_builder_pass_1;
+mod edge_path_builder_pass_2;
+mod ortho_protrusion_calculator;
 mod process_step_heights;
 mod process_step_heights_calculator;
 mod string_char_replacer;
@@ -54,6 +57,7 @@ impl TaffyToSvgElementsMapper {
             node_inbuilt_to_taffy,
             node_id_to_taffy,
             taffy_id_to_node: _,
+            edge_spacer_taffy_nodes,
             entity_highlighted_spans,
         } = taffy_node_mappings;
 
@@ -156,13 +160,13 @@ impl TaffyToSvgElementsMapper {
         // Build edge information and compute animation data for interaction
         // edges.
         let svg_edge_infos = SvgEdgeInfosBuilder::build(
-            &ir_diagram.edge_groups,
-            &ir_diagram.entity_types,
+            ir_diagram,
             &svg_node_info_map,
+            taffy_tree,
+            edge_spacer_taffy_nodes,
             &mut tailwind_classes,
             &mut css,
             edge_animation_active,
-            &ir_diagram.process_step_entities,
         );
 
         SvgElements::new(

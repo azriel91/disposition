@@ -4,14 +4,14 @@
 //! representation of a Taffy layout tree, annotated with disposition
 //! diagram node IDs.
 
-use std::fmt::Write;
+use std::{borrow::Cow, fmt::Write};
 
 use disposition::{
     ir_model::node::{NodeId, NodeInbuilt},
     model_common::Map,
     taffy_model::{
-        taffy::{self, PrintTree},
-        TaffyNodeMappings,
+        taffy::{self, PrintTree, TaffyTree, TraversePartialTree},
+        TaffyNodeCtx, TaffyNodeMappings,
     },
 };
 
@@ -33,6 +33,7 @@ impl TaffyTreeFmt {
             taffy_tree,
             node_inbuilt_to_taffy,
             node_id_to_taffy: _,
+            edge_spacer_taffy_nodes: _,
             entity_highlighted_spans: _,
             taffy_id_to_node,
         } = taffy_node_mappings;
@@ -54,27 +55,45 @@ impl TaffyTreeFmt {
     /// Recursively writes each node in the tree to `buffer`.
     fn fmt_node(
         buffer: &mut String,
-        tree: &impl PrintTree,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
         taffy_id_to_node: &Map<taffy::NodeId, NodeId>,
         taffy_node_id: taffy::NodeId,
         has_sibling: bool,
         lines_string: String,
     ) {
-        let layout = &tree.get_final_layout(taffy_node_id);
+        let layout = &taffy_tree.get_final_layout(taffy_node_id);
         let display = taffy_id_to_node
             .get(&taffy_node_id)
-            .map(|node_id| node_id.as_str())
-            .unwrap_or_else(|| tree.get_debug_label(taffy_node_id));
-        let num_children = tree.child_count(taffy_node_id);
+            .map(|node_id| Cow::Borrowed(node_id.as_str()))
+            .or_else(|| {
+                taffy_tree.get_node_context(taffy_node_id).map(
+                    |taffy_node_ctx| match taffy_node_ctx {
+                        TaffyNodeCtx::DiagramNode(diagram_node_ctx) => {
+                            Cow::Borrowed(diagram_node_ctx.entity_id.as_str())
+                        }
+                        TaffyNodeCtx::EdgeSpacer(edge_spacer_ctx) => {
+                            let edge_id = &edge_spacer_ctx.edge_id;
+                            let rank = edge_spacer_ctx.rank;
+                            Cow::Owned(format!("edge_spacer_{edge_id}_{rank}"))
+                        }
+                    },
+                )
+            })
+            .unwrap_or_else(|| Cow::Borrowed(taffy_tree.get_debug_label(taffy_node_id)));
+        let num_children = taffy_tree.child_count(taffy_node_id);
 
         let fork_string = if has_sibling {
             "├── "
         } else {
             "└── "
         };
+        let flex_direction = taffy_tree
+            .style(taffy_node_id)
+            .map(|style| Cow::Owned(format!("{:?}", style.flex_direction)))
+            .unwrap_or(Cow::Borrowed("unknown"));
         writeln!(
             buffer,
-            "{lines}{fork} {display} [x: {x:<4} y: {y:<4} w: {width:<4} h: {height:<4} content_w: {content_width:<4} content_h: {content_height:<4}, padding: l:{pl} r:{pr} t:{pt} b:{pb}]",
+            "{lines}{fork} {display} {{ flex_direction: {flex_direction}, x: {x} y: {y} w: {width} h: {height} content_w: {content_width} content_h: {content_height}, padding: l: {pl} r: {pr} t: {pt} b: {pb} }}",
             lines = lines_string,
             fork = fork_string,
             display = display,
@@ -94,13 +113,14 @@ impl TaffyTreeFmt {
         let new_string = lines_string + bar;
 
         // Recurse into children.
-        tree.child_ids(taffy_node_id)
+        taffy_tree
+            .child_ids(taffy_node_id)
             .enumerate()
             .for_each(|(index, child)| {
                 let has_sibling = index < num_children - 1;
                 Self::fmt_node(
                     buffer,
-                    tree,
+                    taffy_tree,
                     taffy_id_to_node,
                     child,
                     has_sibling,

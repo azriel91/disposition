@@ -178,10 +178,10 @@ fn test_svg_edge_infos_are_generated() -> Result<(), TaffyError> {
                     "Edge path_d should start with 'M' (moveto), got: {}",
                     edge_info.path_d
                 );
-                // Path should contain C (curveto command) for Bezier curves
+                // Path should contain C (curveto command) for Bezier curves or L (lineto command) for straight lines
                 assert!(
-                    edge_info.path_d.contains('C'),
-                    "Edge path_d should contain 'C' (curveto) for curves, got: {}",
+                    edge_info.path_d.contains('C') || edge_info.path_d.contains('L'),
+                    "Edge path_d should contain 'C' (curveto) for curves or 'L' (lineto) for straight lines, got: {}",
                     edge_info.path_d
                 );
             }
