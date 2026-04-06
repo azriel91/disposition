@@ -129,7 +129,7 @@ impl EdgePathBuilderPass1 {
     /// `face_offset.from_offset` shifts the "from" contact point along
     /// the face (perpendicular to its outward normal). Likewise for
     /// `face_offset.to_offset`.
-    pub(super) fn build_with_offsets(
+    fn build_with_offsets(
         rank_dir: RankDir,
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
