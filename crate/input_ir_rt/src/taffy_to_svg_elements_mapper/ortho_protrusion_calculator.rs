@@ -69,6 +69,12 @@ struct RankGapEntry {
     edge_index: usize,
     /// Which endpoint or spacer side this entry represents.
     endpoint_kind: RankGapEndpointKind,
+    /// Which side of the rank gap this entry protrudes from.
+    ///
+    /// Entries on the `Low` side protrude from the `rank_low`
+    /// boundary; entries on the `High` side protrude from the
+    /// `rank_high` boundary.
+    gap_side: GapSide,
     /// Cross-axis coordinate of the endpoint's node (or spacer).
     ///
     /// For `Top` / `Bottom` faces this is the node's X coordinate;
@@ -85,6 +91,22 @@ struct RankGapEntry {
     /// gap (from the node contact point or spacer boundary to the
     /// nearest adjacent spacer or node).
     rank_gap_px: f32,
+}
+
+/// Which physical boundary of a rank gap an entry protrudes from.
+///
+/// When two entries from the **same** side of a gap have the same
+/// protrusion depth their stubs overlap directly. When two entries
+/// from **opposite** sides have protrusion depths whose difference
+/// `(from_prot - to_prot)` is equal, the horizontal routing midpoint
+/// (computed by `connect_waypoints` as `(y_low_prot + y_high_prot) /
+/// 2`) will coincide. Both situations must be avoided.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GapSide {
+    /// Protrudes from the `rank_low` boundary of the gap.
+    Low,
+    /// Protrudes from the `rank_high` boundary of the gap.
+    High,
 }
 
 /// Identifies which endpoint or spacer side a `RankGapEntry`
@@ -253,6 +275,15 @@ impl OrthoProtrusionCalculator {
                         }
                     };
 
+                    // The from-node is at rank_from. In the gap key,
+                    // rank_from is rank_low when going forward, or
+                    // rank_high when going backward.
+                    let from_gap_side = if rank_from < rank_to {
+                        GapSide::Low
+                    } else {
+                        GapSide::High
+                    };
+
                     rank_gap_entries
                         .entry(from_gap_key)
                         .or_default()
@@ -260,6 +291,7 @@ impl OrthoProtrusionCalculator {
                             pass1_group_index: group_idx,
                             edge_index: edge_idx,
                             endpoint_kind: RankGapEndpointKind::FromEndpoint,
+                            gap_side: from_gap_side,
                             cross_axis_coord: cross_axis_from,
                             face_offset: from_offset,
                             rank_gap_px: from_rank_gap_px,
@@ -301,6 +333,15 @@ impl OrthoProtrusionCalculator {
                         }
                     };
 
+                    // The to-node is at rank_to. In the gap key,
+                    // rank_to is rank_high when going forward, or
+                    // rank_low when going backward.
+                    let to_gap_side = if rank_to > rank_from {
+                        GapSide::High
+                    } else {
+                        GapSide::Low
+                    };
+
                     rank_gap_entries
                         .entry(to_gap_key)
                         .or_default()
@@ -308,6 +349,7 @@ impl OrthoProtrusionCalculator {
                             pass1_group_index: group_idx,
                             edge_index: edge_idx,
                             endpoint_kind: RankGapEndpointKind::ToEndpoint,
+                            gap_side: to_gap_side,
                             cross_axis_coord: cross_axis_to,
                             face_offset: to_offset,
                             rank_gap_px: to_rank_gap_px,
@@ -352,6 +394,9 @@ impl OrthoProtrusionCalculator {
                         // this spacer.
                         if spacer_idx > 0 {
                             // Gap between previous spacer and this one.
+                            // The entry side of this spacer protrudes
+                            // from the high-rank boundary of the gap
+                            // (forward) or low-rank boundary (backward).
                             let prev_spacer = &spacer_coordinates[spacer_idx - 1];
                             let gap_px =
                                 Self::spacer_gap_px(prev_spacer, spacer, from_face_for_axis);
@@ -363,6 +408,12 @@ impl OrthoProtrusionCalculator {
                                 spacer_idx,
                             );
 
+                            let spacer_entry_side = if rank_from < rank_to {
+                                GapSide::High
+                            } else {
+                                GapSide::Low
+                            };
+
                             rank_gap_entries
                                 .entry(entry_gap_key)
                                 .or_default()
@@ -372,6 +423,7 @@ impl OrthoProtrusionCalculator {
                                     endpoint_kind: RankGapEndpointKind::SpacerEntry {
                                         spacer_index: spacer_idx,
                                     },
+                                    gap_side: spacer_entry_side,
                                     cross_axis_coord: spacer_cross,
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
@@ -402,6 +454,14 @@ impl OrthoProtrusionCalculator {
                                 }
                             };
 
+                            // The first spacer's entry is on the
+                            // opposite side from the from-endpoint.
+                            let first_spacer_entry_side = if rank_from < rank_to {
+                                GapSide::High
+                            } else {
+                                GapSide::Low
+                            };
+
                             rank_gap_entries
                                 .entry(from_gap_key)
                                 .or_default()
@@ -411,6 +471,7 @@ impl OrthoProtrusionCalculator {
                                     endpoint_kind: RankGapEndpointKind::SpacerEntry {
                                         spacer_index: 0,
                                     },
+                                    gap_side: first_spacer_entry_side,
                                     cross_axis_coord: spacer_cross,
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
@@ -435,6 +496,12 @@ impl OrthoProtrusionCalculator {
                                 spacer_idx + 1,
                             );
 
+                            let spacer_exit_side = if rank_from < rank_to {
+                                GapSide::Low
+                            } else {
+                                GapSide::High
+                            };
+
                             rank_gap_entries
                                 .entry(exit_gap_key)
                                 .or_default()
@@ -444,6 +511,7 @@ impl OrthoProtrusionCalculator {
                                     endpoint_kind: RankGapEndpointKind::SpacerExit {
                                         spacer_index: spacer_idx,
                                     },
+                                    gap_side: spacer_exit_side,
                                     cross_axis_coord: spacer_cross,
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
@@ -474,6 +542,14 @@ impl OrthoProtrusionCalculator {
                                 }
                             };
 
+                            // The last spacer's exit is on the
+                            // opposite side from the to-endpoint.
+                            let last_spacer_exit_side = if rank_from < rank_to {
+                                GapSide::Low
+                            } else {
+                                GapSide::High
+                            };
+
                             rank_gap_entries
                                 .entry(to_gap_key)
                                 .or_default()
@@ -483,6 +559,7 @@ impl OrthoProtrusionCalculator {
                                     endpoint_kind: RankGapEndpointKind::SpacerExit {
                                         spacer_index: last_spacer_idx,
                                     },
+                                    gap_side: last_spacer_exit_side,
                                     cross_axis_coord: spacer_cross,
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
@@ -537,13 +614,17 @@ impl OrthoProtrusionCalculator {
     ///    constraint).
     /// 2. Compute the maximum allowed protrusion = `min_gap_px *
     ///    MAX_GAP_FRACTION`.
-    /// 3. Sort entries by `(|face_offset| descending, cross_axis_coord
-    ///    ascending)`. This places outer-face edges first (shortest protrusion)
-    ///    and inner-face edges last (longest protrusion). The cross-axis
-    ///    coordinate breaks ties so that edges from different nodes at the same
-    ///    offset get distinct depths.
-    /// 4. Assign protrusion depths evenly spaced from `MIN_PROTRUSION_PX` to
-    ///    `max_protrusion`.
+    /// 3. Partition entries into `Low` side and `High` side groups.
+    /// 4. Identify "crossing edges" -- edges that have entries on both sides of
+    ///    the gap. For these edges, the orthogonal routing segment's
+    ///    y-coordinate is the midpoint of the two protrusion endpoints: `mid =
+    ///    (face_low + low_prot + face_high - high_prot) / 2`. The `low_prot -
+    ///    high_prot` difference must be unique per crossing edge so that
+    ///    routing segments do not overlap.
+    /// 5. Assign crossing-edge protrusion pairs first, choosing `low_prot -
+    ///    high_prot` differences from a set of distinct values.
+    /// 6. Assign remaining single-side entries from the unused protrusion
+    ///    slots.
     fn protrusions_assign(
         rank_gap_entries: &mut [RankGapEntry],
         result: &mut [Vec<OrthoProtrusionParams>],
@@ -574,42 +655,180 @@ impl OrthoProtrusionCalculator {
             return;
         }
 
-        // Sort: outer-face edges first (larger |face_offset| -> shorter
-        // protrusion), then by cross-axis coordinate for tie-breaking.
-        rank_gap_entries.sort_by(|rank_gap_entry_a, rank_gap_entry_b| {
-            let offset_cmp = rank_gap_entry_a
-                .face_offset
-                .abs()
-                .partial_cmp(&rank_gap_entry_b.face_offset)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .reverse();
-            if offset_cmp != std::cmp::Ordering::Equal {
-                return offset_cmp;
-            }
-            rank_gap_entry_a
-                .cross_axis_coord
-                .partial_cmp(&rank_gap_entry_b.cross_axis_coord)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        let rank_gap_entry_count = rank_gap_entries.len();
-        if rank_gap_entry_count == 1 {
-            // Single edge: use half the available protrusion space.
+        let total_count = rank_gap_entries.len();
+        if total_count == 1 {
             let protrusion = (max_protrusion * 0.5).max(MIN_PROTRUSION_PX);
             Self::protrusion_write(&rank_gap_entries[0], protrusion, result);
             return;
         }
 
-        // Distribute evenly from MIN_PROTRUSION_PX to max_protrusion.
-        // Index 0 (outermost face offset) gets the shortest protrusion;
-        // index count-1 (innermost) gets the longest.
+        // === Partition by side and sort each side === //
+
+        let side_sort = |a: &&RankGapEntry, b: &&RankGapEntry| -> std::cmp::Ordering {
+            let offset_cmp = a
+                .face_offset
+                .abs()
+                .partial_cmp(&b.face_offset.abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .reverse();
+            if offset_cmp != std::cmp::Ordering::Equal {
+                return offset_cmp;
+            }
+            a.cross_axis_coord
+                .partial_cmp(&b.cross_axis_coord)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        };
+
+        let (mut low_entries, mut high_entries): (Vec<&RankGapEntry>, Vec<&RankGapEntry>) =
+            rank_gap_entries
+                .iter()
+                .partition(|entry| entry.gap_side == GapSide::Low);
+
+        low_entries.sort_by(side_sort);
+        high_entries.sort_by(side_sort);
+
+        // === Identify crossing edges === //
+        //
+        // A "crossing edge" has entries on BOTH sides of the gap. Its
+        // orthogonal routing segment sits at the midpoint of its two
+        // protrusion endpoints:
+        //
+        //   mid_y = (y_low_face + low_prot + y_high_face - high_prot) / 2
+        //
+        // Since `y_low_face` and `y_high_face` are approximately the
+        // same for all edges in the same gap, the midpoint is unique
+        // when `low_prot - high_prot` is unique. We assign crossing
+        // edges distinct `low_prot - high_prot` differences.
+
+        // Edge identity key: (pass1_group_index, edge_index).
+        type EdgeKey = (usize, usize);
+
+        // Build maps from edge key to sorted index within each side.
+        let mut low_edge_indices: Map<EdgeKey, usize> = Map::new();
+        for (i, entry) in low_entries.iter().enumerate() {
+            low_edge_indices.insert((entry.pass1_group_index, entry.edge_index), i);
+        }
+        let mut high_edge_indices: Map<EdgeKey, usize> = Map::new();
+        for (j, entry) in high_entries.iter().enumerate() {
+            high_edge_indices.insert((entry.pass1_group_index, entry.edge_index), j);
+        }
+
+        // Collect crossing edges: edges present on both sides.
+        // Store (low_side_index, high_side_index) pairs.
+        let mut crossing_pairs: Vec<(usize, usize)> = Vec::new();
+        for (edge_key, &low_idx) in &low_edge_indices {
+            if let Some(&high_idx) = high_edge_indices.get(edge_key) {
+                crossing_pairs.push((low_idx, high_idx));
+            }
+        }
+
+        // Sort crossing pairs for deterministic assignment.
+        crossing_pairs.sort();
+
+        // === Assign protrusion depths === //
+        //
+        // Strategy: distribute all entries across a shared pool of
+        // `total_count` distinct protrusion slots. To ensure crossing
+        // edges get unique `low_prot - high_prot` differences, we
+        // assign their (low, high) slot pairs such that no two
+        // crossing edges share the same slot difference.
+        //
+        // Single-side entries (only on low or only on high) do not
+        // contribute to routing midpoints in this gap, so they just
+        // need unique slots.
+        //
+        // We use `total_count` evenly-spaced slots in
+        // [MIN_PROTRUSION_PX, max_protrusion]:
+        //   slot[k] = MIN + k * growable / (total_count - 1)
+        //
+        // The assignment proceeds as follows:
+        //
+        // 1. Single-side low entries get the lowest slots (0, 1, ...).
+        // 2. Crossing low entries get the next slots.
+        // 3. Crossing high entries get slots in REVERSE order (from the top of the
+        //    high-side allocation). This ensures that the i-th crossing edge's low slot
+        //    is `single_low_count + i` and its high slot is `total_count - 1 - i`,
+        //    giving a difference of `(single_low_count + i) - (total_count - 1 - i)` =
+        //    `single_low_count + 2i - total_count + 1`, which is unique per `i` (since
+        //    the `2i` term varies).
+        // 4. Single-side high entries fill the remaining slots.
+
+        // Separate low_entries into single-side and crossing, preserving
+        // their sorted order.
+        let crossing_low_set: std::collections::HashSet<usize> =
+            crossing_pairs.iter().map(|&(li, _)| li).collect();
+        let crossing_high_set: std::collections::HashSet<usize> =
+            crossing_pairs.iter().map(|&(_, hi)| hi).collect();
+
+        let single_low: Vec<&RankGapEntry> = low_entries
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !crossing_low_set.contains(i))
+            .map(|(_, e)| *e)
+            .collect();
+        let single_high: Vec<&RankGapEntry> = high_entries
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| !crossing_high_set.contains(j))
+            .map(|(_, e)| *e)
+            .collect();
+
+        // Crossing entries in the order determined by crossing_pairs.
+        let crossing_low_ordered: Vec<&RankGapEntry> = crossing_pairs
+            .iter()
+            .map(|&(li, _)| low_entries[li])
+            .collect();
+        let crossing_high_ordered: Vec<&RankGapEntry> = crossing_pairs
+            .iter()
+            .map(|&(_, hi)| high_entries[hi])
+            .collect();
+
         let protrusion_growable_space = max_protrusion - MIN_PROTRUSION_PX;
-        for (rank_gap_entry_index, rank_gap_entry) in rank_gap_entries.iter().enumerate() {
-            let rank_gap_entry_proportion =
-                rank_gap_entry_index as f32 / (rank_gap_entry_count - 1) as f32;
-            let protrusion =
-                MIN_PROTRUSION_PX + rank_gap_entry_proportion * protrusion_growable_space;
-            Self::protrusion_write(rank_gap_entry, protrusion, result);
+        let denominator = (total_count - 1).max(1) as f32;
+
+        let slot_value = |slot: usize| -> f32 {
+            let proportion = slot as f32 / denominator;
+            MIN_PROTRUSION_PX + proportion * protrusion_growable_space
+        };
+
+        // Slot assignment:
+        //   [0 .. SL)                        -> single-side low
+        //   [SL .. SL + NC)                  -> crossing low
+        //   [total - SH - NC .. total - SH)  -> crossing high (reversed)
+        //   [total - SH .. total)            -> single-side high
+        //
+        // where SL = single_low.len(), SH = single_high.len(),
+        //       NC = crossing_pairs.len().
+
+        let mut slot = 0usize;
+
+        // 1. Single-side low entries.
+        for entry in &single_low {
+            Self::protrusion_write(entry, slot_value(slot), result);
+            slot += 1;
+        }
+
+        // 2. Crossing low entries (in crossing_pairs order).
+
+        for entry in &crossing_low_ordered {
+            Self::protrusion_write(entry, slot_value(slot), result);
+            slot += 1;
+        }
+
+        // 3. Crossing high entries -- assigned in REVERSE slot order so that crossing
+        //    pair i gets: low_slot  = single_low.len() + i high_slot = total_count - 1
+        //    - single_high.len() - i The difference low_slot - high_slot changes by +2
+        //    per i, guaranteeing uniqueness.
+        let crossing_high_top = total_count - single_high.len();
+        for (i, entry) in crossing_high_ordered.iter().enumerate() {
+            let high_slot = crossing_high_top - 1 - i;
+            Self::protrusion_write(entry, slot_value(high_slot), result);
+        }
+
+        // 4. Single-side high entries fill the top slots.
+        let single_high_start = total_count - single_high.len();
+        for (i, entry) in single_high.iter().enumerate() {
+            Self::protrusion_write(entry, slot_value(single_high_start + i), result);
         }
     }
 
