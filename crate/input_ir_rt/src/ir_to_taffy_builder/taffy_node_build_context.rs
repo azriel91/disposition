@@ -21,11 +21,6 @@ pub(crate) struct TaffyNodeBuildContext<'ctx> {
     pub(crate) entity_types: &'ctx EntityTypes<'static>,
     pub(crate) node_shapes: &'ctx NodeShapes<'static>,
     pub(crate) node_ranks: &'ctx NodeRanks<'static>,
-    /// The default flex direction derived from the `RankDir`.
-    ///
-    /// * `RankDir::Horizontal` -> `FlexDirection::Column`
-    /// * `RankDir::Vertical` -> `FlexDirection::Row`
-    pub(crate) flex_direction_default: FlexDirection,
     pub(crate) node_id_to_taffy: &'ctx mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
     pub(crate) taffy_id_to_node: &'ctx mut Map<taffy::NodeId, NodeId<'static>>,
 }
