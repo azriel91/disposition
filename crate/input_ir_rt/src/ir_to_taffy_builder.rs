@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use disposition_ir_model::{
-    edge::EdgeId,
+    edge::{EdgeGroups, EdgeId},
     entity::{EntityDescs, EntityType, EntityTypes},
     layout::{FlexDirection as ModelFlexDirection, NodeLayout, NodeLayouts},
     node::{
@@ -153,10 +153,13 @@ impl IrToTaffyBuilder<'_> {
             node_id_to_taffy: &mut node_id_to_taffy,
             taffy_id_to_node: &mut taffy_id_to_node,
         };
-        let node_rank_to_nodes_by_entity_type = Self::build_taffy_nodes_for_first_level_nodes(
-            taffy_node_build_context,
-            processes_included,
-        );
+        let (node_rank_to_nodes_by_entity_type, nested_edge_spacer_taffy_nodes) =
+            Self::build_taffy_nodes_for_first_level_nodes(
+                taffy_node_build_context,
+                processes_included,
+                edge_groups,
+                node_hierarchy,
+            );
         let mut thing_rank_to_taffy_ids = node_rank_to_nodes_by_entity_type
             .get(&EntityType::ThingDefault)
             .cloned()
@@ -177,6 +180,7 @@ impl IrToTaffyBuilder<'_> {
         // be routed through these spacer positions to avoid overlapping
         // other nodes.
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
+        edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
         edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
             &mut taffy_tree,
             edge_groups,
@@ -185,6 +189,7 @@ impl IrToTaffyBuilder<'_> {
             entity_types,
             &EntityType::ThingDefault,
             &mut thing_rank_to_taffy_ids,
+            None,
         ));
         edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
             &mut taffy_tree,
@@ -194,6 +199,7 @@ impl IrToTaffyBuilder<'_> {
             entity_types,
             &EntityType::TagDefault,
             &mut tag_rank_to_taffy_ids,
+            None,
         ));
         edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
             &mut taffy_tree,
@@ -203,6 +209,7 @@ impl IrToTaffyBuilder<'_> {
             entity_types,
             &EntityType::ProcessDefault,
             &mut process_rank_to_taffy_ids,
+            None,
         ));
 
         // Create rank sub-containers for top-level nodes, mirroring the
@@ -620,7 +627,12 @@ impl IrToTaffyBuilder<'_> {
     fn build_taffy_nodes_for_first_level_nodes(
         taffy_node_build_context: TaffyNodeBuildContext<'_>,
         processes_included: &ProcessesIncluded,
-    ) -> Map<EntityType, BTreeMap<NodeRank, Vec<taffy::NodeId>>> {
+        edge_groups: &EdgeGroups<'static>,
+        node_hierarchy_full: &NodeHierarchy<'static>,
+    ) -> (
+        Map<EntityType, BTreeMap<NodeRank, Vec<taffy::NodeId>>>,
+        Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
+    ) {
         let TaffyNodeBuildContext {
             nodes,
             taffy_tree,
@@ -633,7 +645,9 @@ impl IrToTaffyBuilder<'_> {
             taffy_id_to_node,
         } = taffy_node_build_context;
 
-        node_hierarchy.iter().fold(
+        let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
+
+        let entity_type_to_node_rank_to_taffy_node_ids = node_hierarchy.iter().fold(
             Map::<EntityType, BTreeMap<NodeRank, Vec<taffy::NodeId>>>::new(),
             |mut entity_type_to_node_rank_to_taffy_node_ids, (node_id, child_hierarchy)| {
                 let node_id: &Id = node_id.as_ref();
@@ -669,19 +683,24 @@ impl IrToTaffyBuilder<'_> {
                         entity_type,
                     )
                 } else {
-                    Self::build_taffy_nodes_for_node_with_child_hierarchy(
-                        nodes,
-                        taffy_tree,
-                        node_layouts,
-                        node_shapes,
-                        entity_types,
-                        node_ranks,
-                        node_id_to_taffy,
-                        taffy_id_to_node,
-                        child_hierarchy,
-                        node_id,
-                        entity_type,
-                    )
+                    let (wrapper_node_id, nested_edge_spacer_taffy_nodes) =
+                        Self::build_taffy_nodes_for_node_with_child_hierarchy(
+                            nodes,
+                            taffy_tree,
+                            node_layouts,
+                            node_shapes,
+                            entity_types,
+                            node_ranks,
+                            node_id_to_taffy,
+                            taffy_id_to_node,
+                            child_hierarchy,
+                            node_id,
+                            entity_type,
+                            edge_groups,
+                            node_hierarchy_full,
+                        );
+                    edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
+                    wrapper_node_id
                 };
 
                 let ir_node_id = NodeId::from(node_id.clone());
@@ -699,6 +718,11 @@ impl IrToTaffyBuilder<'_> {
 
                 entity_type_to_node_rank_to_taffy_node_ids
             },
+        );
+
+        (
+            entity_type_to_node_rank_to_taffy_node_ids,
+            edge_spacer_taffy_nodes,
         )
     }
 
@@ -709,7 +733,12 @@ impl IrToTaffyBuilder<'_> {
     /// for each rank level.
     fn build_taffy_child_nodes_for_node_by_rank(
         taffy_node_build_context: TaffyNodeBuildContext<'_>,
-    ) -> BTreeMap<NodeRank, Vec<taffy::NodeId>> {
+        edge_groups: &EdgeGroups<'static>,
+        node_hierarchy_full: &NodeHierarchy<'static>,
+    ) -> (
+        BTreeMap<NodeRank, Vec<taffy::NodeId>>,
+        Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
+    ) {
         let TaffyNodeBuildContext {
             nodes,
             taffy_tree,
@@ -723,6 +752,7 @@ impl IrToTaffyBuilder<'_> {
         } = taffy_node_build_context;
 
         let mut rank_to_taffy_ids: BTreeMap<NodeRank, Vec<taffy::NodeId>> = BTreeMap::new();
+        let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
 
         for (node_id, child_hierarchy) in node_hierarchy.iter() {
             let node_id: &Id = node_id.as_ref();
@@ -746,19 +776,24 @@ impl IrToTaffyBuilder<'_> {
                     entity_type,
                 )
             } else {
-                Self::build_taffy_nodes_for_node_with_child_hierarchy(
-                    nodes,
-                    taffy_tree,
-                    node_layouts,
-                    node_shapes,
-                    entity_types,
-                    node_ranks,
-                    node_id_to_taffy,
-                    taffy_id_to_node,
-                    child_hierarchy,
-                    node_id,
-                    entity_type,
-                )
+                let (wrapper_node_id, nested_edge_spacer_taffy_nodes) =
+                    Self::build_taffy_nodes_for_node_with_child_hierarchy(
+                        nodes,
+                        taffy_tree,
+                        node_layouts,
+                        node_shapes,
+                        entity_types,
+                        node_ranks,
+                        node_id_to_taffy,
+                        taffy_id_to_node,
+                        child_hierarchy,
+                        node_id,
+                        entity_type,
+                        edge_groups,
+                        node_hierarchy_full,
+                    );
+                edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
+                wrapper_node_id
             };
 
             let ir_node_id = NodeId::from(node_id.clone());
@@ -773,7 +808,7 @@ impl IrToTaffyBuilder<'_> {
                 .push(taffy_node_id);
         }
 
-        rank_to_taffy_ids
+        (rank_to_taffy_ids, edge_spacer_taffy_nodes)
     }
 
     fn build_taffy_nodes_for_node_without_child_hierarchy(
@@ -897,8 +932,11 @@ impl IrToTaffyBuilder<'_> {
         child_hierarchy: &NodeHierarchy<'static>,
         node_id: &Id<'static>,
         entity_type: &EntityType,
-    ) -> taffy::NodeId {
+        edge_groups: &EdgeGroups<'static>,
+        node_hierarchy_full: &NodeHierarchy<'static>,
+    ) -> (taffy::NodeId, Map<EdgeId<'static>, EdgeSpacerTaffyNodes>) {
         let ir_node_id = NodeId::from(node_id.clone());
+        let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
 
         let TaffyWrapperNodeStyles {
             wrapper_style,
@@ -927,8 +965,32 @@ impl IrToTaffyBuilder<'_> {
             node_id_to_taffy,
             taffy_id_to_node,
         };
-        let rank_to_taffy_ids =
-            Self::build_taffy_child_nodes_for_node_by_rank(taffy_node_build_context);
+        let (mut rank_to_taffy_ids, nested_edge_spacer_taffy_nodes) =
+            Self::build_taffy_child_nodes_for_node_by_rank(
+                taffy_node_build_context,
+                edge_groups,
+                node_hierarchy_full,
+            );
+        edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
+
+        // === Insert spacer nodes for edges nested within this node === //
+        let lca_node_id = NodeId::from(node_id.clone());
+        for target_entity_type in &[
+            EntityType::ThingDefault,
+            EntityType::TagDefault,
+            EntityType::ProcessDefault,
+        ] {
+            edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
+                taffy_tree,
+                edge_groups,
+                node_hierarchy_full,
+                node_ranks,
+                entity_types,
+                target_entity_type,
+                &mut rank_to_taffy_ids,
+                Some(&lca_node_id),
+            ));
+        }
 
         // === Build Rank-Based Child Containers === //
         //
@@ -982,7 +1044,7 @@ impl IrToTaffyBuilder<'_> {
                 );
                 taffy_id_to_node.insert(wrapper_node_id, ir_node_id);
 
-                wrapper_node_id
+                (wrapper_node_id, edge_spacer_taffy_nodes)
             }
             NodeShape::Circle(node_shape_circle) => {
                 // Circle wrapper:
@@ -1045,7 +1107,7 @@ impl IrToTaffyBuilder<'_> {
                 );
                 taffy_id_to_node.insert(wrapper_node_id, ir_node_id);
 
-                wrapper_node_id
+                (wrapper_node_id, edge_spacer_taffy_nodes)
             }
         }
     }

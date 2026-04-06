@@ -67,6 +67,7 @@ impl EdgeSpacerBuilder {
         entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
+        lca_node_id: Option<&NodeId<'static>>,
     ) -> Map<EdgeId<'static>, EdgeSpacerTaffyNodes> {
         // === Compute nesting info for all nodes === //
         let node_nesting_info_map = Self::node_nesting_info_map_build(node_hierarchy);
@@ -92,6 +93,7 @@ impl EdgeSpacerBuilder {
                     target_entity_type,
                     rank_to_taffy_ids,
                     &mut rank_spacer_counts,
+                    lca_node_id,
                 );
 
                 if let Some(spacer_nodes) = spacer_nodes {
@@ -115,9 +117,7 @@ impl EdgeSpacerBuilder {
     /// reflect the actual visual rank rows that the edge must cross.
     ///
     /// Returns `None` if the edge does not visually cross ranks, or if
-    /// the two endpoints share a non-root common ancestor (in which case
-    /// the spacer would need to be inserted at a nested level, which is
-    /// not yet supported).
+    /// the edge's LCA does not match the requested `lca_node_id`.
     #[allow(clippy::too_many_arguments)]
     fn edge_spacers_build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
@@ -129,6 +129,7 @@ impl EdgeSpacerBuilder {
         target_entity_type: &EntityType,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
         rank_spacer_counts: &mut BTreeMap<NodeRank, Vec<usize>>,
+        lca_node_id: Option<&NodeId<'static>>,
     ) -> Option<EdgeSpacerTaffyNodes> {
         let nesting_info_from = node_nesting_info_map.get(&edge.from)?;
         let nesting_info_to = node_nesting_info_map.get(&edge.to)?;
@@ -165,15 +166,26 @@ impl EdgeSpacerBuilder {
             return None;
         }
 
-        // Only insert spacers at the top level when the LCA is the root.
-        // When endpoints share a non-root common ancestor, the spacer
-        // would need to go inside that ancestor's child container, which
-        // is not available in `rank_to_taffy_ids`.
-        // Note: `lca_depth` was already computed above for entity type
-        // filtering.
-        if lca_depth > 0 {
-            // TODO: support nested spacer insertion.
-            return None;
+        // Filter by the requested LCA level.
+        match lca_node_id {
+            None => {
+                // Top-level: only insert spacers when the LCA is the root.
+                if lca_depth > 0 {
+                    return None;
+                }
+            }
+            Some(expected_lca_node_id) => {
+                // Nested: only insert spacers when the LCA matches the
+                // expected parent node.
+                if lca_depth == 0 {
+                    return None;
+                }
+                let lca_ancestor = nesting_info_from.ancestor_chain.get(lca_depth - 1);
+                match lca_ancestor {
+                    Some(lca_ancestor) if lca_ancestor == expected_lca_node_id => {}
+                    _ => return None,
+                }
+            }
         }
 
         // Compute the insertion index based on nesting info.
