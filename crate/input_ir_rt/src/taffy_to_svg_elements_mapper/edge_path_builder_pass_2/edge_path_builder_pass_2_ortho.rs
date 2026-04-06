@@ -2,7 +2,6 @@ use kurbo::{BezPath, Point};
 
 use crate::taffy_to_svg_elements_mapper::{
     edge_model::NodeFace, edge_path_builder_pass_1::SpacerCoordinates,
-    edge_path_builder_pass_2::FaceOrDirection,
 };
 
 /// Arc radius in pixels for orthogonal path corners.
@@ -59,6 +58,10 @@ pub(in crate::taffy_to_svg_elements_mapper) struct OrthoProtrusionParams {
 /// short perpendicular stub is drawn exiting/entering each node face
 /// before the main routing segment. This turns each L-shaped segment
 /// into a Z-shaped or S-shaped segment with two 90-degree turns.
+///
+/// Spacer protrusions extend the path slightly past each spacer
+/// boundary so that the routing legs do not run directly along node
+/// faces.
 #[derive(Clone, Copy, Debug)]
 pub(in crate::taffy_to_svg_elements_mapper) struct EdgePathBuilderPass2Ortho;
 
@@ -79,6 +82,10 @@ impl EdgePathBuilderPass2Ortho {
     /// The path is built in reverse order (from `end` to `start`) for
     /// correct SVG rendering direction.
     ///
+    /// Spacer protrusions extend the path past each spacer boundary so
+    /// that the routing legs clear node faces. Every direction change
+    /// in the resulting path is rounded with a small arc.
+    ///
     /// # Example values
     ///
     /// * `start_x = 100.0, start_y = 50.0` -- from-node contact point
@@ -96,81 +103,116 @@ impl EdgePathBuilderPass2Ortho {
         spacers: &[SpacerCoordinates],
         protrusion: OrthoProtrusionParams,
     ) -> BezPath {
-        let mut path = BezPath::new();
-
-        // === To-node protrusion === //
+        // === Collect waypoints === //
         //
-        // The path is built in reverse (end -> start). The to-node
-        // protrusion is the first thing drawn: a short stub exiting the
-        // to-node face perpendicular to the face line.
-        let (eff_end_x, eff_end_y) = Self::protrusion_apply_start(
-            &mut path,
-            end_x,
-            end_y,
-            to_face,
-            protrusion.to_protrusion,
-        );
+        // Build an ordered list of waypoints that the path must visit,
+        // each annotated with a direction. The path is constructed in
+        // reverse (end -> start) for SVG rendering, so waypoints are
+        // collected in that order.
+        //
+        // A waypoint is a coordinate + direction. Between consecutive
+        // waypoints, a multi-leg orthogonal segment with rounded
+        // corners is drawn.
 
-        let spacer_count = spacers.len();
+        let mut waypoints: Vec<Waypoint> = Vec::new();
 
-        // Iterate spacers in reverse (last spacer first in the reversed path).
-        for (rev_index, spacer) in spacers.iter().rev().enumerate() {
-            // === Orthogonal segment into spacer exit === //
-            let seg_start_x;
-            let seg_start_y;
-            let seg_start_dir: FaceOrDirection;
-            if rev_index == 0 {
-                seg_start_x = eff_end_x;
-                seg_start_y = eff_end_y;
-                seg_start_dir = FaceOrDirection::Face(to_face);
-            } else {
-                let prev_spacer = &spacers[spacer_count - rev_index];
-                seg_start_x = prev_spacer.entry_x;
-                seg_start_y = prev_spacer.entry_y;
-                let (pdx, pdy) = Self::spacer_passthrough_direction(prev_spacer);
-                seg_start_dir = FaceOrDirection::Direction((-pdx, -pdy));
-            }
+        // --- To-node contact point and protrusion --- //
+        let to_dir = Self::face_outward_direction(to_face);
 
-            let (sdx, sdy) = Self::spacer_passthrough_direction(spacer);
-            Self::ortho_segment_append(
-                &mut path,
-                seg_start_x,
-                seg_start_y,
-                spacer.exit_x,
-                spacer.exit_y,
-                seg_start_dir,
-                FaceOrDirection::Direction((-sdx, -sdy)),
-            );
+        waypoints.push(Waypoint {
+            x: end_x,
+            y: end_y,
+            dir: to_dir,
+        });
 
-            // === Straight line through spacer (exit -> entry) === //
-            path.line_to(Point::new(spacer.entry_x as f64, spacer.entry_y as f64));
+        if protrusion.to_protrusion > 1e-3 {
+            let (eff_end_x, eff_end_y) =
+                Self::protrusion_offset(end_x, end_y, to_face, protrusion.to_protrusion);
+            waypoints.push(Waypoint {
+                x: eff_end_x,
+                y: eff_end_y,
+                dir: to_dir,
+            });
         }
 
-        // === Final orthogonal segment from first spacer's entry to start === //
-        let first_spacer = &spacers[0];
-        let (fdx, fdy) = Self::spacer_passthrough_direction(first_spacer);
+        // --- Spacer waypoints (in reverse order) --- //
+        for spacer in spacers.iter().rev() {
+            let (sdx, sdy) = Self::spacer_passthrough_direction(spacer);
+            let spacer_protrusion = protrusion.from_protrusion;
 
-        // Compute the effective start point (after from-node protrusion).
-        let (eff_start_x, eff_start_y) =
-            Self::protrusion_offset(start_x, start_y, from_face, protrusion.from_protrusion);
+            // Spacer exit side (with protrusion extending past exit).
+            //
+            // The protrusion extends the path past the spacer exit in
+            // the passthrough direction, so that the routing leg that
+            // connects to this spacer does not run along a node face.
+            let exit_prot_x = spacer.exit_x + sdx * spacer_protrusion;
+            let exit_prot_y = spacer.exit_y + sdy * spacer_protrusion;
 
-        Self::ortho_segment_append(
-            &mut path,
-            first_spacer.entry_x,
-            first_spacer.entry_y,
-            eff_start_x,
-            eff_start_y,
-            FaceOrDirection::Direction((-fdx, -fdy)),
-            FaceOrDirection::Face(from_face),
-        );
+            waypoints.push(Waypoint {
+                x: exit_prot_x,
+                y: exit_prot_y,
+                // Direction entering this waypoint from the previous
+                // segment (reversed passthrough, since we're building
+                // the path in reverse).
+                dir: (-sdx, -sdy),
+            });
 
-        // === From-node protrusion === //
-        //
-        // Draw from the effective start back to the actual start
-        // (protrusion stub entering the from-node).
-        Self::protrusion_apply_end(&mut path, start_x, start_y, protrusion.from_protrusion);
+            // Spacer exit (actual coordinate).
+            waypoints.push(Waypoint {
+                x: spacer.exit_x,
+                y: spacer.exit_y,
+                dir: (-sdx, -sdy),
+            });
 
-        path
+            // Spacer entry (actual coordinate) -- straight through.
+            waypoints.push(Waypoint {
+                x: spacer.entry_x,
+                y: spacer.entry_y,
+                dir: (-sdx, -sdy),
+            });
+
+            // Spacer entry side (with protrusion extending past entry).
+            //
+            // Only add the entry-side protrusion if this is NOT the
+            // last spacer in the reversed iteration. If it IS the last
+            // (i.e. the first spacer in original order), the from-node
+            // protrusion handles the extension on that side.
+            //
+            // Also, between consecutive spacers in the same rank gap,
+            // both the exit protrusion of the next spacer and the entry
+            // protrusion of this spacer serve to keep the routing leg
+            // clear of node faces.
+            let entry_prot_x = spacer.entry_x - sdx * spacer_protrusion;
+            let entry_prot_y = spacer.entry_y - sdy * spacer_protrusion;
+
+            waypoints.push(Waypoint {
+                x: entry_prot_x,
+                y: entry_prot_y,
+                dir: (-sdx, -sdy),
+            });
+        }
+
+        // --- From-node protrusion and contact point --- //
+        let from_dir = Self::face_outward_direction(from_face);
+
+        if protrusion.from_protrusion > 1e-3 {
+            let (eff_start_x, eff_start_y) =
+                Self::protrusion_offset(start_x, start_y, from_face, protrusion.from_protrusion);
+            waypoints.push(Waypoint {
+                x: eff_start_x,
+                y: eff_start_y,
+                dir: from_dir,
+            });
+        }
+
+        waypoints.push(Waypoint {
+            x: start_x,
+            y: start_y,
+            dir: from_dir,
+        });
+
+        // === Build path from waypoints === //
+        Self::path_from_waypoints(&waypoints)
     }
 
     /// Builds an orthogonal path between two non-spacer endpoints
@@ -193,80 +235,202 @@ impl EdgePathBuilderPass2Ortho {
         to_face: NodeFace,
         protrusion: OrthoProtrusionParams,
     ) -> BezPath {
+        let mut waypoints: Vec<Waypoint> = Vec::new();
+
+        let to_dir = Self::face_outward_direction(to_face);
+        let from_dir = Self::face_outward_direction(from_face);
+
+        // --- To-node contact point --- //
+        waypoints.push(Waypoint {
+            x: end_x,
+            y: end_y,
+            dir: to_dir,
+        });
+
+        // --- To-node protrusion tip --- //
+        if protrusion.to_protrusion > 1e-3 {
+            let (eff_end_x, eff_end_y) =
+                Self::protrusion_offset(end_x, end_y, to_face, protrusion.to_protrusion);
+            waypoints.push(Waypoint {
+                x: eff_end_x,
+                y: eff_end_y,
+                dir: to_dir,
+            });
+        }
+
+        // --- From-node protrusion tip --- //
+        if protrusion.from_protrusion > 1e-3 {
+            let (eff_start_x, eff_start_y) =
+                Self::protrusion_offset(start_x, start_y, from_face, protrusion.from_protrusion);
+            waypoints.push(Waypoint {
+                x: eff_start_x,
+                y: eff_start_y,
+                dir: from_dir,
+            });
+        }
+
+        // --- From-node contact point --- //
+        waypoints.push(Waypoint {
+            x: start_x,
+            y: start_y,
+            dir: from_dir,
+        });
+
+        Self::path_from_waypoints(&waypoints)
+    }
+
+    /// Builds a `BezPath` from an ordered list of waypoints.
+    ///
+    /// Between consecutive waypoints, the path is routed with
+    /// orthogonal legs. Every direction change (including between
+    /// collinear segments that meet a perpendicular routing leg and
+    /// at protrusion junctions) is rounded with a small arc.
+    ///
+    /// Two consecutive waypoints are connected by either:
+    /// - A straight line, if they are collinear in the departure direction.
+    /// - An L-shaped segment (two legs with one rounded corner), if one turn is
+    ///   needed.
+    /// - A Z/S-shaped segment (three legs with two rounded corners), if two
+    ///   turns are needed (e.g. different departure and arrival directions that
+    ///   are both perpendicular to the displacement).
+    fn path_from_waypoints(waypoints: &[Waypoint]) -> BezPath {
         let mut path = BezPath::new();
 
-        // === To-node protrusion === //
-        let (eff_end_x, eff_end_y) = Self::protrusion_apply_start(
-            &mut path,
-            end_x,
-            end_y,
-            to_face,
-            protrusion.to_protrusion,
-        );
+        if waypoints.is_empty() {
+            return path;
+        }
 
-        // Compute the effective start point (after from-node protrusion).
-        let (eff_start_x, eff_start_y) =
-            Self::protrusion_offset(start_x, start_y, from_face, protrusion.from_protrusion);
+        // Move to the first waypoint.
+        path.move_to(Point::new(waypoints[0].x as f64, waypoints[0].y as f64));
 
-        // Path is built in reverse (end -> start) for SVG rendering.
-        Self::ortho_segment_append(
-            &mut path,
-            eff_end_x,
-            eff_end_y,
-            eff_start_x,
-            eff_start_y,
-            FaceOrDirection::Face(to_face),
-            FaceOrDirection::Face(from_face),
-        );
+        if waypoints.len() < 2 {
+            return path;
+        }
 
-        // === From-node protrusion === //
-        Self::protrusion_apply_end(&mut path, start_x, start_y, protrusion.from_protrusion);
+        // Connect consecutive waypoint pairs.
+        for i in 0..waypoints.len() - 1 {
+            let wp_from = &waypoints[i];
+            let wp_to = &waypoints[i + 1];
+
+            Self::connect_waypoints(&mut path, wp_from, wp_to);
+        }
 
         path
     }
 
-    /// Applies a protrusion at the start of the path (the to-node
-    /// endpoint, since the path is built in reverse).
+    /// Connects two consecutive waypoints with orthogonal legs and
+    /// rounded corners at every direction change.
     ///
-    /// Moves to the node contact point, draws a short perpendicular
-    /// stub outward from the face, and returns the effective endpoint
-    /// (the tip of the protrusion) that the main routing should start
-    /// from.
+    /// The departure direction at `wp_from` and the arrival direction
+    /// at `wp_to` determine how many legs are needed:
     ///
-    /// When `protrusion_len` is zero or near-zero, the path simply
-    /// starts at the contact point and no stub is drawn.
-    fn protrusion_apply_start(
-        path: &mut BezPath,
-        x: f32,
-        y: f32,
-        face: NodeFace,
-        protrusion_len: f32,
-    ) -> (f32, f32) {
-        path.move_to(Point::new(x as f64, y as f64));
+    /// - **Collinear**: straight `line_to`.
+    /// - **One turn**: L-shaped with one rounded corner.
+    /// - **Two turns**: Z/S-shaped with two rounded corners.
+    fn connect_waypoints(path: &mut BezPath, wp_from: &Waypoint, wp_to: &Waypoint) {
+        let px = wp_from.x;
+        let py = wp_from.y;
+        let qx = wp_to.x;
+        let qy = wp_to.y;
 
-        if protrusion_len < 1e-3 {
-            return (x, y);
-        }
+        let dx = qx - px;
+        let dy = qy - py;
+        let dist = (dx * dx + dy * dy).sqrt();
 
-        let (eff_x, eff_y) = Self::protrusion_offset(x, y, face, protrusion_len);
-        path.line_to(Point::new(eff_x as f64, eff_y as f64));
-        (eff_x, eff_y)
-    }
-
-    /// Applies a protrusion at the end of the path (the from-node
-    /// endpoint, since the path is built in reverse).
-    ///
-    /// Draws a line from the current path position to the actual node
-    /// contact point, closing the protrusion stub.
-    ///
-    /// When `protrusion_len` is zero or near-zero, no extra line is
-    /// drawn (the main routing already ends at the contact point).
-    fn protrusion_apply_end(path: &mut BezPath, x: f32, y: f32, protrusion_len: f32) {
-        if protrusion_len < 1e-3 {
+        // Degenerate: points are coincident -- skip.
+        if dist < 1e-3 {
             return;
         }
 
-        path.line_to(Point::new(x as f64, y as f64));
+        let (p_dx, p_dy) = wp_from.dir;
+        let (q_dx, q_dy) = wp_to.dir;
+
+        let p_is_vertical = p_dy.abs() > p_dx.abs();
+        let q_is_vertical = q_dy.abs() > q_dx.abs();
+
+        // Check if the displacement between waypoints is along the
+        // departure direction (collinear).
+        let disp_ux = dx / dist;
+        let disp_uy = dy / dist;
+        let dot_p = disp_ux * p_dx + disp_uy * p_dy;
+
+        if dot_p.abs() > 0.95 {
+            // Nearly collinear with the departure direction -- just
+            // draw a straight line.
+            path.line_to(Point::new(qx as f64, qy as f64));
+            return;
+        }
+
+        // Determine if departure and arrival directions are parallel
+        // (both vertical or both horizontal). If so, we need a
+        // Z/S-shaped path with two turns. If perpendicular, an
+        // L-shaped path with one turn suffices.
+        if p_is_vertical == q_is_vertical {
+            // === Z/S-shape: two turns === //
+            //
+            // Both directions are the same axis (both vertical or both
+            // horizontal). Route with three legs and two corners.
+            //
+            // For vertical departure and arrival: go vertically to the
+            // midpoint y, turn horizontally to qx, turn vertically to
+            // qy.
+            //
+            // For horizontal departure and arrival: go horizontally to
+            // the midpoint x, turn vertically to qy, turn horizontally
+            // to qx.
+            if p_is_vertical {
+                let mid_y = (py + qy) * 0.5;
+                let corner1_x = px;
+                let corner1_y = mid_y;
+                let corner2_x = qx;
+                let corner2_y = mid_y;
+                Self::three_leg_segment_append(
+                    path, px, py, corner1_x, corner1_y, corner2_x, corner2_y, qx, qy,
+                );
+            } else {
+                let mid_x = (px + qx) * 0.5;
+                let corner1_x = mid_x;
+                let corner1_y = py;
+                let corner2_x = mid_x;
+                let corner2_y = qy;
+                Self::three_leg_segment_append(
+                    path, px, py, corner1_x, corner1_y, corner2_x, corner2_y, qx, qy,
+                );
+            }
+        } else {
+            // === L-shape: one turn === //
+            //
+            // Departure and arrival are on perpendicular axes. One
+            // L-shaped segment with a single rounded corner.
+            if p_is_vertical {
+                // Vertical first, then horizontal.
+                // Corner at (px, qy).
+                let corner_x = px;
+                let corner_y = qy;
+                Self::two_leg_segment_append(path, px, py, corner_x, corner_y, qx, qy);
+            } else {
+                // Horizontal first, then vertical.
+                // Corner at (qx, py).
+                let corner_x = qx;
+                let corner_y = py;
+                Self::two_leg_segment_append(path, px, py, corner_x, corner_y, qx, qy);
+            }
+        }
+    }
+
+    /// Returns the outward unit direction vector for a node face.
+    ///
+    /// # Example values
+    ///
+    /// * `NodeFace::Top` returns `(0.0, -1.0)`.
+    /// * `NodeFace::Bottom` returns `(0.0, 1.0)`.
+    fn face_outward_direction(face: NodeFace) -> (f32, f32) {
+        match face {
+            NodeFace::Top => (0.0, -1.0),
+            NodeFace::Bottom => (0.0, 1.0),
+            NodeFace::Left => (-1.0, 0.0),
+            NodeFace::Right => (1.0, 0.0),
+        }
     }
 
     /// Computes the point offset from `(x, y)` along the outward normal
@@ -287,47 +451,6 @@ impl EdgePathBuilderPass2Ortho {
             NodeFace::Bottom => (x, y + protrusion_len),
             NodeFace::Left => (x - protrusion_len, y),
             NodeFace::Right => (x + protrusion_len, y),
-        }
-    }
-
-    /// Appends an orthogonal segment from `(px, py)` to `(qx, qy)`.
-    ///
-    /// The segment consists of up to two straight legs joined by a
-    /// rounded 90-degree arc corner. The departure direction at `p` and
-    /// arrival direction at `q` are determined by `p_dir` and `q_dir`.
-    ///
-    /// If the two points are already axis-aligned in the departure
-    /// direction, a single straight line is emitted.
-    fn ortho_segment_append(
-        path: &mut BezPath,
-        px: f32,
-        py: f32,
-        qx: f32,
-        qy: f32,
-        p_dir: FaceOrDirection,
-        q_dir: FaceOrDirection,
-    ) {
-        let (p_dx, p_dy) = Self::direction_vector(p_dir);
-        let (_q_dx, _q_dy) = Self::direction_vector(q_dir);
-
-        let p_is_vertical = p_dy.abs() > p_dx.abs();
-
-        if p_is_vertical {
-            // First leg is vertical, second leg is horizontal.
-            // Corner is at (px, qy) -- go vertically to qy, then
-            // horizontally to qx.
-            let corner_x = px;
-            let corner_y = qy;
-
-            Self::two_leg_segment_append(path, px, py, corner_x, corner_y, qx, qy);
-        } else {
-            // First leg is horizontal, second leg is vertical.
-            // Corner is at (qx, py) -- go horizontally to qx, then
-            // vertically to qy.
-            let corner_x = qx;
-            let corner_y = py;
-
-            Self::two_leg_segment_append(path, px, py, corner_x, corner_y, qx, qy);
         }
     }
 
@@ -394,18 +517,112 @@ impl EdgePathBuilderPass2Ortho {
         path.line_to(Point::new(bx as f64, by as f64));
     }
 
-    /// Extracts a unit direction vector from a `FaceOrDirection`.
+    /// Appends a three-leg orthogonal path from `(ax, ay)` through two
+    /// corners `(c1x, c1y)` and `(c2x, c2y)` to `(bx, by)`, with a
+    /// rounded arc at each corner.
     ///
-    /// For `Face` variants, returns the outward normal direction.
-    /// For `Direction` variants, returns the stored unit vector.
-    fn direction_vector(face_or_dir: FaceOrDirection) -> (f32, f32) {
-        match face_or_dir {
-            FaceOrDirection::Face(NodeFace::Top) => (0.0, -1.0),
-            FaceOrDirection::Face(NodeFace::Bottom) => (0.0, 1.0),
-            FaceOrDirection::Face(NodeFace::Left) => (-1.0, 0.0),
-            FaceOrDirection::Face(NodeFace::Right) => (1.0, 0.0),
-            FaceOrDirection::Direction((dx, dy)) => (dx, dy),
+    /// Used for Z-shaped or S-shaped routing when both the departure
+    /// and arrival directions are on the same axis (both vertical or
+    /// both horizontal).
+    #[allow(clippy::too_many_arguments)]
+    fn three_leg_segment_append(
+        path: &mut BezPath,
+        ax: f32,
+        ay: f32,
+        c1x: f32,
+        c1y: f32,
+        c2x: f32,
+        c2y: f32,
+        bx: f32,
+        by: f32,
+    ) {
+        // Leg 1: a -> c1
+        let leg1_dx = c1x - ax;
+        let leg1_dy = c1y - ay;
+        let leg1_len = (leg1_dx * leg1_dx + leg1_dy * leg1_dy).sqrt();
+
+        // Leg 2: c1 -> c2
+        let leg2_dx = c2x - c1x;
+        let leg2_dy = c2y - c1y;
+        let leg2_len = (leg2_dx * leg2_dx + leg2_dy * leg2_dy).sqrt();
+
+        // Leg 3: c2 -> b
+        let leg3_dx = bx - c2x;
+        let leg3_dy = by - c2y;
+        let leg3_len = (leg3_dx * leg3_dx + leg3_dy * leg3_dy).sqrt();
+
+        // If any leg is degenerate, fall back to simpler strategies.
+        if leg1_len < 1e-3 && leg3_len < 1e-3 {
+            // All corners are collapsed; draw a straight line.
+            path.line_to(Point::new(bx as f64, by as f64));
+            return;
         }
+        if leg1_len < 1e-3 || leg2_len < 1e-3 {
+            // First corner is degenerate; use two-leg for c1 -> b.
+            Self::two_leg_segment_append(path, ax, ay, c2x, c2y, bx, by);
+            return;
+        }
+        if leg3_len < 1e-3 {
+            // Second corner is degenerate; use two-leg for a -> c1.
+            Self::two_leg_segment_append(path, ax, ay, c1x, c1y, bx, by);
+            return;
+        }
+
+        // === First corner arc (a -> c1 -> c2) === //
+        let radius1 = ARC_RADIUS.min(leg1_len / 2.0).min(leg2_len / 2.0);
+        let u1x = leg1_dx / leg1_len;
+        let u1y = leg1_dy / leg1_len;
+        let u2x = leg2_dx / leg2_len;
+        let u2y = leg2_dy / leg2_len;
+
+        let arc1_start_x = c1x - u1x * radius1;
+        let arc1_start_y = c1y - u1y * radius1;
+        let arc1_end_x = c1x + u2x * radius1;
+        let arc1_end_y = c1y + u2y * radius1;
+
+        // Line from current point to first arc start.
+        path.line_to(Point::new(arc1_start_x as f64, arc1_start_y as f64));
+
+        // First arc.
+        let ctrl1a_x = arc1_start_x + u1x * radius1 * KAPPA;
+        let ctrl1a_y = arc1_start_y + u1y * radius1 * KAPPA;
+        let ctrl1b_x = arc1_end_x - u2x * radius1 * KAPPA;
+        let ctrl1b_y = arc1_end_y - u2y * radius1 * KAPPA;
+
+        path.curve_to(
+            Point::new(ctrl1a_x as f64, ctrl1a_y as f64),
+            Point::new(ctrl1b_x as f64, ctrl1b_y as f64),
+            Point::new(arc1_end_x as f64, arc1_end_y as f64),
+        );
+
+        // === Second corner arc (c1 -> c2 -> b) === //
+        let radius2 = ARC_RADIUS.min(leg2_len / 2.0).min(leg3_len / 2.0);
+        // Reuse u2 for leg2 direction (already computed).
+        let u3x = leg3_dx / leg3_len;
+        let u3y = leg3_dy / leg3_len;
+
+        let arc2_start_x = c2x - u2x * radius2;
+        let arc2_start_y = c2y - u2y * radius2;
+        let arc2_end_x = c2x + u3x * radius2;
+        let arc2_end_y = c2y + u3y * radius2;
+
+        // Line from first arc end to second arc start.
+        path.line_to(Point::new(arc2_start_x as f64, arc2_start_y as f64));
+
+        // Second arc.
+        let ctrl2a_x = arc2_start_x + u2x * radius2 * KAPPA;
+        let ctrl2a_y = arc2_start_y + u2y * radius2 * KAPPA;
+        let ctrl2b_x = arc2_end_x - u3x * radius2 * KAPPA;
+        let ctrl2b_y = arc2_end_y - u3y * radius2 * KAPPA;
+
+        path.curve_to(
+            Point::new(ctrl2a_x as f64, ctrl2a_y as f64),
+            Point::new(ctrl2b_x as f64, ctrl2b_y as f64),
+            Point::new(arc2_end_x as f64, arc2_end_y as f64),
+        );
+
+        // Line from second arc end to final point.
+        path.line_to(Point::new(bx as f64, by as f64));
     }
 
     /// Computes the unit passthrough direction for a spacer.
@@ -427,4 +644,30 @@ impl EdgePathBuilderPass2Ortho {
             (dx / len, dy / len)
         }
     }
+}
+
+/// A waypoint in the orthogonal path: a coordinate and a direction.
+///
+/// The direction indicates the axis along which the path should
+/// depart from or arrive at this point. Between consecutive waypoints,
+/// the `connect_waypoints` function routes the path with orthogonal
+/// legs and rounded corners.
+///
+/// # Example values
+///
+/// ```text
+/// Waypoint { x: 150.0, y: 200.0, dir: (0.0, 1.0) }
+/// ```
+#[derive(Clone, Copy, Debug)]
+struct Waypoint {
+    /// X coordinate in pixels.
+    x: f32,
+    /// Y coordinate in pixels.
+    y: f32,
+    /// Unit direction vector indicating the departure/arrival axis.
+    ///
+    /// For node face protrusions, this is the face outward normal.
+    /// For spacer boundaries, this is the spacer passthrough direction
+    /// (or its negation, depending on path direction).
+    dir: (f32, f32),
 }
