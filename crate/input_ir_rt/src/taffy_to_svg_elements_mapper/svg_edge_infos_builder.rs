@@ -607,10 +607,10 @@ impl SvgEdgeInfosBuilder {
                     edge_spacer_taffy_nodes,
                 );
 
+                let ortho_protrusion_default = OrthoProtrusionParams::default();
                 let ortho_protrusion = ortho_protrusions
                     .get(pass1_info_index)
-                    .copied()
-                    .unwrap_or_default();
+                    .unwrap_or(&ortho_protrusion_default);
 
                 let path = EdgePathBuilderPass2::build(
                     edge_curvature,

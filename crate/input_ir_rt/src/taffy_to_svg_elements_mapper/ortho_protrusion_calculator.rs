@@ -6,7 +6,9 @@ use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeC
 use crate::taffy_to_svg_elements_mapper::{
     edge_model::{EdgeContactPointOffsets, NodeFace, NodeIdAndFace},
     edge_path_builder_pass_1::SpacerCoordinates,
-    edge_path_builder_pass_2::edge_path_builder_pass_2_ortho::OrthoProtrusionParams,
+    edge_path_builder_pass_2::edge_path_builder_pass_2_ortho::{
+        OrthoProtrusionParams, SpacerProtrusionParams,
+    },
 };
 
 use super::svg_edge_infos_builder::{EdgeGroupPass1, EdgePass1Info};
@@ -65,22 +67,48 @@ struct RankGapEntry {
     pass1_group_index: usize,
     /// Index into the group's `pass1_infos`.
     edge_index: usize,
-    /// `true` for the "from" endpoint, `false` for the "to" endpoint.
-    is_from_endpoint: bool,
-    /// Cross-axis coordinate of the endpoint's node.
+    /// Which endpoint or spacer side this entry represents.
+    endpoint_kind: RankGapEndpointKind,
+    /// Cross-axis coordinate of the endpoint's node (or spacer).
     ///
     /// For `Top` / `Bottom` faces this is the node's X coordinate;
     /// for `Left` / `Right` faces this is the node's Y coordinate.
+    /// For spacer endpoints, the spacer's X or Y coordinate is used.
     cross_axis_coord: f32,
     /// The face offset (slot offset) for this endpoint.
     ///
     /// Edges further from the face midpoint (larger absolute offset)
-    /// receive shorter protrusions.
+    /// receive shorter protrusions. For spacer endpoints this is
+    /// `0.0` since spacers do not have face offsets.
     face_offset: f32,
     /// Pixel distance in the rank direction for this endpoint's rank
-    /// gap (from the node contact point to the nearest spacer or the
-    /// other endpoint).
+    /// gap (from the node contact point or spacer boundary to the
+    /// nearest adjacent spacer or node).
     rank_gap_px: f32,
+}
+
+/// Identifies which endpoint or spacer side a `RankGapEntry`
+/// represents.
+///
+/// Used by `protrusion_write` to store the computed protrusion depth
+/// in the correct field of `OrthoProtrusionParams`.
+#[derive(Clone, Copy, Debug)]
+enum RankGapEndpointKind {
+    /// The "from" node endpoint.
+    FromEndpoint,
+    /// The "to" node endpoint.
+    ToEndpoint,
+    /// The entry side of a spacer at the given index (0-based, in
+    /// the same order as the `spacers` slice).
+    SpacerEntry {
+        /// Index into `spacer_protrusions`.
+        spacer_index: usize,
+    },
+    /// The exit side of a spacer at the given index.
+    SpacerExit {
+        /// Index into `spacer_protrusions`.
+        spacer_index: usize,
+    },
 }
 
 /// Key for grouping endpoints into rank gaps.
@@ -120,10 +148,45 @@ impl OrthoProtrusionCalculator {
             EdgeSpacerTaffyNodes,
         >,
     ) -> Vec<Vec<OrthoProtrusionParams>> {
-        // === Step 1: Initialize output with defaults === //
-        let mut result: Vec<Vec<OrthoProtrusionParams>> = all_pass1_groups
+        // === Step 1: Resolve spacer coordinates and initialize output === //
+        //
+        // Resolve spacer coordinates once per edge so that the same
+        // resolved count is used for sizing `spacer_protrusions` and
+        // for registering rank gap entries. This avoids a mismatch
+        // between the raw taffy node count (which includes entries
+        // whose layout may fail) and the actual resolved count.
+        let all_spacer_coordinates: Vec<Vec<Vec<SpacerCoordinates>>> = all_pass1_groups
             .iter()
-            .map(|group| vec![OrthoProtrusionParams::default(); group.pass1_infos.len()])
+            .map(|group| {
+                group
+                    .pass1_infos
+                    .iter()
+                    .map(|pass1_info| {
+                        Self::spacer_coordinates_resolve(
+                            pass1_info,
+                            taffy_tree,
+                            edge_spacer_taffy_nodes,
+                        )
+                    })
+                    .collect()
+            })
+            .collect();
+
+        let mut result: Vec<Vec<OrthoProtrusionParams>> = all_spacer_coordinates
+            .iter()
+            .map(|group_spacers| {
+                group_spacers
+                    .iter()
+                    .map(|spacer_coords| OrthoProtrusionParams {
+                        from_protrusion: 0.0,
+                        to_protrusion: 0.0,
+                        spacer_protrusions: vec![
+                            SpacerProtrusionParams::default();
+                            spacer_coords.len()
+                        ],
+                    })
+                    .collect()
+            })
             .collect();
 
         // === Step 2: Collect rank gap entries === //
@@ -150,11 +213,7 @@ impl OrthoProtrusionCalculator {
                     continue;
                 }
 
-                let spacer_coordinates = Self::spacer_coordinates_resolve(
-                    pass1_info,
-                    taffy_tree,
-                    edge_spacer_taffy_nodes,
-                );
+                let spacer_coordinates = &all_spacer_coordinates[group_idx][edge_idx];
 
                 // === From endpoint === //
                 if let Some(from_face) = pass1_info.from_face {
@@ -200,7 +259,7 @@ impl OrthoProtrusionCalculator {
                         .push(RankGapEntry {
                             pass1_group_index: group_idx,
                             edge_index: edge_idx,
-                            is_from_endpoint: true,
+                            endpoint_kind: RankGapEndpointKind::FromEndpoint,
                             cross_axis_coord: cross_axis_from,
                             face_offset: from_offset,
                             rank_gap_px: from_rank_gap_px,
@@ -248,11 +307,114 @@ impl OrthoProtrusionCalculator {
                         .push(RankGapEntry {
                             pass1_group_index: group_idx,
                             edge_index: edge_idx,
-                            is_from_endpoint: false,
+                            endpoint_kind: RankGapEndpointKind::ToEndpoint,
                             cross_axis_coord: cross_axis_to,
                             face_offset: to_offset,
                             rank_gap_px: to_rank_gap_px,
                         });
+                }
+
+                // === Intermediate spacer endpoints === //
+                //
+                // Each spacer has an entry side and an exit side that
+                // protrude into adjacent rank gaps. Register entries
+                // so that all edges crossing the same gap get distinct
+                // protrusion depths.
+                //
+                // For an edge from rank 0 to rank 3 with spacers at
+                // ranks 1 and 2:
+                //   - spacer[0] entry side is in gap (0, 1) -- shared with from_protrusion
+                //   - spacer[0] exit side is in gap (1, 2)
+                //   - spacer[1] entry side is in gap (1, 2)
+                //   - spacer[1] exit side is in gap (2, 3) -- shared with to_protrusion
+                if spacer_coordinates.len() >= 2 {
+                    let from_face_for_axis = pass1_info.from_face.unwrap_or(NodeFace::Bottom);
+
+                    for spacer_idx in 0..spacer_coordinates.len() {
+                        let spacer = &spacer_coordinates[spacer_idx];
+                        let spacer_cross = Self::cross_axis_coord(
+                            spacer.entry_x,
+                            spacer.entry_y,
+                            from_face_for_axis,
+                        );
+
+                        // --- Entry side of this spacer --- //
+                        //
+                        // The entry side protrudes into the gap BEFORE
+                        // this spacer. For the first spacer (index 0),
+                        // that gap is the same as the from-endpoint
+                        // gap, which is already registered above.
+                        // Only register for spacers beyond the first.
+                        if spacer_idx > 0 {
+                            let prev_spacer = &spacer_coordinates[spacer_idx - 1];
+                            let gap_px =
+                                Self::spacer_gap_px(prev_spacer, spacer, from_face_for_axis);
+
+                            // Gap between the rank of prev_spacer and
+                            // the rank of this spacer. Since spacers
+                            // are sorted by rank, use consecutive rank
+                            // values.
+                            let entry_gap_key = Self::spacer_gap_key(
+                                rank_from,
+                                rank_to,
+                                spacer_idx - 1,
+                                spacer_idx,
+                            );
+
+                            rank_gap_entries
+                                .entry(entry_gap_key)
+                                .or_default()
+                                .push(RankGapEntry {
+                                    pass1_group_index: group_idx,
+                                    edge_index: edge_idx,
+                                    endpoint_kind: RankGapEndpointKind::SpacerEntry {
+                                        spacer_index: spacer_idx,
+                                    },
+                                    cross_axis_coord: spacer_cross,
+                                    face_offset: 0.0,
+                                    rank_gap_px: gap_px,
+                                });
+                        }
+
+                        // --- Exit side of this spacer --- //
+                        //
+                        // The exit side protrudes into the gap AFTER
+                        // this spacer. For the last spacer, that gap
+                        // is the same as the to-endpoint gap, which
+                        // is already registered above. Only register
+                        // for spacers before the last.
+                        if spacer_idx < spacer_coordinates.len() - 1 {
+                            let next_spacer = &spacer_coordinates[spacer_idx + 1];
+                            let gap_px =
+                                Self::spacer_gap_px(spacer, next_spacer, from_face_for_axis);
+
+                            let exit_gap_key = Self::spacer_gap_key(
+                                rank_from,
+                                rank_to,
+                                spacer_idx,
+                                spacer_idx + 1,
+                            );
+
+                            rank_gap_entries
+                                .entry(exit_gap_key)
+                                .or_default()
+                                .push(RankGapEntry {
+                                    pass1_group_index: group_idx,
+                                    edge_index: edge_idx,
+                                    endpoint_kind: RankGapEndpointKind::SpacerExit {
+                                        spacer_index: spacer_idx,
+                                    },
+                                    cross_axis_coord: spacer_cross,
+                                    face_offset: 0.0,
+                                    rank_gap_px: gap_px,
+                                });
+                        }
+                    }
+                } else if spacer_coordinates.len() == 1 {
+                    // Single spacer: entry side shares gap with
+                    // from-endpoint, exit side shares gap with
+                    // to-endpoint. Both are already registered.
+                    // No additional entries needed.
                 }
             }
         }
@@ -260,6 +422,38 @@ impl OrthoProtrusionCalculator {
         // === Step 3: For each rank gap, assign protrusion depths === //
         for (_gap_key, entries) in &mut rank_gap_entries {
             Self::protrusions_assign(entries, &mut result);
+        }
+
+        // === Step 4: Propagate node protrusions to shared spacer sides === //
+        //
+        // The first spacer's entry side shares the same rank gap as the
+        // from-node protrusion. The last spacer's exit side shares the
+        // same rank gap as the to-node protrusion. Since both the node
+        // endpoint and the spacer side participate in the same gap, they
+        // were assigned depths by the same `protrusions_assign` call.
+        //
+        // However, for single-spacer edges, no intermediate spacer
+        // entries were registered (only from/to endpoints). In that
+        // case the spacer protrusions are still at their default (0.0).
+        // Propagate the node protrusion values so the spacer sides
+        // match the node endpoints they share a gap with.
+        for group_params in &mut result {
+            for params in group_params.iter_mut() {
+                if params.spacer_protrusions.is_empty() {
+                    continue;
+                }
+
+                let first = &mut params.spacer_protrusions[0];
+                if first.entry_protrusion < 1e-3 {
+                    first.entry_protrusion = params.from_protrusion;
+                }
+
+                let last_idx = params.spacer_protrusions.len() - 1;
+                let last = &mut params.spacer_protrusions[last_idx];
+                if last.exit_protrusion < 1e-3 {
+                    last.exit_protrusion = params.to_protrusion;
+                }
+            }
         }
 
         result
@@ -356,10 +550,98 @@ impl OrthoProtrusionCalculator {
         result: &mut [Vec<OrthoProtrusionParams>],
     ) {
         let params = &mut result[entry.pass1_group_index][entry.edge_index];
-        if entry.is_from_endpoint {
-            params.from_protrusion = protrusion;
+        match entry.endpoint_kind {
+            RankGapEndpointKind::FromEndpoint => {
+                params.from_protrusion = protrusion;
+            }
+            RankGapEndpointKind::ToEndpoint => {
+                params.to_protrusion = protrusion;
+            }
+            RankGapEndpointKind::SpacerEntry { spacer_index } => {
+                if let Some(sp) = params.spacer_protrusions.get_mut(spacer_index) {
+                    sp.entry_protrusion = protrusion;
+                }
+            }
+            RankGapEndpointKind::SpacerExit { spacer_index } => {
+                if let Some(sp) = params.spacer_protrusions.get_mut(spacer_index) {
+                    sp.exit_protrusion = protrusion;
+                }
+            }
+        }
+    }
+
+    /// Computes the pixel distance between two consecutive spacers
+    /// along the rank axis.
+    ///
+    /// The distance is measured from the exit of `spacer_before` to
+    /// the entry of `spacer_after`, using the same axis as
+    /// `axis_distance`.
+    fn spacer_gap_px(
+        spacer_before: &SpacerCoordinates,
+        spacer_after: &SpacerCoordinates,
+        face: NodeFace,
+    ) -> f32 {
+        Self::axis_distance(
+            spacer_before.exit_x,
+            spacer_before.exit_y,
+            spacer_after.entry_x,
+            spacer_after.entry_y,
+            face,
+        )
+    }
+
+    /// Computes the `RankGapKey` for the gap between two consecutive
+    /// spacers.
+    ///
+    /// The spacers are at logical positions between `rank_from` and
+    /// `rank_to`. Spacer indices are 0-based. The rank for spacer `i`
+    /// is interpolated between the from and to ranks.
+    ///
+    /// # Parameters
+    ///
+    /// * `rank_from` -- rank of the from-node.
+    /// * `rank_to` -- rank of the to-node.
+    /// * `spacer_idx_low` -- index of the earlier spacer (in forward order).
+    /// * `spacer_idx_high` -- index of the later spacer.
+    fn spacer_gap_key(
+        rank_from: NodeRank,
+        rank_to: NodeRank,
+        spacer_idx_low: usize,
+        spacer_idx_high: usize,
+    ) -> RankGapKey {
+        // Map spacer indices to intermediate ranks. Spacers occupy
+        // ranks between rank_from and rank_to. For an edge from rank 0
+        // to rank 3, spacers are at ranks 1 and 2:
+        //   spacer_idx 0 -> rank 1
+        //   spacer_idx 1 -> rank 2
+        let (low_rank_val, high_rank_val) = if rank_from < rank_to {
+            (
+                rank_from.value() + 1 + spacer_idx_low as u32,
+                rank_from.value() + 1 + spacer_idx_high as u32,
+            )
         } else {
-            params.to_protrusion = protrusion;
+            // Reversed direction: from higher rank to lower rank.
+            // spacer_idx 0 is closest to rank_from (the higher rank).
+            let from_val = rank_from.value();
+            (
+                from_val - 1 - spacer_idx_high as u32,
+                from_val - 1 - spacer_idx_low as u32,
+            )
+        };
+
+        let rank_a = NodeRank::new(low_rank_val);
+        let rank_b = NodeRank::new(high_rank_val);
+
+        if rank_a <= rank_b {
+            RankGapKey {
+                rank_low: rank_a,
+                rank_high: rank_b,
+            }
+        } else {
+            RankGapKey {
+                rank_low: rank_b,
+                rank_high: rank_a,
+            }
         }
     }
 

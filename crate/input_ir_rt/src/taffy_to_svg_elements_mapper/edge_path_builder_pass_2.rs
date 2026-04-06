@@ -82,7 +82,7 @@ impl EdgePathBuilderPass2 {
         edge_type: EdgeType,
         face_offset: EdgeFaceOffset,
         spacers: &[SpacerCoordinates],
-        ortho_protrusion: OrthoProtrusionParams,
+        ortho_protrusion: &OrthoProtrusionParams,
     ) -> BezPath {
         // Handle self-loop case (curvature mode and spacers ignored).
         if from_info.node_id == to_info.node_id {

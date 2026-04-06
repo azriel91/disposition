@@ -17,23 +17,64 @@ const ARC_RADIUS: f32 = 4.0;
 /// Equal to `(4.0 / 3.0) * (sqrt(2) - 1)`, approximately `0.5522847498`.
 const KAPPA: f32 = 0.552_284_8;
 
+/// Protrusion lengths for the entry and exit sides of a single spacer.
+///
+/// The entry-side protrusion extends the path past the spacer's entry
+/// boundary (away from the spacer, into the gap before it). The
+/// exit-side protrusion extends the path past the spacer's exit
+/// boundary (away from the spacer, into the gap after it).
+///
+/// Protrusion depths are assigned by `OrthoProtrusionCalculator` so
+/// that edges sharing the same inter-rank gap use distinct depths.
+///
+/// # Example values
+///
+/// ```text
+/// SpacerProtrusionParams { entry_protrusion: 5.0, exit_protrusion: 8.0 }
+/// ```
+#[derive(Clone, Copy, Debug, Default)]
+pub(in crate::taffy_to_svg_elements_mapper) struct SpacerProtrusionParams {
+    /// Protrusion length in pixels on the entry side of the spacer.
+    ///
+    /// `0.0` means no protrusion on the entry side.
+    pub(in crate::taffy_to_svg_elements_mapper) entry_protrusion: f32,
+
+    /// Protrusion length in pixels on the exit side of the spacer.
+    ///
+    /// `0.0` means no protrusion on the exit side.
+    pub(in crate::taffy_to_svg_elements_mapper) exit_protrusion: f32,
+}
+
 /// Protrusion lengths for the from-node and to-node endpoints of an
-/// orthogonal edge path.
+/// orthogonal edge path, plus per-spacer protrusion depths.
 ///
 /// A protrusion is a short stub that exits the node face perpendicular
 /// to the face line before the main orthogonal routing begins. This
 /// separates parallel edges that share the same node face.
 ///
+/// Spacer protrusions serve the same purpose at intermediate spacer
+/// boundaries: they extend the path past the spacer so that the
+/// routing leg between spacers does not run along a node face, and
+/// multiple edges crossing the same inter-rank gap use distinct
+/// depths.
+///
 /// # Example values
 ///
 /// ```text
-/// OrthoProtrusionParams { from_protrusion: 12.0, to_protrusion: 8.0 }
+/// OrthoProtrusionParams {
+///     from_protrusion: 12.0,
+///     to_protrusion: 8.0,
+///     spacer_protrusions: vec![
+///         SpacerProtrusionParams { entry_protrusion: 12.0, exit_protrusion: 5.0 },
+///     ],
+/// }
 /// ```
 ///
 /// An edge whose from-node is close to the face midpoint gets a longer
 /// `from_protrusion`; an edge further from the midpoint gets a shorter
-/// one.
-#[derive(Clone, Copy, Debug, Default)]
+/// one. Each spacer's entry and exit protrusions are computed
+/// independently based on the edges sharing that specific rank gap.
+#[derive(Clone, Debug, Default)]
 pub(in crate::taffy_to_svg_elements_mapper) struct OrthoProtrusionParams {
     /// Protrusion length in pixels at the from-node endpoint.
     ///
@@ -45,6 +86,12 @@ pub(in crate::taffy_to_svg_elements_mapper) struct OrthoProtrusionParams {
     ///
     /// `0.0` means no protrusion.
     pub(in crate::taffy_to_svg_elements_mapper) to_protrusion: f32,
+
+    /// Per-spacer protrusion depths, indexed in the same order as the
+    /// `spacers` slice passed to `build_spacer_edge_path`.
+    ///
+    /// When the edge has no spacers, this is empty.
+    pub(in crate::taffy_to_svg_elements_mapper) spacer_protrusions: Vec<SpacerProtrusionParams>,
 }
 
 /// Builds pass-2 edge paths using orthogonal (90-degree) lines with
@@ -101,7 +148,7 @@ impl EdgePathBuilderPass2Ortho {
         from_face: NodeFace,
         to_face: NodeFace,
         spacers: &[SpacerCoordinates],
-        protrusion: OrthoProtrusionParams,
+        protrusion: &OrthoProtrusionParams,
     ) -> BezPath {
         // === Collect waypoints === //
         //
@@ -136,17 +183,26 @@ impl EdgePathBuilderPass2Ortho {
         }
 
         // --- Spacer waypoints (in reverse order) --- //
-        for spacer in spacers.iter().rev() {
+        let spacer_count = spacers.len();
+        for (rev_index, spacer) in spacers.iter().rev().enumerate() {
             let (sdx, sdy) = Self::spacer_passthrough_direction(spacer);
-            let spacer_protrusion = protrusion.from_protrusion;
+
+            // Original (forward) index of this spacer.
+            let fwd_index = spacer_count - 1 - rev_index;
+
+            let spacer_prot = protrusion
+                .spacer_protrusions
+                .get(fwd_index)
+                .copied()
+                .unwrap_or_default();
 
             // Spacer exit side (with protrusion extending past exit).
             //
             // The protrusion extends the path past the spacer exit in
             // the passthrough direction, so that the routing leg that
             // connects to this spacer does not run along a node face.
-            let exit_prot_x = spacer.exit_x + sdx * spacer_protrusion;
-            let exit_prot_y = spacer.exit_y + sdy * spacer_protrusion;
+            let exit_prot_x = spacer.exit_x + sdx * spacer_prot.exit_protrusion;
+            let exit_prot_y = spacer.exit_y + sdy * spacer_prot.exit_protrusion;
 
             waypoints.push(Waypoint {
                 x: exit_prot_x,
@@ -182,8 +238,8 @@ impl EdgePathBuilderPass2Ortho {
             // both the exit protrusion of the next spacer and the entry
             // protrusion of this spacer serve to keep the routing leg
             // clear of node faces.
-            let entry_prot_x = spacer.entry_x - sdx * spacer_protrusion;
-            let entry_prot_y = spacer.entry_y - sdy * spacer_protrusion;
+            let entry_prot_x = spacer.entry_x - sdx * spacer_prot.entry_protrusion;
+            let entry_prot_y = spacer.entry_y - sdy * spacer_prot.entry_protrusion;
 
             waypoints.push(Waypoint {
                 x: entry_prot_x,
@@ -233,7 +289,7 @@ impl EdgePathBuilderPass2Ortho {
         end_y: f32,
         from_face: NodeFace,
         to_face: NodeFace,
-        protrusion: OrthoProtrusionParams,
+        protrusion: &OrthoProtrusionParams,
     ) -> BezPath {
         let mut waypoints: Vec<Waypoint> = Vec::new();
 
