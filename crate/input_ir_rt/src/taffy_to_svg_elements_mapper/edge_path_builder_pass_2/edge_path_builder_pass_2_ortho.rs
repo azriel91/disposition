@@ -440,17 +440,27 @@ impl EdgePathBuilderPass2Ortho {
             // For horizontal departure and arrival: go horizontally
             // to qx, turn vertically to qy.
             if p_is_vertical {
+                // Offset the bend from qy back toward py by
+                // ARC_RADIUS so that leg 3 has enough length for the
+                // second rounded corner arc.
+                let sign = if py < qy { -1.0 } else { 1.0 };
+                let bend_y = qy + sign * ARC_RADIUS;
                 let corner1_x = px;
-                let corner1_y = qy;
+                let corner1_y = bend_y;
                 let corner2_x = qx;
-                let corner2_y = qy;
+                let corner2_y = bend_y;
                 Self::three_leg_segment_append(
                     path, px, py, corner1_x, corner1_y, corner2_x, corner2_y, qx, qy,
                 );
             } else {
-                let corner1_x = qx;
+                // Offset the bend from qx back toward px by
+                // ARC_RADIUS so that leg 3 has enough length for the
+                // second rounded corner arc.
+                let sign = if px < qx { -1.0 } else { 1.0 };
+                let bend_x = qx + sign * ARC_RADIUS;
+                let corner1_x = bend_x;
                 let corner1_y = py;
-                let corner2_x = qx;
+                let corner2_x = bend_x;
                 let corner2_y = qy;
                 Self::three_leg_segment_append(
                     path, px, py, corner1_x, corner1_y, corner2_x, corner2_y, qx, qy,
