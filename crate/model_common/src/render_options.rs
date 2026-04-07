@@ -28,10 +28,10 @@ pub struct RenderOptions {
 
     /// Direction of edges in the diagram.
     ///
-    /// * `RankDir::Vertical`: edges connect nodes using their top / bottom
-    ///   faces.
-    /// * `RankDir::Horizontal`: edges connect nodes using their left / right
-    ///   faces.
+    /// * `RankDir::LeftToRight`: edges connect nodes from left to right.
+    /// * `RankDir::RightToLeft`: edges connect nodes from right to left.
+    /// * `RankDir::TopToBottom`: edges connect nodes from top to bottom.
+    /// * `RankDir::BottomToTop`: edges connect nodes from bottom to top.
     #[serde(default, skip_serializing_if = "RankDir::is_default")]
     pub rank_dir: RankDir,
 }

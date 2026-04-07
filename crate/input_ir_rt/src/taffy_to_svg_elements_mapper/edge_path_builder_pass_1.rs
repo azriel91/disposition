@@ -493,8 +493,8 @@ impl EdgePathBuilderPass1 {
         to_vert: NodeFace,
     ) -> (NodeFace, NodeFace) {
         match rank_dir {
-            RankDir::Horizontal => (from_horiz, to_horiz),
-            RankDir::Vertical => (from_vert, to_vert),
+            RankDir::LeftToRight | RankDir::RightToLeft => (from_horiz, to_horiz),
+            RankDir::TopToBottom | RankDir::BottomToTop => (from_vert, to_vert),
         }
     }
 

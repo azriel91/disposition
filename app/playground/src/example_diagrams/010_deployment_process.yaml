@@ -92,4 +92,4 @@ entity_tooltips:
     Rolling deployment to production after staging validation passes.
 
 render_options:
-  rank_dir: horizontal
+  rank_dir: left_to_right

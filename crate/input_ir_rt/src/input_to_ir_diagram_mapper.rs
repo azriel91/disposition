@@ -107,8 +107,10 @@ impl InputToIrDiagramMapper {
 
         // 9. Build NodeLayouts from node_hierarchy and theme
         let flex_direction_default = match render_options.rank_dir {
-            RankDir::Horizontal => FlexDirection::Column,
-            RankDir::Vertical => FlexDirection::Row,
+            RankDir::LeftToRight => FlexDirection::Column,
+            RankDir::RightToLeft => FlexDirection::ColumnReverse,
+            RankDir::TopToBottom => FlexDirection::Row,
+            RankDir::BottomToTop => FlexDirection::RowReverse,
         };
         let node_layouts = Self::build_node_layouts(
             &node_hierarchy,
