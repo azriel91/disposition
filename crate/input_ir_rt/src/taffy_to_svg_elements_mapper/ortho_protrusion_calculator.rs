@@ -616,13 +616,12 @@ impl OrthoProtrusionCalculator {
     ///    MAX_GAP_FRACTION`.
     /// 3. Partition entries into `Low` side and `High` side groups.
     /// 4. Identify "crossing edges" -- edges that have entries on both sides of
-    ///    the gap. For these edges, the orthogonal routing segment's
-    ///    y-coordinate is the midpoint of the two protrusion endpoints: `mid =
-    ///    (face_low + low_prot + face_high - high_prot) / 2`. The `low_prot -
-    ///    high_prot` difference must be unique per crossing edge so that
-    ///    routing segments do not overlap.
-    /// 5. Assign crossing-edge protrusion pairs first, choosing `low_prot -
-    ///    high_prot` differences from a set of distinct values.
+    ///    the gap.
+    /// 5. Assign protrusion depths from a pool of evenly-spaced slots. Each
+    ///    side's crossing entries are sorted independently by that side's
+    ///    spatial ordering (face offset then cross-axis coordinate), so that
+    ///    edges sorted earlier on each side receive longer protrusions,
+    ///    reducing visual cross-over near both the from-nodes and to-nodes.
     /// 6. Assign remaining single-side entries from the unused protrusion
     ///    slots.
     fn protrusions_assign(
@@ -665,12 +664,18 @@ impl OrthoProtrusionCalculator {
         // === Partition by side and sort each side === //
 
         let side_sort = |a: &&RankGapEntry, b: &&RankGapEntry| -> std::cmp::Ordering {
+            // Sort by signed face_offset ascending so that edges on
+            // the negative side of the face (e.g. left of center for
+            // Top/Bottom faces) come first, centre next, positive
+            // last. This preserves the spatial ordering established
+            // by `face_entries_sort_by_rank_and_coordinate`, ensuring
+            // that edges whose contact points are further apart
+            // receive longer protrusions and edges closer together
+            // receive shorter ones, preventing visual cross-over.
             let offset_cmp = a
                 .face_offset
-                .abs()
-                .partial_cmp(&b.face_offset.abs())
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .reverse();
+                .partial_cmp(&b.face_offset)
+                .unwrap_or(std::cmp::Ordering::Equal);
             if offset_cmp != std::cmp::Ordering::Equal {
                 return offset_cmp;
             }
@@ -689,16 +694,11 @@ impl OrthoProtrusionCalculator {
 
         // === Identify crossing edges === //
         //
-        // A "crossing edge" has entries on BOTH sides of the gap. Its
-        // orthogonal routing segment sits at the midpoint of its two
-        // protrusion endpoints:
-        //
-        //   mid_y = (y_low_face + low_prot + y_high_face - high_prot) / 2
-        //
-        // Since `y_low_face` and `y_high_face` are approximately the
-        // same for all edges in the same gap, the midpoint is unique
-        // when `low_prot - high_prot` is unique. We assign crossing
-        // edges distinct `low_prot - high_prot` differences.
+        // A "crossing edge" has entries on BOTH sides of the gap.
+        // Crossing edges are assigned protrusion depths on each side
+        // independently according to that side's spatial ordering, so
+        // that edges sorted earlier on each side receive longer
+        // protrusions.
 
         // Edge identity key: (pass1_group_index, edge_index).
         type EdgeKey = (usize, usize);
@@ -728,10 +728,7 @@ impl OrthoProtrusionCalculator {
         // === Assign protrusion depths === //
         //
         // Strategy: distribute all entries across a shared pool of
-        // `total_count` distinct protrusion slots. To ensure crossing
-        // edges get unique `low_prot - high_prot` differences, we
-        // assign their (low, high) slot pairs such that no two
-        // crossing edges share the same slot difference.
+        // `total_count` distinct protrusion slots.
         //
         // Single-side entries (only on low or only on high) do not
         // contribute to routing midpoints in this gap, so they just
@@ -745,17 +742,23 @@ impl OrthoProtrusionCalculator {
         // shortest. Earlier edges (sorted first) receive longer
         // protrusions for visual clarity (less cross-over).
         //
+        // Crossing low and crossing high entries are sorted
+        // independently by each side's own spatial ordering (face
+        // offset then cross-axis coordinate). Both sides assign
+        // slots in forward order so that earlier entries on each
+        // side receive longer protrusions. This prevents the
+        // high-side protrusion ordering from being dictated by the
+        // low-side sort, which would cause later edges on the high
+        // side to receive incorrectly long protrusions.
+        //
         // The assignment proceeds as follows:
         //
         // 1. Single-side low entries get the first slots (0, 1, ...) -- longest
         //    protrusions.
         // 2. Crossing low entries (from-endpoints) get the next slots.
-        // 3. Crossing high entries (to-endpoints) get slots in REVERSE order (from the
-        //    top of the high-side allocation). This ensures that the i-th crossing
-        //    edge's low slot is `single_low_count + i` and its high slot is
-        //    `total_count - 1 - single_high_count - i`, giving a difference of
-        //    `(single_low_count + i) - (total_count - 1 - i)` = `single_low_count + 2i
-        //    - total_count + 1`, which is unique per `i` (since the `2i` term varies).
+        // 3. Crossing high entries (to-endpoints) get slots in forward order within
+        //    their own range, sorted by high-side index. Earlier entries on the high
+        //    side receive longer protrusions, matching the low-side convention.
         // 4. Single-side high entries fill the remaining slots -- shortest protrusions.
 
         // Separate low_entries into single-side and crossing, preserving
@@ -778,14 +781,27 @@ impl OrthoProtrusionCalculator {
             .map(|(_, e)| *e)
             .collect();
 
-        // Crossing entries in the order determined by crossing_pairs.
+        // Crossing low entries follow crossing_pairs order (sorted by
+        // low-side index) so that the low side respects its own spatial
+        // ordering.
         let crossing_low_ordered: Vec<&RankGapEntry> = crossing_pairs
             .iter()
             .map(|&(li, _)| low_entries[li])
             .collect();
-        let crossing_high_ordered: Vec<&RankGapEntry> = crossing_pairs
+
+        // Crossing high entries are sorted by their high-side index
+        // (i.e. the order produced by `side_sort` on the high side)
+        // so that the high-side protrusion assignment respects the
+        // high-side spatial ordering. Without this, the high-side
+        // slots follow low-side ordering, which can cause later edges
+        // (further out on the high side) to receive longer protrusions
+        // than earlier edges, leading to visually crossing paths.
+        let mut crossing_high_indices: Vec<usize> =
+            crossing_pairs.iter().map(|&(_, hi)| hi).collect();
+        crossing_high_indices.sort_unstable();
+        let crossing_high_ordered: Vec<&RankGapEntry> = crossing_high_indices
             .iter()
-            .map(|&(_, hi)| high_entries[hi])
+            .map(|&hi| high_entries[hi])
             .collect();
 
         let protrusion_growable_space = max_protrusion - MIN_PROTRUSION_PX;
@@ -802,7 +818,7 @@ impl OrthoProtrusionCalculator {
         // Slot assignment:
         //   [0 .. SL)                        -> single-side low
         //   [SL .. SL + NC)                  -> crossing low (from-endpoints)
-        //   [total - SH - NC .. total - SH)  -> crossing high (to-endpoints, reversed)
+        //   [total - SH - NC .. total - SH)  -> crossing high (to-endpoints, forward)
         //   [total - SH .. total)            -> single-side high
         //
         // where SL = single_low.len(), SH = single_high.len(),
@@ -822,13 +838,14 @@ impl OrthoProtrusionCalculator {
             slot += 1;
         }
 
-        // 3. Crossing high entries (to-endpoints) -- assigned in REVERSE slot order so
-        //    that crossing pair i gets: low_slot = single_low.len() + i, high_slot =
-        //    total_count - 1 - single_high.len() - i. The difference low_slot -
-        //    high_slot changes by +2 per i, guaranteeing uniqueness.
-        let crossing_high_top = total_count - single_high.len();
+        // 3. Crossing high entries (to-endpoints) -- assigned in FORWARD slot order.
+        //    The entries are sorted by high-side index so that spatially earlier edges
+        //    (sorted first on the high side) get longer protrusions and later edges get
+        //    shorter ones, matching the low-side convention and preventing visual
+        //    crossings near the to-nodes.
+        let crossing_high_start = total_count - single_high.len() - crossing_high_ordered.len();
         for (i, entry) in crossing_high_ordered.iter().enumerate() {
-            let high_slot = crossing_high_top - 1 - i;
+            let high_slot = crossing_high_start + i;
             Self::protrusion_write(entry, slot_value(high_slot), result);
         }
 
