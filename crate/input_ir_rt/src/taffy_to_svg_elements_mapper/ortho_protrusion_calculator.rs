@@ -1,5 +1,5 @@
 use disposition_ir_model::node::{NodeId, NodeRank};
-use disposition_model_common::Map;
+use disposition_model_common::{Map, RankDir};
 use disposition_svg_model::SvgNodeInfo;
 use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
 
@@ -159,6 +159,7 @@ impl OrthoProtrusionCalculator {
     /// * `edge_spacer_taffy_nodes` -- spacer node mappings per edge.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn calculate<'id>(
+        rank_dir: RankDir,
         all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
         from_slot_indices_all: &[Vec<Option<usize>>],
         to_slot_indices_all: &[Vec<Option<usize>>],
@@ -185,6 +186,7 @@ impl OrthoProtrusionCalculator {
                     .iter()
                     .map(|pass1_info| {
                         Self::spacer_coordinates_resolve(
+                            rank_dir,
                             pass1_info,
                             taffy_tree,
                             edge_spacer_taffy_nodes,
@@ -1042,6 +1044,7 @@ impl OrthoProtrusionCalculator {
     /// Resolves spacer coordinates for an edge, reusing the same logic
     /// as the path builder.
     fn spacer_coordinates_resolve<'id>(
+        rank_dir: RankDir,
         pass1_info: &EdgePass1Info<'_, 'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &Map<
@@ -1057,7 +1060,8 @@ impl OrthoProtrusionCalculator {
             .rank_to_spacer_taffy_node_id
             .iter()
             .filter_map(|(rank, &taffy_node_id)| {
-                let coords = Self::spacer_absolute_coordinates(taffy_tree, taffy_node_id)?;
+                let coords =
+                    Self::spacer_absolute_coordinates(rank_dir, taffy_tree, taffy_node_id)?;
                 Some((*rank, coords))
             })
             .collect();
@@ -1067,7 +1071,7 @@ impl OrthoProtrusionCalculator {
             .cross_container_spacer_taffy_node_ids
             .iter()
             .filter_map(|&taffy_node_id| {
-                Self::spacer_absolute_coordinates(taffy_tree, taffy_node_id)
+                Self::spacer_absolute_coordinates(rank_dir, taffy_tree, taffy_node_id)
             })
             .collect();
 
@@ -1078,8 +1082,9 @@ impl OrthoProtrusionCalculator {
             return rank_spacers.into_iter().map(|(_, coords)| coords).collect();
         }
 
-        // Merge both kinds and sort by absolute y-coordinate so the
-        // spacers appear in the correct visual order along the edge path.
+        // Merge both kinds and sort by absolute coordinate along the
+        // main axis so the spacers appear in the correct visual order
+        // along the edge path.
         let mut all_spacers: Vec<SpacerCoordinates> = rank_spacers
             .into_iter()
             .map(|(_, coords)| coords)
@@ -1087,8 +1092,16 @@ impl OrthoProtrusionCalculator {
             .collect();
 
         all_spacers.sort_by(|a, b| {
-            a.entry_y
-                .partial_cmp(&b.entry_y)
+            let a_key = match rank_dir {
+                RankDir::TopToBottom | RankDir::BottomToTop => a.entry_y,
+                RankDir::LeftToRight | RankDir::RightToLeft => a.entry_x,
+            };
+            let b_key = match rank_dir {
+                RankDir::TopToBottom | RankDir::BottomToTop => b.entry_y,
+                RankDir::LeftToRight | RankDir::RightToLeft => b.entry_x,
+            };
+            a_key
+                .partial_cmp(&b_key)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
@@ -1098,9 +1111,19 @@ impl OrthoProtrusionCalculator {
     /// Computes absolute spacer coordinates for a single taffy node.
     ///
     /// Walks up the taffy tree to accumulate the absolute position, then
-    /// returns `SpacerCoordinates` with the entry at the top midpoint
-    /// and the exit at the bottom midpoint.
+    /// returns `SpacerCoordinates` with entry and exit points that
+    /// depend on `rank_dir`:
+    ///
+    /// * `TopToBottom` -- entry at top midpoint (smallest y), exit at bottom
+    ///   midpoint (largest y).
+    /// * `BottomToTop` -- entry at bottom midpoint (largest y), exit at top
+    ///   midpoint (smallest y).
+    /// * `LeftToRight` -- entry at left midpoint (smallest x), exit at right
+    ///   midpoint (largest x).
+    /// * `RightToLeft` -- entry at right midpoint (largest x), exit at left
+    ///   midpoint (smallest x).
     fn spacer_absolute_coordinates(
+        rank_dir: RankDir,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         taffy_node_id: taffy::NodeId,
     ) -> Option<SpacerCoordinates> {
@@ -1119,15 +1142,44 @@ impl OrthoProtrusionCalculator {
         }
 
         let cx = x_acc + layout.size.width / 2.0;
+        let cy = y_acc + layout.size.height / 2.0;
+        let left_x = x_acc;
+        let right_x = x_acc + layout.size.width;
         let top_y = y_acc;
         let bottom_y = y_acc + layout.size.height;
 
-        Some(SpacerCoordinates {
-            entry_x: cx,
-            entry_y: top_y,
-            exit_x: cx,
-            exit_y: bottom_y,
-        })
+        let spacer_coordinates = match rank_dir {
+            // Vertical flow: entry/exit share the same x (center),
+            // differ in y.
+            RankDir::TopToBottom => SpacerCoordinates {
+                entry_x: cx,
+                entry_y: top_y,
+                exit_x: cx,
+                exit_y: bottom_y,
+            },
+            RankDir::BottomToTop => SpacerCoordinates {
+                entry_x: cx,
+                entry_y: bottom_y,
+                exit_x: cx,
+                exit_y: top_y,
+            },
+            // Horizontal flow: entry/exit share the same y (center),
+            // differ in x.
+            RankDir::LeftToRight => SpacerCoordinates {
+                entry_x: left_x,
+                entry_y: cy,
+                exit_x: right_x,
+                exit_y: cy,
+            },
+            RankDir::RightToLeft => SpacerCoordinates {
+                entry_x: right_x,
+                entry_y: cy,
+                exit_x: left_x,
+                exit_y: cy,
+            },
+        };
+
+        Some(spacer_coordinates)
     }
 
     /// Returns the cross-axis coordinate of a node for a given face.
