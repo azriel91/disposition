@@ -1,4 +1,4 @@
-use crate::{editor_state::EditorState, Route};
+use crate::{editor_state::EditorState, hooks::use_dark_mode_provider, Route};
 use dioxus::prelude::{
     component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Link, Outlet,
 };
@@ -13,6 +13,9 @@ use super::theme_toggle::ThemeToggle;
 /// component.
 #[component]
 pub fn Navbar() -> Element {
+    // Provide the shared dark-mode signal for all descendant components.
+    let _dark_mode = use_dark_mode_provider();
+
     rsx! {
         div {
             id: "navbar",

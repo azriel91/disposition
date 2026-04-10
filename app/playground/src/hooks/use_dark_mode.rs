@@ -1,18 +1,31 @@
 //! Dark-mode toggle hook with `localStorage` persistence.
 //!
-//! Provides [`use_dark_mode`], which returns a reactive [`Signal<bool>`] that
-//! is `true` when dark mode is active. Toggling the signal automatically
-//! adds/removes the `.dark` class on `<html>` and persists the choice to
-//! `localStorage` under the key `"disposition-dark-mode"`.
+//! Provides [`use_dark_mode_provider`] and [`use_dark_mode`] for sharing a
+//! single reactive dark-mode [`Signal<bool>`] across the entire component
+//! tree via the Dioxus Context API.
 //!
-//! On first load the hook checks (in order):
+//! # Setup
+//!
+//! Call [`use_dark_mode_provider`] **once** near the root of the component
+//! tree (e.g. in a layout component that wraps all routes). Every descendant
+//! component that needs the current dark-mode state should call
+//! [`use_dark_mode`], which retrieves the shared signal via
+//! [`use_context`](dioxus::hooks::use_context).
+//!
+//! # Behaviour
+//!
+//! On first load the provider checks (in order):
 //!
 //! 1. `localStorage["disposition-dark-mode"]` -- explicit user choice.
 //! 2. `prefers-color-scheme: dark` media query -- OS preference.
 //! 3. Falls back to **dark** if neither is available.
+//!
+//! Subsequent writes to the signal (e.g. via [`dark_mode_toggle`])
+//! automatically add/remove the `.dark` class on `<html>` and persist the
+//! choice to `localStorage`.
 
 use dioxus::{
-    hooks::{use_effect, use_signal},
+    hooks::{use_context, use_context_provider, use_effect, use_signal},
     prelude::document,
     signals::{ReadableExt, Signal, WritableExt},
 };
@@ -20,30 +33,29 @@ use dioxus::{
 /// `localStorage` key used to persist the user's theme choice.
 const STORAGE_KEY: &str = "disposition-dark-mode";
 
-/// Initialise (or retrieve) the dark-mode state for the current component
-/// tree.
+/// Create and provide the shared dark-mode signal for the component tree.
 ///
-/// The returned [`Signal<bool>`] is `true` when dark mode is active.
+/// This must be called **once** in a component that is an ancestor of every
+/// component that calls [`use_dark_mode`]. The layout component that wraps
+/// all routes (e.g. `Navbar`) is a good place.
 ///
-/// # Behaviour
-///
-/// * **First render**: reads `localStorage` / `prefers-color-scheme` and
-///   synchronises the `<html>` element's class list.
-/// * **Subsequent writes**: any write to the signal (e.g. via
-///   [`dark_mode_toggle`]) triggers a `use_effect` that updates the DOM and
-///   `localStorage`.
+/// Returns the same [`Signal<bool>`] that descendants will receive from
+/// [`use_dark_mode`].
 ///
 /// # Example
 ///
 /// ```rust,ignore
-/// let dark_mode = use_dark_mode();
-/// // Toggle:
-/// dark_mode_toggle(dark_mode);
+/// #[component]
+/// pub fn Navbar() -> Element {
+///     let _dark_mode = use_dark_mode_provider();
+///     rsx! { Outlet::<Route> {} }
+/// }
 /// ```
-pub fn use_dark_mode() -> Signal<bool> {
-    // Start with `true` (dark) as a safe default; the effect below will
-    // correct it on the very first frame once JS has executed.
-    let mut is_dark = use_signal(|| true);
+pub fn use_dark_mode_provider() -> Signal<bool> {
+    // Start with `true` (dark) as a safe default; the init effect below
+    // will correct it on the very first frame once JS has executed.
+    let mut is_dark: Signal<bool> = use_signal(|| true);
+    use_context_provider(|| is_dark);
 
     // --- One-shot initialisation --- //
     //
@@ -116,6 +128,25 @@ pub fn use_dark_mode() -> Signal<bool> {
     });
 
     is_dark
+}
+
+/// Retrieve the shared dark-mode signal from context.
+///
+/// The returned [`Signal<bool>`] is `true` when dark mode is active.
+///
+/// # Panics
+///
+/// Panics if [`use_dark_mode_provider`] has not been called in an ancestor
+/// component.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let is_dark = use_dark_mode();
+/// if is_dark() { /* dark theme */ }
+/// ```
+pub fn use_dark_mode() -> Signal<bool> {
+    use_context::<Signal<bool>>()
 }
 
 /// Toggle the dark-mode signal (convenience helper).
