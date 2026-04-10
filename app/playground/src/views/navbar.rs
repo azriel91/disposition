@@ -33,9 +33,13 @@ pub fn Navbar() -> Element {
                 "📐 disposition"
             }
             Link {
+                to: Route::Licenses,
+                "📝 licenses"
+            }
+            Link {
                 to: "https://github.com/azriel91/disposition",
                 new_tab: true,
-                "github"
+                "🐙 github"
             }
 
             // Spacer to push the theme toggle to the right.
