@@ -132,6 +132,7 @@ impl SvgEdgeInfosBuilder {
         // === Global sort and offset computation === //
 
         let face_offsets_by_node_face = Self::face_offsets_compute(
+            rank_dir,
             &mut all_pass1_groups,
             svg_node_info_map,
             &mut face_contact_tracker,
@@ -383,10 +384,14 @@ impl SvgEdgeInfosBuilder {
     ///    as a tie-breaker.
     /// 3. Assigns offset slots so that short-range edges get slots nearest to
     ///    the face midpoint, and longer-range edges fan outward.
+    /// 4. For reversed directions (`BottomToTop`, `RightToLeft`), negates all
+    ///    offsets so the spatial ordering mirrors the reversed visual flow,
+    ///    reducing edge crossover.
     ///
     /// This prevents edges from crossing each other: short-range edges
     /// stay tight against the node and long-range edges arc around them.
     fn face_offsets_compute<'edge, 'id>(
+        rank_dir: RankDir,
         all_pass1_groups: &mut Vec<EdgeGroupPass1<'edge, 'id>>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
         face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
@@ -474,13 +479,23 @@ impl SvgEdgeInfosBuilder {
                 node_id_and_face.face,
                 svg_node_info_map,
             );
+            // For reversed directions (BottomToTop, RightToLeft) negate
+            // the offsets so that the spatial ordering of contact points
+            // mirrors the reversed visual flow, reducing edge crossover.
+            let negate_offsets = matches!(rank_dir, RankDir::BottomToTop | RankDir::RightToLeft);
+
             let offsets: Vec<f32> = (0..contact_count)
                 .map(|_| {
-                    face_contact_tracker.offset_calculate(
+                    let offset = face_contact_tracker.offset_calculate(
                         &node_id_and_face.node_id,
                         node_id_and_face.face,
                         face_length,
-                    )
+                    );
+                    if negate_offsets {
+                        -offset
+                    } else {
+                        offset
+                    }
                 })
                 .collect();
             face_offsets_by_node_face.insert(

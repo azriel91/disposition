@@ -9,12 +9,59 @@
 7. Edge path calculation is done in two passes.
 8. Both passes are called in [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs)
 9. The first pass calculates a path between the from-node and to-node without taking into account spacer nodes, and the information from this first path is used in subsequent calculations. This is defined in [`edge_path_builder_pass_1.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_path_builder_pass_1.rs)
-10. Between the first and second pass, offsets from where the edge path exits the from-node, and where it enters the to-node, are computed, so that multiple edges do not all touch the from-node / to-node at the same coordinate, for visual clarity.
+10. Between the first and second pass, offsets from where the edge path exits the from-node, and where it enters the to-node, are computed, so that multiple edges do not all touch the from-node / to-node at the same coordinate, for visual clarity. See the [Offset Calculation](#offset-calculation) section below for details.
 11. Also, for orthogonal (strictly horizontal / vertical) edge paths, a "protrusion" length is calculated so that the paths exit the node perpendicular to the node face for some length, so that the path is not drawn directly on the node face as a tangential line. See the [Protrusion Calculation](#protrusion-calculation) section below for details.
 12. Offsets are the coordinate shift to where the edge path contacts the node face.
 13. Protrusion is the length that the edge path extends out of the node face, so that an edge path isn't drawn directly on a node face.
 14. The second pass is defined in [`edge_path_builder_pass_2.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_path_builder_pass_2.rs)
 15. The second pass computes the edge paths with the offsets and protrusion, which should result in paths that are visually non-overlapping with other paths and node content, creating visual clarity.
+
+
+## Offset Calculation
+
+Offset calculation spreads multiple edge contact points along a node face so they do not all touch at the same coordinate. The offset for each edge is a signed pixel distance from the face midpoint. Offsets are computed in `fn face_offsets_compute` in [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs), using [`edge_face_contact_tracker.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_face_contact_tracker.rs) for the per-face arithmetic.
+
+
+### Why offsets exist
+
+When multiple edges connect to the same face of a node (e.g. three edges all exit from the Bottom face), their paths would all originate from the exact same point -- the face midpoint. Offsets shift each edge's contact point along the face so the paths fan out, making individual edges visually distinguishable.
+
+
+### Concepts
+
+- **Face contact**: a single edge endpoint touching a specific face of a specific node. Each edge contributes up to two contacts: one for its from-node face and one for its to-node face.
+- **Slot**: an ordered position within the list of contacts on a single (node, face) pair. Slot 0 is the first sorted contact, slot 1 the second, etc.
+- **Face length**: the pixel length of the face: width for `Top`/`Bottom` faces, collapsed height for `Left`/`Right` faces. Computed by `fn face_length_for_node`.
+- **Gap**: the pixel spacing between adjacent contact points. Starts at 10% of the face length (`CONTACT_GAP_RATIO = 0.10`), clamped to at least 5 px (`CONTACT_GAP_MIN_PX = 5.0`). If `contact_count * gap > face_length`, the gap is shrunk to `face_length / contact_count` so all contacts fit.
+
+
+### Algorithm
+
+The algorithm in `face_offsets_compute` proceeds in three phases:
+
+1. **Collect face contact entries.** For each edge in every group, if the from-face or to-face is known, a `FaceContactEntry` is recorded in a map keyed by `(NodeId, NodeFace)`. Each entry captures the `rank_distance` (absolute rank difference between from and to), the target node's x/y coordinates, and the edge's group/index.
+
+2. **Sort entries and assign slot indices (`fn face_entries_sort_by_rank_and_coordinate`).** For each (node, face) group, entries are sorted by:
+    - **Primary key**: `rank_distance` ascending. Edges spanning fewer ranks get slots closer to the face midpoint, keeping short-range paths on the inside.
+    - **Secondary key** (tie-breaker) -- the target node's coordinate along the face axis: x ascending for `Top`/`Bottom` faces, y ascending for `Left`/`Right` faces. This ensures co-ranked edges follow the spatial order of their targets.
+    - After sorting, each entry is assigned its slot index (0-based position in the sorted order). These slot indices are written back into `from_slot_indices` / `to_slot_indices` on the pass-1 group.
+
+3. **Compute offset values (`EdgeFaceContactTracker::offset_for_index`).** For each (node, face) with `n` contacts and computed `gap`:
+    - `offset[i] = (i - (n - 1) / 2.0) * gap`
+    - This distributes offsets symmetrically around 0 (the face midpoint). The first slot gets the most negative offset (leftward/upward), the middle slot(s) get ~0, and the last slot gets the most positive offset (rightward/downward).
+
+
+### Direction reversal for `BottomToTop` and `RightToLeft`
+
+For `TopToBottom` and `LeftToRight`, the offset sign convention (negative = left/up, positive = right/down) naturally matches the visual flow -- edges to left-side targets get negative offsets (shifting contact leftward), reducing crossover. For `BottomToTop` and `RightToLeft`, the visual flow is reversed, so the same sort order would produce offsets that *increase* crossover. To fix this, all computed offsets are **negated** when `rank_dir` is `BottomToTop` or `RightToLeft`. This is implemented in `face_offsets_compute` after `offset_calculate` returns each value.
+
+
+### How offsets are applied
+
+Offsets are stored in `EdgeContactPointOffsets` (a `Vec<f32>` indexed by slot) and looked up during pass 2 via the slot indices assigned in phase 2. The offset is applied by `EdgePathBuilderPass1::face_offset_apply`:
+
+- For `Top`/`Bottom` faces: `x += offset` (shifts the contact point horizontally along the face).
+- For `Left`/`Right` faces: `y += offset` (shifts the contact point vertically along the face).
 
 
 ## Protrusion Calculation
