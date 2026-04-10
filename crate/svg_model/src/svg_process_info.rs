@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 /// expands to show all steps. This struct contains the information needed
 /// to generate the CSS classes for this animation.
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct SvgProcessInfo<'id> {

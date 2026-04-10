@@ -20,8 +20,8 @@ use crate::node::NodeId;
 ///       to: t_github_user_repo
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Edge<'id> {

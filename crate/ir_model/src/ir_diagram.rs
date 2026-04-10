@@ -82,8 +82,8 @@ use crate::{
 ///   @keyframes stroke-dashoffset-move { ... }
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 pub struct IrDiagram<'id> {

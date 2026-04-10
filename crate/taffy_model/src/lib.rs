@@ -2,14 +2,6 @@
 
 // Re-exports
 pub use taffy;
-// This allows consumers to not need to depend on `utoipa` manually.
-#[cfg(all(feature = "openapi", not(feature = "test")))]
-pub use utoipa;
-
-#[cfg(all(feature = "openapi", not(feature = "test")))]
-pub use crate::api_doc::ApiDoc;
-#[cfg(all(feature = "openapi", not(feature = "test")))]
-mod api_doc;
 
 /// Default text font size.
 pub const TEXT_FONT_SIZE: f32 = 14.0f32;

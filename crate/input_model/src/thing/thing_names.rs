@@ -33,8 +33,8 @@ use crate::thing::ThingId;
 ///   t_localhost_repo: "📂 ~/work/web_app"
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThingNames<'id>(Map<ThingId<'id>, String>);

@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 /// assert_eq!(id_runtime_checked.as_str(), "example_id");
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Id<'s>(Cow<'s, str>);

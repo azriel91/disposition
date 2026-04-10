@@ -37,8 +37,8 @@ use crate::edge::EdgeGroup;
 ///       to: t_aws_ecs_cluster
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct EdgeGroups<'id>(Map<EdgeGroupId<'id>, EdgeGroup<'id>>);

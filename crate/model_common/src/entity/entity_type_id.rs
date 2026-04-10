@@ -25,8 +25,8 @@ use crate::{Id, IdInvalidFmt};
 /// assert_eq!(entity_type_id.as_str(), "type_organisation");
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
 pub struct EntityTypeId<'s>(Id<'s>);

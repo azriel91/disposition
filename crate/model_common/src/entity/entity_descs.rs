@@ -28,8 +28,8 @@ use crate::{Id, Map};
 ///     `git pull`
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct EntityDescs<'id>(Map<Id<'id>, String>);

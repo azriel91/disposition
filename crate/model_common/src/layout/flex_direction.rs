@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 /// * `"column"` -- Items are placed top to bottom.
 /// * `"column_reverse"` -- Items are placed bottom to top.
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]

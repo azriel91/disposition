@@ -31,8 +31,8 @@ use serde::{Deserialize, Serialize};
 ///       margin_left: 0.0
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 pub struct LeafLayout {

@@ -23,8 +23,8 @@ use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 /// assert_eq!(custom_alias.as_str(), "my_custom_style");
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum StyleAlias<'id> {

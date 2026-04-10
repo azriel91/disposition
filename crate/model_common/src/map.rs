@@ -1,21 +1,20 @@
-//! `OrderMap` doesn't implement `utoipa::ToSchema`, and there doesn't yet exist
-//! a nice way to implement the trait on third party types:
+//! `OrderMap 1.x` doesn't implement `schemars::JsonSchema`, pending:
 //!
-//! <https://github.com/juhaku/utoipa/issues/790#issuecomment-1787754185>
+//! <https://github.com/GREsau/schemars/pull/516>
 //!
-//! For now, we use a `HashMap` when the `openapi` feature is enabled.
+//! For now, we use `IndexMap` when the `schemars` feature is enabled.
 //!
-//! In general, this library should be built with the `"openapi"` feature
+//! In general, this library should be built with the `"schemars"` feature
 //! disabled.
 //!
 //! Tests rely on OrderMap as some assertions expect order to be preserved.
 
-#[cfg(all(feature = "openapi", not(feature = "test")))]
-pub use std::collections::hash_map::Keys;
-#[cfg(all(feature = "openapi", not(feature = "test")))]
-pub use std::collections::HashMap as Map;
+#[cfg(all(feature = "schemars", not(feature = "test")))]
+pub use indexmap::map::Keys;
+#[cfg(all(feature = "schemars", not(feature = "test")))]
+pub use indexmap::IndexMap as Map;
 
-#[cfg(any(not(feature = "openapi"), feature = "test"))]
+#[cfg(any(not(feature = "schemars"), feature = "test"))]
 pub use ordermap::map::Keys;
-#[cfg(any(not(feature = "openapi"), feature = "test"))]
+#[cfg(any(not(feature = "schemars"), feature = "test"))]
 pub use ordermap::OrderMap as Map;

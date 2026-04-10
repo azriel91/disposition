@@ -2,8 +2,8 @@ use disposition_model_common::{entity::EntityType, Id};
 
 /// Context data stored with diagram nodes in the taffy tree.
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, PartialEq)]
 pub struct DiagramNodeCtx {

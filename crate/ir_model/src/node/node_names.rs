@@ -36,8 +36,8 @@ use crate::node::NodeId;
 ///   proc_app_dev_step_project_build: "Build project"
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct NodeNames<'id>(Map<NodeId<'id>, String>);

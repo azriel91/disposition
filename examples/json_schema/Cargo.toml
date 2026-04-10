@@ -1,7 +1,7 @@
 [package]
-name = "disposition_openapi_spec"
-description = "Generates the `disposition` OpenAPI specification."
-documentation = "https://docs.rs/disposition_openapi_spec/"
+name = "disposition_json_schema"
+description = "Generates the `disposition` JSON schema."
+documentation = "https://docs.rs/disposition_json_schema/"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -18,8 +18,9 @@ workspace = true
 
 [dependencies]
 disposition = { workspace = true }
+serde_json = { workspace = true }
 
 [features]
 default = []
-openapi = ["disposition/openapi"]
+schemars = ["disposition/schemars"]
 test = []

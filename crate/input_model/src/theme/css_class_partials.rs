@@ -37,8 +37,8 @@ use crate::theme::{StyleAlias, ThemeAttr};
 ///   text_shade: "900"
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(bound(deserialize = "StyleAlias<'id>: Deserialize<'de>"))]

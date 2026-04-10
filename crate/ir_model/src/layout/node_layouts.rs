@@ -118,8 +118,8 @@ use crate::{layout::NodeLayout, node::NodeId};
 ///   t_aws_iam_ecs_policy: none
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 pub struct NodeLayouts<'id>(Map<NodeId<'id>, NodeLayout>);

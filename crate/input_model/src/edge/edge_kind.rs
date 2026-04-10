@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 /// * `"sequence"`
 /// * `"symmetric"`
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]

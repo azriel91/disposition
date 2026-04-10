@@ -21,8 +21,8 @@ use crate::process::ProcessStepId;
 ///       proc_app_dev_step_project_build: [edge_t_localhost__t_localhost__within]
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct StepThingInteractions<'id>(Map<ProcessStepId<'id>, Vec<EdgeGroupId<'id>>>);

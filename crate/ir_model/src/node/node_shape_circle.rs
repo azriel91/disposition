@@ -18,8 +18,8 @@ use serde::{Deserialize, Serialize};
 ///       radius: 12.0
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct NodeShapeCircle {

@@ -22,14 +22,14 @@ workspace = true
 [dependencies]
 disposition_model_common = { workspace = true }
 enum-iterator = { workspace = true }
+schemars = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 taffy = { workspace = true }
-utoipa = { workspace = true, optional = true }
 
 [features]
 default = []
 
-# Only enable this when you need to generate OpenAPI documentation.
-openapi = ["dep:utoipa", "disposition_model_common/openapi"]
+# Only enable this when you need to generate the JSON schema.
+schemars = ["dep:schemars", "disposition_model_common/schemars"]
 
 test = []

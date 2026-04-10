@@ -1,22 +1,17 @@
-//! `OrderSet` doesn't implement `utoipa::ToSchema`, and there doesn't yet exist
-//! a nice way to implement the trait on third party types:
+//! `OrderSet 1.x` doesn't implement `schemars::JsonSchema`, pending:
 //!
-//! <https://github.com/juhaku/utoipa/issues/790#issuecomment-1787754185>
+//! <https://github.com/GREsau/schemars/pull/516>
 //!
-//! For now, we use a `HashSet` when the `openapi` feature is enabled.
+//! For now, we use an `IndexSet` when the `schemars` feature is enabled.
 //!
-//! In general, this library should be built with the `"openapi"` feature
+//! In general, this library should be built with the `"schemars"` feature
 //! disabled.
 //!
-//! Tests rely on ordermap::Set as some assertions expect order to be preserved.
-//!
-//! ⚠️ Note: when the `"test"` feature is enabled, even though the `"openapi"`
-//! feature is enabled, we still disable `utoipa` because `utoipa` doesn't
-//! support doubly nested `ToSchema` types (i.e. `Map<TagId, Set<ThingId>>`,
-//! which `TagThings` is).
+//! Tests rely on `ordermap::Set` as some assertions expect order to be
+//! preserved.
 
-#[cfg(all(feature = "openapi", not(feature = "test")))]
-pub use std::collections::HashSet as Set;
+#[cfg(all(feature = "schemars", not(feature = "test")))]
+pub use indexmap::IndexSet as Set;
 
-#[cfg(any(not(feature = "openapi"), feature = "test"))]
+#[cfg(any(not(feature = "schemars"), feature = "test"))]
 pub use ordermap::OrderSet as Set;

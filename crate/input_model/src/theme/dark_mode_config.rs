@@ -24,8 +24,8 @@ use crate::theme::{DarkModeCssSelector, DarkModeShadeConfig};
 ///   selector: media_query
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct DarkModeConfig {

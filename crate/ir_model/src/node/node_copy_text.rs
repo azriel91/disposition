@@ -24,8 +24,8 @@ use crate::node::NodeId;
 ///   t_localhost_repo_target: "~/work/web_app/target"
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct NodeCopyText<'id>(Map<NodeId<'id>, String>);

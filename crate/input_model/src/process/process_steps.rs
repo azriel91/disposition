@@ -20,8 +20,8 @@ use crate::process::ProcessStepId;
 ///       proc_app_dev_step_project_build: "Build project"
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ProcessSteps<'id>(Map<ProcessStepId<'id>, String>);

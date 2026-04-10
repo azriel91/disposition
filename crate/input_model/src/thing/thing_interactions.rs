@@ -41,8 +41,8 @@ use crate::edge::EdgeGroup;
 ///       - t_aws_ecr_repo
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ThingInteractions<'id>(Map<EdgeGroupId<'id>, EdgeGroup<'id>>);

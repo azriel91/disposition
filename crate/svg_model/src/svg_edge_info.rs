@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 /// * Tailwind classes to define its styling and visibility.
 /// * The arrowhead `<path>` element's `d` attribute.
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct SvgEdgeInfo<'id> {
