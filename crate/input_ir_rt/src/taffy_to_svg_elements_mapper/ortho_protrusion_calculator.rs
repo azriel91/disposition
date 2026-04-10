@@ -1,5 +1,5 @@
 use disposition_ir_model::node::{NodeId, NodeRank};
-use disposition_model_common::Map;
+use disposition_model_common::{Map, RankDir};
 use disposition_svg_model::SvgNodeInfo;
 use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
 
@@ -45,10 +45,10 @@ const MIN_PROTRUSION_PX: f32 = 3.0;
 /// 2. Group these endpoints by `(rank_low, rank_high)` -- the rank gap they
 ///    occupy.
 /// 3. Within each group, sort endpoints by their cross-axis coordinate (the
-///    coordinate perpendicular to the rank direction). Edges further from the
-///    centre of the gap's cross-axis spread get shorter protrusions; edges
-///    closer to the centre get longer ones. This reduces the chance of crossing
-///    edges sharing the same horizontal/vertical channel.
+///    coordinate perpendicular to the rank direction). Earlier edges (those
+///    further from the centre of the gap's cross-axis spread) get longer
+///    protrusions; later edges (closer to the centre) get shorter ones. This
+///    reduces visual cross-over between edge paths.
 /// 4. Distribute protrusion depths evenly within the available gap space
 ///    (capped at `MAX_GAP_FRACTION` of the pixel distance between ranks).
 ///
@@ -84,7 +84,7 @@ struct RankGapEntry {
     /// The face offset (slot offset) for this endpoint.
     ///
     /// Edges further from the face midpoint (larger absolute offset)
-    /// receive shorter protrusions. For spacer endpoints this is
+    /// receive longer protrusions. For spacer endpoints this is
     /// `0.0` since spacers do not have face offsets.
     face_offset: f32,
     /// Pixel distance in the rank direction for this endpoint's rank
@@ -159,6 +159,7 @@ impl OrthoProtrusionCalculator {
     /// * `edge_spacer_taffy_nodes` -- spacer node mappings per edge.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn calculate<'id>(
+        rank_dir: RankDir,
         all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
         from_slot_indices_all: &[Vec<Option<usize>>],
         to_slot_indices_all: &[Vec<Option<usize>>],
@@ -185,6 +186,7 @@ impl OrthoProtrusionCalculator {
                     .iter()
                     .map(|pass1_info| {
                         Self::spacer_coordinates_resolve(
+                            rank_dir,
                             pass1_info,
                             taffy_tree,
                             edge_spacer_taffy_nodes,
@@ -616,13 +618,12 @@ impl OrthoProtrusionCalculator {
     ///    MAX_GAP_FRACTION`.
     /// 3. Partition entries into `Low` side and `High` side groups.
     /// 4. Identify "crossing edges" -- edges that have entries on both sides of
-    ///    the gap. For these edges, the orthogonal routing segment's
-    ///    y-coordinate is the midpoint of the two protrusion endpoints: `mid =
-    ///    (face_low + low_prot + face_high - high_prot) / 2`. The `low_prot -
-    ///    high_prot` difference must be unique per crossing edge so that
-    ///    routing segments do not overlap.
-    /// 5. Assign crossing-edge protrusion pairs first, choosing `low_prot -
-    ///    high_prot` differences from a set of distinct values.
+    ///    the gap.
+    /// 5. Assign protrusion depths from a pool of evenly-spaced slots. Each
+    ///    side's crossing entries are sorted independently by that side's
+    ///    spatial ordering (face offset then cross-axis coordinate), so that
+    ///    edges sorted earlier on each side receive longer protrusions,
+    ///    reducing visual cross-over near both the from-nodes and to-nodes.
     /// 6. Assign remaining single-side entries from the unused protrusion
     ///    slots.
     fn protrusions_assign(
@@ -665,12 +666,18 @@ impl OrthoProtrusionCalculator {
         // === Partition by side and sort each side === //
 
         let side_sort = |a: &&RankGapEntry, b: &&RankGapEntry| -> std::cmp::Ordering {
+            // Sort by signed face_offset ascending so that edges on
+            // the negative side of the face (e.g. left of center for
+            // Top/Bottom faces) come first, centre next, positive
+            // last. This preserves the spatial ordering established
+            // by `face_entries_sort_by_rank_and_coordinate`, ensuring
+            // that edges whose contact points are further apart
+            // receive longer protrusions and edges closer together
+            // receive shorter ones, preventing visual cross-over.
             let offset_cmp = a
                 .face_offset
-                .abs()
-                .partial_cmp(&b.face_offset.abs())
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .reverse();
+                .partial_cmp(&b.face_offset)
+                .unwrap_or(std::cmp::Ordering::Equal);
             if offset_cmp != std::cmp::Ordering::Equal {
                 return offset_cmp;
             }
@@ -689,16 +696,11 @@ impl OrthoProtrusionCalculator {
 
         // === Identify crossing edges === //
         //
-        // A "crossing edge" has entries on BOTH sides of the gap. Its
-        // orthogonal routing segment sits at the midpoint of its two
-        // protrusion endpoints:
-        //
-        //   mid_y = (y_low_face + low_prot + y_high_face - high_prot) / 2
-        //
-        // Since `y_low_face` and `y_high_face` are approximately the
-        // same for all edges in the same gap, the midpoint is unique
-        // when `low_prot - high_prot` is unique. We assign crossing
-        // edges distinct `low_prot - high_prot` differences.
+        // A "crossing edge" has entries on BOTH sides of the gap.
+        // Crossing edges are assigned protrusion depths on each side
+        // independently according to that side's spatial ordering, so
+        // that edges sorted earlier on each side receive longer
+        // protrusions.
 
         // Edge identity key: (pass1_group_index, edge_index).
         type EdgeKey = (usize, usize);
@@ -728,10 +730,7 @@ impl OrthoProtrusionCalculator {
         // === Assign protrusion depths === //
         //
         // Strategy: distribute all entries across a shared pool of
-        // `total_count` distinct protrusion slots. To ensure crossing
-        // edges get unique `low_prot - high_prot` differences, we
-        // assign their (low, high) slot pairs such that no two
-        // crossing edges share the same slot difference.
+        // `total_count` distinct protrusion slots.
         //
         // Single-side entries (only on low or only on high) do not
         // contribute to routing midpoints in this gap, so they just
@@ -739,19 +738,30 @@ impl OrthoProtrusionCalculator {
         //
         // We use `total_count` evenly-spaced slots in
         // [MIN_PROTRUSION_PX, max_protrusion]:
-        //   slot[k] = MIN + k * growable / (total_count - 1)
+        //   slot[k] = MAX - k * growable / (total_count - 1)
+        //
+        // Slot 0 gets the longest protrusion, last slot gets the
+        // shortest. Earlier edges (sorted first) receive longer
+        // protrusions for visual clarity (less cross-over).
+        //
+        // Crossing low and crossing high entries are sorted
+        // independently by each side's own spatial ordering (face
+        // offset then cross-axis coordinate). Both sides assign
+        // slots in forward order so that earlier entries on each
+        // side receive longer protrusions. This prevents the
+        // high-side protrusion ordering from being dictated by the
+        // low-side sort, which would cause later edges on the high
+        // side to receive incorrectly long protrusions.
         //
         // The assignment proceeds as follows:
         //
-        // 1. Single-side low entries get the lowest slots (0, 1, ...).
-        // 2. Crossing low entries get the next slots.
-        // 3. Crossing high entries get slots in REVERSE order (from the top of the
-        //    high-side allocation). This ensures that the i-th crossing edge's low slot
-        //    is `single_low_count + i` and its high slot is `total_count - 1 - i`,
-        //    giving a difference of `(single_low_count + i) - (total_count - 1 - i)` =
-        //    `single_low_count + 2i - total_count + 1`, which is unique per `i` (since
-        //    the `2i` term varies).
-        // 4. Single-side high entries fill the remaining slots.
+        // 1. Single-side low entries get the first slots (0, 1, ...) -- longest
+        //    protrusions.
+        // 2. Crossing low entries (from-endpoints) get the next slots.
+        // 3. Crossing high entries (to-endpoints) get slots in forward order within
+        //    their own range, sorted by high-side index. Earlier entries on the high
+        //    side receive longer protrusions, matching the low-side convention.
+        // 4. Single-side high entries fill the remaining slots -- shortest protrusions.
 
         // Separate low_entries into single-side and crossing, preserving
         // their sorted order.
@@ -773,28 +783,44 @@ impl OrthoProtrusionCalculator {
             .map(|(_, e)| *e)
             .collect();
 
-        // Crossing entries in the order determined by crossing_pairs.
+        // Crossing low entries follow crossing_pairs order (sorted by
+        // low-side index) so that the low side respects its own spatial
+        // ordering.
         let crossing_low_ordered: Vec<&RankGapEntry> = crossing_pairs
             .iter()
             .map(|&(li, _)| low_entries[li])
             .collect();
-        let crossing_high_ordered: Vec<&RankGapEntry> = crossing_pairs
+
+        // Crossing high entries are sorted by their high-side index
+        // (i.e. the order produced by `side_sort` on the high side)
+        // so that the high-side protrusion assignment respects the
+        // high-side spatial ordering. Without this, the high-side
+        // slots follow low-side ordering, which can cause later edges
+        // (further out on the high side) to receive longer protrusions
+        // than earlier edges, leading to visually crossing paths.
+        let mut crossing_high_indices: Vec<usize> =
+            crossing_pairs.iter().map(|&(_, hi)| hi).collect();
+        crossing_high_indices.sort_unstable();
+        let crossing_high_ordered: Vec<&RankGapEntry> = crossing_high_indices
             .iter()
-            .map(|&(_, hi)| high_entries[hi])
+            .map(|&hi| high_entries[hi])
             .collect();
 
         let protrusion_growable_space = max_protrusion - MIN_PROTRUSION_PX;
         let denominator = (total_count - 1).max(1) as f32;
 
         let slot_value = |slot: usize| -> f32 {
-            let proportion = slot as f32 / denominator;
+            // Slot 0 gets the longest protrusion, last slot gets the
+            // shortest. Earlier edges (sorted first) receive longer
+            // protrusions for visual clarity (less cross-over).
+            let proportion = 1.0 - (slot as f32 / denominator);
             MIN_PROTRUSION_PX + proportion * protrusion_growable_space
         };
 
         // Slot assignment:
         //   [0 .. SL)                        -> single-side low
-        //   [SL .. SL + NC)                  -> crossing low
-        //   [total - SH - NC .. total - SH)  -> crossing high (reversed)
+        //   [SL .. SL + NC)                  -> crossing low (from-endpoints)
+        //   [total - SH - NC .. total - SH)  -> crossing high (to-endpoints, forward)
         //   [total - SH .. total)            -> single-side high
         //
         // where SL = single_low.len(), SH = single_high.len(),
@@ -808,20 +834,20 @@ impl OrthoProtrusionCalculator {
             slot += 1;
         }
 
-        // 2. Crossing low entries (in crossing_pairs order).
-
+        // 2. Crossing low entries (from-endpoints, in crossing_pairs order).
         for entry in &crossing_low_ordered {
             Self::protrusion_write(entry, slot_value(slot), result);
             slot += 1;
         }
 
-        // 3. Crossing high entries -- assigned in REVERSE slot order so that crossing
-        //    pair i gets: low_slot  = single_low.len() + i high_slot = total_count - 1
-        //    - single_high.len() - i The difference low_slot - high_slot changes by +2
-        //    per i, guaranteeing uniqueness.
-        let crossing_high_top = total_count - single_high.len();
+        // 3. Crossing high entries (to-endpoints) -- assigned in FORWARD slot order.
+        //    The entries are sorted by high-side index so that spatially earlier edges
+        //    (sorted first on the high side) get longer protrusions and later edges get
+        //    shorter ones, matching the low-side convention and preventing visual
+        //    crossings near the to-nodes.
+        let crossing_high_start = total_count - single_high.len() - crossing_high_ordered.len();
         for (i, entry) in crossing_high_ordered.iter().enumerate() {
-            let high_slot = crossing_high_top - 1 - i;
+            let high_slot = crossing_high_start + i;
             Self::protrusion_write(entry, slot_value(high_slot), result);
         }
 
@@ -1018,6 +1044,7 @@ impl OrthoProtrusionCalculator {
     /// Resolves spacer coordinates for an edge, reusing the same logic
     /// as the path builder.
     fn spacer_coordinates_resolve<'id>(
+        rank_dir: RankDir,
         pass1_info: &EdgePass1Info<'_, 'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &Map<
@@ -1033,7 +1060,8 @@ impl OrthoProtrusionCalculator {
             .rank_to_spacer_taffy_node_id
             .iter()
             .filter_map(|(rank, &taffy_node_id)| {
-                let coords = Self::spacer_absolute_coordinates(taffy_tree, taffy_node_id)?;
+                let coords =
+                    Self::spacer_absolute_coordinates(rank_dir, taffy_tree, taffy_node_id)?;
                 Some((*rank, coords))
             })
             .collect();
@@ -1043,7 +1071,7 @@ impl OrthoProtrusionCalculator {
             .cross_container_spacer_taffy_node_ids
             .iter()
             .filter_map(|&taffy_node_id| {
-                Self::spacer_absolute_coordinates(taffy_tree, taffy_node_id)
+                Self::spacer_absolute_coordinates(rank_dir, taffy_tree, taffy_node_id)
             })
             .collect();
 
@@ -1054,8 +1082,9 @@ impl OrthoProtrusionCalculator {
             return rank_spacers.into_iter().map(|(_, coords)| coords).collect();
         }
 
-        // Merge both kinds and sort by absolute y-coordinate so the
-        // spacers appear in the correct visual order along the edge path.
+        // Merge both kinds and sort by absolute coordinate along the
+        // main axis so the spacers appear in the correct visual order
+        // along the edge path.
         let mut all_spacers: Vec<SpacerCoordinates> = rank_spacers
             .into_iter()
             .map(|(_, coords)| coords)
@@ -1063,8 +1092,16 @@ impl OrthoProtrusionCalculator {
             .collect();
 
         all_spacers.sort_by(|a, b| {
-            a.entry_y
-                .partial_cmp(&b.entry_y)
+            let a_key = match rank_dir {
+                RankDir::TopToBottom | RankDir::BottomToTop => a.entry_y,
+                RankDir::LeftToRight | RankDir::RightToLeft => a.entry_x,
+            };
+            let b_key = match rank_dir {
+                RankDir::TopToBottom | RankDir::BottomToTop => b.entry_y,
+                RankDir::LeftToRight | RankDir::RightToLeft => b.entry_x,
+            };
+            a_key
+                .partial_cmp(&b_key)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
@@ -1074,9 +1111,19 @@ impl OrthoProtrusionCalculator {
     /// Computes absolute spacer coordinates for a single taffy node.
     ///
     /// Walks up the taffy tree to accumulate the absolute position, then
-    /// returns `SpacerCoordinates` with the entry at the top midpoint
-    /// and the exit at the bottom midpoint.
+    /// returns `SpacerCoordinates` with entry and exit points that
+    /// depend on `rank_dir`:
+    ///
+    /// * `TopToBottom` -- entry at top midpoint (smallest y), exit at bottom
+    ///   midpoint (largest y).
+    /// * `BottomToTop` -- entry at bottom midpoint (largest y), exit at top
+    ///   midpoint (smallest y).
+    /// * `LeftToRight` -- entry at left midpoint (smallest x), exit at right
+    ///   midpoint (largest x).
+    /// * `RightToLeft` -- entry at right midpoint (largest x), exit at left
+    ///   midpoint (smallest x).
     fn spacer_absolute_coordinates(
+        rank_dir: RankDir,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         taffy_node_id: taffy::NodeId,
     ) -> Option<SpacerCoordinates> {
@@ -1095,15 +1142,44 @@ impl OrthoProtrusionCalculator {
         }
 
         let cx = x_acc + layout.size.width / 2.0;
+        let cy = y_acc + layout.size.height / 2.0;
+        let left_x = x_acc;
+        let right_x = x_acc + layout.size.width;
         let top_y = y_acc;
         let bottom_y = y_acc + layout.size.height;
 
-        Some(SpacerCoordinates {
-            entry_x: cx,
-            entry_y: top_y,
-            exit_x: cx,
-            exit_y: bottom_y,
-        })
+        let spacer_coordinates = match rank_dir {
+            // Vertical flow: entry/exit share the same x (center),
+            // differ in y.
+            RankDir::TopToBottom => SpacerCoordinates {
+                entry_x: cx,
+                entry_y: top_y,
+                exit_x: cx,
+                exit_y: bottom_y,
+            },
+            RankDir::BottomToTop => SpacerCoordinates {
+                entry_x: cx,
+                entry_y: bottom_y,
+                exit_x: cx,
+                exit_y: top_y,
+            },
+            // Horizontal flow: entry/exit share the same y (center),
+            // differ in x.
+            RankDir::LeftToRight => SpacerCoordinates {
+                entry_x: left_x,
+                entry_y: cy,
+                exit_x: right_x,
+                exit_y: cy,
+            },
+            RankDir::RightToLeft => SpacerCoordinates {
+                entry_x: right_x,
+                entry_y: cy,
+                exit_x: left_x,
+                exit_y: cy,
+            },
+        };
+
+        Some(spacer_coordinates)
     }
 
     /// Returns the cross-axis coordinate of a node for a given face.

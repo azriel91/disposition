@@ -31,7 +31,7 @@ const RADIO_LABEL_CLASS: &str = "\
 ///
 /// * `edge_curvature` -- whether edges are drawn as smooth curves or orthogonal
 ///   lines.
-/// * `rank_dir` -- whether edges connect nodes vertically or horizontally.
+/// * `rank_dir` -- direction that edges connect nodes.
 #[component]
 pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let edge_curvature = input_diagram.read().render_options.edge_curvature;
@@ -100,26 +100,56 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                         input {
                             r#type: "radio",
                             name: "rank_dir",
-                            value: "vertical",
-                            checked: rank_dir == RankDir::Vertical,
+                            value: "left_to_right",
+                            checked: rank_dir == RankDir::LeftToRight,
                             onchange: move |_| {
-                                input_diagram.write().render_options.rank_dir = RankDir::Vertical;
+                                input_diagram.write().render_options.rank_dir =
+                                    RankDir::LeftToRight;
                             },
                         }
-                        "Vertical"
+                        "Left to Right"
                     }
                     label {
                         class: RADIO_LABEL_CLASS,
                         input {
                             r#type: "radio",
                             name: "rank_dir",
-                            value: "horizontal",
-                            checked: rank_dir == RankDir::Horizontal,
+                            value: "right_to_left",
+                            checked: rank_dir == RankDir::RightToLeft,
                             onchange: move |_| {
-                                input_diagram.write().render_options.rank_dir = RankDir::Horizontal;
+                                input_diagram.write().render_options.rank_dir =
+                                    RankDir::RightToLeft;
                             },
                         }
-                        "Horizontal"
+                        "Right to Left"
+                    }
+                    label {
+                        class: RADIO_LABEL_CLASS,
+                        input {
+                            r#type: "radio",
+                            name: "rank_dir",
+                            value: "top_to_bottom",
+                            checked: rank_dir == RankDir::TopToBottom,
+                            onchange: move |_| {
+                                input_diagram.write().render_options.rank_dir =
+                                    RankDir::TopToBottom;
+                            },
+                        }
+                        "Top to Bottom"
+                    }
+                    label {
+                        class: RADIO_LABEL_CLASS,
+                        input {
+                            r#type: "radio",
+                            name: "rank_dir",
+                            value: "bottom_to_top",
+                            checked: rank_dir == RankDir::BottomToTop,
+                            onchange: move |_| {
+                                input_diagram.write().render_options.rank_dir =
+                                    RankDir::BottomToTop;
+                            },
+                        }
+                        "Bottom to Top"
                     }
                 }
             }
