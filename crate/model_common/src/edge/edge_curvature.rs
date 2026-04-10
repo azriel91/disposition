@@ -30,9 +30,9 @@ pub enum EdgeCurvature {
 }
 
 impl EdgeCurvature {
-    /// Returns `true` if the edge curvature is the default (curved).
+    /// Returns `true` if the edge curvature is the default (orthogonal).
     pub fn is_default(&self) -> bool {
-        matches!(self, EdgeCurvature::Curved)
+        matches!(self, EdgeCurvature::Orthogonal)
     }
 }
 
