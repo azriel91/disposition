@@ -21,10 +21,10 @@ disposition_model_common = { workspace = true }
 disposition_input_model = { workspace = true }
 disposition_ir_model = { workspace = true }
 miette = { workspace = true }
-thiserror = { workspace = true }
+schemars = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 taffy = { workspace = true }
-utoipa = { workspace = true, optional = true }
+thiserror = { workspace = true }
 
 [lints]
 workspace = true
@@ -32,7 +32,7 @@ workspace = true
 [features]
 default = []
 
-# Only enable this when you need to generate OpenAPI documentation.
-openapi = ["dep:utoipa", "disposition_model_common/openapi"]
+# Only enable this when you need to generate the JSON schema.
+schemars = ["dep:schemars", "disposition_model_common/schemars"]
 
 test = []

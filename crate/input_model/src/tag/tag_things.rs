@@ -26,8 +26,8 @@ use crate::{tag::TagId, thing::ThingId};
 ///     - t_github_user_repo
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct TagThings<'id>(Map<TagId<'id>, Set<ThingId<'id>>>);

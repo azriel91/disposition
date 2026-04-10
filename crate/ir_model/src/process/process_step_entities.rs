@@ -25,8 +25,8 @@ use crate::node::NodeId;
 ///     - edge_ix_t_localhost__t_github_user_repo__push
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ProcessStepEntities<'id>(Map<NodeId<'id>, Vec<Id<'id>>>);

@@ -23,8 +23,8 @@ use serde::{Deserialize, Serialize};
 /// assert!(matches!(mode, EdgeAnimationActive::Always));
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum EdgeAnimationActive {

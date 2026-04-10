@@ -7,8 +7,8 @@ use taffy::Size;
 ///
 /// [responsive breakpoints]: https://tailwindcss.com/docs/responsive-design
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Dimension {

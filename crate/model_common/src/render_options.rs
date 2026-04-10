@@ -14,8 +14,8 @@ use crate::{edge::EdgeCurvature, RankDir};
 /// assert_eq!(render_options.rank_dir, Default::default());
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct RenderOptions {

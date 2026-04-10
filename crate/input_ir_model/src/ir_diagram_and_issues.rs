@@ -5,8 +5,8 @@ use crate::issue::ModelToIrIssue;
 /// An input diagram and any issues encountered during mapping from the input
 /// model.
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug)]
 pub struct IrDiagramAndIssues<'id> {

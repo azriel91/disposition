@@ -80,8 +80,8 @@ use super::EntityType;
 ///     - type_dependency_edge_cyclic_forward_default
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct EntityTypes<'id>(Map<Id<'id>, Set<EntityType>>);

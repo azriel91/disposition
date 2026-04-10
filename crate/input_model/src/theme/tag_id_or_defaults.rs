@@ -7,8 +7,8 @@ use crate::tag::TagId;
 
 /// Key to specify styles for tag focus, either defaults or a specific tag.
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TagIdOrDefaults<'id> {

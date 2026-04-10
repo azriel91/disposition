@@ -23,8 +23,8 @@ use crate::{Id, IdInvalidFmt};
 /// assert_eq!(edge_id.as_str(), "edge_a_to_b");
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
 pub struct EdgeId<'s>(Id<'s>);

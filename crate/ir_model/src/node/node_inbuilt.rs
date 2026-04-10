@@ -15,8 +15,8 @@ use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 /// assert_eq!(root_node.as_str(), "_root");
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Sequence)]
 pub enum NodeInbuilt {

@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 /// along with the circle's center coordinates and radius for use
 /// in edge connection calculations.
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct SvgNodeInfoCircle {

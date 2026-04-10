@@ -54,8 +54,8 @@ use crate::node::NodeId;
 ///         t_localhost_repo_target_dist_dir: {}
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct NodeHierarchy<'id>(Map<NodeId<'id>, NodeHierarchy<'id>>);

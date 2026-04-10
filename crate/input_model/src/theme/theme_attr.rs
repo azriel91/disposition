@@ -311,8 +311,8 @@ use serde::{Deserialize, Serialize};
 /// [Colours]: https://tailwindcss.com/docs/customizing-colors
 /// [Tailwind CSS]: https://tailwindcss.com/
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]

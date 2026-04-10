@@ -16,8 +16,8 @@ use crate::{SvgNodeInfoCircle, SvgTextSpan};
 /// * The node label to place in the `<text>` element.
 /// * Optional circle shape information.
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct SvgNodeInfo<'id> {

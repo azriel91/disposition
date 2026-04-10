@@ -47,8 +47,8 @@ use crate::node::NodeId;
 ///   t_localhost: 3
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct NodeOrdering<'id>(Map<NodeId<'id>, u32>);

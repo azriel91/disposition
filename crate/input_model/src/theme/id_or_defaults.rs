@@ -5,8 +5,8 @@ use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
 /// Key to specify tailwind styles for all kinds of nodes and edges.
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum IdOrDefaults<'id> {

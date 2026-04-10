@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 /// * `top_to_bottom`: edges connect nodes from top to bottom.
 /// * `bottom_to_top`: edges connect nodes from bottom to top.
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]

@@ -35,8 +35,8 @@ use crate::node::{NodeId, NodeShape};
 ///       radius_bottom_right: 0.0
 /// ```
 #[cfg_attr(
-    all(feature = "openapi", not(feature = "test")),
-    derive(utoipa::ToSchema)
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
 )]
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 pub struct NodeShapes<'id>(Map<NodeId<'id>, NodeShape>);
