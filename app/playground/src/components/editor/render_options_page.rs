@@ -16,7 +16,7 @@ use disposition::{
 use crate::components::editor::common::{LABEL_CLASS, SECTION_HEADING};
 
 /// CSS classes for a radio button group container.
-const RADIO_GROUP_CLASS: &str = "flex flex-row gap-4";
+const RADIO_GROUP_CLASS: &str = "flex flex-col gap-4";
 
 /// CSS classes for an individual radio label (clickable wrapper).
 const RADIO_LABEL_CLASS: &str = "\
@@ -56,33 +56,48 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                 div {
                     class: RADIO_GROUP_CLASS,
 
-                    label {
-                        class: RADIO_LABEL_CLASS,
-                        input {
-                            r#type: "radio",
-                            name: "edge_curvature",
-                            value: "curved",
-                            checked: edge_curvature == EdgeCurvature::Curved,
-                            onchange: move |_| {
-                                input_diagram.write().render_options.edge_curvature =
-                                    EdgeCurvature::Curved;
-                            },
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "edge_curvature",
+                                value: "curved",
+                                checked: edge_curvature == EdgeCurvature::Curved,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.edge_curvature =
+                                        EdgeCurvature::Curved;
+                                },
+                            }
+                            "Curved"
                         }
-                        "Curved"
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using curved lines."
+                        }
                     }
-                    label {
-                        class: RADIO_LABEL_CLASS,
-                        input {
-                            r#type: "radio",
-                            name: "edge_curvature",
-                            value: "orthogonal",
-                            checked: edge_curvature == EdgeCurvature::Orthogonal,
-                            onchange: move |_| {
-                                input_diagram.write().render_options.edge_curvature =
-                                    EdgeCurvature::Orthogonal;
-                            },
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "edge_curvature",
+                                value: "orthogonal",
+                                checked: edge_curvature == EdgeCurvature::Orthogonal,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.edge_curvature =
+                                        EdgeCurvature::Orthogonal;
+                                },
+                            }
+                            "Orthogonal"
                         }
-                        "Orthogonal"
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using straight lines."
+                        }
                     }
                 }
             }
@@ -95,61 +110,89 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                 div {
                     class: RADIO_GROUP_CLASS,
 
-                    label {
-                        class: RADIO_LABEL_CLASS,
-                        input {
-                            r#type: "radio",
-                            name: "rank_dir",
-                            value: "left_to_right",
-                            checked: rank_dir == RankDir::LeftToRight,
-                            onchange: move |_| {
-                                input_diagram.write().render_options.rank_dir =
-                                    RankDir::LeftToRight;
-                            },
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "rank_dir",
+                                value: "left_to_right",
+                                checked: rank_dir == RankDir::LeftToRight,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.rank_dir =
+                                        RankDir::LeftToRight;
+                                },
+                            }
+                            "Left to Right"
                         }
-                        "Left to Right"
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "e.g. Components must be built from left to right."
+                        }
                     }
-                    label {
-                        class: RADIO_LABEL_CLASS,
-                        input {
-                            r#type: "radio",
-                            name: "rank_dir",
-                            value: "right_to_left",
-                            checked: rank_dir == RankDir::RightToLeft,
-                            onchange: move |_| {
-                                input_diagram.write().render_options.rank_dir =
-                                    RankDir::RightToLeft;
-                            },
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "rank_dir",
+                                value: "right_to_left",
+                                checked: rank_dir == RankDir::RightToLeft,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.rank_dir =
+                                        RankDir::RightToLeft;
+                                },
+                            }
+                            "Right to Left"
                         }
-                        "Right to Left"
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "e.g. What things can affect this thing?"
+                        }
                     }
-                    label {
-                        class: RADIO_LABEL_CLASS,
-                        input {
-                            r#type: "radio",
-                            name: "rank_dir",
-                            value: "top_to_bottom",
-                            checked: rank_dir == RankDir::TopToBottom,
-                            onchange: move |_| {
-                                input_diagram.write().render_options.rank_dir =
-                                    RankDir::TopToBottom;
-                            },
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "rank_dir",
+                                value: "top_to_bottom",
+                                checked: rank_dir == RankDir::TopToBottom,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.rank_dir =
+                                        RankDir::TopToBottom;
+                                },
+                            }
+                            "Top to Bottom"
                         }
-                        "Top to Bottom"
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "e.g. Downstream effects that propagate from changes to the top."
+                        }
                     }
-                    label {
-                        class: RADIO_LABEL_CLASS,
-                        input {
-                            r#type: "radio",
-                            name: "rank_dir",
-                            value: "bottom_to_top",
-                            checked: rank_dir == RankDir::BottomToTop,
-                            onchange: move |_| {
-                                input_diagram.write().render_options.rank_dir =
-                                    RankDir::BottomToTop;
-                            },
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "rank_dir",
+                                value: "bottom_to_top",
+                                checked: rank_dir == RankDir::BottomToTop,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.rank_dir =
+                                        RankDir::BottomToTop;
+                                },
+                            }
+                            "Bottom to Top"
                         }
-                        "Bottom to Top"
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "e.g. Lower layers are the foundation for higher layers."
+                        }
                     }
                 }
             }

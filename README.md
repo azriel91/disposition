@@ -7,9 +7,11 @@
 
 SVG diagram generator.
 
+Playground: <https://azriel.im/disposition>.
+
 > [!NOTE]
 >
-> 🚧 This crate is a work in progress.
+> 🚧 This crate is not yet stable.
 >
 > See design notes at <https://peace.mk/book/side_projects/disposition.html>.
 
@@ -40,11 +42,13 @@ SVG diagram generator.
 
 ## Usage
 
+<details><summary>Library usage is a work in progress.</summary>
+
 Add the following to `Cargo.toml`:
 
 ```toml
 [dependencies]
-disposition = "0.0.4"
+disposition = "0.1.0"
 ```
 
 In code:
@@ -52,8 +56,10 @@ In code:
 ```rust
 use disposition;
 
-todo!("This crate is a work in progress.")
+todo!("Wait for the next version. Currently only the playground is usable.")
 ```
+
+</details>
 
 
 ## Development

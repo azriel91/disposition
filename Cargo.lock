@@ -1682,10 +1682,12 @@ dependencies = [
 
 [[package]]
 name = "disposition"
-version = "0.0.4"
+version = "0.1.0"
 dependencies = [
  "disposition_input_ir_model",
+ "disposition_input_ir_rt",
  "disposition_input_model",
+ "disposition_input_rt",
  "disposition_ir_model",
  "disposition_model_common",
  "disposition_svg_model",
@@ -1695,7 +1697,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_input_ir_model"
-version = "0.0.4"
+version = "0.1.0"
 dependencies = [
  "disposition_ir_model",
  "disposition_model_common",
@@ -1707,7 +1709,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_input_ir_rt"
-version = "0.0.4"
+version = "0.1.0"
 dependencies = [
  "base64",
  "disposition_input_ir_model",
@@ -1728,7 +1730,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_input_model"
-version = "0.0.4"
+version = "0.1.0"
 dependencies = [
  "disposition_model_common",
  "schemars",
@@ -1737,7 +1739,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_input_rt"
-version = "0.0.4"
+version = "0.1.0"
 dependencies = [
  "disposition_input_model",
  "disposition_model_common",
@@ -1747,7 +1749,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_ir_model"
-version = "0.0.4"
+version = "0.1.0"
 dependencies = [
  "disposition_model_common",
  "enum-iterator",
@@ -1758,7 +1760,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_json_schema"
-version = "0.0.4"
+version = "0.1.0"
 dependencies = [
  "disposition",
  "serde_json",
@@ -1766,7 +1768,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_model_common"
-version = "0.0.4"
+version = "0.1.0"
 dependencies = [
  "id_newtype",
  "indexmap",
@@ -1777,7 +1779,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_playground"
-version = "0.0.4"
+version = "0.1.0"
 dependencies = [
  "dioxus",
  "dioxus-clipboard",
@@ -1795,7 +1797,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_svg_model"
-version = "0.0.4"
+version = "0.1.0"
 dependencies = [
  "disposition_ir_model",
  "disposition_model_common",
@@ -1805,7 +1807,7 @@ dependencies = [
 
 [[package]]
 name = "disposition_taffy_model"
-version = "0.0.4"
+version = "0.1.0"
 dependencies = [
  "disposition_input_model",
  "disposition_ir_model",
@@ -7146,7 +7148,7 @@ dependencies = [
 
 [[package]]
 name = "workspace_tests"
-version = "0.0.4"
+version = "0.1.0"
 dependencies = [
  "disposition",
  "disposition_input_ir_rt",

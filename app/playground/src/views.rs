@@ -14,8 +14,10 @@
 //! [`Route`]: crate::Route
 //! [`Route::Home`]: crate::Route::Home
 
-pub use self::{home::Home, navbar::Navbar};
+pub use self::{about::About, home::Home, licenses::Licenses, navbar::Navbar};
 
+mod about;
 mod home;
+mod licenses;
 mod navbar;
 pub(crate) mod theme_toggle;
