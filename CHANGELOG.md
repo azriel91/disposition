@@ -1,6 +1,6 @@
 # Changelog
 
-## unreleased
+## 0.1.0 (2026-04-11)
 
 * Add `playground`. ([#16][#16], [#17][#17])
 * Support specifying `thing_layouts` in `InputDiagram`. ([#16][#16])
