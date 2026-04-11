@@ -44,7 +44,7 @@ Add the following to `Cargo.toml`:
 
 ```toml
 [dependencies]
-disposition = "0.0.4"
+disposition = "0.1.0"
 ```
 
 In code:
