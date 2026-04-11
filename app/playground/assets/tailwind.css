@@ -35,12 +35,19 @@
     --spacing: 0.25rem;
     --container-sm: 24rem;
     --container-lg: 32rem;
+    --container-2xl: 42rem;
+    --container-3xl: 48rem;
+    --container-4xl: 56rem;
     --text-xs: 0.75rem;
     --text-xs--line-height: calc(1 / 0.75);
     --text-sm: 0.875rem;
     --text-sm--line-height: calc(1.25 / 0.875);
     --text-lg: 1.125rem;
     --text-lg--line-height: calc(1.75 / 1.125);
+    --text-xl: 1.25rem;
+    --text-xl--line-height: calc(1.75 / 1.25);
+    --text-2xl: 1.5rem;
+    --text-2xl--line-height: calc(2 / 1.5);
     --font-weight-semibold: 600;
     --font-weight-bold: 700;
     --tracking-wide: 0.025em;
@@ -264,6 +271,9 @@
       max-width: 96rem;
     }
   }
+  .mx-auto {
+    margin-inline: auto;
+  }
   .my-1 {
     margin-block: calc(var(--spacing) * 1);
   }
@@ -336,15 +346,6 @@
   .h-\[90dvh\] {
     height: 90dvh;
   }
-  .h-auto {
-    height: auto;
-  }
-  .h-dvh {
-    height: 100dvh;
-  }
-  .h-full {
-    height: 100%;
-  }
   .max-h-\[70vh\] {
     max-height: 70vh;
   }
@@ -396,6 +397,9 @@
   .w-full {
     width: 100%;
   }
+  .max-w-3xl {
+    max-width: var(--container-3xl);
+  }
   .max-w-lg {
     max-width: var(--container-lg);
   }
@@ -440,6 +444,9 @@
   }
   .list-inside {
     list-style-position: inside;
+  }
+  .list-decimal {
+    list-style-type: decimal;
   }
   .list-disc {
     list-style-type: disc;
@@ -680,6 +687,9 @@
   .pl-4 {
     padding-left: calc(var(--spacing) * 4);
   }
+  .pl-5 {
+    padding-left: calc(var(--spacing) * 5);
+  }
   .pl-6 {
     padding-left: calc(var(--spacing) * 6);
   }
@@ -702,6 +712,10 @@
   .text-sm {
     font-size: var(--text-sm);
     line-height: var(--tw-leading, var(--text-sm--line-height));
+  }
+  .text-xl {
+    font-size: var(--text-xl);
+    line-height: var(--tw-leading, var(--text-xl--line-height));
   }
   .text-xs {
     font-size: var(--text-xs);
@@ -786,6 +800,9 @@
   }
   .italic {
     font-style: italic;
+  }
+  .line-through {
+    text-decoration-line: line-through;
   }
   .underline {
     text-decoration-line: underline;
@@ -1031,6 +1048,13 @@
       }
     }
   }
+  .hover\:underline {
+    &:hover {
+      @media (hover: hover) {
+        text-decoration-line: underline;
+      }
+    }
+  }
   .focus\:border {
     &:focus {
       border-style: var(--tw-border-style);
@@ -1137,6 +1161,16 @@
       flex-direction: row;
     }
   }
+  .\[\&_\*\]\:mb-2 {
+    & * {
+      margin-bottom: calc(var(--spacing) * 2);
+    }
+  }
+  .\[\&_\*\]\:mb-3 {
+    & * {
+      margin-bottom: calc(var(--spacing) * 3);
+    }
+  }
   .\[\&\>\*\]\:flex-1 {
     &>* {
       flex: 1;
@@ -1186,6 +1220,11 @@
           color: var(--color-blue-300);
         }
       }
+    }
+  }
+  .\[\&\>li\]\:mb-2 {
+    &>li {
+      margin-bottom: calc(var(--spacing) * 2);
     }
   }
   .\[\&\>rect\]\:fill-gray-300 {

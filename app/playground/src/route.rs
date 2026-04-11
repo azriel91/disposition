@@ -5,7 +5,7 @@ use dioxus::{
 
 use crate::{
     editor_state::EditorState,
-    views::{Home, Licenses, Navbar},
+    views::{About, Home, Licenses, Navbar},
 };
 
 /// The Route enum is used to define the structure of internal routes in our
@@ -33,6 +33,11 @@ pub enum Route {
         /// being edited.
         editor_state: EditorState,
     },
+    /// Page that explains how `disposition` came to be.
+    #[route("/about")]
+    About,
+    /// Page that lists the licenses of transitive dependencies for
+    /// `disposition`.
     #[route("/licenses")]
     Licenses,
 }

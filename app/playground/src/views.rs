@@ -14,8 +14,9 @@
 //! [`Route`]: crate::Route
 //! [`Route::Home`]: crate::Route::Home
 
-pub use self::{home::Home, licenses::Licenses, navbar::Navbar};
+pub use self::{about::About, home::Home, licenses::Licenses, navbar::Navbar};
 
+mod about;
 mod home;
 mod licenses;
 mod navbar;

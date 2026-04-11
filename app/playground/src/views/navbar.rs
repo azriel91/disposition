@@ -36,6 +36,10 @@ pub fn Navbar() -> Element {
                 "📐 disposition"
             }
             Link {
+                to: Route::About,
+                "❓ about"
+            }
+            Link {
                 to: Route::Licenses,
                 "📝 licenses"
             }
