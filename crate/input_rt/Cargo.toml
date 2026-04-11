@@ -2,7 +2,6 @@
 name = "disposition_input_rt"
 description = "Runtime mutation operations for `disposition` input diagrams."
 documentation = "https://docs.rs/disposition_input_rt/"
-publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

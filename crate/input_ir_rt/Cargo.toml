@@ -2,7 +2,6 @@
 name = "disposition_input_ir_rt"
 description = "Logic to map `disposition` input model to intermediate representation."
 documentation = "https://docs.rs/disposition_input_ir_rt/"
-publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
