@@ -10,7 +10,7 @@
 //! tree (e.g. in a layout component that wraps all routes). Every descendant
 //! component that needs the current dark-mode state should call
 //! [`use_dark_mode`], which retrieves the shared signal via
-//! [`use_context`](dioxus::hooks::use_context).
+//! [`use_context`].
 //!
 //! # Behaviour
 //!
