@@ -1,5 +1,7 @@
 use std::fmt::Write;
 
+use crate::string_xml_escaper::StringXmlEscaper;
+
 use base64::{prelude::BASE64_STANDARD, Engine};
 use disposition_ir_model::entity::EntityTailwindClasses;
 use disposition_svg_model::{SvgEdgeInfo, SvgElements, SvgNodeInfo};
@@ -237,6 +239,12 @@ impl SvgElementsToSvgMapper {
             )
             .unwrap();
 
+            // Add tooltip element if present
+            if !svg_node_info.tooltip.is_empty() {
+                let tooltip_escaped = StringXmlEscaper::escape(&svg_node_info.tooltip);
+                write!(content_buffer, "<title>{tooltip_escaped}</title>").unwrap();
+            }
+
             // Add path element with corner radii.
             // If a circle is present, apply wrapper_tailwind_classes to make the
             // rect path invisible, and render the circle path separately.
@@ -361,18 +369,29 @@ impl SvgElementsToSvgMapper {
                 "<g \
                     id=\"{edge_id}\"\
                     {class_attr}\
+                >"
+            )
+            .unwrap();
+
+            // Add tooltip element if present
+            if !svg_edge_info.tooltip.is_empty() {
+                let tooltip_escaped = StringXmlEscaper::escape(&svg_edge_info.tooltip);
+                write!(content_buffer, "<title>{tooltip_escaped}</title>").unwrap();
+            }
+
+            write!(
+                content_buffer,
+                "<path \
+                    d=\"{path_d}\" \
+                    fill=\"none\" \
+                />\
+                <g \
+                    {arrow_head_class_attr} \
                 >\
                     <path \
-                        d=\"{path_d}\" \
-                        fill=\"none\" \
+                        d=\"{arrow_head_path_d}\" \
                     />\
-                    <g \
-                        {arrow_head_class_attr} \
-                    >\
-                        <path \
-                            d=\"{arrow_head_path_d}\" \
-                        />\
-                    </g>
+                </g>\
                 </g>"
             )
             .unwrap();

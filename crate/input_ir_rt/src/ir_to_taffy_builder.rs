@@ -896,7 +896,7 @@ impl IrToTaffyBuilder<'_> {
                     display: Display::Flex,
                     flex_direction: FlexDirection::Row,
                     align_items: Some(AlignItems::Center),
-                    gap: Size::length(4.0),
+                    gap: Size::length(4.0f32),
                     ..label_wrapper_style
                 };
 
@@ -1095,7 +1095,7 @@ impl IrToTaffyBuilder<'_> {
                     display: Display::Flex,
                     flex_direction: FlexDirection::Row,
                     align_items: Some(AlignItems::Center),
-                    gap: Size::length(4.0),
+                    gap: Size::length(4.0f32),
                     ..Default::default()
                 };
 

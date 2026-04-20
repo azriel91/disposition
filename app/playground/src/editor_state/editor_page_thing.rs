@@ -1,4 +1,7 @@
 //! Sub-pages within the "Things" group tab.
+//!
+//! Note: entity tooltips have moved to the "Entity" group tab
+//! ([`EditorPageEntity`](crate::editor_state::EditorPageEntity)).
 
 use serde::{Deserialize, Serialize};
 
@@ -13,8 +16,6 @@ pub enum EditorPageThing {
     CopyText,
     /// Things: entity descriptions.
     EntityDescs,
-    /// Things: entity tooltips.
-    EntityTooltips,
 }
 
 impl EditorPageThing {
@@ -27,7 +28,6 @@ impl EditorPageThing {
             Self::Names => "Things: Names",
             Self::CopyText => "Things: Copy Text",
             Self::EntityDescs => "Things: Descriptions",
-            Self::EntityTooltips => "Things: Tooltips",
         }
     }
 }

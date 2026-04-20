@@ -7,6 +7,8 @@
 
 pub use self::{
     datalists::EditorDataLists,
+    entity_page::EntityPage,
+    entity_tooltips_page::EntityTooltipsPage,
     entity_types_page::EntityTypesPage,
     processes_page::ProcessesPage,
     render_options_page::RenderOptionsPage,
@@ -18,9 +20,7 @@ pub use self::{
     },
     thing_dependencies_page::{ThingDependenciesPage, ThingInteractionsPage},
     thing_layout_page::ThingLayoutPage,
-    things_page::{
-        ThingCopyTextPage, ThingEntityDescsPage, ThingEntityTooltipsPage, ThingNamesPage,
-    },
+    things_page::{ThingCopyTextPage, ThingEntityDescsPage, ThingNamesPage},
 };
 
 pub mod datalists;
@@ -31,6 +31,8 @@ pub(crate) mod keyboard_nav;
 pub(crate) mod reorderable;
 pub(crate) mod theme_styles_editor;
 
+pub(crate) mod entity_page;
+pub(crate) mod entity_tooltips_page;
 pub(crate) mod entity_types_page;
 pub(crate) mod processes_page;
 pub(crate) mod render_options_page;
