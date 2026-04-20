@@ -356,6 +356,12 @@ pub fn ThingEntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> 
                 class: "text-xs text-gray-500 mb-1",
                 "Tooltip text (markdown) shown on hover."
             }
+            p {
+                class: "text-xs text-gray-500 mb-1",
+                "Note that for edges, you need to add `__{{index}}` to the edge group ID where {{index}} is the n'th edge in the group."
+                br {}
+                "For example, for an edge group whose ID is `edge_dep_a_to_b`, the first edge's ID is `edge_dep_a_to_b__0`, the second `edge_dep_a_to_b__1`, and so on."
+            }
 
             ReorderableContainer {
                 data_attr: "data-entry-id".to_owned(),
