@@ -96,10 +96,10 @@ pub struct InputDiagram<'id> {
     #[serde(default, skip_serializing_if = "EntityDescs::is_empty")]
     pub entity_descs: EntityDescs<'id>,
 
-    /// Descriptions for entities (nodes, edges, and edge groups).
+    /// Tooltips for entities (nodes, edges, and edge groups).
     ///
-    /// Contains text (typically markdown) that provides additional context
-    /// about entities in the diagram, such as process steps.
+    /// Contains plain text that provides additional context about entities in
+    /// the diagram, such as process steps.
     #[serde(default, skip_serializing_if = "EntityTooltips::is_empty")]
     pub entity_tooltips: EntityTooltips<'id>,
 

@@ -138,6 +138,12 @@ impl SvgNodeInfoBuilder {
             NodeShape::Rect(_node_shape_rect) => None,
         };
 
+        let tooltip = ir_diagram
+            .entity_tooltips
+            .get(node_id.as_ref())
+            .cloned()
+            .unwrap_or_default();
+
         if let Some(circle) = circle_info {
             SvgNodeInfo::with_circle(
                 node_id.clone(),
@@ -150,6 +156,7 @@ impl SvgNodeInfoBuilder {
                 process_id,
                 text_spans,
                 circle,
+                tooltip,
             )
         } else {
             SvgNodeInfo::new(
@@ -162,6 +169,7 @@ impl SvgNodeInfoBuilder {
                 path_d_collapsed,
                 process_id,
                 text_spans,
+                tooltip,
             )
         }
     }

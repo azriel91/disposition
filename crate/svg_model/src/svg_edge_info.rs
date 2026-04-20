@@ -32,6 +32,11 @@ pub struct SvgEdgeInfo<'id> {
     /// origin-centred V-shape that is animated along the edge path via CSS
     /// `offset-path`.
     pub arrow_head_path_d: String,
+    /// Tooltip text to display when the edge is hovered.
+    ///
+    /// When non-empty, rendered as a `<title>` element inside the edge's `<g>`
+    /// element. Example value: `"Sends a request to the API server."`.
+    pub tooltip: String,
 }
 
 impl<'id> SvgEdgeInfo<'id> {
@@ -43,6 +48,7 @@ impl<'id> SvgEdgeInfo<'id> {
         to_node_id: NodeId<'id>,
         path_d: String,
         arrow_head_path_d: String,
+        tooltip: String,
     ) -> Self {
         Self {
             edge_id,
@@ -51,6 +57,7 @@ impl<'id> SvgEdgeInfo<'id> {
             to_node_id,
             path_d,
             arrow_head_path_d,
+            tooltip,
         }
     }
 }

@@ -259,6 +259,12 @@ impl SvgEdgeInfosBuilder {
                     ArrowHeadBuilder::build_static_arrow_head(&path)
                 };
 
+                let tooltip = ir_diagram
+                    .entity_tooltips
+                    .get(edge_id.as_ref())
+                    .cloned()
+                    .unwrap_or_default();
+
                 svg_edge_infos.push(SvgEdgeInfo::new(
                     edge_id,
                     edge_group_id.clone(),
@@ -266,6 +272,7 @@ impl SvgEdgeInfosBuilder {
                     edge.to.clone(),
                     path_d,
                     arrow_head_path_d,
+                    tooltip,
                 ));
             });
         }

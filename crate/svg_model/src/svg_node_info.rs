@@ -58,6 +58,11 @@ pub struct SvgNodeInfo<'id> {
     /// Typically set to `"[fill-opacity:0.0] [stroke-opacity:0.0]"` to make
     /// the rectangular background invisible so only the circle is visible.
     pub wrapper_tailwind_classes: Option<Cow<'static, str>>,
+    /// Tooltip text to display when the node is hovered.
+    ///
+    /// When non-empty, rendered as a `<title>` element inside the node's `<g>`
+    /// element. Example value: `"Clones the repository to the local machine."`.
+    pub tooltip: String,
 }
 
 impl<'id> SvgNodeInfo<'id> {
@@ -73,6 +78,7 @@ impl<'id> SvgNodeInfo<'id> {
         path_d_collapsed: String,
         process_id: Option<NodeId<'id>>,
         text_spans: Vec<SvgTextSpan>,
+        tooltip: String,
     ) -> Self {
         Self {
             node_id,
@@ -86,6 +92,7 @@ impl<'id> SvgNodeInfo<'id> {
             text_spans,
             circle: None,
             wrapper_tailwind_classes: None,
+            tooltip,
         }
     }
 
@@ -102,6 +109,7 @@ impl<'id> SvgNodeInfo<'id> {
         process_id: Option<NodeId<'id>>,
         text_spans: Vec<SvgTextSpan>,
         circle: SvgNodeInfoCircle,
+        tooltip: String,
     ) -> Self {
         Self {
             node_id,
@@ -117,6 +125,7 @@ impl<'id> SvgNodeInfo<'id> {
             wrapper_tailwind_classes: Some(Cow::Borrowed(
                 "[fill-opacity:0.0] [stroke-opacity:0.0]",
             )),
+            tooltip,
         }
     }
 }
