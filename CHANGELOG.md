@@ -1,5 +1,12 @@
 # Changelog
 
+## unreleased
+
+* Support rendering tooltips. ([#26][#26])
+
+[#26]: https://github.com/azriel91/disposition/pull/26
+
+
 ## 0.1.0 (2026-04-11)
 
 * Add `playground`. ([#16][#16], [#17][#17])

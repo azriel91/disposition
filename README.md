@@ -33,7 +33,7 @@ Playground: <https://azriel.im/disposition>.
 * [x] Circle as node shape.
 * [x] Light and dark modes.
 * [x] Dependencies between process steps.
-* [ ] Tooltips.
+* [x] Tooltips.
 * [ ] Images in nodes.
 * [ ] Responsive layout.
 
