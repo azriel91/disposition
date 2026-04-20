@@ -1,5 +1,7 @@
 use std::fmt::Write;
 
+use crate::string_xml_escaper::StringXmlEscaper;
+
 use base64::{prelude::BASE64_STANDARD, Engine};
 use disposition_ir_model::entity::EntityTailwindClasses;
 use disposition_svg_model::{SvgEdgeInfo, SvgElements, SvgNodeInfo};
@@ -239,7 +241,7 @@ impl SvgElementsToSvgMapper {
 
             // Add tooltip element if present
             if !svg_node_info.tooltip.is_empty() {
-                let tooltip_escaped = Self::escape_xml_content(&svg_node_info.tooltip);
+                let tooltip_escaped = StringXmlEscaper::escape(&svg_node_info.tooltip);
                 write!(content_buffer, "<title>{tooltip_escaped}</title>").unwrap();
             }
 
@@ -373,7 +375,7 @@ impl SvgElementsToSvgMapper {
 
             // Add tooltip element if present
             if !svg_edge_info.tooltip.is_empty() {
-                let tooltip_escaped = Self::escape_xml_content(&svg_edge_info.tooltip);
+                let tooltip_escaped = StringXmlEscaper::escape(&svg_edge_info.tooltip);
                 write!(content_buffer, "<title>{tooltip_escaped}</title>").unwrap();
             }
 
@@ -394,22 +396,6 @@ impl SvgElementsToSvgMapper {
             )
             .unwrap();
         });
-    }
-
-    /// Escapes XML text content special characters.
-    ///
-    /// Replaces `&`, `<`, and `>` with their XML entity equivalents so that
-    /// the string can be safely embedded as text content inside an XML element
-    /// such as `<title>`.
-    fn escape_xml_content(s: &str) -> String {
-        let mut result = String::with_capacity(s.len());
-        s.chars().for_each(|c| match c {
-            '&' => result.push_str("&amp;"),
-            '<' => result.push_str("&lt;"),
-            '>' => result.push_str("&gt;"),
-            _ => result.push(c),
-        });
-        result
     }
 
     /// Returns the `class=".."` attribute with `&` escaped as `&amp;`.

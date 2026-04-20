@@ -1,3 +1,4 @@
+use crate::string_xml_escaper::StringXmlEscaper;
 use disposition_ir_model::{node::NodeId, IrDiagram};
 use disposition_model_common::{entity::EntityType, Map};
 use disposition_svg_model::{SvgNodeInfo, SvgNodeInfoCircle, SvgProcessInfo, SvgTextSpan};
@@ -101,7 +102,9 @@ impl SvgNodeInfoBuilder {
             .map(|spans| {
                 spans
                     .iter()
-                    .map(|span| SvgTextSpan::new(span.x, span.y, Self::escape_xml(&span.text)))
+                    .map(|span| {
+                        SvgTextSpan::new(span.x, span.y, StringXmlEscaper::escape(&span.text))
+                    })
                     .collect()
             })
             .unwrap_or_default();
@@ -243,19 +246,5 @@ impl SvgNodeInfoBuilder {
         } else {
             None
         }
-    }
-
-    /// Escape XML special characters in text content.
-    fn escape_xml(s: &str) -> String {
-        let mut result = String::with_capacity(s.len());
-        s.chars().for_each(|c| match c {
-            '&' => result.push_str("&amp;"),
-            '<' => result.push_str("&lt;"),
-            '>' => result.push_str("&gt;"),
-            '"' => result.push_str("&quot;"),
-            '\'' => result.push_str("&apos;"),
-            _ => result.push(c),
-        });
-        result
     }
 }
