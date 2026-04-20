@@ -6,7 +6,7 @@
 use enum_iterator::Sequence;
 use serde::{Deserialize, Serialize};
 
-use super::{EditorPageTheme, EditorPageThing};
+use super::{EditorPageEntity, EditorPageTheme, EditorPageThing};
 
 /// Identifies which editor page (tab) is currently active.
 ///
@@ -32,8 +32,8 @@ pub enum EditorPage {
     Processes,
     /// Tags: tag names and the things associated with each tag.
     Tags,
-    /// Entity Types: entity type assignments for common styling.
-    EntityTypes,
+    /// Entity group: sub-pages for entity type assignments and tooltips.
+    Entity(EditorPageEntity),
     /// Render options: edge curvature and rank direction.
     RenderOptions,
     /// Theme group: sub-pages for style aliases, base styles, etc.
@@ -79,7 +79,7 @@ impl EditorPage {
             Self::ThingInteractions => "Interactions",
             Self::Processes => "Processes",
             Self::Tags => "Tags",
-            Self::EntityTypes => "Entity Types",
+            Self::Entity(sub) => sub.label(),
             Self::RenderOptions => "Render Options",
             Self::Theme(sub) => sub.label(),
             Self::Text => "Text",
@@ -89,10 +89,11 @@ impl EditorPage {
     /// The label shown on the top-level tab.
     ///
     /// For `Thing(_)` this returns `"Things"`, for `Theme(_)` this
-    /// returns `"Theme"`, otherwise delegates to [`label`](Self::label).
+    /// `"Theme"`, otherwise delegates to [`label`](Self::label).
     pub fn top_level_label(&self) -> &'static str {
         match self {
             Self::Thing(_) => "Things",
+            Self::Entity(_) => "Entity",
             Self::Theme(_) => "Theme",
             other => other.label(),
         }
@@ -101,6 +102,11 @@ impl EditorPage {
     /// Returns `true` if this page belongs to the Things group.
     pub fn is_thing(&self) -> bool {
         matches!(self, Self::Thing(_))
+    }
+
+    /// Returns `true` if this page belongs to the Entity group.
+    pub fn is_entity(&self) -> bool {
+        matches!(self, Self::Entity(_))
     }
 
     /// Returns `true` if this page belongs to the Theme group.
@@ -117,6 +123,7 @@ impl EditorPage {
     pub fn same_top_level(&self, other: &EditorPage) -> bool {
         match (self, other) {
             (Self::Thing(_), Self::Thing(_)) => true,
+            (Self::Entity(_), Self::Entity(_)) => true,
             (Self::Theme(_), Self::Theme(_)) => true,
             _ => std::mem::discriminant(self) == std::mem::discriminant(other),
         }

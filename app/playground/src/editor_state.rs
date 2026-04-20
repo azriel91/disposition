@@ -8,11 +8,13 @@
 //! fragment.
 
 mod editor_page;
+mod editor_page_entity;
 mod editor_page_theme;
 mod editor_page_thing;
 
 pub use self::{
-    editor_page::EditorPage, editor_page_theme::EditorPageTheme, editor_page_thing::EditorPageThing,
+    editor_page::EditorPage, editor_page_entity::EditorPageEntity,
+    editor_page_theme::EditorPageTheme, editor_page_thing::EditorPageThing,
 };
 
 use std::fmt;
