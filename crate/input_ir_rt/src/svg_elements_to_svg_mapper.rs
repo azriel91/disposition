@@ -311,6 +311,7 @@ impl SvgElementsToSvgMapper {
             let edge_group_id = &svg_edge_info.edge_group_id;
             let path_d = &svg_edge_info.path_d;
             let arrow_head_path_d = &svg_edge_info.arrow_head_path_d;
+            let locus_path_d = &svg_edge_info.locus_path_d;
 
             // Build class attribute from tailwind_classes for the edge
             // First check for edge-specific classes, then fall back to edge group classes
@@ -384,6 +385,11 @@ impl SvgElementsToSvgMapper {
                 "<path \
                     d=\"{path_d}\" \
                     fill=\"none\" \
+                />\
+                <path \
+                    d=\"{locus_path_d}\" \
+                    fill=\"none\" \
+                    class=\"[stroke-dasharray:3] stroke-2 stroke-blue-500 invisible group-has-[#{edge_id}:focus-within]:visible\" \
                 />\
                 <g \
                     {arrow_head_class_attr} \

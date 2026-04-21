@@ -25,14 +25,14 @@ impl ArrowHeadBuilder {
     /// The arrowhead is a closed V whose tip sits at the `to` node end of the
     /// edge (the first point of the SVG path, since edge paths are built in
     /// reverse order).
-    pub(super) fn build_static_arrow_head(edge_path: &BezPath) -> String {
+    pub(super) fn build_static_arrow_head(edge_path: &BezPath) -> BezPath {
         let (tip, direction) = Self::tip_and_direction(edge_path);
 
         // Normalise the direction vector.
         let len = (direction.x * direction.x + direction.y * direction.y).sqrt();
         if len < 1e-9 {
             // Degenerate – fall back to an invisible arrow.
-            return String::new();
+            return BezPath::new();
         }
         let dx = direction.x / len;
         let dy = direction.y / len;
@@ -57,7 +57,7 @@ impl ArrowHeadBuilder {
         path.line_to(wing2);
         path.close_path();
 
-        path.to_svg()
+        path
     }
 
     /// Returns an origin-centred arrowhead path string for an **interaction**
@@ -65,14 +65,14 @@ impl ArrowHeadBuilder {
     ///
     /// The V-shape points in the +X direction so that CSS `offset-rotate: auto`
     /// will orient it correctly along the motion path.
-    pub(super) fn build_origin_arrow_head() -> String {
+    pub(super) fn build_origin_arrow_head() -> BezPath {
         let mut path = BezPath::new();
         path.move_to(Point::new(-ARROW_HEAD_LENGTH, -ARROW_HEAD_HALF_WIDTH));
         path.line_to(Point::ZERO);
         path.line_to(Point::new(-ARROW_HEAD_LENGTH, ARROW_HEAD_HALF_WIDTH));
         path.close_path();
 
-        path.to_svg()
+        path
     }
 
     // ------------------------------------------------------------------

@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 /// * The `<path>` element's coordinates and its `d` attribute.
 /// * Tailwind classes to define its styling and visibility.
 /// * The arrowhead `<path>` element's `d` attribute.
+/// * The locus `<path>` element's `d` attribute for the focus indicator.
 #[cfg_attr(
     all(feature = "schemars", not(feature = "test")),
     derive(schemars::JsonSchema)
@@ -32,6 +33,12 @@ pub struct SvgEdgeInfo<'id> {
     /// origin-centred V-shape that is animated along the edge path via CSS
     /// `offset-path`.
     pub arrow_head_path_d: String,
+    /// The SVG path `d` attribute for the edge locus (focus indicator).
+    ///
+    /// This is the outline of the stroke expansion around both the edge body
+    /// and the arrow head, rendered as a dashed highlight when the edge is
+    /// focused. Example value: `"M10,20 C30,40 50,60 70,80"`.
+    pub locus_path_d: String,
     /// Tooltip text to display when the edge is hovered.
     ///
     /// When non-empty, rendered as a `<title>` element inside the edge's `<g>`
@@ -48,6 +55,7 @@ impl<'id> SvgEdgeInfo<'id> {
         to_node_id: NodeId<'id>,
         path_d: String,
         arrow_head_path_d: String,
+        locus_path_d: String,
         tooltip: String,
     ) -> Self {
         Self {
@@ -57,6 +65,7 @@ impl<'id> SvgEdgeInfo<'id> {
             to_node_id,
             path_d,
             arrow_head_path_d,
+            locus_path_d,
             tooltip,
         }
     }

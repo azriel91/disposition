@@ -25,7 +25,7 @@ use crate::taffy_to_svg_elements_mapper::{
     edge_path_builder_pass_2::edge_path_builder_pass_2_ortho::OrthoProtrusionParams,
     ortho_protrusion_calculator::OrthoProtrusionCalculator,
     ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
-    StringCharReplacer,
+    EdgePathLocusCalculator, StringCharReplacer,
 };
 
 /// Builds [`SvgEdgeInfo`]s for all edges in the diagram from edge groups and
@@ -250,7 +250,7 @@ impl SvgEdgeInfosBuilder {
                 let path_d = path.to_svg();
 
                 // Compute arrowhead path.
-                let arrow_head_path_d = if is_interaction_edge {
+                let arrow_head_path = if is_interaction_edge {
                     // Origin-centred V-shape; CSS offset-path handles
                     // positioning and rotation.
                     ArrowHeadBuilder::build_origin_arrow_head()
@@ -258,6 +258,10 @@ impl SvgEdgeInfosBuilder {
                     // Positioned V-shape at the `to` node end of the edge.
                     ArrowHeadBuilder::build_static_arrow_head(&path)
                 };
+                let arrow_head_path_d = arrow_head_path.to_svg();
+
+                let locus_path = EdgePathLocusCalculator::calculate(&path, &arrow_head_path);
+                let locus_path_d = locus_path.to_svg();
 
                 let tooltip = ir_diagram
                     .entity_tooltips
@@ -272,6 +276,7 @@ impl SvgEdgeInfosBuilder {
                     edge.to.clone(),
                     path_d,
                     arrow_head_path_d,
+                    locus_path_d,
                     tooltip,
                 ));
             });
