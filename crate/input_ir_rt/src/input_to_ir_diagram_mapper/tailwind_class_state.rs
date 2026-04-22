@@ -583,6 +583,12 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         // When a shade is also available, `write_shifted_shade_class` is used for
         // dark-mode support. When only a color is specified (no shade), an arbitrary
         // CSS property class `[outline-color:{color}]` is written instead.
+        //
+        // For edge entities, the `.edge_locus` `<path>` element is styled via SVG
+        // `stroke` rather than CSS `outline`, so `"stroke"` is used as the property
+        // and `[stroke:{color}]` as the color-only fallback.
+        let outline_color_property = if is_edge { "stroke" } else { "outline" };
+        let outline_color_css_prop = if is_edge { "stroke" } else { "outline-color" };
 
         let outline_color_hover = self.get_outline_color(HighlightState::Hover);
         let outline_shade_hover = self.get_outline_shade(HighlightState::Hover);
@@ -605,7 +611,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                     css_theme_vars,
                     outline_full_prefix.as_ref(),
                     state_modifier,
-                    "outline",
+                    outline_color_property,
                     dark_mode_shade_config,
                     color,
                     shade,
@@ -617,7 +623,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             } else if let Some(color) = color {
                 writeln!(
                     classes,
-                    "{outline_full_prefix}{state_modifier}[outline-color:{color}]"
+                    "{outline_full_prefix}{state_modifier}[{outline_color_css_prop}:{color}]"
                 )
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
             }
@@ -673,9 +679,9 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     /// tailwind classes.
     fn write_outline_style_node(
         classes: &mut String,
+        outline_full_prefix: &str,
         state_modifier: &str,
         style: &str,
-        outline_full_prefix: &str,
     ) {
         writeln!(
             classes,
