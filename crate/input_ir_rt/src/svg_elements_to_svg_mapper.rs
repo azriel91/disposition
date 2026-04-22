@@ -389,7 +389,7 @@ impl SvgElementsToSvgMapper {
                 <path \
                     d=\"{locus_path_d}\" \
                     fill=\"none\" \
-                    class=\"edge_locus\" \
+                    class=\"locus\" \
                 />\
                 <g \
                     {arrow_head_class_attr} \

@@ -18,7 +18,7 @@ pub(crate) struct TailwindClassState<'tw_state> {
     /// The first entity type of the entity these classes are built for.
     ///
     /// Used to determine whether outline classes should be prefixed with
-    /// `[&>.edge_locus]:` (for edge entities) or applied directly (for nodes).
+    /// `[&>.locus]:` (for edge entities) or applied directly (for nodes).
     pub(crate) entity_type: Option<EntityType>,
 }
 
@@ -515,13 +515,13 @@ impl<'tw_state> TailwindClassState<'tw_state> {
 
         // === Outline classes === //
         //
-        // For edge entities the outline classes target `.edge_locus` children
-        // via the `[&>.edge_locus]:` arbitrary-variant prefix. For all other
+        // For edge entities the outline classes target `.locus` children
+        // via the `[&>.locus]:` arbitrary-variant prefix. For all other
         // entities the classes are applied directly.
 
         let is_edge = self.entity_type.as_ref().is_some_and(EntityType::is_edge);
         let outline_full_prefix = if is_edge {
-            Cow::Owned(format!("{peer_prefix_maybe}[&>.edge_locus]:"))
+            Cow::Owned(format!("{peer_prefix_maybe}[&>.locus]:"))
         } else {
             Cow::Borrowed(peer_prefix_maybe)
         };
@@ -532,7 +532,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         // used (e.g. `outline-solid`, `outline-dashed`). For edge entities, the SVG
         // `<path>` outline does not support CSS `outline-style`; instead,
         // `stroke_style_to_dasharray` converts the style to a `stroke-dasharray`
-        // value applied to the `.edge_locus` path element.
+        // value applied to the `.locus` path element.
         let outline_style_base = self.attrs.get(&ThemeAttr::OutlineStyle);
         let write_outline_style = if is_edge {
             Self::write_outline_style_edge
