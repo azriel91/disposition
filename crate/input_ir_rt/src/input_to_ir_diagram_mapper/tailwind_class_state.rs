@@ -519,22 +519,33 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         // via the `[&>.edge_locus]:` arbitrary-variant prefix. For all other
         // entities the classes are applied directly.
 
-        let outline_full_prefix = if self.entity_type.as_ref().is_some_and(EntityType::is_edge) {
+        let is_edge = self.entity_type.as_ref().is_some_and(EntityType::is_edge);
+        let outline_full_prefix = if is_edge {
             Cow::Owned(format!("{peer_prefix_maybe}[&>.edge_locus]:"))
         } else {
             Cow::Borrowed(peer_prefix_maybe)
         };
 
         // Outline style (base applies to all states; per-state variants override)
+        //
+        // For non-edge entities, the standard `outline-{style}` tailwind class is
+        // used (e.g. `outline-solid`, `outline-dashed`). For edge entities, the SVG
+        // `<path>` outline does not support CSS `outline-style`; instead,
+        // `stroke_style_to_dasharray` converts the style to a `stroke-dasharray`
+        // value applied to the `.edge_locus` path element.
         let outline_style_base = self.attrs.get(&ThemeAttr::OutlineStyle);
+        let write_outline_style = if is_edge {
+            Self::write_outline_style_edge
+        } else {
+            Self::write_outline_style_node
+        };
         if let Some(style) = self
             .attrs
             .get(&ThemeAttr::OutlineStyleNormal)
             .or(outline_style_base)
             .map(Cow::as_ref)
         {
-            writeln!(classes, "{outline_full_prefix}[outline-style:{style}]")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            write_outline_style(classes, outline_full_prefix.as_ref(), "", style);
         }
         if let Some(style) = self
             .attrs
@@ -542,11 +553,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             .or(outline_style_base)
             .map(Cow::as_ref)
         {
-            writeln!(
-                classes,
-                "hover:{outline_full_prefix}[outline-style:{style}]"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
+            write_outline_style(classes, outline_full_prefix.as_ref(), "hover:", style);
         }
         if let Some(style) = self
             .attrs
@@ -554,11 +561,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             .or(outline_style_base)
             .map(Cow::as_ref)
         {
-            writeln!(
-                classes,
-                "focus:{outline_full_prefix}[outline-style:{style}]"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
+            write_outline_style(classes, outline_full_prefix.as_ref(), "focus:", style);
         }
         if let Some(style) = self
             .attrs
@@ -566,11 +569,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             .or(outline_style_base)
             .map(Cow::as_ref)
         {
-            writeln!(
-                classes,
-                "active:{outline_full_prefix}[outline-style:{style}]"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
+            write_outline_style(classes, outline_full_prefix.as_ref(), "active:", style);
         }
 
         // Outline width
@@ -651,6 +650,38 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                 }
             }
         }
+    }
+
+    /// Writes outline style classes for edge entities, which uses
+    /// `stroke-dasharray` to simulate an outline.
+    fn write_outline_style_edge(
+        classes: &mut String,
+        outline_full_prefix: &str,
+        state_modifier: &str,
+        style: &str,
+    ) {
+        if let Some(dasharray) = Self::stroke_style_to_dasharray(style) {
+            writeln!(
+                classes,
+                "{state_modifier}{outline_full_prefix}[stroke-dasharray:{dasharray}]"
+            )
+            .expect(CLASSES_BUFFER_WRITE_FAIL);
+        }
+    }
+
+    /// Writes outline style classes for node entities, which uses the `outline`
+    /// tailwind classes.
+    fn write_outline_style_node(
+        classes: &mut String,
+        state_modifier: &str,
+        style: &str,
+        outline_full_prefix: &str,
+    ) {
+        writeln!(
+            classes,
+            "{state_modifier}{outline_full_prefix}outline-{style}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
     }
 
     /// Write a shade class for fill or stroke, handling all three dark-mode
