@@ -265,17 +265,55 @@ impl EntityType {
         }
     }
 
-    /// Returns `true` if this is an `Interaction*` variant.
+    /// Returns `true` if this is a `DependencyEdge*` or `InteractionEdge*`
+    /// variant.
     ///
     /// # Examples
     ///
     /// ```rust
     /// use disposition_model_common::entity::EntityType;
     ///
-    /// assert!(EntityType::InteractionEdgeSequenceForwardDefault.is_interaction_edge_type());
-    /// assert!(!EntityType::ThingDefault.is_interaction_edge_type());
+    /// assert!(EntityType::DependencyEdgeSequenceForwardDefault.is_edge());
+    /// assert!(!EntityType::ThingDefault.is_edge());
     /// ```
-    pub fn is_interaction_edge_type(&self) -> bool {
+    pub fn is_edge(&self) -> bool {
+        self.is_dependency_edge() || self.is_interaction_edge()
+    }
+
+    /// Returns `true` if this is a `DependencyEdge*` variant.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use disposition_model_common::entity::EntityType;
+    ///
+    /// assert!(EntityType::DependencyEdgeSequenceForwardDefault.is_dependency_edge());
+    /// assert!(!EntityType::ThingDefault.is_dependency_edge());
+    /// ```
+    pub fn is_dependency_edge(&self) -> bool {
+        matches!(
+            self,
+            EntityType::DependencyEdgeSequenceDefault
+                | EntityType::DependencyEdgeCyclicDefault
+                | EntityType::DependencyEdgeSymmetricDefault
+                | EntityType::DependencyEdgeSequenceForwardDefault
+                | EntityType::DependencyEdgeCyclicForwardDefault
+                | EntityType::DependencyEdgeSymmetricForwardDefault
+                | EntityType::DependencyEdgeSymmetricReverseDefault
+        )
+    }
+
+    /// Returns `true` if this is an `InteractionEdge*` variant.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use disposition_model_common::entity::EntityType;
+    ///
+    /// assert!(EntityType::InteractionEdgeSequenceForwardDefault.is_interaction_edge());
+    /// assert!(!EntityType::ThingDefault.is_interaction_edge());
+    /// ```
+    pub fn is_interaction_edge(&self) -> bool {
         matches!(
             self,
             EntityType::InteractionEdgeSequenceDefault

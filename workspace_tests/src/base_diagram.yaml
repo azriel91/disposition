@@ -130,6 +130,12 @@ theme_default:
       stroke_style: "dashed"
       stroke_width: "2"
       animate: "[stroke-dashoffset-move_2s_linear_infinite]"
+    focus_outline:
+      outline_style: "dashed"
+      outline_style_normal: "none"
+      outline_width: "2"
+      outline_color: "blue"
+      outline_shade: "500"
 
   # The keys in this map can be:
   #
@@ -141,7 +147,7 @@ theme_default:
   base_styles:
     node_defaults:
       # Vector of style aliases to apply.
-      style_aliases_applied: [shade_light, padding_normal]
+      style_aliases_applied: [shade_light, padding_normal, focus_outline]
       # Used for both fill and stroke colors.
       shape_color: "slate"
       stroke_style: "solid"
@@ -150,6 +156,7 @@ theme_default:
       visibility: "visible"
       gap: "24.0"
     edge_defaults:
+      style_aliases_applied: [focus_outline]
       text_color: "neutral"
 
   process_step_selected_styles:

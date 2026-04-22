@@ -472,6 +472,20 @@ fn base_style_aliases() -> StyleAliases<'static> {
                 ],
             ),
         ),
+        // focus_outline
+        (
+            StyleAlias::FocusOutline,
+            css_class_partials(
+                vec![],
+                vec![
+                    (ThemeAttr::OutlineStyle, "dashed"),
+                    (ThemeAttr::OutlineStyleNormal, "none"),
+                    (ThemeAttr::OutlineWidth, "2"),
+                    (ThemeAttr::OutlineColor, "blue"),
+                    (ThemeAttr::OutlineShade, "500"),
+                ],
+            ),
+        ),
     ]
     .into_iter()
     .collect()
@@ -483,7 +497,11 @@ fn base_theme_styles() -> ThemeStyles<'static> {
         (
             IdOrDefaults::NodeDefaults,
             css_class_partials(
-                vec![StyleAlias::ShadeLight, StyleAlias::PaddingNormal],
+                vec![
+                    StyleAlias::ShadeLight,
+                    StyleAlias::PaddingNormal,
+                    StyleAlias::FocusOutline,
+                ],
                 vec![
                     (ThemeAttr::ShapeColor, "slate"),
                     (ThemeAttr::StrokeStyle, "solid"),
@@ -497,7 +515,10 @@ fn base_theme_styles() -> ThemeStyles<'static> {
         // edge_defaults
         (
             IdOrDefaults::EdgeDefaults,
-            css_class_partials(vec![], vec![(ThemeAttr::TextColor, "neutral")]),
+            css_class_partials(
+                vec![StyleAlias::FocusOutline],
+                vec![(ThemeAttr::TextColor, "neutral")],
+            ),
         ),
     ]
     .into_iter()

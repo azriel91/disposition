@@ -220,7 +220,7 @@ impl SvgEdgeInfosBuilder {
                     .map(|edge_entity_types| {
                         edge_entity_types
                             .iter()
-                            .any(EntityType::is_interaction_edge_type)
+                            .any(EntityType::is_interaction_edge)
                     })
                     .unwrap_or(false);
 

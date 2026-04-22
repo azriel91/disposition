@@ -389,7 +389,7 @@ impl SvgElementsToSvgMapper {
                 <path \
                     d=\"{locus_path_d}\" \
                     fill=\"none\" \
-                    class=\"[stroke-dasharray:3] stroke-2 stroke-blue-500 invisible group-has-[#{edge_id}:focus-within]:visible\" \
+                    class=\"edge_locus\" \
                 />\
                 <g \
                     {arrow_head_class_attr} \

@@ -259,16 +259,23 @@ impl TailwindClassesBuilder {
 
     /// Build tailwind classes for a tag node.
     fn build_tag_tailwind_classes<'id>(
-        id: &Id<'id>,
+        tag_id: &Id<'id>,
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
     ) -> String {
-        let mut state = TailwindClassState::default();
+        let entity_type = entity_types
+            .get(tag_id)
+            .and_then(|types| types.iter().next())
+            .cloned();
+        let mut state = TailwindClassState {
+            entity_type,
+            ..Default::default()
+        };
 
         Self::resolve_tailwind_attrs(
-            id,
+            tag_id,
             entity_types,
             theme_default,
             theme_types_styles,
@@ -284,23 +291,30 @@ impl TailwindClassesBuilder {
         );
 
         // Tags get peer/{id} class
-        writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);
+        writeln!(&mut classes, "peer/{tag_id}").expect(CLASSES_BUFFER_WRITE_FAIL);
 
         classes
     }
 
     /// Build tailwind classes for a process node.
     fn build_process_tailwind_classes<'id>(
-        id: &Id<'id>,
+        process_id: &Id<'id>,
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
     ) -> String {
-        let mut state = TailwindClassState::default();
+        let entity_type = entity_types
+            .get(process_id)
+            .and_then(|types| types.iter().next())
+            .cloned();
+        let mut state = TailwindClassState {
+            entity_type,
+            ..Default::default()
+        };
 
         Self::resolve_tailwind_attrs(
-            id,
+            process_id,
             entity_types,
             theme_default,
             theme_types_styles,
@@ -316,24 +330,31 @@ impl TailwindClassesBuilder {
         );
 
         // Processes get `peer/{id}` class
-        writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);
+        writeln!(&mut classes, "peer/{process_id}").expect(CLASSES_BUFFER_WRITE_FAIL);
 
         classes
     }
 
     /// Build tailwind classes for a process step node.
     fn build_process_step_tailwind_classes<'id>(
-        id: &Id<'id>,
+        process_step_id: &Id<'id>,
         parent_process_id_and_diagram: Option<(&ProcessId<'id>, &ProcessDiagram<'id>)>,
         entity_types: &EntityTypes<'id>,
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
     ) -> String {
-        let mut state = TailwindClassState::default();
+        let entity_type = entity_types
+            .get(process_step_id)
+            .and_then(|types| types.iter().next())
+            .cloned();
+        let mut state = TailwindClassState {
+            entity_type,
+            ..Default::default()
+        };
 
         Self::resolve_tailwind_attrs(
-            id,
+            process_step_id,
             entity_types,
             theme_default,
             theme_types_styles,
@@ -379,7 +400,7 @@ impl TailwindClassesBuilder {
             });
         }
 
-        writeln!(&mut classes, "peer/{id}").expect(CLASSES_BUFFER_WRITE_FAIL);
+        writeln!(&mut classes, "peer/{process_step_id}").expect(CLASSES_BUFFER_WRITE_FAIL);
 
         classes
     }
@@ -397,7 +418,14 @@ impl TailwindClassesBuilder {
         thing_to_interaction_steps: &Map<&'f NodeId<'id>, Set<&'f ProcessStepId<'id>>>,
         css_theme_vars: &mut CssThemeVars,
     ) -> String {
-        let mut state = TailwindClassState::default();
+        let entity_type = entity_types
+            .get(node_id.as_ref())
+            .and_then(|types| types.iter().next())
+            .cloned();
+        let mut state = TailwindClassState {
+            entity_type,
+            ..Default::default()
+        };
 
         Self::resolve_tailwind_attrs(
             node_id.as_ref(),
@@ -601,7 +629,14 @@ impl TailwindClassesBuilder {
         interaction_process_step_ids: &[&ProcessStepId<'id>],
         css_theme_vars: &mut CssThemeVars,
     ) -> String {
-        let mut state = TailwindClassState::default();
+        let entity_type = entity_types
+            .get(edge_group_id.as_ref())
+            .and_then(|types| types.iter().next())
+            .cloned();
+        let mut state = TailwindClassState {
+            entity_type,
+            ..Default::default()
+        };
 
         Self::resolve_tailwind_attrs(
             edge_group_id,
@@ -666,7 +701,14 @@ impl TailwindClassesBuilder {
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
     ) -> String {
-        let mut state = TailwindClassState::default();
+        let entity_type = entity_types
+            .get(edge_id)
+            .and_then(|types| types.iter().next())
+            .cloned();
+        let mut state = TailwindClassState {
+            entity_type,
+            ..Default::default()
+        };
 
         Self::resolve_tailwind_attrs(
             edge_id,
