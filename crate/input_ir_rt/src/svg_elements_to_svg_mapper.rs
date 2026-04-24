@@ -368,7 +368,8 @@ impl SvgElementsToSvgMapper {
             write!(
                 content_buffer,
                 "<g \
-                    id=\"{edge_id}\"\
+                    id=\"{edge_id}\" \
+                    tabindex=\"-1\" \
                     {class_attr}\
                 >"
             )
