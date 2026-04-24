@@ -28,7 +28,7 @@ impl EdgePathLocusCalculator {
     /// * `edge_path` -- the `BezPath` for the edge body.
     /// * `arrow_head_path` -- the `BezPath` for the edge's arrow head.
     pub(super) fn calculate(edge_path: &BezPath, arrow_head_path: &BezPath) -> BezPath {
-        let combined = edge_path.into_iter().chain(arrow_head_path.into_iter());
+        let combined = edge_path.into_iter().chain(arrow_head_path);
 
         let style = Stroke::new(LOCUS_STROKE_WIDTH)
             .with_join(Join::Round)

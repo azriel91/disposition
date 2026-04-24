@@ -48,6 +48,7 @@ pub struct SvgEdgeInfo<'id> {
 
 impl<'id> SvgEdgeInfo<'id> {
     /// Creates a new `SvgEdgeInfo`.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         edge_id: EdgeId<'id>,
         edge_group_id: EdgeGroupId<'id>,
