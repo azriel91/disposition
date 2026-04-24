@@ -308,6 +308,44 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             .map(|c| c.as_ref())
     }
 
+    /// Get the resolved stroke style for a state.
+    ///
+    /// Looks up the state-specific attribute first (e.g.
+    /// [`ThemeAttr::StrokeStyleHover`]) and falls back to the base
+    /// [`ThemeAttr::StrokeStyle`] if the state-specific one is absent.
+    fn get_stroke_style(&self, state: HighlightState) -> Option<&str> {
+        let (state_specific, base) = match state {
+            HighlightState::Normal => (ThemeAttr::StrokeStyleNormal, ThemeAttr::StrokeStyle),
+            HighlightState::Focus => (ThemeAttr::StrokeStyleFocus, ThemeAttr::StrokeStyle),
+            HighlightState::Hover => (ThemeAttr::StrokeStyleHover, ThemeAttr::StrokeStyle),
+            HighlightState::Active => (ThemeAttr::StrokeStyleActive, ThemeAttr::StrokeStyle),
+        };
+
+        self.attrs
+            .get(&state_specific)
+            .or_else(|| self.attrs.get(&base))
+            .map(|c| c.as_ref())
+    }
+
+    /// Get the resolved outline style for a state.
+    ///
+    /// Looks up the state-specific attribute first (e.g.
+    /// [`ThemeAttr::OutlineStyleHover`]) and falls back to the base
+    /// [`ThemeAttr::OutlineStyle`] if the state-specific one is absent.
+    fn get_outline_style(&self, state: HighlightState) -> Option<&str> {
+        let (state_specific, base) = match state {
+            HighlightState::Normal => (ThemeAttr::OutlineStyleNormal, ThemeAttr::OutlineStyle),
+            HighlightState::Focus => (ThemeAttr::OutlineStyleFocus, ThemeAttr::OutlineStyle),
+            HighlightState::Hover => (ThemeAttr::OutlineStyleHover, ThemeAttr::OutlineStyle),
+            HighlightState::Active => (ThemeAttr::OutlineStyleActive, ThemeAttr::OutlineStyle),
+        };
+
+        self.attrs
+            .get(&state_specific)
+            .or_else(|| self.attrs.get(&base))
+            .map(|c| c.as_ref())
+    }
+
     // === Class Writers === //
 
     /// Write tailwind classes to the given string.
@@ -352,12 +390,22 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             writeln!(classes, "{peer_prefix_maybe}{visibility}").expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
-        // Stroke dasharray from stroke_style
-        if let Some(style) = self.attrs.get(&ThemeAttr::StrokeStyle)
-            && let Some(dasharray) = Self::stroke_style_to_dasharray(style)
-        {
-            writeln!(classes, "{peer_prefix_maybe}[stroke-dasharray:{dasharray}]")
+        // Stroke dasharray from stroke_style (per-state, with base fallback)
+        for (state_modifier, stroke_style) in [
+            ("", self.get_stroke_style(HighlightState::Normal)),
+            ("hover:", self.get_stroke_style(HighlightState::Hover)),
+            ("focus:", self.get_stroke_style(HighlightState::Focus)),
+            ("active:", self.get_stroke_style(HighlightState::Active)),
+        ] {
+            if let Some(style) = stroke_style
+                && let Some(dasharray) = Self::stroke_style_to_dasharray(style)
+            {
+                writeln!(
+                    classes,
+                    "{peer_prefix_maybe}{state_modifier}[stroke-dasharray:{dasharray}]"
+                )
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
+            }
         }
 
         // Stroke width
@@ -534,44 +582,28 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         // `<path>` outline does not support CSS `outline-style`; instead,
         // `stroke_style_to_dasharray` converts the style to a `stroke-dasharray`
         // value applied to the `.locus` path element.
-        let outline_style_base = self.attrs.get(&ThemeAttr::OutlineStyle);
         let write_outline_style = if is_edge {
             Self::write_outline_style_edge
         } else {
             Self::write_outline_style_node
         };
-        if let Some(style) = self
-            .attrs
-            .get(&ThemeAttr::OutlineStyleNormal)
-            .or(outline_style_base)
-            .map(Cow::as_ref)
-        {
-            write_outline_style(classes, outline_full_prefix.as_ref(), "", style);
-        }
-        if let Some(style) = self
-            .attrs
-            .get(&ThemeAttr::OutlineStyleHover)
-            .or(outline_style_base)
-            .map(Cow::as_ref)
-        {
-            write_outline_style(classes, outline_full_prefix.as_ref(), "hover:", style);
-        }
-        if let Some(style) = self
-            .attrs
-            .get(&ThemeAttr::OutlineStyleFocus)
-            .or(outline_style_base)
-            .map(Cow::as_ref)
-        {
-            write_outline_style(classes, outline_full_prefix.as_ref(), "focus:", style);
-        }
-        if let Some(style) = self
-            .attrs
-            .get(&ThemeAttr::OutlineStyleActive)
-            .or(outline_style_base)
-            .map(Cow::as_ref)
-        {
-            write_outline_style(classes, outline_full_prefix.as_ref(), "active:", style);
-        }
+        [
+            ("", self.get_outline_style(HighlightState::Normal)),
+            ("hover:", self.get_outline_style(HighlightState::Hover)),
+            ("focus:", self.get_outline_style(HighlightState::Focus)),
+            ("active:", self.get_outline_style(HighlightState::Active)),
+        ]
+        .into_iter()
+        .for_each(|(state_modifier, outline_style)| {
+            if let Some(outline_style) = outline_style {
+                write_outline_style(
+                    classes,
+                    outline_full_prefix.as_ref(),
+                    state_modifier,
+                    outline_style,
+                );
+            }
+        });
 
         // Outline width
         if let Some(width) = self.attrs.get(&ThemeAttr::OutlineWidth) {
@@ -665,9 +697,9 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         classes: &mut String,
         outline_full_prefix: &str,
         state_modifier: &str,
-        style: &str,
+        outline_style: &str,
     ) {
-        if let Some(dasharray) = Self::stroke_style_to_dasharray(style) {
+        if let Some(dasharray) = Self::stroke_style_to_dasharray(outline_style) {
             writeln!(
                 classes,
                 "{state_modifier}{outline_full_prefix}[stroke-dasharray:{dasharray}]"
@@ -682,11 +714,11 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         classes: &mut String,
         outline_full_prefix: &str,
         state_modifier: &str,
-        style: &str,
+        outline_style: &str,
     ) {
         writeln!(
             classes,
-            "{state_modifier}{outline_full_prefix}outline-{style}"
+            "{state_modifier}{outline_full_prefix}outline-{outline_style}"
         )
         .expect(CLASSES_BUFFER_WRITE_FAIL);
     }
