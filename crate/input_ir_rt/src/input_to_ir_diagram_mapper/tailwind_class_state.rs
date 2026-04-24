@@ -26,6 +26,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     /// Convert stroke style to stroke-dasharray value.
     fn stroke_style_to_dasharray(style: &str) -> Option<&str> {
         match style {
+            // `stroke-dasharray: none` in CSS produces a solid line.
             "solid" => Some("none"),
             "dashed" => Some("3"),
             "dotted" => Some("2"),
