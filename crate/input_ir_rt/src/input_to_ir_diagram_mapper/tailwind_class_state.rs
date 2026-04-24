@@ -390,12 +390,17 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             writeln!(classes, "{peer_prefix_maybe}{visibility}").expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
+        let stroke_style_normal = self.get_stroke_style(HighlightState::Normal);
+        let stroke_style_hover = self.get_stroke_style(HighlightState::Hover);
+        let stroke_style_focus = self.get_stroke_style(HighlightState::Focus);
+        let stroke_style_active = self.get_stroke_style(HighlightState::Active);
+
         // Stroke dasharray from stroke_style (per-state, with base fallback)
         for (state_modifier, stroke_style) in [
-            ("", self.get_stroke_style(HighlightState::Normal)),
-            ("hover:", self.get_stroke_style(HighlightState::Hover)),
-            ("focus:", self.get_stroke_style(HighlightState::Focus)),
-            ("active:", self.get_stroke_style(HighlightState::Active)),
+            ("", stroke_style_normal),
+            ("hover:", stroke_style_hover),
+            ("focus:", stroke_style_focus),
+            ("active:", stroke_style_active),
         ] {
             if let Some(style) = stroke_style
                 && let Some(dasharray) = Self::stroke_style_to_dasharray(style)
@@ -504,63 +509,54 @@ impl<'tw_state> TailwindClassState<'tw_state> {
 
         // === Stroke classes === //
         // Stroke also uses shade shifting for dark mode.
+        //
+        // Skip color/shade classes for states where stroke_style is "none": in
+        // SVG specifying a stroke color will draw the stroke regardless of
+        // style, unlike HTML where `border-style: none` prevents drawing.
 
-        Self::write_shifted_shade_class(
-            classes,
-            css_theme_vars,
-            peer_prefix_maybe,
-            "hover:",
-            "stroke",
-            dark_mode_shade_config,
-            stroke_color_hover,
-            stroke_shade_hover,
-            stroke_shade_normal,
-            stroke_shade_hover,
-            stroke_shade_focus,
-            stroke_shade_active,
-        );
-        Self::write_shifted_shade_class(
-            classes,
-            css_theme_vars,
-            peer_prefix_maybe,
-            "",
-            "stroke",
-            dark_mode_shade_config,
-            stroke_color_normal,
-            stroke_shade_normal,
-            stroke_shade_normal,
-            stroke_shade_hover,
-            stroke_shade_focus,
-            stroke_shade_active,
-        );
-        Self::write_shifted_shade_class(
-            classes,
-            css_theme_vars,
-            peer_prefix_maybe,
-            "focus:",
-            "stroke",
-            dark_mode_shade_config,
-            stroke_color_focus,
-            stroke_shade_focus,
-            stroke_shade_normal,
-            stroke_shade_hover,
-            stroke_shade_focus,
-            stroke_shade_active,
-        );
-        Self::write_shifted_shade_class(
-            classes,
-            css_theme_vars,
-            peer_prefix_maybe,
-            "active:",
-            "stroke",
-            dark_mode_shade_config,
-            stroke_color_active,
-            stroke_shade_active,
-            stroke_shade_normal,
-            stroke_shade_hover,
-            stroke_shade_focus,
-            stroke_shade_active,
-        );
+        for (state_modifier, color, shade, stroke_style) in [
+            (
+                "hover:",
+                stroke_color_hover,
+                stroke_shade_hover,
+                stroke_style_hover,
+            ),
+            (
+                "",
+                stroke_color_normal,
+                stroke_shade_normal,
+                stroke_style_normal,
+            ),
+            (
+                "focus:",
+                stroke_color_focus,
+                stroke_shade_focus,
+                stroke_style_focus,
+            ),
+            (
+                "active:",
+                stroke_color_active,
+                stroke_shade_active,
+                stroke_style_active,
+            ),
+        ] {
+            if stroke_style != Some("none") {
+                Self::write_shifted_shade_class(
+                    classes,
+                    css_theme_vars,
+                    peer_prefix_maybe,
+                    state_modifier,
+                    "stroke",
+                    dark_mode_shade_config,
+                    color,
+                    shade,
+                    stroke_shade_normal,
+                    stroke_shade_hover,
+                    stroke_shade_focus,
+                    stroke_shade_active,
+                );
+            }
+        }
 
         // === Outline classes === //
         //
@@ -575,6 +571,11 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             Cow::Borrowed(peer_prefix_maybe)
         };
 
+        let outline_style_normal = self.get_outline_style(HighlightState::Normal);
+        let outline_style_hover = self.get_outline_style(HighlightState::Hover);
+        let outline_style_focus = self.get_outline_style(HighlightState::Focus);
+        let outline_style_active = self.get_outline_style(HighlightState::Active);
+
         // Outline style (base applies to all states; per-state variants override)
         //
         // For non-edge entities, the standard `outline-{style}` tailwind class is
@@ -587,23 +588,16 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         } else {
             Self::write_outline_style_node
         };
-        [
-            ("", self.get_outline_style(HighlightState::Normal)),
-            ("hover:", self.get_outline_style(HighlightState::Hover)),
-            ("focus:", self.get_outline_style(HighlightState::Focus)),
-            ("active:", self.get_outline_style(HighlightState::Active)),
-        ]
-        .into_iter()
-        .for_each(|(state_modifier, outline_style)| {
-            if let Some(outline_style) = outline_style {
-                write_outline_style(
-                    classes,
-                    outline_full_prefix.as_ref(),
-                    state_modifier,
-                    outline_style,
-                );
+        for (state_modifier, outline_style) in [
+            ("", outline_style_normal),
+            ("hover:", outline_style_hover),
+            ("focus:", outline_style_focus),
+            ("active:", outline_style_active),
+        ] {
+            if let Some(style) = outline_style {
+                write_outline_style(classes, outline_full_prefix.as_ref(), state_modifier, style);
             }
-        });
+        }
 
         // Outline width
         if let Some(width) = self.attrs.get(&ThemeAttr::OutlineWidth) {
@@ -632,12 +626,38 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         let outline_color_active = self.get_outline_color(HighlightState::Active);
         let outline_shade_active = self.get_outline_shade(HighlightState::Active);
 
-        for (state_modifier, color, shade) in [
-            ("hover:", outline_color_hover, outline_shade_hover),
-            ("", outline_color_normal, outline_shade_normal),
-            ("focus:", outline_color_focus, outline_shade_focus),
-            ("active:", outline_color_active, outline_shade_active),
+        // Skip color/shade classes for states where outline_style is "none": in
+        // SVG specifying a stroke color will draw the stroke regardless of
+        // style, unlike HTML where `border-style: none` prevents drawing.
+        for (state_modifier, color, shade, outline_style) in [
+            (
+                "hover:",
+                outline_color_hover,
+                outline_shade_hover,
+                outline_style_hover,
+            ),
+            (
+                "",
+                outline_color_normal,
+                outline_shade_normal,
+                outline_style_normal,
+            ),
+            (
+                "focus:",
+                outline_color_focus,
+                outline_shade_focus,
+                outline_style_focus,
+            ),
+            (
+                "active:",
+                outline_color_active,
+                outline_shade_active,
+                outline_style_active,
+            ),
         ] {
+            if outline_style == Some("none") {
+                continue;
+            }
             if shade.is_some() {
                 Self::write_shifted_shade_class(
                     classes,
