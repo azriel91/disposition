@@ -250,17 +250,25 @@ impl SvgEdgeInfosBuilder {
                 let path_d = path.to_svg();
 
                 // Compute arrowhead path.
-                let arrow_head_path = if is_interaction_edge {
+                let (arrow_head_path, locus_path) = if is_interaction_edge {
                     // Origin-centred V-shape; CSS offset-path handles
                     // positioning and rotation.
-                    ArrowHeadBuilder::build_origin_arrow_head()
+                    let arrow_head_path = ArrowHeadBuilder::build_origin_arrow_head();
+                    // Positioned V-shape at the `to` node end of the edge.
+                    let arrow_head_path_at_to_node =
+                        ArrowHeadBuilder::build_static_arrow_head(&path);
+                    let locus_path =
+                        EdgePathLocusCalculator::calculate(&path, &arrow_head_path_at_to_node);
+
+                    (arrow_head_path, locus_path)
                 } else {
                     // Positioned V-shape at the `to` node end of the edge.
-                    ArrowHeadBuilder::build_static_arrow_head(&path)
+                    let arrow_head_path = ArrowHeadBuilder::build_static_arrow_head(&path);
+                    let locus_path = EdgePathLocusCalculator::calculate(&path, &arrow_head_path);
+
+                    (arrow_head_path, locus_path)
                 };
                 let arrow_head_path_d = arrow_head_path.to_svg();
-
-                let locus_path = EdgePathLocusCalculator::calculate(&path, &arrow_head_path);
                 let locus_path_d = locus_path.to_svg();
 
                 let tooltip = ir_diagram
