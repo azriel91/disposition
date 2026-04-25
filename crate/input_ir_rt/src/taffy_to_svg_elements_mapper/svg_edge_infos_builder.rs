@@ -1027,12 +1027,39 @@ impl SvgEdgeInfosBuilder {
         // (encre-css transforms these to spaces in the actual CSS value).
         StringCharReplacer::replace_inplace(&mut forward_path_svg, ' ', '_');
 
-        let arrow_head_animation_name = &edge_anim.arrow_head_animation_name;
+        Self::css_animation_append_arrowhead_classes(
+            tailwind_classes,
+            edge_path_info,
+            edge_animation_active,
+            associated_process_steps,
+            &edge_anim.arrow_head_animation_name,
+            animation_duration,
+            forward_path_svg,
+        );
 
+        // Append CSS keyframes for both edge stroke and arrowhead.
+        if !css.is_empty() {
+            css.push('\n');
+        }
+        css.push_str(&edge_anim.keyframe_css);
+        css.push_str(&edge_anim.arrow_head_keyframe_css);
+    }
+
+    /// Appends CSS classes for the arrowhead animation to the diagram's
+    /// tailwind classes.
+    fn css_animation_append_arrowhead_classes<'id>(
+        tailwind_classes: &mut EntityTailwindClasses<'id>,
+        edge_path_info: &EdgePathInfo<'_, 'id>,
+        edge_animation_active: EdgeAnimationActive,
+        associated_process_steps: &[&NodeId<'id>],
+        arrow_head_animation_name: &str,
+        animation_duration: String,
+        forward_path_svg: String,
+    ) {
         let arrow_head_classes = {
             let mut classes = format!(
                 "[offset-path:path('{forward_path_svg}')]\n\
-                 [stroke-dasharray:none]"
+                [stroke-dasharray:none]"
             );
             match edge_animation_active {
                 EdgeAnimationActive::Always => classes.push_str(&format!(
@@ -1044,7 +1071,7 @@ impl SvgEdgeInfosBuilder {
                         .for_each(|process_step_id| {
                             classes.push_str(&format!(
                                 "\ngroup-has-[#{process_step_id}:focus-within]:\
-                                animate-[{arrow_head_animation_name}_{animation_duration}s_linear_infinite]"
+                                    animate-[{arrow_head_animation_name}_{animation_duration}s_linear_infinite]"
                             ));
                         });
                 }
@@ -1052,18 +1079,12 @@ impl SvgEdgeInfosBuilder {
             classes
         };
 
-        let arrow_head_entity_id_str = format!("{}_arrow_head", edge_path_info.edge_id.as_str());
-        let arrow_head_entity_id: Id<'id> = Id::try_from(arrow_head_entity_id_str)
+        let edge_id = &edge_path_info.edge_id;
+        let arrow_head_entity_id_str = format!("{edge_id}__arrow_head");
+        let arrow_head_entity_id: Id<'static> = Id::try_from(arrow_head_entity_id_str)
             .expect("arrow head entity ID should be valid")
             .into_static();
         tailwind_classes.insert(arrow_head_entity_id, arrow_head_classes);
-
-        // Append CSS keyframes for both edge stroke and arrowhead.
-        if !css.is_empty() {
-            css.push('\n');
-        }
-        css.push_str(&edge_anim.keyframe_css);
-        css.push_str(&edge_anim.arrow_head_keyframe_css);
     }
 
     /// Generates an edge ID from the edge group ID and edge index.
