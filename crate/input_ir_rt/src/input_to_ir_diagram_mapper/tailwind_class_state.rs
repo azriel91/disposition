@@ -454,6 +454,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             classes,
             css_theme_vars,
             peer_prefix_maybe,
+            None,
             "hover:",
             "fill",
             dark_mode_shade_config,
@@ -468,6 +469,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             classes,
             css_theme_vars,
             peer_prefix_maybe,
+            None,
             "",
             "fill",
             dark_mode_shade_config,
@@ -482,6 +484,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             classes,
             css_theme_vars,
             peer_prefix_maybe,
+            None,
             "focus:",
             "fill",
             dark_mode_shade_config,
@@ -496,6 +499,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             classes,
             css_theme_vars,
             peer_prefix_maybe,
+            None,
             "active:",
             "fill",
             dark_mode_shade_config,
@@ -545,6 +549,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                     classes,
                     css_theme_vars,
                     peer_prefix_maybe,
+                    None,
                     state_modifier,
                     "stroke",
                     dark_mode_shade_config,
@@ -565,11 +570,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         // entities the classes are applied directly.
 
         let is_edge = self.entity_type.as_ref().is_some_and(EntityType::is_edge);
-        let outline_full_prefix = if is_edge {
-            Cow::Owned(format!("{peer_prefix_maybe}[&>.locus]:"))
-        } else {
-            Cow::Borrowed(peer_prefix_maybe)
-        };
+        let locus_selector_prefix = if is_edge { Some("[&>.locus]:") } else { None };
+        let locus_selector_prefix_str = locus_selector_prefix.unwrap_or("");
 
         let outline_style_normal = self.get_outline_style(HighlightState::Normal);
         let outline_style_hover = self.get_outline_style(HighlightState::Hover);
@@ -595,14 +597,23 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             ("active:", outline_style_active),
         ] {
             if let Some(style) = outline_style {
-                write_outline_style(classes, outline_full_prefix.as_ref(), state_modifier, style);
+                write_outline_style(
+                    classes,
+                    peer_prefix_maybe,
+                    locus_selector_prefix,
+                    state_modifier,
+                    style,
+                );
             }
         }
 
         // Outline width
         if let Some(width) = self.attrs.get(&ThemeAttr::OutlineWidth) {
-            writeln!(classes, "{outline_full_prefix}outline-{width}")
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            writeln!(
+                classes,
+                "{peer_prefix_maybe}{locus_selector_prefix_str}outline-{width}"
+            )
+            .expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
         // Outline color and shade (similar to stroke, using "outline" as the property)
@@ -663,7 +674,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                 if is_edge {
                     writeln!(
                         classes,
-                        "{state_modifier}{outline_full_prefix}[stroke:none]"
+                        "{peer_prefix_maybe}{state_modifier}{locus_selector_prefix_str}[stroke:none]"
                     )
                     .expect(CLASSES_BUFFER_WRITE_FAIL);
                 }
@@ -673,7 +684,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                 Self::write_shifted_shade_class(
                     classes,
                     css_theme_vars,
-                    outline_full_prefix.as_ref(),
+                    peer_prefix_maybe,
+                    locus_selector_prefix,
                     state_modifier,
                     outline_color_property,
                     dark_mode_shade_config,
@@ -687,7 +699,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             } else if let Some(color) = color {
                 writeln!(
                     classes,
-                    "{state_modifier}{outline_full_prefix}[{outline_color_css_prop}:{color}]"
+                    "{peer_prefix_maybe}{state_modifier}{locus_selector_prefix_str}[{outline_color_css_prop}:{color}]"
                 )
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
             }
@@ -726,14 +738,16 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     /// `stroke-dasharray` to simulate an outline.
     fn write_outline_style_edge(
         classes: &mut String,
-        outline_full_prefix: &str,
+        peer_prefix: &str,
+        subelement_selector_prefix: Option<&str>,
         state_modifier: &str,
         outline_style: &str,
     ) {
+        let subelement_selector_prefix = subelement_selector_prefix.unwrap_or("");
         if let Some(dasharray) = Self::stroke_style_to_dasharray(outline_style) {
             writeln!(
                 classes,
-                "{state_modifier}{outline_full_prefix}[stroke-dasharray:{dasharray}]"
+                "{peer_prefix}{state_modifier}{subelement_selector_prefix}[stroke-dasharray:{dasharray}]"
             )
             .expect(CLASSES_BUFFER_WRITE_FAIL);
         }
@@ -743,13 +757,15 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     /// tailwind classes.
     fn write_outline_style_node(
         classes: &mut String,
-        outline_full_prefix: &str,
+        peer_prefix: &str,
+        subelement_selector_prefix: Option<&str>,
         state_modifier: &str,
         outline_style: &str,
     ) {
+        let subelement_selector_prefix = subelement_selector_prefix.unwrap_or("");
         writeln!(
             classes,
-            "{state_modifier}{outline_full_prefix}outline-{outline_style}"
+            "{peer_prefix}{state_modifier}{subelement_selector_prefix}outline-{outline_style}"
         )
         .expect(CLASSES_BUFFER_WRITE_FAIL);
     }
@@ -801,7 +817,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     fn write_shifted_shade_class(
         classes: &mut String,
         css_theme_vars: &mut CssThemeVars,
-        prefix: &str,
+        peer_prefix: &str,
+        subelement_selector_prefix: Option<&str>,
         state_modifier: &str,
         property: &str,
         dark_mode_shade_config: DarkModeShadeConfig,
@@ -812,13 +829,14 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         shade_focus: Option<&str>,
         shade_active: Option<&str>,
     ) {
+        let subelement_selector_prefix = subelement_selector_prefix.unwrap_or("");
         if let Some((color, shade)) = color.zip(shade) {
             match dark_mode_shade_config {
                 DarkModeShadeConfig::Disable => {
                     // No dark mode -- emit plain tailwind class.
                     writeln!(
                         classes,
-                        "{state_modifier}{prefix}{property}-{color}-{shade}"
+                        "{peer_prefix}{state_modifier}{subelement_selector_prefix}{property}-{color}-{shade}"
                     )
                     .expect(CLASSES_BUFFER_WRITE_FAIL);
                 }
@@ -827,13 +845,13 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                     if let Some(var_name) = css_theme_vars.register(color, shade, dark_shade) {
                         writeln!(
                             classes,
-                            "{state_modifier}{prefix}{property}-[var({var_name})]"
+                            "{peer_prefix}{state_modifier}{subelement_selector_prefix}{property}-[var({var_name})]"
                         )
                         .expect(CLASSES_BUFFER_WRITE_FAIL);
                     } else {
                         writeln!(
                             classes,
-                            "{state_modifier}{prefix}{property}-{color}-{shade}"
+                            "{peer_prefix}{state_modifier}{subelement_selector_prefix}{property}-{color}-{shade}"
                         )
                         .expect(CLASSES_BUFFER_WRITE_FAIL);
                     }
@@ -850,13 +868,13 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                     if let Some(var_name) = css_theme_vars.register(color, shade, dark_shade) {
                         writeln!(
                             classes,
-                            "{state_modifier}{prefix}{property}-[var({var_name})]"
+                            "{peer_prefix}{state_modifier}{subelement_selector_prefix}{property}-[var({var_name})]"
                         )
                         .expect(CLASSES_BUFFER_WRITE_FAIL);
                     } else {
                         writeln!(
                             classes,
-                            "{state_modifier}{prefix}{property}-{color}-{shade}"
+                            "{peer_prefix}{state_modifier}{subelement_selector_prefix}{property}-{color}-{shade}"
                         )
                         .expect(CLASSES_BUFFER_WRITE_FAIL);
                     }
