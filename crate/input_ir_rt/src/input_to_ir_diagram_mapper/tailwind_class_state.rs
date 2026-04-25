@@ -1,4 +1,7 @@
-use std::{borrow::Cow, fmt::Write};
+use std::{
+    borrow::Cow,
+    fmt::{self, Write},
+};
 
 use disposition_input_model::theme::{DarkModeShadeConfig, ThemeAttr};
 use disposition_model_common::{entity::EntityType, Map};
@@ -456,7 +459,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             peer_prefix_maybe,
             None,
             "hover:",
-            "fill",
+            ColorTarget::Fill,
             dark_mode_shade_config,
             fill_color_hover,
             fill_shade_hover,
@@ -471,7 +474,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             peer_prefix_maybe,
             None,
             "",
-            "fill",
+            ColorTarget::Fill,
             dark_mode_shade_config,
             fill_color_normal,
             fill_shade_normal,
@@ -486,7 +489,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             peer_prefix_maybe,
             None,
             "focus:",
-            "fill",
+            ColorTarget::Fill,
             dark_mode_shade_config,
             fill_color_focus,
             fill_shade_focus,
@@ -501,7 +504,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             peer_prefix_maybe,
             None,
             "active:",
-            "fill",
+            ColorTarget::Fill,
             dark_mode_shade_config,
             fill_color_active,
             fill_shade_active,
@@ -551,7 +554,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                     peer_prefix_maybe,
                     None,
                     state_modifier,
-                    "stroke",
+                    ColorTarget::Stroke,
                     dark_mode_shade_config,
                     color,
                     shade,
@@ -625,7 +628,11 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         // For edge entities, the `.edge_locus` `<path>` element is styled via SVG
         // `stroke` rather than CSS `outline`, so `"stroke"` is used as the property
         // and `[stroke:{color}]` as the color-only fallback.
-        let outline_color_property = if is_edge { "stroke" } else { "outline" };
+        let outline_color_property = if is_edge {
+            ColorTarget::Stroke
+        } else {
+            ColorTarget::Outline
+        };
         let outline_color_css_prop = if is_edge { "stroke" } else { "outline-color" };
 
         let outline_color_hover = self.get_outline_color(HighlightState::Hover);
@@ -801,7 +808,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     ///   `"peer-[:focus-within]/tag:"` or `""`.
     /// * `state_modifier`: The highlight state modifier, e.g. `"hover:"`,
     ///   `"focus:"`, `"active:"`, or `""` for normal.
-    /// * `property`: `"fill"` or `"stroke"`.
+    /// * `color_target`: The color target, e.g. `"fill"`, `"stroke"`,
+    ///   `"outline"`.
     /// * `color`: The resolved colour name, e.g. `"yellow"`, `"slate"`.
     /// * `shade`: The resolved shade value for this state, e.g. `"100"`.
     /// * `dark_mode_shade_config`: Controls how dark-mode shades are computed.
@@ -820,7 +828,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         peer_prefix: &str,
         subelement_selector_prefix: Option<&str>,
         state_modifier: &str,
-        property: &str,
+        color_target: ColorTarget,
         dark_mode_shade_config: DarkModeShadeConfig,
         color: Option<&str>,
         shade: Option<&str>,
@@ -831,29 +839,28 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     ) {
         let subelement_selector_prefix = subelement_selector_prefix.unwrap_or("");
         if let Some((color, shade)) = color.zip(shade) {
+            write!(
+                classes,
+                "{peer_prefix}{state_modifier}{subelement_selector_prefix}"
+            )
+            .expect(CLASSES_BUFFER_WRITE_FAIL);
             match dark_mode_shade_config {
                 DarkModeShadeConfig::Disable => {
                     // No dark mode -- emit plain tailwind class.
-                    writeln!(
-                        classes,
-                        "{peer_prefix}{state_modifier}{subelement_selector_prefix}{property}-{color}-{shade}"
-                    )
-                    .expect(CLASSES_BUFFER_WRITE_FAIL);
+                    color_target
+                        .write_color_shade(classes, color, shade)
+                        .expect(CLASSES_BUFFER_WRITE_FAIL);
                 }
                 DarkModeShadeConfig::Invert => {
                     let dark_shade = Self::shade_inverted(shade);
                     if let Some(var_name) = css_theme_vars.register(color, shade, dark_shade) {
-                        writeln!(
-                            classes,
-                            "{peer_prefix}{state_modifier}{subelement_selector_prefix}{property}-[var({var_name})]"
-                        )
-                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                        color_target
+                            .write_css_var(classes, &var_name)
+                            .expect(CLASSES_BUFFER_WRITE_FAIL);
                     } else {
-                        writeln!(
-                            classes,
-                            "{peer_prefix}{state_modifier}{subelement_selector_prefix}{property}-{color}-{shade}"
-                        )
-                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                        color_target
+                            .write_color_shade(classes, color, shade)
+                            .expect(CLASSES_BUFFER_WRITE_FAIL);
                     }
                 }
                 DarkModeShadeConfig::Shift { levels } => {
@@ -866,29 +873,68 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                         shade_active,
                     );
                     if let Some(var_name) = css_theme_vars.register(color, shade, dark_shade) {
-                        writeln!(
-                            classes,
-                            "{peer_prefix}{state_modifier}{subelement_selector_prefix}{property}-[var({var_name})]"
-                        )
-                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                        color_target
+                            .write_css_var(classes, &var_name)
+                            .expect(CLASSES_BUFFER_WRITE_FAIL);
                     } else {
-                        writeln!(
-                            classes,
-                            "{peer_prefix}{state_modifier}{subelement_selector_prefix}{property}-{color}-{shade}"
-                        )
-                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                        color_target
+                            .write_color_shade(classes, color, shade)
+                            .expect(CLASSES_BUFFER_WRITE_FAIL);
                     }
                 }
             }
+            writeln!(classes).expect(CLASSES_BUFFER_WRITE_FAIL);
         }
     }
 }
 
-/// States for fill and stroke colors.
+/// States for fill, stroke, and outline colors.
 #[derive(Clone, Copy)]
 pub(crate) enum HighlightState {
     Normal,
     Focus,
     Hover,
     Active,
+}
+
+/// Whether it is the fill, stroke, or outline color.
+#[derive(Clone, Copy)]
+pub(crate) enum ColorTarget {
+    Fill,
+    Stroke,
+    Outline,
+}
+
+impl ColorTarget {
+    pub(crate) fn write_color_shade(
+        self,
+        buffer: &mut String,
+        color: &str,
+        shade: &str,
+    ) -> fmt::Result {
+        match self {
+            ColorTarget::Fill => write!(buffer, "fill-{color}-{shade}"),
+            ColorTarget::Stroke => write!(buffer, "stroke-{color}-{shade}"),
+            ColorTarget::Outline => write!(buffer, "outline-{color}-{shade}"),
+        }
+    }
+
+    /// Writes the CSS var for the color target to the buffer.
+    ///
+    /// This is needed because tailwind v4 docs say to use the same
+    /// `outline-[..]` syntax for arbitrary widths and arbitrary colors.
+    ///
+    /// For the outline widths, it should generate `outline-width: ..px` and for
+    /// colors, it should generate `outline-color: var(--color-)`.
+    ///
+    /// However, in practice when we use that syntax, encre-css only generates
+    /// the `outline-width: ..` CSS style for `outline-[..]` and the color var
+    /// is not generated.
+    pub(crate) fn write_css_var(self, buffer: &mut String, var_name: &str) -> fmt::Result {
+        match self {
+            ColorTarget::Fill => write!(buffer, "fill-[var({var_name})]"),
+            ColorTarget::Stroke => write!(buffer, "stroke-[var({var_name})]"),
+            ColorTarget::Outline => write!(buffer, "[outline-color:var({var_name})]"),
+        }
+    }
 }
