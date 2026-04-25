@@ -447,16 +447,17 @@ fn test_svg_edge_infos_interaction_arrow_head_is_origin_centred() -> Result<(), 
 #[test]
 fn test_svg_edge_infos_interaction_arrow_head_tailwind_classes() -> Result<(), TaffyError> {
     for svg_elements in build_svg_elements_from_example_ir() {
-        let ix_edges: Vec<_> = svg_elements
+        let svg_edge_infos_ix: Vec<_> = svg_elements
             .svg_edge_infos
             .iter()
-            .filter(|e| e.edge_id.as_str().starts_with("edge_ix_"))
+            .filter(|svg_edge_info| svg_edge_info.edge_id.as_str().starts_with("edge_ix_"))
             .collect();
 
-        for edge_info in &ix_edges {
+        for svg_edge_info in &svg_edge_infos_ix {
             // The arrowhead entity ID is `{edge_id}__arrow_head` (with
             // underscores, since `Id` only allows [a-zA-Z0-9_]).
-            let arrow_head_key_str = format!("{}_arrow_head", edge_info.edge_id.as_str());
+            let edge_id = &svg_edge_info.edge_id;
+            let arrow_head_key_str = format!("{edge_id}__arrow_head");
             let arrow_head_key =
                 Id::try_from(arrow_head_key_str.clone()).expect("arrow head ID should be valid");
 

@@ -78,6 +78,11 @@ pub enum StyleAlias<'id> {
     StrokeDashedAnimatedRequest,
     /// Dashed stroke with animation for response direction.
     StrokeDashedAnimatedResponse,
+    /// Focus outline for nodes and edges.
+    ///
+    /// Applies a visible outline when the entity is focused or hovered,
+    /// and hides it otherwise.
+    FocusOutline,
     /// Custom user-defined style alias.
     Custom(Id<'id>),
 }
@@ -123,6 +128,7 @@ impl<'id> StyleAlias<'id> {
             StyleAlias::StrokeDashedAnimated => "stroke_dashed_animated",
             StyleAlias::StrokeDashedAnimatedRequest => "stroke_dashed_animated_request",
             StyleAlias::StrokeDashedAnimatedResponse => "stroke_dashed_animated_response",
+            StyleAlias::FocusOutline => "focus_outline",
             StyleAlias::Custom(id) => id.as_str(),
         }
     }
@@ -177,6 +183,7 @@ impl<'id> StyleAlias<'id> {
             StyleAlias::StrokeDashedAnimated => StyleAlias::StrokeDashedAnimated,
             StyleAlias::StrokeDashedAnimatedRequest => StyleAlias::StrokeDashedAnimatedRequest,
             StyleAlias::StrokeDashedAnimatedResponse => StyleAlias::StrokeDashedAnimatedResponse,
+            StyleAlias::FocusOutline => StyleAlias::FocusOutline,
             StyleAlias::Custom(id) => StyleAlias::Custom(id.into_static()),
         }
     }
@@ -210,6 +217,7 @@ impl<'id> From<Id<'id>> for StyleAlias<'id> {
             "stroke_dashed_animated" => StyleAlias::StrokeDashedAnimated,
             "stroke_dashed_animated_request" => StyleAlias::StrokeDashedAnimatedRequest,
             "stroke_dashed_animated_response" => StyleAlias::StrokeDashedAnimatedResponse,
+            "focus_outline" => StyleAlias::FocusOutline,
             _ => StyleAlias::Custom(id),
         }
     }
@@ -252,7 +260,7 @@ impl Visitor<'_> for StyleAliasVisitor {
              `rounded_xl`, `rounded_2xl`, `rounded_3xl`, `rounded_4xl`, `fill_pale`, \
              `shade_pale`, `shade_light`, `shade_medium`, `shade_dark`, \
              `stroke_dashed_animated`, `stroke_dashed_animated_request`, \
-             `stroke_dashed_animated_response`, or a custom identifier",
+             `stroke_dashed_animated_response`, `focus_outline`, or a custom identifier",
         )
     }
 
@@ -286,6 +294,7 @@ impl Visitor<'_> for StyleAliasVisitor {
             "stroke_dashed_animated" => StyleAlias::StrokeDashedAnimated,
             "stroke_dashed_animated_request" => StyleAlias::StrokeDashedAnimatedRequest,
             "stroke_dashed_animated_response" => StyleAlias::StrokeDashedAnimatedResponse,
+            "focus_outline" => StyleAlias::FocusOutline,
             _ => {
                 let id = Id::try_from(value.to_owned()).map_err(serde::de::Error::custom)?;
                 StyleAlias::Custom(id)

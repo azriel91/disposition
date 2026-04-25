@@ -25,7 +25,7 @@ use crate::taffy_to_svg_elements_mapper::{
     edge_path_builder_pass_2::edge_path_builder_pass_2_ortho::OrthoProtrusionParams,
     ortho_protrusion_calculator::OrthoProtrusionCalculator,
     ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
-    StringCharReplacer,
+    EdgePathLocusCalculator, StringCharReplacer,
 };
 
 /// Builds [`SvgEdgeInfo`]s for all edges in the diagram from edge groups and
@@ -220,7 +220,7 @@ impl SvgEdgeInfosBuilder {
                     .map(|edge_entity_types| {
                         edge_entity_types
                             .iter()
-                            .any(EntityType::is_interaction_edge_type)
+                            .any(EntityType::is_interaction_edge)
                     })
                     .unwrap_or(false);
 
@@ -250,14 +250,26 @@ impl SvgEdgeInfosBuilder {
                 let path_d = path.to_svg();
 
                 // Compute arrowhead path.
-                let arrow_head_path_d = if is_interaction_edge {
+                let (arrow_head_path, locus_path) = if is_interaction_edge {
                     // Origin-centred V-shape; CSS offset-path handles
                     // positioning and rotation.
-                    ArrowHeadBuilder::build_origin_arrow_head()
+                    let arrow_head_path = ArrowHeadBuilder::build_origin_arrow_head();
+                    // Positioned V-shape at the `to` node end of the edge.
+                    let arrow_head_path_at_to_node =
+                        ArrowHeadBuilder::build_static_arrow_head(&path);
+                    let locus_path =
+                        EdgePathLocusCalculator::calculate(&path, &arrow_head_path_at_to_node);
+
+                    (arrow_head_path, locus_path)
                 } else {
                     // Positioned V-shape at the `to` node end of the edge.
-                    ArrowHeadBuilder::build_static_arrow_head(&path)
+                    let arrow_head_path = ArrowHeadBuilder::build_static_arrow_head(&path);
+                    let locus_path = EdgePathLocusCalculator::calculate(&path, &arrow_head_path);
+
+                    (arrow_head_path, locus_path)
                 };
+                let arrow_head_path_d = arrow_head_path.to_svg();
+                let locus_path_d = locus_path.to_svg();
 
                 let tooltip = ir_diagram
                     .entity_tooltips
@@ -272,6 +284,7 @@ impl SvgEdgeInfosBuilder {
                     edge.to.clone(),
                     path_d,
                     arrow_head_path_d,
+                    locus_path_d,
                     tooltip,
                 ));
             });
@@ -962,7 +975,7 @@ impl SvgEdgeInfosBuilder {
             edge_animation_active,
             associated_process_steps,
         } = css_animation_append_params;
-        let edge_anim = EdgeAnimationCalculator::calculate(
+        let edge_animation = EdgeAnimationCalculator::calculate(
             edge_animation_params,
             edge_path_info,
             edge_group_path_or_visible_segments_length_max,
@@ -976,24 +989,24 @@ impl SvgEdgeInfosBuilder {
             .get(&edge_id_owned)
             .cloned()
             .unwrap_or_default();
-        let dasharray = edge_anim.dasharray;
-        let animation_name = edge_anim.animation_name;
+        let dasharray = edge_animation.dasharray;
+        let animation_name = edge_animation.animation_name;
         let animation_duration =
-            EdgeAnimationCalculator::format_duration(edge_anim.edge_animation_duration_s);
+            EdgeAnimationCalculator::format_duration(edge_animation.edge_animation_duration_s);
 
         let animation_classes = {
             let mut classes = format!("[stroke-dasharray:{dasharray}]");
             match edge_animation_active {
                 EdgeAnimationActive::Always => {
                     classes.push_str(&format!(
-                        "\nanimate-[{animation_name}_{animation_duration}s_linear_infinite]"
+                        "\n[&>.edge_body]:animate-[{animation_name}_{animation_duration}s_linear_infinite]"
                     ));
                 }
                 EdgeAnimationActive::OnProcessStepFocus => {
                     associated_process_steps.iter().for_each(|process_step_id| {
                         classes.push_str(&format!(
                             "\ngroup-has-[#{process_step_id}:focus-within]:\
-                                animate-[{animation_name}_{animation_duration}s_linear_infinite]"
+                                [&>.edge_body]:animate-[{animation_name}_{animation_duration}s_linear_infinite]"
                         ));
                     });
                 }
@@ -1022,12 +1035,39 @@ impl SvgEdgeInfosBuilder {
         // (encre-css transforms these to spaces in the actual CSS value).
         StringCharReplacer::replace_inplace(&mut forward_path_svg, ' ', '_');
 
-        let arrow_head_animation_name = &edge_anim.arrow_head_animation_name;
+        Self::css_animation_append_arrowhead_classes(
+            tailwind_classes,
+            edge_path_info,
+            edge_animation_active,
+            associated_process_steps,
+            &edge_animation.arrow_head_animation_name,
+            animation_duration,
+            forward_path_svg,
+        );
 
+        // Append CSS keyframes for both edge stroke and arrowhead.
+        if !css.is_empty() {
+            css.push('\n');
+        }
+        css.push_str(&edge_animation.keyframe_css);
+        css.push_str(&edge_animation.arrow_head_keyframe_css);
+    }
+
+    /// Appends CSS classes for the arrowhead animation to the diagram's
+    /// tailwind classes.
+    fn css_animation_append_arrowhead_classes<'id>(
+        tailwind_classes: &mut EntityTailwindClasses<'id>,
+        edge_path_info: &EdgePathInfo<'_, 'id>,
+        edge_animation_active: EdgeAnimationActive,
+        associated_process_steps: &[&NodeId<'id>],
+        arrow_head_animation_name: &str,
+        animation_duration: String,
+        forward_path_svg: String,
+    ) {
         let arrow_head_classes = {
             let mut classes = format!(
                 "[offset-path:path('{forward_path_svg}')]\n\
-                 [stroke-dasharray:none]"
+                [stroke-dasharray:none]"
             );
             match edge_animation_active {
                 EdgeAnimationActive::Always => classes.push_str(&format!(
@@ -1039,7 +1079,7 @@ impl SvgEdgeInfosBuilder {
                         .for_each(|process_step_id| {
                             classes.push_str(&format!(
                                 "\ngroup-has-[#{process_step_id}:focus-within]:\
-                                animate-[{arrow_head_animation_name}_{animation_duration}s_linear_infinite]"
+                                    animate-[{arrow_head_animation_name}_{animation_duration}s_linear_infinite]"
                             ));
                         });
                 }
@@ -1047,18 +1087,12 @@ impl SvgEdgeInfosBuilder {
             classes
         };
 
-        let arrow_head_entity_id_str = format!("{}_arrow_head", edge_path_info.edge_id.as_str());
-        let arrow_head_entity_id: Id<'id> = Id::try_from(arrow_head_entity_id_str)
+        let edge_id = &edge_path_info.edge_id;
+        let arrow_head_entity_id_str = format!("{edge_id}__arrow_head");
+        let arrow_head_entity_id: Id<'static> = Id::try_from(arrow_head_entity_id_str)
             .expect("arrow head entity ID should be valid")
             .into_static();
         tailwind_classes.insert(arrow_head_entity_id, arrow_head_classes);
-
-        // Append CSS keyframes for both edge stroke and arrowhead.
-        if !css.is_empty() {
-            css.push('\n');
-        }
-        css.push_str(&edge_anim.keyframe_css);
-        css.push_str(&edge_anim.arrow_head_keyframe_css);
     }
 
     /// Generates an edge ID from the edge group ID and edge index.

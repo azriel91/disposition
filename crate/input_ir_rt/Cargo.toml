@@ -31,6 +31,7 @@ disposition_taffy_model = { workspace = true }
 emojis = { workspace = true }
 encre-css = { workspace = true }
 kurbo = { workspace = true }
+linesweeper = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 taffy = { workspace = true }
 typed-builder = { workspace = true }

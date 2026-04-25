@@ -1,7 +1,10 @@
-use std::{borrow::Cow, fmt::Write};
+use std::{
+    borrow::Cow,
+    fmt::{self, Write},
+};
 
 use disposition_input_model::theme::{DarkModeShadeConfig, ThemeAttr};
-use disposition_model_common::Map;
+use disposition_model_common::{entity::EntityType, Map};
 
 use super::{css_theme_vars::CssThemeVars, tailwind_color_shade::TailwindColorShade};
 
@@ -15,14 +18,20 @@ const CLASSES_BUFFER_WRITE_FAIL: &str = "Failed to write string to buffer";
 pub(crate) struct TailwindClassState<'tw_state> {
     /// Map of theme attributes to their resolved values.
     pub(crate) attrs: Map<ThemeAttr, Cow<'tw_state, str>>,
+    /// The first entity type of the entity these classes are built for.
+    ///
+    /// Used to determine whether outline classes should be prefixed with
+    /// `[&>.locus]:` (for edge entities) or applied directly (for nodes).
+    pub(crate) entity_type: Option<EntityType>,
 }
 
 impl<'tw_state> TailwindClassState<'tw_state> {
     /// Convert stroke style to stroke-dasharray value.
     fn stroke_style_to_dasharray(style: &str) -> Option<&str> {
         match style {
+            // `stroke-dasharray: none` in CSS produces a solid line.
             "solid" => Some("none"),
-            "dashed" => Some("3"),
+            "dashed" => Some("4"),
             "dotted" => Some("2"),
             s if s.starts_with("dasharray:") => Some(&s["dasharray:".len()..]),
             _ => None,
@@ -225,6 +234,36 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             .map(|c| c.as_ref())
     }
 
+    /// Get the resolved outline color for a state.
+    fn get_outline_color(&self, state: HighlightState) -> Option<&str> {
+        let (state_specific, base) = match state {
+            HighlightState::Normal => (ThemeAttr::OutlineColorNormal, ThemeAttr::OutlineColor),
+            HighlightState::Focus => (ThemeAttr::OutlineColorFocus, ThemeAttr::OutlineColor),
+            HighlightState::Hover => (ThemeAttr::OutlineColorHover, ThemeAttr::OutlineColor),
+            HighlightState::Active => (ThemeAttr::OutlineColorActive, ThemeAttr::OutlineColor),
+        };
+
+        self.attrs
+            .get(&state_specific)
+            .or_else(|| self.attrs.get(&base))
+            .map(|c| c.as_ref())
+    }
+
+    /// Get the resolved outline shade for a state.
+    fn get_outline_shade(&self, state: HighlightState) -> Option<&str> {
+        let (state_specific, base) = match state {
+            HighlightState::Normal => (ThemeAttr::OutlineShadeNormal, ThemeAttr::OutlineShade),
+            HighlightState::Focus => (ThemeAttr::OutlineShadeFocus, ThemeAttr::OutlineShade),
+            HighlightState::Hover => (ThemeAttr::OutlineShadeHover, ThemeAttr::OutlineShade),
+            HighlightState::Active => (ThemeAttr::OutlineShadeActive, ThemeAttr::OutlineShade),
+        };
+
+        self.attrs
+            .get(&state_specific)
+            .or_else(|| self.attrs.get(&base))
+            .map(|c| c.as_ref())
+    }
+
     /// Get the resolved stroke color for a state.
     fn get_stroke_color(&self, state: HighlightState) -> Option<&str> {
         let (state_specific, base, shape) = match state {
@@ -272,6 +311,44 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             .map(|c| c.as_ref())
     }
 
+    /// Get the resolved stroke style for a state.
+    ///
+    /// Looks up the state-specific attribute first (e.g.
+    /// [`ThemeAttr::StrokeStyleHover`]) and falls back to the base
+    /// [`ThemeAttr::StrokeStyle`] if the state-specific one is absent.
+    fn get_stroke_style(&self, state: HighlightState) -> Option<&str> {
+        let (state_specific, base) = match state {
+            HighlightState::Normal => (ThemeAttr::StrokeStyleNormal, ThemeAttr::StrokeStyle),
+            HighlightState::Focus => (ThemeAttr::StrokeStyleFocus, ThemeAttr::StrokeStyle),
+            HighlightState::Hover => (ThemeAttr::StrokeStyleHover, ThemeAttr::StrokeStyle),
+            HighlightState::Active => (ThemeAttr::StrokeStyleActive, ThemeAttr::StrokeStyle),
+        };
+
+        self.attrs
+            .get(&state_specific)
+            .or_else(|| self.attrs.get(&base))
+            .map(|c| c.as_ref())
+    }
+
+    /// Get the resolved outline style for a state.
+    ///
+    /// Looks up the state-specific attribute first (e.g.
+    /// [`ThemeAttr::OutlineStyleHover`]) and falls back to the base
+    /// [`ThemeAttr::OutlineStyle`] if the state-specific one is absent.
+    fn get_outline_style(&self, state: HighlightState) -> Option<&str> {
+        let (state_specific, base) = match state {
+            HighlightState::Normal => (ThemeAttr::OutlineStyleNormal, ThemeAttr::OutlineStyle),
+            HighlightState::Focus => (ThemeAttr::OutlineStyleFocus, ThemeAttr::OutlineStyle),
+            HighlightState::Hover => (ThemeAttr::OutlineStyleHover, ThemeAttr::OutlineStyle),
+            HighlightState::Active => (ThemeAttr::OutlineStyleActive, ThemeAttr::OutlineStyle),
+        };
+
+        self.attrs
+            .get(&state_specific)
+            .or_else(|| self.attrs.get(&base))
+            .map(|c| c.as_ref())
+    }
+
     // === Class Writers === //
 
     /// Write tailwind classes to the given string.
@@ -307,33 +384,51 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     pub(crate) fn write_peer_classes(
         &self,
         classes: &mut String,
-        prefix: &str,
+        peer_prefix_maybe: &str,
         css_theme_vars: &mut CssThemeVars,
         dark_mode_shade_config: DarkModeShadeConfig,
     ) {
         // Visibility
         if let Some(visibility) = self.attrs.get(&ThemeAttr::Visibility) {
-            writeln!(classes, "{prefix}{visibility}").expect(CLASSES_BUFFER_WRITE_FAIL);
+            writeln!(classes, "{peer_prefix_maybe}{visibility}").expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
-        // Stroke dasharray from stroke_style
-        if let Some(style) = self.attrs.get(&ThemeAttr::StrokeStyle)
-            && let Some(dasharray) = Self::stroke_style_to_dasharray(style)
-        {
-            writeln!(classes, "{prefix}[stroke-dasharray:{dasharray}]")
+        let stroke_style_normal = self.get_stroke_style(HighlightState::Normal);
+        let stroke_style_hover = self.get_stroke_style(HighlightState::Hover);
+        let stroke_style_focus = self.get_stroke_style(HighlightState::Focus);
+        let stroke_style_active = self.get_stroke_style(HighlightState::Active);
+
+        // Stroke dasharray from stroke_style (per-state, with base fallback)
+        for (state_modifier, stroke_style) in [
+            ("", stroke_style_normal),
+            ("hover:", stroke_style_hover),
+            ("focus:", stroke_style_focus),
+            ("active:", stroke_style_active),
+        ] {
+            if let Some(style) = stroke_style
+                && let Some(dasharray) = Self::stroke_style_to_dasharray(style)
+            {
+                writeln!(
+                    classes,
+                    "{peer_prefix_maybe}{state_modifier}[stroke-dasharray:{dasharray}]"
+                )
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
+            }
         }
 
         // Stroke width
         if let Some(width) = self.attrs.get(&ThemeAttr::StrokeWidth) {
-            writeln!(classes, "{prefix}stroke-{width}").expect(CLASSES_BUFFER_WRITE_FAIL);
+            writeln!(classes, "{peer_prefix_maybe}stroke-{width}")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
         if let Some(opacity) = self.attrs.get(&ThemeAttr::Opacity) {
-            writeln!(classes, "{prefix}opacity-{opacity}").expect(CLASSES_BUFFER_WRITE_FAIL);
+            writeln!(classes, "{peer_prefix_maybe}opacity-{opacity}")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
         }
         if let Some(animate) = self.attrs.get(&ThemeAttr::Animate) {
-            writeln!(classes, "{prefix}animate-{animate}").expect(CLASSES_BUFFER_WRITE_FAIL);
+            writeln!(classes, "{peer_prefix_maybe}animate-{animate}")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
         let fill_color_hover = self.get_fill_color(HighlightState::Hover);
@@ -361,9 +456,10 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         Self::write_shifted_shade_class(
             classes,
             css_theme_vars,
-            prefix,
+            peer_prefix_maybe,
+            None,
             "hover:",
-            "fill",
+            ColorTarget::Fill,
             dark_mode_shade_config,
             fill_color_hover,
             fill_shade_hover,
@@ -375,9 +471,10 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         Self::write_shifted_shade_class(
             classes,
             css_theme_vars,
-            prefix,
+            peer_prefix_maybe,
+            None,
             "",
-            "fill",
+            ColorTarget::Fill,
             dark_mode_shade_config,
             fill_color_normal,
             fill_shade_normal,
@@ -389,9 +486,10 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         Self::write_shifted_shade_class(
             classes,
             css_theme_vars,
-            prefix,
+            peer_prefix_maybe,
+            None,
             "focus:",
-            "fill",
+            ColorTarget::Fill,
             dark_mode_shade_config,
             fill_color_focus,
             fill_shade_focus,
@@ -403,9 +501,10 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         Self::write_shifted_shade_class(
             classes,
             css_theme_vars,
-            prefix,
+            peer_prefix_maybe,
+            None,
             "active:",
-            "fill",
+            ColorTarget::Fill,
             dark_mode_shade_config,
             fill_color_active,
             fill_shade_active,
@@ -417,63 +516,209 @@ impl<'tw_state> TailwindClassState<'tw_state> {
 
         // === Stroke classes === //
         // Stroke also uses shade shifting for dark mode.
+        //
+        // Skip color/shade classes for states where stroke_style is "none": in
+        // SVG specifying a stroke color will draw the stroke regardless of
+        // style, unlike HTML where `border-style: none` prevents drawing.
 
-        Self::write_shifted_shade_class(
-            classes,
-            css_theme_vars,
-            prefix,
-            "hover:",
-            "stroke",
-            dark_mode_shade_config,
-            stroke_color_hover,
-            stroke_shade_hover,
-            stroke_shade_normal,
-            stroke_shade_hover,
-            stroke_shade_focus,
-            stroke_shade_active,
-        );
-        Self::write_shifted_shade_class(
-            classes,
-            css_theme_vars,
-            prefix,
-            "",
-            "stroke",
-            dark_mode_shade_config,
-            stroke_color_normal,
-            stroke_shade_normal,
-            stroke_shade_normal,
-            stroke_shade_hover,
-            stroke_shade_focus,
-            stroke_shade_active,
-        );
-        Self::write_shifted_shade_class(
-            classes,
-            css_theme_vars,
-            prefix,
-            "focus:",
-            "stroke",
-            dark_mode_shade_config,
-            stroke_color_focus,
-            stroke_shade_focus,
-            stroke_shade_normal,
-            stroke_shade_hover,
-            stroke_shade_focus,
-            stroke_shade_active,
-        );
-        Self::write_shifted_shade_class(
-            classes,
-            css_theme_vars,
-            prefix,
-            "active:",
-            "stroke",
-            dark_mode_shade_config,
-            stroke_color_active,
-            stroke_shade_active,
-            stroke_shade_normal,
-            stroke_shade_hover,
-            stroke_shade_focus,
-            stroke_shade_active,
-        );
+        for (state_modifier, color, shade, stroke_style) in [
+            (
+                "hover:",
+                stroke_color_hover,
+                stroke_shade_hover,
+                stroke_style_hover,
+            ),
+            (
+                "",
+                stroke_color_normal,
+                stroke_shade_normal,
+                stroke_style_normal,
+            ),
+            (
+                "focus:",
+                stroke_color_focus,
+                stroke_shade_focus,
+                stroke_style_focus,
+            ),
+            (
+                "active:",
+                stroke_color_active,
+                stroke_shade_active,
+                stroke_style_active,
+            ),
+        ] {
+            if stroke_style != Some("none") {
+                Self::write_shifted_shade_class(
+                    classes,
+                    css_theme_vars,
+                    peer_prefix_maybe,
+                    None,
+                    state_modifier,
+                    ColorTarget::Stroke,
+                    dark_mode_shade_config,
+                    color,
+                    shade,
+                    stroke_shade_normal,
+                    stroke_shade_hover,
+                    stroke_shade_focus,
+                    stroke_shade_active,
+                );
+            }
+        }
+
+        // === Outline classes === //
+        //
+        // For edge entities the outline classes target `.locus` children
+        // via the `[&>.locus]:` arbitrary-variant prefix. For all other
+        // entities the classes are applied directly.
+
+        let is_edge = self.entity_type.as_ref().is_some_and(EntityType::is_edge);
+        let locus_selector_prefix = if is_edge { Some("[&>.locus]:") } else { None };
+        let locus_selector_prefix_str = locus_selector_prefix.unwrap_or("");
+
+        let outline_style_normal = self.get_outline_style(HighlightState::Normal);
+        let outline_style_hover = self.get_outline_style(HighlightState::Hover);
+        let outline_style_focus = self.get_outline_style(HighlightState::Focus);
+        let outline_style_active = self.get_outline_style(HighlightState::Active);
+
+        // Outline style (base applies to all states; per-state variants override)
+        //
+        // For non-edge entities, the standard `outline-{style}` tailwind class is
+        // used (e.g. `outline-solid`, `outline-dashed`). For edge entities, the SVG
+        // `<path>` outline does not support CSS `outline-style`; instead,
+        // `stroke_style_to_dasharray` converts the style to a `stroke-dasharray`
+        // value applied to the `.locus` path element.
+        let write_outline_style = if is_edge {
+            Self::write_outline_style_edge
+        } else {
+            Self::write_outline_style_node
+        };
+        for (state_modifier, outline_style) in [
+            ("", outline_style_normal),
+            ("hover:", outline_style_hover),
+            ("focus:", outline_style_focus),
+            ("active:", outline_style_active),
+        ] {
+            if let Some(style) = outline_style {
+                write_outline_style(
+                    classes,
+                    peer_prefix_maybe,
+                    locus_selector_prefix,
+                    state_modifier,
+                    style,
+                );
+            }
+        }
+
+        // Outline width
+        if let Some(width) = self.attrs.get(&ThemeAttr::OutlineWidth) {
+            if is_edge {
+                writeln!(
+                    classes,
+                    "{peer_prefix_maybe}{locus_selector_prefix_str}stroke-{width}"
+                )
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            } else {
+                writeln!(
+                    classes,
+                    "{peer_prefix_maybe}{locus_selector_prefix_str}outline-{width}"
+                )
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            }
+        }
+
+        // Outline color and shade (similar to stroke, using "outline" as the property)
+        //
+        // When a shade is also available, `write_shifted_shade_class` is used for
+        // dark-mode support. When only a color is specified (no shade), an arbitrary
+        // CSS property class `[outline-color:{color}]` is written instead.
+        //
+        // For edge entities, the `.edge_locus` `<path>` element is styled via SVG
+        // `stroke` rather than CSS `outline`, so `"stroke"` is used as the property
+        // and `[stroke:{color}]` as the color-only fallback.
+        let outline_color_target = if is_edge {
+            ColorTarget::Stroke
+        } else {
+            ColorTarget::Outline
+        };
+        let outline_color_css_prop = if is_edge { "stroke" } else { "outline-color" };
+
+        let outline_color_hover = self.get_outline_color(HighlightState::Hover);
+        let outline_shade_hover = self.get_outline_shade(HighlightState::Hover);
+        let outline_color_normal = self.get_outline_color(HighlightState::Normal);
+        let outline_shade_normal = self.get_outline_shade(HighlightState::Normal);
+        let outline_color_focus = self.get_outline_color(HighlightState::Focus);
+        let outline_shade_focus = self.get_outline_shade(HighlightState::Focus);
+        let outline_color_active = self.get_outline_color(HighlightState::Active);
+        let outline_shade_active = self.get_outline_shade(HighlightState::Active);
+
+        // When outline_style is "none" for a state:
+        // - For edge entities: emit `[stroke:none]` on the `.locus` prefix so the SVG
+        //   stroke is explicitly cleared for that state. Without this, a stroke color
+        //   inherited or set by another state would still be visible, because in SVG
+        //   there is no equivalent of `border-style: none` to suppress drawing.
+        // - For non-edge entities: skip entirely, since CSS `outline-style: none`
+        //   already prevents the outline from being drawn.
+        for (state_modifier, color, shade, outline_style) in [
+            (
+                "hover:",
+                outline_color_hover,
+                outline_shade_hover,
+                outline_style_hover,
+            ),
+            (
+                "",
+                outline_color_normal,
+                outline_shade_normal,
+                outline_style_normal,
+            ),
+            (
+                "focus:",
+                outline_color_focus,
+                outline_shade_focus,
+                outline_style_focus,
+            ),
+            (
+                "active:",
+                outline_color_active,
+                outline_shade_active,
+                outline_style_active,
+            ),
+        ] {
+            if outline_style == Some("none") {
+                if is_edge {
+                    writeln!(
+                        classes,
+                        "{peer_prefix_maybe}{state_modifier}{locus_selector_prefix_str}[stroke:none]"
+                    )
+                    .expect(CLASSES_BUFFER_WRITE_FAIL);
+                }
+                continue;
+            }
+            if shade.is_some() {
+                Self::write_shifted_shade_class(
+                    classes,
+                    css_theme_vars,
+                    peer_prefix_maybe,
+                    locus_selector_prefix,
+                    state_modifier,
+                    outline_color_target,
+                    dark_mode_shade_config,
+                    color,
+                    shade,
+                    outline_shade_normal,
+                    outline_shade_hover,
+                    outline_shade_focus,
+                    outline_shade_active,
+                );
+            } else if let Some(color) = color {
+                writeln!(
+                    classes,
+                    "{peer_prefix_maybe}{state_modifier}{locus_selector_prefix_str}[{outline_color_css_prop}:{color}]"
+                )
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            }
+        }
 
         // === Text classes === //
         // Text uses shade inversion for dark mode.
@@ -502,6 +747,42 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                 }
             }
         }
+    }
+
+    /// Writes outline style classes for edge entities, which uses
+    /// `stroke-dasharray` to simulate an outline.
+    fn write_outline_style_edge(
+        classes: &mut String,
+        peer_prefix: &str,
+        subelement_selector_prefix: Option<&str>,
+        state_modifier: &str,
+        outline_style: &str,
+    ) {
+        let subelement_selector_prefix = subelement_selector_prefix.unwrap_or("");
+        if let Some(dasharray) = Self::stroke_style_to_dasharray(outline_style) {
+            writeln!(
+                classes,
+                "{peer_prefix}{state_modifier}{subelement_selector_prefix}[stroke-dasharray:{dasharray}]"
+            )
+            .expect(CLASSES_BUFFER_WRITE_FAIL);
+        }
+    }
+
+    /// Writes outline style classes for node entities, which uses the `outline`
+    /// tailwind classes.
+    fn write_outline_style_node(
+        classes: &mut String,
+        peer_prefix: &str,
+        subelement_selector_prefix: Option<&str>,
+        state_modifier: &str,
+        outline_style: &str,
+    ) {
+        let subelement_selector_prefix = subelement_selector_prefix.unwrap_or("");
+        writeln!(
+            classes,
+            "{peer_prefix}{state_modifier}{subelement_selector_prefix}outline-{outline_style}"
+        )
+        .expect(CLASSES_BUFFER_WRITE_FAIL);
     }
 
     /// Write a shade class for fill or stroke, handling all three dark-mode
@@ -535,7 +816,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     ///   `"peer-[:focus-within]/tag:"` or `""`.
     /// * `state_modifier`: The highlight state modifier, e.g. `"hover:"`,
     ///   `"focus:"`, `"active:"`, or `""` for normal.
-    /// * `property`: `"fill"` or `"stroke"`.
+    /// * `color_target`: The color target, e.g. `"fill"`, `"stroke"`,
+    ///   `"outline"`.
     /// * `color`: The resolved colour name, e.g. `"yellow"`, `"slate"`.
     /// * `shade`: The resolved shade value for this state, e.g. `"100"`.
     /// * `dark_mode_shade_config`: Controls how dark-mode shades are computed.
@@ -551,9 +833,10 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     fn write_shifted_shade_class(
         classes: &mut String,
         css_theme_vars: &mut CssThemeVars,
-        prefix: &str,
+        peer_prefix: &str,
+        subelement_selector_prefix: Option<&str>,
         state_modifier: &str,
-        property: &str,
+        color_target: ColorTarget,
         dark_mode_shade_config: DarkModeShadeConfig,
         color: Option<&str>,
         shade: Option<&str>,
@@ -562,30 +845,30 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         shade_focus: Option<&str>,
         shade_active: Option<&str>,
     ) {
+        let subelement_selector_prefix = subelement_selector_prefix.unwrap_or("");
         if let Some((color, shade)) = color.zip(shade) {
+            write!(
+                classes,
+                "{peer_prefix}{state_modifier}{subelement_selector_prefix}"
+            )
+            .expect(CLASSES_BUFFER_WRITE_FAIL);
             match dark_mode_shade_config {
                 DarkModeShadeConfig::Disable => {
                     // No dark mode -- emit plain tailwind class.
-                    writeln!(
-                        classes,
-                        "{prefix}{state_modifier}{property}-{color}-{shade}"
-                    )
-                    .expect(CLASSES_BUFFER_WRITE_FAIL);
+                    color_target
+                        .write_color_shade(classes, color, shade)
+                        .expect(CLASSES_BUFFER_WRITE_FAIL);
                 }
                 DarkModeShadeConfig::Invert => {
                     let dark_shade = Self::shade_inverted(shade);
                     if let Some(var_name) = css_theme_vars.register(color, shade, dark_shade) {
-                        writeln!(
-                            classes,
-                            "{prefix}{state_modifier}{property}-[var({var_name})]"
-                        )
-                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                        color_target
+                            .write_css_var(classes, &var_name)
+                            .expect(CLASSES_BUFFER_WRITE_FAIL);
                     } else {
-                        writeln!(
-                            classes,
-                            "{prefix}{state_modifier}{property}-{color}-{shade}"
-                        )
-                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                        color_target
+                            .write_color_shade(classes, color, shade)
+                            .expect(CLASSES_BUFFER_WRITE_FAIL);
                     }
                 }
                 DarkModeShadeConfig::Shift { levels } => {
@@ -598,29 +881,68 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                         shade_active,
                     );
                     if let Some(var_name) = css_theme_vars.register(color, shade, dark_shade) {
-                        writeln!(
-                            classes,
-                            "{prefix}{state_modifier}{property}-[var({var_name})]"
-                        )
-                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                        color_target
+                            .write_css_var(classes, &var_name)
+                            .expect(CLASSES_BUFFER_WRITE_FAIL);
                     } else {
-                        writeln!(
-                            classes,
-                            "{prefix}{state_modifier}{property}-{color}-{shade}"
-                        )
-                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                        color_target
+                            .write_color_shade(classes, color, shade)
+                            .expect(CLASSES_BUFFER_WRITE_FAIL);
                     }
                 }
             }
+            writeln!(classes).expect(CLASSES_BUFFER_WRITE_FAIL);
         }
     }
 }
 
-/// States for fill and stroke colors.
+/// States for fill, stroke, and outline colors.
 #[derive(Clone, Copy)]
 pub(crate) enum HighlightState {
     Normal,
     Focus,
     Hover,
     Active,
+}
+
+/// Whether it is the fill, stroke, or outline color.
+#[derive(Clone, Copy)]
+pub(crate) enum ColorTarget {
+    Fill,
+    Stroke,
+    Outline,
+}
+
+impl ColorTarget {
+    pub(crate) fn write_color_shade(
+        self,
+        buffer: &mut String,
+        color: &str,
+        shade: &str,
+    ) -> fmt::Result {
+        match self {
+            ColorTarget::Fill => write!(buffer, "fill-{color}-{shade}"),
+            ColorTarget::Stroke => write!(buffer, "stroke-{color}-{shade}"),
+            ColorTarget::Outline => write!(buffer, "outline-{color}-{shade}"),
+        }
+    }
+
+    /// Writes the CSS var for the color target to the buffer.
+    ///
+    /// This is needed because tailwind v4 docs say to use the same
+    /// `outline-[..]` syntax for arbitrary widths and arbitrary colors.
+    ///
+    /// For the outline widths, it should generate `outline-width: ..px` and for
+    /// colors, it should generate `outline-color: var(--color-)`.
+    ///
+    /// However, in practice when we use that syntax, encre-css only generates
+    /// the `outline-width: ..` CSS style for `outline-[..]` and the color var
+    /// is not generated.
+    pub(crate) fn write_css_var(self, buffer: &mut String, var_name: &str) -> fmt::Result {
+        match self {
+            ColorTarget::Fill => write!(buffer, "fill-[var({var_name})]"),
+            ColorTarget::Stroke => write!(buffer, "stroke-[var({var_name})]"),
+            ColorTarget::Outline => write!(buffer, "[outline-color:var({var_name})]"),
+        }
+    }
 }

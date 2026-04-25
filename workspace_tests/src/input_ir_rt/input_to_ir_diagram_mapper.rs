@@ -732,13 +732,13 @@ fn test_tailwind_classes_stroke_style() {
     );
 
     // t_aws_iam has type_service which has stroke_style: "dashed"
-    // dashed should map to stroke-dasharray:3
+    // dashed should map to stroke-dasharray:4
     let t_aws_iam_id = id!("t_aws_iam");
     let t_aws_iam_classes =
         String::from("\n") + diagram.tailwind_classes.get(&t_aws_iam_id).unwrap();
     assert!(
-        t_aws_iam_classes.contains("\n[stroke-dasharray:3]"),
-        "t_aws_iam should have stroke-dasharray:3 from dashed stroke_style. Got: {t_aws_iam_classes}"
+        t_aws_iam_classes.contains("\n[stroke-dasharray:4]"),
+        "t_aws_iam should have stroke-dasharray:4 from dashed stroke_style. Got: {t_aws_iam_classes}"
     );
 }
 
