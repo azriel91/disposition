@@ -636,7 +636,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         // For edge entities, the `.edge_locus` `<path>` element is styled via SVG
         // `stroke` rather than CSS `outline`, so `"stroke"` is used as the property
         // and `[stroke:{color}]` as the color-only fallback.
-        let outline_color_property = if is_edge {
+        let outline_color_target = if is_edge {
             ColorTarget::Stroke
         } else {
             ColorTarget::Outline
@@ -702,7 +702,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                     peer_prefix_maybe,
                     locus_selector_prefix,
                     state_modifier,
-                    outline_color_property,
+                    outline_color_target,
                     dark_mode_shade_config,
                     color,
                     shade,
