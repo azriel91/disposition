@@ -31,7 +31,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         match style {
             // `stroke-dasharray: none` in CSS produces a solid line.
             "solid" => Some("none"),
-            "dashed" => Some("3"),
+            "dashed" => Some("4"),
             "dotted" => Some("2"),
             s if s.starts_with("dasharray:") => Some(&s["dasharray:".len()..]),
             _ => None,
