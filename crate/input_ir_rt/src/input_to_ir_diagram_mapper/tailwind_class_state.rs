@@ -626,9 +626,13 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         let outline_color_active = self.get_outline_color(HighlightState::Active);
         let outline_shade_active = self.get_outline_shade(HighlightState::Active);
 
-        // Skip color/shade classes for states where outline_style is "none": in
-        // SVG specifying a stroke color will draw the stroke regardless of
-        // style, unlike HTML where `border-style: none` prevents drawing.
+        // When outline_style is "none" for a state:
+        // - For edge entities: emit `[stroke:none]` on the `.locus` prefix so the SVG
+        //   stroke is explicitly cleared for that state. Without this, a stroke color
+        //   inherited or set by another state would still be visible, because in SVG
+        //   there is no equivalent of `border-style: none` to suppress drawing.
+        // - For non-edge entities: skip entirely, since CSS `outline-style: none`
+        //   already prevents the outline from being drawn.
         for (state_modifier, color, shade, outline_style) in [
             (
                 "hover:",
@@ -656,6 +660,13 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             ),
         ] {
             if outline_style == Some("none") {
+                if is_edge {
+                    writeln!(
+                        classes,
+                        "{outline_full_prefix}{state_modifier}[stroke:none]"
+                    )
+                    .expect(CLASSES_BUFFER_WRITE_FAIL);
+                }
                 continue;
             }
             if shade.is_some() {
