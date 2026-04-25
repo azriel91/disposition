@@ -612,11 +612,19 @@ impl<'tw_state> TailwindClassState<'tw_state> {
 
         // Outline width
         if let Some(width) = self.attrs.get(&ThemeAttr::OutlineWidth) {
-            writeln!(
-                classes,
-                "{peer_prefix_maybe}{locus_selector_prefix_str}outline-{width}"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
+            if is_edge {
+                writeln!(
+                    classes,
+                    "{peer_prefix_maybe}{locus_selector_prefix_str}stroke-{width}"
+                )
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            } else {
+                writeln!(
+                    classes,
+                    "{peer_prefix_maybe}{locus_selector_prefix_str}outline-{width}"
+                )
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            }
         }
 
         // Outline color and shade (similar to stroke, using "outline" as the property)
