@@ -663,7 +663,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                 if is_edge {
                     writeln!(
                         classes,
-                        "{outline_full_prefix}{state_modifier}[stroke:none]"
+                        "{state_modifier}{outline_full_prefix}[stroke:none]"
                     )
                     .expect(CLASSES_BUFFER_WRITE_FAIL);
                 }
@@ -687,7 +687,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
             } else if let Some(color) = color {
                 writeln!(
                     classes,
-                    "{outline_full_prefix}{state_modifier}[{outline_color_css_prop}:{color}]"
+                    "{state_modifier}{outline_full_prefix}[{outline_color_css_prop}:{color}]"
                 )
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
             }
@@ -818,7 +818,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                     // No dark mode -- emit plain tailwind class.
                     writeln!(
                         classes,
-                        "{prefix}{state_modifier}{property}-{color}-{shade}"
+                        "{state_modifier}{prefix}{property}-{color}-{shade}"
                     )
                     .expect(CLASSES_BUFFER_WRITE_FAIL);
                 }
@@ -827,13 +827,13 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                     if let Some(var_name) = css_theme_vars.register(color, shade, dark_shade) {
                         writeln!(
                             classes,
-                            "{prefix}{state_modifier}{property}-[var({var_name})]"
+                            "{state_modifier}{prefix}{property}-[var({var_name})]"
                         )
                         .expect(CLASSES_BUFFER_WRITE_FAIL);
                     } else {
                         writeln!(
                             classes,
-                            "{prefix}{state_modifier}{property}-{color}-{shade}"
+                            "{state_modifier}{prefix}{property}-{color}-{shade}"
                         )
                         .expect(CLASSES_BUFFER_WRITE_FAIL);
                     }
@@ -850,13 +850,13 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                     if let Some(var_name) = css_theme_vars.register(color, shade, dark_shade) {
                         writeln!(
                             classes,
-                            "{prefix}{state_modifier}{property}-[var({var_name})]"
+                            "{state_modifier}{prefix}{property}-[var({var_name})]"
                         )
                         .expect(CLASSES_BUFFER_WRITE_FAIL);
                     } else {
                         writeln!(
                             classes,
-                            "{prefix}{state_modifier}{property}-{color}-{shade}"
+                            "{state_modifier}{prefix}{property}-{color}-{shade}"
                         )
                         .expect(CLASSES_BUFFER_WRITE_FAIL);
                     }
