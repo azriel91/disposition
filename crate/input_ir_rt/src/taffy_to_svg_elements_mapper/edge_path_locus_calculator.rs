@@ -1,7 +1,7 @@
 use kurbo::{stroke, BezPath, Cap, Join, Stroke, StrokeOpts};
 
 /// Width of the stroke expansion used to compute the edge locus, in pixels.
-const LOCUS_STROKE_WIDTH: f64 = 8.0;
+const LOCUS_STROKE_WIDTH: f64 = 10.0;
 
 /// Accuracy tolerance for path approximation when computing the locus.
 const LOCUS_TOLERANCE: f64 = 0.1;
