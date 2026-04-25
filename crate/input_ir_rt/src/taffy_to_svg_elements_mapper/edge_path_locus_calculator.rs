@@ -1,4 +1,5 @@
 use kurbo::{stroke, BezPath, Cap, Join, Stroke, StrokeOpts};
+use linesweeper::{BinaryOp, FillRule};
 
 /// Width of the stroke expansion used to compute the edge locus, in pixels.
 const LOCUS_STROKE_WIDTH: f64 = 10.0;
@@ -28,14 +29,28 @@ impl EdgePathLocusCalculator {
     /// * `edge_path` -- the `BezPath` for the edge body.
     /// * `arrow_head_path` -- the `BezPath` for the edge's arrow head.
     pub(super) fn calculate(edge_path: &BezPath, arrow_head_path: &BezPath) -> BezPath {
-        let combined = edge_path.into_iter().chain(arrow_head_path);
-
         let style = Stroke::new(LOCUS_STROKE_WIDTH)
             .with_join(Join::Round)
             .with_caps(Cap::Round);
 
         let opts = StrokeOpts::default();
+        let edge_locus = stroke(edge_path, &style, &opts, LOCUS_TOLERANCE);
+        let arrow_head_locus = stroke(arrow_head_path, &style, &opts, LOCUS_TOLERANCE);
 
-        stroke(combined, &style, &opts, LOCUS_TOLERANCE)
+        let contours = linesweeper::binary_op(
+            &edge_locus,
+            &arrow_head_locus,
+            FillRule::NonZero,
+            BinaryOp::Union,
+        )
+        .unwrap_or_else(|e| panic!("Failed to compute union of locus paths: {e:?}"));
+
+        // We expect only one contour, since the arrow head should overlap with the
+        // edge path body.
+        contours
+            .contours()
+            .next()
+            .map(|contour| contour.path.clone())
+            .unwrap_or(edge_locus)
     }
 }
