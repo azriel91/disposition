@@ -975,7 +975,7 @@ impl SvgEdgeInfosBuilder {
             edge_animation_active,
             associated_process_steps,
         } = css_animation_append_params;
-        let edge_anim = EdgeAnimationCalculator::calculate(
+        let edge_animation = EdgeAnimationCalculator::calculate(
             edge_animation_params,
             edge_path_info,
             edge_group_path_or_visible_segments_length_max,
@@ -989,24 +989,24 @@ impl SvgEdgeInfosBuilder {
             .get(&edge_id_owned)
             .cloned()
             .unwrap_or_default();
-        let dasharray = edge_anim.dasharray;
-        let animation_name = edge_anim.animation_name;
+        let dasharray = edge_animation.dasharray;
+        let animation_name = edge_animation.animation_name;
         let animation_duration =
-            EdgeAnimationCalculator::format_duration(edge_anim.edge_animation_duration_s);
+            EdgeAnimationCalculator::format_duration(edge_animation.edge_animation_duration_s);
 
         let animation_classes = {
             let mut classes = format!("[stroke-dasharray:{dasharray}]");
             match edge_animation_active {
                 EdgeAnimationActive::Always => {
                     classes.push_str(&format!(
-                        "\nanimate-[{animation_name}_{animation_duration}s_linear_infinite]"
+                        "\n[&>.edge_body]:animate-[{animation_name}_{animation_duration}s_linear_infinite]"
                     ));
                 }
                 EdgeAnimationActive::OnProcessStepFocus => {
                     associated_process_steps.iter().for_each(|process_step_id| {
                         classes.push_str(&format!(
                             "\ngroup-has-[#{process_step_id}:focus-within]:\
-                                animate-[{animation_name}_{animation_duration}s_linear_infinite]"
+                                [&>.edge_body]:animate-[{animation_name}_{animation_duration}s_linear_infinite]"
                         ));
                     });
                 }
@@ -1040,7 +1040,7 @@ impl SvgEdgeInfosBuilder {
             edge_path_info,
             edge_animation_active,
             associated_process_steps,
-            &edge_anim.arrow_head_animation_name,
+            &edge_animation.arrow_head_animation_name,
             animation_duration,
             forward_path_svg,
         );
@@ -1049,8 +1049,8 @@ impl SvgEdgeInfosBuilder {
         if !css.is_empty() {
             css.push('\n');
         }
-        css.push_str(&edge_anim.keyframe_css);
-        css.push_str(&edge_anim.arrow_head_keyframe_css);
+        css.push_str(&edge_animation.keyframe_css);
+        css.push_str(&edge_animation.arrow_head_keyframe_css);
     }
 
     /// Appends CSS classes for the arrowhead animation to the diagram's

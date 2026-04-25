@@ -386,6 +386,7 @@ impl SvgElementsToSvgMapper {
                 "<path \
                     d=\"{path_d}\" \
                     fill=\"none\" \
+                    class=\"edge_body\"
                 />\
                 <path \
                     d=\"{locus_path_d}\" \
@@ -434,9 +435,10 @@ impl SvgElementsToSvgMapper {
     /// (e.g. `#some_id`), we preserve the literal underscore in the generated
     /// CSS.
     ///
-    /// Only underscores that are part of an ID selector (starting with `#`) are
-    /// escaped. For example:
+    /// Only underscores that are part of an ID selector (starting with `#`) or
+    /// class selector (starting with `.`) are escaped. For example:
     /// - `group-has-[#some_id:focus]` -> `group-has-[#some&#95;id:focus]`
+    /// - `[&>.edge_body]` -> `[&>.edge&#95;body]`
     /// - `peer/some-peer:animate-[animation-name_2s_linear_infinite]` ->
     ///   unchanged
     ///
@@ -458,6 +460,12 @@ impl SvgElementsToSvgMapper {
     ///         "group-has-[#my_element_id:hover]:fill-red-500"
     ///     ),
     ///     "group-has-[#my&#95;element&#95;id:hover]:fill-red-500"
+    /// );
+    ///
+    /// // Class selectors have underscores escaped
+    /// assert_eq!(
+    ///     SvgElementsToSvgMapper::escape_ids_in_brackets("[&>.edge_body]:stroke-blue-500"),
+    ///     "[&>.edge&#95;body]:stroke-blue-500"
     /// );
     ///
     /// // Animation values are NOT escaped (no ID selector)
@@ -484,7 +492,8 @@ impl SvgElementsToSvgMapper {
     /// ```
     pub fn escape_ids_in_brackets(classes: &str) -> String {
         let mut bracket_depth: u32 = 0;
-        let mut is_parsing_id = false;
+        let mut is_parsing_id_or_class = false;
+        let mut is_last_character_non_id = true;
 
         classes
             .chars()
@@ -493,16 +502,20 @@ impl SvgElementsToSvgMapper {
                 match c {
                     '[' => {
                         bracket_depth += 1;
-                        is_parsing_id = false;
+                        is_parsing_id_or_class = false;
                         result.push(c);
                     }
                     ']' => {
                         bracket_depth = bracket_depth.saturating_sub(1);
-                        is_parsing_id = false;
+                        is_parsing_id_or_class = false;
                         result.push(c);
                     }
                     '#' if bracket_depth > 0 => {
-                        is_parsing_id = true;
+                        is_parsing_id_or_class = true;
+                        result.push(c);
+                    }
+                    '.' if bracket_depth > 0 && is_last_character_non_id => {
+                        is_parsing_id_or_class = true;
                         result.push(c);
                     }
                     '"' if bracket_depth > 0 => {
@@ -517,18 +530,24 @@ impl SvgElementsToSvgMapper {
                     ')' if bracket_depth > 0 => {
                         result.push_str("&#41;");
                     }
-                    '_' if bracket_depth > 0 && is_parsing_id => {
+                    '_' if bracket_depth > 0 && is_parsing_id_or_class => {
                         result.push_str("&#95;");
                     }
-                    // Characters that end an ID context (not valid in CSS IDs)
-                    ':' | ' ' | ',' | '.' | '>' | '+' | '~' | '(' | ')' if is_parsing_id => {
-                        is_parsing_id = false;
+                    // Characters that end an ID or CSS class context (not valid in CSS IDs)
+                    ':' | ' ' | ',' | '.' | '>' | '+' | '~' | '(' | ')' | '&'
+                        if is_parsing_id_or_class =>
+                    {
+                        is_parsing_id_or_class = false;
                         result.push(c);
                     }
                     _ => {
                         result.push(c);
                     }
                 }
+
+                is_last_character_non_id =
+                    matches!(c, ':' | ' ' | ',' | '.' | '>' | '+' | '~' | '(' | ')' | '&');
+
                 result
             })
     }
