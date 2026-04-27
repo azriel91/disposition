@@ -224,21 +224,13 @@ theme_types_styles:
 
   # thing_dependencies - edges
   type_dependency_edge_sequence_forward_default:
-    edge_defaults:
-      stroke_width: "2"
-      visibility: "visible"
+    edge_defaults: {}
   type_dependency_edge_cyclic_forward_default:
-    edge_defaults:
-      stroke_width: "2"
-      visibility: "visible"
+    edge_defaults: {}
   type_dependency_edge_symmetric_forward_default:
-    edge_defaults:
-      stroke_width: "2"
-      visibility: "visible"
+    edge_defaults: {}
   type_dependency_edge_symmetric_reverse_default:
-    edge_defaults:
-      stroke_width: "2"
-      visibility: "visible"
+    edge_defaults: {}
 
   # thing_interactions - edge groups
   type_interaction_edge_sequence_default:

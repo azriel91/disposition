@@ -707,13 +707,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                 .into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(
-                    vec![],
-                    vec![
-                        (ThemeAttr::StrokeWidth, "2"),
-                        (ThemeAttr::Visibility, "visible"),
-                    ],
-                ),
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
@@ -725,13 +719,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                 .into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(
-                    vec![],
-                    vec![
-                        (ThemeAttr::StrokeWidth, "2"),
-                        (ThemeAttr::Visibility, "visible"),
-                    ],
-                ),
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
@@ -743,13 +731,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                 .into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(
-                    vec![],
-                    vec![
-                        (ThemeAttr::StrokeWidth, "2"),
-                        (ThemeAttr::Visibility, "visible"),
-                    ],
-                ),
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
@@ -761,13 +743,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                 .into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(
-                    vec![],
-                    vec![
-                        (ThemeAttr::StrokeWidth, "2"),
-                        (ThemeAttr::Visibility, "visible"),
-                    ],
-                ),
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
