@@ -269,7 +269,7 @@ impl TailwindClassesBuilder {
             .get(tag_id)
             .and_then(|types| types.iter().next())
             .cloned();
-        let mut state = TailwindClassState {
+        let mut tailwind_class_state = TailwindClassState {
             entity_type,
             ..Default::default()
         };
@@ -280,11 +280,11 @@ impl TailwindClassesBuilder {
             theme_default,
             theme_types_styles,
             IdOrDefaults::NodeDefaults,
-            &mut state,
+            &mut tailwind_class_state,
         );
 
         let mut classes = String::new();
-        state.write_classes(
+        tailwind_class_state.write_classes(
             &mut classes,
             css_theme_vars,
             theme_default.dark_mode_config.shade,
@@ -308,7 +308,7 @@ impl TailwindClassesBuilder {
             .get(process_id)
             .and_then(|types| types.iter().next())
             .cloned();
-        let mut state = TailwindClassState {
+        let mut tailwind_class_state = TailwindClassState {
             entity_type,
             ..Default::default()
         };
@@ -319,11 +319,11 @@ impl TailwindClassesBuilder {
             theme_default,
             theme_types_styles,
             IdOrDefaults::NodeDefaults,
-            &mut state,
+            &mut tailwind_class_state,
         );
 
         let mut classes = String::new();
-        state.write_classes(
+        tailwind_class_state.write_classes(
             &mut classes,
             css_theme_vars,
             theme_default.dark_mode_config.shade,
@@ -348,7 +348,7 @@ impl TailwindClassesBuilder {
             .get(process_step_id)
             .and_then(|types| types.iter().next())
             .cloned();
-        let mut state = TailwindClassState {
+        let mut tailwind_class_state = TailwindClassState {
             entity_type,
             ..Default::default()
         };
@@ -359,11 +359,11 @@ impl TailwindClassesBuilder {
             theme_default,
             theme_types_styles,
             IdOrDefaults::NodeDefaults,
-            &mut state,
+            &mut tailwind_class_state,
         );
 
         let mut classes = String::new();
-        state.write_classes(
+        tailwind_class_state.write_classes(
             &mut classes,
             css_theme_vars,
             theme_default.dark_mode_config.shade,
@@ -422,7 +422,7 @@ impl TailwindClassesBuilder {
             .get(node_id.as_ref())
             .and_then(|types| types.iter().next())
             .cloned();
-        let mut state = TailwindClassState {
+        let mut tailwind_class_state = TailwindClassState {
             entity_type,
             ..Default::default()
         };
@@ -433,11 +433,11 @@ impl TailwindClassesBuilder {
             theme_default,
             theme_types_styles,
             IdOrDefaults::NodeDefaults,
-            &mut state,
+            &mut tailwind_class_state,
         );
 
         let mut classes = String::new();
-        state.write_classes(
+        tailwind_class_state.write_classes(
             &mut classes,
             css_theme_vars,
             theme_default.dark_mode_config.shade,
@@ -445,7 +445,7 @@ impl TailwindClassesBuilder {
 
         // Add peer classes for each tag
         Self::build_thing_tailwind_classes_tags(
-            &state,
+            &tailwind_class_state,
             &mut classes,
             node_id,
             theme_default,
@@ -458,7 +458,7 @@ impl TailwindClassesBuilder {
         // Add peer classes for process steps that interact with edges involving this
         // thing using styles from `theme_default.process_step_selected_styles`
         Self::build_thing_tailwind_classes_interactions(
-            &state,
+            &tailwind_class_state,
             &mut classes,
             node_id,
             theme_default,
@@ -472,7 +472,7 @@ impl TailwindClassesBuilder {
     /// Write tag-related peer classes for a thing node.
     #[allow(clippy::too_many_arguments)]
     fn build_thing_tailwind_classes_tags<'id>(
-        state: &TailwindClassState<'_>,
+        tailwind_class_state: &TailwindClassState<'_>,
         classes: &mut String,
         node_id: &NodeId<'id>,
         theme_default: &ThemeDefault<'id>,
@@ -498,17 +498,17 @@ impl TailwindClassesBuilder {
             // 2. Applying TagDefaults styles
             // 3. Applying tag-specific styles (overrides)
             let mut tag_focus_state = TailwindClassState::default();
-            if let Some(shape_color) = state.attrs.get(&ThemeAttr::ShapeColor) {
+            if let Some(shape_color) = tailwind_class_state.attrs.get(&ThemeAttr::ShapeColor) {
                 tag_focus_state
                     .attrs
                     .insert(ThemeAttr::ShapeColor, shape_color.clone());
             };
-            if let Some(fill_color) = state.attrs.get(&ThemeAttr::FillColor) {
+            if let Some(fill_color) = tailwind_class_state.attrs.get(&ThemeAttr::FillColor) {
                 tag_focus_state
                     .attrs
                     .insert(ThemeAttr::FillColor, fill_color.clone());
             };
-            if let Some(stroke_color) = state.attrs.get(&ThemeAttr::StrokeColor) {
+            if let Some(stroke_color) = tailwind_class_state.attrs.get(&ThemeAttr::StrokeColor) {
                 tag_focus_state
                     .attrs
                     .insert(ThemeAttr::StrokeColor, stroke_color.clone());
@@ -550,7 +550,7 @@ impl TailwindClassesBuilder {
 
     /// Write interaction-related peer classes for a thing node.
     fn build_thing_tailwind_classes_interactions<'f, 'id>(
-        state: &TailwindClassState<'_>,
+        tailwind_class_state: &TailwindClassState<'_>,
         classes: &mut String,
         node_id: &NodeId<'id>,
         theme_default: &ThemeDefault<'id>,
@@ -563,17 +563,18 @@ impl TailwindClassesBuilder {
                 let mut step_selected_state = TailwindClassState::default();
 
                 // Copy the thing's colors
-                if let Some(shape_color) = state.attrs.get(&ThemeAttr::ShapeColor) {
+                if let Some(shape_color) = tailwind_class_state.attrs.get(&ThemeAttr::ShapeColor) {
                     step_selected_state
                         .attrs
                         .insert(ThemeAttr::ShapeColor, shape_color.clone());
                 };
-                if let Some(fill_color) = state.attrs.get(&ThemeAttr::FillColor) {
+                if let Some(fill_color) = tailwind_class_state.attrs.get(&ThemeAttr::FillColor) {
                     step_selected_state
                         .attrs
                         .insert(ThemeAttr::FillColor, fill_color.clone());
                 };
-                if let Some(stroke_color) = state.attrs.get(&ThemeAttr::StrokeColor) {
+                if let Some(stroke_color) = tailwind_class_state.attrs.get(&ThemeAttr::StrokeColor)
+                {
                     step_selected_state
                         .attrs
                         .insert(ThemeAttr::StrokeColor, stroke_color.clone());
@@ -633,7 +634,7 @@ impl TailwindClassesBuilder {
             .get(edge_group_id.as_ref())
             .and_then(|types| types.iter().next())
             .cloned();
-        let mut state = TailwindClassState {
+        let mut tailwind_class_state = TailwindClassState {
             entity_type,
             ..Default::default()
         };
@@ -644,11 +645,11 @@ impl TailwindClassesBuilder {
             theme_default,
             theme_types_styles,
             IdOrDefaults::EdgeDefaults,
-            &mut state,
+            &mut tailwind_class_state,
         );
 
         let mut classes = String::new();
-        state.write_classes(
+        tailwind_class_state.write_classes(
             &mut classes,
             css_theme_vars,
             theme_default.dark_mode_config.shade,
@@ -705,7 +706,7 @@ impl TailwindClassesBuilder {
             .get(edge_id)
             .and_then(|types| types.iter().next())
             .cloned();
-        let mut state = TailwindClassState {
+        let mut tailwind_class_state = TailwindClassState {
             entity_type,
             ..Default::default()
         };
@@ -716,11 +717,11 @@ impl TailwindClassesBuilder {
             theme_default,
             theme_types_styles,
             IdOrDefaults::EdgeDefaults,
-            &mut state,
+            &mut tailwind_class_state,
         );
 
         let mut classes = String::new();
-        state.write_classes(
+        tailwind_class_state.write_classes(
             &mut classes,
             css_theme_vars,
             theme_default.dark_mode_config.shade,
@@ -747,7 +748,7 @@ impl TailwindClassesBuilder {
         theme_default: &'partials ThemeDefault<'id>,
         theme_types_styles: &'partials ThemeTypesStyles<'id>,
         id_or_defaults_key: IdOrDefaults<'id>,
-        state: &mut TailwindClassState<'tw_state>,
+        tailwind_class_state: &mut TailwindClassState<'tw_state>,
     ) where
         'partials: 'tw_state,
     {
@@ -756,7 +757,7 @@ impl TailwindClassesBuilder {
             Self::apply_tailwind_from_partials(
                 defaults_partials,
                 &theme_default.style_aliases,
-                state,
+                tailwind_class_state,
             );
         }
 
@@ -774,7 +775,7 @@ impl TailwindClassesBuilder {
                     Self::apply_tailwind_from_partials(
                         type_partials,
                         &theme_default.style_aliases,
-                        state,
+                        tailwind_class_state,
                     );
                 });
         }
@@ -784,7 +785,11 @@ impl TailwindClassesBuilder {
             .base_styles
             .get(&IdOrDefaults::Id(entity_id.clone()))
         {
-            Self::apply_tailwind_from_partials(node_partials, &theme_default.style_aliases, state);
+            Self::apply_tailwind_from_partials(
+                node_partials,
+                &theme_default.style_aliases,
+                tailwind_class_state,
+            );
         }
     }
 
@@ -792,7 +797,7 @@ impl TailwindClassesBuilder {
     fn apply_tailwind_from_partials<'partials, 'tw_state, 'id>(
         partials: &'partials CssClassPartials<'id>,
         style_aliases: &'partials StyleAliases<'id>,
-        state: &mut TailwindClassState<'tw_state>,
+        tailwind_class_state: &mut TailwindClassState<'tw_state>,
     ) where
         'partials: 'tw_state,
     {
@@ -801,21 +806,25 @@ impl TailwindClassesBuilder {
             .style_aliases_applied()
             .iter()
             .filter_map(|alias| style_aliases.get(alias))
-            .for_each(|alias_partials| Self::extract_tailwind_from_map(alias_partials, state));
+            .for_each(|alias_partials| {
+                Self::extract_tailwind_from_map(alias_partials, tailwind_class_state)
+            });
 
         // Then, check direct attributes (higher priority within this partials)
-        Self::extract_tailwind_from_map(partials, state);
+        Self::extract_tailwind_from_map(partials, tailwind_class_state);
     }
 
     /// Extract tailwind attribute values from a CssClassPartials map.
     fn extract_tailwind_from_map<'partials, 'tw_state, 'id>(
         partials: &'partials CssClassPartials<'id>,
-        state: &mut TailwindClassState<'tw_state>,
+        tailwind_class_state: &mut TailwindClassState<'tw_state>,
     ) where
         'partials: 'tw_state,
     {
         partials.iter().for_each(|(theme_attr, value)| {
-            state.attrs.insert(*theme_attr, Cow::Borrowed(value));
+            tailwind_class_state
+                .attrs
+                .insert(*theme_attr, Cow::Borrowed(value));
         });
     }
 }
