@@ -47,11 +47,10 @@ pub struct EditorState {
     ///
     /// # Examples
     ///
-    /// * `Some("proc_app_dev")` -- focus the process card with ID
-    ///   `proc_app_dev`.
-    /// * `Some("proc_app_dev_step_2")` -- expand the `proc_app_dev` card, then
+    /// * `Some("proc_app_dev")`: focus the process card with ID `proc_app_dev`.
+    /// * `Some("proc_app_dev_step_2")`: expand the `proc_app_dev` card, then
     ///   focus the third step row inside it.
-    /// * `None` -- no field to focus (the default).
+    /// * `None`: no field to focus (the default).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub focus_field: Option<String>,
 
@@ -63,8 +62,8 @@ pub struct EditorState {
     ///
     /// # Examples
     ///
-    /// * `true` -- the SVG preview fills the page on load.
-    /// * `false` -- normal editor layout (the default).
+    /// * `true`: the SVG preview fills the page on load.
+    /// * `false`: normal editor layout (the default).
     #[serde(default, skip_serializing_if = "is_false")]
     pub svg_preview_expanded: bool,
 

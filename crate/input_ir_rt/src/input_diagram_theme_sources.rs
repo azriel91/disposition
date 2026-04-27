@@ -8,8 +8,8 @@ use crate::ThemeValueSource;
 ///
 /// For each theme map entry, the source is:
 ///
-/// * `UserInput` -- if the key is present in the overlay diagram.
-/// * `BaseDiagram` -- if the key is only present in the base diagram.
+/// * `UserInput`: if the key is present in the overlay diagram.
+/// * `BaseDiagram`: if the key is only present in the base diagram.
 ///
 /// The computation is done on-the-fly by checking the overlay diagram.
 /// Since the overlay is typically small, this is efficient.
@@ -44,8 +44,8 @@ impl<'a> InputDiagramThemeSources<'a> {
     ///
     /// # Parameters
     ///
-    /// * `base` -- the base diagram, typically from `InputDiagram::base()`.
-    /// * `overlay` -- the user's overlay diagram before merging.
+    /// * `base`: the base diagram, typically from `InputDiagram::base()`.
+    /// * `overlay`: the user's overlay diagram before merging.
     pub fn new(base: &'a InputDiagram<'static>, overlay: &'a InputDiagram<'static>) -> Self {
         Self { base, overlay }
     }

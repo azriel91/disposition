@@ -29,9 +29,9 @@ const RADIO_LABEL_CLASS: &str = "\
 ///
 /// Allows the user to configure:
 ///
-/// * `edge_curvature` -- whether edges are drawn as smooth curves or orthogonal
+/// * `edge_curvature`: whether edges are drawn as smooth curves or orthogonal
 ///   lines.
-/// * `rank_dir` -- direction that edges connect nodes.
+/// * `rank_dir`: direction that edges connect nodes.
 #[component]
 pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let edge_curvature = input_diagram.read().render_options.edge_curvature;

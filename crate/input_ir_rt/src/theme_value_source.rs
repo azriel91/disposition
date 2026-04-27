@@ -5,8 +5,8 @@
 ///
 /// # Variants
 ///
-/// * `BaseDiagram` -- the value comes from `InputDiagram::base()`.
-/// * `UserInput` -- the value was provided by the user's overlay diagram.
+/// * `BaseDiagram`: the value comes from `InputDiagram::base()`.
+/// * `UserInput`: the value was provided by the user's overlay diagram.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThemeValueSource {
     /// Value comes from the base diagram defaults.

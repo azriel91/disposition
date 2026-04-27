@@ -761,14 +761,14 @@ impl SvgEdgeInfosBuilder {
     /// returns `SpacerCoordinates` with entry and exit points that
     /// depend on `rank_dir`:
     ///
-    /// * `TopToBottom` -- entry at top midpoint (smallest y), exit at bottom
-    ///   midpoint (largest y).
-    /// * `BottomToTop` -- entry at bottom midpoint (largest y), exit at top
-    ///   midpoint (smallest y).
-    /// * `LeftToRight` -- entry at left midpoint (smallest x), exit at right
-    ///   midpoint (largest x).
-    /// * `RightToLeft` -- entry at right midpoint (largest x), exit at left
-    ///   midpoint (smallest x).
+    /// * `RankDir::TopToBottom`: entry at top midpoint (smallest y), exit at
+    ///   bottom midpoint (largest y).
+    /// * `RankDir::BottomToTop`: entry at bottom midpoint (largest y), exit at
+    ///   top midpoint (smallest y).
+    /// * `RankDir::LeftToRight`: entry at left midpoint (smallest x), exit at
+    ///   right midpoint (largest x).
+    /// * `RankDir::RightToLeft`: entry at right midpoint (largest x), exit at
+    ///   left midpoint (smallest x).
     fn spacer_absolute_coordinates(
         rank_dir: RankDir,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,

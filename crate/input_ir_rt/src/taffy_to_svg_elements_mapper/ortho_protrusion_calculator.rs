@@ -151,12 +151,12 @@ impl OrthoProtrusionCalculator {
     ///
     /// # Parameters
     ///
-    /// * `all_pass1_groups` -- all edge groups with pass-1 metadata.
-    /// * `face_offsets_by_node_face` -- precomputed per-face offset vectors
-    ///   from `face_offsets_compute`.
-    /// * `svg_node_info_map` -- node layout information.
-    /// * `taffy_tree` -- the layout tree (for spacer coordinate lookups).
-    /// * `edge_spacer_taffy_nodes` -- spacer node mappings per edge.
+    /// * `all_pass1_groups`: all edge groups with pass-1 metadata.
+    /// * `face_offsets_by_node_face`: precomputed per-face offset vectors from
+    ///   `face_offsets_compute`.
+    /// * `svg_node_info_map`: node layout information.
+    /// * `taffy_tree`: the layout tree (for spacer coordinate lookups).
+    /// * `edge_spacer_taffy_nodes`: spacer node mappings per edge.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn calculate<'id>(
         rank_dir: RankDir,
@@ -914,10 +914,10 @@ impl OrthoProtrusionCalculator {
     ///
     /// # Parameters
     ///
-    /// * `rank_from` -- rank of the from-node.
-    /// * `rank_to` -- rank of the to-node.
-    /// * `spacer_idx_low` -- index of the earlier spacer (in forward order).
-    /// * `spacer_idx_high` -- index of the later spacer.
+    /// * `rank_from`: rank of the from-node.
+    /// * `rank_to`: rank of the to-node.
+    /// * `spacer_idx_low`: index of the earlier spacer (in forward order).
+    /// * `spacer_idx_high`: index of the later spacer.
     fn spacer_gap_key(
         rank_from: NodeRank,
         rank_to: NodeRank,
@@ -1114,14 +1114,14 @@ impl OrthoProtrusionCalculator {
     /// returns `SpacerCoordinates` with entry and exit points that
     /// depend on `rank_dir`:
     ///
-    /// * `TopToBottom` -- entry at top midpoint (smallest y), exit at bottom
-    ///   midpoint (largest y).
-    /// * `BottomToTop` -- entry at bottom midpoint (largest y), exit at top
-    ///   midpoint (smallest y).
-    /// * `LeftToRight` -- entry at left midpoint (smallest x), exit at right
-    ///   midpoint (largest x).
-    /// * `RightToLeft` -- entry at right midpoint (largest x), exit at left
-    ///   midpoint (smallest x).
+    /// * `RankDir::TopToBottom`: entry at top midpoint (smallest y), exit at
+    ///   bottom midpoint (largest y).
+    /// * `RankDir::BottomToTop`: entry at bottom midpoint (largest y), exit at
+    ///   top midpoint (smallest y).
+    /// * `RankDir::LeftToRight`: entry at left midpoint (smallest x), exit at
+    ///   right midpoint (largest x).
+    /// * `RankDir::RightToLeft`: entry at right midpoint (largest x), exit at
+    ///   left midpoint (smallest x).
     fn spacer_absolute_coordinates(
         rank_dir: RankDir,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
