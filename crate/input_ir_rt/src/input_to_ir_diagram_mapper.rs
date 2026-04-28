@@ -30,11 +30,12 @@ use disposition_model_common::{
 use crate::node_ranks_calculator::NodeRanksCalculator;
 
 use self::{
-    css_theme_vars::CssThemeVars, tailwind_classes_builder::TailwindClassesBuilder,
-    theme_attr_resolver::ThemeAttrResolver,
+    css_theme_vars::CssThemeVars, node_nesting_infos_builder::NodeNestingInfosBuilder,
+    tailwind_classes_builder::TailwindClassesBuilder, theme_attr_resolver::ThemeAttrResolver,
 };
 
 mod css_theme_vars;
+mod node_nesting_infos_builder;
 mod tailwind_class_state;
 mod tailwind_classes_builder;
 mod tailwind_color_shade;
@@ -149,6 +150,9 @@ impl InputToIrDiagramMapper {
         let node_ranks =
             NodeRanksCalculator::calculate(&node_hierarchy, &edge_groups, &ir_entity_types);
 
+        // 14. Compute NodeNestingInfos from node_hierarchy
+        let node_nesting_infos = NodeNestingInfosBuilder::build(&node_hierarchy);
+
         let diagram = IrDiagram {
             nodes,
             node_copy_text,
@@ -161,6 +165,7 @@ impl InputToIrDiagramMapper {
             tailwind_classes,
             node_layouts,
             node_ranks,
+            node_nesting_infos,
             node_shapes,
             process_step_entities,
             render_options: *render_options,

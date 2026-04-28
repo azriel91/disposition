@@ -5,7 +5,10 @@ use crate::{
     edge::EdgeGroups,
     entity::{EntityDescs, EntityTailwindClasses, EntityTypes},
     layout::NodeLayouts,
-    node::{NodeCopyText, NodeHierarchy, NodeNames, NodeOrdering, NodeRanks, NodeShapes},
+    node::{
+        NodeCopyText, NodeHierarchy, NodeNames, NodeNestingInfos, NodeOrdering, NodeRanks,
+        NodeShapes,
+    },
     process::ProcessStepEntities,
 };
 
@@ -162,6 +165,13 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "NodeRanks::is_empty")]
     pub node_ranks: NodeRanks<'id>,
 
+    /// Nesting information for each node in the hierarchy.
+    ///
+    /// Contains each node's ancestor chain and sibling index path from the
+    /// root. Used to compute edge spacer positions for cross-rank edges.
+    #[serde(default, skip_serializing_if = "NodeNestingInfos::is_empty")]
+    pub node_nesting_infos: NodeNestingInfos<'id>,
+
     /// Shape configuration for each node.
     ///
     /// Defines the shape and corner radii for each node in the diagram.
@@ -214,6 +224,7 @@ impl<'id> IrDiagram<'id> {
             tailwind_classes: self.tailwind_classes.into_static(),
             node_layouts: self.node_layouts.into_static(),
             node_ranks: self.node_ranks.into_static(),
+            node_nesting_infos: self.node_nesting_infos.into_static(),
             node_shapes: self.node_shapes.into_static(),
             process_step_entities: self.process_step_entities.into_static(),
             render_options: self.render_options,

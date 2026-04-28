@@ -1760,6 +1760,238 @@ node_ranks:
   t_localhost_repo_target: 0
   t_localhost_repo_target_file_zip: 0
   t_localhost_repo_target_dist_dir: 0
+node_nesting_infos:
+  tag_app_development:
+    nesting_path:
+      - 0
+    ancestor_chain:
+      - tag_app_development
+  tag_deployment:
+    nesting_path:
+      - 1
+    ancestor_chain:
+      - tag_deployment
+  proc_app_dev:
+    nesting_path:
+      - 2
+    ancestor_chain:
+      - proc_app_dev
+  proc_app_dev_step_repository_clone:
+    nesting_path:
+      - 2
+      - 0
+    ancestor_chain:
+      - proc_app_dev
+      - proc_app_dev_step_repository_clone
+  proc_app_dev_step_project_build:
+    nesting_path:
+      - 2
+      - 1
+    ancestor_chain:
+      - proc_app_dev
+      - proc_app_dev_step_project_build
+  proc_app_release:
+    nesting_path:
+      - 3
+    ancestor_chain:
+      - proc_app_release
+  proc_app_release_step_crate_version_update:
+    nesting_path:
+      - 3
+      - 0
+    ancestor_chain:
+      - proc_app_release
+      - proc_app_release_step_crate_version_update
+  proc_app_release_step_pull_request_open:
+    nesting_path:
+      - 3
+      - 1
+    ancestor_chain:
+      - proc_app_release
+      - proc_app_release_step_pull_request_open
+  proc_app_release_step_tag_and_push:
+    nesting_path:
+      - 3
+      - 2
+    ancestor_chain:
+      - proc_app_release
+      - proc_app_release_step_tag_and_push
+  proc_app_release_step_gh_actions_build:
+    nesting_path:
+      - 3
+      - 3
+    ancestor_chain:
+      - proc_app_release
+      - proc_app_release_step_gh_actions_build
+  proc_app_release_step_gh_actions_publish:
+    nesting_path:
+      - 3
+      - 4
+    ancestor_chain:
+      - proc_app_release
+      - proc_app_release_step_gh_actions_publish
+  proc_i12e_region_tier_app_deploy:
+    nesting_path:
+      - 4
+    ancestor_chain:
+      - proc_i12e_region_tier_app_deploy
+  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:
+    nesting_path:
+      - 4
+      - 0
+    ancestor_chain:
+      - proc_i12e_region_tier_app_deploy
+      - proc_i12e_region_tier_app_deploy_step_ecs_cluster_update
+  t_aws:
+    nesting_path:
+      - 5
+    ancestor_chain:
+      - t_aws
+  t_aws_iam:
+    nesting_path:
+      - 5
+      - 0
+    ancestor_chain:
+      - t_aws
+      - t_aws_iam
+  t_aws_iam_ecs_policy:
+    nesting_path:
+      - 5
+      - 0
+      - 0
+    ancestor_chain:
+      - t_aws
+      - t_aws_iam
+      - t_aws_iam_ecs_policy
+  t_aws_ecr:
+    nesting_path:
+      - 5
+      - 1
+    ancestor_chain:
+      - t_aws
+      - t_aws_ecr
+  t_aws_ecr_repo:
+    nesting_path:
+      - 5
+      - 1
+      - 0
+    ancestor_chain:
+      - t_aws
+      - t_aws_ecr
+      - t_aws_ecr_repo
+  t_aws_ecr_repo_image_1:
+    nesting_path:
+      - 5
+      - 1
+      - 0
+      - 0
+    ancestor_chain:
+      - t_aws
+      - t_aws_ecr
+      - t_aws_ecr_repo
+      - t_aws_ecr_repo_image_1
+  t_aws_ecr_repo_image_2:
+    nesting_path:
+      - 5
+      - 1
+      - 0
+      - 1
+    ancestor_chain:
+      - t_aws
+      - t_aws_ecr
+      - t_aws_ecr_repo
+      - t_aws_ecr_repo_image_2
+  t_aws_ecs:
+    nesting_path:
+      - 5
+      - 2
+    ancestor_chain:
+      - t_aws
+      - t_aws_ecs
+  t_aws_ecs_cluster:
+    nesting_path:
+      - 5
+      - 2
+      - 0
+    ancestor_chain:
+      - t_aws
+      - t_aws_ecs
+      - t_aws_ecs_cluster
+  t_aws_ecs_cluster_task:
+    nesting_path:
+      - 5
+      - 2
+      - 0
+      - 0
+    ancestor_chain:
+      - t_aws
+      - t_aws_ecs
+      - t_aws_ecs_cluster
+      - t_aws_ecs_cluster_task
+  t_github:
+    nesting_path:
+      - 6
+    ancestor_chain:
+      - t_github
+  t_github_user_repo:
+    nesting_path:
+      - 6
+      - 0
+    ancestor_chain:
+      - t_github
+      - t_github_user_repo
+  t_localhost:
+    nesting_path:
+      - 7
+    ancestor_chain:
+      - t_localhost
+  t_localhost_repo:
+    nesting_path:
+      - 7
+      - 0
+    ancestor_chain:
+      - t_localhost
+      - t_localhost_repo
+  t_localhost_repo_src:
+    nesting_path:
+      - 7
+      - 0
+      - 0
+    ancestor_chain:
+      - t_localhost
+      - t_localhost_repo
+      - t_localhost_repo_src
+  t_localhost_repo_target:
+    nesting_path:
+      - 7
+      - 0
+      - 1
+    ancestor_chain:
+      - t_localhost
+      - t_localhost_repo
+      - t_localhost_repo_target
+  t_localhost_repo_target_file_zip:
+    nesting_path:
+      - 7
+      - 0
+      - 1
+      - 0
+    ancestor_chain:
+      - t_localhost
+      - t_localhost_repo
+      - t_localhost_repo_target
+      - t_localhost_repo_target_file_zip
+  t_localhost_repo_target_dist_dir:
+    nesting_path:
+      - 7
+      - 0
+      - 1
+      - 1
+    ancestor_chain:
+      - t_localhost
+      - t_localhost_repo
+      - t_localhost_repo_target
+      - t_localhost_repo_target_dist_dir
 node_shapes:
   t_aws:
     rect:
