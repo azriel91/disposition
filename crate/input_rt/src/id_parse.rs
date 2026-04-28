@@ -80,9 +80,9 @@ pub fn parse_entity_type_id(s: &str) -> Option<EntityTypeId<'static>> {
 ///
 /// Recognized built-in keys:
 ///
-/// * `"node_defaults"` -- `IdOrDefaults::NodeDefaults`
-/// * `"node_excluded_defaults"` -- `IdOrDefaults::NodeExcludedDefaults`
-/// * `"edge_defaults"` -- `IdOrDefaults::EdgeDefaults`
+/// * `"node_defaults"`: `IdOrDefaults::NodeDefaults`
+/// * `"node_excluded_defaults"`: `IdOrDefaults::NodeExcludedDefaults`
+/// * `"edge_defaults"`: `IdOrDefaults::EdgeDefaults`
 ///
 /// Valid values: `"node_defaults"`, `"edge_defaults"`, `"t_aws"`.
 pub fn parse_id_or_defaults(s: &str) -> Option<IdOrDefaults<'static>> {

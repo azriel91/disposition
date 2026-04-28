@@ -671,12 +671,16 @@ fn test_tailwind_classes_generation() {
         "t_aws should have yellow stroke via CSS variable. Got: {t_aws_classes}"
     );
 
-    // Test edge group tailwind classes (using interaction edge groups)
-    let edge_group_id = id!("edge_ix_t_localhost__t_github_user_repo__pull");
-    let edge_classes = String::from("\n") + diagram.tailwind_classes.get(&edge_group_id).unwrap();
+    // Test edge tailwind classes (using interaction edge groups).
+    //
+    // Edge group classes are now merged into each individual edge's classes,
+    // so we look up the first edge in the group (index `__0`) instead of the
+    // group ID itself.
+    let edge_id = id!("edge_ix_t_localhost__t_github_user_repo__pull__0");
+    let edge_classes = String::from("\n") + diagram.tailwind_classes.get(&edge_id).unwrap();
     assert!(
         edge_classes.contains("\nstroke-"),
-        "Edge group should have stroke class. Got: {edge_classes}"
+        "Edge should have stroke class (merged from edge group). Got: {edge_classes}"
     );
     // Should have peer classes for interacting process steps
     assert!(

@@ -138,10 +138,10 @@ impl EdgePathBuilderPass2Curve {
     /// The segment goes from `(px, py)` to `(qx, qy)`. Control points
     /// are computed from the endpoint directions:
     ///
-    /// * `p_dir` -- the direction the path should leave `(px, py)`. For a
-    ///   `Face`, the outward normal is used. For a `Direction`, the unit vector
-    ///   is used directly.
-    /// * `q_dir` -- the direction the path should arrive at `(qx, qy)`. For a
+    /// * `p_dir`: the direction the path should leave `(px, py)`. For a `Face`,
+    ///   the outward normal is used. For a `Direction`, the unit vector is used
+    ///   directly.
+    /// * `q_dir`: the direction the path should arrive at `(qx, qy)`. For a
     ///   `Face`, the outward normal is used (the control point is placed on the
     ///   outward side so the bezier arrives from that direction). For a
     ///   `Direction`, the unit vector is negated to produce an inward control

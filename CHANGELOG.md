@@ -5,9 +5,11 @@
 * Support rendering tooltips. ([#26][#26])
 * Add focus outlines around nodes and edges. ([#27][#27])
 * Update `stroke_style: dashed` to mean `dasharray:4`. ([#27][#27])
+* Fix duplication of tailwind classes on edges. ([#28][#28])
 
 [#26]: https://github.com/azriel91/disposition/pull/26
 [#27]: https://github.com/azriel91/disposition/pull/27
+[#28]: https://github.com/azriel91/disposition/pull/28
 
 
 ## 0.1.0 (2026-04-11)

@@ -31,10 +31,10 @@ const MAX_ENTRIES: usize = 200;
 ///
 /// # Fields
 ///
-/// * `entries` -- the ordered list of snapshots, oldest first.
-/// * `cursor` -- index into `entries` that represents the *current* state. Undo
+/// * `entries`: the ordered list of snapshots, oldest first.
+/// * `cursor`: index into `entries` that represents the *current* state. Undo
 ///   moves the cursor backwards; redo moves it forwards.
-/// * `skip_next_push` -- flag used to prevent the memo that watches the
+/// * `skip_next_push`: flag used to prevent the memo that watches the
 ///   `input_diagram` signal from recording a snapshot when the change was
 ///   caused by an undo/redo operation itself.
 #[derive(Clone, Debug)]

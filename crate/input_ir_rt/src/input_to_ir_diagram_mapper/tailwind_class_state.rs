@@ -14,7 +14,7 @@ const CLASSES_BUFFER_WRITE_FAIL: &str = "Failed to write string to buffer";
 ///
 /// This struct holds a map of [`ThemeAttr`] to their resolved string values,
 /// which are then used to generate the appropriate tailwind CSS classes.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct TailwindClassState<'tw_state> {
     /// Map of theme attributes to their resolved values.
     pub(crate) attrs: Map<ThemeAttr, Cow<'tw_state, str>>,

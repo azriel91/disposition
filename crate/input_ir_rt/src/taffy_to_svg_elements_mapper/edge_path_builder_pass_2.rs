@@ -66,13 +66,13 @@ impl EdgePathBuilderPass2 {
     ///
     /// # Parameters
     ///
-    /// * `edge_curvature` -- `Curved` for smooth bezier segments, `Orthogonal`
+    /// * `edge_curvature`: `Curved` for smooth bezier segments, `Orthogonal`
     ///   for 90-degree lines with arc corners.
-    /// * `spacers` -- intermediate spacer coordinates the edge must pass
-    ///   through, e.g. `&[SpacerCoordinates { entry_x: 150.0, entry_y: 200.0,
-    ///   exit_x: 150.0, exit_y: 205.0 }]`.
-    /// * `ortho_protrusion` -- precomputed protrusion lengths for orthogonal
-    ///   edge endpoints. Ignored when `edge_curvature` is `Curved`.
+    /// * `spacers`: intermediate spacer coordinates the edge must pass through,
+    ///   e.g. `&[SpacerCoordinates { entry_x: 150.0, entry_y: 200.0, exit_x:
+    ///   150.0, exit_y: 205.0 }]`.
+    /// * `ortho_protrusion`: precomputed protrusion lengths for orthogonal edge
+    ///   endpoints. Ignored when `edge_curvature` is `Curved`.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn build(
         edge_curvature: EdgeCurvature,

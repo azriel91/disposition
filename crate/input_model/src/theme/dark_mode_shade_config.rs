@@ -8,10 +8,10 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Variants
 ///
-/// * `Disable` -- no dark mode classes are emitted.
-/// * `Invert` -- shades are mirrored around 500 (e.g. 100 becomes 900).
-/// * `Shift` -- shades are shifted by a number of levels (e.g. 100 shifted
-///   darker by 4 levels becomes 500).
+/// * `Disable`: no dark mode classes are emitted.
+/// * `Invert`: shades are mirrored around 500 (e.g. 100 becomes 900).
+/// * `Shift`: shades are shifted by a number of levels (e.g. 100 shifted darker
+///   by 4 levels becomes 500).
 ///
 /// Defaults to `DarkModeShadeConfig::Invert`.
 ///

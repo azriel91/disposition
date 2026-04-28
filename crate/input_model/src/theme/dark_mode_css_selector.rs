@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Variants
 ///
-/// * `MediaQuery` -- uses `@media (prefers-color-scheme: dark) { svg { .. } }`.
-/// * `RootDarkClass` -- uses `:root.dark svg { .. }`, which allows a
-///   surrounding page to toggle dark mode via a `dark` class on `<html>`.
+/// * `MediaQuery`: uses `@media (prefers-color-scheme: dark) { svg { .. } }`.
+/// * `RootDarkClass`: uses `:root.dark svg { .. }`, which allows a surrounding
+///   page to toggle dark mode via a `dark` class on `<html>`.
 ///
 /// Defaults to `DarkModeCssSelector::RootDarkClass`.
 ///

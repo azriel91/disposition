@@ -7,10 +7,10 @@ use serde::{Deserialize, Serialize};
 ///
 /// # YAML values
 ///
-/// * `"row"` -- Items are placed left to right.
-/// * `"row_reverse"` -- Items are placed right to left.
-/// * `"column"` -- Items are placed top to bottom.
-/// * `"column_reverse"` -- Items are placed bottom to top.
+/// * `"row"`: Items are placed left to right.
+/// * `"row_reverse"`: Items are placed right to left.
+/// * `"column"`: Items are placed top to bottom.
+/// * `"column_reverse"`: Items are placed bottom to top.
 #[cfg_attr(
     all(feature = "schemars", not(feature = "test")),
     derive(schemars::JsonSchema)
