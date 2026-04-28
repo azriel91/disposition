@@ -128,46 +128,50 @@ impl TailwindClassesBuilder {
             })
             .collect();
 
-        // Build classes for edge groups and edges
-        let mut edge_group_and_edge_classes: Vec<(Id<'id>, String)> = Vec::new();
+        // Build classes for edge groups and individual edges.
+        //
+        // Edge group classes are resolved first into a `TailwindClassState`
+        // (not yet stringified). Each individual edge then clones the group
+        // state, applies any edge-specific overrides, and writes the combined
+        // classes to a single string. This prevents conflicting tailwind
+        // classes that would result from naively joining separate group and
+        // edge class strings.
+        let mut edge_classes: Vec<(Id<'id>, String)> = Vec::new();
         for (edge_group_id, edges) in edge_groups.iter() {
-            // Get the process steps that interact with this edge group
+            // Get the process steps that interact with this edge group.
             let interaction_steps = edge_group_to_steps
                 .get(edge_group_id)
                 .cloned()
                 .unwrap_or_default();
 
-            let edge_group_classes_str = Self::build_edge_group_tailwind_classes(
-                edge_group_id,
-                entity_types,
-                theme_default,
-                theme_types_styles,
-                &interaction_steps,
-                &mut css_theme_vars,
-            );
-
-            edge_group_and_edge_classes
-                .push((edge_group_id.clone().into_inner(), edge_group_classes_str));
+            let (edge_group_state, edge_group_peer_classes) =
+                Self::build_edge_group_tailwind_class_state(
+                    edge_group_id,
+                    entity_types,
+                    theme_default,
+                    theme_types_styles,
+                    &interaction_steps,
+                    &mut css_theme_vars,
+                );
 
             for (index, _edge) in edges.iter().enumerate() {
                 let edge_id_str = format!("{edge_group_id}__{index}");
                 let edge_id = Id::try_from(edge_id_str).expect("valid ID string");
 
                 let classes = Self::build_edge_tailwind_classes(
+                    &edge_group_state,
+                    &edge_group_peer_classes,
                     &edge_id,
                     entity_types,
                     theme_default,
                     theme_types_styles,
                     &mut css_theme_vars,
                 );
-                edge_group_and_edge_classes.push((edge_id, classes));
+                edge_classes.push((edge_id, classes));
             }
         }
 
-        let tailwind_classes = node_classes
-            .into_iter()
-            .chain(edge_group_and_edge_classes)
-            .collect();
+        let tailwind_classes = node_classes.into_iter().chain(edge_classes).collect();
 
         TailwindClassesBuildResult {
             tailwind_classes,
@@ -611,7 +615,14 @@ impl TailwindClassesBuilder {
         }
     }
 
-    /// Build tailwind classes for an edge group.
+    /// Build the tailwind class state for an edge group, along with a
+    /// pre-built peer classes string for process step interactions.
+    ///
+    /// The returned `TailwindClassState` represents the resolved base styling
+    /// for the group (EdgeDefaults + group entity-type + group ID overrides)
+    /// but has not yet been written to a `String`. It should be cloned for
+    /// each individual edge within the group, allowing edge-specific overrides
+    /// to be applied before stringification.
     ///
     /// # Parameters
     ///
@@ -622,14 +633,17 @@ impl TailwindClassesBuilder {
     /// * `interaction_process_step_ids`: The process step IDs that interact
     ///   with this edge.
     /// * `css_theme_vars`: Collector for CSS variable definitions.
-    fn build_edge_group_tailwind_classes<'id>(
+    fn build_edge_group_tailwind_class_state<'id, 'tw_state>(
         edge_group_id: &EdgeGroupId<'id>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
+        entity_types: &'tw_state EntityTypes<'id>,
+        theme_default: &'tw_state ThemeDefault<'id>,
+        theme_types_styles: &'tw_state ThemeTypesStyles<'id>,
         interaction_process_step_ids: &[&ProcessStepId<'id>],
         css_theme_vars: &mut CssThemeVars,
-    ) -> String {
+    ) -> (TailwindClassState<'tw_state>, String)
+    where
+        'id: 'tw_state,
+    {
         let entity_type = entity_types
             .get(edge_group_id.as_ref())
             .and_then(|types| types.iter().next())
@@ -648,15 +662,11 @@ impl TailwindClassesBuilder {
             &mut tailwind_class_state,
         );
 
-        let mut classes = String::new();
-        tailwind_class_state.write_classes(
-            &mut classes,
-            css_theme_vars,
-            theme_default.dark_mode_config.shade,
-        );
-
-        // Add peer classes for each process step that interacts with this edge
-        // using styles from `theme_default.process_step_selected_styles.edge_defaults`
+        // Build peer classes string for process step interactions.
+        //
+        // These are the same for all edges in the group and will be appended
+        // to each individual edge's classes string.
+        let mut peer_classes = String::new();
         interaction_process_step_ids.iter().for_each(|step_id| {
             // Build a state from the thing's current colors + process_step_selected_styles
             let mut step_selected_state = TailwindClassState::default();
@@ -683,40 +693,69 @@ impl TailwindClassesBuilder {
 
             let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
             step_selected_state.write_peer_classes(
-                &mut classes,
+                &mut peer_classes,
                 &peer_prefix,
                 css_theme_vars,
                 theme_default.dark_mode_config.shade,
             );
         });
 
-        classes
+        (tailwind_class_state, peer_classes)
     }
 
-    /// Build tailwind classes for individual symmetric edges within an edge
-    /// group.
-    fn build_edge_tailwind_classes<'id>(
+    /// Build tailwind classes for an individual edge within an edge group.
+    ///
+    /// Starts from a clone of the edge group's resolved `TailwindClassState`,
+    /// applies any edge-specific entity-type and ID-style overrides, then
+    /// writes the combined attributes to a string. The pre-built peer classes
+    /// from the edge group are appended at the end.
+    ///
+    /// This ensures each edge's final class string already contains the full
+    /// resolved styling -- group-level attributes overlaid with edge-specific
+    /// overrides -- so callers do not need to join separate group and edge
+    /// class strings.
+    ///
+    /// # Parameters
+    ///
+    /// * `edge_group_state`: The resolved state for the edge group (not yet
+    ///   stringified).
+    /// * `edge_group_peer_classes`: Pre-built peer classes for process step
+    ///   interactions, shared by all edges in the group.
+    /// * `edge_id`: The ID of the individual edge (e.g., `edge_group_id__0`).
+    /// * `entity_types`: Entity types map for resolving type-based styles.
+    /// * `theme_default`: The default theme configuration.
+    /// * `theme_types_styles`: Styles defined per entity type.
+    /// * `css_theme_vars`: Collector for CSS variable definitions.
+    fn build_edge_tailwind_classes<'id, 'tw_state>(
+        edge_group_state: &TailwindClassState<'tw_state>,
+        edge_group_peer_classes: &str,
         edge_id: &Id<'id>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
+        entity_types: &'tw_state EntityTypes<'id>,
+        theme_default: &'tw_state ThemeDefault<'id>,
+        theme_types_styles: &'tw_state ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
-    ) -> String {
-        let entity_type = entity_types
+    ) -> String
+    where
+        'id: 'tw_state,
+    {
+        // Start from the edge group's resolved state.
+        let mut tailwind_class_state = edge_group_state.clone();
+
+        // Update entity_type if the edge has its own entity type defined.
+        if let Some(entity_type) = entity_types
             .get(edge_id)
             .and_then(|types| types.iter().next())
-            .cloned();
-        let mut tailwind_class_state = TailwindClassState {
-            entity_type,
-            ..Default::default()
-        };
+            .cloned()
+        {
+            tailwind_class_state.entity_type = Some(entity_type);
+        }
 
-        Self::resolve_tailwind_attrs(
+        // Apply edge-specific type and ID overrides on top of the group state.
+        Self::resolve_tailwind_attrs_edge_overrides(
             edge_id,
             entity_types,
             theme_default,
             theme_types_styles,
-            IdOrDefaults::EdgeDefaults,
             &mut tailwind_class_state,
         );
 
@@ -726,10 +765,75 @@ impl TailwindClassesBuilder {
             css_theme_vars,
             theme_default.dark_mode_config.shade,
         );
+
+        // Append the pre-built peer classes from the edge group.
+        if !edge_group_peer_classes.is_empty() {
+            classes.push('\n');
+            classes.push_str(edge_group_peer_classes);
+        }
+
         classes
     }
 
     // === Tailwind Attribute Resolution === //
+
+    /// Resolve tailwind attribute overrides specific to an individual edge,
+    /// without re-applying EdgeDefaults.
+    ///
+    /// This is used when building an edge's classes on top of an
+    /// already-resolved edge group state. Only the entity-type-specific and
+    /// ID-specific overrides for the individual edge are applied; EdgeDefaults
+    /// are intentionally skipped because they are already present in the
+    /// cloned group state.
+    ///
+    /// # Parameters
+    ///
+    /// * `edge_id`: The individual edge ID (e.g., `edge_group_id__0`).
+    /// * `entity_types`: The entity types map.
+    /// * `theme_default`: The theme defaults.
+    /// * `theme_types_styles`: Styles defined per entity type.
+    /// * `tailwind_class_state`: The cloned edge group state to apply overrides
+    ///   onto.
+    fn resolve_tailwind_attrs_edge_overrides<'partials, 'tw_state, 'id>(
+        edge_id: &Id<'id>,
+        entity_types: &'partials EntityTypes<'id>,
+        theme_default: &'partials ThemeDefault<'id>,
+        theme_types_styles: &'partials ThemeTypesStyles<'id>,
+        tailwind_class_state: &mut TailwindClassState<'tw_state>,
+    ) where
+        'partials: 'tw_state,
+    {
+        // Apply entity type styles for the edge ID.
+        if let Some(types) = entity_types.get(edge_id) {
+            types
+                .iter()
+                .filter_map(|entity_type| {
+                    let type_id = EntityTypeId::from(entity_type.clone().into_id());
+                    theme_types_styles
+                        .get(&type_id)
+                        .and_then(|type_styles| type_styles.get(&IdOrDefaults::EdgeDefaults))
+                })
+                .for_each(|type_partials| {
+                    Self::apply_tailwind_from_partials(
+                        type_partials,
+                        &theme_default.style_aliases,
+                        tailwind_class_state,
+                    );
+                });
+        }
+
+        // Apply edge ID-specific styles (highest priority).
+        if let Some(edge_partials) = theme_default
+            .base_styles
+            .get(&IdOrDefaults::Id(edge_id.clone()))
+        {
+            Self::apply_tailwind_from_partials(
+                edge_partials,
+                &theme_default.style_aliases,
+                tailwind_class_state,
+            );
+        }
+    }
 
     /// Resolve tailwind attributes for a node.
     ///

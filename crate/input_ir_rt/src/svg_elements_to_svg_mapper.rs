@@ -308,33 +308,22 @@ impl SvgElementsToSvgMapper {
     ) {
         svg_edge_infos.iter().for_each(|svg_edge_info| {
             let edge_id = &svg_edge_info.edge_id;
-            let edge_group_id = &svg_edge_info.edge_group_id;
             let path_d = &svg_edge_info.path_d;
             let arrow_head_path_d = &svg_edge_info.arrow_head_path_d;
             let locus_path_d = &svg_edge_info.locus_path_d;
 
-            // Build class attribute from tailwind_classes for the edge
-            // First check for edge-specific classes, then fall back to edge group classes
+            // Build class attribute from tailwind_classes for the edge.
+            //
+            // Each edge's class string already contains the fully merged
+            // classes (edge group base + edge-specific overrides), so only
+            // the edge ID needs to be looked up.
             let class_attr = {
                 let edge_classes = tailwind_classes
                     .get(edge_id.as_ref())
                     .map(|s| s.as_str())
                     .unwrap_or("");
 
-                let edge_group_classes = tailwind_classes
-                    .get(edge_group_id.as_ref())
-                    .map(|s| s.as_str())
-                    .unwrap_or("");
-
-                let combined = if edge_classes.is_empty() {
-                    edge_group_classes.to_string()
-                } else if edge_group_classes.is_empty() {
-                    edge_classes.to_string()
-                } else {
-                    format!("{edge_group_classes}\n{edge_classes}")
-                };
-
-                Self::class_attr_escaped(combined)
+                Self::class_attr_escaped(edge_classes.to_string())
             };
 
             // Build class attribute for the arrowhead element.

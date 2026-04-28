@@ -167,10 +167,21 @@ entity_descs:
 entity_tooltips:
   proc_app_dev_step_repository_clone: "```bash\ngit clone https://github.com/azriel91/web_app.git\n```"
   proc_app_dev_step_project_build: "Develop the app:\n\n* Always link to issue.\n* Open PR."
-  proc_app_release_step_crate_version_update: "```bash\nsd -s 'version = \"0.3.0\"' 'version = \"0.3.0\"' $(fd -tf -F toml) README.md src/lib.rs\n```"
+  proc_app_release_step_crate_version_update: |-
+    ```bash
+    sd -s 'version = "0.3.0"' 'version = "0.3.0"' $(fd -tf -F toml) README.md src/lib.rs
+    ```
   proc_app_release_step_pull_request_open: Create a pull request as usual.
   proc_app_release_step_gh_actions_build: Github Actions will build the image.
-  proc_app_release_step_tag_and_push: "When the PR is merged, tag the commit and push the tag to GitHub.\n\n```bash\ngit tag 0.3.0\ngit push origin 0.3.0\n```\n\nThe build will push the new version to ECR automatically."
+  proc_app_release_step_tag_and_push: |-
+    When the PR is merged, tag the commit and push the tag to GitHub.
+
+    ```bash
+    git tag 0.3.0
+    git push origin 0.3.0
+    ```
+
+    The build will push the new version to ECR automatically.
   proc_app_release_step_gh_actions_publish: Github Actions will publish the image to AWS ECR.
   proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: Deploy or update the existing ECS cluster with the new image.
 entity_types:
@@ -310,73 +321,998 @@ entity_types:
   edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0:
     - type_interaction_edge_sequence_forward_default
 tailwind_classes:
-  t_aws: "visible\n[stroke-dasharray:2]\nhover:[stroke-dasharray:2]\nfocus:[stroke-dasharray:2]\nactive:[stroke-dasharray:2]\nstroke-2\nhover:fill-[var(--tw-yellow-50-950)]\nfill-[var(--tw-yellow-100-900)]\nfocus:fill-[var(--tw-yellow-200-800)]\nactive:fill-[var(--tw-yellow-300-700)]\nhover:stroke-[var(--tw-yellow-100-900)]\nstroke-[var(--tw-yellow-200-800)]\nfocus:stroke-[var(--tw-yellow-300-700)]\nactive:stroke-[var(--tw-yellow-400-600)]\n[&>text]:fill-[var(--tw-neutral-800-200)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  t_aws_iam: "visible\n[stroke-dasharray:4]\nhover:[stroke-dasharray:4]\nfocus:[stroke-dasharray:4]\nactive:[stroke-dasharray:4]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  t_aws_iam_ecs_policy: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  t_aws_ecr: "visible\n[stroke-dasharray:4]\nhover:[stroke-dasharray:4]\nfocus:[stroke-dasharray:4]\nactive:[stroke-dasharray:4]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  t_aws_ecr_repo: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:[stroke-dasharray:4]\npeer-[:focus-within]/tag_deployment:hover:[stroke-dasharray:4]\npeer-[:focus-within]/tag_deployment:focus:[stroke-dasharray:4]\npeer-[:focus-within]/tag_deployment:active:[stroke-dasharray:4]\npeer-[:focus-within]/tag_deployment:stroke-2\npeer-[:focus-within]/tag_deployment:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/tag_deployment:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/tag_deployment:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/tag_deployment:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/tag_deployment:active:fill-[var(--tw-slate-300-700)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:stroke-2\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:fill-[var(--tw-slate-300-700)]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:[stroke-dasharray:4]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:[stroke-dasharray:4]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:[stroke-dasharray:4]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:[stroke-dasharray:4]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:stroke-2\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:fill-[var(--tw-slate-300-700)]\n"
-  t_aws_ecr_repo_image_1: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-sky-200-800)]\nfill-[var(--tw-sky-300-700)]\nfocus:fill-[var(--tw-sky-400-600)]\nactive:fill-[var(--tw-sky-500-500)]\nhover:stroke-[var(--tw-sky-300-700)]\nstroke-[var(--tw-sky-400-600)]\nfocus:stroke-[var(--tw-sky-500-500)]\nactive:stroke-[var(--tw-sky-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  t_aws_ecr_repo_image_2: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-sky-200-800)]\nfill-[var(--tw-sky-300-700)]\nfocus:fill-[var(--tw-sky-400-600)]\nactive:fill-[var(--tw-sky-500-500)]\nhover:stroke-[var(--tw-sky-300-700)]\nstroke-[var(--tw-sky-400-600)]\nfocus:stroke-[var(--tw-sky-500-500)]\nactive:stroke-[var(--tw-sky-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  t_aws_ecs: "visible\n[stroke-dasharray:4]\nhover:[stroke-dasharray:4]\nfocus:[stroke-dasharray:4]\nactive:[stroke-dasharray:4]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  t_aws_ecs_cluster: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:[stroke-dasharray:4]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:[stroke-dasharray:4]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:[stroke-dasharray:4]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:[stroke-dasharray:4]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:stroke-2\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:fill-[var(--tw-slate-300-700)]\n"
-  t_aws_ecs_cluster_task: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  t_github: "visible\n[stroke-dasharray:2]\nhover:[stroke-dasharray:2]\nfocus:[stroke-dasharray:2]\nactive:[stroke-dasharray:2]\nstroke-2\nhover:fill-[var(--tw-neutral-50-950)]\nfill-[var(--tw-neutral-100-900)]\nfocus:fill-[var(--tw-neutral-200-800)]\nactive:fill-[var(--tw-neutral-300-700)]\nhover:stroke-[var(--tw-neutral-100-900)]\nstroke-[var(--tw-neutral-200-800)]\nfocus:stroke-[var(--tw-neutral-300-700)]\nactive:stroke-[var(--tw-neutral-400-600)]\n[&>text]:fill-[var(--tw-neutral-800-200)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  t_github_user_repo: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:[stroke-dasharray:4]\npeer-[:focus-within]/tag_app_development:hover:[stroke-dasharray:4]\npeer-[:focus-within]/tag_app_development:focus:[stroke-dasharray:4]\npeer-[:focus-within]/tag_app_development:active:[stroke-dasharray:4]\npeer-[:focus-within]/tag_app_development:stroke-2\npeer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/tag_app_development:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/tag_app_development:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/tag_app_development:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/tag_app_development:active:fill-[var(--tw-slate-300-700)]\npeer-[:focus-within]/tag_deployment:[stroke-dasharray:4]\npeer-[:focus-within]/tag_deployment:hover:[stroke-dasharray:4]\npeer-[:focus-within]/tag_deployment:focus:[stroke-dasharray:4]\npeer-[:focus-within]/tag_deployment:active:[stroke-dasharray:4]\npeer-[:focus-within]/tag_deployment:stroke-2\npeer-[:focus-within]/tag_deployment:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/tag_deployment:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/tag_deployment:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/tag_deployment:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/tag_deployment:active:fill-[var(--tw-slate-300-700)]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:hover:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:focus:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:active:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-2\npeer-[:focus-within]/proc_app_dev_step_repository_clone:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:active:fill-[var(--tw-slate-300-700)]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:hover:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:focus:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:active:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-2\npeer-[:focus-within]/proc_app_release_step_pull_request_open:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:active:fill-[var(--tw-slate-300-700)]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:hover:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:focus:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:active:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:stroke-2\npeer-[:focus-within]/proc_app_release_step_tag_and_push:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:active:fill-[var(--tw-slate-300-700)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:hover:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:focus:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:active:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:stroke-2\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:active:fill-[var(--tw-slate-300-700)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:stroke-2\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:fill-[var(--tw-slate-300-700)]\n"
-  t_localhost: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:[stroke-dasharray:4]\npeer-[:focus-within]/tag_app_development:hover:[stroke-dasharray:4]\npeer-[:focus-within]/tag_app_development:focus:[stroke-dasharray:4]\npeer-[:focus-within]/tag_app_development:active:[stroke-dasharray:4]\npeer-[:focus-within]/tag_app_development:stroke-2\npeer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/tag_app_development:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/tag_app_development:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/tag_app_development:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/tag_app_development:active:fill-[var(--tw-slate-300-700)]\npeer-[:focus-within]/tag_deployment:opacity-75\npeer-[:focus-within]/proc_app_dev_step_repository_clone:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:hover:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:focus:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:active:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-2\npeer-[:focus-within]/proc_app_dev_step_repository_clone:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:active:fill-[var(--tw-slate-300-700)]\npeer-[:focus-within]/proc_app_dev_step_project_build:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_dev_step_project_build:hover:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_dev_step_project_build:focus:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_dev_step_project_build:active:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_dev_step_project_build:stroke-2\npeer-[:focus-within]/proc_app_dev_step_project_build:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/proc_app_dev_step_project_build:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/proc_app_dev_step_project_build:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/proc_app_dev_step_project_build:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/proc_app_dev_step_project_build:active:fill-[var(--tw-slate-300-700)]\npeer-[:focus-within]/proc_app_release_step_crate_version_update:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_crate_version_update:hover:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_crate_version_update:focus:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_crate_version_update:active:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_crate_version_update:stroke-2\npeer-[:focus-within]/proc_app_release_step_crate_version_update:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/proc_app_release_step_crate_version_update:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/proc_app_release_step_crate_version_update:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/proc_app_release_step_crate_version_update:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/proc_app_release_step_crate_version_update:active:fill-[var(--tw-slate-300-700)]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:hover:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:focus:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:active:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-2\npeer-[:focus-within]/proc_app_release_step_pull_request_open:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/proc_app_release_step_pull_request_open:active:fill-[var(--tw-slate-300-700)]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:hover:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:focus:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:active:[stroke-dasharray:4]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:stroke-2\npeer-[:focus-within]/proc_app_release_step_tag_and_push:animate-[stroke-dashoffset-move_2s_linear_infinite]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:hover:fill-[var(--tw-slate-50-950)]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:fill-[var(--tw-slate-100-900)]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:focus:fill-[var(--tw-slate-200-800)]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:active:fill-[var(--tw-slate-300-700)]\n"
-  t_localhost_repo: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  t_localhost_repo_src: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  t_localhost_repo_target: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  t_localhost_repo_target_file_zip: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  t_localhost_repo_target_dist_dir: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-slate-200-800)]\nfill-[var(--tw-slate-300-700)]\nfocus:fill-[var(--tw-slate-400-600)]\nactive:fill-[var(--tw-slate-500-500)]\nhover:stroke-[var(--tw-slate-300-700)]\nstroke-[var(--tw-slate-400-600)]\nfocus:stroke-[var(--tw-slate-500-500)]\nactive:stroke-[var(--tw-slate-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/tag_app_development:opacity-50\npeer-[:focus-within]/tag_deployment:opacity-75\n"
-  tag_app_development: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-emerald-400-600)]\nfill-[var(--tw-emerald-500-500)]\nfocus:fill-[var(--tw-emerald-600-400)]\nactive:fill-[var(--tw-emerald-700-300)]\nhover:stroke-[var(--tw-emerald-500-500)]\nstroke-[var(--tw-emerald-600-400)]\nfocus:stroke-[var(--tw-emerald-700-300)]\nactive:stroke-[var(--tw-emerald-800-200)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\npeer/tag_app_development\n"
-  tag_deployment: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-emerald-400-600)]\nfill-[var(--tw-emerald-500-500)]\nfocus:fill-[var(--tw-emerald-600-400)]\nactive:fill-[var(--tw-emerald-700-300)]\nhover:stroke-[var(--tw-emerald-500-500)]\nstroke-[var(--tw-emerald-600-400)]\nfocus:stroke-[var(--tw-emerald-700-300)]\nactive:stroke-[var(--tw-emerald-800-200)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\npeer/tag_deployment\n"
-  proc_app_dev: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-blue-400-600)]\nfill-[var(--tw-blue-500-500)]\nfocus:fill-[var(--tw-blue-600-400)]\nactive:fill-[var(--tw-blue-700-300)]\nhover:stroke-[var(--tw-blue-500-500)]\nstroke-[var(--tw-blue-600-400)]\nfocus:stroke-[var(--tw-blue-700-300)]\nactive:stroke-[var(--tw-blue-800-200)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\npeer/proc_app_dev\n"
-  proc_app_dev_step_repository_clone: "invisible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-sky-400-600)]\nfill-[var(--tw-sky-500-500)]\nfocus:fill-[var(--tw-sky-600-400)]\nactive:fill-[var(--tw-sky-700-300)]\nhover:stroke-[var(--tw-sky-500-500)]\nstroke-[var(--tw-sky-600-400)]\nfocus:stroke-[var(--tw-sky-700-300)]\nactive:stroke-[var(--tw-sky-800-200)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\ngroup-has-[#proc_app_dev:focus-within]:visible\ngroup-has-[#proc_app_dev_step_repository_clone:focus-within]:visible\ngroup-has-[#proc_app_dev_step_project_build:focus-within]:visible\npeer/proc_app_dev_step_repository_clone\n"
-  proc_app_dev_step_project_build: "invisible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-sky-400-600)]\nfill-[var(--tw-sky-500-500)]\nfocus:fill-[var(--tw-sky-600-400)]\nactive:fill-[var(--tw-sky-700-300)]\nhover:stroke-[var(--tw-sky-500-500)]\nstroke-[var(--tw-sky-600-400)]\nfocus:stroke-[var(--tw-sky-700-300)]\nactive:stroke-[var(--tw-sky-800-200)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\ngroup-has-[#proc_app_dev:focus-within]:visible\ngroup-has-[#proc_app_dev_step_repository_clone:focus-within]:visible\ngroup-has-[#proc_app_dev_step_project_build:focus-within]:visible\npeer/proc_app_dev_step_project_build\n"
-  proc_app_release: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-blue-400-600)]\nfill-[var(--tw-blue-500-500)]\nfocus:fill-[var(--tw-blue-600-400)]\nactive:fill-[var(--tw-blue-700-300)]\nhover:stroke-[var(--tw-blue-500-500)]\nstroke-[var(--tw-blue-600-400)]\nfocus:stroke-[var(--tw-blue-700-300)]\nactive:stroke-[var(--tw-blue-800-200)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\npeer/proc_app_release\n"
-  proc_app_release_step_crate_version_update: "invisible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-sky-400-600)]\nfill-[var(--tw-sky-500-500)]\nfocus:fill-[var(--tw-sky-600-400)]\nactive:fill-[var(--tw-sky-700-300)]\nhover:stroke-[var(--tw-sky-500-500)]\nstroke-[var(--tw-sky-600-400)]\nfocus:stroke-[var(--tw-sky-700-300)]\nactive:stroke-[var(--tw-sky-800-200)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\ngroup-has-[#proc_app_release:focus-within]:visible\ngroup-has-[#proc_app_release_step_crate_version_update:focus-within]:visible\ngroup-has-[#proc_app_release_step_pull_request_open:focus-within]:visible\ngroup-has-[#proc_app_release_step_tag_and_push:focus-within]:visible\ngroup-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible\ngroup-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible\npeer/proc_app_release_step_crate_version_update\n"
-  proc_app_release_step_pull_request_open: "invisible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-sky-400-600)]\nfill-[var(--tw-sky-500-500)]\nfocus:fill-[var(--tw-sky-600-400)]\nactive:fill-[var(--tw-sky-700-300)]\nhover:stroke-[var(--tw-sky-500-500)]\nstroke-[var(--tw-sky-600-400)]\nfocus:stroke-[var(--tw-sky-700-300)]\nactive:stroke-[var(--tw-sky-800-200)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\ngroup-has-[#proc_app_release:focus-within]:visible\ngroup-has-[#proc_app_release_step_crate_version_update:focus-within]:visible\ngroup-has-[#proc_app_release_step_pull_request_open:focus-within]:visible\ngroup-has-[#proc_app_release_step_tag_and_push:focus-within]:visible\ngroup-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible\ngroup-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible\npeer/proc_app_release_step_pull_request_open\n"
-  proc_app_release_step_tag_and_push: "invisible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-sky-400-600)]\nfill-[var(--tw-sky-500-500)]\nfocus:fill-[var(--tw-sky-600-400)]\nactive:fill-[var(--tw-sky-700-300)]\nhover:stroke-[var(--tw-sky-500-500)]\nstroke-[var(--tw-sky-600-400)]\nfocus:stroke-[var(--tw-sky-700-300)]\nactive:stroke-[var(--tw-sky-800-200)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\ngroup-has-[#proc_app_release:focus-within]:visible\ngroup-has-[#proc_app_release_step_crate_version_update:focus-within]:visible\ngroup-has-[#proc_app_release_step_pull_request_open:focus-within]:visible\ngroup-has-[#proc_app_release_step_tag_and_push:focus-within]:visible\ngroup-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible\ngroup-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible\npeer/proc_app_release_step_tag_and_push\n"
-  proc_app_release_step_gh_actions_build: "invisible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-sky-400-600)]\nfill-[var(--tw-sky-500-500)]\nfocus:fill-[var(--tw-sky-600-400)]\nactive:fill-[var(--tw-sky-700-300)]\nhover:stroke-[var(--tw-sky-500-500)]\nstroke-[var(--tw-sky-600-400)]\nfocus:stroke-[var(--tw-sky-700-300)]\nactive:stroke-[var(--tw-sky-800-200)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\ngroup-has-[#proc_app_release:focus-within]:visible\ngroup-has-[#proc_app_release_step_crate_version_update:focus-within]:visible\ngroup-has-[#proc_app_release_step_pull_request_open:focus-within]:visible\ngroup-has-[#proc_app_release_step_tag_and_push:focus-within]:visible\ngroup-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible\ngroup-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible\npeer/proc_app_release_step_gh_actions_build\n"
-  proc_app_release_step_gh_actions_publish: "invisible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-sky-400-600)]\nfill-[var(--tw-sky-500-500)]\nfocus:fill-[var(--tw-sky-600-400)]\nactive:fill-[var(--tw-sky-700-300)]\nhover:stroke-[var(--tw-sky-500-500)]\nstroke-[var(--tw-sky-600-400)]\nfocus:stroke-[var(--tw-sky-700-300)]\nactive:stroke-[var(--tw-sky-800-200)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\ngroup-has-[#proc_app_release:focus-within]:visible\ngroup-has-[#proc_app_release_step_crate_version_update:focus-within]:visible\ngroup-has-[#proc_app_release_step_pull_request_open:focus-within]:visible\ngroup-has-[#proc_app_release_step_tag_and_push:focus-within]:visible\ngroup-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible\ngroup-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible\npeer/proc_app_release_step_gh_actions_publish\n"
-  proc_i12e_region_tier_app_deploy: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-blue-400-600)]\nfill-[var(--tw-blue-500-500)]\nfocus:fill-[var(--tw-blue-600-400)]\nactive:fill-[var(--tw-blue-700-300)]\nhover:stroke-[var(--tw-blue-500-500)]\nstroke-[var(--tw-blue-600-400)]\nfocus:stroke-[var(--tw-blue-700-300)]\nactive:stroke-[var(--tw-blue-800-200)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\npeer/proc_i12e_region_tier_app_deploy\n"
-  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: "invisible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-sky-400-600)]\nfill-[var(--tw-sky-500-500)]\nfocus:fill-[var(--tw-sky-600-400)]\nactive:fill-[var(--tw-sky-700-300)]\nhover:stroke-[var(--tw-sky-500-500)]\nstroke-[var(--tw-sky-600-400)]\nfocus:stroke-[var(--tw-sky-700-300)]\nactive:stroke-[var(--tw-sky-800-200)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\ngroup-has-[#proc_i12e_region_tier_app_deploy:focus-within]:visible\ngroup-has-[#proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus-within]:visible\npeer/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update\n"
-  edge_dep_t_localhost__t_github_user_repo__pull: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-neutral-500-500)]\nfill-[var(--tw-neutral-600-400)]\nfocus:fill-[var(--tw-neutral-700-300)]\nactive:fill-[var(--tw-neutral-800-200)]\nhover:stroke-[var(--tw-neutral-600-400)]\nstroke-[var(--tw-neutral-700-300)]\nfocus:stroke-[var(--tw-neutral-800-200)]\nactive:stroke-[var(--tw-neutral-900-100)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\n"
+  t_aws: |
+    visible
+    [stroke-dasharray:2]
+    hover:[stroke-dasharray:2]
+    focus:[stroke-dasharray:2]
+    active:[stroke-dasharray:2]
+    stroke-2
+    hover:fill-[var(--tw-yellow-50-950)]
+    fill-[var(--tw-yellow-100-900)]
+    focus:fill-[var(--tw-yellow-200-800)]
+    active:fill-[var(--tw-yellow-300-700)]
+    hover:stroke-[var(--tw-yellow-100-900)]
+    stroke-[var(--tw-yellow-200-800)]
+    focus:stroke-[var(--tw-yellow-300-700)]
+    active:stroke-[var(--tw-yellow-400-600)]
+    [&>text]:fill-[var(--tw-neutral-800-200)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  t_aws_iam: |
+    visible
+    [stroke-dasharray:4]
+    hover:[stroke-dasharray:4]
+    focus:[stroke-dasharray:4]
+    active:[stroke-dasharray:4]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  t_aws_iam_ecs_policy: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  t_aws_ecr: |
+    visible
+    [stroke-dasharray:4]
+    hover:[stroke-dasharray:4]
+    focus:[stroke-dasharray:4]
+    active:[stroke-dasharray:4]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  t_aws_ecr_repo: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_deployment:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_deployment:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_deployment:active:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_deployment:stroke-2
+    peer-[:focus-within]/tag_deployment:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/tag_deployment:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/tag_deployment:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/tag_deployment:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/tag_deployment:active:fill-[var(--tw-slate-300-700)]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:stroke-2
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:fill-[var(--tw-slate-300-700)]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:stroke-2
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:fill-[var(--tw-slate-300-700)]
+  t_aws_ecr_repo_image_1: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-sky-200-800)]
+    fill-[var(--tw-sky-300-700)]
+    focus:fill-[var(--tw-sky-400-600)]
+    active:fill-[var(--tw-sky-500-500)]
+    hover:stroke-[var(--tw-sky-300-700)]
+    stroke-[var(--tw-sky-400-600)]
+    focus:stroke-[var(--tw-sky-500-500)]
+    active:stroke-[var(--tw-sky-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  t_aws_ecr_repo_image_2: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-sky-200-800)]
+    fill-[var(--tw-sky-300-700)]
+    focus:fill-[var(--tw-sky-400-600)]
+    active:fill-[var(--tw-sky-500-500)]
+    hover:stroke-[var(--tw-sky-300-700)]
+    stroke-[var(--tw-sky-400-600)]
+    focus:stroke-[var(--tw-sky-500-500)]
+    active:stroke-[var(--tw-sky-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  t_aws_ecs: |
+    visible
+    [stroke-dasharray:4]
+    hover:[stroke-dasharray:4]
+    focus:[stroke-dasharray:4]
+    active:[stroke-dasharray:4]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  t_aws_ecs_cluster: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:stroke-2
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:active:fill-[var(--tw-slate-300-700)]
+  t_aws_ecs_cluster_task: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  t_github: |
+    visible
+    [stroke-dasharray:2]
+    hover:[stroke-dasharray:2]
+    focus:[stroke-dasharray:2]
+    active:[stroke-dasharray:2]
+    stroke-2
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-100-900)]
+    focus:fill-[var(--tw-neutral-200-800)]
+    active:fill-[var(--tw-neutral-300-700)]
+    hover:stroke-[var(--tw-neutral-100-900)]
+    stroke-[var(--tw-neutral-200-800)]
+    focus:stroke-[var(--tw-neutral-300-700)]
+    active:stroke-[var(--tw-neutral-400-600)]
+    [&>text]:fill-[var(--tw-neutral-800-200)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  t_github_user_repo: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_app_development:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_app_development:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_app_development:active:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_app_development:stroke-2
+    peer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/tag_app_development:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/tag_app_development:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/tag_app_development:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/tag_app_development:active:fill-[var(--tw-slate-300-700)]
+    peer-[:focus-within]/tag_deployment:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_deployment:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_deployment:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_deployment:active:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_deployment:stroke-2
+    peer-[:focus-within]/tag_deployment:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/tag_deployment:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/tag_deployment:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/tag_deployment:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/tag_deployment:active:fill-[var(--tw-slate-300-700)]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:active:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-2
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:active:fill-[var(--tw-slate-300-700)]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:active:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-2
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:active:fill-[var(--tw-slate-300-700)]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:active:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:stroke-2
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:active:fill-[var(--tw-slate-300-700)]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_build:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_build:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_build:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_build:active:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_build:stroke-2
+    peer-[:focus-within]/proc_app_release_step_gh_actions_build:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_build:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_build:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_build:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_build:active:fill-[var(--tw-slate-300-700)]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:stroke-2
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:active:fill-[var(--tw-slate-300-700)]
+  t_localhost: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_app_development:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_app_development:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_app_development:active:[stroke-dasharray:4]
+    peer-[:focus-within]/tag_app_development:stroke-2
+    peer-[:focus-within]/tag_app_development:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/tag_app_development:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/tag_app_development:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/tag_app_development:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/tag_app_development:active:fill-[var(--tw-slate-300-700)]
+    peer-[:focus-within]/tag_deployment:opacity-75
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:active:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:stroke-2
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:active:fill-[var(--tw-slate-300-700)]
+    peer-[:focus-within]/proc_app_dev_step_project_build:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_dev_step_project_build:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_dev_step_project_build:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_dev_step_project_build:active:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_dev_step_project_build:stroke-2
+    peer-[:focus-within]/proc_app_dev_step_project_build:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_app_dev_step_project_build:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/proc_app_dev_step_project_build:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/proc_app_dev_step_project_build:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/proc_app_dev_step_project_build:active:fill-[var(--tw-slate-300-700)]
+    peer-[:focus-within]/proc_app_release_step_crate_version_update:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_crate_version_update:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_crate_version_update:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_crate_version_update:active:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_crate_version_update:stroke-2
+    peer-[:focus-within]/proc_app_release_step_crate_version_update:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_app_release_step_crate_version_update:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/proc_app_release_step_crate_version_update:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/proc_app_release_step_crate_version_update:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/proc_app_release_step_crate_version_update:active:fill-[var(--tw-slate-300-700)]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:active:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:stroke-2
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:active:fill-[var(--tw-slate-300-700)]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:hover:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:focus:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:active:[stroke-dasharray:4]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:stroke-2
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:animate-[stroke-dashoffset-move_2s_linear_infinite]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:hover:fill-[var(--tw-slate-50-950)]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:fill-[var(--tw-slate-100-900)]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:focus:fill-[var(--tw-slate-200-800)]
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:active:fill-[var(--tw-slate-300-700)]
+  t_localhost_repo: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  t_localhost_repo_src: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  t_localhost_repo_target: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  t_localhost_repo_target_file_zip: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  t_localhost_repo_target_dist_dir: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-slate-200-800)]
+    fill-[var(--tw-slate-300-700)]
+    focus:fill-[var(--tw-slate-400-600)]
+    active:fill-[var(--tw-slate-500-500)]
+    hover:stroke-[var(--tw-slate-300-700)]
+    stroke-[var(--tw-slate-400-600)]
+    focus:stroke-[var(--tw-slate-500-500)]
+    active:stroke-[var(--tw-slate-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+    peer-[:focus-within]/tag_app_development:opacity-50
+    peer-[:focus-within]/tag_deployment:opacity-75
+  tag_app_development: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-emerald-400-600)]
+    fill-[var(--tw-emerald-500-500)]
+    focus:fill-[var(--tw-emerald-600-400)]
+    active:fill-[var(--tw-emerald-700-300)]
+    hover:stroke-[var(--tw-emerald-500-500)]
+    stroke-[var(--tw-emerald-600-400)]
+    focus:stroke-[var(--tw-emerald-700-300)]
+    active:stroke-[var(--tw-emerald-800-200)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+    peer/tag_app_development
+  tag_deployment: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-emerald-400-600)]
+    fill-[var(--tw-emerald-500-500)]
+    focus:fill-[var(--tw-emerald-600-400)]
+    active:fill-[var(--tw-emerald-700-300)]
+    hover:stroke-[var(--tw-emerald-500-500)]
+    stroke-[var(--tw-emerald-600-400)]
+    focus:stroke-[var(--tw-emerald-700-300)]
+    active:stroke-[var(--tw-emerald-800-200)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+    peer/tag_deployment
+  proc_app_dev: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-blue-400-600)]
+    fill-[var(--tw-blue-500-500)]
+    focus:fill-[var(--tw-blue-600-400)]
+    active:fill-[var(--tw-blue-700-300)]
+    hover:stroke-[var(--tw-blue-500-500)]
+    stroke-[var(--tw-blue-600-400)]
+    focus:stroke-[var(--tw-blue-700-300)]
+    active:stroke-[var(--tw-blue-800-200)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+    peer/proc_app_dev
+  proc_app_dev_step_repository_clone: |
+    invisible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-sky-400-600)]
+    fill-[var(--tw-sky-500-500)]
+    focus:fill-[var(--tw-sky-600-400)]
+    active:fill-[var(--tw-sky-700-300)]
+    hover:stroke-[var(--tw-sky-500-500)]
+    stroke-[var(--tw-sky-600-400)]
+    focus:stroke-[var(--tw-sky-700-300)]
+    active:stroke-[var(--tw-sky-800-200)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+    group-has-[#proc_app_dev:focus-within]:visible
+    group-has-[#proc_app_dev_step_repository_clone:focus-within]:visible
+    group-has-[#proc_app_dev_step_project_build:focus-within]:visible
+    peer/proc_app_dev_step_repository_clone
+  proc_app_dev_step_project_build: |
+    invisible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-sky-400-600)]
+    fill-[var(--tw-sky-500-500)]
+    focus:fill-[var(--tw-sky-600-400)]
+    active:fill-[var(--tw-sky-700-300)]
+    hover:stroke-[var(--tw-sky-500-500)]
+    stroke-[var(--tw-sky-600-400)]
+    focus:stroke-[var(--tw-sky-700-300)]
+    active:stroke-[var(--tw-sky-800-200)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+    group-has-[#proc_app_dev:focus-within]:visible
+    group-has-[#proc_app_dev_step_repository_clone:focus-within]:visible
+    group-has-[#proc_app_dev_step_project_build:focus-within]:visible
+    peer/proc_app_dev_step_project_build
+  proc_app_release: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-blue-400-600)]
+    fill-[var(--tw-blue-500-500)]
+    focus:fill-[var(--tw-blue-600-400)]
+    active:fill-[var(--tw-blue-700-300)]
+    hover:stroke-[var(--tw-blue-500-500)]
+    stroke-[var(--tw-blue-600-400)]
+    focus:stroke-[var(--tw-blue-700-300)]
+    active:stroke-[var(--tw-blue-800-200)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+    peer/proc_app_release
+  proc_app_release_step_crate_version_update: |
+    invisible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-sky-400-600)]
+    fill-[var(--tw-sky-500-500)]
+    focus:fill-[var(--tw-sky-600-400)]
+    active:fill-[var(--tw-sky-700-300)]
+    hover:stroke-[var(--tw-sky-500-500)]
+    stroke-[var(--tw-sky-600-400)]
+    focus:stroke-[var(--tw-sky-700-300)]
+    active:stroke-[var(--tw-sky-800-200)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
+    peer/proc_app_release_step_crate_version_update
+  proc_app_release_step_pull_request_open: |
+    invisible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-sky-400-600)]
+    fill-[var(--tw-sky-500-500)]
+    focus:fill-[var(--tw-sky-600-400)]
+    active:fill-[var(--tw-sky-700-300)]
+    hover:stroke-[var(--tw-sky-500-500)]
+    stroke-[var(--tw-sky-600-400)]
+    focus:stroke-[var(--tw-sky-700-300)]
+    active:stroke-[var(--tw-sky-800-200)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
+    peer/proc_app_release_step_pull_request_open
+  proc_app_release_step_tag_and_push: |
+    invisible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-sky-400-600)]
+    fill-[var(--tw-sky-500-500)]
+    focus:fill-[var(--tw-sky-600-400)]
+    active:fill-[var(--tw-sky-700-300)]
+    hover:stroke-[var(--tw-sky-500-500)]
+    stroke-[var(--tw-sky-600-400)]
+    focus:stroke-[var(--tw-sky-700-300)]
+    active:stroke-[var(--tw-sky-800-200)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
+    peer/proc_app_release_step_tag_and_push
+  proc_app_release_step_gh_actions_build: |
+    invisible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-sky-400-600)]
+    fill-[var(--tw-sky-500-500)]
+    focus:fill-[var(--tw-sky-600-400)]
+    active:fill-[var(--tw-sky-700-300)]
+    hover:stroke-[var(--tw-sky-500-500)]
+    stroke-[var(--tw-sky-600-400)]
+    focus:stroke-[var(--tw-sky-700-300)]
+    active:stroke-[var(--tw-sky-800-200)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
+    peer/proc_app_release_step_gh_actions_build
+  proc_app_release_step_gh_actions_publish: |
+    invisible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-sky-400-600)]
+    fill-[var(--tw-sky-500-500)]
+    focus:fill-[var(--tw-sky-600-400)]
+    active:fill-[var(--tw-sky-700-300)]
+    hover:stroke-[var(--tw-sky-500-500)]
+    stroke-[var(--tw-sky-600-400)]
+    focus:stroke-[var(--tw-sky-700-300)]
+    active:stroke-[var(--tw-sky-800-200)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
+    peer/proc_app_release_step_gh_actions_publish
+  proc_i12e_region_tier_app_deploy: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-blue-400-600)]
+    fill-[var(--tw-blue-500-500)]
+    focus:fill-[var(--tw-blue-600-400)]
+    active:fill-[var(--tw-blue-700-300)]
+    hover:stroke-[var(--tw-blue-500-500)]
+    stroke-[var(--tw-blue-600-400)]
+    focus:stroke-[var(--tw-blue-700-300)]
+    active:stroke-[var(--tw-blue-800-200)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+    peer/proc_i12e_region_tier_app_deploy
+  proc_i12e_region_tier_app_deploy_step_ecs_cluster_update: |
+    invisible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-2
+    hover:fill-[var(--tw-sky-400-600)]
+    fill-[var(--tw-sky-500-500)]
+    focus:fill-[var(--tw-sky-600-400)]
+    active:fill-[var(--tw-sky-700-300)]
+    hover:stroke-[var(--tw-sky-500-500)]
+    stroke-[var(--tw-sky-600-400)]
+    focus:stroke-[var(--tw-sky-700-300)]
+    active:stroke-[var(--tw-sky-800-200)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+    group-has-[#proc_i12e_region_tier_app_deploy:focus-within]:visible
+    group-has-[#proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus-within]:visible
+    peer/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update
   edge_dep_t_localhost__t_github_user_repo__pull__0: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
     stroke-2
+    hover:fill-[var(--tw-neutral-500-500)]
+    fill-[var(--tw-neutral-600-400)]
+    focus:fill-[var(--tw-neutral-700-300)]
+    active:fill-[var(--tw-neutral-800-200)]
+    hover:stroke-[var(--tw-neutral-600-400)]
+    stroke-[var(--tw-neutral-700-300)]
+    focus:stroke-[var(--tw-neutral-800-200)]
+    active:stroke-[var(--tw-neutral-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
   edge_dep_t_localhost__t_github_user_repo__pull__1: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
     stroke-2
-  edge_dep_t_localhost__t_github_user_repo__push: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-neutral-500-500)]\nfill-[var(--tw-neutral-600-400)]\nfocus:fill-[var(--tw-neutral-700-300)]\nactive:fill-[var(--tw-neutral-800-200)]\nhover:stroke-[var(--tw-neutral-600-400)]\nstroke-[var(--tw-neutral-700-300)]\nfocus:stroke-[var(--tw-neutral-800-200)]\nactive:stroke-[var(--tw-neutral-900-100)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\n"
+    hover:fill-[var(--tw-neutral-500-500)]
+    fill-[var(--tw-neutral-600-400)]
+    focus:fill-[var(--tw-neutral-700-300)]
+    active:fill-[var(--tw-neutral-800-200)]
+    hover:stroke-[var(--tw-neutral-600-400)]
+    stroke-[var(--tw-neutral-700-300)]
+    focus:stroke-[var(--tw-neutral-800-200)]
+    active:stroke-[var(--tw-neutral-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
   edge_dep_t_localhost__t_github_user_repo__push__0: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
     stroke-2
-  edge_dep_t_localhost__t_localhost__within: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-neutral-500-500)]\nfill-[var(--tw-neutral-600-400)]\nfocus:fill-[var(--tw-neutral-700-300)]\nactive:fill-[var(--tw-neutral-800-200)]\nhover:stroke-[var(--tw-neutral-600-400)]\nstroke-[var(--tw-neutral-700-300)]\nfocus:stroke-[var(--tw-neutral-800-200)]\nactive:stroke-[var(--tw-neutral-900-100)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\n"
+    hover:fill-[var(--tw-neutral-500-500)]
+    fill-[var(--tw-neutral-600-400)]
+    focus:fill-[var(--tw-neutral-700-300)]
+    active:fill-[var(--tw-neutral-800-200)]
+    hover:stroke-[var(--tw-neutral-600-400)]
+    stroke-[var(--tw-neutral-700-300)]
+    focus:stroke-[var(--tw-neutral-800-200)]
+    active:stroke-[var(--tw-neutral-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
   edge_dep_t_localhost__t_localhost__within__0: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
     stroke-2
-  edge_dep_t_github_user_repo__t_github_user_repo__within: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-neutral-500-500)]\nfill-[var(--tw-neutral-600-400)]\nfocus:fill-[var(--tw-neutral-700-300)]\nactive:fill-[var(--tw-neutral-800-200)]\nhover:stroke-[var(--tw-neutral-600-400)]\nstroke-[var(--tw-neutral-700-300)]\nfocus:stroke-[var(--tw-neutral-800-200)]\nactive:stroke-[var(--tw-neutral-900-100)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\n"
+    hover:fill-[var(--tw-neutral-500-500)]
+    fill-[var(--tw-neutral-600-400)]
+    focus:fill-[var(--tw-neutral-700-300)]
+    active:fill-[var(--tw-neutral-800-200)]
+    hover:stroke-[var(--tw-neutral-600-400)]
+    stroke-[var(--tw-neutral-700-300)]
+    focus:stroke-[var(--tw-neutral-800-200)]
+    active:stroke-[var(--tw-neutral-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
   edge_dep_t_github_user_repo__t_github_user_repo__within__0: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
     stroke-2
+    hover:fill-[var(--tw-neutral-500-500)]
+    fill-[var(--tw-neutral-600-400)]
+    focus:fill-[var(--tw-neutral-700-300)]
+    active:fill-[var(--tw-neutral-800-200)]
+    hover:stroke-[var(--tw-neutral-600-400)]
+    stroke-[var(--tw-neutral-700-300)]
+    focus:stroke-[var(--tw-neutral-800-200)]
+    active:stroke-[var(--tw-neutral-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
   edge_dep_t_github_user_repo__t_github_user_repo__within__1: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
     stroke-2
-  edge_dep_t_github_user_repo__t_aws_ecr_repo__push: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-neutral-500-500)]\nfill-[var(--tw-neutral-600-400)]\nfocus:fill-[var(--tw-neutral-700-300)]\nactive:fill-[var(--tw-neutral-800-200)]\nhover:stroke-[var(--tw-neutral-600-400)]\nstroke-[var(--tw-neutral-700-300)]\nfocus:stroke-[var(--tw-neutral-800-200)]\nactive:stroke-[var(--tw-neutral-900-100)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\n"
+    hover:fill-[var(--tw-neutral-500-500)]
+    fill-[var(--tw-neutral-600-400)]
+    focus:fill-[var(--tw-neutral-700-300)]
+    active:fill-[var(--tw-neutral-800-200)]
+    hover:stroke-[var(--tw-neutral-600-400)]
+    stroke-[var(--tw-neutral-700-300)]
+    focus:stroke-[var(--tw-neutral-800-200)]
+    active:stroke-[var(--tw-neutral-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
   edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
     stroke-2
-  edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push: "visible\n[stroke-dasharray:none]\nhover:[stroke-dasharray:none]\nfocus:[stroke-dasharray:none]\nactive:[stroke-dasharray:none]\nstroke-2\nhover:fill-[var(--tw-neutral-500-500)]\nfill-[var(--tw-neutral-600-400)]\nfocus:fill-[var(--tw-neutral-700-300)]\nactive:fill-[var(--tw-neutral-800-200)]\nhover:stroke-[var(--tw-neutral-600-400)]\nstroke-[var(--tw-neutral-700-300)]\nfocus:stroke-[var(--tw-neutral-800-200)]\nactive:stroke-[var(--tw-neutral-900-100)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\n"
+    hover:fill-[var(--tw-neutral-500-500)]
+    fill-[var(--tw-neutral-600-400)]
+    focus:fill-[var(--tw-neutral-700-300)]
+    active:fill-[var(--tw-neutral-800-200)]
+    hover:stroke-[var(--tw-neutral-600-400)]
+    stroke-[var(--tw-neutral-700-300)]
+    focus:stroke-[var(--tw-neutral-800-200)]
+    active:stroke-[var(--tw-neutral-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
   edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push__0: |
+    visible
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
     stroke-2
-  edge_ix_t_localhost__t_github_user_repo__pull: "invisible\nstroke-2\nhover:fill-[var(--tw-blue-200-800)]\nfill-[var(--tw-blue-300-700)]\nfocus:fill-[var(--tw-blue-400-600)]\nactive:fill-[var(--tw-blue-500-500)]\nhover:stroke-[var(--tw-blue-300-700)]\nstroke-[var(--tw-blue-400-600)]\nfocus:stroke-[var(--tw-blue-500-500)]\nactive:stroke-[var(--tw-blue-600-400)]\n[&>text]:fill-[var(--tw-neutral-900-100)]\npeer-[:focus-within]/proc_app_dev_step_repository_clone:visible\npeer-[:focus-within]/proc_app_release_step_pull_request_open:visible\n"
-  edge_ix_t_localhost__t_github_user_repo__pull__0: ""
-  edge_ix_t_localhost__t_github_user_repo__pull__1: ""
-  edge_ix_t_localhost__t_github_user_repo__push: "invisible\nstroke-2\nhover:fill-[var(--tw-violet-500-500)]\nfill-[var(--tw-violet-600-400)]\nfocus:fill-[var(--tw-violet-700-300)]\nactive:fill-[var(--tw-violet-800-200)]\nhover:stroke-[var(--tw-violet-600-400)]\nstroke-[var(--tw-violet-700-300)]\nfocus:stroke-[var(--tw-violet-800-200)]\nactive:stroke-[var(--tw-violet-900-100)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\npeer-[:focus-within]/proc_app_release_step_tag_and_push:visible\n"
-  edge_ix_t_localhost__t_github_user_repo__push__0: ""
-  edge_ix_t_localhost__t_localhost__within: "invisible\nstroke-2\nhover:fill-[var(--tw-violet-500-500)]\nfill-[var(--tw-violet-600-400)]\nfocus:fill-[var(--tw-violet-700-300)]\nactive:fill-[var(--tw-violet-800-200)]\nhover:stroke-[var(--tw-violet-600-400)]\nstroke-[var(--tw-violet-700-300)]\nfocus:stroke-[var(--tw-violet-800-200)]\nactive:stroke-[var(--tw-violet-900-100)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\npeer-[:focus-within]/proc_app_dev_step_project_build:visible\npeer-[:focus-within]/proc_app_release_step_crate_version_update:visible\n"
-  edge_ix_t_localhost__t_localhost__within__0: ""
-  edge_ix_t_github_user_repo__t_github_user_repo__within: "invisible\nstroke-2\nhover:fill-[var(--tw-violet-500-500)]\nfill-[var(--tw-violet-600-400)]\nfocus:fill-[var(--tw-violet-700-300)]\nactive:fill-[var(--tw-violet-800-200)]\nhover:stroke-[var(--tw-violet-600-400)]\nstroke-[var(--tw-violet-700-300)]\nfocus:stroke-[var(--tw-violet-800-200)]\nactive:stroke-[var(--tw-violet-900-100)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_build:visible\n"
-  edge_ix_t_github_user_repo__t_github_user_repo__within__0: ""
-  edge_ix_t_github_user_repo__t_github_user_repo__within__1: ""
-  edge_ix_t_github_user_repo__t_aws_ecr_repo__push: "invisible\nstroke-2\nhover:fill-[var(--tw-violet-500-500)]\nfill-[var(--tw-violet-600-400)]\nfocus:fill-[var(--tw-violet-700-300)]\nactive:fill-[var(--tw-violet-800-200)]\nhover:stroke-[var(--tw-violet-600-400)]\nstroke-[var(--tw-violet-700-300)]\nfocus:stroke-[var(--tw-violet-800-200)]\nactive:stroke-[var(--tw-violet-900-100)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\npeer-[:focus-within]/proc_app_release_step_gh_actions_publish:visible\n"
-  edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: ""
-  edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push: "invisible\nstroke-2\nhover:fill-[var(--tw-violet-500-500)]\nfill-[var(--tw-violet-600-400)]\nfocus:fill-[var(--tw-violet-700-300)]\nactive:fill-[var(--tw-violet-800-200)]\nhover:stroke-[var(--tw-violet-600-400)]\nstroke-[var(--tw-violet-700-300)]\nfocus:stroke-[var(--tw-violet-800-200)]\nactive:stroke-[var(--tw-violet-900-100)]\n[&>text]:fill-[var(--tw-neutral-950-50)]\npeer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:visible\n"
-  edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0: ""
+    hover:fill-[var(--tw-neutral-500-500)]
+    fill-[var(--tw-neutral-600-400)]
+    focus:fill-[var(--tw-neutral-700-300)]
+    active:fill-[var(--tw-neutral-800-200)]
+    hover:stroke-[var(--tw-neutral-600-400)]
+    stroke-[var(--tw-neutral-700-300)]
+    focus:stroke-[var(--tw-neutral-800-200)]
+    active:stroke-[var(--tw-neutral-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+  edge_ix_t_localhost__t_github_user_repo__pull__0: |
+    invisible
+    stroke-2
+    hover:fill-[var(--tw-blue-200-800)]
+    fill-[var(--tw-blue-300-700)]
+    focus:fill-[var(--tw-blue-400-600)]
+    active:fill-[var(--tw-blue-500-500)]
+    hover:stroke-[var(--tw-blue-300-700)]
+    stroke-[var(--tw-blue-400-600)]
+    focus:stroke-[var(--tw-blue-500-500)]
+    active:stroke-[var(--tw-blue-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:visible
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:visible
+  edge_ix_t_localhost__t_github_user_repo__pull__1: |
+    invisible
+    stroke-2
+    hover:fill-[var(--tw-blue-200-800)]
+    fill-[var(--tw-blue-300-700)]
+    focus:fill-[var(--tw-blue-400-600)]
+    active:fill-[var(--tw-blue-500-500)]
+    hover:stroke-[var(--tw-blue-300-700)]
+    stroke-[var(--tw-blue-400-600)]
+    focus:stroke-[var(--tw-blue-500-500)]
+    active:stroke-[var(--tw-blue-600-400)]
+    [&>text]:fill-[var(--tw-neutral-900-100)]
+
+    peer-[:focus-within]/proc_app_dev_step_repository_clone:visible
+    peer-[:focus-within]/proc_app_release_step_pull_request_open:visible
+  edge_ix_t_localhost__t_github_user_repo__push__0: |
+    invisible
+    stroke-2
+    hover:fill-[var(--tw-violet-500-500)]
+    fill-[var(--tw-violet-600-400)]
+    focus:fill-[var(--tw-violet-700-300)]
+    active:fill-[var(--tw-violet-800-200)]
+    hover:stroke-[var(--tw-violet-600-400)]
+    stroke-[var(--tw-violet-700-300)]
+    focus:stroke-[var(--tw-violet-800-200)]
+    active:stroke-[var(--tw-violet-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+
+    peer-[:focus-within]/proc_app_release_step_tag_and_push:visible
+  edge_ix_t_localhost__t_localhost__within__0: |
+    invisible
+    stroke-2
+    hover:fill-[var(--tw-violet-500-500)]
+    fill-[var(--tw-violet-600-400)]
+    focus:fill-[var(--tw-violet-700-300)]
+    active:fill-[var(--tw-violet-800-200)]
+    hover:stroke-[var(--tw-violet-600-400)]
+    stroke-[var(--tw-violet-700-300)]
+    focus:stroke-[var(--tw-violet-800-200)]
+    active:stroke-[var(--tw-violet-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+
+    peer-[:focus-within]/proc_app_dev_step_project_build:visible
+    peer-[:focus-within]/proc_app_release_step_crate_version_update:visible
+  edge_ix_t_github_user_repo__t_github_user_repo__within__0: |
+    invisible
+    stroke-2
+    hover:fill-[var(--tw-violet-500-500)]
+    fill-[var(--tw-violet-600-400)]
+    focus:fill-[var(--tw-violet-700-300)]
+    active:fill-[var(--tw-violet-800-200)]
+    hover:stroke-[var(--tw-violet-600-400)]
+    stroke-[var(--tw-violet-700-300)]
+    focus:stroke-[var(--tw-violet-800-200)]
+    active:stroke-[var(--tw-violet-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+
+    peer-[:focus-within]/proc_app_release_step_gh_actions_build:visible
+  edge_ix_t_github_user_repo__t_github_user_repo__within__1: |
+    invisible
+    stroke-2
+    hover:fill-[var(--tw-violet-500-500)]
+    fill-[var(--tw-violet-600-400)]
+    focus:fill-[var(--tw-violet-700-300)]
+    active:fill-[var(--tw-violet-800-200)]
+    hover:stroke-[var(--tw-violet-600-400)]
+    stroke-[var(--tw-violet-700-300)]
+    focus:stroke-[var(--tw-violet-800-200)]
+    active:stroke-[var(--tw-violet-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+
+    peer-[:focus-within]/proc_app_release_step_gh_actions_build:visible
+  edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: |
+    invisible
+    stroke-2
+    hover:fill-[var(--tw-violet-500-500)]
+    fill-[var(--tw-violet-600-400)]
+    focus:fill-[var(--tw-violet-700-300)]
+    active:fill-[var(--tw-violet-800-200)]
+    hover:stroke-[var(--tw-violet-600-400)]
+    stroke-[var(--tw-violet-700-300)]
+    focus:stroke-[var(--tw-violet-800-200)]
+    active:stroke-[var(--tw-violet-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+
+    peer-[:focus-within]/proc_app_release_step_gh_actions_publish:visible
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0: |
+    invisible
+    stroke-2
+    hover:fill-[var(--tw-violet-500-500)]
+    fill-[var(--tw-violet-600-400)]
+    focus:fill-[var(--tw-violet-700-300)]
+    active:fill-[var(--tw-violet-800-200)]
+    hover:stroke-[var(--tw-violet-600-400)]
+    stroke-[var(--tw-violet-700-300)]
+    focus:stroke-[var(--tw-violet-800-200)]
+    active:stroke-[var(--tw-violet-900-100)]
+    [&>text]:fill-[var(--tw-neutral-950-50)]
+
+    peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:visible
 node_layouts:
   _root:
     flex:
@@ -1004,5 +1940,106 @@ process_step_entities:
     - edge_ix_t_github_user_repo__t_aws_ecr_repo__push
   proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:
     - edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push
-rank_dir: "top_to_bottom"
-css: "svg {\n  --tw-blue-200-800: oklch(88.2% 0.059 254.128);\n  --tw-blue-300-700: oklch(80.9% 0.105 251.813);\n  --tw-blue-400-600: oklch(70.7% 0.165 254.624);\n  --tw-blue-500-500: oklch(62.3% 0.214 259.815);\n  --tw-blue-600-400: oklch(54.6% 0.245 262.881);\n  --tw-blue-700-300: oklch(48.8% 0.243 264.376);\n  --tw-blue-800-200: oklch(42.4% 0.199 265.638);\n  --tw-emerald-400-600: oklch(76.5% 0.177 163.223);\n  --tw-emerald-500-500: oklch(69.6% 0.17 162.48);\n  --tw-emerald-600-400: oklch(59.6% 0.145 163.225);\n  --tw-emerald-700-300: oklch(50.8% 0.118 165.612);\n  --tw-emerald-800-200: oklch(43.2% 0.095 166.913);\n  --tw-neutral-100-900: oklch(97% 0 0);\n  --tw-neutral-200-800: oklch(92.2% 0 0);\n  --tw-neutral-300-700: oklch(87% 0 0);\n  --tw-neutral-400-600: oklch(70.8% 0 0);\n  --tw-neutral-50-950: oklch(98.5% 0 0);\n  --tw-neutral-500-500: oklch(55.6% 0 0);\n  --tw-neutral-600-400: oklch(43.9% 0 0);\n  --tw-neutral-700-300: oklch(37.1% 0 0);\n  --tw-neutral-800-200: oklch(26.9% 0 0);\n  --tw-neutral-900-100: oklch(20.5% 0 0);\n  --tw-neutral-950-50: oklch(14.5% 0 0);\n  --tw-sky-200-800: oklch(90.1% 0.058 230.902);\n  --tw-sky-300-700: oklch(82.8% 0.111 230.318);\n  --tw-sky-400-600: oklch(74.6% 0.16 232.661);\n  --tw-sky-500-500: oklch(68.5% 0.169 237.323);\n  --tw-sky-600-400: oklch(58.8% 0.158 241.966);\n  --tw-sky-700-300: oklch(50% 0.134 242.749);\n  --tw-sky-800-200: oklch(44.3% 0.11 240.79);\n  --tw-slate-100-900: oklch(96.8% 0.007 247.896);\n  --tw-slate-200-800: oklch(92.9% 0.013 255.508);\n  --tw-slate-300-700: oklch(86.9% 0.022 252.894);\n  --tw-slate-400-600: oklch(70.4% 0.04 256.788);\n  --tw-slate-50-950: oklch(98.4% 0.003 247.858);\n  --tw-slate-500-500: oklch(55.4% 0.046 257.417);\n  --tw-slate-600-400: oklch(44.6% 0.043 257.281);\n  --tw-violet-500-500: oklch(60.6% 0.25 292.717);\n  --tw-violet-600-400: oklch(54.1% 0.281 293.009);\n  --tw-violet-700-300: oklch(49.1% 0.27 292.581);\n  --tw-violet-800-200: oklch(43.2% 0.232 292.759);\n  --tw-violet-900-100: oklch(38% 0.189 293.745);\n  --tw-yellow-100-900: oklch(97.3% 0.071 103.193);\n  --tw-yellow-200-800: oklch(94.5% 0.129 101.54);\n  --tw-yellow-300-700: oklch(90.5% 0.182 98.111);\n  --tw-yellow-400-600: oklch(85.2% 0.199 91.936);\n  --tw-yellow-50-950: oklch(98.7% 0.026 102.212);\n}\n:root.dark svg {\n  --tw-blue-200-800: oklch(42.4% 0.199 265.638);\n  --tw-blue-300-700: oklch(48.8% 0.243 264.376);\n  --tw-blue-400-600: oklch(54.6% 0.245 262.881);\n  --tw-blue-500-500: oklch(62.3% 0.214 259.815);\n  --tw-blue-600-400: oklch(70.7% 0.165 254.624);\n  --tw-blue-700-300: oklch(80.9% 0.105 251.813);\n  --tw-blue-800-200: oklch(88.2% 0.059 254.128);\n  --tw-emerald-400-600: oklch(59.6% 0.145 163.225);\n  --tw-emerald-500-500: oklch(69.6% 0.17 162.48);\n  --tw-emerald-600-400: oklch(76.5% 0.177 163.223);\n  --tw-emerald-700-300: oklch(84.5% 0.143 164.978);\n  --tw-emerald-800-200: oklch(90.5% 0.093 164.15);\n  --tw-neutral-100-900: oklch(20.5% 0 0);\n  --tw-neutral-200-800: oklch(26.9% 0 0);\n  --tw-neutral-300-700: oklch(37.1% 0 0);\n  --tw-neutral-400-600: oklch(43.9% 0 0);\n  --tw-neutral-50-950: oklch(14.5% 0 0);\n  --tw-neutral-500-500: oklch(55.6% 0 0);\n  --tw-neutral-600-400: oklch(70.8% 0 0);\n  --tw-neutral-700-300: oklch(87% 0 0);\n  --tw-neutral-800-200: oklch(92.2% 0 0);\n  --tw-neutral-900-100: oklch(97% 0 0);\n  --tw-neutral-950-50: oklch(98.5% 0 0);\n  --tw-sky-200-800: oklch(44.3% 0.11 240.79);\n  --tw-sky-300-700: oklch(50% 0.134 242.749);\n  --tw-sky-400-600: oklch(58.8% 0.158 241.966);\n  --tw-sky-500-500: oklch(68.5% 0.169 237.323);\n  --tw-sky-600-400: oklch(74.6% 0.16 232.661);\n  --tw-sky-700-300: oklch(82.8% 0.111 230.318);\n  --tw-sky-800-200: oklch(90.1% 0.058 230.902);\n  --tw-slate-100-900: oklch(20.8% 0.042 265.755);\n  --tw-slate-200-800: oklch(27.9% 0.041 260.031);\n  --tw-slate-300-700: oklch(37.2% 0.044 257.287);\n  --tw-slate-400-600: oklch(44.6% 0.043 257.281);\n  --tw-slate-50-950: oklch(12.9% 0.042 264.695);\n  --tw-slate-500-500: oklch(55.4% 0.046 257.417);\n  --tw-slate-600-400: oklch(70.4% 0.04 256.788);\n  --tw-violet-500-500: oklch(60.6% 0.25 292.717);\n  --tw-violet-600-400: oklch(70.2% 0.183 293.541);\n  --tw-violet-700-300: oklch(81.1% 0.111 293.571);\n  --tw-violet-800-200: oklch(89.4% 0.057 293.283);\n  --tw-violet-900-100: oklch(94.3% 0.029 294.588);\n  --tw-yellow-100-900: oklch(42.1% 0.095 57.708);\n  --tw-yellow-200-800: oklch(47.6% 0.114 61.907);\n  --tw-yellow-300-700: oklch(55.4% 0.135 66.442);\n  --tw-yellow-400-600: oklch(68.1% 0.162 75.834);\n  --tw-yellow-50-950: oklch(28.6% 0.066 53.813);\n}\n@keyframes stroke-dashoffset-move {\n  0%   { stroke-dasharray: 3; stroke-dashoffset: 30; }\n  100% { stroke-dasharray: 3; stroke-dashoffset: 0; }\n}"
+css: |-
+  svg {
+    --tw-blue-200-800: oklch(88.2% 0.059 254.128);
+    --tw-blue-300-700: oklch(80.9% 0.105 251.813);
+    --tw-blue-400-600: oklch(70.7% 0.165 254.624);
+    --tw-blue-500-500: oklch(62.3% 0.214 259.815);
+    --tw-blue-600-400: oklch(54.6% 0.245 262.881);
+    --tw-blue-700-300: oklch(48.8% 0.243 264.376);
+    --tw-blue-800-200: oklch(42.4% 0.199 265.638);
+    --tw-emerald-400-600: oklch(76.5% 0.177 163.223);
+    --tw-emerald-500-500: oklch(69.6% 0.17 162.48);
+    --tw-emerald-600-400: oklch(59.6% 0.145 163.225);
+    --tw-emerald-700-300: oklch(50.8% 0.118 165.612);
+    --tw-emerald-800-200: oklch(43.2% 0.095 166.913);
+    --tw-neutral-100-900: oklch(97% 0 0);
+    --tw-neutral-200-800: oklch(92.2% 0 0);
+    --tw-neutral-300-700: oklch(87% 0 0);
+    --tw-neutral-400-600: oklch(70.8% 0 0);
+    --tw-neutral-50-950: oklch(98.5% 0 0);
+    --tw-neutral-500-500: oklch(55.6% 0 0);
+    --tw-neutral-600-400: oklch(43.9% 0 0);
+    --tw-neutral-700-300: oklch(37.1% 0 0);
+    --tw-neutral-800-200: oklch(26.9% 0 0);
+    --tw-neutral-900-100: oklch(20.5% 0 0);
+    --tw-neutral-950-50: oklch(14.5% 0 0);
+    --tw-sky-200-800: oklch(90.1% 0.058 230.902);
+    --tw-sky-300-700: oklch(82.8% 0.111 230.318);
+    --tw-sky-400-600: oklch(74.6% 0.16 232.661);
+    --tw-sky-500-500: oklch(68.5% 0.169 237.323);
+    --tw-sky-600-400: oklch(58.8% 0.158 241.966);
+    --tw-sky-700-300: oklch(50% 0.134 242.749);
+    --tw-sky-800-200: oklch(44.3% 0.11 240.79);
+    --tw-slate-100-900: oklch(96.8% 0.007 247.896);
+    --tw-slate-200-800: oklch(92.9% 0.013 255.508);
+    --tw-slate-300-700: oklch(86.9% 0.022 252.894);
+    --tw-slate-400-600: oklch(70.4% 0.04 256.788);
+    --tw-slate-50-950: oklch(98.4% 0.003 247.858);
+    --tw-slate-500-500: oklch(55.4% 0.046 257.417);
+    --tw-slate-600-400: oklch(44.6% 0.043 257.281);
+    --tw-violet-500-500: oklch(60.6% 0.25 292.717);
+    --tw-violet-600-400: oklch(54.1% 0.281 293.009);
+    --tw-violet-700-300: oklch(49.1% 0.27 292.581);
+    --tw-violet-800-200: oklch(43.2% 0.232 292.759);
+    --tw-violet-900-100: oklch(38% 0.189 293.745);
+    --tw-yellow-100-900: oklch(97.3% 0.071 103.193);
+    --tw-yellow-200-800: oklch(94.5% 0.129 101.54);
+    --tw-yellow-300-700: oklch(90.5% 0.182 98.111);
+    --tw-yellow-400-600: oklch(85.2% 0.199 91.936);
+    --tw-yellow-50-950: oklch(98.7% 0.026 102.212);
+  }
+  :root.dark svg {
+    --tw-blue-200-800: oklch(42.4% 0.199 265.638);
+    --tw-blue-300-700: oklch(48.8% 0.243 264.376);
+    --tw-blue-400-600: oklch(54.6% 0.245 262.881);
+    --tw-blue-500-500: oklch(62.3% 0.214 259.815);
+    --tw-blue-600-400: oklch(70.7% 0.165 254.624);
+    --tw-blue-700-300: oklch(80.9% 0.105 251.813);
+    --tw-blue-800-200: oklch(88.2% 0.059 254.128);
+    --tw-emerald-400-600: oklch(59.6% 0.145 163.225);
+    --tw-emerald-500-500: oklch(69.6% 0.17 162.48);
+    --tw-emerald-600-400: oklch(76.5% 0.177 163.223);
+    --tw-emerald-700-300: oklch(84.5% 0.143 164.978);
+    --tw-emerald-800-200: oklch(90.5% 0.093 164.15);
+    --tw-neutral-100-900: oklch(20.5% 0 0);
+    --tw-neutral-200-800: oklch(26.9% 0 0);
+    --tw-neutral-300-700: oklch(37.1% 0 0);
+    --tw-neutral-400-600: oklch(43.9% 0 0);
+    --tw-neutral-50-950: oklch(14.5% 0 0);
+    --tw-neutral-500-500: oklch(55.6% 0 0);
+    --tw-neutral-600-400: oklch(70.8% 0 0);
+    --tw-neutral-700-300: oklch(87% 0 0);
+    --tw-neutral-800-200: oklch(92.2% 0 0);
+    --tw-neutral-900-100: oklch(97% 0 0);
+    --tw-neutral-950-50: oklch(98.5% 0 0);
+    --tw-sky-200-800: oklch(44.3% 0.11 240.79);
+    --tw-sky-300-700: oklch(50% 0.134 242.749);
+    --tw-sky-400-600: oklch(58.8% 0.158 241.966);
+    --tw-sky-500-500: oklch(68.5% 0.169 237.323);
+    --tw-sky-600-400: oklch(74.6% 0.16 232.661);
+    --tw-sky-700-300: oklch(82.8% 0.111 230.318);
+    --tw-sky-800-200: oklch(90.1% 0.058 230.902);
+    --tw-slate-100-900: oklch(20.8% 0.042 265.755);
+    --tw-slate-200-800: oklch(27.9% 0.041 260.031);
+    --tw-slate-300-700: oklch(37.2% 0.044 257.287);
+    --tw-slate-400-600: oklch(44.6% 0.043 257.281);
+    --tw-slate-50-950: oklch(12.9% 0.042 264.695);
+    --tw-slate-500-500: oklch(55.4% 0.046 257.417);
+    --tw-slate-600-400: oklch(70.4% 0.04 256.788);
+    --tw-violet-500-500: oklch(60.6% 0.25 292.717);
+    --tw-violet-600-400: oklch(70.2% 0.183 293.541);
+    --tw-violet-700-300: oklch(81.1% 0.111 293.571);
+    --tw-violet-800-200: oklch(89.4% 0.057 293.283);
+    --tw-violet-900-100: oklch(94.3% 0.029 294.588);
+    --tw-yellow-100-900: oklch(42.1% 0.095 57.708);
+    --tw-yellow-200-800: oklch(47.6% 0.114 61.907);
+    --tw-yellow-300-700: oklch(55.4% 0.135 66.442);
+    --tw-yellow-400-600: oklch(68.1% 0.162 75.834);
+    --tw-yellow-50-950: oklch(28.6% 0.066 53.813);
+  }
+  @keyframes stroke-dashoffset-move {
+    0%   { stroke-dasharray: 3; stroke-dashoffset: 30; }
+    100% { stroke-dasharray: 3; stroke-dashoffset: 0; }
+  }
