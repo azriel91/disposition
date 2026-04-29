@@ -97,7 +97,7 @@ impl EdgeSpacerBuilder {
     /// * `node_nesting_infos`: The precomputed nesting info map for all nodes.
     /// * `node_ranks`: Node ranks for all nodes.
     /// * `container_node_id`: The ID of the container node being built.
-    /// * `child_hierarchy`: The children of `container_node_id`.
+    /// * `container_node_hierarchy`: The children of `container_node_id`.
     /// * `rank_to_taffy_ids`: Mutable reference to the container's
     ///   rank-to-taffy-node mapping, for inserting spacer nodes.
     #[allow(clippy::too_many_arguments)]
@@ -106,17 +106,17 @@ impl EdgeSpacerBuilder {
         edge_groups: &EdgeGroups<'static>,
         node_nesting_infos: &NodeNestingInfos<'static>,
         node_ranks: &NodeRanks<'static>,
-        container_node_id: &NodeId<'static>,
-        child_hierarchy: &NodeHierarchy<'static>,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
+        container_node_id: &NodeId<'static>,
+        container_node_hierarchy: &NodeHierarchy<'static>,
     ) -> Map<EdgeId<'static>, EdgeSpacerTaffyNodes> {
         // Collect direct child IDs of this container.
-        let direct_child_ids: Vec<NodeId<'static>> = child_hierarchy
+        let container_node_direct_child_ids: Vec<NodeId<'static>> = container_node_hierarchy
             .iter()
             .map(|(child_id, _)| child_id.clone())
             .collect();
 
-        if direct_child_ids.len() <= 1 {
+        if container_node_direct_child_ids.len() <= 1 {
             // No siblings to route around.
             return Map::new();
         }
@@ -131,12 +131,12 @@ impl EdgeSpacerBuilder {
                 .for_each(|(edge_index, edge)| {
                     Self::build_cross_container_spacers_for_edge(
                         taffy_tree,
-                        node_ranks,
                         edge_group_id,
                         node_nesting_infos,
-                        container_node_id,
+                        node_ranks,
                         rank_to_taffy_ids,
-                        &direct_child_ids,
+                        container_node_id,
+                        &container_node_direct_child_ids,
                         &mut edge_spacer_taffy_nodes,
                         &mut rank_spacer_counts,
                         edge_index,
@@ -148,15 +148,28 @@ impl EdgeSpacerBuilder {
         edge_spacer_taffy_nodes
     }
 
+    /// Builds cross-container spacers for a single edge.
+    ///
+    /// # Parameters
+    ///
+    /// * `taffy_tree`: The taffy tree to insert spacer nodes into.
+    /// * `edge_groups`: All edge groups in the diagram.
+    /// * `node_nesting_infos`: The precomputed nesting info map for all nodes.
+    /// * `node_ranks`: Node ranks for all nodes.
+    /// * `rank_to_taffy_ids`: Mutable reference to the container's
+    ///   rank-to-taffy-node mapping, for inserting spacer nodes.
+    /// * `container_node_id`: The ID of the container node being built.
+    /// * `container_node_direct_child_ids`: The children of
+    ///   `container_node_id`.
     #[allow(clippy::too_many_arguments)]
     fn build_cross_container_spacers_for_edge<'id>(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
-        node_ranks: &NodeRanks<'static>,
         edge_group_id: &EdgeGroupId<'static>,
         node_nesting_infos: &NodeNestingInfos<'static>,
-        container_node_id: &NodeId<'static>,
+        node_ranks: &NodeRanks<'static>,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
-        direct_child_ids: &Vec<NodeId<'static>>,
+        container_node_id: &NodeId<'static>,
+        container_node_direct_child_ids: &Vec<NodeId<'static>>,
         edge_spacer_taffy_nodes: &mut Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
         rank_spacer_counts: &mut BTreeMap<NodeRank, Vec<usize>>,
         edge_index: usize,
@@ -221,7 +234,9 @@ impl EdgeSpacerBuilder {
 
         // Find the index of the target child among the direct
         // children.
-        let target_child_index = direct_child_ids.iter().position(|id| id == target_child_id);
+        let target_child_index = container_node_direct_child_ids
+            .iter()
+            .position(|id| id == target_child_id);
         let Some(_target_child_index) = target_child_index else {
             return;
         };
@@ -240,41 +255,43 @@ impl EdgeSpacerBuilder {
 
         let mut spacer_taffy_nodes = EdgeSpacerTaffyNodes::new();
 
-        direct_child_ids.iter().for_each(|sibling_id| {
-            if sibling_id == target_child_id {
-                return;
-            }
+        container_node_direct_child_ids
+            .iter()
+            .for_each(|sibling_id| {
+                if sibling_id == target_child_id {
+                    return;
+                }
 
-            let sibling_rank = node_ranks
-                .get(sibling_id)
-                .copied()
-                .unwrap_or(NodeRank::new(0));
+                let sibling_rank = node_ranks
+                    .get(sibling_id)
+                    .copied()
+                    .unwrap_or(NodeRank::new(0));
 
-            let spacer_taffy_node_id = taffy_tree
-                .new_leaf_with_context(
-                    spacer_style.clone(),
-                    TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
-                        edge_id: edge_id.clone(),
-                        rank: sibling_rank,
-                    }),
-                )
-                .expect("Expected to create cross-container spacer leaf node.");
+                let spacer_taffy_node_id = taffy_tree
+                    .new_leaf_with_context(
+                        spacer_style.clone(),
+                        TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
+                            edge_id: edge_id.clone(),
+                            rank: sibling_rank,
+                        }),
+                    )
+                    .expect("Expected to create cross-container spacer leaf node.");
 
-            // Insert into rank_to_taffy_ids at the sibling's rank.
-            let taffy_ids = rank_to_taffy_ids.entry(sibling_rank).or_default();
-            let spacer_counts = rank_spacer_counts.entry(sibling_rank).or_default();
+                // Insert into rank_to_taffy_ids at the sibling's rank.
+                let taffy_ids = rank_to_taffy_ids.entry(sibling_rank).or_default();
+                let spacer_counts = rank_spacer_counts.entry(sibling_rank).or_default();
 
-            if spacer_counts.len() < taffy_ids.len() + 1 {
-                spacer_counts.resize(taffy_ids.len() + 1, 0);
-            }
+                if spacer_counts.len() < taffy_ids.len() + 1 {
+                    spacer_counts.resize(taffy_ids.len() + 1, 0);
+                }
 
-            // Place the spacer at the end of the rank's children.
-            taffy_ids.push(spacer_taffy_node_id);
+                // Place the spacer at the end of the rank's children.
+                taffy_ids.push(spacer_taffy_node_id);
 
-            spacer_taffy_nodes
-                .cross_container_spacer_taffy_node_ids
-                .push(spacer_taffy_node_id);
-        });
+                spacer_taffy_nodes
+                    .cross_container_spacer_taffy_node_ids
+                    .push(spacer_taffy_node_id);
+            });
 
         if !spacer_taffy_nodes
             .cross_container_spacer_taffy_node_ids

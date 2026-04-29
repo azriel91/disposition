@@ -1004,9 +1004,9 @@ impl IrToTaffyBuilder<'_> {
             edge_groups,
             node_nesting_infos,
             node_ranks,
+            &mut rank_to_taffy_ids,
             &ir_node_id,
             child_hierarchy,
-            &mut rank_to_taffy_ids,
         ));
 
         // === Build Rank-Based Child Containers === //
