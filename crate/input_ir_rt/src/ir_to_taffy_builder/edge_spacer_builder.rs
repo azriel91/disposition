@@ -162,8 +162,6 @@ impl EdgeSpacerBuilder {
         edge_index: usize,
         edge: &Edge<'id>,
     ) {
-        let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
-
         let Some(nesting_info_from) = node_nesting_infos.get(&edge.from) else {
             return;
         };
@@ -198,7 +196,7 @@ impl EdgeSpacerBuilder {
         }
 
         // Determine which endpoint is inside and which is outside.
-        let inside_nesting_info = if from_inside {
+        let nesting_info_inside = if from_inside {
             nesting_info_from
         } else {
             nesting_info_to
@@ -208,16 +206,16 @@ impl EdgeSpacerBuilder {
         // of the inside endpoint. The ancestor chain includes the
         // inside endpoint itself, so we look for the container in the
         // chain and take the next element.
-        let container_depth_in_chain = inside_nesting_info
+        let container_depth_in_chain = nesting_info_inside
             .ancestor_chain
             .iter()
             .position(|id| id == container_node_id);
         let Some(container_depth) = container_depth_in_chain else {
             return;
         };
-        let target_child_id = inside_nesting_info.ancestor_chain.get(container_depth + 1);
+        let target_child_id = nesting_info_inside.ancestor_chain.get(container_depth + 1);
         let Some(target_child_id) = target_child_id else {
-            // The inside endpoint IS the container node — skip.
+            // The inside endpoint IS the container node, so skip.
             return;
         };
 
@@ -237,6 +235,8 @@ impl EdgeSpacerBuilder {
             align_self: Some(AlignSelf::Stretch),
             ..Default::default()
         };
+
+        let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
 
         let mut spacer_taffy_nodes = EdgeSpacerTaffyNodes::new();
 
