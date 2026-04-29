@@ -5,12 +5,14 @@ use disposition_ir_model::{
     entity::{EntityType, EntityTypes},
     node::{NodeHierarchy, NodeId, NodeNestingInfo, NodeNestingInfos, NodeRank, NodeRanks},
 };
-use disposition_model_common::{edge::EdgeGroupId, Id, Map};
+use disposition_model_common::{edge::EdgeGroupId, Map};
 use disposition_taffy_model::{
     taffy::{self, Size, Style, TaffyTree},
     EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx,
 };
 use taffy::AlignSelf;
+
+use crate::EdgeIdGenerator;
 
 const EDGE_SPACER_LENGTH: f32 = 5.0;
 
@@ -55,7 +57,7 @@ impl EdgeSpacerBuilder {
                 .iter()
                 .enumerate()
                 .for_each(|(edge_index, edge)| {
-                    let edge_id = Self::edge_id_generate(edge_group_id, edge_index);
+                    let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
 
                     let spacer_nodes = Self::edge_spacers_build(
                         taffy_tree,
@@ -160,7 +162,7 @@ impl EdgeSpacerBuilder {
         edge_index: usize,
         edge: &Edge<'id>,
     ) {
-        let edge_id = Self::edge_id_generate(edge_group_id, edge_index);
+        let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
 
         let Some(nesting_info_from) = node_nesting_infos.get(&edge.from) else {
             return;
@@ -630,20 +632,5 @@ impl EdgeSpacerBuilder {
 
         let effective = base_index + spacers_at_or_before;
         effective.min(current_len)
-    }
-
-    // === Edge ID generation === //
-
-    /// Generates an `EdgeId` from an edge group ID and edge index.
-    ///
-    /// Format: `"{edge_group_id}__{edge_index}"`
-    fn edge_id_generate(
-        edge_group_id: &EdgeGroupId<'static>,
-        edge_index: usize,
-    ) -> EdgeId<'static> {
-        let edge_id_str = format!("{edge_group_id}__{edge_index}");
-        Id::try_from(edge_id_str)
-            .expect("edge ID should be valid")
-            .into()
     }
 }

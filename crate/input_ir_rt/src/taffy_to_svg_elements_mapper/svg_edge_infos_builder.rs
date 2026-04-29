@@ -15,17 +15,20 @@ use kurbo::Shape;
 use disposition_ir_model::entity::EntityTailwindClasses;
 use disposition_model_common::edge::EdgeGroupId;
 
-use crate::taffy_to_svg_elements_mapper::{
-    edge_face_contact_tracker::EdgeFaceContactTracker,
-    edge_model::{
-        EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeFace,
-        NodeIdAndFace, PathBounds, PathMidpoint,
+use crate::{
+    taffy_to_svg_elements_mapper::{
+        edge_face_contact_tracker::EdgeFaceContactTracker,
+        edge_model::{
+            EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeFace,
+            NodeIdAndFace, PathBounds, PathMidpoint,
+        },
+        edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
+        edge_path_builder_pass_2::edge_path_builder_pass_2_ortho::OrthoProtrusionParams,
+        ortho_protrusion_calculator::OrthoProtrusionCalculator,
+        ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
+        EdgePathLocusCalculator, EdgeSpacerCoordinatesCalculator, StringCharReplacer,
     },
-    edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
-    edge_path_builder_pass_2::edge_path_builder_pass_2_ortho::OrthoProtrusionParams,
-    ortho_protrusion_calculator::OrthoProtrusionCalculator,
-    ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
-    EdgePathLocusCalculator, EdgeSpacerCoordinatesCalculator, StringCharReplacer,
+    EdgeIdGenerator,
 };
 
 /// Builds [`SvgEdgeInfo`]s for all edges in the diagram from edge groups and
@@ -322,7 +325,7 @@ impl SvgEdgeInfosBuilder {
                 continue;
             };
 
-            let edge_id = Self::generate_edge_id(edge_group_id, edge_index);
+            let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
             let edge_type = Self::edge_type_determine(&edge_id, entity_types);
 
             // Build the path with zero offsets to determine natural coordinates.
@@ -1021,14 +1024,6 @@ impl SvgEdgeInfosBuilder {
             .expect("arrow head entity ID should be valid")
             .into_static();
         tailwind_classes.insert(arrow_head_entity_id, arrow_head_classes);
-    }
-
-    /// Generates an edge ID from the edge group ID and edge index.
-    fn generate_edge_id(edge_group_id: &EdgeGroupId<'_>, edge_index: usize) -> EdgeId<'static> {
-        let edge_id_str = format!("{edge_group_id}__{edge_index}");
-        Id::try_from(edge_id_str)
-            .expect("edge ID should be valid")
-            .into()
     }
 }
 
