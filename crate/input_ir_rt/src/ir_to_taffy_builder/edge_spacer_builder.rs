@@ -232,11 +232,14 @@ impl EdgeSpacerBuilder {
                     return;
                 }
 
+                // Direct children of the container node may still have spacers if they are on
+                // different ranks.
                 let sibling_rank = node_ranks
                     .get(sibling_id)
                     .copied()
                     .unwrap_or(NodeRank::new(0));
 
+                // Create the taffy spacer node.
                 let spacer_taffy_node_id = taffy_tree
                     .new_leaf_with_context(
                         spacer_style.clone(),
