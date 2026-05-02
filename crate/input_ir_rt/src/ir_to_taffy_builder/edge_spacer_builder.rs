@@ -12,7 +12,13 @@ use disposition_taffy_model::{
 };
 use taffy::AlignSelf;
 
-use crate::EdgeIdGenerator;
+use crate::{
+    ir_to_taffy_builder::{
+        EdgeLcaSiblingDistance, EdgeSpacerBuildDecision, EdgeSpacerBuildDecisionBuild,
+        EdgeSpacerBuildDecisionSkip,
+    },
+    EdgeIdGenerator,
+};
 
 const EDGE_SPACER_LENGTH: f32 = 5.0;
 
@@ -96,7 +102,8 @@ impl EdgeSpacerBuilder {
     /// * `edge_groups`: All edge groups in the diagram.
     /// * `node_nesting_infos`: The precomputed nesting info map for all nodes.
     /// * `node_ranks`: Node ranks for all nodes.
-    /// * `container_node_id`: The ID of the container node being built.
+    /// * `container_node_id`: The ID of the node which is a parent of the node
+    ///   that the edge is connected to.
     /// * `container_node_hierarchy`: The children of `container_node_id`.
     /// * `rank_to_taffy_ids`: Mutable reference to the container's
     ///   rank-to-taffy-node mapping, for inserting spacer nodes.
@@ -158,9 +165,16 @@ impl EdgeSpacerBuilder {
     /// * `node_ranks`: Node ranks for all nodes.
     /// * `rank_to_taffy_ids`: Mutable reference to the container's
     ///   rank-to-taffy-node mapping, for inserting spacer nodes.
-    /// * `container_node_id`: The ID of the container node being built.
+    /// * `container_node_id`: The ID of the node which is a parent of the node
+    ///   that the edge is connected to.
     /// * `container_node_direct_child_ids`: The children of
     ///   `container_node_id`.
+    /// * `edge_spacer_taffy_nodes`: Map to keep track of the spacer taffy nodes
+    ///   inserted for each edge.
+    /// * `rank_spacer_counts`: Map to keep track of the number of spacers
+    ///   inserted for each rank within an edge group.
+    /// * `edge_index`: Index of the edge within its edge group.
+    /// * `edge`: Edge to build spacers for.
     #[allow(clippy::too_many_arguments)]
     fn build_cross_container_spacers_for_edge<'id>(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
@@ -175,70 +189,18 @@ impl EdgeSpacerBuilder {
         edge_index: usize,
         edge: &Edge<'id>,
     ) {
-        let Some(nesting_info_from) = node_nesting_infos.get(&edge.from) else {
-            return;
-        };
-        let Some(nesting_info_to) = node_nesting_infos.get(&edge.to) else {
-            return;
-        };
-
-        // === LCA sibling distance guard === //
-        //
-        // Only insert cross-container spacers when the edge's
-        // from-node and to-node diverge at the LCA level with
-        // at least one intermediate sibling between them.
-        // A sibling distance of 1 means the two divergent
-        // ancestors are adjacent, so the edge does not cross
-        // over any other node.
-        let lca_sibling_distance = Self::lca_sibling_distance(nesting_info_from, nesting_info_to);
-        if lca_sibling_distance < 2 {
-            return;
-        }
-
-        // Determine if exactly one endpoint is inside this container
-        // and the other is outside.
-        let from_inside = nesting_info_from.ancestor_chain.contains(container_node_id);
-        let to_inside = nesting_info_to.ancestor_chain.contains(container_node_id);
-
-        // We want edges where one is inside and one is outside.
-        // Also skip if the container itself is one of the endpoints
-        // (ancestor_chain includes self, so check that the inside
-        // endpoint is not the container itself).
-        if from_inside == to_inside {
-            return;
-        }
-
-        // Determine which endpoint is inside and which is outside.
-        let nesting_info_inside = if from_inside {
-            nesting_info_from
-        } else {
-            nesting_info_to
-        };
-
-        // Find which direct child of this container is the ancestor
-        // of the inside endpoint. The ancestor chain includes the
-        // inside endpoint itself, so we look for the container in the
-        // chain and take the next element.
-        let container_depth_in_chain = nesting_info_inside
-            .ancestor_chain
-            .iter()
-            .position(|id| id == container_node_id);
-        let Some(container_depth) = container_depth_in_chain else {
-            return;
-        };
-        let target_child_id = nesting_info_inside.ancestor_chain.get(container_depth + 1);
-        let Some(target_child_id) = target_child_id else {
-            // The inside endpoint IS the container node, so skip.
-            return;
-        };
-
-        // Find the index of the target child among the direct
-        // children.
-        let target_child_index = container_node_direct_child_ids
-            .iter()
-            .position(|id| id == target_child_id);
-        let Some(_target_child_index) = target_child_index else {
-            return;
+        let edge_spacer_build_decision = Self::build_cross_container_spacers_for_edge_decision(
+            node_nesting_infos,
+            container_node_id,
+            container_node_direct_child_ids,
+            edge,
+        );
+        let node_id_of_container_direct_child_that_contains_edge = match edge_spacer_build_decision
+        {
+            EdgeSpacerBuildDecision::Skip(_edge_spacer_build_decision_skip) => return,
+            EdgeSpacerBuildDecision::Build(EdgeSpacerBuildDecisionBuild { target_child_id }) => {
+                target_child_id
+            }
         };
 
         // Insert spacers alongside each sibling of the target child.
@@ -258,7 +220,7 @@ impl EdgeSpacerBuilder {
         container_node_direct_child_ids
             .iter()
             .for_each(|sibling_id| {
-                if sibling_id == target_child_id {
+                if sibling_id == node_id_of_container_direct_child_that_contains_edge {
                     return;
                 }
 
@@ -303,6 +265,162 @@ impl EdgeSpacerBuilder {
                 .cross_container_spacer_taffy_node_ids
                 .extend(spacer_taffy_nodes.cross_container_spacer_taffy_node_ids);
         }
+    }
+
+    /// Returns whether the edge spacer should be built for the given edge.
+    ///
+    /// # Parameters
+    ///
+    /// * `node_nesting_infos`: The precomputed nesting info map for all nodes.
+    /// * `container_node_id`: The ID of the node which is a parent of the node
+    ///   that the edge is connected to.
+    /// * `container_node_direct_child_ids`: The children of
+    ///   `container_node_id`.
+    /// * `edge`: Edge to build spacers for.
+    fn build_cross_container_spacers_for_edge_decision<'f, 'id>(
+        node_nesting_infos: &'f NodeNestingInfos<'id>,
+        container_node_id: &NodeId<'id>,
+        container_node_direct_child_ids: &Vec<NodeId<'id>>,
+        edge: &Edge<'id>,
+    ) -> EdgeSpacerBuildDecision<'f, 'id> {
+        let Some(node_nesting_info_from) = node_nesting_infos.get(&edge.from) else {
+            return EdgeSpacerBuildDecision::Skip(
+                EdgeSpacerBuildDecisionSkip::NestingInfoFromNotFound {
+                    node_id: edge.from.clone(),
+                },
+            );
+        };
+        let Some(node_nesting_info_to) = node_nesting_infos.get(&edge.to) else {
+            return EdgeSpacerBuildDecision::Skip(
+                EdgeSpacerBuildDecisionSkip::NestingInfoToNotFound {
+                    node_id: edge.to.clone(),
+                },
+            );
+        };
+
+        // === LCA sibling distance guard === //
+        //
+        // Only insert cross-container spacers when the edge's
+        // from-node and to-node diverge at the LCA level with
+        // at least one intermediate sibling between them.
+        // A sibling distance of 1 means the two divergent
+        // ancestors are adjacent, so the edge does not cross
+        // over any other node.
+        let edge_lca_sibling_distance =
+            Self::edge_lca_sibling_distance(node_nesting_info_from, node_nesting_info_to);
+        if edge_lca_sibling_distance.distance < 2 {
+            return EdgeSpacerBuildDecision::Skip(
+                EdgeSpacerBuildDecisionSkip::NoIntermediateLcaSiblings {
+                    node_id_from: edge.from.clone(),
+                    node_id_to: edge.to.clone(),
+                    node_nesting_info_from: node_nesting_info_from.clone(),
+                    node_nesting_info_to: node_nesting_info_to.clone(),
+                    edge_lca_sibling_distance,
+                },
+            );
+        }
+
+        // Determine if exactly one endpoint is inside this container
+        // and the other is outside.
+        let container_node_contains_node_from = node_nesting_info_from
+            .ancestor_chain
+            .contains(container_node_id);
+        let container_node_contains_node_to = node_nesting_info_to
+            .ancestor_chain
+            .contains(container_node_id);
+
+        // We create a spacer node for edges where one node is inside the container and
+        // one is outside.
+        match (
+            container_node_contains_node_from,
+            container_node_contains_node_to,
+        ) {
+            (true, true) => {
+                return EdgeSpacerBuildDecision::Skip(
+                    EdgeSpacerBuildDecisionSkip::ContainerNodeContainsBothFromAndToNodes {
+                        node_id_container: container_node_id.clone(),
+                        node_id_from: edge.from.clone(),
+                        node_id_to: edge.to.clone(),
+                    },
+                )
+            }
+            (false, false) => {
+                return EdgeSpacerBuildDecision::Skip(
+                    EdgeSpacerBuildDecisionSkip::ContainerNodeContainsNeitherFromAndToNodes {
+                        node_id_container: container_node_id.clone(),
+                        node_id_from: edge.from.clone(),
+                        node_id_to: edge.to.clone(),
+                    },
+                )
+            }
+            // Continue checking if the edge needs a spacer across the container.
+            (true, false) | (false, true) => {}
+        }
+
+        // Determine which endpoint is inside and which is outside.
+        let node_nesting_info_of_contained_node = if container_node_contains_node_from {
+            node_nesting_info_from
+        } else {
+            node_nesting_info_to
+        };
+
+        // Find which direct child of this container is the ancestor of the inside
+        // endpoint. The ancestor chain includes the inside endpoint itself, so we look
+        // for the container in the chain and take the next element.
+        //
+        // # Example
+        //
+        // ```yaml
+        // node hierarchy:
+        //   a:
+        //     a0:
+        //       a00:
+        //         a000: {}
+        //     a1:
+        //       a10: {}
+        // ```
+        //
+        // For `a000`, the `ancestor_chain` is `["a", "a0", "a00", "a000"]`.
+        //
+        // The container depth of `a0` in the chain is `1` (the index of `a0` in the
+        // chain).
+        let container_depth_in_chain = node_nesting_info_of_contained_node
+            .ancestor_chain
+            .iter()
+            .position(|id| id == container_node_id);
+        let container_depth = container_depth_in_chain
+            .expect("We just confirmed the `container_node` is in this node's `ancestor_chain`.");
+
+        // Skip creating the spacer node if the container itself is one of the endpoints
+        // (ancestor_chain includes self, so check that the inside endpoint is not the
+        // container itself).
+        //
+        // The `target_child_id` is the node ID of the direct child of the container
+        // node, which *may* be the inside endpoint.
+        let target_child_id = node_nesting_info_of_contained_node
+            .ancestor_chain
+            .get(container_depth + 1);
+        let target_child_id = match target_child_id {
+            Some(target_child_id) => target_child_id,
+            None => {
+                // The container node is the deepest element, i.e. the inside endpoint IS the
+                // container node, so skip creating a spacer node.
+                return EdgeSpacerBuildDecision::Skip(
+                    EdgeSpacerBuildDecisionSkip::ContainerNodeIsFromOrToNode {
+                        node_id_from: edge.from.clone(),
+                        node_id_to: edge.to.clone(),
+                    },
+                );
+            }
+        };
+
+        // Find the index of the target child among the direct children.
+        let _target_child_index = container_node_direct_child_ids
+            .iter()
+            .position(|id| id == target_child_id)
+            .expect("`target_child_id` was just looked up from the `ancestor_chain` at `container_depth + 1`.");
+
+        EdgeSpacerBuildDecision::Build(EdgeSpacerBuildDecisionBuild { target_child_id })
     }
 
     /// Builds spacer taffy nodes for a single edge if it crosses ranks.
@@ -467,8 +585,7 @@ impl EdgeSpacerBuilder {
     /// # Examples
     ///
     /// * `[a, a01]` and `[c, c01]` -> LCA depth `0` (diverge immediately).
-    /// * `[outer, a, a01]` and `[outer, b, b01]` -> LCA depth `1` (share
-    ///   `outer`).
+    /// * `[outer, a, a01]` and `[outer, b]` -> LCA depth `1` (share `outer`).
     /// * `[outer, inner, x]` and `[outer, inner, y]` -> LCA depth `2` (share
     ///   `outer` and `inner`).
     fn lca_depth(info_from: &NodeNestingInfo<'_>, info_to: &NodeNestingInfo<'_>) -> usize {
@@ -510,30 +627,38 @@ impl EdgeSpacerBuilder {
     ///
     /// ```text
     /// outer:
-    ///   A: { A_child: { A_grandchild: {} } }
-    ///   B: { B_child: {} }
-    ///   C: { C_child: {} }
+    ///   a: { a_child: { a_grandchild: {} } }
+    ///   b: { b_child: {} }
+    ///   c: { c_child: {} }
     /// ```
     ///
-    /// * `A_grandchild` and `B_child` -> LCA is `outer`, divergent ancestors
-    ///   are `A` (index 0) and `B` (index 1), distance = 1.
-    /// * `A_grandchild` and `C_child` -> LCA is `outer`, divergent ancestors
-    ///   are `A` (index 0) and `C` (index 2), distance = 2.
-    fn lca_sibling_distance(
-        info_from: &NodeNestingInfo<'_>,
-        info_to: &NodeNestingInfo<'_>,
-    ) -> usize {
-        let lca_depth = Self::lca_depth(info_from, info_to);
+    /// * `a_grandchild` and `b_child` -> LCA is `outer`, divergent ancestors
+    ///   are `a` (index 0) and `b` (index 1), distance = 1.
+    /// * `a_grandchild` and `c_child` -> LCA is `outer`, divergent ancestors
+    ///   are `a` (index 0) and `c` (index 2), distance = 2.
+    fn edge_lca_sibling_distance(
+        node_nesting_info_from: &NodeNestingInfo<'_>,
+        node_nesting_info_to: &NodeNestingInfo<'_>,
+    ) -> EdgeLcaSiblingDistance {
+        let lca_depth = Self::lca_depth(node_nesting_info_from, node_nesting_info_to);
 
-        // Get the sibling index at the divergence depth for each node.
-        let index_from = info_from.nesting_path.get(lca_depth).copied();
-        let index_to = info_to.nesting_path.get(lca_depth).copied();
+        // Get the sibling indicies at the divergence depth for each node.
+        //
+        // i.e. get the indices of the nodes where the hierarchy first diverges.
+        let from_sibling_ancestor_index =
+            node_nesting_info_from.nesting_path.get(lca_depth).copied();
+        let to_sibling_ancestor_index = node_nesting_info_to.nesting_path.get(lca_depth).copied();
 
-        match (index_from, index_to) {
+        let distance = match (from_sibling_ancestor_index, to_sibling_ancestor_index) {
             (Some(a), Some(b)) => a.abs_diff(b),
             // One chain is a prefix of the other (one node is an
             // ancestor of the other) -- no divergent siblings.
             _ => 0,
+        };
+
+        EdgeLcaSiblingDistance {
+            lca_depth,
+            distance,
         }
     }
 
