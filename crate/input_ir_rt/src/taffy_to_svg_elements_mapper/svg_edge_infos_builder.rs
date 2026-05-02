@@ -2,7 +2,7 @@ use disposition_input_ir_model::EdgeAnimationActive;
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeId},
     entity::EntityTypes,
-    node::{NodeId, NodeRank, NodeRanks},
+    node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
     IrDiagram,
 };
 use disposition_model_common::{
@@ -126,7 +126,8 @@ impl SvgEdgeInfosBuilder {
                 edge_group,
                 entity_types,
                 svg_node_info_map,
-                &ir_diagram.node_ranks,
+                &ir_diagram.node_ranks_nested,
+                &ir_diagram.node_nesting_infos,
                 &mut face_contact_tracker,
             );
             all_pass1_groups.push(edge_group_pass1);
@@ -303,13 +304,15 @@ impl SvgEdgeInfosBuilder {
     ///
     /// The returned `EdgeGroupPass1` contains everything needed for
     /// pass 2 to rebuild the paths with offsets.
+    #[allow(clippy::too_many_arguments)]
     fn build_edge_pass1_infos<'edge, 'id>(
         rank_dir: RankDir,
         edge_group_id: &'edge EdgeGroupId<'id>,
         edge_group: &'edge EdgeGroup<'id>,
         entity_types: &'edge EntityTypes<'id>,
         svg_node_info_map: &'edge Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
-        node_ranks: &NodeRanks<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
         face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
     ) -> EdgeGroupPass1<'edge, 'id> {
         let edge_animation_params = EdgeAnimationParams::default();
@@ -350,8 +353,12 @@ impl SvgEdgeInfosBuilder {
             let path_bounds = Self::path_bounds_compute(&path);
 
             // Compute rank distance between from and to nodes.
-            let rank_from = node_ranks.get(&edge.from).copied().unwrap_or_default();
-            let rank_to = node_ranks.get(&edge.to).copied().unwrap_or_default();
+            let rank_from = node_ranks_nested
+                .node_rank_for(&edge.from, node_nesting_infos)
+                .unwrap_or_default();
+            let rank_to = node_ranks_nested
+                .node_rank_for(&edge.to, node_nesting_infos)
+                .unwrap_or_default();
             let rank_distance = rank_to.value().abs_diff(rank_from.value());
 
             // Store to-node coordinates for tie-breaking during sorting.

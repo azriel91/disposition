@@ -1,7 +1,7 @@
 use disposition_model_common::Map;
 use serde::{Deserialize, Serialize};
 
-use crate::node::{NodeId, NodeRanks};
+use crate::node::{NodeId, NodeNestingInfos, NodeRank, NodeRanks};
 
 /// Hierarchy-aware node rank maps.
 ///
@@ -101,6 +101,25 @@ impl<'id> NodeRanksNested<'id> {
             None => Some(&self.root),
             Some(container_id) => self.containers.get(container_id),
         }
+    }
+
+    /// Returns the [`NodeRank`] for the given node using its parent container.
+    ///
+    /// Looks up the node's parent container from `node_nesting_infos` (the
+    /// second-to-last element of its `ancestor_chain`, or `None` for root-level
+    /// nodes), then retrieves the rank from the corresponding [`NodeRanks`].
+    ///
+    /// Returns `None` if the node is not found in `node_nesting_infos` or has
+    /// no rank entry in its container's [`NodeRanks`].
+    pub fn node_rank_for(
+        &self,
+        node_id: &NodeId<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> Option<NodeRank> {
+        let nesting_info = node_nesting_infos.get(node_id)?;
+        let chain = &nesting_info.ancestor_chain;
+        let parent = chain.len().checked_sub(2).map(|i| &chain[i]);
+        self.ranks_for(parent)?.get(node_id).copied()
     }
 
     /// Converts this `NodeRanksNested` into one with a `'static` lifetime.

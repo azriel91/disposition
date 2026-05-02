@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use disposition_ir_model::{
     edge::{Edge, EdgeGroups, EdgeId},
     entity::{EntityType, EntityTypes},
-    node::{NodeHierarchy, NodeId, NodeNestingInfo, NodeNestingInfos, NodeRank, NodeRanks},
+    node::{NodeHierarchy, NodeId, NodeNestingInfo, NodeNestingInfos, NodeRank, NodeRanksNested},
 };
 use disposition_model_common::{edge::EdgeGroupId, Map};
 use disposition_taffy_model::{
@@ -53,7 +53,7 @@ impl EdgeSpacerBuilder {
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge_groups: &EdgeGroups<'static>,
         node_nesting_infos: &NodeNestingInfos<'static>,
-        node_ranks: &NodeRanks<'static>,
+        node_ranks_nested: &NodeRanksNested<'static>,
         entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
@@ -78,7 +78,7 @@ impl EdgeSpacerBuilder {
                         edge,
                         &edge_id,
                         node_nesting_infos,
-                        node_ranks,
+                        node_ranks_nested,
                         entity_types,
                         target_entity_type,
                         rank_to_taffy_ids,
@@ -120,7 +120,7 @@ impl EdgeSpacerBuilder {
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge_groups: &EdgeGroups<'static>,
         node_nesting_infos: &NodeNestingInfos<'static>,
-        node_ranks: &NodeRanks<'static>,
+        node_ranks_nested: &NodeRanksNested<'static>,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
         container_node_id: &NodeId<'static>,
         container_node_hierarchy: &NodeHierarchy<'static>,
@@ -148,7 +148,7 @@ impl EdgeSpacerBuilder {
                         taffy_tree,
                         edge_group_id,
                         node_nesting_infos,
-                        node_ranks,
+                        node_ranks_nested,
                         rank_to_taffy_ids,
                         container_node_id,
                         &container_node_direct_child_ids,
@@ -188,7 +188,7 @@ impl EdgeSpacerBuilder {
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge_group_id: &EdgeGroupId<'static>,
         node_nesting_infos: &NodeNestingInfos<'static>,
-        node_ranks: &NodeRanks<'static>,
+        node_ranks_nested: &NodeRanksNested<'static>,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
         container_node_id: &NodeId<'static>,
         container_node_direct_child_ids: &Vec<NodeId<'static>>,
@@ -234,9 +234,9 @@ impl EdgeSpacerBuilder {
 
                 // Direct children of the container node may still have spacers if they are on
                 // different ranks.
-                let sibling_rank = node_ranks
-                    .get(sibling_id)
-                    .copied()
+                let sibling_rank = node_ranks_nested
+                    .ranks_for(Some(container_node_id))
+                    .and_then(|r| r.get(sibling_id).copied())
                     .unwrap_or(NodeRank::new(0));
 
                 // Create the taffy spacer node.
@@ -297,7 +297,7 @@ impl EdgeSpacerBuilder {
         edge: &Edge<'static>,
         edge_id: &EdgeId<'static>,
         node_nesting_infos: &NodeNestingInfos<'static>,
-        node_ranks: &NodeRanks<'static>,
+        node_ranks_nested: &NodeRanksNested<'static>,
         entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
@@ -327,7 +327,7 @@ impl EdgeSpacerBuilder {
 
         // === Find divergent ancestors and their ranks === //
         let (rank_low, rank_high) =
-            Self::divergent_ancestor_ranks(nesting_info_from, nesting_info_to, node_ranks)?;
+            Self::divergent_ancestor_ranks(nesting_info_from, nesting_info_to, node_ranks_nested)?;
 
         // Only insert spacers for edges crossing ranks.
         if rank_low == rank_high {
@@ -459,21 +459,22 @@ impl EdgeSpacerBuilder {
     fn divergent_ancestor_ranks(
         info_from: &NodeNestingInfo<'_>,
         info_to: &NodeNestingInfo<'_>,
-        node_ranks: &NodeRanks<'static>,
+        node_ranks_nested: &NodeRanksNested<'static>,
     ) -> Option<(NodeRank, NodeRank)> {
         let lca_depth = LcaDepthCalculator::calculate(info_from, info_to);
-
-        // The divergent ancestor for each endpoint is the node at
-        // `ancestor_chain[lca_depth]` -- the first node after the shared
-        // prefix.
         let divergent_from = info_from.ancestor_chain.get(lca_depth)?;
         let divergent_to = info_to.ancestor_chain.get(lca_depth)?;
 
-        let rank_from = node_ranks
+        let lca_container = lca_depth
+            .checked_sub(1)
+            .map(|i| &info_from.ancestor_chain[i]);
+        let container_ranks = node_ranks_nested.ranks_for(lca_container)?;
+
+        let rank_from = container_ranks
             .get(divergent_from)
             .copied()
             .unwrap_or(NodeRank::new(0));
-        let rank_to = node_ranks
+        let rank_to = container_ranks
             .get(divergent_to)
             .copied()
             .unwrap_or(NodeRank::new(0));
@@ -483,7 +484,6 @@ impl EdgeSpacerBuilder {
         } else {
             (rank_to, rank_from)
         };
-
         Some((rank_low, rank_high))
     }
 

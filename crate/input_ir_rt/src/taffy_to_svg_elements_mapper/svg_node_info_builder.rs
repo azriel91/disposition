@@ -73,11 +73,8 @@ impl SvgNodeInfoBuilder {
             None
         };
         let node_rank = ir_diagram
-            .node_ranks
-            .get(node_id)
-            .copied()
-            // We should always have a node rank for each node, calculated in
-            // `InputToIrDiagramMapper`.
+            .node_ranks_nested
+            .node_rank_for(node_id, &ir_diagram.node_nesting_infos)
             .unwrap_or_else(|| panic!("node_rank not found for node_id: {:?}", node_id));
         let node_shape = ir_diagram.node_shapes.get(node_id).unwrap_or(default_shape);
 

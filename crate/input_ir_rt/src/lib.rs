@@ -7,7 +7,8 @@ pub use crate::{
     edge_id_generator::EdgeIdGenerator, input_diagram_merger::InputDiagramMerger,
     input_diagram_theme_sources::InputDiagramThemeSources,
     input_to_ir_diagram_mapper::InputToIrDiagramMapper, ir_to_taffy_builder::IrToTaffyBuilder,
-    string_xml_escaper::StringXmlEscaper, svg_elements_to_svg_mapper::SvgElementsToSvgMapper,
+    node_ranks_calculator::NodeRanksCalculator, string_xml_escaper::StringXmlEscaper,
+    svg_elements_to_svg_mapper::SvgElementsToSvgMapper,
     taffy_to_svg_elements_mapper::TaffyToSvgElementsMapper, theme_value_source::ThemeValueSource,
 };
 

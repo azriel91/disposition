@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use disposition_ir_model::{
     edge::EdgeGroups,
     entity::{EntityType, EntityTypes},
@@ -114,9 +112,8 @@ impl NodeRanksCalculator {
     /// level, keyed by `None`.
     fn container_to_children_build<'id>(
         node_nesting_infos: &NodeNestingInfos<'id>,
-    ) -> HashMap<Option<NodeId<'id>>, Vec<NodeId<'id>>> {
-        let mut container_to_children: HashMap<Option<NodeId<'id>>, Vec<NodeId<'id>>> =
-            HashMap::new();
+    ) -> Map<Option<NodeId<'id>>, Vec<NodeId<'id>>> {
+        let mut container_to_children: Map<Option<NodeId<'id>>, Vec<NodeId<'id>>> = Map::new();
         for (node_id, nesting_info) in node_nesting_infos.iter() {
             let chain = &nesting_info.ancestor_chain;
             let parent = chain
@@ -139,9 +136,9 @@ impl NodeRanksCalculator {
     fn lca_level_edges_build<'id>(
         dependency_edges: &[(NodeId<'id>, NodeId<'id>)],
         node_nesting_infos: &NodeNestingInfos<'id>,
-    ) -> HashMap<Option<NodeId<'id>>, Vec<(NodeId<'id>, NodeId<'id>)>> {
-        let mut lca_level_edges: HashMap<Option<NodeId<'id>>, Vec<(NodeId<'id>, NodeId<'id>)>> =
-            HashMap::new();
+    ) -> Map<Option<NodeId<'id>>, Vec<(NodeId<'id>, NodeId<'id>)>> {
+        let mut lca_level_edges: Map<Option<NodeId<'id>>, Vec<(NodeId<'id>, NodeId<'id>)>> =
+            Map::new();
         for (from_id, to_id) in dependency_edges {
             if let Some((lca_container, divergent_from, divergent_to)) =
                 Self::lca_level_edge_compute(from_id, to_id, node_nesting_infos)
