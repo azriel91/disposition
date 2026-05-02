@@ -1,20 +1,27 @@
+use std::collections::HashMap;
+
 use disposition_ir_model::{
     edge::EdgeGroups,
     entity::{EntityType, EntityTypes},
-    node::{NodeHierarchy, NodeId, NodeRank, NodeRanks},
+    node::{NodeId, NodeNestingInfos, NodeRank, NodeRanks, NodeRanksNested},
 };
 use disposition_model_common::{Id, Map};
 
-/// Computes [`NodeRanks`] from dependency edges in an [`IrDiagram`].
+/// Computes [`NodeRanksNested`] from dependency edges in an [`IrDiagram`].
 ///
 /// Dependency edges indicate that the `to` node should be positioned after
-/// the `from` node. This calculator performs a rank assignment so that:
+/// the `from` node. This calculator performs hierarchy-aware rank assignment:
 ///
-/// * Nodes with no incoming dependency edges receive rank `0`.
-/// * Each node's rank is one greater than the maximum rank of its predecessors.
-/// * Nodes that are part of a cycle (strongly connected component) share the
-///   same rank -- the cycle is contracted into a single logical node for
-///   ranking purposes.
+/// * Ranks are computed independently for each hierarchy level (root and each
+///   container node).
+/// * Dependency edges that cross container boundaries are attributed to the
+///   lowest common ancestor (LCA) of the two endpoints, using the first
+///   divergent sibling ancestors at that level as the effective edge.
+/// * Nodes with no incoming dependency edges at their level receive rank `0`.
+/// * Each node's rank is one greater than the maximum rank of its predecessors
+///   at the same level.
+/// * Nodes that are part of a cycle share the same rank -- the cycle is
+///   contracted into a single logical node for ranking purposes.
 ///
 /// Only **dependency** edges (not interaction edges) are considered for rank
 /// computation.
@@ -23,17 +30,17 @@ use disposition_model_common::{Id, Map};
 ///
 /// # Examples
 ///
-/// Given edges `A -> B -> C`, the resulting ranks would be:
+/// Given edges `A -> B -> C` all at the same level, the resulting ranks are:
 ///
 /// * `A`: 0
 /// * `B`: 1
 /// * `C`: 2
 ///
-/// Given edges `A -> B`, `B -> A`, `B -> C`, the resulting ranks would be:
+/// Given `a -> b`, `b_child_0 -> b_child_1`, `b_child_0 -> c_child`:
 ///
-/// * `A`: 0 (part of cycle with B)
-/// * `B`: 0 (part of cycle with A)
-/// * `C`: 1
+/// * Root level -- `a: 0`, `b: 1`, `c: 2` (lifted from `b_child_0 -> c_child`)
+/// * `b`'s level -- `b_child_0: 0`, `b_child_1: 1`
+/// * `c`'s level -- `c_child: 0` (edge is at root level, not `c`'s level)
 #[derive(Clone, Copy, Debug)]
 pub struct NodeRanksCalculator;
 
@@ -50,54 +57,154 @@ struct TarjanState {
 }
 
 impl NodeRanksCalculator {
-    /// Computes node ranks from the given edge groups and entity types.
+    /// Computes hierarchy-aware node ranks from dependency edges.
     ///
-    /// Only edges whose edge group has a dependency entity type are used for
-    /// rank computation. All nodes present in `node_hierarchy` are included
-    /// in the output, defaulting to rank `0` if they have no incoming
-    /// dependency edges.
+    /// Ranks are computed per hierarchy level using `node_nesting_infos` to
+    /// group nodes and attribute cross-container edges to their LCA level.
     ///
     /// # Parameters
     ///
-    /// * `node_hierarchy`: The full node hierarchy -- used to discover all node
-    ///   IDs that should receive a rank.
     /// * `edge_groups`: All edge groups in the diagram.
     /// * `entity_types`: Entity types used to distinguish dependency edges from
     ///   interaction edges.
+    /// * `node_nesting_infos`: Nesting information for each node, used to build
+    ///   the container-to-children map and compute LCA-level edge attribution.
     pub fn calculate<'id>(
-        node_hierarchy: &NodeHierarchy<'id>,
         edge_groups: &EdgeGroups<'id>,
         entity_types: &EntityTypes<'id>,
-    ) -> NodeRanks<'id> {
-        // === Collect All Node IDs === //
-        let mut all_node_ids: Vec<NodeId<'id>> = Vec::new();
-        Self::node_ids_collect(node_hierarchy, &mut all_node_ids);
-
-        if all_node_ids.is_empty() {
-            return NodeRanks::new();
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> NodeRanksNested<'id> {
+        if node_nesting_infos.is_empty() {
+            return NodeRanksNested::new();
         }
+
+        // === Build Container-to-Children Map === //
+        let container_to_children = Self::container_to_children_build(node_nesting_infos);
 
         // === Collect Dependency Edges === //
         let dependency_edges = Self::dependency_edges_collect(edge_groups, entity_types);
 
-        if dependency_edges.is_empty() {
-            // No dependency edges -- all nodes get rank 0.
-            return all_node_ids
-                .into_iter()
-                .map(|node_id| (node_id, NodeRank::new(0)))
-                .collect();
+        // === Lift Edges to LCA Level === //
+        let lca_level_edges = Self::lca_level_edges_build(&dependency_edges, node_nesting_infos);
+
+        // === Compute Ranks Per Level === //
+        let mut root = NodeRanks::new();
+        let mut containers: Map<NodeId<'id>, NodeRanks<'id>> = Map::new();
+
+        let empty_edges: Vec<(NodeId<'id>, NodeId<'id>)> = Vec::new();
+        for (container, children) in &container_to_children {
+            let edges = lca_level_edges.get(container).unwrap_or(&empty_edges);
+            let ranks = Self::ranks_compute(children, edges);
+            match container {
+                None => root = ranks,
+                Some(container_id) => {
+                    containers.insert(container_id.clone(), ranks);
+                }
+            }
         }
 
-        // === Compute Ranks via SCC Contraction === //
-        Self::ranks_compute(&all_node_ids, &dependency_edges)
+        NodeRanksNested { root, containers }
     }
 
-    /// Recursively collects all node IDs from a `NodeHierarchy`.
-    fn node_ids_collect<'id>(node_hierarchy: &NodeHierarchy<'id>, node_ids: &mut Vec<NodeId<'id>>) {
-        for (node_id, child_hierarchy) in node_hierarchy.iter() {
-            node_ids.push(node_id.clone());
-            Self::node_ids_collect(child_hierarchy, node_ids);
+    /// Builds a map from container node (or `None` for root) to its direct
+    /// children.
+    ///
+    /// Each node's parent is the second-to-last element of its
+    /// `ancestor_chain`. Top-level nodes (chain length 1) belong to the root
+    /// level, keyed by `None`.
+    fn container_to_children_build<'id>(
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> HashMap<Option<NodeId<'id>>, Vec<NodeId<'id>>> {
+        let mut container_to_children: HashMap<Option<NodeId<'id>>, Vec<NodeId<'id>>> =
+            HashMap::new();
+        for (node_id, nesting_info) in node_nesting_infos.iter() {
+            let chain = &nesting_info.ancestor_chain;
+            let parent = chain
+                .len()
+                .checked_sub(2)
+                .map(|parent_idx| chain[parent_idx].clone());
+            container_to_children
+                .entry(parent)
+                .or_default()
+                .push(node_id.clone());
         }
+        container_to_children
+    }
+
+    /// Lifts each dependency edge to the LCA-level edge between the divergent
+    /// sibling ancestors of the two endpoints.
+    ///
+    /// Groups resulting LCA-level edges by their LCA container (`None` for
+    /// root).
+    fn lca_level_edges_build<'id>(
+        dependency_edges: &[(NodeId<'id>, NodeId<'id>)],
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> HashMap<Option<NodeId<'id>>, Vec<(NodeId<'id>, NodeId<'id>)>> {
+        let mut lca_level_edges: HashMap<Option<NodeId<'id>>, Vec<(NodeId<'id>, NodeId<'id>)>> =
+            HashMap::new();
+        for (from_id, to_id) in dependency_edges {
+            if let Some((lca_container, divergent_from, divergent_to)) =
+                Self::lca_level_edge_compute(from_id, to_id, node_nesting_infos)
+            {
+                lca_level_edges
+                    .entry(lca_container)
+                    .or_default()
+                    .push((divergent_from, divergent_to));
+            }
+        }
+        lca_level_edges
+    }
+
+    /// Computes the LCA container and divergent ancestors for a single edge.
+    ///
+    /// Returns `None` if either endpoint is absent from `node_nesting_infos`,
+    /// if one node is an ancestor of the other (edge is within a subtree), or
+    /// if the two divergent ancestors are the same node (self-loop at LCA
+    /// level).
+    ///
+    /// # Return value
+    ///
+    /// `Some((lca_container, divergent_from, divergent_to))` where:
+    ///
+    /// * `lca_container` -- `None` for root-level, `Some(id)` for a container.
+    /// * `divergent_from`, `divergent_to` -- the first ancestors of `from` and
+    ///   `to` that differ under the LCA, at depth `lca_depth` in their
+    ///   respective `ancestor_chain`s.
+    fn lca_level_edge_compute<'id>(
+        from_id: &NodeId<'id>,
+        to_id: &NodeId<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> Option<(Option<NodeId<'id>>, NodeId<'id>, NodeId<'id>)> {
+        let info_from = node_nesting_infos.get(from_id)?;
+        let info_to = node_nesting_infos.get(to_id)?;
+
+        let chain_from = &info_from.ancestor_chain;
+        let chain_to = &info_to.ancestor_chain;
+
+        let lca_depth = chain_from
+            .iter()
+            .zip(chain_to.iter())
+            .take_while(|(a, b)| a == b)
+            .count();
+
+        // If one node is an ancestor of the other, skip the edge.
+        if lca_depth >= chain_from.len() || lca_depth >= chain_to.len() {
+            return None;
+        }
+
+        let divergent_from = chain_from[lca_depth].clone();
+        let divergent_to = chain_to[lca_depth].clone();
+
+        // Skip self-loops at LCA level (divergent ancestors are the same node).
+        if divergent_from == divergent_to {
+            return None;
+        }
+
+        let lca_container = lca_depth
+            .checked_sub(1)
+            .map(|lca_idx| chain_from[lca_idx].clone());
+
+        Some((lca_container, divergent_from, divergent_to))
     }
 
     /// Extracts dependency edges from edge groups, filtering out interaction
@@ -159,6 +266,18 @@ impl NodeRanksCalculator {
         all_node_ids: &[NodeId<'id>],
         dependency_edges: &[(NodeId<'id>, NodeId<'id>)],
     ) -> NodeRanks<'id> {
+        if all_node_ids.is_empty() {
+            return NodeRanks::new();
+        }
+
+        if dependency_edges.is_empty() {
+            // No dependency edges -- all nodes get rank 0.
+            return all_node_ids
+                .iter()
+                .map(|node_id| (node_id.clone(), NodeRank::new(0)))
+                .collect();
+        }
+
         // === Assign Each Node a Numeric Index === //
         let mut node_to_index: Map<NodeId<'id>, usize> = Map::new();
         for (i, node_id) in all_node_ids.iter().enumerate() {

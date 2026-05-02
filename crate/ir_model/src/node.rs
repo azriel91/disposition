@@ -2,8 +2,8 @@ pub use self::{
     node_copy_text::NodeCopyText, node_hierarchy::NodeHierarchy, node_id::NodeId,
     node_inbuilt::NodeInbuilt, node_names::NodeNames, node_nesting_info::NodeNestingInfo,
     node_nesting_infos::NodeNestingInfos, node_ordering::NodeOrdering, node_rank::NodeRank,
-    node_ranks::NodeRanks, node_shape::NodeShape, node_shape_circle::NodeShapeCircle,
-    node_shape_rect::NodeShapeRect, node_shapes::NodeShapes,
+    node_ranks::NodeRanks, node_ranks_nested::NodeRanksNested, node_shape::NodeShape,
+    node_shape_circle::NodeShapeCircle, node_shape_rect::NodeShapeRect, node_shapes::NodeShapes,
 };
 
 mod node_copy_text;
@@ -16,6 +16,7 @@ mod node_nesting_infos;
 mod node_ordering;
 mod node_rank;
 mod node_ranks;
+mod node_ranks_nested;
 mod node_shape;
 mod node_shape_circle;
 mod node_shape_rect;
