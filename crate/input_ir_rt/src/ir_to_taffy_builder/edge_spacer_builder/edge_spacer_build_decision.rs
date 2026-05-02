@@ -1,4 +1,6 @@
-use crate::ir_to_taffy_builder::{EdgeSpacerBuildDecisionBuild, EdgeSpacerBuildDecisionSkip};
+use crate::ir_to_taffy_builder::edge_spacer_builder::{
+    EdgeSpacerBuildDecisionBuild, EdgeSpacerBuildDecisionSkip,
+};
 
 /// Represents the decision to build or skip the edge spacer.
 #[derive(Clone, Debug, PartialEq, Eq)]

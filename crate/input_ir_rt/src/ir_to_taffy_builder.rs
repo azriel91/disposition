@@ -27,9 +27,6 @@ use typed_builder::TypedBuilder;
 
 use self::{
     edge_lca_sibling_distance::EdgeLcaSiblingDistance,
-    edge_spacer_build_decision::EdgeSpacerBuildDecision,
-    edge_spacer_build_decision_build::EdgeSpacerBuildDecisionBuild,
-    edge_spacer_build_decision_skip::EdgeSpacerBuildDecisionSkip,
     edge_spacer_builder::EdgeSpacerBuilder,
     taffy_node_build_context::{NodeMeasureContext, TaffyNodeBuildContext, TaffyWrapperNodeStyles},
     text_measure::{
@@ -39,9 +36,6 @@ use self::{
 };
 
 mod edge_lca_sibling_distance;
-mod edge_spacer_build_decision;
-mod edge_spacer_build_decision_build;
-mod edge_spacer_build_decision_skip;
 mod edge_spacer_builder;
 mod taffy_node_build_context;
 mod text_measure;
