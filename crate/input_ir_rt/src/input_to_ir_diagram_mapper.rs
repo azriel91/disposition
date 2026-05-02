@@ -30,11 +30,12 @@ use disposition_model_common::{
 use crate::node_ranks_calculator::NodeRanksCalculator;
 
 use self::{
-    css_theme_vars::CssThemeVars, tailwind_classes_builder::TailwindClassesBuilder,
-    theme_attr_resolver::ThemeAttrResolver,
+    css_theme_vars::CssThemeVars, node_nesting_infos_builder::NodeNestingInfosBuilder,
+    tailwind_classes_builder::TailwindClassesBuilder, theme_attr_resolver::ThemeAttrResolver,
 };
 
 mod css_theme_vars;
+mod node_nesting_infos_builder;
 mod tailwind_class_state;
 mod tailwind_classes_builder;
 mod tailwind_color_shade;
@@ -145,9 +146,13 @@ impl InputToIrDiagramMapper {
         // 12. Build ProcessStepEntities from step_thing_interactions
         let process_step_entities = Self::build_process_step_entities(processes);
 
-        // 13. Compute NodeRanks from dependency edges
-        let node_ranks =
-            NodeRanksCalculator::calculate(&node_hierarchy, &edge_groups, &ir_entity_types);
+        // 13. Compute NodeNestingInfos from node_hierarchy
+        let node_nesting_infos = NodeNestingInfosBuilder::build(&node_hierarchy);
+
+        // 14. Compute NodeRanksNested from dependency edges, using nesting infos to
+        //     attribute cross-container edges to the correct level
+        let node_ranks_nested =
+            NodeRanksCalculator::calculate(&edge_groups, &ir_entity_types, &node_nesting_infos);
 
         let diagram = IrDiagram {
             nodes,
@@ -160,7 +165,8 @@ impl InputToIrDiagramMapper {
             entity_types: ir_entity_types,
             tailwind_classes,
             node_layouts,
-            node_ranks,
+            node_ranks_nested,
+            node_nesting_infos,
             node_shapes,
             process_step_entities,
             render_options: *render_options,

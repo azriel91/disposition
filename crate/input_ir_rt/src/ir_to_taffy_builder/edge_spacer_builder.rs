@@ -3,14 +3,30 @@ use std::collections::BTreeMap;
 use disposition_ir_model::{
     edge::{Edge, EdgeGroups, EdgeId},
     entity::{EntityType, EntityTypes},
-    node::{NodeHierarchy, NodeId, NodeRank, NodeRanks},
+    node::{NodeHierarchy, NodeId, NodeNestingInfo, NodeNestingInfos, NodeRank, NodeRanksNested},
 };
-use disposition_model_common::{edge::EdgeGroupId, Id, Map};
+use disposition_model_common::{edge::EdgeGroupId, Map};
 use disposition_taffy_model::{
     taffy::{self, Size, Style, TaffyTree},
     EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx,
 };
 use taffy::AlignSelf;
+
+use crate::EdgeIdGenerator;
+
+pub use self::{
+    edge_spacer_build_decider::EdgeSpacerBuildDecider,
+    edge_spacer_build_decision::EdgeSpacerBuildDecision,
+    edge_spacer_build_decision_build::EdgeSpacerBuildDecisionBuild,
+    edge_spacer_build_decision_skip::EdgeSpacerBuildDecisionSkip,
+    lca_depth_calculator::LcaDepthCalculator,
+};
+
+mod edge_spacer_build_decider;
+mod edge_spacer_build_decision;
+mod edge_spacer_build_decision_build;
+mod edge_spacer_build_decision_skip;
+mod lca_depth_calculator;
 
 const EDGE_SPACER_LENGTH: f32 = 5.0;
 
@@ -22,33 +38,6 @@ const EDGE_SPACER_LENGTH: f32 = 5.0;
 /// routed through their positions, reducing the chance of edges
 /// being drawn over other nodes.
 pub(crate) struct EdgeSpacerBuilder;
-
-// === Supporting types === //
-
-/// Information about a node's position in the hierarchy.
-///
-/// # Examples
-///
-/// A node `b` nested inside `a` at position 0 would have:
-///
-/// ```text
-/// NodeNestingInfo {
-///     nesting_path: [0, 0],
-///     ancestor_chain: [NodeId("a"), NodeId("b")],
-/// }
-/// ```
-#[derive(Clone, Debug)]
-struct NodeNestingInfo {
-    /// Sequence of sibling indices at each level from root to this node.
-    ///
-    /// For example, `[2, 0]` means "third top-level node, first child".
-    nesting_path: Vec<usize>,
-    /// Sequence of `NodeId`s from root to this node (inclusive).
-    ///
-    /// For example, for node `c01` inside `c0`, this would be
-    /// `[NodeId("c0"), NodeId("c01")]`.
-    ancestor_chain: Vec<NodeId<'static>>,
-}
 
 // === EdgeSpacerBuilder === //
 
@@ -63,16 +52,13 @@ impl EdgeSpacerBuilder {
     pub(crate) fn build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge_groups: &EdgeGroups<'static>,
-        node_hierarchy: &NodeHierarchy<'static>,
-        node_ranks: &NodeRanks<'static>,
+        node_nesting_infos: &NodeNestingInfos<'static>,
+        node_ranks_nested: &NodeRanksNested<'static>,
         entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
         lca_node_id: Option<&NodeId<'static>>,
     ) -> Map<EdgeId<'static>, EdgeSpacerTaffyNodes> {
-        // === Compute nesting info for all nodes === //
-        let node_nesting_info_map = Self::node_nesting_info_map_build(node_hierarchy);
-
         // === Find cross-rank edges and compute spacer placements === //
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
 
@@ -80,28 +66,31 @@ impl EdgeSpacerBuilder {
         // so subsequent insertions account for prior spacers.
         let mut rank_spacer_counts: BTreeMap<NodeRank, Vec<usize>> = BTreeMap::new();
 
-        for (edge_group_id, edge_group) in edge_groups.iter() {
-            for (edge_index, edge) in edge_group.iter().enumerate() {
-                let edge_id = Self::edge_id_generate(edge_group_id, edge_index);
+        edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
+            edge_group
+                .iter()
+                .enumerate()
+                .for_each(|(edge_index, edge)| {
+                    let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
 
-                let spacer_nodes = Self::edge_spacers_build(
-                    taffy_tree,
-                    edge,
-                    &edge_id,
-                    &node_nesting_info_map,
-                    node_ranks,
-                    entity_types,
-                    target_entity_type,
-                    rank_to_taffy_ids,
-                    &mut rank_spacer_counts,
-                    lca_node_id,
-                );
+                    let spacer_nodes = Self::edge_spacers_build(
+                        taffy_tree,
+                        edge,
+                        &edge_id,
+                        node_nesting_infos,
+                        node_ranks_nested,
+                        entity_types,
+                        target_entity_type,
+                        rank_to_taffy_ids,
+                        &mut rank_spacer_counts,
+                        lca_node_id,
+                    );
 
-                if let Some(spacer_nodes) = spacer_nodes {
-                    edge_spacer_taffy_nodes.insert(edge_id, spacer_nodes);
-                }
-            }
-        }
+                    if let Some(spacer_nodes) = spacer_nodes {
+                        edge_spacer_taffy_nodes.insert(edge_id, spacer_nodes);
+                    }
+                });
+        });
 
         edge_spacer_taffy_nodes
     }
@@ -119,31 +108,30 @@ impl EdgeSpacerBuilder {
     ///
     /// * `taffy_tree`: The taffy tree to insert spacer nodes into.
     /// * `edge_groups`: All edge groups in the diagram.
-    /// * `node_hierarchy`: The full node hierarchy.
+    /// * `node_nesting_infos`: The precomputed nesting info map for all nodes.
     /// * `node_ranks`: Node ranks for all nodes.
-    /// * `container_node_id`: The ID of the container node being built.
-    /// * `child_hierarchy`: The children of `container_node_id`.
+    /// * `container_node_id`: The ID of the node which is a parent of the node
+    ///   that the edge is connected to.
+    /// * `container_node_hierarchy`: The children of `container_node_id`.
     /// * `rank_to_taffy_ids`: Mutable reference to the container's
     ///   rank-to-taffy-node mapping, for inserting spacer nodes.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn build_cross_container_spacers(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge_groups: &EdgeGroups<'static>,
-        node_hierarchy: &NodeHierarchy<'static>,
-        node_ranks: &NodeRanks<'static>,
-        container_node_id: &NodeId<'static>,
-        child_hierarchy: &NodeHierarchy<'static>,
+        node_nesting_infos: &NodeNestingInfos<'static>,
+        node_ranks_nested: &NodeRanksNested<'static>,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
+        container_node_id: &NodeId<'static>,
+        container_node_hierarchy: &NodeHierarchy<'static>,
     ) -> Map<EdgeId<'static>, EdgeSpacerTaffyNodes> {
-        let node_nesting_info_map = Self::node_nesting_info_map_build(node_hierarchy);
-
         // Collect direct child IDs of this container.
-        let direct_child_ids: Vec<NodeId<'static>> = child_hierarchy
+        let container_node_direct_child_ids: Vec<NodeId<'static>> = container_node_hierarchy
             .iter()
             .map(|(child_id, _)| child_id.clone())
             .collect();
 
-        if direct_child_ids.len() <= 1 {
+        if container_node_direct_child_ids.len() <= 1 {
             // No siblings to route around.
             return Map::new();
         }
@@ -151,138 +139,143 @@ impl EdgeSpacerBuilder {
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
         let mut rank_spacer_counts: BTreeMap<NodeRank, Vec<usize>> = BTreeMap::new();
 
-        for (edge_group_id, edge_group) in edge_groups.iter() {
-            for (edge_index, edge) in edge_group.iter().enumerate() {
-                let edge_id = Self::edge_id_generate(edge_group_id, edge_index);
-
-                let Some(nesting_info_from) = node_nesting_info_map.get(&edge.from) else {
-                    continue;
-                };
-                let Some(nesting_info_to) = node_nesting_info_map.get(&edge.to) else {
-                    continue;
-                };
-
-                // === LCA sibling distance guard === //
-                //
-                // Only insert cross-container spacers when the edge's
-                // from-node and to-node diverge at the LCA level with
-                // at least one intermediate sibling between them.
-                // A sibling distance of 1 means the two divergent
-                // ancestors are adjacent, so the edge does not cross
-                // over any other node.
-                let lca_sibling_distance =
-                    Self::lca_sibling_distance(nesting_info_from, nesting_info_to);
-                if lca_sibling_distance < 2 {
-                    continue;
-                }
-
-                // Determine if exactly one endpoint is inside this container
-                // and the other is outside.
-                let from_inside = nesting_info_from.ancestor_chain.contains(container_node_id);
-                let to_inside = nesting_info_to.ancestor_chain.contains(container_node_id);
-
-                // We want edges where one is inside and one is outside.
-                // Also skip if the container itself is one of the endpoints
-                // (ancestor_chain includes self, so check that the inside
-                // endpoint is not the container itself).
-                if from_inside == to_inside {
-                    continue;
-                }
-
-                // Determine which endpoint is inside and which is outside.
-                let inside_nesting_info = if from_inside {
-                    nesting_info_from
-                } else {
-                    nesting_info_to
-                };
-
-                // Find which direct child of this container is the ancestor
-                // of the inside endpoint. The ancestor chain includes the
-                // inside endpoint itself, so we look for the container in the
-                // chain and take the next element.
-                let container_depth_in_chain = inside_nesting_info
-                    .ancestor_chain
-                    .iter()
-                    .position(|id| id == container_node_id);
-                let Some(container_depth) = container_depth_in_chain else {
-                    continue;
-                };
-                let target_child_id = inside_nesting_info.ancestor_chain.get(container_depth + 1);
-                let Some(target_child_id) = target_child_id else {
-                    // The inside endpoint IS the container node — skip.
-                    continue;
-                };
-
-                // Find the index of the target child among the direct
-                // children.
-                let target_child_index =
-                    direct_child_ids.iter().position(|id| id == target_child_id);
-                let Some(_target_child_index) = target_child_index else {
-                    continue;
-                };
-
-                // Insert spacers alongside each sibling of the target child.
-                let spacer_style = Style {
-                    min_size: Size {
-                        width: taffy::Dimension::length(EDGE_SPACER_LENGTH),
-                        height: taffy::Dimension::length(EDGE_SPACER_LENGTH),
-                    },
-                    align_self: Some(AlignSelf::Stretch),
-                    ..Default::default()
-                };
-
-                let mut spacer_taffy_nodes = EdgeSpacerTaffyNodes::new();
-
-                for sibling_id in &direct_child_ids {
-                    if sibling_id == target_child_id {
-                        continue;
-                    }
-
-                    let sibling_rank = node_ranks
-                        .get(sibling_id)
-                        .copied()
-                        .unwrap_or(NodeRank::new(0));
-
-                    let spacer_taffy_node_id = taffy_tree
-                        .new_leaf_with_context(
-                            spacer_style.clone(),
-                            TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
-                                edge_id: edge_id.clone(),
-                                rank: sibling_rank,
-                            }),
-                        )
-                        .expect("Expected to create cross-container spacer leaf node.");
-
-                    // Insert into rank_to_taffy_ids at the sibling's rank.
-                    let taffy_ids = rank_to_taffy_ids.entry(sibling_rank).or_default();
-                    let spacer_counts = rank_spacer_counts.entry(sibling_rank).or_default();
-
-                    if spacer_counts.len() < taffy_ids.len() + 1 {
-                        spacer_counts.resize(taffy_ids.len() + 1, 0);
-                    }
-
-                    // Place the spacer at the end of the rank's children.
-                    taffy_ids.push(spacer_taffy_node_id);
-
-                    spacer_taffy_nodes
-                        .cross_container_spacer_taffy_node_ids
-                        .push(spacer_taffy_node_id);
-                }
-
-                if !spacer_taffy_nodes
-                    .cross_container_spacer_taffy_node_ids
-                    .is_empty()
-                {
-                    edge_spacer_taffy_nodes
-                        .entry(edge_id)
-                        .or_default()
-                        .cross_container_spacer_taffy_node_ids
-                        .extend(spacer_taffy_nodes.cross_container_spacer_taffy_node_ids);
-                }
-            }
-        }
+        edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
+            edge_group
+                .iter()
+                .enumerate()
+                .for_each(|(edge_index, edge)| {
+                    Self::build_cross_container_spacers_for_edge(
+                        taffy_tree,
+                        edge_group_id,
+                        node_nesting_infos,
+                        node_ranks_nested,
+                        rank_to_taffy_ids,
+                        container_node_id,
+                        &container_node_direct_child_ids,
+                        &mut edge_spacer_taffy_nodes,
+                        &mut rank_spacer_counts,
+                        edge_index,
+                        edge,
+                    )
+                });
+        });
 
         edge_spacer_taffy_nodes
+    }
+
+    /// Builds cross-container spacers for a single edge.
+    ///
+    /// # Parameters
+    ///
+    /// * `taffy_tree`: The taffy tree to insert spacer nodes into.
+    /// * `edge_groups`: All edge groups in the diagram.
+    /// * `node_nesting_infos`: The precomputed nesting info map for all nodes.
+    /// * `node_ranks`: Node ranks for all nodes.
+    /// * `rank_to_taffy_ids`: Mutable reference to the container's
+    ///   rank-to-taffy-node mapping, for inserting spacer nodes.
+    /// * `container_node_id`: The ID of the node which is a parent of the node
+    ///   that the edge is connected to.
+    /// * `container_node_direct_child_ids`: The children of
+    ///   `container_node_id`.
+    /// * `edge_spacer_taffy_nodes`: Map to keep track of the spacer taffy nodes
+    ///   inserted for each edge.
+    /// * `rank_spacer_counts`: Map to keep track of the number of spacers
+    ///   inserted for each rank within an edge group.
+    /// * `edge_index`: Index of the edge within its edge group.
+    /// * `edge`: Edge to build spacers for.
+    #[allow(clippy::too_many_arguments)]
+    fn build_cross_container_spacers_for_edge<'id>(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        edge_group_id: &EdgeGroupId<'static>,
+        node_nesting_infos: &NodeNestingInfos<'static>,
+        node_ranks_nested: &NodeRanksNested<'static>,
+        rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
+        container_node_id: &NodeId<'static>,
+        container_node_direct_child_ids: &Vec<NodeId<'static>>,
+        edge_spacer_taffy_nodes: &mut Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
+        rank_spacer_counts: &mut BTreeMap<NodeRank, Vec<usize>>,
+        edge_index: usize,
+        edge: &Edge<'id>,
+    ) {
+        let edge_spacer_build_decision = EdgeSpacerBuildDecider::decide(
+            node_nesting_infos,
+            container_node_id,
+            container_node_direct_child_ids,
+            edge,
+        );
+        let node_id_of_container_direct_child_that_contains_edge = match edge_spacer_build_decision
+        {
+            EdgeSpacerBuildDecision::Skip(_edge_spacer_build_decision_skip) => return,
+            EdgeSpacerBuildDecision::Build(EdgeSpacerBuildDecisionBuild { target_child_id }) => {
+                target_child_id
+            }
+        };
+
+        // Insert spacers alongside each sibling of the target child.
+        let spacer_style = Style {
+            min_size: Size {
+                width: taffy::Dimension::length(EDGE_SPACER_LENGTH),
+                height: taffy::Dimension::length(EDGE_SPACER_LENGTH),
+            },
+            align_self: Some(AlignSelf::Stretch),
+            ..Default::default()
+        };
+
+        let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
+
+        let mut spacer_taffy_nodes = EdgeSpacerTaffyNodes::new();
+
+        container_node_direct_child_ids
+            .iter()
+            .for_each(|sibling_id| {
+                if sibling_id == node_id_of_container_direct_child_that_contains_edge {
+                    return;
+                }
+
+                // Direct children of the container node may still have spacers if they are on
+                // different ranks.
+                let sibling_rank = node_ranks_nested
+                    .ranks_for(Some(container_node_id))
+                    .and_then(|r| r.get(sibling_id).copied())
+                    .unwrap_or(NodeRank::new(0));
+
+                // Create the taffy spacer node.
+                let spacer_taffy_node_id = taffy_tree
+                    .new_leaf_with_context(
+                        spacer_style.clone(),
+                        TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
+                            edge_id: edge_id.clone(),
+                            rank: sibling_rank,
+                        }),
+                    )
+                    .expect("Expected to create cross-container spacer leaf node.");
+
+                // Insert into rank_to_taffy_ids at the sibling's rank.
+                let taffy_ids = rank_to_taffy_ids.entry(sibling_rank).or_default();
+                let spacer_counts = rank_spacer_counts.entry(sibling_rank).or_default();
+
+                if spacer_counts.len() < taffy_ids.len() + 1 {
+                    spacer_counts.resize(taffy_ids.len() + 1, 0);
+                }
+
+                // Place the spacer at the end of the rank's children.
+                taffy_ids.push(spacer_taffy_node_id);
+
+                spacer_taffy_nodes
+                    .cross_container_spacer_taffy_node_ids
+                    .push(spacer_taffy_node_id);
+            });
+
+        if !spacer_taffy_nodes
+            .cross_container_spacer_taffy_node_ids
+            .is_empty()
+        {
+            edge_spacer_taffy_nodes
+                .entry(edge_id)
+                .or_default()
+                .cross_container_spacer_taffy_node_ids
+                .extend(spacer_taffy_nodes.cross_container_spacer_taffy_node_ids);
+        }
     }
 
     /// Builds spacer taffy nodes for a single edge if it crosses ranks.
@@ -303,20 +296,20 @@ impl EdgeSpacerBuilder {
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge: &Edge<'static>,
         edge_id: &EdgeId<'static>,
-        node_nesting_info_map: &Map<NodeId<'static>, NodeNestingInfo>,
-        node_ranks: &NodeRanks<'static>,
+        node_nesting_infos: &NodeNestingInfos<'static>,
+        node_ranks_nested: &NodeRanksNested<'static>,
         entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
         rank_spacer_counts: &mut BTreeMap<NodeRank, Vec<usize>>,
         lca_node_id: Option<&NodeId<'static>>,
     ) -> Option<EdgeSpacerTaffyNodes> {
-        let nesting_info_from = node_nesting_info_map.get(&edge.from)?;
-        let nesting_info_to = node_nesting_info_map.get(&edge.to)?;
+        let nesting_info_from = node_nesting_infos.get(&edge.from)?;
+        let nesting_info_to = node_nesting_infos.get(&edge.to)?;
 
         // === Check that the edge's top-level ancestors match the target entity type
         // === //
-        let lca_depth = Self::lca_depth(nesting_info_from, nesting_info_to);
+        let lca_depth = LcaDepthCalculator::calculate(nesting_info_from, nesting_info_to);
         let divergent_from = nesting_info_from.ancestor_chain.get(lca_depth)?;
         let divergent_to = nesting_info_to.ancestor_chain.get(lca_depth)?;
 
@@ -334,7 +327,7 @@ impl EdgeSpacerBuilder {
 
         // === Find divergent ancestors and their ranks === //
         let (rank_low, rank_high) =
-            Self::divergent_ancestor_ranks(nesting_info_from, nesting_info_to, node_ranks)?;
+            Self::divergent_ancestor_ranks(nesting_info_from, nesting_info_to, node_ranks_nested)?;
 
         // Only insert spacers for edges crossing ranks.
         if rank_low == rank_high {
@@ -383,8 +376,10 @@ impl EdgeSpacerBuilder {
 
         let mut spacer_taffy_nodes = EdgeSpacerTaffyNodes::new();
 
-        // Insert spacers at each intermediate rank (exclusive of endpoints).
-        for rank_value in (rank_low.value() + 1)..rank_high.value() {
+        // Insert spacers at each intermediate rank exclusive of endpoints (low and high
+        // rank both exclusive).
+        let rank_low_plus_one = rank_low.value() + 1;
+        (rank_low_plus_one..rank_high.value()).for_each(|rank_value| {
             let rank = NodeRank::new(rank_value);
 
             let spacer_taffy_node_id = taffy_tree
@@ -429,86 +424,12 @@ impl EdgeSpacerBuilder {
             spacer_taffy_nodes
                 .rank_to_spacer_taffy_node_id
                 .insert(rank, spacer_taffy_node_id);
-        }
+        });
 
         Some(spacer_taffy_nodes)
     }
 
     // === Ancestor chain and LCA === //
-
-    /// Returns the depth of the lowest common ancestor (LCA) of two nodes.
-    ///
-    /// The LCA depth is the length of the longest common prefix of the two
-    /// nodes' `ancestor_chain`s. A depth of `0` means they diverge at the
-    /// top level (no shared ancestor within the hierarchy).
-    ///
-    /// # Examples
-    ///
-    /// * `[a, a01]` and `[c, c01]` -> LCA depth `0` (diverge immediately).
-    /// * `[outer, a, a01]` and `[outer, b, b01]` -> LCA depth `1` (share
-    ///   `outer`).
-    /// * `[outer, inner, x]` and `[outer, inner, y]` -> LCA depth `2` (share
-    ///   `outer` and `inner`).
-    fn lca_depth(info_from: &NodeNestingInfo, info_to: &NodeNestingInfo) -> usize {
-        let max_compare = info_from
-            .ancestor_chain
-            .len()
-            .min(info_to.ancestor_chain.len());
-        let mut depth = 0;
-        for i in 0..max_compare {
-            if info_from.ancestor_chain[i] == info_to.ancestor_chain[i] {
-                depth = i + 1;
-            } else {
-                break;
-            }
-        }
-        depth
-    }
-
-    /// Returns the sibling distance between the divergent ancestors of
-    /// two nodes at their lowest common ancestor (LCA) level.
-    ///
-    /// The sibling distance is the absolute difference of the sibling
-    /// indices of the two nodes' divergent ancestors -- i.e. the first
-    /// nodes in each ancestor chain where the chains differ.
-    ///
-    /// A distance of 0 means both nodes share the same divergent
-    /// ancestor (or one is an ancestor of the other).
-    /// A distance of 1 means the divergent ancestors are adjacent
-    /// siblings -- no intermediate node lies between them.
-    /// A distance of 2 or more means at least one sibling node sits
-    /// between the two divergent ancestors, so an edge connecting the
-    /// two nodes would visually cross over that intermediate sibling.
-    ///
-    /// # Examples
-    ///
-    /// Given hierarchy:
-    ///
-    /// ```text
-    /// outer:
-    ///   A: { A_child: { A_grandchild: {} } }
-    ///   B: { B_child: {} }
-    ///   C: { C_child: {} }
-    /// ```
-    ///
-    /// * `A_grandchild` and `B_child` -> LCA is `outer`, divergent ancestors
-    ///   are `A` (index 0) and `B` (index 1), distance = 1.
-    /// * `A_grandchild` and `C_child` -> LCA is `outer`, divergent ancestors
-    ///   are `A` (index 0) and `C` (index 2), distance = 2.
-    fn lca_sibling_distance(info_from: &NodeNestingInfo, info_to: &NodeNestingInfo) -> usize {
-        let lca_depth = Self::lca_depth(info_from, info_to);
-
-        // Get the sibling index at the divergence depth for each node.
-        let index_from = info_from.nesting_path.get(lca_depth).copied();
-        let index_to = info_to.nesting_path.get(lca_depth).copied();
-
-        match (index_from, index_to) {
-            (Some(a), Some(b)) => a.abs_diff(b),
-            // One chain is a prefix of the other (one node is an
-            // ancestor of the other) -- no divergent siblings.
-            _ => 0,
-        }
-    }
 
     /// Finds the ranks of the "divergent ancestors" for an edge's two
     /// endpoints.
@@ -536,23 +457,24 @@ impl EdgeSpacerBuilder {
     /// ancestor (one chain is a prefix of the other), since no
     /// cross-rank spacer is meaningful in that case.
     fn divergent_ancestor_ranks(
-        info_from: &NodeNestingInfo,
-        info_to: &NodeNestingInfo,
-        node_ranks: &NodeRanks<'static>,
+        info_from: &NodeNestingInfo<'_>,
+        info_to: &NodeNestingInfo<'_>,
+        node_ranks_nested: &NodeRanksNested<'static>,
     ) -> Option<(NodeRank, NodeRank)> {
-        let lca_depth = Self::lca_depth(info_from, info_to);
-
-        // The divergent ancestor for each endpoint is the node at
-        // `ancestor_chain[lca_depth]` -- the first node after the shared
-        // prefix.
+        let lca_depth = LcaDepthCalculator::calculate(info_from, info_to);
         let divergent_from = info_from.ancestor_chain.get(lca_depth)?;
         let divergent_to = info_to.ancestor_chain.get(lca_depth)?;
 
-        let rank_from = node_ranks
+        let lca_container = lca_depth
+            .checked_sub(1)
+            .map(|i| &info_from.ancestor_chain[i]);
+        let container_ranks = node_ranks_nested.ranks_for(lca_container)?;
+
+        let rank_from = container_ranks
             .get(divergent_from)
             .copied()
             .unwrap_or(NodeRank::new(0));
-        let rank_to = node_ranks
+        let rank_to = container_ranks
             .get(divergent_to)
             .copied()
             .unwrap_or(NodeRank::new(0));
@@ -562,55 +484,7 @@ impl EdgeSpacerBuilder {
         } else {
             (rank_to, rank_from)
         };
-
         Some((rank_low, rank_high))
-    }
-
-    // === Nesting info === //
-
-    /// Computes the nesting info for all nodes in the hierarchy.
-    ///
-    /// Walks the hierarchy tree recursively, recording each node's depth
-    /// (nesting level), index path, and ancestor chain.
-    fn node_nesting_info_map_build(
-        node_hierarchy: &NodeHierarchy<'static>,
-    ) -> Map<NodeId<'static>, NodeNestingInfo> {
-        let mut result = Map::new();
-        Self::node_nesting_info_map_build_recursive(node_hierarchy, &[], &[], &mut result);
-        result
-    }
-
-    /// Recursive helper for building the nesting info map.
-    fn node_nesting_info_map_build_recursive(
-        hierarchy: &NodeHierarchy<'static>,
-        parent_path: &[usize],
-        parent_ancestor_chain: &[NodeId<'static>],
-        result: &mut Map<NodeId<'static>, NodeNestingInfo>,
-    ) {
-        for (index, (node_id, child_hierarchy)) in hierarchy.iter().enumerate() {
-            let mut nesting_path = parent_path.to_vec();
-            nesting_path.push(index);
-
-            let mut ancestor_chain = parent_ancestor_chain.to_vec();
-            ancestor_chain.push(node_id.clone());
-
-            result.insert(
-                node_id.clone(),
-                NodeNestingInfo {
-                    nesting_path: nesting_path.clone(),
-                    ancestor_chain: ancestor_chain.clone(),
-                },
-            );
-
-            if !child_hierarchy.is_empty() {
-                Self::node_nesting_info_map_build_recursive(
-                    child_hierarchy,
-                    &nesting_path,
-                    &ancestor_chain,
-                    result,
-                );
-            }
-        }
     }
 
     // === Insertion index computation === //
@@ -626,10 +500,10 @@ impl EdgeSpacerBuilder {
     /// the chains differ, ensuring the spacer is placed between the
     /// correct subtrees.
     fn insertion_base_index_compute(
-        nesting_info_from: &NodeNestingInfo,
-        nesting_info_to: &NodeNestingInfo,
+        nesting_info_from: &NodeNestingInfo<'_>,
+        nesting_info_to: &NodeNestingInfo<'_>,
     ) -> usize {
-        let lca_depth = Self::lca_depth(nesting_info_from, nesting_info_to);
+        let lca_depth = LcaDepthCalculator::calculate(nesting_info_from, nesting_info_to);
 
         // Get the sibling index at the divergence depth for each node.
         // This is the position of each node's subtree among the children
@@ -669,20 +543,5 @@ impl EdgeSpacerBuilder {
 
         let effective = base_index + spacers_at_or_before;
         effective.min(current_len)
-    }
-
-    // === Edge ID generation === //
-
-    /// Generates an `EdgeId` from an edge group ID and edge index.
-    ///
-    /// Format: `"{edge_group_id}__{edge_index}"`
-    fn edge_id_generate(
-        edge_group_id: &EdgeGroupId<'static>,
-        edge_index: usize,
-    ) -> EdgeId<'static> {
-        let edge_id_str = format!("{edge_group_id}__{edge_index}");
-        Id::try_from(edge_id_str)
-            .expect("edge ID should be valid")
-            .into()
     }
 }

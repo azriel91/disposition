@@ -3,7 +3,7 @@
 1. Nodes are connected to other nodes via edges
 2. Nodes are laid out in a flex layout with recursive flex layout containers
 3. Between nodes, "spacer nodes" may be inserted, which serve as coordinate markers for edge paths, so that when edge paths are calculated, the path is routed through spacer nodes to avoid drawing lines over the diagram nodes.
-4. Nodes also have a `NodeRank`, which is "the highest rank of nodes connected to this node, plus one". If there are no nodes connected to this node, the `NodeRank` is `0`.
+4. Nodes have a `NodeRank` that positions them along the rank axis within their container level. Ranks are stored in [`NodeRanksNested`](crate/ir_model/src/node/node_ranks_nested.rs), which holds a rank map for the root level and for each container node's direct children. Dependency edges that cross container boundaries are attributed to the lowest common ancestor (LCA) level. See [Node Rank Calculation](#node-rank-calculation) for details.
 5. Part of the information gathered for calculating spacer nodes is collecting a `BTreeMap<NodeRank, Vec<taffy::NodeId>>`.
 6. Calculation of where to place spacer nodes is done in [`ir_to_taffy_builder.rs`](crate/input_ir_rt/src/ir_to_taffy_builder.rs), in `fn build_taffy_child_nodes_for_node_by_rank`, called by `fn build_taffy_nodes_for_node_with_child_hierarchy`.
 7. Edge path calculation is done in two passes.
@@ -15,6 +15,89 @@
 13. Protrusion is the length that the edge path extends out of the node face, so that an edge path isn't drawn directly on a node face.
 14. The second pass is defined in [`edge_path_builder_pass_2.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_path_builder_pass_2.rs)
 15. The second pass computes the edge paths with the offsets and protrusion, which should result in paths that are visually non-overlapping with other paths and node content, creating visual clarity.
+
+
+## Node Rank Calculation
+
+Node ranks are stored in [`NodeRanksNested`](crate/ir_model/src/node/node_ranks_nested.rs) and computed by [`NodeRanksCalculator`](crate/input_ir_rt/src/node_ranks_calculator.rs). Ranks are hierarchy-aware: each container node has its own [`NodeRanks`](crate/ir_model/src/node/node_ranks.rs) for its direct children, computed independently from other levels.
+
+
+### Why hierarchy-aware ranks exist
+
+In a nested node hierarchy, dependency edges may connect nodes at different nesting depths. A flat rank assignment would assign ranks globally, conflating unrelated nodes at different levels. By computing `NodeRanks` per level, each container's children are ranked relative to their siblings only, which correctly drives their layout position within their container.
+
+
+### Concepts
+
+- **Level**: a set of sibling nodes sharing the same parent container. The root level consists of the top-level nodes in the diagram. Each container node defines its own level for its direct children.
+- **Container**: a node that has at least one direct child. Its direct children form a level with their own `NodeRanks`.
+- **LCA (Lowest Common Ancestor)**: for two nodes `A` and `B`, the deepest node in the hierarchy that is an ancestor of both. For same-level siblings, the LCA is their shared parent. For top-level nodes, the LCA is the diagram root.
+- **Divergent ancestor**: given two nodes and their LCA, the divergent ancestor of a node is the direct child of the LCA that is an ancestor of (or equal to) that node. It is the element at depth `lca_depth` in the node's `ancestor_chain`.
+- **LCA-level edge**: for an edge `(from, to)`, the corresponding edge `(divergent_from, divergent_to)` between the two divergent ancestors at the LCA. Cross-container edges are "lifted" to the LCA level.
+
+
+### Algorithm
+
+`NodeRanksNested` is computed in four steps:
+
+1. **Build container-to-children map.** Using [`NodeNestingInfos`](crate/ir_model/src/node/node_nesting_infos.rs), group each node under its parent container: the second-to-last element of its `ancestor_chain`, or `None` for top-level nodes.
+
+2. **Collect dependency edges.** Dependency edges are extracted from `EdgeGroups` by checking entity types for `DependencyEdge*` variants.
+
+3. **Lift edges to LCA level.** For each dependency edge `(from, to)`:
+   - Look up `NodeNestingInfo` for both endpoints.
+   - Compute the LCA depth: the length of the common prefix of the two `ancestor_chain`s.
+   - Derive `divergent_from = ancestor_chain_from[lca_depth]` and `divergent_to = ancestor_chain_to[lca_depth]`.
+   - Derive `lca_container = ancestor_chain_from[lca_depth - 1]` (or `None` if `lca_depth == 0`).
+   - Skip edges where one node is an ancestor of the other (`lca_depth >= min chain length`).
+   - Group the LCA-level edge `(divergent_from, divergent_to)` under `lca_container`.
+
+4. **Compute ranks per level.** For each container and its direct children, run the SCC-based longest-path rank assignment using only the LCA-level edges for that container. Nodes in cycles receive the same rank.
+
+
+### Example
+
+For the hierarchy and edges:
+
+```yaml
+node_hierarchy:
+  a: { a_child: {} }
+  b: { b_child_0: {}, b_child_1: {} }
+  c: { c_child: {} }
+  d: { d_child: {} }
+
+edges:
+  edge_dep_a__b:                  { from: a,         to: b         }
+  edge_dep_b_child_0__b_child_1:  { from: b_child_0, to: b_child_1 }
+  edge_dep_b_child_0__c_child:    { from: b_child_0, to: c_child   }
+```
+
+Edge attribution:
+
+- `edge_dep_a__b`: `ancestor_chain(a) = [a]`, `ancestor_chain(b) = [b]`, LCA depth = 0, LCA = root, LCA-level edge = `(a, b)` at root level.
+- `edge_dep_b_child_0__b_child_1`: `ancestor_chain(b_child_0) = [b, b_child_0]`, `ancestor_chain(b_child_1) = [b, b_child_1]`, LCA depth = 1, LCA = `b`, LCA-level edge = `(b_child_0, b_child_1)` at `b`'s level.
+- `edge_dep_b_child_0__c_child`: `ancestor_chain(b_child_0) = [b, b_child_0]`, `ancestor_chain(c_child) = [c, c_child]`, LCA depth = 0, LCA = root, divergent ancestors = `b` and `c`, LCA-level edge = `(b, c)` at root level.
+
+Resulting `NodeRanksNested`:
+
+```yaml
+node_ranks_nested:
+  root:
+    a: 0
+    b: 1
+    c: 2  # LCA-lifted from edge_dep_b_child_0__c_child: b -> c
+    d: 0
+  containers:
+    a:
+      a_child: 0  # no edges in a's level
+    b:
+      b_child_0: 0
+      b_child_1: 1
+    c:
+      c_child: 0  # edge_dep_b_child_0__c_child is at root level, not c's level
+    d:
+      d_child: 0  # no edges in d's level
+```
 
 
 ## Offset Calculation
@@ -167,7 +250,7 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 ## Spacer Coordinate Direction Awareness
 
 43. Spacer nodes are 5x5 px taffy leaf nodes inserted at intermediate ranks. After taffy computes the layout, each spacer's absolute position is resolved into a `SpacerCoordinates { entry_x, entry_y, exit_x, exit_y }`, representing the entry and exit points that the edge path passes through.
-44. The entry and exit points of a spacer depend on the diagram's `RankDir`. This is implemented in `fn spacer_absolute_coordinates` in both [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs) and [`ortho_protrusion_calculator.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/ortho_protrusion_calculator.rs):
+44. The entry and exit points of a spacer depend on the diagram's `RankDir`. This is implemented in `fn calculate` in [`edge_spacer_coordinates_calculator.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_spacer_coordinates_calculator.rs):
     - `TopToBottom` -- entry at the top midpoint (smallest y), exit at the bottom midpoint (largest y). The path passes vertically downward through the spacer.
     - `BottomToTop` -- entry at the bottom midpoint (largest y), exit at the top midpoint (smallest y). The path passes vertically upward through the spacer.
     - `LeftToRight` -- entry at the left midpoint (smallest x), exit at the right midpoint (largest x). The path passes horizontally rightward through the spacer.

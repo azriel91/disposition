@@ -2,7 +2,7 @@ use disposition_input_ir_model::EdgeAnimationActive;
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeId},
     entity::EntityTypes,
-    node::{NodeId, NodeRank, NodeRanks},
+    node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
     IrDiagram,
 };
 use disposition_model_common::{
@@ -15,17 +15,20 @@ use kurbo::Shape;
 use disposition_ir_model::entity::EntityTailwindClasses;
 use disposition_model_common::edge::EdgeGroupId;
 
-use crate::taffy_to_svg_elements_mapper::{
-    edge_face_contact_tracker::EdgeFaceContactTracker,
-    edge_model::{
-        EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeFace,
-        NodeIdAndFace, PathBounds, PathMidpoint,
+use crate::{
+    taffy_to_svg_elements_mapper::{
+        edge_face_contact_tracker::EdgeFaceContactTracker,
+        edge_model::{
+            EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeFace,
+            NodeIdAndFace, PathBounds, PathMidpoint,
+        },
+        edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
+        edge_path_builder_pass_2::edge_path_builder_pass_2_ortho::OrthoProtrusionParams,
+        ortho_protrusion_calculator::OrthoProtrusionCalculator,
+        ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
+        EdgePathLocusCalculator, EdgeSpacerCoordinatesCalculator, StringCharReplacer,
     },
-    edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
-    edge_path_builder_pass_2::edge_path_builder_pass_2_ortho::OrthoProtrusionParams,
-    ortho_protrusion_calculator::OrthoProtrusionCalculator,
-    ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
-    EdgePathLocusCalculator, StringCharReplacer,
+    EdgeIdGenerator,
 };
 
 /// Builds [`SvgEdgeInfo`]s for all edges in the diagram from edge groups and
@@ -123,7 +126,8 @@ impl SvgEdgeInfosBuilder {
                 edge_group,
                 entity_types,
                 svg_node_info_map,
-                &ir_diagram.node_ranks,
+                &ir_diagram.node_ranks_nested,
+                &ir_diagram.node_nesting_infos,
                 &mut face_contact_tracker,
             );
             all_pass1_groups.push(edge_group_pass1);
@@ -300,13 +304,15 @@ impl SvgEdgeInfosBuilder {
     ///
     /// The returned `EdgeGroupPass1` contains everything needed for
     /// pass 2 to rebuild the paths with offsets.
+    #[allow(clippy::too_many_arguments)]
     fn build_edge_pass1_infos<'edge, 'id>(
         rank_dir: RankDir,
         edge_group_id: &'edge EdgeGroupId<'id>,
         edge_group: &'edge EdgeGroup<'id>,
         entity_types: &'edge EntityTypes<'id>,
         svg_node_info_map: &'edge Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
-        node_ranks: &NodeRanks<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
         face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
     ) -> EdgeGroupPass1<'edge, 'id> {
         let edge_animation_params = EdgeAnimationParams::default();
@@ -322,7 +328,7 @@ impl SvgEdgeInfosBuilder {
                 continue;
             };
 
-            let edge_id = Self::generate_edge_id(edge_group_id, edge_index);
+            let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
             let edge_type = Self::edge_type_determine(&edge_id, entity_types);
 
             // Build the path with zero offsets to determine natural coordinates.
@@ -347,8 +353,12 @@ impl SvgEdgeInfosBuilder {
             let path_bounds = Self::path_bounds_compute(&path);
 
             // Compute rank distance between from and to nodes.
-            let rank_from = node_ranks.get(&edge.from).copied().unwrap_or_default();
-            let rank_to = node_ranks.get(&edge.to).copied().unwrap_or_default();
+            let rank_from = node_ranks_nested
+                .node_rank_for(&edge.from, node_nesting_infos)
+                .unwrap_or_default();
+            let rank_to = node_ranks_nested
+                .node_rank_for(&edge.to, node_nesting_infos)
+                .unwrap_or_default();
             let rank_distance = rank_to.value().abs_diff(rank_from.value());
 
             // Store to-node coordinates for tie-breaking during sorting.
@@ -707,8 +717,11 @@ impl SvgEdgeInfosBuilder {
             .rank_to_spacer_taffy_node_id
             .iter()
             .filter_map(|(rank, &taffy_node_id)| {
-                let coords =
-                    Self::spacer_absolute_coordinates(rank_dir, taffy_tree, taffy_node_id)?;
+                let coords = EdgeSpacerCoordinatesCalculator::calculate(
+                    rank_dir,
+                    taffy_tree,
+                    taffy_node_id,
+                )?;
                 Some((*rank, coords))
             })
             .collect();
@@ -718,7 +731,7 @@ impl SvgEdgeInfosBuilder {
             .cross_container_spacer_taffy_node_ids
             .iter()
             .filter_map(|&taffy_node_id| {
-                Self::spacer_absolute_coordinates(rank_dir, taffy_tree, taffy_node_id)
+                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
             })
             .collect();
 
@@ -753,81 +766,6 @@ impl SvgEdgeInfosBuilder {
         });
 
         all_spacers
-    }
-
-    /// Computes absolute spacer coordinates for a single taffy node.
-    ///
-    /// Walks up the taffy tree to accumulate the absolute position, then
-    /// returns `SpacerCoordinates` with entry and exit points that
-    /// depend on `rank_dir`:
-    ///
-    /// * `RankDir::TopToBottom`: entry at top midpoint (smallest y), exit at
-    ///   bottom midpoint (largest y).
-    /// * `RankDir::BottomToTop`: entry at bottom midpoint (largest y), exit at
-    ///   top midpoint (smallest y).
-    /// * `RankDir::LeftToRight`: entry at left midpoint (smallest x), exit at
-    ///   right midpoint (largest x).
-    /// * `RankDir::RightToLeft`: entry at right midpoint (largest x), exit at
-    ///   left midpoint (smallest x).
-    fn spacer_absolute_coordinates(
-        rank_dir: RankDir,
-        taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        taffy_node_id: taffy::NodeId,
-    ) -> Option<SpacerCoordinates> {
-        let layout = taffy_tree.layout(taffy_node_id).ok()?;
-
-        // === Absolute Coordinates === //
-        let mut x_acc = layout.location.x;
-        let mut y_acc = layout.location.y;
-        let mut current_node_id = taffy_node_id;
-        while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
-            let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
-                break;
-            };
-            x_acc += parent_layout.location.x;
-            y_acc += parent_layout.location.y;
-            current_node_id = parent_taffy_node_id;
-        }
-
-        let cx = x_acc + layout.size.width / 2.0;
-        let cy = y_acc + layout.size.height / 2.0;
-        let left_x = x_acc;
-        let right_x = x_acc + layout.size.width;
-        let top_y = y_acc;
-        let bottom_y = y_acc + layout.size.height;
-
-        let spacer_coordinates = match rank_dir {
-            // Vertical flow: entry/exit share the same x (center),
-            // differ in y.
-            RankDir::TopToBottom => SpacerCoordinates {
-                entry_x: cx,
-                entry_y: top_y,
-                exit_x: cx,
-                exit_y: bottom_y,
-            },
-            RankDir::BottomToTop => SpacerCoordinates {
-                entry_x: cx,
-                entry_y: bottom_y,
-                exit_x: cx,
-                exit_y: top_y,
-            },
-            // Horizontal flow: entry/exit share the same y (center),
-            // differ in x.
-            RankDir::LeftToRight => SpacerCoordinates {
-                entry_x: left_x,
-                entry_y: cy,
-                exit_x: right_x,
-                exit_y: cy,
-            },
-            RankDir::RightToLeft => SpacerCoordinates {
-                entry_x: right_x,
-                entry_y: cy,
-                exit_x: left_x,
-                exit_y: cy,
-            },
-        };
-
-        Some(spacer_coordinates)
     }
 
     /// Determines the `EdgeType` for an edge based on the entity types
@@ -1093,14 +1031,6 @@ impl SvgEdgeInfosBuilder {
             .expect("arrow head entity ID should be valid")
             .into_static();
         tailwind_classes.insert(arrow_head_entity_id, arrow_head_classes);
-    }
-
-    /// Generates an edge ID from the edge group ID and edge index.
-    fn generate_edge_id(edge_group_id: &EdgeGroupId<'_>, edge_index: usize) -> EdgeId<'static> {
-        let edge_id_str = format!("{edge_group_id}__{edge_index}");
-        Id::try_from(edge_id_str)
-            .expect("edge ID should be valid")
-            .into()
     }
 }
 
