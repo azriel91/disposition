@@ -207,7 +207,7 @@ impl EdgeSpacerBuildDecider {
     ) -> EdgeLcaSiblingDistance {
         let lca_depth = LcaDepthCalculator::calculate(node_nesting_info_from, node_nesting_info_to);
 
-        // Get the sibling indicies at the divergence depth for each node.
+        // Get the sibling indices at the divergence depth for each node.
         //
         // i.e. get the indices of the nodes where the hierarchy first diverges.
         let from_sibling_ancestor_index =
