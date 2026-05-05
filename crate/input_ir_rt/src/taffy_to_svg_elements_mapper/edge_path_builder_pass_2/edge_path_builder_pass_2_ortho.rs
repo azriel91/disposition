@@ -1,3 +1,4 @@
+use disposition_svg_model::OrthoProtrusionParams;
 use kurbo::{BezPath, Point};
 
 use crate::taffy_to_svg_elements_mapper::{
@@ -16,83 +17,6 @@ const ARC_RADIUS: f32 = 4.0;
 ///
 /// Equal to `(4.0 / 3.0) * (sqrt(2) - 1)`, approximately `0.5522847498`.
 const KAPPA: f32 = 0.552_284_8;
-
-/// Protrusion lengths for the entry and exit sides of a single spacer.
-///
-/// The entry-side protrusion extends the path past the spacer's entry
-/// boundary (away from the spacer, into the gap before it). The
-/// exit-side protrusion extends the path past the spacer's exit
-/// boundary (away from the spacer, into the gap after it).
-///
-/// Protrusion depths are assigned by `OrthoProtrusionCalculator` so
-/// that edges sharing the same inter-rank gap use distinct depths.
-///
-/// # Example values
-///
-/// ```text
-/// SpacerProtrusionParams { entry_protrusion: 5.0, exit_protrusion: 8.0 }
-/// ```
-#[derive(Clone, Copy, Debug, Default)]
-pub(in crate::taffy_to_svg_elements_mapper) struct SpacerProtrusionParams {
-    /// Protrusion length in pixels on the entry side of the spacer.
-    ///
-    /// `0.0` means no protrusion on the entry side.
-    pub(in crate::taffy_to_svg_elements_mapper) entry_protrusion: f32,
-
-    /// Protrusion length in pixels on the exit side of the spacer.
-    ///
-    /// `0.0` means no protrusion on the exit side.
-    pub(in crate::taffy_to_svg_elements_mapper) exit_protrusion: f32,
-}
-
-/// Protrusion lengths for the from-node and to-node endpoints of an
-/// orthogonal edge path, plus per-spacer protrusion depths.
-///
-/// A protrusion is a short stub that exits the node face perpendicular
-/// to the face line before the main orthogonal routing begins. This
-/// separates parallel edges that share the same node face.
-///
-/// Spacer protrusions serve the same purpose at intermediate spacer
-/// boundaries: they extend the path past the spacer so that the
-/// routing leg between spacers does not run along a node face, and
-/// multiple edges crossing the same inter-rank gap use distinct
-/// depths.
-///
-/// # Example values
-///
-/// ```text
-/// OrthoProtrusionParams {
-///     from_protrusion: 12.0,
-///     to_protrusion: 8.0,
-///     spacer_protrusions: vec![
-///         SpacerProtrusionParams { entry_protrusion: 12.0, exit_protrusion: 5.0 },
-///     ],
-/// }
-/// ```
-///
-/// An edge whose from-node is close to the face midpoint gets a longer
-/// `from_protrusion`; an edge further from the midpoint gets a shorter
-/// one. Each spacer's entry and exit protrusions are computed
-/// independently based on the edges sharing that specific rank gap.
-#[derive(Clone, Debug, Default)]
-pub(in crate::taffy_to_svg_elements_mapper) struct OrthoProtrusionParams {
-    /// Protrusion length in pixels at the from-node endpoint.
-    ///
-    /// `0.0` means no protrusion (the path routes directly from the
-    /// contact point).
-    pub(in crate::taffy_to_svg_elements_mapper) from_protrusion: f32,
-
-    /// Protrusion length in pixels at the to-node endpoint.
-    ///
-    /// `0.0` means no protrusion.
-    pub(in crate::taffy_to_svg_elements_mapper) to_protrusion: f32,
-
-    /// Per-spacer protrusion depths, indexed in the same order as the
-    /// `spacers` slice passed to `build_spacer_edge_path`.
-    ///
-    /// When the edge has no spacers, this is empty.
-    pub(in crate::taffy_to_svg_elements_mapper) spacer_protrusions: Vec<SpacerProtrusionParams>,
-}
 
 /// Builds pass-2 edge paths using orthogonal (90-degree) lines with
 /// rounded arc corners between spacers.

@@ -8,7 +8,7 @@ use disposition_ir_model::{
 use disposition_model_common::{
     edge::EdgeCurvature, entity::EntityType, theme::Css, Id, Map, RankDir,
 };
-use disposition_svg_model::{SvgEdgeInfo, SvgNodeInfo};
+use disposition_svg_model::{OrthoProtrusionParams, SvgEdgeInfo, SvgNodeInfo};
 use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
 use kurbo::Shape;
 
@@ -23,7 +23,6 @@ use crate::{
             NodeIdAndFace, PathBounds, PathMidpoint,
         },
         edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
-        edge_path_builder_pass_2::edge_path_builder_pass_2_ortho::OrthoProtrusionParams,
         ortho_protrusion_calculator::OrthoProtrusionCalculator,
         ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
         EdgePathLocusCalculator, EdgeSpacerCoordinatesCalculator, StringCharReplacer,
@@ -164,6 +163,8 @@ impl SvgEdgeInfosBuilder {
             svg_node_info_map,
             taffy_tree,
             edge_spacer_taffy_nodes,
+            &ir_diagram.node_nesting_infos,
+            &ir_diagram.node_ranks_nested,
         );
 
         // === Global Pass 2: rebuild paths with offsets, emit SvgEdgeInfos === //
@@ -249,6 +250,7 @@ impl SvgEdgeInfosBuilder {
                     path,
                     path_length: _,
                     preceding_visible_segments_lengths: _,
+                    ortho_protrusion_params,
                 } = edge_path_info;
 
                 let path_d = path.to_svg();
@@ -290,6 +292,7 @@ impl SvgEdgeInfosBuilder {
                     arrow_head_path_d,
                     locus_path_d,
                     tooltip,
+                    ortho_protrusion_params,
                 ));
             });
         }
@@ -682,6 +685,7 @@ impl SvgEdgeInfosBuilder {
                     path_length,
                     preceding_visible_segments_lengths: pass1_info.edge_index as f64
                         * visible_segments_length,
+                    ortho_protrusion_params: ortho_protrusion.clone(),
                 }
             })
             .collect::<Vec<EdgePathInfo>>()

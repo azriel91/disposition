@@ -11,9 +11,11 @@ use crate::taffy_to_svg_elements_mapper::{
     },
 };
 
+use disposition_svg_model::OrthoProtrusionParams;
+
 use self::{
     edge_path_builder_pass_2_curve::EdgePathBuilderPass2Curve,
-    edge_path_builder_pass_2_ortho::{EdgePathBuilderPass2Ortho, OrthoProtrusionParams},
+    edge_path_builder_pass_2_ortho::EdgePathBuilderPass2Ortho,
 };
 
 mod edge_path_builder_pass_2_curve;

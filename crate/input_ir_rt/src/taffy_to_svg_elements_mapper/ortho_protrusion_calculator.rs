@@ -1,14 +1,11 @@
-use disposition_ir_model::node::{NodeId, NodeRank};
+use disposition_ir_model::node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested};
 use disposition_model_common::{Map, RankDir};
-use disposition_svg_model::SvgNodeInfo;
+use disposition_svg_model::{OrthoProtrusionParams, SpacerProtrusionParams, SvgNodeInfo};
 use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
 
 use crate::taffy_to_svg_elements_mapper::{
     edge_model::{EdgeContactPointOffsets, NodeFace, NodeIdAndFace},
     edge_path_builder_pass_1::SpacerCoordinates,
-    edge_path_builder_pass_2::edge_path_builder_pass_2_ortho::{
-        OrthoProtrusionParams, SpacerProtrusionParams,
-    },
     EdgeSpacerCoordinatesCalculator,
 };
 
@@ -171,6 +168,8 @@ impl OrthoProtrusionCalculator {
             disposition_ir_model::edge::EdgeId<'id>,
             EdgeSpacerTaffyNodes,
         >,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
     ) -> Vec<Vec<OrthoProtrusionParams>> {
         // === Step 1: Resolve spacer coordinates and initialize output === //
         //
@@ -605,6 +604,23 @@ impl OrthoProtrusionCalculator {
                 }
             }
         }
+
+        // === Step 5: Enforce minimum protrusions to clear divergent ancestor siblings
+        // === //
+        //
+        // For edges where the from/to nodes are at different nesting levels,
+        // the protrusion for each endpoint must be large enough to clear all
+        // sibling nodes of the endpoint's Divergent ancestor at the LCA level.
+        //
+        // The "Divergent ancestor" of a node is the ancestor that is a direct
+        // child of the LCA of the from and to nodes for this edge.
+        Self::protrusions_adjust_for_divergent_siblings(
+            all_pass1_groups,
+            node_nesting_infos,
+            node_ranks_nested,
+            svg_node_info_map,
+            &mut result,
+        );
 
         result
     }
@@ -1143,5 +1159,237 @@ impl OrthoProtrusionCalculator {
             NodeFace::Left => (info.x, info.y + info.height_collapsed / 2.0),
             NodeFace::Right => (info.x + info.width, info.y + info.height_collapsed / 2.0),
         }
+    }
+
+    /// Adjusts protrusion values to clear sibling nodes of the Divergent
+    /// ancestor of each edge endpoint.
+    ///
+    /// For each edge, the from-endpoint's protrusion must be large enough
+    /// that the routing segment is in the gap between the tallest sibling
+    /// node (at the same rank as the Divergent ancestor) and the to-node.
+    /// Symmetric logic applies for the to-endpoint.
+    fn protrusions_adjust_for_divergent_siblings<'id>(
+        all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
+                // === From endpoint === //
+                if let Some(from_face) = pass1_info.from_face {
+                    let min_from = Self::min_protrusion_divergent_sibling_extent(
+                        &pass1_info.edge.from,
+                        &pass1_info.edge.to,
+                        from_face,
+                        node_nesting_infos,
+                        node_ranks_nested,
+                        svg_node_info_map,
+                    );
+                    if min_from > 0.0 {
+                        let params = &mut result[group_idx][edge_idx];
+                        params.from_protrusion = params.from_protrusion.max(min_from);
+                    }
+                }
+
+                // === To endpoint === //
+                if let Some(to_face) = pass1_info.to_face {
+                    let min_to = Self::min_protrusion_divergent_sibling_extent(
+                        &pass1_info.edge.to,
+                        &pass1_info.edge.from,
+                        to_face,
+                        node_nesting_infos,
+                        node_ranks_nested,
+                        svg_node_info_map,
+                    );
+                    if min_to > 0.0 {
+                        let params = &mut result[group_idx][edge_idx];
+                        params.to_protrusion = params.to_protrusion.max(min_to);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Computes the minimum protrusion needed for `node_id`'s endpoint to
+    /// clear all sibling nodes of the node's Divergent ancestor at the LCA
+    /// level.
+    ///
+    /// The Divergent ancestor is the ancestor of `node_id` that is a direct
+    /// child of the LCA of (`node_id`, `other_node_id`).
+    ///
+    /// # Parameters
+    ///
+    /// * `node_id`: the endpoint node whose protrusion is being computed.
+    /// * `other_node_id`: the opposite endpoint of the edge (used to find the
+    ///   LCA).
+    /// * `face`: the face at which `node_id` protrudes.
+    fn min_protrusion_divergent_sibling_extent<'id>(
+        node_id: &NodeId<'id>,
+        other_node_id: &NodeId<'id>,
+        face: NodeFace,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+    ) -> f32 {
+        // 1. Compute LCA depth.
+        let lca_depth = Self::lca_depth(node_id, other_node_id, node_nesting_infos);
+
+        // 2. Find divergent ancestor of node_id.
+        let Some(div_ancestor_id) =
+            Self::divergent_ancestor_id(node_id, lca_depth, node_nesting_infos)
+        else {
+            return 0.0;
+        };
+
+        // 3. Find parent container of divergent ancestor (None = root level).
+        let div_ancestor_parent = node_nesting_infos.get(div_ancestor_id).and_then(|ni| {
+            ni.ancestor_chain
+                .len()
+                .checked_sub(2)
+                .map(|i| &ni.ancestor_chain[i])
+        });
+
+        // 4. Get rank of divergent ancestor in its parent container.
+        let Some(ranks) = node_ranks_nested.ranks_for(div_ancestor_parent) else {
+            return 0.0;
+        };
+        let Some(&div_ancestor_rank) = ranks.get(div_ancestor_id) else {
+            return 0.0;
+        };
+
+        // 5. Collect all same-rank siblings (including the divergent ancestor).
+        let same_rank_siblings: Vec<&NodeId<'id>> = ranks
+            .iter()
+            .filter(|&(_, rank)| *rank == div_ancestor_rank)
+            .map(|(id, _)| id)
+            .collect();
+
+        // 6. Get face coordinate of node_id (the coordinate of the face in the
+        //    rank/protrusion direction).
+        let Some(&node_info) = svg_node_info_map.get(node_id) else {
+            return 0.0;
+        };
+        let node_face_coord = Self::face_coord_for_endpoint(node_info, face);
+
+        // 7. Find extreme sibling coordinate in the protrusion direction.
+        let Some(sibling_extreme) =
+            Self::same_rank_sibling_extreme(&same_rank_siblings, face, svg_node_info_map)
+        else {
+            return 0.0;
+        };
+
+        // 8. Compute minimum protrusion: face_sign * (sibling_extreme -
+        //    node_face_coord). For Bottom/Right faces (sign = +1): min =
+        //    sibling_extreme - node_face_coord. For Top/Left faces (sign = -1): min =
+        //    node_face_coord - sibling_extreme.
+        let face_sign: f32 = match face {
+            NodeFace::Bottom | NodeFace::Right => 1.0,
+            NodeFace::Top | NodeFace::Left => -1.0,
+        };
+        (face_sign * (sibling_extreme - node_face_coord)).max(0.0)
+    }
+
+    /// Returns the coordinate of a node's face along the protrusion axis.
+    ///
+    /// For `Bottom` face: the bottom edge y-coordinate.
+    /// For `Top` face: the top edge y-coordinate.
+    /// For `Right` face: the right edge x-coordinate.
+    /// For `Left` face: the left edge x-coordinate.
+    fn face_coord_for_endpoint(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+        match face {
+            NodeFace::Bottom => info.y + info.height_collapsed,
+            NodeFace::Top => info.y,
+            NodeFace::Right => info.x + info.width,
+            NodeFace::Left => info.x,
+        }
+    }
+
+    /// Returns the extreme coordinate of the same-rank sibling nodes in the
+    /// protrusion direction.
+    ///
+    /// For `Bottom`/`Right` faces: returns the maximum far-edge coordinate
+    /// (max of bottom edges or right edges across all siblings).
+    ///
+    /// For `Top`/`Left` faces: returns the minimum near-edge coordinate
+    /// (min of top edges or left edges across all siblings).
+    ///
+    /// Returns `None` if no sibling has a known layout in `svg_node_info_map`.
+    fn same_rank_sibling_extreme<'id>(
+        sibling_ids: &[&NodeId<'id>],
+        face: NodeFace,
+        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+    ) -> Option<f32> {
+        let mut extreme: Option<f32> = None;
+        for id in sibling_ids {
+            let Some(&info) = svg_node_info_map.get(*id) else {
+                continue;
+            };
+            let coord = Self::face_coord_for_endpoint(info, face);
+            extreme = Some(match extreme {
+                None => coord,
+                Some(existing) => match face {
+                    NodeFace::Bottom | NodeFace::Right => existing.max(coord),
+                    NodeFace::Top | NodeFace::Left => existing.min(coord),
+                },
+            });
+        }
+        extreme
+    }
+
+    /// Returns the depth of the Lowest Common Ancestor (LCA) of two nodes.
+    ///
+    /// The LCA depth is the number of common ancestors the two nodes share.
+    /// A depth of 0 means the LCA is the diagram root (no shared ancestors),
+    /// so the Divergent ancestors are the nodes' first ancestors (or themselves
+    /// for root-level nodes).
+    ///
+    /// # Examples
+    ///
+    /// For root-level nodes `a` and `b`: returns `0` (no common ancestors).
+    ///
+    /// For siblings `c/child_0` and `c/child_1`: returns `1` (one common
+    /// ancestor: `c`).
+    fn lca_depth<'id>(
+        from_id: &NodeId<'id>,
+        to_id: &NodeId<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> usize {
+        let from_chain = match node_nesting_infos.get(from_id) {
+            Some(info) => info.ancestor_chain.as_slice(),
+            None => return 0,
+        };
+        let to_chain = match node_nesting_infos.get(to_id) {
+            Some(info) => info.ancestor_chain.as_slice(),
+            None => return 0,
+        };
+
+        // Exclude the nodes themselves (last element of each chain).
+        let from_ancestors = from_chain.len().saturating_sub(1);
+        let to_ancestors = to_chain.len().saturating_sub(1);
+
+        from_chain[..from_ancestors]
+            .iter()
+            .zip(to_chain[..to_ancestors].iter())
+            .take_while(|(a, b)| a == b)
+            .count()
+    }
+
+    /// Returns the divergent ancestor ID of `node_id` at the given LCA depth.
+    ///
+    /// The divergent ancestor is the ancestor of `node_id` that is a direct
+    /// child of the LCA. For root-level nodes (LCA is the diagram root, depth
+    /// = 0), this is the node's first ancestor (or itself if root-level).
+    ///
+    /// Returns `None` if the node is not found in `node_nesting_infos` or the
+    /// ancestor chain does not have an element at `lca_depth`.
+    fn divergent_ancestor_id<'a, 'id>(
+        node_id: &'a NodeId<'id>,
+        lca_depth: usize,
+        node_nesting_infos: &'a NodeNestingInfos<'id>,
+    ) -> Option<&'a NodeId<'id>> {
+        let chain = &node_nesting_infos.get(node_id)?.ancestor_chain;
+        chain.get(lca_depth)
     }
 }

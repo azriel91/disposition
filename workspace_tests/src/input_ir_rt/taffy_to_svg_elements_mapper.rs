@@ -1,11 +1,16 @@
 use disposition::{
+    input_ir_model::IrDiagramAndIssues,
+    input_model::InputDiagram,
     ir_model::IrDiagram,
     model_common::{id, Id},
     taffy_model::{taffy::TaffyError, DimensionAndLod},
 };
-use disposition_input_ir_rt::{EdgeAnimationActive, IrToTaffyBuilder, TaffyToSvgElementsMapper};
+use disposition_input_ir_rt::{
+    EdgeAnimationActive, InputDiagramMerger, InputToIrDiagramMapper, IrToTaffyBuilder,
+    TaffyToSvgElementsMapper,
+};
 
-use crate::input_ir_rt::EXAMPLE_IR;
+use crate::input_ir_rt::{EXAMPLE_IR, INPUT_DIAGRAM_NESTED_NODE_EDGE_PROTRUSION};
 
 /// Helper: build `SvgElements` from the example IR fixture.
 fn build_svg_elements_from_example_ir(
@@ -650,4 +655,142 @@ fn test_process_infos_map_structure() -> Result<(), TaffyError> {
         });
 
     Ok(())
+}
+
+/// Helper: run the full input-diagram -> IR -> taffy -> SVG pipeline for the
+/// nested-node-edge-protrusion fixture and return the `SvgElements`.
+fn build_svg_elements_from_nested_node_edge_protrusion(
+) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
+    let overlay_diagram =
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_NESTED_NODE_EDGE_PROTRUSION).unwrap();
+    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
+    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
+    let diagram: IrDiagram<'static> = diagram.into_static();
+    let ir_to_taffy_builder = IrToTaffyBuilder::builder()
+        .with_ir_diagram(&diagram)
+        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
+        .build();
+    let taffy_results: Vec<_> = ir_to_taffy_builder
+        .build()
+        .expect("Expected taffy_node_mappings to be built.")
+        .collect();
+    taffy_results
+        .into_iter()
+        .map(move |taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &diagram,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+}
+
+/// The from-protrusion for `edge_dep_bob_charlie__0` must be large enough to
+/// clear all sibling nodes at the same rank as `t_bob`'s Divergent ancestor.
+///
+/// In this diagram, `t_bob` and `t_alice_outer` share rank 0 at the root level.
+/// `t_alice_outer` is taller than `t_bob` (it contains a child node). The edge
+/// from `t_bob` to `t_charlie` must protrude far enough downward that its
+/// routing horizontal segment falls in the gap between `t_alice_outer`'s
+/// bottom edge and `t_charlie`'s top edge -- not through `t_alice_outer`.
+#[test]
+fn test_nested_node_edge_protrusion_from_bob_clears_alice_outer() {
+    for svg_elements in build_svg_elements_from_nested_node_edge_protrusion() {
+        // Find the relevant nodes.
+        let alice_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_alice_outer")
+            .expect("Expected t_alice_outer in svg_node_infos");
+        let bob = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_bob")
+            .expect("Expected t_bob in svg_node_infos");
+
+        // Compute the expected minimum from_protrusion for t_bob.
+        // The protrusion from t_bob's bottom face (y + height) must reach at
+        // least t_alice_outer's bottom face so the routing segment is in the
+        // gap below all rank-0 siblings.
+        let alice_outer_bottom = alice_outer.y + alice_outer.height_collapsed;
+        let bob_bottom = bob.y + bob.height_collapsed;
+        let expected_min_from_protrusion = (alice_outer_bottom - bob_bottom).max(0.0);
+
+        // Find the edge from t_bob to t_charlie.
+        let bob_charlie_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_charlie")
+            .expect("Expected edge from t_bob to t_charlie");
+
+        assert!(
+            bob_charlie_edge.ortho_protrusion_params.from_protrusion
+                >= expected_min_from_protrusion,
+            "from_protrusion {:.2} for edge t_bob->t_charlie should be >= {:.2} \
+             (t_alice_outer bottom {:.2} - t_bob bottom {:.2})",
+            bob_charlie_edge.ortho_protrusion_params.from_protrusion,
+            expected_min_from_protrusion,
+            alice_outer_bottom,
+            bob_bottom,
+        );
+    }
+}
+
+/// The from-protrusion for `edge_dep_bob_charlie__0` must push the routing
+/// horizontal segment below `t_alice_outer`'s bottom edge.
+///
+/// The horizontal routing y-coordinate for an orthogonal edge is:
+///   `routing_y = bob_bottom + from_protrusion + arc_radius`
+///
+/// This must be > `alice_outer_bottom` for the path not to overlap
+/// `t_alice_outer`. Because `from_protrusion >= alice_outer_bottom -
+/// bob_bottom`, we have `routing_y > alice_outer_bottom`.
+#[test]
+fn test_nested_node_edge_bob_charlie_routing_clears_alice_outer() {
+    // Arc radius used by the orthogonal path builder for rounded corners.
+    // This constant matches the `ARC_RADIUS` in
+    // `edge_path_builder_pass_2_ortho.rs`.
+    const ARC_RADIUS: f32 = 4.0;
+
+    for svg_elements in build_svg_elements_from_nested_node_edge_protrusion() {
+        let alice_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_alice_outer")
+            .expect("Expected t_alice_outer in svg_node_infos");
+        let bob = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_bob")
+            .expect("Expected t_bob in svg_node_infos");
+
+        let alice_outer_bottom = alice_outer.y + alice_outer.height_collapsed;
+        let bob_bottom = bob.y + bob.height_collapsed;
+
+        let bob_charlie_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_charlie")
+            .expect("Expected edge from t_bob to t_charlie");
+
+        // The horizontal routing segment is at:
+        //   routing_y = bob_bottom + from_protrusion + ARC_RADIUS
+        // For the routing to clear t_alice_outer, we need routing_y >
+        // alice_outer_bottom.
+        let from_protrusion = bob_charlie_edge.ortho_protrusion_params.from_protrusion;
+        let routing_y = bob_bottom + from_protrusion + ARC_RADIUS;
+
+        assert!(
+            routing_y > alice_outer_bottom,
+            "Routing y {:.2} (bob_bottom {:.2} + from_protrusion {:.2} + arc_radius {:.2}) \
+             must be > alice_outer_bottom {:.2} so the path does not overlap t_alice_outer",
+            routing_y,
+            bob_bottom,
+            from_protrusion,
+            ARC_RADIUS,
+            alice_outer_bottom,
+        );
+    }
 }
