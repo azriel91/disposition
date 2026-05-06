@@ -231,9 +231,23 @@ impl OrthoProtrusionCalculator {
                     (rank_to, rank_from)
                 };
 
-                // Skip self-loops and same-rank edges (no rank gap to
-                // protrude into).
+                // Same-rank (cycle) edges: register their endpoints in the
+                // adjacent rank gap so protrusion depths are distributed
+                // proportionally. Left/Right face pairs fall through to the
+                // MIN_PROTRUSION_PX safety net in Step 6.
                 if rank_low == rank_high {
+                    Self::cycle_edge_collect_rank_gap_entries(
+                        group_idx,
+                        edge_idx,
+                        pass1_info,
+                        from_slot_indices[edge_idx],
+                        to_slot_indices[edge_idx],
+                        face_offsets_by_node_face,
+                        svg_node_info_map,
+                        node_nesting_infos,
+                        node_ranks_nested,
+                        &mut rank_gap_entries,
+                    );
                     continue;
                 }
 
@@ -1206,6 +1220,206 @@ impl OrthoProtrusionCalculator {
                 }
             }
         }
+    }
+
+    /// Registers cycle edge endpoints in the adjacent rank gap so their
+    /// protrusion depths are distributed proportionally to the available gap
+    /// space.
+    ///
+    /// For cycle edges (`rank_from == rank_to`), both endpoints are at the same
+    /// rank and use the same face. Depending on the face, endpoints are
+    /// registered in an adjacent gap:
+    ///
+    /// - `Top` face at rank R → register in gap `(R-1, R)` on the `High` side.
+    ///   Skipped if R == 0 (no gap above).
+    /// - `Bottom` face at rank R → register in gap `(R, R+1)` on the `Low`
+    ///   side.
+    /// - `Left` / `Right` faces → return early;
+    ///   `protrusions_apply_cycle_edge_minimum` handles the fallback.
+    ///
+    /// This allows multiple cycle edges sharing the same gap to receive
+    /// proportionally distributed protrusion depths rather than all getting the
+    /// same fixed minimum.
+    #[allow(clippy::too_many_arguments)]
+    fn cycle_edge_collect_rank_gap_entries<'id>(
+        group_idx: usize,
+        edge_idx: usize,
+        pass1_info: &EdgePass1Info<'_, 'id>,
+        from_slot_index: Option<usize>,
+        to_slot_index: Option<usize>,
+        face_offsets_by_node_face: &Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>,
+        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        rank_gap_entries: &mut Map<RankGapKey, Vec<RankGapEntry>>,
+    ) {
+        // Step 1: Skip if from_face or to_face is None.
+        let Some(from_face) = pass1_info.from_face else {
+            return;
+        };
+        let Some(_to_face) = pass1_info.to_face else {
+            return;
+        };
+
+        // For cycle edges, both endpoints are at the same rank.
+        let rank = pass1_info.rank_from;
+
+        // Steps 2–4: Determine gap key, gap side, and adjacent rank based on
+        // face. Left/Right faces have no applicable rank gap.
+        let (gap_key, gap_side, adjacent_rank) = match from_face {
+            NodeFace::Top => {
+                // Protrudes upward into gap (R-1, R). Skip if R == 0.
+                if rank.value() == 0 {
+                    return;
+                }
+                let adjacent_rank = NodeRank::new(rank.value() - 1);
+                (
+                    RankGapKey {
+                        rank_low: adjacent_rank,
+                        rank_high: rank,
+                    },
+                    GapSide::High,
+                    adjacent_rank,
+                )
+            }
+            NodeFace::Bottom => {
+                // Protrudes downward into gap (R, R+1).
+                let adjacent_rank = NodeRank::new(rank.value() + 1);
+                (
+                    RankGapKey {
+                        rank_low: rank,
+                        rank_high: adjacent_rank,
+                    },
+                    GapSide::Low,
+                    adjacent_rank,
+                )
+            }
+            NodeFace::Left | NodeFace::Right => {
+                // No rank gap applicable; protrusions_apply_cycle_edge_minimum
+                // handles the fallback for these faces.
+                return;
+            }
+        };
+
+        // Step 5: Find parent container scope from the from-node's nesting
+        // info. The second-to-last element of the ancestor chain is the
+        // immediate parent container (None for root-level nodes).
+        let parent_container = node_nesting_infos
+            .get(&pass1_info.edge.from)
+            .and_then(|ni| {
+                ni.ancestor_chain
+                    .len()
+                    .checked_sub(2)
+                    .map(|i| &ni.ancestor_chain[i])
+            });
+
+        // Step 6: Look up ranks in scope for the parent container.
+        let Some(ranks_in_scope) = node_ranks_nested.ranks_for(parent_container) else {
+            return;
+        };
+
+        // Look up from and to node layout info.
+        let Some(&from_info) = svg_node_info_map.get(&pass1_info.edge.from) else {
+            return;
+        };
+        let Some(&to_info) = svg_node_info_map.get(&pass1_info.edge.to) else {
+            return;
+        };
+
+        // Step 7: Compute the adjacent rank boundary.
+        //
+        // For `Top` face: adjacent rank R-1 is visually above; we want the
+        // maximum bottom edge (y + height_collapsed) of all R-1 nodes.
+        // For `Bottom` face: adjacent rank R+1 is visually below; we want the
+        // minimum top edge (y) of all R+1 nodes.
+        let adjacent_boundary_opt: Option<f32> = ranks_in_scope
+            .iter()
+            .filter(|&(_, rank)| *rank == adjacent_rank)
+            .filter_map(|(node_id, _)| svg_node_info_map.get(node_id).copied())
+            .fold(None, |acc, info| {
+                let coord = match from_face {
+                    NodeFace::Top => info.y + info.height_collapsed,
+                    NodeFace::Bottom => info.y,
+                    _ => unreachable!(),
+                };
+                Some(match acc {
+                    None => coord,
+                    Some(existing) => match from_face {
+                        NodeFace::Top => existing.max(coord),
+                        NodeFace::Bottom => existing.min(coord),
+                        _ => unreachable!(),
+                    },
+                })
+            });
+
+        let Some(adjacent_boundary) = adjacent_boundary_opt else {
+            // No adjacent-rank nodes found; no gap exists to register in.
+            return;
+        };
+
+        // Step 8: Compute from_rank_gap_px (distance from from-node face to
+        // the adjacent rank boundary). Return if the gap is zero or negative
+        // (nodes overlap or touch).
+        let from_rank_gap_px = match from_face {
+            NodeFace::Top => from_info.y - adjacent_boundary,
+            NodeFace::Bottom => adjacent_boundary - (from_info.y + from_info.height_collapsed),
+            _ => unreachable!(),
+        };
+        if from_rank_gap_px <= 0.0 {
+            return;
+        }
+
+        // Step 9: Compute to_rank_gap_px similarly.
+        let to_rank_gap_px = match from_face {
+            NodeFace::Top => to_info.y - adjacent_boundary,
+            NodeFace::Bottom => adjacent_boundary - (to_info.y + to_info.height_collapsed),
+            _ => unreachable!(),
+        };
+        if to_rank_gap_px <= 0.0 {
+            return;
+        }
+
+        // Step 10: Resolve from face offset.
+        let from_offset =
+            Self::face_offset_resolve(pass1_info, from_slot_index, true, face_offsets_by_node_face);
+
+        // Step 11: Compute from cross-axis coordinate.
+        let cross_axis_from =
+            Self::cross_axis_coord(pass1_info.from_node_x, pass1_info.from_node_y, from_face);
+
+        // Step 12: Resolve to face offset and cross-axis coordinate.
+        // For cycle edges, from_face == to_face, so we reuse from_face.
+        let to_offset =
+            Self::face_offset_resolve(pass1_info, to_slot_index, false, face_offsets_by_node_face);
+        let cross_axis_to =
+            Self::cross_axis_coord(pass1_info.to_node_x, pass1_info.to_node_y, from_face);
+
+        // Step 13: Register both endpoints in the rank gap.
+        rank_gap_entries
+            .entry(gap_key.clone())
+            .or_default()
+            .push(RankGapEntry {
+                pass1_group_index: group_idx,
+                edge_index: edge_idx,
+                endpoint_kind: RankGapEndpointKind::FromEndpoint,
+                gap_side,
+                cross_axis_coord: cross_axis_from,
+                face_offset: from_offset,
+                rank_gap_px: from_rank_gap_px,
+            });
+
+        rank_gap_entries
+            .entry(gap_key)
+            .or_default()
+            .push(RankGapEntry {
+                pass1_group_index: group_idx,
+                edge_index: edge_idx,
+                endpoint_kind: RankGapEndpointKind::ToEndpoint,
+                gap_side,
+                cross_axis_coord: cross_axis_to,
+                face_offset: to_offset,
+                rank_gap_px: to_rank_gap_px,
+            });
     }
 
     /// Adjusts protrusion values to clear sibling nodes of the Divergent
