@@ -235,10 +235,13 @@ impl EdgePathBuilderPass1 {
     /// For self-loops both faces are `NodeFace::Bottom`.
     /// For contained edges both faces are `None` (no face-based offset
     /// applies).
+    /// For same-rank cycle edges (`is_same_rank = true`), clockwise routing
+    /// faces are chosen instead of the nearest-face heuristic.
     pub(super) fn faces_select(
         rank_dir: RankDir,
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
+        is_same_rank: bool,
     ) -> Option<(NodeFace, NodeFace)> {
         if from_info.node_id == to_info.node_id {
             // Self-loop: both endpoints touch the bottom face.
@@ -248,7 +251,62 @@ impl EdgePathBuilderPass1 {
             // Contained edges bypass face-based contact points.
             return None;
         }
+        if is_same_rank {
+            // Same-rank cycle edges route clockwise around the outside of
+            // the nodes rather than connecting their nearest faces.
+            return Some(Self::cycle_edge_faces_select(from_info, to_info));
+        }
         Some(Self::select_edge_faces(rank_dir, from_info, to_info))
+    }
+
+    /// Selects edge faces for same-rank (cycle) edges, routing clockwise.
+    ///
+    /// The clockwise routing rule is purely geometric -- it does not depend
+    /// on `RankDir`:
+    ///
+    /// * `from` left of `to` (`dx > 0`): protrude from `from.Top`, turn right
+    ///   (east), move, turn right (south) into `to.Top`.
+    /// * `from` right of `to` (`dx < 0`): protrude from `from.Bottom`, turn
+    ///   right (west), move, turn right (north) into `to.Bottom`.
+    /// * `from` directly above `to` (`|dy| > |dx|`, `dy > 0`): protrude from
+    ///   `from.Right`, route down the right side, enter `to.Right`.
+    /// * `from` directly below `to` (`|dy| > |dx|`, `dy < 0`): protrude from
+    ///   `from.Left`, route up the left side, enter `to.Left`.
+    pub(super) fn cycle_edge_faces_select(
+        from_info: &SvgNodeInfo,
+        to_info: &SvgNodeInfo,
+    ) -> (NodeFace, NodeFace) {
+        let from_center_x = from_info.x + from_info.width / 2.0;
+        let to_center_x = to_info.x + to_info.width / 2.0;
+        let from_center_y = from_info.y + from_info.height_collapsed / 2.0;
+        let to_center_y = to_info.y + to_info.height_collapsed / 2.0;
+
+        let dx = to_center_x - from_center_x;
+        let dy = to_center_y - from_center_y;
+
+        if dx.abs() >= dy.abs() {
+            // Primarily horizontal relationship.
+            if dx > 0.0 {
+                // `from` is to the left of `to`:
+                // protrude from `from.Top`, arc right above both, enter `to.Top`.
+                (NodeFace::Top, NodeFace::Top)
+            } else {
+                // `from` is to the right of `to` (or same x, dx <= 0):
+                // protrude from `from.Bottom`, arc left below both, enter `to.Bottom`.
+                (NodeFace::Bottom, NodeFace::Bottom)
+            }
+        } else {
+            // Primarily vertical relationship (same column).
+            if dy > 0.0 {
+                // `from` is above `to` (smaller y = higher on screen):
+                // protrude from `from.Right`, route right side going down, enter `to.Right`.
+                (NodeFace::Right, NodeFace::Right)
+            } else {
+                // `from` is below `to`:
+                // protrude from `from.Left`, route left side going up, enter `to.Left`.
+                (NodeFace::Left, NodeFace::Left)
+            }
+        }
     }
 
     /// Applies a pixel offset along a face.

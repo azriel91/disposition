@@ -334,9 +334,21 @@ impl SvgEdgeInfosBuilder {
             let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
             let edge_type = Self::edge_type_determine(&edge_id, entity_types);
 
+            // Compute rank distance before face selection so that same-rank
+            // (cycle) edges can use clockwise face routing.
+            let rank_from = node_ranks_nested
+                .node_rank_for(&edge.from, node_nesting_infos)
+                .unwrap_or_default();
+            let rank_to = node_ranks_nested
+                .node_rank_for(&edge.to, node_nesting_infos)
+                .unwrap_or_default();
+            let rank_distance = rank_to.value().abs_diff(rank_from.value());
+            let is_same_rank = rank_from == rank_to;
+
             // Build the path with zero offsets to determine natural coordinates.
             let path = EdgePathBuilderPass1::build(rank_dir, from_info, to_info, edge_type);
-            let faces = EdgePathBuilderPass1::faces_select(rank_dir, from_info, to_info);
+            let faces =
+                EdgePathBuilderPass1::faces_select(rank_dir, from_info, to_info, is_same_rank);
 
             let (from_face, to_face) = match faces {
                 Some((from_face, to_face)) => (Some(from_face), Some(to_face)),
@@ -354,15 +366,6 @@ impl SvgEdgeInfosBuilder {
             // Compute path midpoint and bounds for curvature-center sorting.
             let path_midpoint = Self::path_midpoint_compute(&path);
             let path_bounds = Self::path_bounds_compute(&path);
-
-            // Compute rank distance between from and to nodes.
-            let rank_from = node_ranks_nested
-                .node_rank_for(&edge.from, node_nesting_infos)
-                .unwrap_or_default();
-            let rank_to = node_ranks_nested
-                .node_rank_for(&edge.to, node_nesting_infos)
-                .unwrap_or_default();
-            let rank_distance = rank_to.value().abs_diff(rank_from.value());
 
             // Store to-node coordinates for tie-breaking during sorting.
             let to_node_x = to_info.x;
@@ -671,6 +674,9 @@ impl SvgEdgeInfosBuilder {
                     face_offset,
                     &spacer_coordinates,
                     ortho_protrusion,
+                    // Pass the faces computed in pass 1 (which uses cycle-aware
+                    // face selection) so that pass 2 uses the same faces.
+                    pass1_info.from_face.zip(pass1_info.to_face),
                 );
                 let path_length = {
                     let accuracy = 1.0;

@@ -256,3 +256,41 @@ This function assigns protrusion depths to all endpoints within a single rank ga
     - `LeftToRight` -- entry at the left midpoint (smallest x), exit at the right midpoint (largest x). The path passes horizontally rightward through the spacer.
     - `RightToLeft` -- entry at the right midpoint (largest x), exit at the left midpoint (smallest x). The path passes horizontally leftward through the spacer.
 45. When cross-container spacers are merged with rank-based spacers, they are sorted by the main-axis coordinate (`entry_y` for vertical flows, `entry_x` for horizontal flows) so that the spacers appear in the correct visual order along the edge path. This sorting is implemented in `fn spacer_coordinates_from_spacers` in [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs) and `fn spacer_coordinates_resolve` in [`ortho_protrusion_calculator.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/ortho_protrusion_calculator.rs).
+
+
+## Cycle Edge Routing
+
+46. Edges between nodes at the **same `NodeRank`** (cycle edges) cannot use the nearest-face routing heuristic, because both protrusions of such an edge must clear the other nodes at the same rank. The protrusion calculator skips same-rank edges (there is no rank gap to protrude into), and the divergent-sibling clearance is zero (all same-rank siblings share the same face coordinate). Without special handling the Z/S routing bend falls exactly at the node face boundary and the segment overlaps the node.
+47. Same-rank edges are detected in `build_edge_pass1_infos` in [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs) by comparing the `NodeRank` of the `from` and `to` nodes before face selection. When `rank_from == rank_to`, the `is_same_rank` flag is set to `true` and passed to `faces_select`.
+
+
+### Clockwise face selection (`fn cycle_edge_faces_select`)
+
+48. When `is_same_rank` is `true`, `faces_select` delegates to `cycle_edge_faces_select` in [`edge_path_builder_pass_1.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_path_builder_pass_1.rs). This function returns a pair of node faces that routes the edge **clockwise around the outside** of the involved nodes.
+49. The selection is purely geometric and does not depend on the `RankDir`:
+
+    | Relative position of `from` vs `to` | `from` face | `to` face | Routing path |
+    |--------------------------------------|-------------|-----------|----------------------------------------------|
+    | `from` left of `to` (`dx > 0`)       | `Top`       | `Top`     | Protrude up, arc right above, enter top |
+    | `from` right of `to` (`dx < 0`)      | `Bottom`    | `Bottom`  | Protrude down, arc left below, enter bottom |
+    | `from` above `to` (`|dy| > |dx|`, `dy > 0`) | `Right` | `Right` | Protrude right, arc down right side, enter right |
+    | `from` below `to` (`|dy| > |dx|`, `dy < 0`) | `Left`  | `Left`  | Protrude left, arc up left side, enter left |
+
+    The tie-breaking condition `dx.abs() >= dy.abs()` means that when the horizontal displacement equals the vertical displacement, the horizontal rule applies.
+
+
+### Minimum protrusion for cycle edges (`fn protrusions_apply_cycle_edge_minimum`)
+
+50. After all protrusion steps in `OrthoProtrusionCalculator::calculate`, a final step (Step 6) calls `protrusions_apply_cycle_edge_minimum`. This sets both `from_protrusion` and `to_protrusion` to at least `MIN_PROTRUSION_PX` (3.0 px) for every same-rank edge that still has a zero protrusion.
+51. A 3 px protrusion is sufficient because it ensures the Z/S routing bend is placed strictly outside the node face. For `Top`/`Top` routing, the protrusion tip is at `y = node.y - 3`, which is above the node's top edge. For `Right`/`Right` routing, it is at `x = node.x + node.width + 3`, which is to the right of the node's right edge.
+
+
+### Z/S bend direction for same-coordinate protrusion tips
+
+52. The `connect_waypoints` function in [`edge_path_builder_pass_2_ortho.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_path_builder_pass_2/edge_path_builder_pass_2_ortho.rs) connects two consecutive waypoints with a Z/S-shaped three-leg segment when both waypoints have the same axis orientation (both vertical or both horizontal). The bend point is determined by a sign computed from the relative positions of the two waypoints.
+53. For cycle edges using `Top`/`Top` or `Bottom`/`Bottom` faces, both protrusion tips end up at the same Y coordinate (because both nodes are at the same `y` in the typical same-rank layout). The standard heuristic (`sign = if py < qy { -1 } else { 1 }`) would pick `sign = 1` when `py == qy`, placing the bend below the protrusion tips and **inside** the node bounding boxes.
+54. To fix this, when the two waypoints are at the **same coordinate on the routing axis** (`|py - qy| < 1e-3` for vertical, `|px - qx| < 1e-3` for horizontal), the bend direction is determined from the **departure direction** (`p_dir`) of the source waypoint instead:
+    - Vertical Z/S: if `p_dy < 0.0` (face points upward, e.g. `Top`) then `sign = -1` (bend upward); if `p_dy > 0.0` (face points downward, e.g. `Bottom`) then `sign = +1` (bend downward).
+    - Horizontal Z/S: if `p_dx < 0.0` (face points leftward, e.g. `Left`) then `sign = -1` (bend leftward); if `p_dx > 0.0` (face points rightward, e.g. `Right`) then `sign = +1` (bend rightward).
+
+    This ensures the U-shaped bend of the routing segment is placed entirely outside the node bounding boxes.

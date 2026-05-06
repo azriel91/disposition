@@ -10,7 +10,10 @@ use disposition_input_ir_rt::{
     TaffyToSvgElementsMapper,
 };
 
-use crate::input_ir_rt::{EXAMPLE_IR, INPUT_DIAGRAM_NESTED_NODE_EDGE_PROTRUSION};
+use crate::input_ir_rt::{
+    EXAMPLE_IR, INPUT_DIAGRAM_EDGES_SYMMETRIC_2_NODES, INPUT_DIAGRAM_EDGES_SYMMETRIC_3_NODES,
+    INPUT_DIAGRAM_NESTED_NODE_EDGE_PROTRUSION,
+};
 
 /// Helper: build `SvgElements` from the example IR fixture.
 fn build_svg_elements_from_example_ir(
@@ -792,5 +795,289 @@ fn test_nested_node_edge_bob_charlie_routing_clears_alice_outer() {
             ARC_RADIUS,
             alice_outer_bottom,
         );
+    }
+}
+
+// === Cycle edge routing tests === //
+
+/// Parse all SVG path endpoint coordinates (from `M` and `L` commands) from a
+/// path `d` attribute string.
+///
+/// Returns a `Vec<(f32, f32)>` of `(x, y)` pairs.
+fn parse_path_endpoints(path_d: &str) -> Vec<(f32, f32)> {
+    let mut result = Vec::new();
+    // Iterate over whitespace-separated tokens.
+    let tokens: Vec<&str> = path_d.split_whitespace().collect();
+    let mut i = 0;
+    while i < tokens.len() {
+        let token = tokens[i];
+        match token {
+            "M" | "L" => {
+                if let Some(coords) = tokens.get(i + 1) {
+                    if let Some((x, y)) = parse_coord_pair(coords) {
+                        result.push((x, y));
+                    }
+                    i += 2;
+                    continue;
+                }
+            }
+            "C" => {
+                // Curve: ctrl1 ctrl2 endpoint -- record all three pairs.
+                for offset in 1..=3 {
+                    if let Some(coords) = tokens.get(i + offset) {
+                        if let Some((x, y)) = parse_coord_pair(coords) {
+                            result.push((x, y));
+                        }
+                    }
+                }
+                i += 4;
+                continue;
+            }
+            _ => {
+                // Single token may be a coordinate pair if it contains a comma.
+                if token.contains(',') {
+                    if let Some((x, y)) = parse_coord_pair(token) {
+                        result.push((x, y));
+                    }
+                }
+            }
+        }
+        i += 1;
+    }
+    result
+}
+
+/// Parse a `"x,y"` token into a `(f32, f32)` pair.
+fn parse_coord_pair(s: &str) -> Option<(f32, f32)> {
+    let mut parts = s.splitn(2, ',');
+    let x: f32 = parts.next()?.parse().ok()?;
+    let y: f32 = parts.next()?.parse().ok()?;
+    Some((x, y))
+}
+
+/// Builds `SvgElements` from the 2-node symmetric edge fixture.
+fn build_svg_elements_from_symmetric_2_nodes(
+) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
+    let overlay_diagram =
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_EDGES_SYMMETRIC_2_NODES).unwrap();
+    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
+    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
+    let diagram: IrDiagram<'static> = diagram.into_static();
+    let taffy_results: Vec<_> = IrToTaffyBuilder::builder()
+        .with_ir_diagram(&diagram)
+        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
+        .build()
+        .build()
+        .expect("taffy build")
+        .collect();
+    taffy_results
+        .into_iter()
+        .map(move |taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &diagram,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+}
+
+/// Builds `SvgElements` from the 3-node symmetric edge fixture.
+fn build_svg_elements_from_symmetric_3_nodes(
+) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
+    let overlay_diagram =
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_EDGES_SYMMETRIC_3_NODES).unwrap();
+    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
+    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
+    let diagram: IrDiagram<'static> = diagram.into_static();
+    let taffy_results: Vec<_> = IrToTaffyBuilder::builder()
+        .with_ir_diagram(&diagram)
+        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
+        .build()
+        .build()
+        .expect("taffy build")
+        .collect();
+    taffy_results
+        .into_iter()
+        .map(move |taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &diagram,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+}
+
+/// For the 2-node symmetric edge diagram, all edges must have a non-zero
+/// protrusion so the routing bend is placed outside node bounds.
+///
+/// Both nodes are at the same rank (rank 0), so the edges form a cycle and
+/// must use the clockwise routing faces (`Top`/`Top` and `Bottom`/`Bottom`).
+/// A protrusion of at least `MIN_PROTRUSION_PX` (3.0 px) is required to push
+/// the routing segment outside the node bounding boxes.
+#[test]
+fn test_cycle_edges_2_nodes_protrusion_non_zero() {
+    // Minimum protrusion applied to same-rank cycle edges.
+    const MIN_PROTRUSION_PX: f32 = 3.0;
+
+    for svg_elements in build_svg_elements_from_symmetric_2_nodes() {
+        for edge in &svg_elements.svg_edge_infos {
+            assert!(
+                edge.ortho_protrusion_params.from_protrusion >= MIN_PROTRUSION_PX,
+                "Edge {:?} from_protrusion {:.2} should be >= {:.2}",
+                edge.edge_id,
+                edge.ortho_protrusion_params.from_protrusion,
+                MIN_PROTRUSION_PX,
+            );
+            assert!(
+                edge.ortho_protrusion_params.to_protrusion >= MIN_PROTRUSION_PX,
+                "Edge {:?} to_protrusion {:.2} should be >= {:.2}",
+                edge.edge_id,
+                edge.ortho_protrusion_params.to_protrusion,
+                MIN_PROTRUSION_PX,
+            );
+        }
+    }
+}
+
+/// For the 2-node symmetric edge diagram, no edge path coordinate must fall
+/// strictly inside any node bounding box.
+///
+/// With the clockwise cycle routing:
+/// - `alice -> bob` (`alice.x < bob.x`) uses `Top`/`Top` faces: path segments
+///   are above `y = node.y`.
+/// - `bob -> alice` (`bob.x > alice.x`) uses `Bottom`/`Bottom` faces: path
+///   segments are below `y = node.y + node.height`.
+#[test]
+fn test_cycle_edges_2_nodes_no_overlap_with_nodes() {
+    for svg_elements in build_svg_elements_from_symmetric_2_nodes() {
+        for edge in &svg_elements.svg_edge_infos {
+            let from_node = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id == edge.from_node_id)
+                .expect("from node");
+            let to_node = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id == edge.to_node_id)
+                .expect("to node");
+
+            let coords = parse_path_endpoints(&edge.path_d);
+            for (x, y) in coords {
+                // Check against every node in the diagram.
+                for node in &svg_elements.svg_node_infos {
+                    let node_x_min = node.x;
+                    let node_x_max = node.x + node.width;
+                    let node_y_min = node.y;
+                    let node_y_max = node.y + node.height_collapsed;
+
+                    let strictly_inside =
+                        x > node_x_min && x < node_x_max && y > node_y_min && y < node_y_max;
+
+                    assert!(
+                        !strictly_inside,
+                        "Edge {:?} ({} -> {}) has path point ({:.2}, {:.2}) inside node {:?} \
+                         bounding box x=[{:.2},{:.2}] y=[{:.2},{:.2}]",
+                        edge.edge_id,
+                        from_node.node_id,
+                        to_node.node_id,
+                        x,
+                        y,
+                        node.node_id,
+                        node_x_min,
+                        node_x_max,
+                        node_y_min,
+                        node_y_max,
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// For the 3-node symmetric edge diagram, all edges must have a non-zero
+/// protrusion.
+///
+/// All three nodes share rank 0 and are stacked in a single column. The cycle
+/// edges use `Right`/`Right` (downward) and `Left`/`Left` (upward) routing
+/// which protrudes to the right or left of the node column.
+#[test]
+fn test_cycle_edges_3_nodes_protrusion_non_zero() {
+    const MIN_PROTRUSION_PX: f32 = 3.0;
+
+    for svg_elements in build_svg_elements_from_symmetric_3_nodes() {
+        for edge in &svg_elements.svg_edge_infos {
+            assert!(
+                edge.ortho_protrusion_params.from_protrusion >= MIN_PROTRUSION_PX,
+                "Edge {:?} from_protrusion {:.2} should be >= {:.2}",
+                edge.edge_id,
+                edge.ortho_protrusion_params.from_protrusion,
+                MIN_PROTRUSION_PX,
+            );
+            assert!(
+                edge.ortho_protrusion_params.to_protrusion >= MIN_PROTRUSION_PX,
+                "Edge {:?} to_protrusion {:.2} should be >= {:.2}",
+                edge.edge_id,
+                edge.ortho_protrusion_params.to_protrusion,
+                MIN_PROTRUSION_PX,
+            );
+        }
+    }
+}
+
+/// For the 3-node symmetric edge diagram, no edge path coordinate must fall
+/// strictly inside any node bounding box.
+///
+/// All nodes are in the same column (`x = 20`, `width = 83`). Downward edges
+/// route to the right (`x >= node.x + node.width`) and upward edges route to
+/// the left (`x <= node.x`).
+#[test]
+fn test_cycle_edges_3_nodes_no_overlap_with_nodes() {
+    for svg_elements in build_svg_elements_from_symmetric_3_nodes() {
+        for edge in &svg_elements.svg_edge_infos {
+            let from_node = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id == edge.from_node_id)
+                .expect("from node");
+            let to_node = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id == edge.to_node_id)
+                .expect("to node");
+
+            let coords = parse_path_endpoints(&edge.path_d);
+            for (x, y) in coords {
+                for node in &svg_elements.svg_node_infos {
+                    let node_x_min = node.x;
+                    let node_x_max = node.x + node.width;
+                    let node_y_min = node.y;
+                    let node_y_max = node.y + node.height_collapsed;
+
+                    let strictly_inside =
+                        x > node_x_min && x < node_x_max && y > node_y_min && y < node_y_max;
+
+                    assert!(
+                        !strictly_inside,
+                        "Edge {:?} ({} -> {}) has path point ({:.2}, {:.2}) inside node {:?} \
+                         bounding box x=[{:.2},{:.2}] y=[{:.2},{:.2}]",
+                        edge.edge_id,
+                        from_node.node_id,
+                        to_node.node_id,
+                        x,
+                        y,
+                        node.node_id,
+                        node_x_min,
+                        node_x_max,
+                        node_y_min,
+                        node_y_max,
+                    );
+                }
+            }
+        }
     }
 }

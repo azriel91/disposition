@@ -622,6 +622,17 @@ impl OrthoProtrusionCalculator {
             &mut result,
         );
 
+        // === Step 6: Enforce minimum protrusion for same-rank (cycle) edges === //
+        //
+        // Same-rank edges are skipped in step 2 (no rank gap to protrude into)
+        // and their sibling clearance from step 5 is zero (nodes share the
+        // same face coordinate). Without a non-zero protrusion the Z/S routing
+        // bend lands inside the node bounding box.
+        //
+        // Applying MIN_PROTRUSION_PX ensures the bend is placed outside the
+        // node boundary regardless of relative node positions.
+        Self::protrusions_apply_cycle_edge_minimum(all_pass1_groups, &mut result);
+
         result
     }
 
@@ -1158,6 +1169,42 @@ impl OrthoProtrusionCalculator {
             NodeFace::Bottom => (info.x + info.width / 2.0, info.y + info.height_collapsed),
             NodeFace::Left => (info.x, info.y + info.height_collapsed / 2.0),
             NodeFace::Right => (info.x + info.width, info.y + info.height_collapsed / 2.0),
+        }
+    }
+
+    /// Applies `MIN_PROTRUSION_PX` to both endpoints of every same-rank edge
+    /// that still has zero protrusion after steps 2-5.
+    ///
+    /// Same-rank edges use clockwise cycle-routing faces (`Top`/`Top`,
+    /// `Bottom`/`Bottom`, `Right`/`Right`, `Left`/`Left`) which route entirely
+    /// outside the node bounding boxes. With no rank gap those edges are
+    /// skipped by the gap-based protrusion assignment, and the divergent-
+    /// sibling clearance is also zero because all same-rank siblings share the
+    /// same face coordinate. Without a forced minimum the Z/S routing bend
+    /// falls at the node face (y = node.y or x = node.x + node.width), which
+    /// lands inside the node.
+    fn protrusions_apply_cycle_edge_minimum<'id>(
+        all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
+                if pass1_info.rank_from != pass1_info.rank_to {
+                    continue;
+                }
+                // Only apply to edges that have face contacts (non-self-loop,
+                // non-contained).
+                if pass1_info.from_face.is_none() {
+                    continue;
+                }
+                let params = &mut result[group_idx][edge_idx];
+                if params.from_protrusion < MIN_PROTRUSION_PX {
+                    params.from_protrusion = MIN_PROTRUSION_PX;
+                }
+                if params.to_protrusion < MIN_PROTRUSION_PX {
+                    params.to_protrusion = MIN_PROTRUSION_PX;
+                }
+            }
         }
     }
 

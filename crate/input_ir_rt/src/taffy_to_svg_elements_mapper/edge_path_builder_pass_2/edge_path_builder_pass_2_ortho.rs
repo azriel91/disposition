@@ -347,27 +347,24 @@ impl EdgePathBuilderPass2Ortho {
         // L-shaped path with one turn suffices.
         if p_is_vertical == q_is_vertical {
             // === Z/S-shape: two turns === //
-            //
-            // Both directions are the same axis (both vertical or both
-            // horizontal). Route with three legs and two corners.
-            //
-            // The bend is placed at the `wp_to` coordinate (the
-            // from-node / spacer-exit side, since waypoints are
-            // collected in reverse order). This means the protrusion
-            // length directly controls the distance from the
-            // from-node face to the bend, keeping the routing
-            // segment on the from-node side of the gap.
-            //
-            // For vertical departure and arrival: go vertically to
-            // qy, turn horizontally to qx.
-            //
-            // For horizontal departure and arrival: go horizontally
-            // to qx, turn vertically to qy.
             if p_is_vertical {
-                // Offset the bend from qy back toward py by
-                // ARC_RADIUS so that leg 3 has enough length for the
-                // second rounded corner arc.
-                let sign = if py < qy { -1.0 } else { 1.0 };
+                // Both directions are vertical: route via a horizontal mid-leg.
+                //
+                // When `py == qy` the departure direction disambiguates which
+                // side to bend toward -- otherwise the standard relative-
+                // position heuristic is used.
+                let sign = if (py - qy).abs() < 1e-3 {
+                    // Same y: use departure direction to bend away from nodes.
+                    if p_dy < 0.0 {
+                        -1.0
+                    } else {
+                        1.0
+                    }
+                } else if py < qy {
+                    -1.0
+                } else {
+                    1.0
+                };
                 let bend_y = qy + sign * ARC_RADIUS;
                 let corner1_x = px;
                 let corner1_y = bend_y;
@@ -377,10 +374,23 @@ impl EdgePathBuilderPass2Ortho {
                     path, px, py, corner1_x, corner1_y, corner2_x, corner2_y, qx, qy,
                 );
             } else {
-                // Offset the bend from qx back toward px by
-                // ARC_RADIUS so that leg 3 has enough length for the
-                // second rounded corner arc.
-                let sign = if px < qx { -1.0 } else { 1.0 };
+                // Both directions are horizontal: route via a vertical mid-leg.
+                //
+                // When `px == qx` the departure direction disambiguates which
+                // side to bend toward -- otherwise the standard relative-
+                // position heuristic is used.
+                let sign = if (px - qx).abs() < 1e-3 {
+                    // Same x: use departure direction to bend away from nodes.
+                    if p_dx < 0.0 {
+                        -1.0
+                    } else {
+                        1.0
+                    }
+                } else if px < qx {
+                    -1.0
+                } else {
+                    1.0
+                };
                 let bend_x = qx + sign * ARC_RADIUS;
                 let corner1_x = bend_x;
                 let corner1_y = py;
