@@ -348,9 +348,7 @@ impl SvgEdgeInfosBuilder {
             let rank_distance = rank_to.value().abs_diff(rank_from.value());
             let is_same_rank = rank_from == rank_to;
             let is_cycle_edge = is_same_rank
-                && !Self::nodes_adjacent_siblings_are(&edge.from, &edge.to, node_nesting_infos)
-                && !Self::node_entity_type_is_tag_or_process(&edge.from, entity_types)
-                && !Self::node_entity_type_is_tag_or_process(&edge.to, entity_types);
+                && !Self::nodes_adjacent_siblings_are(&edge.from, &edge.to, node_nesting_infos);
 
             // Build the path with zero offsets to determine natural coordinates.
             let path = EdgePathBuilderPass1::build(rank_dir, from_info, to_info, edge_type);
@@ -865,20 +863,6 @@ impl SvgEdgeInfosBuilder {
         let idx_from = info_from.nesting_path[len - 1];
         let idx_to = info_to.nesting_path[len - 1];
         idx_from.abs_diff(idx_to) == 1
-    }
-
-    /// Returns `true` if the node's entity type is a tag, process, or process
-    /// step -- node types that skip cycle routing and always use the
-    /// nearest-face heuristic.
-    fn node_entity_type_is_tag_or_process<'id>(
-        node_id: &NodeId<'id>,
-        entity_types: &EntityTypes<'id>,
-    ) -> bool {
-        entity_types.get(node_id.as_ref()).map_or(false, |types| {
-            types.contains(&EntityType::TagDefault)
-                || types.contains(&EntityType::ProcessDefault)
-                || types.contains(&EntityType::ProcessStepDefault)
-        })
     }
 
     /// Computes the midpoint of a `BezPath` as the mean of its anchor
