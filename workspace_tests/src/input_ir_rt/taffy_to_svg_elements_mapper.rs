@@ -12,7 +12,8 @@ use disposition_input_ir_rt::{
 
 use crate::input_ir_rt::{
     EXAMPLE_IR, INPUT_DIAGRAM_EDGES_SYMMETRIC_2_NODES, INPUT_DIAGRAM_EDGES_SYMMETRIC_3_NODES,
-    INPUT_DIAGRAM_NESTED_NODE_EDGE_PROTRUSION,
+    INPUT_DIAGRAM_NESTED_NODE_EDGE_PROTRUSION, INPUT_DIAGRAM_PROCESS_STEP_NODES_CYCLIC_EDGE,
+    INPUT_DIAGRAM_TAG_NODES_CYCLIC_EDGE,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -855,6 +856,143 @@ fn parse_coord_pair(s: &str) -> Option<(f32, f32)> {
     Some((x, y))
 }
 
+// === Tag and process step node routing tests === //
+
+/// Builds `SvgElements` from the tag-nodes cyclic edge fixture.
+///
+/// The fixture has 3 tags (`tag_a`, `tag_b`, `tag_c`) with a cyclic edge group,
+/// producing edges `tag_a -> tag_b`, `tag_b -> tag_c`, `tag_c -> tag_a`.
+/// All three tags end up at the same rank due to the cycle.
+fn build_svg_elements_from_tag_nodes_cyclic_edge(
+) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
+    let overlay_diagram =
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_TAG_NODES_CYCLIC_EDGE).unwrap();
+    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
+    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
+    let diagram: IrDiagram<'static> = diagram.into_static();
+    let taffy_results: Vec<_> = IrToTaffyBuilder::builder()
+        .with_ir_diagram(&diagram)
+        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
+        .build()
+        .build()
+        .expect("taffy build")
+        .collect();
+    taffy_results
+        .into_iter()
+        .map(move |taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &diagram,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+}
+
+/// Builds `SvgElements` from the process-step-nodes cyclic edge fixture.
+///
+/// The fixture has a process `proc_test` with 3 steps (`proc_test_step_a`,
+/// `proc_test_step_b`, `proc_test_step_c`) connected by a cyclic edge group.
+/// All three steps end up at the same rank due to the cycle.
+fn build_svg_elements_from_process_step_nodes_cyclic_edge(
+) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
+    let overlay_diagram =
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_PROCESS_STEP_NODES_CYCLIC_EDGE)
+            .unwrap();
+    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
+    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
+    let diagram: IrDiagram<'static> = diagram.into_static();
+    let taffy_results: Vec<_> = IrToTaffyBuilder::builder()
+        .with_ir_diagram(&diagram)
+        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
+        .build()
+        .build()
+        .expect("taffy build")
+        .collect();
+    taffy_results
+        .into_iter()
+        .map(move |taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &diagram,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+}
+
+/// Tag nodes skip cycle routing and use normal nearest-face routing, so all
+/// edges in the tag fixture must have zero protrusion.
+///
+/// The fixture has 3 tags at the same rank. The non-adjacent edge
+/// `tag_c -> tag_a` (positions 2 and 0, diff = 2) would ordinarily trigger
+/// cycle routing; the tag-node exemption overrides this and forces normal
+/// routing (protrusion = 0).
+#[test]
+fn test_tag_node_edges_protrusion_is_zero() {
+    for svg_elements in build_svg_elements_from_tag_nodes_cyclic_edge() {
+        for edge in &svg_elements.svg_edge_infos {
+            assert_eq!(
+                edge.ortho_protrusion_params.from_protrusion,
+                0.0,
+                "Tag-node edge {:?} ({} -> {}) from_protrusion {:.2} should be 0 \
+                 (tag nodes skip cycle routing)",
+                edge.edge_id,
+                edge.from_node_id,
+                edge.to_node_id,
+                edge.ortho_protrusion_params.from_protrusion,
+            );
+            assert_eq!(
+                edge.ortho_protrusion_params.to_protrusion,
+                0.0,
+                "Tag-node edge {:?} ({} -> {}) to_protrusion {:.2} should be 0 \
+                 (tag nodes skip cycle routing)",
+                edge.edge_id,
+                edge.from_node_id,
+                edge.to_node_id,
+                edge.ortho_protrusion_params.to_protrusion,
+            );
+        }
+    }
+}
+
+/// Process step nodes skip cycle routing and use normal nearest-face routing,
+/// so all edges in the process-step fixture must have zero protrusion.
+///
+/// The fixture has 3 process steps in the same process at the same rank. The
+/// non-adjacent edge `proc_test_step_a -> proc_test_step_c` (positions 0 and 2,
+/// diff = 2) would ordinarily trigger cycle routing; the process-step-node
+/// exemption overrides this and forces normal routing (protrusion = 0).
+#[test]
+fn test_process_step_node_edges_protrusion_is_zero() {
+    for svg_elements in build_svg_elements_from_process_step_nodes_cyclic_edge() {
+        for edge in &svg_elements.svg_edge_infos {
+            assert_eq!(
+                edge.ortho_protrusion_params.from_protrusion,
+                0.0,
+                "Process-step edge {:?} ({} -> {}) from_protrusion {:.2} should be 0 \
+                 (process step nodes skip cycle routing)",
+                edge.edge_id,
+                edge.from_node_id,
+                edge.to_node_id,
+                edge.ortho_protrusion_params.from_protrusion,
+            );
+            assert_eq!(
+                edge.ortho_protrusion_params.to_protrusion,
+                0.0,
+                "Process-step edge {:?} ({} -> {}) to_protrusion {:.2} should be 0 \
+                 (process step nodes skip cycle routing)",
+                edge.edge_id,
+                edge.from_node_id,
+                edge.to_node_id,
+                edge.ortho_protrusion_params.to_protrusion,
+            );
+        }
+    }
+}
+
 /// Builds `SvgElements` from the 2-node symmetric edge fixture.
 fn build_svg_elements_from_symmetric_2_nodes(
 ) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
@@ -911,33 +1049,29 @@ fn build_svg_elements_from_symmetric_3_nodes(
         .into_iter()
 }
 
-/// For the 2-node symmetric edge diagram, all edges must have a non-zero
-/// protrusion so the routing bend is placed outside node bounds.
+/// For the 2-node symmetric edge diagram, edges between adjacent siblings
+/// must have zero protrusion.
 ///
-/// Both nodes are at the same rank (rank 0), so the edges form a cycle and
-/// must use the clockwise routing faces (`Top`/`Top` and `Bottom`/`Bottom`).
-/// A protrusion of at least `MIN_PROTRUSION_PX` (3.0 px) is required to push
-/// the routing segment outside the node bounding boxes.
+/// `t_alice` (position 0) and `t_bob` (position 1) are adjacent siblings with
+/// the same direct parent. Adjacent siblings use normal face-selection routing
+/// (connecting the two closest `NodeFace`s) instead of clockwise cycle routing,
+/// so no protrusion is needed and both `from_protrusion` and `to_protrusion`
+/// must be exactly 0.
 #[test]
-fn test_cycle_edges_2_nodes_protrusion_non_zero() {
-    // Minimum protrusion applied to same-rank cycle edges.
-    const MIN_PROTRUSION_PX: f32 = 3.0;
-
+fn test_adjacent_siblings_protrusion_is_zero() {
     for svg_elements in build_svg_elements_from_symmetric_2_nodes() {
         for edge in &svg_elements.svg_edge_infos {
-            assert!(
-                edge.ortho_protrusion_params.from_protrusion >= MIN_PROTRUSION_PX,
-                "Edge {:?} from_protrusion {:.2} should be >= {:.2}",
-                edge.edge_id,
-                edge.ortho_protrusion_params.from_protrusion,
-                MIN_PROTRUSION_PX,
+            assert_eq!(
+                edge.ortho_protrusion_params.from_protrusion, 0.0,
+                "Adjacent-sibling edge {:?} from_protrusion {:.2} should be 0 \
+                 (normal routing, no cycle protrusion)",
+                edge.edge_id, edge.ortho_protrusion_params.from_protrusion,
             );
-            assert!(
-                edge.ortho_protrusion_params.to_protrusion >= MIN_PROTRUSION_PX,
-                "Edge {:?} to_protrusion {:.2} should be >= {:.2}",
-                edge.edge_id,
-                edge.ortho_protrusion_params.to_protrusion,
-                MIN_PROTRUSION_PX,
+            assert_eq!(
+                edge.ortho_protrusion_params.to_protrusion, 0.0,
+                "Adjacent-sibling edge {:?} to_protrusion {:.2} should be 0 \
+                 (normal routing, no cycle protrusion)",
+                edge.edge_id, edge.ortho_protrusion_params.to_protrusion,
             );
         }
     }
@@ -946,11 +1080,11 @@ fn test_cycle_edges_2_nodes_protrusion_non_zero() {
 /// For the 2-node symmetric edge diagram, no edge path coordinate must fall
 /// strictly inside any node bounding box.
 ///
-/// With the clockwise cycle routing:
-/// - `alice -> bob` (`alice.x < bob.x`) uses `Top`/`Top` faces: path segments
-///   are above `y = node.y`.
-/// - `bob -> alice` (`bob.x > alice.x`) uses `Bottom`/`Bottom` faces: path
-///   segments are below `y = node.y + node.height`.
+/// With normal (nearest-face) routing for adjacent siblings:
+/// - `alice -> bob` (`alice.x < bob.x`) uses `Right`/`Left` faces: path
+///   segments travel between alice's right edge and bob's left edge.
+/// - `bob -> alice` (`bob.x > alice.x`) uses `Left`/`Right` faces: path
+///   segments travel between bob's left edge and alice's right edge.
 #[test]
 fn test_cycle_edges_2_nodes_no_overlap_with_nodes() {
     for svg_elements in build_svg_elements_from_symmetric_2_nodes() {
@@ -999,28 +1133,42 @@ fn test_cycle_edges_2_nodes_no_overlap_with_nodes() {
     }
 }
 
-/// For the 3-node symmetric edge diagram, all edges must have a non-zero
-/// protrusion.
+/// For the 3-node symmetric edge diagram, non-adjacent same-rank edges must
+/// have a non-zero protrusion.
 ///
-/// All three nodes share rank 0 and are stacked in a single column. The cycle
-/// edges use `Right`/`Right` (downward) and `Left`/`Left` (upward) routing
-/// which protrudes to the right or left of the node column.
+/// The edge group uses `things: [t_bob, t_alice, t_charlie]` with
+/// `kind: symmetric`, producing edges: `t_bob -> t_alice`, `t_alice ->
+/// t_charlie`, `t_charlie -> t_alice`, `t_alice -> t_bob`. The hierarchy
+/// positions are `t_alice=0`, `t_bob=1`, `t_charlie=2`.
+///
+/// Adjacent-sibling edges (`t_bob <-> t_alice`, position diff = 1) use normal
+/// routing and have zero protrusion. Non-adjacent edges (`t_alice <->
+/// t_charlie`, position diff = 2) are true cycle edges and must protrude by at
+/// least `MIN_PROTRUSION_PX` (3.0 px).
 #[test]
 fn test_cycle_edges_3_nodes_protrusion_non_zero() {
     const MIN_PROTRUSION_PX: f32 = 3.0;
 
     for svg_elements in build_svg_elements_from_symmetric_3_nodes() {
         for edge in &svg_elements.svg_edge_infos {
+            // Only check non-adjacent same-rank edges (t_alice <-> t_charlie).
+            let is_non_adjacent_cycle_edge = (edge.from_node_id.as_str() == "t_alice"
+                && edge.to_node_id.as_str() == "t_charlie")
+                || (edge.from_node_id.as_str() == "t_charlie"
+                    && edge.to_node_id.as_str() == "t_alice");
+            if !is_non_adjacent_cycle_edge {
+                continue;
+            }
             assert!(
                 edge.ortho_protrusion_params.from_protrusion >= MIN_PROTRUSION_PX,
-                "Edge {:?} from_protrusion {:.2} should be >= {:.2}",
+                "Non-adjacent cycle edge {:?} from_protrusion {:.2} should be >= {:.2}",
                 edge.edge_id,
                 edge.ortho_protrusion_params.from_protrusion,
                 MIN_PROTRUSION_PX,
             );
             assert!(
                 edge.ortho_protrusion_params.to_protrusion >= MIN_PROTRUSION_PX,
-                "Edge {:?} to_protrusion {:.2} should be >= {:.2}",
+                "Non-adjacent cycle edge {:?} to_protrusion {:.2} should be >= {:.2}",
                 edge.edge_id,
                 edge.ortho_protrusion_params.to_protrusion,
                 MIN_PROTRUSION_PX,

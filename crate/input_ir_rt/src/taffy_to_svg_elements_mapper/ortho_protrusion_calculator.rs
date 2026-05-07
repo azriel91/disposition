@@ -225,17 +225,17 @@ impl OrthoProtrusionCalculator {
                 let rank_to = pass1_info.rank_to;
 
                 // Determine rank ordering.
-                let (rank_low, rank_high) = if rank_from <= rank_to {
+                let (_rank_low, _rank_high) = if rank_from <= rank_to {
                     (rank_from, rank_to)
                 } else {
                     (rank_to, rank_from)
                 };
 
-                // Same-rank (cycle) edges: register their endpoints in the
-                // adjacent rank gap so protrusion depths are distributed
-                // proportionally. Left/Right face pairs fall through to the
-                // MIN_PROTRUSION_PX safety net in Step 6.
-                if rank_low == rank_high {
+                // Cycle edges: register their endpoints in the adjacent rank
+                // gap so protrusion depths are distributed proportionally.
+                // Left/Right face pairs fall through to the MIN_PROTRUSION_PX
+                // safety net in Step 6.
+                if pass1_info.is_cycle_edge {
                     Self::cycle_edge_collect_rank_gap_entries(
                         group_idx,
                         edge_idx,
@@ -247,6 +247,13 @@ impl OrthoProtrusionCalculator {
                         node_ranks_nested,
                         &mut rank_gap_entries,
                     );
+                    continue;
+                }
+
+                // Same-rank non-cycle edges (adjacent siblings, tag/process
+                // nodes) use normal face routing with zero protrusion and do
+                // not register rank-gap entries.
+                if rank_from == rank_to {
                     continue;
                 }
 
@@ -1232,7 +1239,7 @@ impl OrthoProtrusionCalculator {
             let from_slot_indices = &from_slot_indices_all[group_idx];
             for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
                 // Only cycle edges with a valid face.
-                if pass1_info.rank_from != pass1_info.rank_to {
+                if !pass1_info.is_cycle_edge {
                     continue;
                 }
                 let Some(from_face) = pass1_info.from_face else {
@@ -1540,6 +1547,12 @@ impl OrthoProtrusionCalculator {
     ) {
         for (group_idx, group) in all_pass1_groups.iter().enumerate() {
             for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
+                // Same-rank non-cycle edges (adjacent siblings, tag/process
+                // nodes) use direct nearest-face routing with zero protrusion.
+                // Divergent-sibling adjustment does not apply to them.
+                if pass1_info.rank_from == pass1_info.rank_to && !pass1_info.is_cycle_edge {
+                    continue;
+                }
                 // === From endpoint === //
                 if let Some(from_face) = pass1_info.from_face {
                     let min_from = Self::min_protrusion_divergent_sibling_extent(

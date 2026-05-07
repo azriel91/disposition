@@ -9,6 +9,10 @@ pub(crate) const INPUT_DIAGRAM_EDGES_SYMMETRIC_2_NODES: &str =
     include_str!("input_diagram/0002_edges_symmetric_2_nodes.yaml");
 pub(crate) const INPUT_DIAGRAM_EDGES_SYMMETRIC_3_NODES: &str =
     include_str!("input_diagram/0003_edges_symmetric_3_nodes.yaml");
+pub(crate) const INPUT_DIAGRAM_TAG_NODES_CYCLIC_EDGE: &str =
+    include_str!("input_diagram/0004_tag_nodes_cyclic_edge.yaml");
+pub(crate) const INPUT_DIAGRAM_PROCESS_STEP_NODES_CYCLIC_EDGE: &str =
+    include_str!("input_diagram/0005_process_step_nodes_cyclic_edge.yaml");
 
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

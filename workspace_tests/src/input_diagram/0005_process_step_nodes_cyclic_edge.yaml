@@ -1,0 +1,14 @@
+processes:
+  proc_test:
+    name: Test Process
+    steps:
+      proc_test_step_a: Step A
+      proc_test_step_b: Step B
+      proc_test_step_c: Step C
+thing_dependencies:
+  edge_dep_steps:
+    kind: cyclic
+    things:
+      - proc_test_step_a
+      - proc_test_step_b
+      - proc_test_step_c

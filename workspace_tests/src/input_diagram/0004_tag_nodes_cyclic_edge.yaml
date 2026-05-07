@@ -1,0 +1,11 @@
+tags:
+  tag_a: Tag A
+  tag_b: Tag B
+  tag_c: Tag C
+thing_dependencies:
+  edge_dep_tags:
+    kind: cyclic
+    things:
+      - tag_a
+      - tag_b
+      - tag_c

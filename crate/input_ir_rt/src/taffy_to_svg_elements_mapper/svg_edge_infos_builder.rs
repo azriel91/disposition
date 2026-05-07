@@ -335,7 +335,10 @@ impl SvgEdgeInfosBuilder {
             let edge_type = Self::edge_type_determine(&edge_id, entity_types);
 
             // Compute rank distance before face selection so that same-rank
-            // (cycle) edges can use clockwise face routing.
+            // (cycle) edges can use clockwise face routing. Adjacent siblings
+            // with the same direct parent, and edges involving tag, process, or
+            // process step nodes always use normal face selection regardless of
+            // rank.
             let rank_from = node_ranks_nested
                 .node_rank_for(&edge.from, node_nesting_infos)
                 .unwrap_or_default();
@@ -344,11 +347,15 @@ impl SvgEdgeInfosBuilder {
                 .unwrap_or_default();
             let rank_distance = rank_to.value().abs_diff(rank_from.value());
             let is_same_rank = rank_from == rank_to;
+            let is_cycle_edge = is_same_rank
+                && !Self::nodes_adjacent_siblings_are(&edge.from, &edge.to, node_nesting_infos)
+                && !Self::node_entity_type_is_tag_or_process(&edge.from, entity_types)
+                && !Self::node_entity_type_is_tag_or_process(&edge.to, entity_types);
 
             // Build the path with zero offsets to determine natural coordinates.
             let path = EdgePathBuilderPass1::build(rank_dir, from_info, to_info, edge_type);
             let faces =
-                EdgePathBuilderPass1::faces_select(rank_dir, from_info, to_info, is_same_rank);
+                EdgePathBuilderPass1::faces_select(rank_dir, from_info, to_info, is_cycle_edge);
 
             let (from_face, to_face) = match faces {
                 Some((from_face, to_face)) => (Some(from_face), Some(to_face)),
@@ -389,6 +396,7 @@ impl SvgEdgeInfosBuilder {
                 rank_to,
                 from_node_x,
                 from_node_y,
+                is_cycle_edge,
             });
         }
 
@@ -820,6 +828,59 @@ impl SvgEdgeInfosBuilder {
             .unwrap_or(EdgeType::Unpaired)
     }
 
+    /// Returns `true` if the two nodes are adjacent siblings with the same
+    /// direct parent.
+    ///
+    /// Two nodes are adjacent siblings when:
+    ///
+    /// - They are at the same nesting depth (equal `nesting_path` lengths).
+    /// - All ancestor chain entries except the last are identical (same
+    ///   parent).
+    /// - Their sibling indices (last `nesting_path` element) differ by exactly
+    ///   1.
+    fn nodes_adjacent_siblings_are<'id>(
+        node_id_from: &NodeId<'id>,
+        node_id_to: &NodeId<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> bool {
+        let Some(info_from) = node_nesting_infos.get(node_id_from) else {
+            return false;
+        };
+        let Some(info_to) = node_nesting_infos.get(node_id_to) else {
+            return false;
+        };
+
+        let len = info_from.nesting_path.len();
+        if len == 0 || len != info_to.nesting_path.len() {
+            return false;
+        }
+
+        // Same parent: all ancestor chain entries except the last must match.
+        let parent_len = len.saturating_sub(1);
+        if info_from.ancestor_chain[..parent_len] != info_to.ancestor_chain[..parent_len] {
+            return false;
+        }
+
+        // Adjacent: sibling indices differ by exactly 1.
+        let idx_from = info_from.nesting_path[len - 1];
+        let idx_to = info_to.nesting_path[len - 1];
+        idx_from.abs_diff(idx_to) == 1
+    }
+
+    /// Returns `true` if the node's entity type is a tag, process, or process
+    /// step -- node types that skip cycle routing and always use the
+    /// nearest-face heuristic.
+    fn node_entity_type_is_tag_or_process<'id>(
+        node_id: &NodeId<'id>,
+        entity_types: &EntityTypes<'id>,
+    ) -> bool {
+        entity_types.get(node_id.as_ref()).map_or(false, |types| {
+            types.contains(&EntityType::TagDefault)
+                || types.contains(&EntityType::ProcessDefault)
+                || types.contains(&EntityType::ProcessStepDefault)
+        })
+    }
+
     /// Computes the midpoint of a `BezPath` as the mean of its anchor
     /// points (MoveTo, LineTo, and the final point of CurveTo / QuadTo
     /// elements).
@@ -1182,6 +1243,16 @@ pub(super) struct EdgePass1Info<'edge, 'id> {
     ///
     /// `30.0`
     pub(super) from_node_y: f32,
+    /// Whether this edge uses cycle (clockwise) face routing.
+    ///
+    /// `true` when all of the following hold:
+    /// - `rank_from == rank_to` (same rank).
+    /// - The `from` and `to` nodes are not adjacent siblings with the same
+    ///   direct parent.
+    /// - Neither endpoint is a tag, process, or process step node.
+    ///
+    /// When `false` the nearest-face heuristic is used instead.
+    pub(super) is_cycle_edge: bool,
 }
 
 /// All pass-1 data for a single edge group.

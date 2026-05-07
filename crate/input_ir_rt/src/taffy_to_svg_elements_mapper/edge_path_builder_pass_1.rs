@@ -235,13 +235,13 @@ impl EdgePathBuilderPass1 {
     /// For self-loops both faces are `NodeFace::Bottom`.
     /// For contained edges both faces are `None` (no face-based offset
     /// applies).
-    /// For same-rank cycle edges (`is_same_rank = true`), clockwise routing
-    /// faces are chosen instead of the nearest-face heuristic.
+    /// For cycle edges (`is_cycle_edge = true`), clockwise routing faces are
+    /// chosen instead of the nearest-face heuristic.
     pub(super) fn faces_select(
         rank_dir: RankDir,
         from_info: &SvgNodeInfo,
         to_info: &SvgNodeInfo,
-        is_same_rank: bool,
+        is_cycle_edge: bool,
     ) -> Option<(NodeFace, NodeFace)> {
         if from_info.node_id == to_info.node_id {
             // Self-loop: both endpoints touch the bottom face.
@@ -251,9 +251,9 @@ impl EdgePathBuilderPass1 {
             // Contained edges bypass face-based contact points.
             return None;
         }
-        if is_same_rank {
-            // Same-rank cycle edges route clockwise around the outside of
-            // the nodes rather than connecting their nearest faces.
+        if is_cycle_edge {
+            // Cycle edges route clockwise around the outside of the nodes
+            // rather than connecting their nearest faces.
             return Some(Self::cycle_edge_faces_select(from_info, to_info));
         }
         Some(Self::select_edge_faces(rank_dir, from_info, to_info))
