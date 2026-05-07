@@ -3,7 +3,7 @@ tags:
   tag_b: Tag B
   tag_c: Tag C
 thing_dependencies:
-  edge_dep_tags:
+  edge_dep_tags_cyclic:
     kind: cyclic
     things:
       - tag_a

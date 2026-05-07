@@ -860,9 +860,10 @@ fn parse_coord_pair(s: &str) -> Option<(f32, f32)> {
 
 /// Builds `SvgElements` from the tag-nodes cyclic edge fixture.
 ///
-/// The fixture has 3 tags (`tag_a`, `tag_b`, `tag_c`) with a cyclic edge group,
-/// producing edges `tag_a -> tag_b`, `tag_b -> tag_c`, `tag_c -> tag_a`.
-/// All three tags end up at the same rank due to the cycle.
+/// The fixture has 3 tags (`tag_a`, `tag_b`, `tag_c`) connected by a cyclic
+/// edge group (`edge_dep_tags_cyclic`), producing edges `tag_a -> tag_b`,
+/// `tag_b -> tag_c`, `tag_c -> tag_a`. All three tags end up at the same rank
+/// due to the cycle.
 fn build_svg_elements_from_tag_nodes_cyclic_edge(
 ) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
     let overlay_diagram =
@@ -892,9 +893,13 @@ fn build_svg_elements_from_tag_nodes_cyclic_edge(
 
 /// Builds `SvgElements` from the process-step-nodes cyclic edge fixture.
 ///
-/// The fixture has a process `proc_test` with 3 steps (`proc_test_step_a`,
-/// `proc_test_step_b`, `proc_test_step_c`) connected by a cyclic edge group.
-/// All three steps end up at the same rank due to the cycle.
+/// The fixture has:
+/// - 3 thing nodes (`t_alice`, `t_bob`, `t_charlie`) connected by a symmetric
+///   edge group.
+/// - A process `proc_test` with 3 steps (`proc_test_step_a`,
+///   `proc_test_step_b`, `proc_test_step_c`) connected by a cyclic edge group
+///   (`edge_dep_proc_steps_cyclic`). All three steps end up at the same rank
+///   due to the cycle.
 fn build_svg_elements_from_process_step_nodes_cyclic_edge(
 ) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
     let overlay_diagram =
@@ -926,10 +931,10 @@ fn build_svg_elements_from_process_step_nodes_cyclic_edge(
 /// Tag nodes skip cycle routing and use normal nearest-face routing, so all
 /// edges in the tag fixture must have zero protrusion.
 ///
-/// The fixture has 3 tags at the same rank. The non-adjacent edge
-/// `tag_c -> tag_a` (positions 2 and 0, diff = 2) would ordinarily trigger
-/// cycle routing; the tag-node exemption overrides this and forces normal
-/// routing (protrusion = 0).
+/// The fixture has 3 tags at the same rank connected by a cyclic edge group.
+/// The wrapping edge `tag_c -> tag_a` (positions 2 and 0, diff = 2) would
+/// ordinarily trigger cycle routing; the tag-node exemption overrides this
+/// and forces normal routing (protrusion = 0).
 #[test]
 fn test_tag_node_edges_protrusion_is_zero() {
     for svg_elements in build_svg_elements_from_tag_nodes_cyclic_edge() {
@@ -959,16 +964,37 @@ fn test_tag_node_edges_protrusion_is_zero() {
 }
 
 /// Process step nodes skip cycle routing and use normal nearest-face routing,
-/// so all edges in the process-step fixture must have zero protrusion.
+/// so all edges between process step nodes must have zero protrusion.
 ///
-/// The fixture has 3 process steps in the same process at the same rank. The
-/// non-adjacent edge `proc_test_step_a -> proc_test_step_c` (positions 0 and 2,
-/// diff = 2) would ordinarily trigger cycle routing; the process-step-node
-/// exemption overrides this and forces normal routing (protrusion = 0).
+/// The fixture has 3 process steps (`proc_test_step_a`, `proc_test_step_b`,
+/// `proc_test_step_c`) in `proc_test` connected by a cyclic edge group. All
+/// three steps end up at the same rank due to the cycle. The wrapping edge
+/// `proc_test_step_c -> proc_test_step_a` (positions 2 and 0, diff = 2) would
+/// ordinarily trigger cycle routing; the process-step-node exemption overrides
+/// this and forces normal routing (protrusion = 0).
+///
+/// The fixture also contains thing nodes with their own cyclic edge group;
+/// those edges are checked in
+/// [`test_thing_node_cycle_edges_not_routed_around_process_node`].
 #[test]
 fn test_process_step_node_edges_protrusion_is_zero() {
     for svg_elements in build_svg_elements_from_process_step_nodes_cyclic_edge() {
+        // Identify process step nodes: they have a circle shape whereas process
+        // container nodes and thing/tag nodes do not.
+        let process_step_node_ids: std::collections::HashSet<String> = svg_elements
+            .svg_node_infos
+            .iter()
+            .filter(|n| n.circle.is_some())
+            .map(|n| n.node_id.as_str().to_owned())
+            .collect();
+
         for edge in &svg_elements.svg_edge_infos {
+            let from_is_step = process_step_node_ids.contains(edge.from_node_id.as_str());
+            let to_is_step = process_step_node_ids.contains(edge.to_node_id.as_str());
+            if !from_is_step && !to_is_step {
+                continue; // Not a process-step edge; skip.
+            }
+
             assert_eq!(
                 edge.ortho_protrusion_params.from_protrusion,
                 0.0,
@@ -989,6 +1015,68 @@ fn test_process_step_node_edges_protrusion_is_zero() {
                 edge.to_node_id,
                 edge.ortho_protrusion_params.to_protrusion,
             );
+        }
+    }
+}
+
+/// In a `LeftToRight` diagram containing both thing nodes and a process node,
+/// thing-node cycle edges must be routed using only thing-node sibling extents
+/// -- not clearing process nodes.
+///
+/// In the `0005` fixture, thing nodes sit in a single vertical column at
+/// `x = 20`, `width = 83` (right face at `x = 103`). The process node starts
+/// further to the right. The non-adjacent same-rank edge `alice -> charlie`
+/// uses Right/Right face routing and protrudes to the right. Before the
+/// grouping fix, the protrusion was computed as 179 px (clearing the process
+/// node's right edge). After the fix, the protrusion is based only on
+/// thing-node sibling extents, so every path coordinate remains to the left
+/// of the process node.
+#[test]
+fn test_thing_node_cycle_edges_not_routed_around_process_node() {
+    for svg_elements in build_svg_elements_from_process_step_nodes_cyclic_edge() {
+        let Some(proc_node) = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "proc_test")
+        else {
+            continue;
+        };
+        // Any thing-node edge path coordinate must stay strictly to the left
+        // of the process node's left boundary.
+        let process_left_x = proc_node.x;
+
+        for edge in &svg_elements.svg_edge_infos {
+            // Only check edges where both endpoints are thing nodes
+            // (process_id is None for thing/tag nodes; Some for process nodes
+            // and process step nodes).
+            let from_node = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id == edge.from_node_id);
+            let to_node = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id == edge.to_node_id);
+            let is_thing_edge = from_node.map_or(false, |n| n.process_id.is_none())
+                && to_node.map_or(false, |n| n.process_id.is_none());
+            if !is_thing_edge {
+                continue;
+            }
+
+            let coords = parse_path_endpoints(&edge.path_d);
+            for (x, _y) in &coords {
+                assert!(
+                    *x < process_left_x,
+                    "Thing-node edge {:?} ({} -> {}) has path point x={:.2} >= \
+                     process left boundary x={:.2}; edge is being routed around \
+                     the process node instead of only around thing nodes",
+                    edge.edge_id,
+                    edge.from_node_id,
+                    edge.to_node_id,
+                    x,
+                    process_left_x,
+                );
+            }
         }
     }
 }

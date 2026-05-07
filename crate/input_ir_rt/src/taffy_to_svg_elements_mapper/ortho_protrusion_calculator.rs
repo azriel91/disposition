@@ -1,5 +1,8 @@
-use disposition_ir_model::node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested};
-use disposition_model_common::{Map, RankDir};
+use disposition_ir_model::{
+    entity::EntityTypes,
+    node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
+};
+use disposition_model_common::{entity::EntityType, Map, RankDir};
 use disposition_svg_model::{OrthoProtrusionParams, SpacerProtrusionParams, SvgNodeInfo};
 use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
 
@@ -141,6 +144,20 @@ struct RankGapKey {
     rank_high: NodeRank,
 }
 
+/// The high-level category of a node for grouping protrusion calculations.
+///
+/// Protrusions and spacer computations are independent per category:
+/// thing-node edges only consider other thing nodes when computing rank
+/// gap boundaries and sibling extents; tag-node edges only consider tag nodes;
+/// process-node edges only consider process and process step nodes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NodeCategory {
+    Thing,
+    Tag,
+    Process,
+    Other,
+}
+
 impl OrthoProtrusionCalculator {
     /// Calculates protrusion parameters for every edge in every group.
     ///
@@ -170,6 +187,7 @@ impl OrthoProtrusionCalculator {
         >,
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
+        entity_types: &EntityTypes<'id>,
     ) -> Vec<Vec<OrthoProtrusionParams>> {
         // === Step 1: Resolve spacer coordinates and initialize output === //
         //
@@ -245,6 +263,7 @@ impl OrthoProtrusionCalculator {
                         svg_node_info_map,
                         node_nesting_infos,
                         node_ranks_nested,
+                        entity_types,
                         &mut rank_gap_entries,
                     );
                     continue;
@@ -639,6 +658,7 @@ impl OrthoProtrusionCalculator {
             node_nesting_infos,
             node_ranks_nested,
             svg_node_info_map,
+            entity_types,
             &mut result,
         );
 
@@ -1387,6 +1407,7 @@ impl OrthoProtrusionCalculator {
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
+        entity_types: &EntityTypes<'id>,
         rank_gap_entries: &mut Map<RankGapKey, Vec<RankGapEntry>>,
     ) {
         // Step 1: Skip if from_face or to_face is None.
@@ -1469,9 +1490,11 @@ impl OrthoProtrusionCalculator {
         // maximum bottom edge (y + height_collapsed) of all R-1 nodes.
         // For `Bottom` face: adjacent rank R+1 is visually below; we want the
         // minimum top edge (y) of all R+1 nodes.
+        let from_category = Self::node_category(&pass1_info.edge.from, entity_types);
         let adjacent_boundary_opt: Option<f32> = ranks_in_scope
             .iter()
             .filter(|&(_, rank)| *rank == adjacent_rank)
+            .filter(|(node_id, _)| Self::node_category(node_id, entity_types) == from_category)
             .filter_map(|(node_id, _)| svg_node_info_map.get(node_id).copied())
             .fold(None, |acc, info| {
                 let coord = match from_face {
@@ -1543,6 +1566,7 @@ impl OrthoProtrusionCalculator {
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        entity_types: &EntityTypes<'id>,
         result: &mut [Vec<OrthoProtrusionParams>],
     ) {
         for (group_idx, group) in all_pass1_groups.iter().enumerate() {
@@ -1562,6 +1586,7 @@ impl OrthoProtrusionCalculator {
                         node_nesting_infos,
                         node_ranks_nested,
                         svg_node_info_map,
+                        entity_types,
                     );
                     if min_from > 0.0 {
                         let params = &mut result[group_idx][edge_idx];
@@ -1578,6 +1603,7 @@ impl OrthoProtrusionCalculator {
                         node_nesting_infos,
                         node_ranks_nested,
                         svg_node_info_map,
+                        entity_types,
                     );
                     if min_to > 0.0 {
                         let params = &mut result[group_idx][edge_idx];
@@ -1608,6 +1634,7 @@ impl OrthoProtrusionCalculator {
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        entity_types: &EntityTypes<'id>,
     ) -> f32 {
         // 1. Compute LCA depth.
         let lca_depth = Self::lca_depth(node_id, other_node_id, node_nesting_infos);
@@ -1635,10 +1662,14 @@ impl OrthoProtrusionCalculator {
             return 0.0;
         };
 
-        // 5. Collect all same-rank siblings (including the divergent ancestor).
+        // 5. Collect all same-rank siblings of the same node category (including the
+        //    divergent ancestor). Nodes from other categories (e.g. process nodes) are
+        //    excluded so that thing-node edges are not routed around process nodes.
+        let node_cat = Self::node_category(node_id, entity_types);
         let same_rank_siblings: Vec<&NodeId<'id>> = ranks
             .iter()
             .filter(|&(_, rank)| *rank == div_ancestor_rank)
+            .filter(|(id, _)| Self::node_category(id, entity_types) == node_cat)
             .map(|(id, _)| id)
             .collect();
 
@@ -1767,5 +1798,30 @@ impl OrthoProtrusionCalculator {
     ) -> Option<&'a NodeId<'id>> {
         let chain = &node_nesting_infos.get(node_id)?.ancestor_chain;
         chain.get(lca_depth)
+    }
+
+    /// Returns the [`NodeCategory`] of a node from its entity types.
+    ///
+    /// - `ThingDefault` nodes are [`NodeCategory::Thing`].
+    /// - `TagDefault` nodes are [`NodeCategory::Tag`].
+    /// - `ProcessDefault` and `ProcessStepDefault` nodes are
+    ///   [`NodeCategory::Process`].
+    /// - All other nodes are [`NodeCategory::Other`].
+    fn node_category<'id>(node_id: &NodeId<'id>, entity_types: &EntityTypes<'id>) -> NodeCategory {
+        entity_types
+            .get(node_id.as_ref())
+            .map_or(NodeCategory::Other, |types| {
+                if types.contains(&EntityType::ThingDefault) {
+                    NodeCategory::Thing
+                } else if types.contains(&EntityType::TagDefault) {
+                    NodeCategory::Tag
+                } else if types.contains(&EntityType::ProcessDefault)
+                    || types.contains(&EntityType::ProcessStepDefault)
+                {
+                    NodeCategory::Process
+                } else {
+                    NodeCategory::Other
+                }
+            })
     }
 }

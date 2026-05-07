@@ -165,6 +165,13 @@ Protrusion calculation is implemented in [`ortho_protrusion_calculator.rs`](crat
 20. **Rank gap entry**: a `RankGapEntry` record representing one endpoint in one rank gap. It stores: the edge's group/index, which endpoint kind it is (`FromEndpoint`, `ToEndpoint`, `SpacerEntry`, `SpacerExit`), which gap side, the cross-axis coordinate (perpendicular to the rank direction), the face offset (slot offset from face midpoint), and the pixel distance of the rank gap.
 21. **Crossing edge**: an edge that has entries on **both** sides of the same rank gap (e.g. a from-endpoint on the `Low` side and a spacer entry on the `High` side of the same gap). Crossing edges need special treatment to avoid their routing midpoints coinciding.
 22. **Cross-axis coordinate**: the coordinate perpendicular to the rank direction. For `Top`/`Bottom` faces (vertical rank flow) this is the X coordinate; for `Left`/`Right` faces (horizontal rank flow) this is the Y coordinate. Used to sort endpoints spatially within a gap.
+23. **Node category**: a coarse grouping of node entity types used to keep protrusion and rank-gap calculations independent across unrelated node groups. The categories are:
+    - `Thing` -- `ThingDefault` nodes.
+    - `Tag` -- `TagDefault` nodes.
+    - `Process` -- `ProcessDefault` and `ProcessStepDefault` nodes.
+    - `Other` -- nodes with no recognised entity type.
+
+    When computing rank-gap boundaries (for cycle edges) or divergent-sibling extents (for all edges), only nodes within the **same category** as the edge's from-node are considered. This prevents thing-node edges from being routed around process nodes, and tag-node edges from being routed around thing nodes, even when those unrelated nodes share the same rank in the layout. Implemented by `OrthoProtrusionCalculator::node_category` and applied in `cycle_edge_collect_rank_gap_entries` and `min_protrusion_divergent_sibling_extent`.
 
 
 ### Algorithm overview (`fn calculate`)
@@ -179,7 +186,7 @@ The algorithm in `OrthoProtrusionCalculator::calculate` has four steps:
 
     For each edge across all groups:
 
-    - **Same-rank (cycle) edges** with `Top` or `Bottom` faces are handled by `cycle_edge_collect_rank_gap_entries`. Both the from-endpoint and the to-endpoint are registered as same-side entries in the adjacent rank gap: `Top` face -> gap `(rank-1, rank)` on the `High` side; `Bottom` face -> gap `(rank, rank+1)` on the `Low` side. The `rank_gap_px` for each endpoint is the pixel distance from the node's face to the nearest boundary of the adjacent rank (the maximum bottom edge of rank-R-1 nodes for `Top`, or the minimum top edge of rank-R+1 nodes for `Bottom`). Cycle edges with `Left` or `Right` faces are skipped here and fall through to the `MIN_PROTRUSION_PX` safety net in Step 6.
+    - **Same-rank (cycle) edges** with `Top` or `Bottom` faces are handled by `cycle_edge_collect_rank_gap_entries`. Both the from-endpoint and the to-endpoint are registered as same-side entries in the adjacent rank gap: `Top` face -> gap `(rank-1, rank)` on the `High` side; `Bottom` face -> gap `(rank, rank+1)` on the `Low` side. The `rank_gap_px` for each endpoint is the pixel distance from the node's face to the nearest boundary of the adjacent rank (the maximum bottom edge of rank-R-1 nodes for `Top`, or the minimum top edge of rank-R+1 nodes for `Bottom`). **Only nodes of the same category as the from-node** are included in this boundary search, so thing-node cycle edges are not pushed out by process nodes at the same rank. Cycle edges with `Left` or `Right` faces are skipped here and fall through to the `MIN_PROTRUSION_PX` safety net in Step 6.
     - **Non-cycle edges**: The from-endpoint is registered in the rank gap between the from-node's rank and the adjacent rank toward the to-node. The to-endpoint is registered in the rank gap between the to-node's rank and the adjacent rank toward the from-node.
     - Each intermediate spacer contributes two entries: its entry side protrudes into the gap before it, and its exit side protrudes into the gap after it. The first spacer's entry shares the same gap as the from-endpoint (opposite side), and the last spacer's exit shares the same gap as the to-endpoint (opposite side).
     - Each entry records its `GapSide`, cross-axis coordinate, face offset, and rank gap pixel distance (computed by `rank_gap_px` for node endpoints or `spacer_gap_px` for spacer-to-spacer gaps).
@@ -191,6 +198,10 @@ The algorithm in `OrthoProtrusionCalculator::calculate` has four steps:
 26. **Step 4: Propagate node protrusions to shared spacer sides (fallback).**
 
     If the first spacer's entry protrusion or the last spacer's exit protrusion was not assigned (because the node face was `None`), it falls back to the from/to protrusion value as a safety net.
+
+27. **Step 5: Enforce minimum protrusions to clear divergent ancestor siblings (`fn protrusions_adjust_for_divergent_siblings`).**
+
+    For edges where the from/to nodes are at different nesting levels, each endpoint's protrusion must be large enough to clear all same-rank sibling nodes of the endpoint's **Divergent ancestor** at the LCA level. **Only nodes of the same category as the endpoint node** are considered as siblings, so a thing-node endpoint is not made to clear process nodes that happen to share the same rank.
 
 
 ### Protrusion depth assignment (`fn protrusions_assign`)
@@ -238,6 +249,7 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 37. **`cross_axis_coord`**: returns the cross-axis coordinate: X for `Top`/`Bottom` faces, Y for `Left`/`Right` faces.
 38. **`axis_distance`**: computes the absolute distance along the rank axis between two points: `|by - ay|` for `Top`/`Bottom` faces, `|bx - ax|` for `Left`/`Right` faces.
 39. **`protrusion_write`**: writes the computed protrusion depth into the correct slot in the output (`from_protrusion`, `to_protrusion`, or `spacer_protrusions[i].entry_protrusion` / `exit_protrusion`), dispatching on `RankGapEndpointKind`.
+40. **`node_category`**: maps a node's entity types to a [`NodeCategory`](#concepts) variant (`Thing`, `Tag`, `Process`, or `Other`). Used in `cycle_edge_collect_rank_gap_entries` and `min_protrusion_divergent_sibling_extent` to filter out unrelated node types from rank-gap and sibling-extent calculations.
 
 
 ### How protrusions are consumed
@@ -261,7 +273,12 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 ## Cycle Edge Routing
 
 46. Edges between nodes at the **same `NodeRank`** (cycle edges) need special treatment for two reasons. First, they need clockwise face selection to route around the outside of nodes (rather than connecting nearest faces, which would route through nodes). Second, their protrusions must be distributed using the adjacent rank gap's available space, so that multiple cycle edges sharing the same gap get distinct protrusion depths instead of all collapsing to the same fixed minimum. Without special handling the Z/S routing bend falls exactly at the node face boundary and the segment overlaps the node.
-47. Same-rank edges are detected in `build_edge_pass1_infos` in [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs) by comparing the `NodeRank` of the `from` and `to` nodes before face selection. When `rank_from == rank_to`, the `is_same_rank` flag is set to `true` and passed to `faces_select`.
+47. Same-rank edges are detected in `build_edge_pass1_infos` in [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs) by comparing the `NodeRank` of the `from` and `to` nodes before face selection. When `rank_from == rank_to`, the `is_same_rank` flag is set to `true` and passed to `faces_select`. The `is_cycle_edge` flag is set to `true` only when all of the following conditions hold:
+    - `rank_from == rank_to` (same rank),
+    - the two nodes are **not** adjacent siblings (nesting-path index difference > 1), and
+    - **neither** the `from` nor `to` node is a tag node, process node, or process step node (checked via `node_entity_type_is_tag_or_process`).
+
+    Tag, process, and process step nodes always use the normal nearest-face heuristic regardless of rank, so their edges never receive cycle routing or cycle protrusions.
 
 
 ### Clockwise face selection (`fn cycle_edge_faces_select`)

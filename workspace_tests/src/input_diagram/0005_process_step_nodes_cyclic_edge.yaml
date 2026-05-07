@@ -1,3 +1,24 @@
+things:
+  t_alice: Alice
+  t_bob: Bob
+  t_charlie: Charlie
+thing_hierarchy:
+  t_alice: {}
+  t_bob: {}
+  t_charlie: {}
+thing_dependencies:
+  edge_dep_bob_alice_charlie:
+    kind: symmetric
+    things:
+      - t_bob
+      - t_alice
+      - t_charlie
+  edge_dep_proc_steps_cyclic:
+    kind: cyclic
+    things:
+      - proc_test_step_a
+      - proc_test_step_b
+      - proc_test_step_c
 processes:
   proc_test:
     name: Test Process
@@ -5,10 +26,5 @@ processes:
       proc_test_step_a: Step A
       proc_test_step_b: Step B
       proc_test_step_c: Step C
-thing_dependencies:
-  edge_dep_steps:
-    kind: cyclic
-    things:
-      - proc_test_step_a
-      - proc_test_step_b
-      - proc_test_step_c
+render_options:
+  rank_dir: left_to_right
