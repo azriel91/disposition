@@ -1032,6 +1032,43 @@ fn test_cycle_edges_3_nodes_protrusion_non_zero() {
 /// For the 3-node symmetric edge diagram, no edge path coordinate must fall
 /// strictly inside any node bounding box.
 ///
+/// For the 3-node symmetric edge diagram, each edge's `from_protrusion` must
+/// equal its `to_protrusion` (symmetric U-shaped arc), and edges that route in
+/// the same direction (same face) must have distinct protrusion depths so their
+/// routing segments do not overlap.
+#[test]
+fn test_cycle_edges_3_nodes_symmetric_and_distinct_protrusions() {
+    for svg_elements in build_svg_elements_from_symmetric_3_nodes() {
+        // Verify from == to for every edge.
+        for edge in &svg_elements.svg_edge_infos {
+            assert_eq!(
+                edge.ortho_protrusion_params.from_protrusion,
+                edge.ortho_protrusion_params.to_protrusion,
+                "Edge {:?} from_protrusion {:.2} != to_protrusion {:.2}",
+                edge.edge_id,
+                edge.ortho_protrusion_params.from_protrusion,
+                edge.ortho_protrusion_params.to_protrusion,
+            );
+        }
+
+        // Verify that not all cycle edges have the same protrusion depth.
+        // With 3+ edges in the diagram there must be at least two distinct
+        // protrusion values (edges in the same direction group are stacked).
+        let mut protrusions: Vec<f32> = svg_elements
+            .svg_edge_infos
+            .iter()
+            .map(|e| e.ortho_protrusion_params.from_protrusion)
+            .collect();
+        protrusions.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        protrusions.dedup();
+        assert!(
+            protrusions.len() > 1,
+            "All cycle edges have the same protrusion {:.2}; expected distinct values",
+            protrusions[0],
+        );
+    }
+}
+
 /// All nodes are in the same column (`x = 20`, `width = 83`). Downward edges
 /// route to the right (`x >= node.x + node.width`) and upward edges route to
 /// the left (`x <= node.x`).

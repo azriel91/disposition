@@ -241,7 +241,6 @@ impl OrthoProtrusionCalculator {
                         edge_idx,
                         pass1_info,
                         from_slot_indices[edge_idx],
-                        to_slot_indices[edge_idx],
                         face_offsets_by_node_face,
                         svg_node_info_map,
                         node_nesting_infos,
@@ -636,16 +635,21 @@ impl OrthoProtrusionCalculator {
             &mut result,
         );
 
-        // === Step 6: Enforce minimum protrusion for same-rank (cycle) edges === //
+        // === Step 6: Finalise protrusion depths for cycle edges === //
         //
-        // Same-rank edges are skipped in step 2 (no rank gap to protrude into)
-        // and their sibling clearance from step 5 is zero (nodes share the
-        // same face coordinate). Without a non-zero protrusion the Z/S routing
-        // bend lands inside the node bounding box.
+        // For cycle edges registered in the adjacent rank gap (Step 2), equalise
+        // from and to protrusions to produce symmetric U-shaped arcs.
         //
-        // Applying MIN_PROTRUSION_PX ensures the bend is placed outside the
-        // node boundary regardless of relative node positions.
-        Self::protrusions_apply_cycle_edge_minimum(all_pass1_groups, &mut result);
+        // For unregistered cycle edges (boundary ranks or Left/Right faces),
+        // group by routing direction and assign stacked depths
+        // `(N * MIN_PROTRUSION_PX down to 1 * MIN_PROTRUSION_PX)` so that edges in
+        // the same group do not overlap.
+        Self::protrusions_assign_cycle_edges(
+            all_pass1_groups,
+            from_slot_indices_all,
+            face_offsets_by_node_face,
+            &mut result,
+        );
 
         result
     }
@@ -1186,56 +1190,182 @@ impl OrthoProtrusionCalculator {
         }
     }
 
-    /// Applies `MIN_PROTRUSION_PX` to both endpoints of every same-rank edge
-    /// that still has zero protrusion after steps 2-5.
+    /// Finalises protrusion depths for same-rank (cycle) edges.
     ///
-    /// Same-rank edges use clockwise cycle-routing faces (`Top`/`Top`,
-    /// `Bottom`/`Bottom`, `Right`/`Right`, `Left`/`Left`) which route entirely
-    /// outside the node bounding boxes. With no rank gap those edges are
-    /// skipped by the gap-based protrusion assignment, and the divergent-
-    /// sibling clearance is also zero because all same-rank siblings share the
-    /// same face coordinate. Without a forced minimum the Z/S routing bend
-    /// falls at the node face (y = node.y or x = node.x + node.width), which
-    /// lands inside the node.
-    fn protrusions_apply_cycle_edge_minimum<'id>(
+    /// After gap-based protrusion assignment in Step 2–3, some cycle edges may
+    /// have a `from_protrusion` assigned (those whose `Top`/`Bottom` face
+    /// registered in an adjacent rank gap), while others still have zero
+    /// (boundary-rank edges, or `Left`/`Right` face edges with no rank gap).
+    ///
+    /// This step handles both:
+    ///
+    /// 1. **Registered cycle edges** (`from_protrusion > 0`): copies
+    ///    `from_protrusion` to `to_protrusion` so both endpoints protrude
+    ///    equally, creating a symmetric U-shaped routing arc. Applies
+    ///    `MIN_PROTRUSION_PX` as a floor.
+    ///
+    /// 2. **Unregistered cycle edges** (`from_protrusion == 0`): groups edges
+    ///    by `(from_face, rank_from)` -- all edges routing in the same
+    ///    direction at the same rank. Within each group, sorts by face offset
+    ///    then cross-axis coordinate (same ordering as `protrusions_assign` for
+    ///    single-side entries). Assigns stacked depths:
+    ///    - N edges in group -> depths `[N * MIN, (N-1) * MIN, .., MIN]`
+    ///    - Sets `from_protrusion = to_protrusion = depth` for each edge.
+    fn protrusions_assign_cycle_edges<'id>(
         all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+        from_slot_indices_all: &[Vec<Option<usize>>],
+        face_offsets_by_node_face: &Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>,
         result: &mut [Vec<OrthoProtrusionParams>],
     ) {
+        struct UnregisteredEntry {
+            group_idx: usize,
+            edge_idx: usize,
+            face_offset: f32,
+            cross_axis: f32,
+            from_face: NodeFace,
+            rank_from: NodeRank,
+        }
+
+        let mut unregistered: Vec<UnregisteredEntry> = Vec::new();
+
         for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            let from_slot_indices = &from_slot_indices_all[group_idx];
             for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
+                // Only cycle edges with a valid face.
                 if pass1_info.rank_from != pass1_info.rank_to {
                     continue;
                 }
-                // Only apply to edges that have face contacts (non-self-loop,
-                // non-contained).
-                if pass1_info.from_face.is_none() {
+                let Some(from_face) = pass1_info.from_face else {
                     continue;
-                }
+                };
+
                 let params = &mut result[group_idx][edge_idx];
-                if params.from_protrusion < MIN_PROTRUSION_PX {
-                    params.from_protrusion = MIN_PROTRUSION_PX;
-                }
-                if params.to_protrusion < MIN_PROTRUSION_PX {
-                    params.to_protrusion = MIN_PROTRUSION_PX;
+
+                if params.from_protrusion > 0.0 {
+                    // Registered in adjacent rank gap: equalize from and to, apply
+                    // MIN floor.
+                    let depth = params.from_protrusion.max(MIN_PROTRUSION_PX);
+                    params.from_protrusion = depth;
+                    params.to_protrusion = depth;
+                } else {
+                    // Unregistered: collect for group stacking.
+                    let face_offset = Self::face_offset_resolve(
+                        pass1_info,
+                        from_slot_indices[edge_idx],
+                        true,
+                        face_offsets_by_node_face,
+                    );
+                    let cross_axis = Self::cross_axis_coord(
+                        pass1_info.from_node_x,
+                        pass1_info.from_node_y,
+                        from_face,
+                    );
+                    unregistered.push(UnregisteredEntry {
+                        group_idx,
+                        edge_idx,
+                        face_offset,
+                        cross_axis,
+                        from_face,
+                        rank_from: pass1_info.rank_from,
+                    });
                 }
             }
         }
+
+        if unregistered.is_empty() {
+            return;
+        }
+
+        // Sort: group by (face discriminant, rank_from), then within group by
+        // (face_offset ascending, cross_axis ascending). This produces the same
+        // ordering as `protrusions_assign` for single-side entries.
+        unregistered.sort_by(|a, b| {
+            let face_a = match a.from_face {
+                NodeFace::Top => 0u8,
+                NodeFace::Bottom => 1,
+                NodeFace::Left => 2,
+                NodeFace::Right => 3,
+            };
+            let face_b = match b.from_face {
+                NodeFace::Top => 0u8,
+                NodeFace::Bottom => 1,
+                NodeFace::Left => 2,
+                NodeFace::Right => 3,
+            };
+            let face_cmp = face_a.cmp(&face_b);
+            if face_cmp != std::cmp::Ordering::Equal {
+                return face_cmp;
+            }
+            let rank_cmp = a.rank_from.cmp(&b.rank_from);
+            if rank_cmp != std::cmp::Ordering::Equal {
+                return rank_cmp;
+            }
+            let off_cmp = a
+                .face_offset
+                .partial_cmp(&b.face_offset)
+                .unwrap_or(std::cmp::Ordering::Equal);
+            if off_cmp != std::cmp::Ordering::Equal {
+                return off_cmp;
+            }
+            a.cross_axis
+                .partial_cmp(&b.cross_axis)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        // Assign stacked depths within each group.
+        let mut group_start = 0;
+        while group_start < unregistered.len() {
+            // Find the end of the current group (same face + rank).
+            let group_end = {
+                let key_face = unregistered[group_start].from_face;
+                let key_rank = unregistered[group_start].rank_from;
+                unregistered[group_start..]
+                    .iter()
+                    .position(|e| e.from_face != key_face || e.rank_from != key_rank)
+                    .map(|rel| group_start + rel)
+                    .unwrap_or(unregistered.len())
+            };
+
+            let group = &unregistered[group_start..group_end];
+            let n = group.len();
+            let max_prot = n as f32 * MIN_PROTRUSION_PX;
+
+            for (k, entry) in group.iter().enumerate() {
+                // Slot 0 (first sorted entry) -> longest protrusion (n * MIN).
+                // Slot N-1 (last sorted entry) -> shortest protrusion (1 * MIN).
+                let depth = if n == 1 {
+                    MIN_PROTRUSION_PX
+                } else {
+                    max_prot - k as f32 * (max_prot - MIN_PROTRUSION_PX) / (n - 1) as f32
+                };
+                let params = &mut result[entry.group_idx][entry.edge_idx];
+                params.from_protrusion = depth;
+                params.to_protrusion = depth;
+            }
+
+            group_start = group_end;
+        }
     }
 
-    /// Registers cycle edge endpoints in the adjacent rank gap so their
-    /// protrusion depths are distributed proportionally to the available gap
+    /// Registers the cycle edge's **from-endpoint** in the adjacent rank gap
+    /// so protrusion depths are distributed proportionally to the available gap
     /// space.
     ///
     /// For cycle edges (`rank_from == rank_to`), both endpoints are at the same
-    /// rank and use the same face. Depending on the face, endpoints are
+    /// rank and use the same face. Depending on the face, the from-endpoint is
     /// registered in an adjacent gap:
     ///
-    /// - `Top` face at rank R → register in gap `(R-1, R)` on the `High` side.
+    /// - `Top` face at rank R -> register in gap `(R-1, R)` on the `High` side.
     ///   Skipped if R == 0 (no gap above).
-    /// - `Bottom` face at rank R → register in gap `(R, R+1)` on the `Low`
+    /// - `Bottom` face at rank R -> register in gap `(R, R+1)` on the `Low`
     ///   side.
-    /// - `Left` / `Right` faces → return early;
-    ///   `protrusions_apply_cycle_edge_minimum` handles the fallback.
+    /// - `Left` / `Right` faces -> return early;
+    ///   `protrusions_assign_cycle_edges` (Step 6) handles the fallback.
+    ///
+    /// Only the from-endpoint is registered here.
+    /// `protrusions_assign_cycle_edges` (Step 6) later copies
+    /// `from_protrusion` to `to_protrusion` so both endpoints protrude equally,
+    /// producing a symmetric U-shaped arc.
     ///
     /// This allows multiple cycle edges sharing the same gap to receive
     /// proportionally distributed protrusion depths rather than all getting the
@@ -1246,7 +1376,6 @@ impl OrthoProtrusionCalculator {
         edge_idx: usize,
         pass1_info: &EdgePass1Info<'_, 'id>,
         from_slot_index: Option<usize>,
-        to_slot_index: Option<usize>,
         face_offsets_by_node_face: &Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
         node_nesting_infos: &NodeNestingInfos<'id>,
@@ -1295,7 +1424,7 @@ impl OrthoProtrusionCalculator {
                 )
             }
             NodeFace::Left | NodeFace::Right => {
-                // No rank gap applicable; protrusions_apply_cycle_edge_minimum
+                // No rank gap applicable; protrusions_assign_cycle_edges
                 // handles the fallback for these faces.
                 return;
             }
@@ -1318,13 +1447,14 @@ impl OrthoProtrusionCalculator {
             return;
         };
 
-        // Look up from and to node layout info.
+        // Look up from node layout info.
         let Some(&from_info) = svg_node_info_map.get(&pass1_info.edge.from) else {
             return;
         };
-        let Some(&to_info) = svg_node_info_map.get(&pass1_info.edge.to) else {
+        // Guard: if the to-node is missing from layout, skip registration.
+        if svg_node_info_map.get(&pass1_info.edge.to).is_none() {
             return;
-        };
+        }
 
         // Step 7: Compute the adjacent rank boundary.
         //
@@ -1369,34 +1499,19 @@ impl OrthoProtrusionCalculator {
             return;
         }
 
-        // Step 9: Compute to_rank_gap_px similarly.
-        let to_rank_gap_px = match from_face {
-            NodeFace::Top => to_info.y - adjacent_boundary,
-            NodeFace::Bottom => adjacent_boundary - (to_info.y + to_info.height_collapsed),
-            _ => unreachable!(),
-        };
-        if to_rank_gap_px <= 0.0 {
-            return;
-        }
-
-        // Step 10: Resolve from face offset.
+        // Step 9: Resolve from face offset.
         let from_offset =
             Self::face_offset_resolve(pass1_info, from_slot_index, true, face_offsets_by_node_face);
 
-        // Step 11: Compute from cross-axis coordinate.
+        // Step 10: Compute from cross-axis coordinate.
         let cross_axis_from =
             Self::cross_axis_coord(pass1_info.from_node_x, pass1_info.from_node_y, from_face);
 
-        // Step 12: Resolve to face offset and cross-axis coordinate.
-        // For cycle edges, from_face == to_face, so we reuse from_face.
-        let to_offset =
-            Self::face_offset_resolve(pass1_info, to_slot_index, false, face_offsets_by_node_face);
-        let cross_axis_to =
-            Self::cross_axis_coord(pass1_info.to_node_x, pass1_info.to_node_y, from_face);
-
-        // Step 13: Register both endpoints in the rank gap.
+        // Step 11: Register the from-endpoint in the rank gap.
+        // `protrusions_assign_cycle_edges` (Step 6) will copy from_protrusion
+        // to to_protrusion afterward to produce a symmetric U-shaped arc.
         rank_gap_entries
-            .entry(gap_key.clone())
+            .entry(gap_key)
             .or_default()
             .push(RankGapEntry {
                 pass1_group_index: group_idx,
@@ -1406,19 +1521,6 @@ impl OrthoProtrusionCalculator {
                 cross_axis_coord: cross_axis_from,
                 face_offset: from_offset,
                 rank_gap_px: from_rank_gap_px,
-            });
-
-        rank_gap_entries
-            .entry(gap_key)
-            .or_default()
-            .push(RankGapEntry {
-                pass1_group_index: group_idx,
-                edge_index: edge_idx,
-                endpoint_kind: RankGapEndpointKind::ToEndpoint,
-                gap_side,
-                cross_axis_coord: cross_axis_to,
-                face_offset: to_offset,
-                rank_gap_px: to_rank_gap_px,
             });
     }
 
