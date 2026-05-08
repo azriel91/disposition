@@ -1617,21 +1617,19 @@ impl OrthoProtrusionCalculator {
                     .map(|spacers| !spacers.is_empty())
                     .unwrap_or(false);
 
-                if !edge_has_spacers {
-                    if let Some(to_face) = pass1_info.to_face {
-                        let min_to = Self::min_protrusion_divergent_sibling_extent(
-                            &pass1_info.edge.to,
-                            &pass1_info.edge.from,
-                            to_face,
-                            node_nesting_infos,
-                            node_ranks_nested,
-                            svg_node_info_map,
-                            entity_types,
-                        );
-                        if min_to > 0.0 {
-                            let params = &mut result[group_idx][edge_idx];
-                            params.to_protrusion = params.to_protrusion.max(min_to);
-                        }
+                if !edge_has_spacers && let Some(to_face) = pass1_info.to_face {
+                    let min_to = Self::min_protrusion_divergent_sibling_extent(
+                        &pass1_info.edge.to,
+                        &pass1_info.edge.from,
+                        to_face,
+                        node_nesting_infos,
+                        node_ranks_nested,
+                        svg_node_info_map,
+                        entity_types,
+                    );
+                    if min_to > 0.0 {
+                        let params = &mut result[group_idx][edge_idx];
+                        params.to_protrusion = params.to_protrusion.max(min_to);
                     }
                 }
             }
