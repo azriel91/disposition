@@ -366,6 +366,30 @@ impl EdgePathBuilderPass2Ortho {
                     1.0
                 };
                 let bend_y = qy + sign * ARC_RADIUS;
+                // Guard: when the gap between p and q is smaller than
+                // `ARC_RADIUS`, the formula above can place the bend past
+                // p (against p's departure direction), making leg 1 travel
+                // in the wrong direction. When this happens, recompute the
+                // bend so that it is strictly beyond both waypoints in the
+                // direction of p's departure, ensuring leg 1 always
+                // travels in the expected direction.
+                //
+                // # Example
+                //
+                // `py = 155.0, qy = 152.696, p_dy = -1.0`: sign = +1, so
+                // `bend_y = 156.696`, which is below p (155). The guard
+                // detects `bend_y >= py` and resets to
+                // `min(py, qy) - ARC_RADIUS = 148.696`, placing the bend
+                // above both waypoints so leg 1 travels upward from p.
+                let bend_y = if p_dy < 0.0 && bend_y >= py {
+                    // p departs upward; place the bend above both waypoints.
+                    py.min(qy) - ARC_RADIUS
+                } else if p_dy > 0.0 && bend_y <= py {
+                    // p departs downward; place the bend below both waypoints.
+                    py.max(qy) + ARC_RADIUS
+                } else {
+                    bend_y
+                };
                 let corner1_x = px;
                 let corner1_y = bend_y;
                 let corner2_x = qx;
@@ -392,6 +416,17 @@ impl EdgePathBuilderPass2Ortho {
                     1.0
                 };
                 let bend_x = qx + sign * ARC_RADIUS;
+                // Guard: same logic as the vertical case but on the
+                // horizontal axis. When the gap is smaller than
+                // `ARC_RADIUS`, recompute the bend so that it is beyond
+                // both waypoints in the direction of p's departure.
+                let bend_x = if p_dx < 0.0 && bend_x >= px {
+                    px.min(qx) - ARC_RADIUS
+                } else if p_dx > 0.0 && bend_x <= px {
+                    px.max(qx) + ARC_RADIUS
+                } else {
+                    bend_x
+                };
                 let corner1_x = bend_x;
                 let corner1_y = py;
                 let corner2_x = bend_x;

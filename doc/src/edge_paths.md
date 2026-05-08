@@ -333,3 +333,16 @@ This function assigns protrusion depths to all endpoints within a single rank ga
     - Horizontal Z/S: if `p_dx < 0.0` (face points leftward, e.g. `Left`) then `sign = -1` (bend leftward); if `p_dx > 0.0` (face points rightward, e.g. `Right`) then `sign = +1` (bend rightward).
 
     This ensures the U-shaped bend of the routing segment is placed entirely outside the node bounding boxes.
+
+### Small-gap guard for Z/S bends
+
+56. A second edge case arises when the gap between the two protrusion tips is **smaller than `ARC_RADIUS`**. The standard formula `bend = qy + sign * ARC_RADIUS` (for vertical) or `bend = qx + sign * ARC_RADIUS` (for horizontal) can then place the bend **past `p`** in the direction opposite to `p`'s departure, making Leg 1 travel against the departure direction.
+
+    **Example**: in a `TopToBottom` diagram with an edge from a nested node `alice` (inside `alice_outer`) to another nested node `charlie_1` (inside `charlie_outer`), the to-protrusion tip is at the top of `charlie_outer` (e.g. `py = 155`) and the from-protrusion tip is just above it (e.g. `qy = 152.696`). The gap `py - qy = 2.304 < ARC_RADIUS = 4.0`, so `bend_y = qy + ARC_RADIUS = 156.696 > py = 155`. Leg 1 then goes **downward** from `p` (into `charlie_outer`) even though `p.dir = (0, -1)` says the path should depart **upward**. Visually the path goes right and then curves up at the container boundary -- backwards.
+
+57. The guard after the sign/bend computation detects this situation and recomputes the bend:
+    - Vertical: if `p_dy < 0.0` (upward departure) and `bend_y >= py`, reset `bend_y = min(py, qy) - ARC_RADIUS` -- placing the bend above both waypoints.
+    - Vertical: if `p_dy > 0.0` (downward departure) and `bend_y <= py`, reset `bend_y = max(py, qy) + ARC_RADIUS` -- placing the bend below both waypoints.
+    - Horizontal: symmetric conditions on `p_dx` and `bend_x`.
+
+    This ensures Leg 1 always travels in `p`'s departure direction. The trade-off is a small (~`ARC_RADIUS`) excursion at the `q` end of the segment, which is in the open routing gap between the two containers and is not visually prominent.
