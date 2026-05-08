@@ -1654,6 +1654,54 @@ fn test_edge_to_nested_rank_1_node_has_cross_container_spacers() {
     }
 }
 
+/// In `0007`, the `t_alice -> t_charlie_3` edge has one cross-container
+/// spacer inside `t_charlie_outer` that routes around the rank-0 siblings.
+/// The to_protrusion from `t_charlie_3`'s Top face should be small enough
+/// to only reach the spacer exit (inside `t_charlie_outer`), NOT overshoot
+/// all the way to `t_charlie_outer`'s top boundary. Overshooting causes the
+/// path to re-enter the container from the outside and produces a zigzag.
+#[test]
+fn test_edge_to_nested_rank_1_node_to_protrusion_stays_within_container() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_rank_1_node() {
+        let charlie_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_outer")
+            .expect("Expected t_charlie_outer");
+        let charlie_3 = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_3")
+            .expect("Expected t_charlie_3");
+        let alice_charlie_3_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_charlie_3"
+            })
+            .expect("Expected edge from t_alice to t_charlie_3");
+
+        // The maximum sensible to_protrusion is the distance from
+        // t_charlie_3's Top face (y = charlie_3.y) to the first
+        // spacer exit, which is well inside t_charlie_outer. The
+        // container-exit distance (charlie_3.y - charlie_outer.y)
+        // is the pathological over-shoot value that causes the zigzag.
+        let container_exit_distance = charlie_3.y - charlie_outer.y;
+        let to_protrusion = alice_charlie_3_edge.ortho_protrusion_params.to_protrusion;
+        assert!(
+            to_protrusion < container_exit_distance,
+            "to_protrusion ({to_protrusion:.2}) should be less than the \
+             container-exit distance ({container_exit_distance:.2} = \
+             charlie_3.y {:.2} - charlie_outer.y {:.2}). \
+             A to_protrusion equal to the container-exit distance means the \
+             path overshoots t_charlie_outer's top boundary, re-enters the \
+             container from outside, and produces a zigzag.",
+            charlie_3.y,
+            charlie_outer.y,
+        );
+    }
+}
+
 /// In `0007`, `t_charlie_3` is at rank 1 inside `t_charlie_outer`, and the
 /// only lower rank (rank 0) contains two siblings: `t_charlie_1` and
 /// `t_charlie_2`. The edge from `t_alice` to `t_charlie_3` should route

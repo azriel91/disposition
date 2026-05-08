@@ -203,6 +203,8 @@ The algorithm in `OrthoProtrusionCalculator::calculate` has four steps:
 
     For edges where the from/to nodes are at different nesting levels, each endpoint's protrusion must be large enough to clear all same-rank sibling nodes of the endpoint's **Divergent ancestor** at the LCA level. **Only nodes of the same category as the endpoint node** are considered as siblings, so a thing-node endpoint is not made to clear process nodes that happen to share the same rank.
 
+    The FROM endpoint adjustment is always applied. The **TO endpoint adjustment is skipped when the edge has cross-container spacers**: in that case the spacer already handles routing inside the to-node's container, so the `to_protrusion` only needs to reach the spacer exit (not exit the container's far boundary). Applying the adjustment with a spacer present would force `to_protrusion` all the way to the container boundary, causing the path to overshoot the spacer, re-enter the container from the outside, and produce a visual zigzag.
+
 
 ### Protrusion depth assignment (`fn protrusions_assign`)
 

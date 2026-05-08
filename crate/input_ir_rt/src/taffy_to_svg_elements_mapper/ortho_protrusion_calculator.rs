@@ -653,8 +653,14 @@ impl OrthoProtrusionCalculator {
         //
         // The "Divergent ancestor" of a node is the ancestor that is a direct
         // child of the LCA of the from and to nodes for this edge.
+        //
+        // Note: the TO endpoint adjustment is skipped when the edge has
+        // cross-container spacers. In that case the spacer already handles
+        // the routing inside the container, so the to_protrusion only needs
+        // to reach the spacer exit (not exit the container entirely).
         Self::protrusions_adjust_for_divergent_siblings(
             all_pass1_groups,
+            &all_spacer_coordinates,
             node_nesting_infos,
             node_ranks_nested,
             svg_node_info_map,
@@ -1563,6 +1569,7 @@ impl OrthoProtrusionCalculator {
     /// Symmetric logic applies for the to-endpoint.
     fn protrusions_adjust_for_divergent_siblings<'id>(
         all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+        all_spacer_coordinates: &[Vec<Vec<SpacerCoordinates>>],
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
@@ -1595,19 +1602,36 @@ impl OrthoProtrusionCalculator {
                 }
 
                 // === To endpoint === //
-                if let Some(to_face) = pass1_info.to_face {
-                    let min_to = Self::min_protrusion_divergent_sibling_extent(
-                        &pass1_info.edge.to,
-                        &pass1_info.edge.from,
-                        to_face,
-                        node_nesting_infos,
-                        node_ranks_nested,
-                        svg_node_info_map,
-                        entity_types,
-                    );
-                    if min_to > 0.0 {
-                        let params = &mut result[group_idx][edge_idx];
-                        params.to_protrusion = params.to_protrusion.max(min_to);
+                //
+                // When the edge has cross-container spacers, the spacer
+                // already handles routing inside the to-node's container.
+                // The to_protrusion only needs to reach the spacer exit,
+                // not exit the entire container. Applying the
+                // divergent-sibling adjustment in this case would force
+                // the protrusion all the way to the container's far
+                // boundary, causing the path to overshoot the spacer
+                // and produce a zigzag.
+                let edge_has_spacers = all_spacer_coordinates
+                    .get(group_idx)
+                    .and_then(|g| g.get(edge_idx))
+                    .map(|spacers| !spacers.is_empty())
+                    .unwrap_or(false);
+
+                if !edge_has_spacers {
+                    if let Some(to_face) = pass1_info.to_face {
+                        let min_to = Self::min_protrusion_divergent_sibling_extent(
+                            &pass1_info.edge.to,
+                            &pass1_info.edge.from,
+                            to_face,
+                            node_nesting_infos,
+                            node_ranks_nested,
+                            svg_node_info_map,
+                            entity_types,
+                        );
+                        if min_to > 0.0 {
+                            let params = &mut result[group_idx][edge_idx];
+                            params.to_protrusion = params.to_protrusion.max(min_to);
+                        }
                     }
                 }
             }
