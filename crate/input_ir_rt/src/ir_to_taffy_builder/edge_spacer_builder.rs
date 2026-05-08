@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use disposition_ir_model::{
     edge::{Edge, EdgeGroups, EdgeId},
@@ -239,6 +239,11 @@ impl EdgeSpacerBuilder {
             })
             .unwrap_or(NodeRank::new(0));
 
+        // Track which ranks have already been assigned a spacer for this
+        // edge. Multiple siblings at the same rank occupy the same layout
+        // row, so one spacer is sufficient to route around the entire row.
+        let mut ranks_with_spacers: BTreeSet<NodeRank> = BTreeSet::new();
+
         container_node_direct_child_ids
             .iter()
             .for_each(|sibling_id| {
@@ -256,6 +261,13 @@ impl EdgeSpacerBuilder {
                     .unwrap_or(NodeRank::new(0));
 
                 if sibling_rank >= target_rank {
+                    return;
+                }
+
+                // Only create one spacer per rank group -- multiple siblings
+                // at the same rank are in the same layout row, so a single
+                // spacer is sufficient for routing around the entire row.
+                if !ranks_with_spacers.insert(sibling_rank) {
                     return;
                 }
 

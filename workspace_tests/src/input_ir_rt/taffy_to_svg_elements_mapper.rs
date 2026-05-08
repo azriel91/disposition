@@ -1654,6 +1654,40 @@ fn test_edge_to_nested_rank_1_node_has_cross_container_spacers() {
     }
 }
 
+/// In `0007`, `t_charlie_3` is at rank 1 inside `t_charlie_outer`, and the
+/// only lower rank (rank 0) contains two siblings: `t_charlie_1` and
+/// `t_charlie_2`. The edge from `t_alice` to `t_charlie_3` should route
+/// around the rank-0 row as a whole -- one spacer per rank group is
+/// sufficient, so exactly one spacer protrusion should be recorded.
+#[test]
+fn test_edge_to_nested_rank_1_node_has_exactly_one_cross_container_spacer() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_rank_1_node() {
+        let alice_charlie_3_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_charlie_3"
+            })
+            .expect("Expected edge from t_alice to t_charlie_3");
+
+        let spacer_count = alice_charlie_3_edge
+            .ortho_protrusion_params
+            .spacer_protrusions
+            .len();
+        assert_eq!(
+            spacer_count,
+            1,
+            "Expected exactly one cross-container spacer protrusion for edge \
+             t_alice -> t_charlie_3. Both rank-0 siblings t_charlie_1 and \
+             t_charlie_2 belong to the same rank group and should share one \
+             spacer. Got {spacer_count} spacer(s): {:?}",
+            alice_charlie_3_edge
+                .ortho_protrusion_params
+                .spacer_protrusions,
+        );
+    }
+}
+
 /// Edges to `t_charlie_1` (rank 0 in `t_charlie_outer`) should have no
 /// cross-container spacers, even in the presence of a rank-1 sibling
 /// (`t_charlie_3`).
