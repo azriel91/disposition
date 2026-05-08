@@ -338,11 +338,14 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
 56. A second edge case arises when the gap between the two protrusion tips is **smaller than `ARC_RADIUS`**. The standard formula `bend = qy + sign * ARC_RADIUS` (for vertical) or `bend = qx + sign * ARC_RADIUS` (for horizontal) can then place the bend **past `p`** in the direction opposite to `p`'s departure, making Leg 1 travel against the departure direction.
 
-    **Example**: in a `TopToBottom` diagram with an edge from a nested node `alice` (inside `alice_outer`) to another nested node `charlie_1` (inside `charlie_outer`), the to-protrusion tip is at the top of `charlie_outer` (e.g. `py = 155`) and the from-protrusion tip is just above it (e.g. `qy = 152.696`). The gap `py - qy = 2.304 < ARC_RADIUS = 4.0`, so `bend_y = qy + ARC_RADIUS = 156.696 > py = 155`. Leg 1 then goes **downward** from `p` (into `charlie_outer`) even though `p.dir = (0, -1)` says the path should depart **upward**. Visually the path goes right and then curves up at the container boundary -- backwards.
+    **Example**: in a `TopToBottom` diagram with an edge from a nested node `alice` (inside `alice_outer`) to another nested node `charlie_1` (inside `charlie_outer`), the to-protrusion tip `p = (70, 155)` is at the top of `charlie_outer` and the from-protrusion tip `q = (58, 152.696)` is 36.7 px below alice's bottom face. The gap `py - qy = 2.304 < ARC_RADIUS = 4.0`, so with `sign = +1` the formula gives `bend_y = qy + ARC_RADIUS = 156.696 > py = 155`. Leg 1 then goes **downward** from `p` (into `charlie_outer`) even though `p.dir = (0, -1)` says the path should depart **upward**.
 
-57. The guard after the sign/bend computation detects this situation and recomputes the bend:
-    - Vertical: if `p_dy < 0.0` (upward departure) and `bend_y >= py`, reset `bend_y = min(py, qy) - ARC_RADIUS` -- placing the bend above both waypoints.
-    - Vertical: if `p_dy > 0.0` (downward departure) and `bend_y <= py`, reset `bend_y = max(py, qy) + ARC_RADIUS` -- placing the bend below both waypoints.
-    - Horizontal: symmetric conditions on `p_dx` and `bend_x`.
+57. There is a second failure mode: placing the bend **above both tips** (e.g. `bend_y = min(py, qy) - ARC_RADIUS = 148.696`) fixes Leg 1 (which now travels upward from `p`), but makes Leg 3 travel **downward** from the bend to `q`. Since the next path segment continues upward from `q` toward the from-node, this creates a sharp direction reversal (V-spike) at `q`. In the visual arrow direction the edge loops backward -- going upward past `q` before returning downward to `p`.
 
-    This ensures Leg 1 always travels in `p`'s departure direction. The trade-off is a small (~`ARC_RADIUS`) excursion at the `q` end of the segment, which is in the open routing gap between the two containers and is not visually prominent.
+58. The guard after the sign/bend computation detects the Leg-1 failure and recomputes the bend. For the **typical case** where `p` and `q` are on opposite sides of each other in the departure direction (e.g. `py > qy` for an upward-departing `p`), the bend is reset to the **midpoint** `(py + qy) / 2`. This places the bend strictly inside the routing gap between the two containers, so both Leg 1 and Leg 3 travel in the correct direction and no backward loop appears:
+
+    - Vertical, upward departure (`p_dy < 0.0`), `bend_y >= py` **and** `py > qy`: reset `bend_y = (py + qy) / 2`.
+    - Vertical, downward departure (`p_dy > 0.0`), `bend_y <= py` **and** `py < qy`: reset `bend_y = (py + qy) / 2`.
+    - Horizontal: symmetric conditions on `p_dx`, `bend_x`, `px`, and `qx`.
+
+    For the **unusual case** where `p` and `q` are on the same side (e.g. `py <= qy` for an upward-departing `p`, which does not arise in normal `TopToBottom` routing), the bend is placed `ARC_RADIUS` beyond `p` in its departure direction so Leg 1 is still correct.

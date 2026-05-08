@@ -1506,18 +1506,28 @@ fn test_edge_from_toplevel_to_nested_rank_0_node_uses_normal_face_routing() {
 }
 
 /// For `edge_dep_alice_charlie_1`, the Z/S routing segment connecting the
-/// two protrusion tips must not dip below `t_charlie_outer`'s top boundary.
+/// two protrusion tips must stay within the gap between the two containers.
 ///
-/// Before the fix, when `to_protrusion_tip_y - from_protrusion_tip_y` was
-/// smaller than `ARC_RADIUS`, the bend was placed below `to_protrusion_tip_y`
-/// (inside the destination container), causing the path to curve upward after
-/// going right -- visually wrong for a downward-flowing edge.
+/// When the gap between the two protrusion tips is smaller than `ARC_RADIUS`,
+/// the bend placement must be chosen carefully:
 ///
-/// After the fix the departure direction at the to-protrusion-tip waypoint
-/// forces the bend above both protrusion tips, so the path routing stays in
-/// the gap between the two containers.
+/// - **First bug**: bend placed *below* the to-protrusion tip (inside
+///   `t_charlie_outer`) -- the path dipped into the container before routing
+///   through the gap, creating an upward curve that contradicts the downward
+///   flow direction.
+///
+/// - **Second bug**: bend placed *above* the from-protrusion tip (outside the
+///   gap, further up than necessary) -- the path then had to loop back downward
+///   to reach the from-protrusion tip, creating a visible backward movement in
+///   the arrow (visual) direction.
+///
+/// The correct fix places the bend at the *midpoint* between the two
+/// protrusion tips, keeping it strictly inside the routing gap. This ensures
+/// both Leg 1 (from the to-protrusion tip) and Leg 3 (arriving at the
+/// from-protrusion tip) travel in the same upward direction, matching the
+/// edge's overall flow.
 #[test]
-fn test_edge_from_nested_routing_stays_above_to_container() {
+fn test_edge_from_nested_routing_stays_within_gap() {
     for svg_elements in build_svg_elements_from_edge_from_node_to_nested_node() {
         let charlie_outer = svg_elements
             .svg_node_infos
@@ -1538,12 +1548,16 @@ fn test_edge_from_nested_routing_stays_above_to_container() {
         // The path is built in SVG order from the to-node (charlie_1, at the
         // bottom) to the from-node (alice, at the top). All coordinates
         // between the first (charlie_1 contact y) and the last (alice contact
-        // y) are the routing segment. None of those intermediate points
-        // should fall below charlie_outer's top boundary -- that would mean
-        // the routing Z/S dips into the container before the to-protrusion
-        // segment enters it, creating an upward curve that contradicts the
-        // downward flow.
+        // y) are the routing segment.
         let all_coords = parse_path_endpoints(&alice_charlie_1_edge.path_d);
+
+        // The from-protrusion tip is the second-to-last coordinate (just
+        // before the alice contact point). Its y is the upper bound of the
+        // routing gap -- no intermediate point should overshoot above it.
+        let from_protrusion_tip_y = all_coords
+            .get(all_coords.len().wrapping_sub(2))
+            .map(|&(_, y)| y)
+            .unwrap_or(0.0);
 
         // Skip the first (charlie_1 contact) and last (alice contact).
         let intermediate_coords = all_coords
@@ -1552,14 +1566,28 @@ fn test_edge_from_nested_routing_stays_above_to_container() {
             .take(all_coords.len().saturating_sub(2));
 
         for &(x, y) in intermediate_coords {
-            // Allow a 0.5 px tolerance for floating-point rounding.
+            // No intermediate point should fall below charlie_outer's top --
+            // that means the Z/S dipped into the destination container.
             assert!(
                 y <= charlie_outer_top_y + 0.5,
                 "Intermediate routing coordinate ({x:.3}, {y:.3}) is below \
                  t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}). \
-                 The Z/S bend was placed inside the destination container, \
-                 causing the path to curve upward after the horizontal routing \
-                 segment. path_d = {:?}",
+                 The Z/S bend was placed inside the destination container. \
+                 path_d = {:?}",
+                alice_charlie_1_edge.path_d,
+            );
+
+            // No intermediate point should overshoot above the from-protrusion
+            // tip -- that means the Z/S looped backward in the visual
+            // (arrow) direction, going further up than needed and then
+            // reversing to reach the from-protrusion tip.
+            assert!(
+                y >= from_protrusion_tip_y - 0.5,
+                "Intermediate routing coordinate ({x:.3}, {y:.3}) overshoots \
+                 above the from-protrusion tip (y={from_protrusion_tip_y:.3}). \
+                 The Z/S bend was placed outside the routing gap, causing a \
+                 backward loop in the visual arrow direction. \
+                 path_d = {:?}",
                 alice_charlie_1_edge.path_d,
             );
         }

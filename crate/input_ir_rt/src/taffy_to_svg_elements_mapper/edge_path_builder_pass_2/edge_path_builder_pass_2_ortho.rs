@@ -369,24 +369,47 @@ impl EdgePathBuilderPass2Ortho {
                 // Guard: when the gap between p and q is smaller than
                 // `ARC_RADIUS`, the formula above can place the bend past
                 // p (against p's departure direction), making leg 1 travel
-                // in the wrong direction. When this happens, recompute the
-                // bend so that it is strictly beyond both waypoints in the
-                // direction of p's departure, ensuring leg 1 always
-                // travels in the expected direction.
+                // in the wrong direction.
+                //
+                // The fix places the bend at the midpoint between the two
+                // tips when they are on the expected side of each other
+                // (typical case: py > qy for an upward-departing p). This
+                // keeps the bend strictly inside the routing gap so that
+                // both Leg 1 and Leg 3 travel in the correct direction --
+                // no backward loop occurs in the visual arrow direction.
+                //
+                // When p and q are on the same side (unusual case, e.g.
+                // py <= qy for an upward-departing p), the bend is placed
+                // ARC_RADIUS beyond p in its departure direction so Leg 1
+                // is still correct, even though Leg 3 may arrive at q in
+                // the opposite direction.
                 //
                 // # Example
                 //
                 // `py = 155.0, qy = 152.696, p_dy = -1.0`: sign = +1, so
                 // `bend_y = 156.696`, which is below p (155). The guard
-                // detects `bend_y >= py` and resets to
-                // `min(py, qy) - ARC_RADIUS = 148.696`, placing the bend
-                // above both waypoints so leg 1 travels upward from p.
+                // detects `bend_y >= py` and resets to the midpoint
+                // `(py + qy) / 2 = 153.848`, keeping the bend between
+                // both protrusion tips so leg 1 travels upward from p and
+                // leg 3 arrives at q going upward as well.
                 let bend_y = if p_dy < 0.0 && bend_y >= py {
-                    // p departs upward; place the bend above both waypoints.
-                    py.min(qy) - ARC_RADIUS
+                    // p departs upward; bend must be above p (bend_y < py).
+                    if py > qy {
+                        // Typical: q is above p on screen (qy < py in SVG).
+                        // Midpoint is inside the gap -- both legs travel upward.
+                        (py + qy) / 2.0
+                    } else {
+                        // Unusual: q is at or below p on screen.
+                        // Place the bend ARC_RADIUS above p.
+                        py - ARC_RADIUS
+                    }
                 } else if p_dy > 0.0 && bend_y <= py {
-                    // p departs downward; place the bend below both waypoints.
-                    py.max(qy) + ARC_RADIUS
+                    // p departs downward; symmetric case.
+                    if py < qy {
+                        (py + qy) / 2.0
+                    } else {
+                        py + ARC_RADIUS
+                    }
                 } else {
                     bend_y
                 };
@@ -418,12 +441,23 @@ impl EdgePathBuilderPass2Ortho {
                 let bend_x = qx + sign * ARC_RADIUS;
                 // Guard: same logic as the vertical case but on the
                 // horizontal axis. When the gap is smaller than
-                // `ARC_RADIUS`, recompute the bend so that it is beyond
-                // both waypoints in the direction of p's departure.
+                // `ARC_RADIUS`, place the bend at the midpoint between
+                // the two tips (or ARC_RADIUS beyond p for the unusual
+                // case where p and q are on the same horizontal side).
                 let bend_x = if p_dx < 0.0 && bend_x >= px {
-                    px.min(qx) - ARC_RADIUS
+                    // p departs leftward; bend must be left of p (bend_x < px).
+                    if px > qx {
+                        (px + qx) / 2.0
+                    } else {
+                        px - ARC_RADIUS
+                    }
                 } else if p_dx > 0.0 && bend_x <= px {
-                    px.max(qx) + ARC_RADIUS
+                    // p departs rightward; symmetric case.
+                    if px < qx {
+                        (px + qx) / 2.0
+                    } else {
+                        px + ARC_RADIUS
+                    }
                 } else {
                     bend_x
                 };
