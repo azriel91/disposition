@@ -225,6 +225,20 @@ impl EdgeSpacerBuilder {
 
         let mut spacer_taffy_nodes = EdgeSpacerTaffyNodes::new();
 
+        // Only create spacers for siblings that rank strictly below the target
+        // child, i.e. the siblings that are between the container's entry point
+        // and the target in the layout order. Siblings at the same rank as the
+        // target are placed side-by-side and do not block the incoming edge;
+        // siblings at higher ranks (further into the container) are beyond the
+        // target and also do not need to be routed around.
+        let target_rank = node_ranks_nested
+            .ranks_for(Some(container_node_id))
+            .and_then(|r| {
+                r.get(node_id_of_container_direct_child_that_contains_edge)
+                    .copied()
+            })
+            .unwrap_or(NodeRank::new(0));
+
         container_node_direct_child_ids
             .iter()
             .for_each(|sibling_id| {
@@ -232,12 +246,18 @@ impl EdgeSpacerBuilder {
                     return;
                 }
 
-                // Direct children of the container node may still have spacers if they are on
-                // different ranks.
+                // Only insert spacers for siblings at ranks that are strictly
+                // before the target rank, i.e. between the container entry point
+                // and the target. Siblings at the same or higher rank are not
+                // blocking the edge path.
                 let sibling_rank = node_ranks_nested
                     .ranks_for(Some(container_node_id))
                     .and_then(|r| r.get(sibling_id).copied())
                     .unwrap_or(NodeRank::new(0));
+
+                if sibling_rank >= target_rank {
+                    return;
+                }
 
                 // Create the taffy spacer node.
                 let spacer_taffy_node_id = taffy_tree

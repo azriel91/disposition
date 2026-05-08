@@ -13,6 +13,10 @@ pub(crate) const INPUT_DIAGRAM_TAG_NODES_CYCLIC_EDGE: &str =
     include_str!("input_diagram/0004_tag_nodes_cyclic_edge.yaml");
 pub(crate) const INPUT_DIAGRAM_PROCESS_STEP_NODES_CYCLIC_EDGE: &str =
     include_str!("input_diagram/0005_process_step_nodes_cyclic_edge.yaml");
+pub(crate) const INPUT_DIAGRAM_EDGE_FROM_NODE_TO_NESTED_NODE: &str =
+    include_str!("input_diagram/0006_edge_from_node_to_nested_node.yaml");
+pub(crate) const INPUT_DIAGRAM_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE: &str =
+    include_str!("input_diagram/0007_edge_from_node_to_nested_rank_1_node.yaml");
 
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

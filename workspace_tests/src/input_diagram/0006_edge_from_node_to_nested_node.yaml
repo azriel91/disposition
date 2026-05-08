@@ -1,0 +1,30 @@
+things:
+  t_alice_outer: Alice Outer
+  t_alice: Alice
+  t_bob: Bob
+  t_charlie_outer: Charlie Outer
+  t_charlie_1: Charlie 1
+  t_charlie_2: Charlie 2
+thing_hierarchy:
+  t_alice_outer:
+    t_alice: {}
+  t_bob: {}
+  t_charlie_outer:
+    t_charlie_1: {}
+    t_charlie_2: {}
+thing_dependencies:
+  edge_dep_alice_charlie_1:
+    kind: sequence
+    things:
+      - t_alice
+      - t_charlie_1
+  edge_dep_bob_charlie_1:
+    kind: sequence
+    things:
+      - t_bob
+      - t_charlie_1
+  edge_dep_bob_charlie_2:
+    kind: sequence
+    things:
+      - t_bob
+      - t_charlie_2

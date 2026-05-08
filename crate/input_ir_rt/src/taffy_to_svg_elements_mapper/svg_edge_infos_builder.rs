@@ -340,12 +340,29 @@ impl SvgEdgeInfosBuilder {
             // with the same direct parent, and edges involving tag, process, or
             // process step nodes always use normal face selection regardless of
             // rank.
-            let rank_from = node_ranks_nested
-                .node_rank_for(&edge.from, node_nesting_infos)
-                .unwrap_or_default();
-            let rank_to = node_ranks_nested
-                .node_rank_for(&edge.to, node_nesting_infos)
-                .unwrap_or_default();
+            //
+            // Use LCA-level ranks so that cross-container edges (e.g. a top-level
+            // node connecting to a nested node) are not incorrectly classified as
+            // cycle edges. A simple local-context comparison can give false
+            // positives: both endpoints might have rank 0 in their respective
+            // parent containers while sitting at visually different positions in
+            // the diagram (because their containers have different root-level
+            // ranks).
+            let (rank_from, rank_to) = Self::nodes_lca_ranks_compute(
+                &edge.from,
+                &edge.to,
+                node_ranks_nested,
+                node_nesting_infos,
+            )
+            .unwrap_or_else(|| {
+                let rank_from = node_ranks_nested
+                    .node_rank_for(&edge.from, node_nesting_infos)
+                    .unwrap_or_default();
+                let rank_to = node_ranks_nested
+                    .node_rank_for(&edge.to, node_nesting_infos)
+                    .unwrap_or_default();
+                (rank_from, rank_to)
+            });
             let rank_distance = rank_to.value().abs_diff(rank_from.value());
             let is_same_rank = rank_from == rank_to;
             let is_cycle_edge = is_same_rank
@@ -864,6 +881,71 @@ impl SvgEdgeInfosBuilder {
         let idx_from = info_from.nesting_path[len - 1];
         let idx_to = info_to.nesting_path[len - 1];
         idx_from.abs_diff(idx_to) == 1
+    }
+
+    /// Computes the ranks of the two nodes' divergent ancestors at their
+    /// lowest common ancestor (LCA) level.
+    ///
+    /// This is used to determine whether two nodes are truly at the same
+    /// visual rank in the diagram, accounting for hierarchy nesting.
+    ///
+    /// For nodes in the same container the result is identical to their
+    /// local `node_rank_for` values. For cross-container edges the local
+    /// ranks can give false positives (both endpoints at rank 0 in their
+    /// respective parent contexts even though their containers are at
+    /// different root-level ranks).
+    ///
+    /// Returns `None` when:
+    /// * either node is not found in `node_nesting_infos`, or
+    /// * one node is an ancestor of the other (contained edge -- handled
+    ///   separately by `is_node_contained_in`).
+    fn nodes_lca_ranks_compute<'id>(
+        node_id_from: &NodeId<'id>,
+        node_id_to: &NodeId<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> Option<(NodeRank, NodeRank)> {
+        let info_from = node_nesting_infos.get(node_id_from)?;
+        let info_to = node_nesting_infos.get(node_id_to)?;
+
+        // Find the LCA depth: length of the common prefix of ancestor chains.
+        let max_compare = info_from
+            .ancestor_chain
+            .len()
+            .min(info_to.ancestor_chain.len());
+        let mut lca_depth = 0;
+        for i in 0..max_compare {
+            if info_from.ancestor_chain[i] == info_to.ancestor_chain[i] {
+                lca_depth = i + 1;
+            } else {
+                break;
+            }
+        }
+
+        let divergent_from = info_from.ancestor_chain.get(lca_depth)?;
+        let divergent_to = info_to.ancestor_chain.get(lca_depth)?;
+
+        // If both diverge to the same node, one is an ancestor of the other.
+        if divergent_from == divergent_to {
+            return None;
+        }
+
+        // Get the LCA container (None means root level).
+        let lca_container = lca_depth
+            .checked_sub(1)
+            .map(|i| &info_from.ancestor_chain[i]);
+        let container_ranks = node_ranks_nested.ranks_for(lca_container)?;
+
+        let rank_from = container_ranks
+            .get(divergent_from)
+            .copied()
+            .unwrap_or_default();
+        let rank_to = container_ranks
+            .get(divergent_to)
+            .copied()
+            .unwrap_or_default();
+
+        Some((rank_from, rank_to))
     }
 
     /// Computes the midpoint of a `BezPath` as the mean of its anchor

@@ -12,8 +12,9 @@ use disposition_input_ir_rt::{
 
 use crate::input_ir_rt::{
     EXAMPLE_IR, INPUT_DIAGRAM_EDGES_SYMMETRIC_2_NODES, INPUT_DIAGRAM_EDGES_SYMMETRIC_3_NODES,
-    INPUT_DIAGRAM_NESTED_NODE_EDGE_PROTRUSION, INPUT_DIAGRAM_PROCESS_STEP_NODES_CYCLIC_EDGE,
-    INPUT_DIAGRAM_TAG_NODES_CYCLIC_EDGE,
+    INPUT_DIAGRAM_EDGE_FROM_NODE_TO_NESTED_NODE,
+    INPUT_DIAGRAM_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE, INPUT_DIAGRAM_NESTED_NODE_EDGE_PROTRUSION,
+    INPUT_DIAGRAM_PROCESS_STEP_NODES_CYCLIC_EDGE, INPUT_DIAGRAM_TAG_NODES_CYCLIC_EDGE,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -1351,5 +1352,336 @@ fn test_cycle_edges_3_nodes_no_overlap_with_nodes() {
                 }
             }
         }
+    }
+}
+
+// === Edge from node to nested node (0006) === //
+
+/// Loads `0006_edge_from_node_to_nested_node.yaml` and returns one
+/// `SvgElements` per LOD.
+fn build_svg_elements_from_edge_from_node_to_nested_node(
+) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
+    let overlay_diagram =
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_EDGE_FROM_NODE_TO_NESTED_NODE)
+            .unwrap();
+    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
+    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
+    let diagram: IrDiagram<'static> = diagram.into_static();
+    let ir_to_taffy_builder = IrToTaffyBuilder::builder()
+        .with_ir_diagram(&diagram)
+        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
+        .build();
+    let taffy_results: Vec<_> = ir_to_taffy_builder
+        .build()
+        .expect("Expected taffy_node_mappings to be built.")
+        .collect();
+    taffy_results
+        .into_iter()
+        .map(move |taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &diagram,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+}
+
+/// An edge from `t_alice` to `t_charlie_1` connects to a node at rank 0 inside
+/// its parent container `t_charlie_outer`. The edge should NOT route through a
+/// cross-container spacer alongside `t_charlie_2`, because both
+/// `t_charlie_1` and `t_charlie_2` are at rank 0 (side-by-side) -- there are
+/// no intermediate siblings between the container entry and the target.
+#[test]
+fn test_edge_to_nested_rank_0_node_has_no_cross_container_spacer() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_node() {
+        let alice_charlie_1_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_charlie_1"
+            })
+            .expect("Expected edge from t_alice to t_charlie_1");
+
+        assert!(
+            alice_charlie_1_edge
+                .ortho_protrusion_params
+                .spacer_protrusions
+                .is_empty(),
+            "Expected no spacer protrusions for edge t_alice -> t_charlie_1 \
+             (t_charlie_1 is at rank 0 inside t_charlie_outer, so no siblings \
+             are between the container entry and the target): \
+             spacer_protrusions = {:?}",
+            alice_charlie_1_edge
+                .ortho_protrusion_params
+                .spacer_protrusions,
+        );
+    }
+}
+
+/// An edge from `t_bob` (top-level, rank 0) to `t_charlie_1` (rank 0 inside
+/// `t_charlie_outer`, which is rank 1 at root level) should use normal face
+/// routing -- Bottom of `t_bob` to Top of `t_charlie_1` -- not cycle-edge
+/// clockwise routing.
+///
+/// The incorrect behaviour (before the fix) was to compare only the local
+/// context rank of each node, both of which happen to be 0, triggering the
+/// same-rank cycle edge detection. The fix uses LCA-level ranks instead:
+/// `t_bob` is rank 0 and `t_charlie_outer` (the divergent ancestor of
+/// `t_charlie_1` at the root LCA level) is rank 1, so the edge is correctly
+/// classified as a forward edge.
+#[test]
+fn test_edge_from_toplevel_to_nested_rank_0_node_uses_normal_face_routing() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_node() {
+        let bob = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_bob")
+            .expect("Expected t_bob in svg_node_infos");
+        let charlie_1 = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_1")
+            .expect("Expected t_charlie_1 in svg_node_infos");
+
+        let bob_charlie_1_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_charlie_1")
+            .expect("Expected edge from t_bob to t_charlie_1");
+
+        // The path is built from to-node to from-node in the SVG direction.
+        // For a Bottom (t_bob) -> Top (t_charlie_1) edge the first SVG `M`
+        // command should have y near t_charlie_1's top face (charlie_1.y)
+        // and the final `L` command should be near t_bob's bottom face
+        // (bob.y + bob.height_collapsed).
+        //
+        // Note: kurbo generates concatenated path commands (e.g. `M80,210`
+        // rather than `M 80,210`), so we parse the first/last tokens directly
+        // rather than using the generic `parse_path_endpoints` helper.
+        let path_tokens: Vec<&str> = bob_charlie_1_edge.path_d.split_whitespace().collect();
+        assert!(
+            !path_tokens.is_empty(),
+            "Expected non-empty path for edge t_bob -> t_charlie_1"
+        );
+
+        let parse_suffixed = |s: &str, prefix: char| -> Option<(f32, f32)> {
+            let s = s.strip_prefix(prefix)?;
+            let (x_str, y_str) = s.split_once(',')?;
+            Some((x_str.parse().ok()?, y_str.parse().ok()?))
+        };
+
+        // Allow a tolerance for protrusion stubs and face offsets.
+        let tolerance = 20.0_f32;
+
+        let (_, first_y) = path_tokens
+            .first()
+            .and_then(|t| parse_suffixed(t, 'M'))
+            .expect("Path should start with M command (e.g. M80,210)");
+        let expected_first_y = charlie_1.y; // Top face of t_charlie_1
+        assert!(
+            (first_y - expected_first_y).abs() <= tolerance,
+            "First path point y={first_y:.2} should be near t_charlie_1 top face \
+             y={expected_first_y:.2} (tolerance {tolerance:.0} px). \
+             Got cycle-edge routing instead of Bottom->Top routing. \
+             path_d = {:?}, ortho_protrusion_params = {:?}",
+            bob_charlie_1_edge.path_d,
+            bob_charlie_1_edge.ortho_protrusion_params,
+        );
+
+        let (_, last_y) = path_tokens
+            .last()
+            .and_then(|t| parse_suffixed(t, 'L').or_else(|| parse_suffixed(t, 'M')))
+            .expect("Path should end with an L or M command");
+        let expected_last_y = bob.y + bob.height_collapsed; // Bottom face of t_bob
+        assert!(
+            (last_y - expected_last_y).abs() <= tolerance,
+            "Last path point y={last_y:.2} should be near t_bob bottom face \
+             y={expected_last_y:.2} (tolerance {tolerance:.0} px). \
+             path_d = {:?}",
+            bob_charlie_1_edge.path_d,
+        );
+    }
+}
+
+// === Edge from node to nested rank-1 node (0007) === //
+
+/// Loads `0007_edge_from_node_to_nested_rank_1_node.yaml` and returns one
+/// `SvgElements` per LOD.
+fn build_svg_elements_from_edge_from_node_to_nested_rank_1_node(
+) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
+    let overlay_diagram =
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE)
+            .unwrap();
+    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
+    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
+    let diagram: IrDiagram<'static> = diagram.into_static();
+    let ir_to_taffy_builder = IrToTaffyBuilder::builder()
+        .with_ir_diagram(&diagram)
+        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
+        .build();
+    let taffy_results: Vec<_> = ir_to_taffy_builder
+        .build()
+        .expect("Expected taffy_node_mappings to be built.")
+        .collect();
+    taffy_results
+        .into_iter()
+        .map(move |taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &diagram,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+}
+
+/// In `0007`, `t_charlie_3` is at rank 1 inside `t_charlie_outer` (because
+/// `edge_dep_charlie_2_charlie_3` promotes `t_charlie_3` to rank 1 within
+/// that container). An edge from `t_alice` to `t_charlie_3` therefore needs
+/// cross-container spacers alongside the rank-0 siblings (`t_charlie_1` and
+/// `t_charlie_2`) so that the edge path routes correctly around them.
+#[test]
+fn test_edge_to_nested_rank_1_node_has_cross_container_spacers() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_rank_1_node() {
+        let alice_charlie_3_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_charlie_3"
+            })
+            .expect("Expected edge from t_alice to t_charlie_3");
+
+        assert!(
+            !alice_charlie_3_edge
+                .ortho_protrusion_params
+                .spacer_protrusions
+                .is_empty(),
+            "Expected cross-container spacer protrusions for edge \
+             t_alice -> t_charlie_3 (t_charlie_3 is at rank 1 inside \
+             t_charlie_outer; rank-0 siblings t_charlie_1 and t_charlie_2 \
+             should produce spacers so the edge routes around them)",
+        );
+    }
+}
+
+/// Edges to `t_charlie_1` (rank 0 in `t_charlie_outer`) should have no
+/// cross-container spacers, even in the presence of a rank-1 sibling
+/// (`t_charlie_3`).
+#[test]
+fn test_edge_to_nested_rank_0_node_has_no_spacers_in_complex_diagram() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_rank_1_node() {
+        // alice -> charlie_1 edge
+        let alice_charlie_1_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_charlie_1"
+            })
+            .expect("Expected edge from t_alice to t_charlie_1");
+
+        assert!(
+            alice_charlie_1_edge
+                .ortho_protrusion_params
+                .spacer_protrusions
+                .is_empty(),
+            "Expected no spacer protrusions for edge t_alice -> t_charlie_1 \
+             in the 0007 diagram (t_charlie_1 is at rank 0): \
+             spacer_protrusions = {:?}",
+            alice_charlie_1_edge
+                .ortho_protrusion_params
+                .spacer_protrusions,
+        );
+
+        // bob -> charlie_1 edge: also no spacers
+        let bob_charlie_1_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_charlie_1")
+            .expect("Expected edge from t_bob to t_charlie_1");
+
+        assert!(
+            bob_charlie_1_edge
+                .ortho_protrusion_params
+                .spacer_protrusions
+                .is_empty(),
+            "Expected no spacer protrusions for edge t_bob -> t_charlie_1 \
+             in the 0007 diagram (t_charlie_1 is at rank 0): \
+             spacer_protrusions = {:?}",
+            bob_charlie_1_edge
+                .ortho_protrusion_params
+                .spacer_protrusions,
+        );
+    }
+}
+
+/// In `0007`, edges from `t_bob` to `t_charlie_1` (rank 0 inside
+/// `t_charlie_outer`) should use normal Bottom -> Top face routing, not
+/// cycle-edge routing, even though both nodes have local rank 0 in their
+/// respective parent contexts.
+#[test]
+fn test_edge_from_toplevel_to_nested_rank_0_node_uses_normal_routing_complex_diagram() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_rank_1_node() {
+        let bob = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_bob")
+            .expect("Expected t_bob");
+        let charlie_1 = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_1")
+            .expect("Expected t_charlie_1");
+
+        let bob_charlie_1_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_charlie_1")
+            .expect("Expected edge from t_bob to t_charlie_1");
+
+        let path_tokens: Vec<&str> = bob_charlie_1_edge.path_d.split_whitespace().collect();
+        assert!(
+            !path_tokens.is_empty(),
+            "Expected non-empty path for edge t_bob -> t_charlie_1"
+        );
+
+        let parse_suffixed = |s: &str, prefix: char| -> Option<(f32, f32)> {
+            let s = s.strip_prefix(prefix)?;
+            let (x_str, y_str) = s.split_once(',')?;
+            Some((x_str.parse().ok()?, y_str.parse().ok()?))
+        };
+
+        let tolerance = 20.0_f32;
+
+        // Path starts at to-node (t_charlie_1 top face).
+        let (_, first_y) = path_tokens
+            .first()
+            .and_then(|t| parse_suffixed(t, 'M'))
+            .expect("Path should start with M command (e.g. M80,210)");
+        let expected_first_y = charlie_1.y;
+        assert!(
+            (first_y - expected_first_y).abs() <= tolerance,
+            "First path point y={first_y:.2} should be near t_charlie_1 top face \
+             y={expected_first_y:.2} (tolerance {tolerance:.0} px). \
+             Cycle-edge routing produces a different starting y. \
+             path_d = {:?}",
+            bob_charlie_1_edge.path_d,
+        );
+
+        // Path ends at from-node (t_bob bottom face).
+        let (_, last_y) = path_tokens
+            .last()
+            .and_then(|t| parse_suffixed(t, 'L').or_else(|| parse_suffixed(t, 'M')))
+            .expect("Path should end with an L or M command");
+        let expected_last_y = bob.y + bob.height_collapsed;
+        assert!(
+            (last_y - expected_last_y).abs() <= tolerance,
+            "Last path point y={last_y:.2} should be near t_bob bottom face \
+             y={expected_last_y:.2} (tolerance {tolerance:.0} px). \
+             path_d = {:?}",
+            bob_charlie_1_edge.path_d,
+        );
     }
 }
