@@ -13,12 +13,6 @@ thing_dependencies:
       - t_bob
       - t_alice
       - t_charlie
-  edge_dep_proc_steps_cyclic:
-    kind: cyclic
-    things:
-      - proc_test_step_a
-      - proc_test_step_b
-      - proc_test_step_c
 processes:
   proc_test:
     name: Test Process

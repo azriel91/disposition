@@ -928,94 +928,93 @@ fn build_svg_elements_from_process_step_nodes_cyclic_edge(
         .into_iter()
 }
 
-/// Tag nodes skip cycle routing and use normal nearest-face routing, so all
-/// edges in the tag fixture must have zero protrusion.
+/// Tag nodes use cycle routing around other tag nodes, and nothing else.
 ///
 /// The fixture has 3 tags at the same rank connected by a cyclic edge group.
-/// The wrapping edge `tag_c -> tag_a` (positions 2 and 0, diff = 2) would
-/// ordinarily trigger cycle routing; the tag-node exemption overrides this
-/// and forces normal routing (protrusion = 0).
+/// The wrapping edge `tag_c -> tag_a` (positions 2 and 0, diff = 2) triggers
+/// cycle routing.
 #[test]
 fn test_tag_node_edges_protrusion_is_zero() {
     for svg_elements in build_svg_elements_from_tag_nodes_cyclic_edge() {
-        for edge in &svg_elements.svg_edge_infos {
-            assert_eq!(
-                edge.ortho_protrusion_params.from_protrusion,
-                0.0,
-                "Tag-node edge {:?} ({} -> {}) from_protrusion {:.2} should be 0 \
-                 (tag nodes skip cycle routing)",
-                edge.edge_id,
-                edge.from_node_id,
-                edge.to_node_id,
-                edge.ortho_protrusion_params.from_protrusion,
-            );
-            assert_eq!(
-                edge.ortho_protrusion_params.to_protrusion,
-                0.0,
-                "Tag-node edge {:?} ({} -> {}) to_protrusion {:.2} should be 0 \
-                 (tag nodes skip cycle routing)",
-                edge.edge_id,
-                edge.from_node_id,
-                edge.to_node_id,
-                edge.ortho_protrusion_params.to_protrusion,
-            );
-        }
-    }
-}
-
-/// Process step nodes skip cycle routing and use normal nearest-face routing,
-/// so all edges between process step nodes must have zero protrusion.
-///
-/// The fixture has 3 process steps (`proc_test_step_a`, `proc_test_step_b`,
-/// `proc_test_step_c`) in `proc_test` connected by a cyclic edge group. All
-/// three steps end up at the same rank due to the cycle. The wrapping edge
-/// `proc_test_step_c -> proc_test_step_a` (positions 2 and 0, diff = 2) would
-/// ordinarily trigger cycle routing; the process-step-node exemption overrides
-/// this and forces normal routing (protrusion = 0).
-///
-/// The fixture also contains thing nodes with their own cyclic edge group;
-/// those edges are checked in
-/// [`test_thing_node_cycle_edges_not_routed_around_process_node`].
-#[test]
-fn test_process_step_node_edges_protrusion_is_zero() {
-    for svg_elements in build_svg_elements_from_process_step_nodes_cyclic_edge() {
-        // Identify process step nodes: they have a circle shape whereas process
-        // container nodes and thing/tag nodes do not.
-        let process_step_node_ids: std::collections::HashSet<String> = svg_elements
-            .svg_node_infos
+        // tag_a -> tag_b
+        let edge_tag_a_b = svg_elements
+            .svg_edge_infos
             .iter()
-            .filter(|n| n.circle.is_some())
-            .map(|n| n.node_id.as_str().to_owned())
-            .collect();
+            .find(|edge_info| edge_info.edge_id.as_str() == "edge_dep_tags_cyclic__0")
+            .expect("Expected edge to exist.");
+        // tag_b -> tag_c
+        let edge_tag_b_c = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|edge_info| edge_info.edge_id.as_str() == "edge_dep_tags_cyclic__1")
+            .expect("Expected edge to exist.");
+        // tag_c -> tag_a
+        let edge_tag_c_a = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|edge_info| edge_info.edge_id.as_str() == "edge_dep_tags_cyclic__2")
+            .expect("Expected edge to exist.");
 
-        for edge in &svg_elements.svg_edge_infos {
-            let from_is_step = process_step_node_ids.contains(edge.from_node_id.as_str());
-            let to_is_step = process_step_node_ids.contains(edge.to_node_id.as_str());
-            if !from_is_step && !to_is_step {
-                continue; // Not a process-step edge; skip.
-            }
+        assert_eq!(
+            0.0,
+            edge_tag_a_b.ortho_protrusion_params.from_protrusion,
+            "Tag-node edge {:?} ({} -> {}) from_protrusion {:.2} should be 0 \
+             (direct edge)",
+            edge_tag_a_b.edge_id,
+            edge_tag_a_b.from_node_id,
+            edge_tag_a_b.to_node_id,
+            edge_tag_a_b.ortho_protrusion_params.from_protrusion,
+        );
+        assert_eq!(
+            0.0,
+            edge_tag_a_b.ortho_protrusion_params.to_protrusion,
+            "Tag-node edge {:?} ({} -> {}) to_protrusion {:.2} should be 0 \
+             (direct edge)",
+            edge_tag_a_b.edge_id,
+            edge_tag_a_b.from_node_id,
+            edge_tag_a_b.to_node_id,
+            edge_tag_a_b.ortho_protrusion_params.to_protrusion,
+        );
 
-            assert_eq!(
-                edge.ortho_protrusion_params.from_protrusion,
-                0.0,
-                "Process-step edge {:?} ({} -> {}) from_protrusion {:.2} should be 0 \
-                 (process step nodes skip cycle routing)",
-                edge.edge_id,
-                edge.from_node_id,
-                edge.to_node_id,
-                edge.ortho_protrusion_params.from_protrusion,
-            );
-            assert_eq!(
-                edge.ortho_protrusion_params.to_protrusion,
-                0.0,
-                "Process-step edge {:?} ({} -> {}) to_protrusion {:.2} should be 0 \
-                 (process step nodes skip cycle routing)",
-                edge.edge_id,
-                edge.from_node_id,
-                edge.to_node_id,
-                edge.ortho_protrusion_params.to_protrusion,
-            );
-        }
+        assert_eq!(
+            0.0,
+            edge_tag_b_c.ortho_protrusion_params.from_protrusion,
+            "Tag-node edge {:?} ({} -> {}) from_protrusion {:.2} should be 0 \
+             (direct edge)",
+            edge_tag_b_c.edge_id,
+            edge_tag_b_c.from_node_id,
+            edge_tag_b_c.to_node_id,
+            edge_tag_b_c.ortho_protrusion_params.from_protrusion,
+        );
+        assert_eq!(
+            0.0,
+            edge_tag_b_c.ortho_protrusion_params.to_protrusion,
+            "Tag-node edge {:?} ({} -> {}) to_protrusion {:.2} should be 0 \
+             (direct edge)",
+            edge_tag_b_c.edge_id,
+            edge_tag_b_c.from_node_id,
+            edge_tag_b_c.to_node_id,
+            edge_tag_b_c.ortho_protrusion_params.to_protrusion,
+        );
+
+        assert!(
+            edge_tag_c_a.ortho_protrusion_params.from_protrusion > 0.0,
+            "Tag-node edge {:?} ({} -> {}) from_protrusion {:.2} should be greater than 0 \
+                (loops around b)",
+            edge_tag_c_a.edge_id,
+            edge_tag_c_a.from_node_id,
+            edge_tag_c_a.to_node_id,
+            edge_tag_c_a.ortho_protrusion_params.from_protrusion,
+        );
+        assert!(
+            edge_tag_c_a.ortho_protrusion_params.to_protrusion > 0.0,
+            "Tag-node edge {:?} ({} -> {}) to_protrusion {:.2} should be greater than 0 \
+                (loops around b)",
+            edge_tag_c_a.edge_id,
+            edge_tag_c_a.from_node_id,
+            edge_tag_c_a.to_node_id,
+            edge_tag_c_a.ortho_protrusion_params.to_protrusion,
+        );
     }
 }
 

@@ -275,10 +275,7 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 46. Edges between nodes at the **same `NodeRank`** (cycle edges) need special treatment for two reasons. First, they need clockwise face selection to route around the outside of nodes (rather than connecting nearest faces, which would route through nodes). Second, their protrusions must be distributed using the adjacent rank gap's available space, so that multiple cycle edges sharing the same gap get distinct protrusion depths instead of all collapsing to the same fixed minimum. Without special handling the Z/S routing bend falls exactly at the node face boundary and the segment overlaps the node.
 47. Same-rank edges are detected in `build_edge_pass1_infos` in [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs) by comparing the `NodeRank` of the `from` and `to` nodes before face selection. When `rank_from == rank_to`, the `is_same_rank` flag is set to `true` and passed to `faces_select`. The `is_cycle_edge` flag is set to `true` only when all of the following conditions hold:
     - `rank_from == rank_to` (same rank),
-    - the two nodes are **not** adjacent siblings (nesting-path index difference > 1), and
-    - **neither** the `from` nor `to` node is a tag node, process node, or process step node (checked via `node_entity_type_is_tag_or_process`).
-
-    Tag, process, and process step nodes always use the normal nearest-face heuristic regardless of rank, so their edges never receive cycle routing or cycle protrusions.
+    - the two nodes are **not** adjacent siblings (nesting-path index difference > 1)
 
 
 ### Clockwise face selection (`fn cycle_edge_faces_select`)
