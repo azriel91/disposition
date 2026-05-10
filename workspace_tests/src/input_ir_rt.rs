@@ -3,19 +3,19 @@
 pub(crate) const EXAMPLE_INPUT: &str = include_str!("example_input.yaml");
 pub(crate) const EXAMPLE_INPUT_MERGED: &str = include_str!("example_input_merged.yaml");
 pub(crate) const EXAMPLE_IR: &str = include_str!("example_ir.yaml");
-pub(crate) const INPUT_DIAGRAM_NESTED_NODE_EDGE_PROTRUSION: &str =
+pub(crate) const INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION: &str =
     include_str!("input_diagram/0001_nested_node_edge_protrusion.yaml");
-pub(crate) const INPUT_DIAGRAM_EDGES_SYMMETRIC_2_NODES: &str =
+pub(crate) const INPUT_DIAGRAM_0002_EDGES_SYMMETRIC_2_NODES: &str =
     include_str!("input_diagram/0002_edges_symmetric_2_nodes.yaml");
-pub(crate) const INPUT_DIAGRAM_EDGES_SYMMETRIC_3_NODES: &str =
+pub(crate) const INPUT_DIAGRAM_0003_EDGES_SYMMETRIC_3_NODES: &str =
     include_str!("input_diagram/0003_edges_symmetric_3_nodes.yaml");
-pub(crate) const INPUT_DIAGRAM_TAG_NODES_CYCLIC_EDGE: &str =
+pub(crate) const INPUT_DIAGRAM_0004_TAG_NODES_CYCLIC_EDGE: &str =
     include_str!("input_diagram/0004_tag_nodes_cyclic_edge.yaml");
-pub(crate) const INPUT_DIAGRAM_PROCESS_STEP_NODES_CYCLIC_EDGE: &str =
+pub(crate) const INPUT_DIAGRAM_0005_PROCESS_STEP_NODES_CYCLIC_EDGE: &str =
     include_str!("input_diagram/0005_process_step_nodes_cyclic_edge.yaml");
-pub(crate) const INPUT_DIAGRAM_EDGE_FROM_NODE_TO_NESTED_NODE: &str =
+pub(crate) const INPUT_DIAGRAM_0006_EDGE_FROM_NODE_TO_NESTED_NODE: &str =
     include_str!("input_diagram/0006_edge_from_node_to_nested_node.yaml");
-pub(crate) const INPUT_DIAGRAM_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE: &str =
+pub(crate) const INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE: &str =
     include_str!("input_diagram/0007_edge_from_node_to_nested_rank_1_node.yaml");
 
 mod input_diagram_merger;

@@ -11,10 +11,11 @@ use disposition_input_ir_rt::{
 };
 
 use crate::input_ir_rt::{
-    EXAMPLE_IR, INPUT_DIAGRAM_EDGES_SYMMETRIC_2_NODES, INPUT_DIAGRAM_EDGES_SYMMETRIC_3_NODES,
-    INPUT_DIAGRAM_EDGE_FROM_NODE_TO_NESTED_NODE,
-    INPUT_DIAGRAM_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE, INPUT_DIAGRAM_NESTED_NODE_EDGE_PROTRUSION,
-    INPUT_DIAGRAM_PROCESS_STEP_NODES_CYCLIC_EDGE, INPUT_DIAGRAM_TAG_NODES_CYCLIC_EDGE,
+    EXAMPLE_IR, INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION,
+    INPUT_DIAGRAM_0002_EDGES_SYMMETRIC_2_NODES, INPUT_DIAGRAM_0003_EDGES_SYMMETRIC_3_NODES,
+    INPUT_DIAGRAM_0004_TAG_NODES_CYCLIC_EDGE, INPUT_DIAGRAM_0005_PROCESS_STEP_NODES_CYCLIC_EDGE,
+    INPUT_DIAGRAM_0006_EDGE_FROM_NODE_TO_NESTED_NODE,
+    INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -667,7 +668,8 @@ fn test_process_infos_map_structure() -> Result<(), TaffyError> {
 fn build_svg_elements_from_nested_node_edge_protrusion(
 ) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
     let overlay_diagram =
-        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_NESTED_NODE_EDGE_PROTRUSION).unwrap();
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION)
+            .unwrap();
     let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
     let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
     let diagram: IrDiagram<'static> = diagram.into_static();
@@ -868,7 +870,7 @@ fn parse_coord_pair(s: &str) -> Option<(f32, f32)> {
 fn build_svg_elements_from_tag_nodes_cyclic_edge(
 ) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
     let overlay_diagram =
-        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_TAG_NODES_CYCLIC_EDGE).unwrap();
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0004_TAG_NODES_CYCLIC_EDGE).unwrap();
     let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
     let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
     let diagram: IrDiagram<'static> = diagram.into_static();
@@ -904,7 +906,7 @@ fn build_svg_elements_from_tag_nodes_cyclic_edge(
 fn build_svg_elements_from_process_step_nodes_cyclic_edge(
 ) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
     let overlay_diagram =
-        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_PROCESS_STEP_NODES_CYCLIC_EDGE)
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0005_PROCESS_STEP_NODES_CYCLIC_EDGE)
             .unwrap();
     let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
     let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
@@ -1085,7 +1087,7 @@ fn test_thing_node_cycle_edges_not_routed_around_process_node() {
 fn build_svg_elements_from_symmetric_2_nodes(
 ) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
     let overlay_diagram =
-        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_EDGES_SYMMETRIC_2_NODES).unwrap();
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0002_EDGES_SYMMETRIC_2_NODES).unwrap();
     let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
     let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
     let diagram: IrDiagram<'static> = diagram.into_static();
@@ -1113,7 +1115,7 @@ fn build_svg_elements_from_symmetric_2_nodes(
 fn build_svg_elements_from_symmetric_3_nodes(
 ) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
     let overlay_diagram =
-        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_EDGES_SYMMETRIC_3_NODES).unwrap();
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0003_EDGES_SYMMETRIC_3_NODES).unwrap();
     let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
     let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
     let diagram: IrDiagram<'static> = diagram.into_static();
@@ -1362,7 +1364,7 @@ fn test_cycle_edges_3_nodes_no_overlap_with_nodes() {
 fn build_svg_elements_from_edge_from_node_to_nested_node(
 ) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
     let overlay_diagram =
-        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_EDGE_FROM_NODE_TO_NESTED_NODE)
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0006_EDGE_FROM_NODE_TO_NESTED_NODE)
             .unwrap();
     let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
     let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
@@ -1598,9 +1600,10 @@ fn test_edge_from_nested_routing_stays_within_gap() {
 /// `SvgElements` per LOD.
 fn build_svg_elements_from_edge_from_node_to_nested_rank_1_node(
 ) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
-    let overlay_diagram =
-        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE)
-            .unwrap();
+    let overlay_diagram = serde_saphyr::from_str::<InputDiagram>(
+        INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE,
+    )
+    .unwrap();
     let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
     let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
     let diagram: IrDiagram<'static> = diagram.into_static();
