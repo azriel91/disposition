@@ -567,6 +567,7 @@ impl EdgePathBuilderPass2Ortho {
     /// * `start_y = 172.0, end_y = 325.0, from_face = Bottom, to_face = Top,
     ///   from_protrusion = 73.44, to_protrusion = 110.0`: `gap = 153.0`, sum `=
     ///   183.44 > 153.0` -> returns `43.0`.
+    #[allow(clippy::too_many_arguments)]
     fn from_protrusion_capped(
         start_x: f32,
         start_y: f32,
