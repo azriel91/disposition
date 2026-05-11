@@ -1,3 +1,4 @@
+use disposition_svg_model::OrthoProtrusionParams;
 use kurbo::{BezPath, Point};
 
 use crate::taffy_to_svg_elements_mapper::{
@@ -16,83 +17,6 @@ const ARC_RADIUS: f32 = 4.0;
 ///
 /// Equal to `(4.0 / 3.0) * (sqrt(2) - 1)`, approximately `0.5522847498`.
 const KAPPA: f32 = 0.552_284_8;
-
-/// Protrusion lengths for the entry and exit sides of a single spacer.
-///
-/// The entry-side protrusion extends the path past the spacer's entry
-/// boundary (away from the spacer, into the gap before it). The
-/// exit-side protrusion extends the path past the spacer's exit
-/// boundary (away from the spacer, into the gap after it).
-///
-/// Protrusion depths are assigned by `OrthoProtrusionCalculator` so
-/// that edges sharing the same inter-rank gap use distinct depths.
-///
-/// # Example values
-///
-/// ```text
-/// SpacerProtrusionParams { entry_protrusion: 5.0, exit_protrusion: 8.0 }
-/// ```
-#[derive(Clone, Copy, Debug, Default)]
-pub(in crate::taffy_to_svg_elements_mapper) struct SpacerProtrusionParams {
-    /// Protrusion length in pixels on the entry side of the spacer.
-    ///
-    /// `0.0` means no protrusion on the entry side.
-    pub(in crate::taffy_to_svg_elements_mapper) entry_protrusion: f32,
-
-    /// Protrusion length in pixels on the exit side of the spacer.
-    ///
-    /// `0.0` means no protrusion on the exit side.
-    pub(in crate::taffy_to_svg_elements_mapper) exit_protrusion: f32,
-}
-
-/// Protrusion lengths for the from-node and to-node endpoints of an
-/// orthogonal edge path, plus per-spacer protrusion depths.
-///
-/// A protrusion is a short stub that exits the node face perpendicular
-/// to the face line before the main orthogonal routing begins. This
-/// separates parallel edges that share the same node face.
-///
-/// Spacer protrusions serve the same purpose at intermediate spacer
-/// boundaries: they extend the path past the spacer so that the
-/// routing leg between spacers does not run along a node face, and
-/// multiple edges crossing the same inter-rank gap use distinct
-/// depths.
-///
-/// # Example values
-///
-/// ```text
-/// OrthoProtrusionParams {
-///     from_protrusion: 12.0,
-///     to_protrusion: 8.0,
-///     spacer_protrusions: vec![
-///         SpacerProtrusionParams { entry_protrusion: 12.0, exit_protrusion: 5.0 },
-///     ],
-/// }
-/// ```
-///
-/// An edge whose from-node is close to the face midpoint gets a longer
-/// `from_protrusion`; an edge further from the midpoint gets a shorter
-/// one. Each spacer's entry and exit protrusions are computed
-/// independently based on the edges sharing that specific rank gap.
-#[derive(Clone, Debug, Default)]
-pub(in crate::taffy_to_svg_elements_mapper) struct OrthoProtrusionParams {
-    /// Protrusion length in pixels at the from-node endpoint.
-    ///
-    /// `0.0` means no protrusion (the path routes directly from the
-    /// contact point).
-    pub(in crate::taffy_to_svg_elements_mapper) from_protrusion: f32,
-
-    /// Protrusion length in pixels at the to-node endpoint.
-    ///
-    /// `0.0` means no protrusion.
-    pub(in crate::taffy_to_svg_elements_mapper) to_protrusion: f32,
-
-    /// Per-spacer protrusion depths, indexed in the same order as the
-    /// `spacers` slice passed to `build_spacer_edge_path`.
-    ///
-    /// When the edge has no spacers, this is empty.
-    pub(in crate::taffy_to_svg_elements_mapper) spacer_protrusions: Vec<SpacerProtrusionParams>,
-}
 
 /// Builds pass-2 edge paths using orthogonal (90-degree) lines with
 /// rounded arc corners between spacers.
@@ -315,9 +239,25 @@ impl EdgePathBuilderPass2Ortho {
         }
 
         // --- From-node protrusion tip --- //
-        if protrusion.from_protrusion > 1e-3 {
+        //
+        // Cap the from-protrusion so that its tip does not cross the
+        // to-protrusion tip. This can happen for deeply-nested nodes
+        // when the slot-assigned from-protrusion plus the
+        // divergent-sibling-adjusted to-protrusion exceeds the full
+        // node-to-node gap.
+        let from_protrusion_eff = Self::from_protrusion_capped(
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+            from_face,
+            to_face,
+            protrusion.from_protrusion,
+            protrusion.to_protrusion,
+        );
+        if from_protrusion_eff > 1e-3 {
             let (eff_start_x, eff_start_y) =
-                Self::protrusion_offset(start_x, start_y, from_face, protrusion.from_protrusion);
+                Self::protrusion_offset(start_x, start_y, from_face, from_protrusion_eff);
             waypoints.push(Waypoint {
                 x: eff_start_x,
                 y: eff_start_y,
@@ -410,9 +350,32 @@ impl EdgePathBuilderPass2Ortho {
         let disp_uy = dy / dist;
         let dot_p = disp_ux * p_dx + disp_uy * p_dy;
 
-        if dot_p.abs() > 0.95 {
-            // Nearly collinear with the departure direction -- just
-            // draw a straight line.
+        // Two cases warrant a straight line:
+        //
+        // 1. `dot_p > 0.95`: the displacement is nearly collinear with the departure
+        //    direction (same direction, small angular difference).
+        //
+        // 2. `is_same_axis`: both waypoints lie on the same routing axis -- no
+        //    perpendicular component (same x for a vertical departure, same y for a
+        //    horizontal departure). Such segments are always straight lines regardless
+        //    of whether dot_p is positive or negative (e.g. the return leg from a
+        //    protrusion tip back to the node contact point travels against the
+        //    face-outward direction, giving dot_p ≈ -1, yet still requires a straight
+        //    line).
+        //
+        // The previous check `dot_p.abs() > 0.95` incorrectly treated
+        // nearly anti-collinear displacements with a non-zero
+        // perpendicular component as "straight", causing a diagonal
+        // line instead of an orthogonal Z/S bend when the protrusion
+        // tips were on opposite sides of the routing axis.
+        let is_same_axis = if p_is_vertical {
+            dx.abs() < 1e-3
+        } else {
+            dy.abs() < 1e-3
+        };
+        if dot_p > 0.95 || is_same_axis {
+            // Collinear in departure direction, or on the same routing
+            // axis -- draw a straight line.
             path.line_to(Point::new(qx as f64, qy as f64));
             return;
         }
@@ -423,28 +386,84 @@ impl EdgePathBuilderPass2Ortho {
         // L-shaped path with one turn suffices.
         if p_is_vertical == q_is_vertical {
             // === Z/S-shape: two turns === //
-            //
-            // Both directions are the same axis (both vertical or both
-            // horizontal). Route with three legs and two corners.
-            //
-            // The bend is placed at the `wp_to` coordinate (the
-            // from-node / spacer-exit side, since waypoints are
-            // collected in reverse order). This means the protrusion
-            // length directly controls the distance from the
-            // from-node face to the bend, keeping the routing
-            // segment on the from-node side of the gap.
-            //
-            // For vertical departure and arrival: go vertically to
-            // qy, turn horizontally to qx.
-            //
-            // For horizontal departure and arrival: go horizontally
-            // to qx, turn vertically to qy.
             if p_is_vertical {
-                // Offset the bend from qy back toward py by
-                // ARC_RADIUS so that leg 3 has enough length for the
-                // second rounded corner arc.
-                let sign = if py < qy { -1.0 } else { 1.0 };
+                // Both directions are vertical: route via a horizontal mid-leg.
+                //
+                // Special case: both tips at the same Y with opposite departure
+                // directions (e.g. a `Bottom` from-tip and a `Top` to-tip that
+                // `from_protrusion_capped` placed at the same Y). A Z/S U-bend
+                // would exit above p, cross to qx, then descend back to qy.
+                // But the continuation from q (an `is_same_axis` return leg)
+                // immediately reverses direction, creating a V-spike. Draw a
+                // straight horizontal line instead.
+                if (py - qy).abs() < 1e-3 && p_dy * q_dy < 0.0 {
+                    path.line_to(Point::new(qx as f64, qy as f64));
+                    return;
+                }
+                //
+                // When `py == qy` the departure direction disambiguates which
+                // side to bend toward -- otherwise the standard relative-
+                // position heuristic is used.
+                let sign = if (py - qy).abs() < 1e-3 {
+                    // Same y: use departure direction to bend away from nodes.
+                    if p_dy < 0.0 {
+                        -1.0
+                    } else {
+                        1.0
+                    }
+                } else if py < qy {
+                    -1.0
+                } else {
+                    1.0
+                };
                 let bend_y = qy + sign * ARC_RADIUS;
+                // Guard: when the gap between p and q is smaller than
+                // `ARC_RADIUS`, the formula above can place the bend past
+                // p (against p's departure direction), making leg 1 travel
+                // in the wrong direction.
+                //
+                // The fix places the bend at the midpoint between the two
+                // tips when they are on the expected side of each other
+                // (typical case: py > qy for an upward-departing p). This
+                // keeps the bend strictly inside the routing gap so that
+                // both Leg 1 and Leg 3 travel in the correct direction --
+                // no backward loop occurs in the visual arrow direction.
+                //
+                // When p and q are on the same side (unusual case, e.g.
+                // py <= qy for an upward-departing p), the bend is placed
+                // ARC_RADIUS beyond p in its departure direction so Leg 1
+                // is still correct, even though Leg 3 may arrive at q in
+                // the opposite direction.
+                //
+                // # Example
+                //
+                // `py = 155.0, qy = 152.696, p_dy = -1.0`: sign = +1, so
+                // `bend_y = 156.696`, which is below p (155). The guard
+                // detects `bend_y >= py` and resets to the midpoint
+                // `(py + qy) / 2 = 153.848`, keeping the bend between
+                // both protrusion tips so leg 1 travels upward from p and
+                // leg 3 arrives at q going upward as well.
+                let bend_y = if p_dy < 0.0 && bend_y >= py {
+                    // p departs upward; bend must be above p (bend_y < py).
+                    if py > qy {
+                        // Typical: q is above p on screen (qy < py in SVG).
+                        // Midpoint is inside the gap -- both legs travel upward.
+                        (py + qy) / 2.0
+                    } else {
+                        // Unusual: q is at or below p on screen.
+                        // Place the bend ARC_RADIUS above p.
+                        py - ARC_RADIUS
+                    }
+                } else if p_dy > 0.0 && bend_y <= py {
+                    // p departs downward; symmetric case.
+                    if py < qy {
+                        (py + qy) / 2.0
+                    } else {
+                        py + ARC_RADIUS
+                    }
+                } else {
+                    bend_y
+                };
                 let corner1_x = px;
                 let corner1_y = bend_y;
                 let corner2_x = qx;
@@ -453,11 +472,53 @@ impl EdgePathBuilderPass2Ortho {
                     path, px, py, corner1_x, corner1_y, corner2_x, corner2_y, qx, qy,
                 );
             } else {
-                // Offset the bend from qx back toward px by
-                // ARC_RADIUS so that leg 3 has enough length for the
-                // second rounded corner arc.
-                let sign = if px < qx { -1.0 } else { 1.0 };
+                // Both directions are horizontal: route via a vertical mid-leg.
+                //
+                // Horizontal analogue of the vertical V-spike guard above:
+                // same X with opposite departure directions -> straight line.
+                if (px - qx).abs() < 1e-3 && p_dx * q_dx < 0.0 {
+                    path.line_to(Point::new(qx as f64, qy as f64));
+                    return;
+                }
+                //
+                // When `px == qx` the departure direction disambiguates which
+                // side to bend toward -- otherwise the standard relative-
+                // position heuristic is used.
+                let sign = if (px - qx).abs() < 1e-3 {
+                    // Same x: use departure direction to bend away from nodes.
+                    if p_dx < 0.0 {
+                        -1.0
+                    } else {
+                        1.0
+                    }
+                } else if px < qx {
+                    -1.0
+                } else {
+                    1.0
+                };
                 let bend_x = qx + sign * ARC_RADIUS;
+                // Guard: same logic as the vertical case but on the
+                // horizontal axis. When the gap is smaller than
+                // `ARC_RADIUS`, place the bend at the midpoint between
+                // the two tips (or ARC_RADIUS beyond p for the unusual
+                // case where p and q are on the same horizontal side).
+                let bend_x = if p_dx < 0.0 && bend_x >= px {
+                    // p departs leftward; bend must be left of p (bend_x < px).
+                    if px > qx {
+                        (px + qx) / 2.0
+                    } else {
+                        px - ARC_RADIUS
+                    }
+                } else if p_dx > 0.0 && bend_x <= px {
+                    // p departs rightward; symmetric case.
+                    if px < qx {
+                        (px + qx) / 2.0
+                    } else {
+                        px + ARC_RADIUS
+                    }
+                } else {
+                    bend_x
+                };
                 let corner1_x = bend_x;
                 let corner1_y = py;
                 let corner2_x = bend_x;
@@ -484,6 +545,50 @@ impl EdgePathBuilderPass2Ortho {
                 let corner_y = py;
                 Self::two_leg_segment_append(path, px, py, corner_x, corner_y, qx, qy);
             }
+        }
+    }
+
+    /// Caps the from-protrusion depth so that its tip does not overshoot
+    /// the to-protrusion tip for aligned opposite-face pairs.
+    ///
+    /// For face pairs where both protrusions extend toward each other along
+    /// the same axis (Bottom-Top, Top-Bottom, Left-Right, Right-Left), the
+    /// from-protrusion tip must not cross the to-protrusion tip. When
+    /// `from_protrusion + to_protrusion` exceeds the node-to-node gap, the
+    /// from-protrusion is reduced so that both tips meet at the same axis
+    /// coordinate.
+    ///
+    /// For non-aligned face pairs (e.g. Bottom-Bottom cycle edges, or
+    /// perpendicular L-shaped pairs) the from-protrusion is returned
+    /// unchanged.
+    ///
+    /// # Example values
+    ///
+    /// * `start_y = 172.0, end_y = 325.0, from_face = Bottom, to_face = Top,
+    ///   from_protrusion = 73.44, to_protrusion = 110.0`: `gap = 153.0`, sum `=
+    ///   183.44 > 153.0` -> returns `43.0`.
+    #[allow(clippy::too_many_arguments)]
+    fn from_protrusion_capped(
+        start_x: f32,
+        start_y: f32,
+        end_x: f32,
+        end_y: f32,
+        from_face: NodeFace,
+        to_face: NodeFace,
+        from_protrusion: f32,
+        to_protrusion: f32,
+    ) -> f32 {
+        let gap = match (from_face, to_face) {
+            (NodeFace::Bottom, NodeFace::Top) => end_y - start_y,
+            (NodeFace::Top, NodeFace::Bottom) => start_y - end_y,
+            (NodeFace::Right, NodeFace::Left) => end_x - start_x,
+            (NodeFace::Left, NodeFace::Right) => start_x - end_x,
+            _ => return from_protrusion,
+        };
+        if gap > 1e-3 && from_protrusion + to_protrusion > gap + 1e-3 {
+            (gap - to_protrusion).max(0.0)
+        } else {
+            from_protrusion
         }
     }
 

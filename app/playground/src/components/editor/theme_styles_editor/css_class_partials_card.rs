@@ -263,7 +263,7 @@ pub fn CssClassPartialsCard(
                         }
                     }
                 } else {
-                    // BaseDiagram source — show read-only indicator
+                    // BaseDiagram source -- show read-only indicator
                     div {
                         class: "text-xs text-gray-500 italic",
                         "From disposition's base styles"

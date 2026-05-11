@@ -72,6 +72,10 @@ impl SvgNodeInfoBuilder {
         } else {
             None
         };
+        let node_rank = ir_diagram
+            .node_ranks_nested
+            .node_rank_for(node_id, &ir_diagram.node_nesting_infos)
+            .unwrap_or_else(|| panic!("node_rank not found for node_id: {:?}", node_id));
         let node_shape = ir_diagram.node_shapes.get(node_id).unwrap_or(default_shape);
 
         let path_d_collapsed = SvgNodeRectPathBuilder::build(width, height_collapsed, node_shape);
@@ -150,6 +154,7 @@ impl SvgNodeInfoBuilder {
         if let Some(circle) = circle_info {
             SvgNodeInfo::with_circle(
                 node_id.clone(),
+                node_rank,
                 tab_index,
                 x,
                 y,
@@ -164,6 +169,7 @@ impl SvgNodeInfoBuilder {
         } else {
             SvgNodeInfo::new(
                 node_id.clone(),
+                node_rank,
                 tab_index,
                 x,
                 y,

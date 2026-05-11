@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use disposition_ir_model::node::NodeId;
+use disposition_ir_model::node::{NodeId, NodeRank};
 use serde::{Deserialize, Serialize};
 
 use crate::{SvgNodeInfoCircle, SvgTextSpan};
@@ -23,6 +23,9 @@ use crate::{SvgNodeInfoCircle, SvgTextSpan};
 pub struct SvgNodeInfo<'id> {
     /// ID of the IR node this `SvgNodeInfo` represents.
     pub node_id: NodeId<'id>,
+    /// Rank of the node, not used in rendering but useful for understanding the
+    /// node's position in the graph.
+    pub node_rank: NodeRank,
     /// Tab index for keyboard navigation.
     pub tab_index: u32,
     /// X coordinate (absolute position).
@@ -70,6 +73,7 @@ impl<'id> SvgNodeInfo<'id> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         node_id: NodeId<'id>,
+        node_rank: NodeRank,
         tab_index: u32,
         x: f32,
         y: f32,
@@ -82,6 +86,7 @@ impl<'id> SvgNodeInfo<'id> {
     ) -> Self {
         Self {
             node_id,
+            node_rank,
             tab_index,
             x,
             y,
@@ -100,6 +105,7 @@ impl<'id> SvgNodeInfo<'id> {
     #[allow(clippy::too_many_arguments)]
     pub fn with_circle(
         node_id: NodeId<'id>,
+        node_rank: NodeRank,
         tab_index: u32,
         x: f32,
         y: f32,
@@ -113,6 +119,7 @@ impl<'id> SvgNodeInfo<'id> {
     ) -> Self {
         Self {
             node_id,
+            node_rank,
             tab_index,
             x,
             y,

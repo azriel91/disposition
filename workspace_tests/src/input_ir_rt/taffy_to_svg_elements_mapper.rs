@@ -1,15 +1,27 @@
 use disposition::{
+    input_ir_model::IrDiagramAndIssues,
+    input_model::InputDiagram,
     ir_model::IrDiagram,
     model_common::{id, Id},
+    svg_model::SvgElements,
     taffy_model::{taffy::TaffyError, DimensionAndLod},
 };
-use disposition_input_ir_rt::{EdgeAnimationActive, IrToTaffyBuilder, TaffyToSvgElementsMapper};
+use disposition_input_ir_rt::{
+    EdgeAnimationActive, InputDiagramMerger, InputToIrDiagramMapper, IrToTaffyBuilder,
+    TaffyToSvgElementsMapper,
+};
 
-use crate::input_ir_rt::EXAMPLE_IR;
+use crate::input_ir_rt::{
+    EXAMPLE_IR, INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION,
+    INPUT_DIAGRAM_0002_NESTED_NODE_EDGE_PROTRUSION, INPUT_DIAGRAM_0003_EDGES_SYMMETRIC_2_NODES,
+    INPUT_DIAGRAM_0004_EDGES_SYMMETRIC_3_NODES, INPUT_DIAGRAM_0005_TAG_NODES_CYCLIC_EDGE,
+    INPUT_DIAGRAM_0006_PROCESS_STEP_NODES_CYCLIC_EDGE,
+    INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_NODE,
+    INPUT_DIAGRAM_0008_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE,
+};
 
 /// Helper: build `SvgElements` from the example IR fixture.
-fn build_svg_elements_from_example_ir(
-) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
+fn build_svg_elements_from_example_ir() -> impl Iterator<Item = SvgElements<'static>> {
     let ir_example = serde_saphyr::from_str::<IrDiagram>(EXAMPLE_IR).unwrap();
     let ir_to_taffy_builder = IrToTaffyBuilder::builder()
         .with_ir_diagram(&ir_example)
@@ -650,4 +662,1195 @@ fn test_process_infos_map_structure() -> Result<(), TaffyError> {
         });
 
     Ok(())
+}
+
+/// Helper: run the full input-diagram -> IR -> taffy -> SVG pipeline for the
+/// given input diagram.
+fn build_svg_elements_for_diagram(
+    input_diagram: &str,
+) -> impl Iterator<Item = SvgElements<'static>> {
+    let overlay_diagram = serde_saphyr::from_str::<InputDiagram>(input_diagram).unwrap();
+    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
+    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
+    let diagram: IrDiagram<'static> = diagram.into_static();
+    let ir_to_taffy_builder = IrToTaffyBuilder::builder()
+        .with_ir_diagram(&diagram)
+        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
+        .build();
+    let taffy_results: Vec<_> = ir_to_taffy_builder
+        .build()
+        .expect("Expected taffy_node_mappings to be built.")
+        .collect();
+    taffy_results
+        .into_iter()
+        .map(move |taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &diagram,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+}
+
+/// The from-protrusion for `edge_dep_bob_charlie__0` must be large enough to
+/// clear all sibling nodes at the same rank as `t_bob`'s Divergent ancestor.
+///
+/// In this diagram, `t_bob` and `t_alice_outer` share rank 0 at the root level.
+/// `t_alice_outer` is taller than `t_bob` (it contains a child node). The edge
+/// from `t_bob` to `t_charlie` must protrude far enough downward that its
+/// routing horizontal segment falls in the gap between `t_alice_outer`'s
+/// bottom edge and `t_charlie`'s top edge -- not through `t_alice_outer`.
+#[test]
+fn test_nested_node_edge_protrusion_from_bob_clears_alice_outer() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION)
+    {
+        // Find the relevant nodes.
+        let alice_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_alice_outer")
+            .expect("Expected t_alice_outer in svg_node_infos");
+        let bob = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_bob")
+            .expect("Expected t_bob in svg_node_infos");
+
+        // Compute the expected minimum from_protrusion for t_bob.
+        // The protrusion from t_bob's bottom face (y + height) must reach at
+        // least t_alice_outer's bottom face so the routing segment is in the
+        // gap below all rank-0 siblings.
+        let alice_outer_bottom = alice_outer.y + alice_outer.height_collapsed;
+        let bob_bottom = bob.y + bob.height_collapsed;
+        let expected_min_from_protrusion = (alice_outer_bottom - bob_bottom).max(0.0);
+
+        // Find the edge from t_bob to t_charlie.
+        let bob_charlie_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_charlie")
+            .expect("Expected edge from t_bob to t_charlie");
+
+        assert!(
+            bob_charlie_edge.ortho_protrusion_params.from_protrusion
+                >= expected_min_from_protrusion,
+            "from_protrusion {:.2} for edge t_bob->t_charlie should be >= {:.2} \
+             (t_alice_outer bottom {:.2} - t_bob bottom {:.2})",
+            bob_charlie_edge.ortho_protrusion_params.from_protrusion,
+            expected_min_from_protrusion,
+            alice_outer_bottom,
+            bob_bottom,
+        );
+    }
+}
+
+/// The from-protrusion for `edge_dep_bob_charlie__0` must push the routing
+/// horizontal segment below `t_alice_outer`'s bottom edge.
+///
+/// The horizontal routing y-coordinate for an orthogonal edge is:
+///   `routing_y = bob_bottom + from_protrusion + arc_radius`
+///
+/// This must be > `alice_outer_bottom` for the path not to overlap
+/// `t_alice_outer`. Because `from_protrusion >= alice_outer_bottom -
+/// bob_bottom`, we have `routing_y > alice_outer_bottom`.
+#[test]
+fn test_nested_node_edge_bob_charlie_routing_clears_alice_outer() {
+    // Arc radius used by the orthogonal path builder for rounded corners.
+    // This constant matches the `ARC_RADIUS` in
+    // `edge_path_builder_pass_2_ortho.rs`.
+    const ARC_RADIUS: f32 = 4.0;
+
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION)
+    {
+        let alice_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_alice_outer")
+            .expect("Expected t_alice_outer in svg_node_infos");
+        let bob = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_bob")
+            .expect("Expected t_bob in svg_node_infos");
+
+        let alice_outer_bottom = alice_outer.y + alice_outer.height_collapsed;
+        let bob_bottom = bob.y + bob.height_collapsed;
+
+        let bob_charlie_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_charlie")
+            .expect("Expected edge from t_bob to t_charlie");
+
+        // The horizontal routing segment is at:
+        //   routing_y = bob_bottom + from_protrusion + ARC_RADIUS
+        // For the routing to clear t_alice_outer, we need routing_y >
+        // alice_outer_bottom.
+        let from_protrusion = bob_charlie_edge.ortho_protrusion_params.from_protrusion;
+        let routing_y = bob_bottom + from_protrusion + ARC_RADIUS;
+
+        assert!(
+            routing_y > alice_outer_bottom,
+            "Routing y {:.2} (bob_bottom {:.2} + from_protrusion {:.2} + arc_radius {:.2}) \
+             must be > alice_outer_bottom {:.2} so the path does not overlap t_alice_outer",
+            routing_y,
+            bob_bottom,
+            from_protrusion,
+            ARC_RADIUS,
+            alice_outer_bottom,
+        );
+    }
+}
+
+// === Cycle edge routing tests === //
+
+/// Parse all SVG path endpoint coordinates (from `M` and `L` commands) from a
+/// path `d` attribute string.
+///
+/// Returns a `Vec<(f32, f32)>` of `(x, y)` pairs.
+fn parse_path_endpoints(path_d: &str) -> Vec<(f32, f32)> {
+    let mut result = Vec::new();
+    // Iterate over whitespace-separated tokens.
+    let tokens: Vec<&str> = path_d.split_whitespace().collect();
+    let mut i = 0;
+    while i < tokens.len() {
+        let token = tokens[i];
+        match token {
+            "M" | "L" => {
+                if let Some(coords) = tokens.get(i + 1) {
+                    if let Some((x, y)) = parse_coord_pair(coords) {
+                        result.push((x, y));
+                    }
+                    i += 2;
+                    continue;
+                }
+            }
+            "C" => {
+                // Curve: ctrl1 ctrl2 endpoint -- record all three pairs.
+                for offset in 1..=3 {
+                    if let Some(coords) = tokens.get(i + offset) {
+                        if let Some((x, y)) = parse_coord_pair(coords) {
+                            result.push((x, y));
+                        }
+                    }
+                }
+                i += 4;
+                continue;
+            }
+            _ => {
+                // Single token may be a coordinate pair if it contains a comma.
+                if token.contains(',') {
+                    if let Some((x, y)) = parse_coord_pair(token) {
+                        result.push((x, y));
+                    }
+                }
+            }
+        }
+        i += 1;
+    }
+    result
+}
+
+/// Parse a `"x,y"` token into a `(f32, f32)` pair.
+fn parse_coord_pair(s: &str) -> Option<(f32, f32)> {
+    let mut parts = s.splitn(2, ',');
+    let x: f32 = parts.next()?.parse().ok()?;
+    let y: f32 = parts.next()?.parse().ok()?;
+    Some((x, y))
+}
+
+// === Tag and process step node routing tests === //
+
+/// Builds `SvgElements` from the tag-nodes cyclic edge fixture.
+///
+/// The fixture has 3 tags (`tag_a`, `tag_b`, `tag_c`) connected by a cyclic
+/// edge group (`edge_dep_tags_cyclic`), producing edges `tag_a -> tag_b`,
+/// `tag_b -> tag_c`, `tag_c -> tag_a`. All three tags end up at the same rank
+/// due to the cycle.
+fn build_svg_elements_from_tag_nodes_cyclic_edge() -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0005_TAG_NODES_CYCLIC_EDGE)
+}
+
+/// Builds `SvgElements` from the process-step-nodes cyclic edge fixture.
+///
+/// The fixture has:
+/// - 3 thing nodes (`t_alice`, `t_bob`, `t_charlie`) connected by a symmetric
+///   edge group.
+/// - A process `proc_test` with 3 steps (`proc_test_step_a`,
+///   `proc_test_step_b`, `proc_test_step_c`) connected by a cyclic edge group
+///   (`edge_dep_proc_steps_cyclic`). All three steps end up at the same rank
+///   due to the cycle.
+fn build_svg_elements_from_process_step_nodes_cyclic_edge(
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0006_PROCESS_STEP_NODES_CYCLIC_EDGE)
+}
+
+/// Tag nodes use cycle routing around other tag nodes, and nothing else.
+///
+/// The fixture has 3 tags at the same rank connected by a cyclic edge group.
+/// The wrapping edge `tag_c -> tag_a` (positions 2 and 0, diff = 2) triggers
+/// cycle routing.
+#[test]
+fn test_tag_node_edges_protrusion_is_zero() {
+    for svg_elements in build_svg_elements_from_tag_nodes_cyclic_edge() {
+        // tag_a -> tag_b
+        let edge_tag_a_b = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|edge_info| edge_info.edge_id.as_str() == "edge_dep_tags_cyclic__0")
+            .expect("Expected edge to exist.");
+        // tag_b -> tag_c
+        let edge_tag_b_c = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|edge_info| edge_info.edge_id.as_str() == "edge_dep_tags_cyclic__1")
+            .expect("Expected edge to exist.");
+        // tag_c -> tag_a
+        let edge_tag_c_a = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|edge_info| edge_info.edge_id.as_str() == "edge_dep_tags_cyclic__2")
+            .expect("Expected edge to exist.");
+
+        assert_eq!(
+            0.0,
+            edge_tag_a_b.ortho_protrusion_params.from_protrusion,
+            "Tag-node edge {:?} ({} -> {}) from_protrusion {:.2} should be 0 \
+             (direct edge)",
+            edge_tag_a_b.edge_id,
+            edge_tag_a_b.from_node_id,
+            edge_tag_a_b.to_node_id,
+            edge_tag_a_b.ortho_protrusion_params.from_protrusion,
+        );
+        assert_eq!(
+            0.0,
+            edge_tag_a_b.ortho_protrusion_params.to_protrusion,
+            "Tag-node edge {:?} ({} -> {}) to_protrusion {:.2} should be 0 \
+             (direct edge)",
+            edge_tag_a_b.edge_id,
+            edge_tag_a_b.from_node_id,
+            edge_tag_a_b.to_node_id,
+            edge_tag_a_b.ortho_protrusion_params.to_protrusion,
+        );
+
+        assert_eq!(
+            0.0,
+            edge_tag_b_c.ortho_protrusion_params.from_protrusion,
+            "Tag-node edge {:?} ({} -> {}) from_protrusion {:.2} should be 0 \
+             (direct edge)",
+            edge_tag_b_c.edge_id,
+            edge_tag_b_c.from_node_id,
+            edge_tag_b_c.to_node_id,
+            edge_tag_b_c.ortho_protrusion_params.from_protrusion,
+        );
+        assert_eq!(
+            0.0,
+            edge_tag_b_c.ortho_protrusion_params.to_protrusion,
+            "Tag-node edge {:?} ({} -> {}) to_protrusion {:.2} should be 0 \
+             (direct edge)",
+            edge_tag_b_c.edge_id,
+            edge_tag_b_c.from_node_id,
+            edge_tag_b_c.to_node_id,
+            edge_tag_b_c.ortho_protrusion_params.to_protrusion,
+        );
+
+        assert!(
+            edge_tag_c_a.ortho_protrusion_params.from_protrusion > 0.0,
+            "Tag-node edge {:?} ({} -> {}) from_protrusion {:.2} should be greater than 0 \
+                (loops around b)",
+            edge_tag_c_a.edge_id,
+            edge_tag_c_a.from_node_id,
+            edge_tag_c_a.to_node_id,
+            edge_tag_c_a.ortho_protrusion_params.from_protrusion,
+        );
+        assert!(
+            edge_tag_c_a.ortho_protrusion_params.to_protrusion > 0.0,
+            "Tag-node edge {:?} ({} -> {}) to_protrusion {:.2} should be greater than 0 \
+                (loops around b)",
+            edge_tag_c_a.edge_id,
+            edge_tag_c_a.from_node_id,
+            edge_tag_c_a.to_node_id,
+            edge_tag_c_a.ortho_protrusion_params.to_protrusion,
+        );
+    }
+}
+
+/// In a `LeftToRight` diagram containing both thing nodes and a process node,
+/// thing-node cycle edges must be routed using only thing-node sibling extents
+/// -- not clearing process nodes.
+///
+/// In the `0006` fixture, thing nodes sit in a single vertical column at
+/// `x = 20`, `width = 83` (right face at `x = 103`). The process node starts
+/// further to the right. The non-adjacent same-rank edge `alice -> charlie`
+/// uses Right/Right face routing and protrudes to the right. Before the
+/// grouping fix, the protrusion was computed as 179 px (clearing the process
+/// node's right edge). After the fix, the protrusion is based only on
+/// thing-node sibling extents, so every path coordinate remains to the left
+/// of the process node.
+#[test]
+fn test_thing_node_cycle_edges_not_routed_around_process_node() {
+    for svg_elements in build_svg_elements_from_process_step_nodes_cyclic_edge() {
+        let Some(proc_node) = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "proc_test")
+        else {
+            continue;
+        };
+        // Any thing-node edge path coordinate must stay strictly to the left
+        // of the process node's left boundary.
+        let process_left_x = proc_node.x;
+
+        for edge in &svg_elements.svg_edge_infos {
+            // Only check edges where both endpoints are thing nodes
+            // (process_id is None for thing/tag nodes; Some for process nodes
+            // and process step nodes).
+            let from_node = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id == edge.from_node_id);
+            let to_node = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id == edge.to_node_id);
+            let is_thing_edge = from_node.map_or(false, |n| n.process_id.is_none())
+                && to_node.map_or(false, |n| n.process_id.is_none());
+            if !is_thing_edge {
+                continue;
+            }
+
+            let coords = parse_path_endpoints(&edge.path_d);
+            for (x, _y) in &coords {
+                assert!(
+                    *x < process_left_x,
+                    "Thing-node edge {:?} ({} -> {}) has path point x={:.2} >= \
+                     process left boundary x={:.2}; edge is being routed around \
+                     the process node instead of only around thing nodes",
+                    edge.edge_id,
+                    edge.from_node_id,
+                    edge.to_node_id,
+                    x,
+                    process_left_x,
+                );
+            }
+        }
+    }
+}
+
+/// Builds `SvgElements` from the 2-node symmetric edge fixture.
+fn build_svg_elements_from_symmetric_2_nodes() -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0003_EDGES_SYMMETRIC_2_NODES)
+}
+
+/// Builds `SvgElements` from the 3-node symmetric edge fixture.
+fn build_svg_elements_from_symmetric_3_nodes() -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0004_EDGES_SYMMETRIC_3_NODES)
+}
+
+/// For the 2-node symmetric edge diagram, edges between adjacent siblings
+/// must have zero protrusion.
+///
+/// `t_alice` (position 0) and `t_bob` (position 1) are adjacent siblings with
+/// the same direct parent. Adjacent siblings use normal face-selection routing
+/// (connecting the two closest `NodeFace`s) instead of clockwise cycle routing,
+/// so no protrusion is needed and both `from_protrusion` and `to_protrusion`
+/// must be exactly 0.
+#[test]
+fn test_adjacent_siblings_protrusion_is_zero() {
+    for svg_elements in build_svg_elements_from_symmetric_2_nodes() {
+        for edge in &svg_elements.svg_edge_infos {
+            assert_eq!(
+                edge.ortho_protrusion_params.from_protrusion, 0.0,
+                "Adjacent-sibling edge {:?} from_protrusion {:.2} should be 0 \
+                 (normal routing, no cycle protrusion)",
+                edge.edge_id, edge.ortho_protrusion_params.from_protrusion,
+            );
+            assert_eq!(
+                edge.ortho_protrusion_params.to_protrusion, 0.0,
+                "Adjacent-sibling edge {:?} to_protrusion {:.2} should be 0 \
+                 (normal routing, no cycle protrusion)",
+                edge.edge_id, edge.ortho_protrusion_params.to_protrusion,
+            );
+        }
+    }
+}
+
+/// For the 2-node symmetric edge diagram, no edge path coordinate must fall
+/// strictly inside any node bounding box.
+///
+/// With normal (nearest-face) routing for adjacent siblings:
+/// - `alice -> bob` (`alice.x < bob.x`) uses `Right`/`Left` faces: path
+///   segments travel between alice's right edge and bob's left edge.
+/// - `bob -> alice` (`bob.x > alice.x`) uses `Left`/`Right` faces: path
+///   segments travel between bob's left edge and alice's right edge.
+#[test]
+fn test_cycle_edges_2_nodes_no_overlap_with_nodes() {
+    for svg_elements in build_svg_elements_from_symmetric_2_nodes() {
+        for edge in &svg_elements.svg_edge_infos {
+            let from_node = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id == edge.from_node_id)
+                .expect("from node");
+            let to_node = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id == edge.to_node_id)
+                .expect("to node");
+
+            let coords = parse_path_endpoints(&edge.path_d);
+            for (x, y) in coords {
+                // Check against every node in the diagram.
+                for node in &svg_elements.svg_node_infos {
+                    let node_x_min = node.x;
+                    let node_x_max = node.x + node.width;
+                    let node_y_min = node.y;
+                    let node_y_max = node.y + node.height_collapsed;
+
+                    let strictly_inside =
+                        x > node_x_min && x < node_x_max && y > node_y_min && y < node_y_max;
+
+                    assert!(
+                        !strictly_inside,
+                        "Edge {:?} ({} -> {}) has path point ({:.2}, {:.2}) inside node {:?} \
+                         bounding box x=[{:.2},{:.2}] y=[{:.2},{:.2}]",
+                        edge.edge_id,
+                        from_node.node_id,
+                        to_node.node_id,
+                        x,
+                        y,
+                        node.node_id,
+                        node_x_min,
+                        node_x_max,
+                        node_y_min,
+                        node_y_max,
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// For the 3-node symmetric edge diagram, non-adjacent same-rank edges must
+/// have a non-zero protrusion.
+///
+/// The edge group uses `things: [t_bob, t_alice, t_charlie]` with
+/// `kind: symmetric`, producing edges: `t_bob -> t_alice`, `t_alice ->
+/// t_charlie`, `t_charlie -> t_alice`, `t_alice -> t_bob`. The hierarchy
+/// positions are `t_alice=0`, `t_bob=1`, `t_charlie=2`.
+///
+/// Adjacent-sibling edges (`t_bob <-> t_alice`, position diff = 1) use normal
+/// routing and have zero protrusion. Non-adjacent edges (`t_alice <->
+/// t_charlie`, position diff = 2) are true cycle edges and must protrude by at
+/// least `MIN_PROTRUSION_PX` (3.0 px).
+#[test]
+fn test_cycle_edges_3_nodes_protrusion_non_zero() {
+    const MIN_PROTRUSION_PX: f32 = 3.0;
+
+    for svg_elements in build_svg_elements_from_symmetric_3_nodes() {
+        for edge in &svg_elements.svg_edge_infos {
+            // Only check non-adjacent same-rank edges (t_alice <-> t_charlie).
+            let is_non_adjacent_cycle_edge = (edge.from_node_id.as_str() == "t_alice"
+                && edge.to_node_id.as_str() == "t_charlie")
+                || (edge.from_node_id.as_str() == "t_charlie"
+                    && edge.to_node_id.as_str() == "t_alice");
+            if !is_non_adjacent_cycle_edge {
+                continue;
+            }
+            assert!(
+                edge.ortho_protrusion_params.from_protrusion >= MIN_PROTRUSION_PX,
+                "Non-adjacent cycle edge {:?} from_protrusion {:.2} should be >= {:.2}",
+                edge.edge_id,
+                edge.ortho_protrusion_params.from_protrusion,
+                MIN_PROTRUSION_PX,
+            );
+            assert!(
+                edge.ortho_protrusion_params.to_protrusion >= MIN_PROTRUSION_PX,
+                "Non-adjacent cycle edge {:?} to_protrusion {:.2} should be >= {:.2}",
+                edge.edge_id,
+                edge.ortho_protrusion_params.to_protrusion,
+                MIN_PROTRUSION_PX,
+            );
+        }
+    }
+}
+
+/// For the 3-node symmetric edge diagram, no edge path coordinate must fall
+/// strictly inside any node bounding box.
+///
+/// For the 3-node symmetric edge diagram, each edge's `from_protrusion` must
+/// equal its `to_protrusion` (symmetric U-shaped arc), and edges that route in
+/// the same direction (same face) must have distinct protrusion depths so their
+/// routing segments do not overlap.
+#[test]
+fn test_cycle_edges_3_nodes_symmetric_and_distinct_protrusions() {
+    for svg_elements in build_svg_elements_from_symmetric_3_nodes() {
+        // Verify from == to for every edge.
+        for edge in &svg_elements.svg_edge_infos {
+            assert_eq!(
+                edge.ortho_protrusion_params.from_protrusion,
+                edge.ortho_protrusion_params.to_protrusion,
+                "Edge {:?} from_protrusion {:.2} != to_protrusion {:.2}",
+                edge.edge_id,
+                edge.ortho_protrusion_params.from_protrusion,
+                edge.ortho_protrusion_params.to_protrusion,
+            );
+        }
+
+        // Verify that not all cycle edges have the same protrusion depth.
+        // With 3+ edges in the diagram there must be at least two distinct
+        // protrusion values (edges in the same direction group are stacked).
+        let mut protrusions: Vec<f32> = svg_elements
+            .svg_edge_infos
+            .iter()
+            .map(|e| e.ortho_protrusion_params.from_protrusion)
+            .collect();
+        protrusions.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        protrusions.dedup();
+        assert!(
+            protrusions.len() > 1,
+            "All cycle edges have the same protrusion {:.2}; expected distinct values",
+            protrusions[0],
+        );
+    }
+}
+
+/// All nodes are in the same column (`x = 20`, `width = 83`). Downward edges
+/// route to the right (`x >= node.x + node.width`) and upward edges route to
+/// the left (`x <= node.x`).
+#[test]
+fn test_cycle_edges_3_nodes_no_overlap_with_nodes() {
+    for svg_elements in build_svg_elements_from_symmetric_3_nodes() {
+        for edge in &svg_elements.svg_edge_infos {
+            let from_node = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id == edge.from_node_id)
+                .expect("from node");
+            let to_node = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id == edge.to_node_id)
+                .expect("to node");
+
+            let coords = parse_path_endpoints(&edge.path_d);
+            for (x, y) in coords {
+                for node in &svg_elements.svg_node_infos {
+                    let node_x_min = node.x;
+                    let node_x_max = node.x + node.width;
+                    let node_y_min = node.y;
+                    let node_y_max = node.y + node.height_collapsed;
+
+                    let strictly_inside =
+                        x > node_x_min && x < node_x_max && y > node_y_min && y < node_y_max;
+
+                    assert!(
+                        !strictly_inside,
+                        "Edge {:?} ({} -> {}) has path point ({:.2}, {:.2}) inside node {:?} \
+                         bounding box x=[{:.2},{:.2}] y=[{:.2},{:.2}]",
+                        edge.edge_id,
+                        from_node.node_id,
+                        to_node.node_id,
+                        x,
+                        y,
+                        node.node_id,
+                        node_x_min,
+                        node_x_max,
+                        node_y_min,
+                        node_y_max,
+                    );
+                }
+            }
+        }
+    }
+}
+
+// === Edge from node to nested node (0007) === //
+
+/// Loads `0007_edge_from_node_to_nested_node.yaml` and returns one
+/// `SvgElements` per LOD.
+fn build_svg_elements_from_edge_from_node_to_nested_node(
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_NODE)
+}
+
+/// An edge from `t_alice` to `t_charlie_1` connects to a node at rank 0 inside
+/// its parent container `t_charlie_outer`. The edge should NOT route through a
+/// cross-container spacer alongside `t_charlie_2`, because both
+/// `t_charlie_1` and `t_charlie_2` are at rank 0 (side-by-side) -- there are
+/// no intermediate siblings between the container entry and the target.
+#[test]
+fn test_edge_to_nested_rank_0_node_has_no_cross_container_spacer() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_node() {
+        let alice_charlie_1_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_charlie_1"
+            })
+            .expect("Expected edge from t_alice to t_charlie_1");
+
+        assert!(
+            alice_charlie_1_edge
+                .ortho_protrusion_params
+                .spacer_protrusions
+                .is_empty(),
+            "Expected no spacer protrusions for edge t_alice -> t_charlie_1 \
+             (t_charlie_1 is at rank 0 inside t_charlie_outer, so no siblings \
+             are between the container entry and the target): \
+             spacer_protrusions = {:?}",
+            alice_charlie_1_edge
+                .ortho_protrusion_params
+                .spacer_protrusions,
+        );
+    }
+}
+
+/// An edge from `t_bob` (top-level, rank 0) to `t_charlie_1` (rank 0 inside
+/// `t_charlie_outer`, which is rank 1 at root level) should use normal face
+/// routing -- Bottom of `t_bob` to Top of `t_charlie_1` -- not cycle-edge
+/// clockwise routing.
+///
+/// The incorrect behaviour (before the fix) was to compare only the local
+/// context rank of each node, both of which happen to be 0, triggering the
+/// same-rank cycle edge detection. The fix uses LCA-level ranks instead:
+/// `t_bob` is rank 0 and `t_charlie_outer` (the divergent ancestor of
+/// `t_charlie_1` at the root LCA level) is rank 1, so the edge is correctly
+/// classified as a forward edge.
+#[test]
+fn test_edge_from_toplevel_to_nested_rank_0_node_uses_normal_face_routing() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_node() {
+        let bob = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_bob")
+            .expect("Expected t_bob in svg_node_infos");
+        let charlie_1 = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_1")
+            .expect("Expected t_charlie_1 in svg_node_infos");
+
+        let bob_charlie_1_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_charlie_1")
+            .expect("Expected edge from t_bob to t_charlie_1");
+
+        // The path is built from to-node to from-node in the SVG direction.
+        // For a Bottom (t_bob) -> Top (t_charlie_1) edge the first SVG `M`
+        // command should have y near t_charlie_1's top face (charlie_1.y)
+        // and the final `L` command should be near t_bob's bottom face
+        // (bob.y + bob.height_collapsed).
+        //
+        // Note: kurbo generates concatenated path commands (e.g. `M80,210`
+        // rather than `M 80,210`), so we parse the first/last tokens directly
+        // rather than using the generic `parse_path_endpoints` helper.
+        let path_tokens: Vec<&str> = bob_charlie_1_edge.path_d.split_whitespace().collect();
+        assert!(
+            !path_tokens.is_empty(),
+            "Expected non-empty path for edge t_bob -> t_charlie_1"
+        );
+
+        let parse_suffixed = |s: &str, prefix: char| -> Option<(f32, f32)> {
+            let s = s.strip_prefix(prefix)?;
+            let (x_str, y_str) = s.split_once(',')?;
+            Some((x_str.parse().ok()?, y_str.parse().ok()?))
+        };
+
+        // Allow a tolerance for protrusion stubs and face offsets.
+        let tolerance = 20.0_f32;
+
+        let (_, first_y) = path_tokens
+            .first()
+            .and_then(|t| parse_suffixed(t, 'M'))
+            .expect("Path should start with M command (e.g. M80,210)");
+        let expected_first_y = charlie_1.y; // Top face of t_charlie_1
+        assert!(
+            (first_y - expected_first_y).abs() <= tolerance,
+            "First path point y={first_y:.2} should be near t_charlie_1 top face \
+             y={expected_first_y:.2} (tolerance {tolerance:.0} px). \
+             Got cycle-edge routing instead of Bottom->Top routing. \
+             path_d = {:?}, ortho_protrusion_params = {:?}",
+            bob_charlie_1_edge.path_d,
+            bob_charlie_1_edge.ortho_protrusion_params,
+        );
+
+        let (_, last_y) = path_tokens
+            .last()
+            .and_then(|t| parse_suffixed(t, 'L').or_else(|| parse_suffixed(t, 'M')))
+            .expect("Path should end with an L or M command");
+        let expected_last_y = bob.y + bob.height_collapsed; // Bottom face of t_bob
+        assert!(
+            (last_y - expected_last_y).abs() <= tolerance,
+            "Last path point y={last_y:.2} should be near t_bob bottom face \
+             y={expected_last_y:.2} (tolerance {tolerance:.0} px). \
+             path_d = {:?}",
+            bob_charlie_1_edge.path_d,
+        );
+    }
+}
+
+/// For `edge_dep_alice_charlie_1`, the Z/S routing segment connecting the
+/// two protrusion tips must stay within the gap between the two containers.
+///
+/// When the gap between the two protrusion tips is smaller than `ARC_RADIUS`,
+/// the bend placement must be chosen carefully:
+///
+/// - **First bug**: bend placed *below* the to-protrusion tip (inside
+///   `t_charlie_outer`) -- the path dipped into the container before routing
+///   through the gap, creating an upward curve that contradicts the downward
+///   flow direction.
+///
+/// - **Second bug**: bend placed *above* the from-protrusion tip (outside the
+///   gap, further up than necessary) -- the path then had to loop back downward
+///   to reach the from-protrusion tip, creating a visible backward movement in
+///   the arrow (visual) direction.
+///
+/// The correct fix places the bend at the *midpoint* between the two
+/// protrusion tips, keeping it strictly inside the routing gap. This ensures
+/// both Leg 1 (from the to-protrusion tip) and Leg 3 (arriving at the
+/// from-protrusion tip) travel in the same upward direction, matching the
+/// edge's overall flow.
+#[test]
+fn test_edge_from_nested_routing_stays_within_gap() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_node() {
+        let charlie_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_outer")
+            .expect("Expected t_charlie_outer in svg_node_infos");
+
+        let alice_charlie_1_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_charlie_1"
+            })
+            .expect("Expected edge from t_alice to t_charlie_1");
+
+        let charlie_outer_top_y = charlie_outer.y;
+
+        // The path is built in SVG order from the to-node (charlie_1, at the
+        // bottom) to the from-node (alice, at the top). All coordinates
+        // between the first (charlie_1 contact y) and the last (alice contact
+        // y) are the routing segment.
+        let all_coords = parse_path_endpoints(&alice_charlie_1_edge.path_d);
+
+        // The from-protrusion tip is the second-to-last coordinate (just
+        // before the alice contact point). Its y is the upper bound of the
+        // routing gap -- no intermediate point should overshoot above it.
+        let from_protrusion_tip_y = all_coords
+            .get(all_coords.len().wrapping_sub(2))
+            .map(|&(_, y)| y)
+            .unwrap_or(0.0);
+
+        // Skip the first (charlie_1 contact) and last (alice contact).
+        let intermediate_coords = all_coords
+            .iter()
+            .skip(1)
+            .take(all_coords.len().saturating_sub(2));
+
+        for &(x, y) in intermediate_coords {
+            // No intermediate point should fall below charlie_outer's top --
+            // that means the Z/S dipped into the destination container.
+            assert!(
+                y <= charlie_outer_top_y + 0.5,
+                "Intermediate routing coordinate ({x:.3}, {y:.3}) is below \
+                 t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}). \
+                 The Z/S bend was placed inside the destination container. \
+                 path_d = {:?}",
+                alice_charlie_1_edge.path_d,
+            );
+
+            // No intermediate point should overshoot above the from-protrusion
+            // tip -- that means the Z/S looped backward in the visual
+            // (arrow) direction, going further up than needed and then
+            // reversing to reach the from-protrusion tip.
+            assert!(
+                y >= from_protrusion_tip_y - 0.5,
+                "Intermediate routing coordinate ({x:.3}, {y:.3}) overshoots \
+                 above the from-protrusion tip (y={from_protrusion_tip_y:.3}). \
+                 The Z/S bend was placed outside the routing gap, causing a \
+                 backward loop in the visual arrow direction. \
+                 path_d = {:?}",
+                alice_charlie_1_edge.path_d,
+            );
+        }
+    }
+}
+
+/// Loads `0008_edge_from_node_to_nested_rank_1_node.yaml` and returns one
+/// `SvgElements` per LOD.
+fn build_svg_elements_from_edge_from_node_to_nested_rank_1_node(
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0008_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE)
+}
+
+/// In `0008`, `t_charlie_3` is at rank 1 inside `t_charlie_outer` (because
+/// `edge_dep_charlie_2_charlie_3` promotes `t_charlie_3` to rank 1 within
+/// that container). An edge from `t_alice` to `t_charlie_3` therefore needs
+/// cross-container spacers alongside the rank-0 siblings (`t_charlie_1` and
+/// `t_charlie_2`) so that the edge path routes correctly around them.
+#[test]
+fn test_edge_to_nested_rank_1_node_has_cross_container_spacers() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_rank_1_node() {
+        let alice_charlie_3_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_charlie_3"
+            })
+            .expect("Expected edge from t_alice to t_charlie_3");
+
+        assert!(
+            !alice_charlie_3_edge
+                .ortho_protrusion_params
+                .spacer_protrusions
+                .is_empty(),
+            "Expected cross-container spacer protrusions for edge \
+             t_alice -> t_charlie_3 (t_charlie_3 is at rank 1 inside \
+             t_charlie_outer; rank-0 siblings t_charlie_1 and t_charlie_2 \
+             should produce spacers so the edge routes around them)",
+        );
+    }
+}
+
+/// In `0008`, the `t_alice -> t_charlie_3` edge has one cross-container
+/// spacer inside `t_charlie_outer` that routes around the rank-0 siblings.
+/// The to_protrusion from `t_charlie_3`'s Top face should be small enough
+/// to only reach the spacer exit (inside `t_charlie_outer`), NOT overshoot
+/// all the way to `t_charlie_outer`'s top boundary. Overshooting causes the
+/// path to re-enter the container from the outside and produces a zigzag.
+#[test]
+fn test_edge_to_nested_rank_1_node_to_protrusion_stays_within_container() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_rank_1_node() {
+        let charlie_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_outer")
+            .expect("Expected t_charlie_outer");
+        let charlie_3 = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_3")
+            .expect("Expected t_charlie_3");
+        let alice_charlie_3_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_charlie_3"
+            })
+            .expect("Expected edge from t_alice to t_charlie_3");
+
+        // The maximum sensible to_protrusion is the distance from
+        // t_charlie_3's Top face (y = charlie_3.y) to the first
+        // spacer exit, which is well inside t_charlie_outer. The
+        // container-exit distance (charlie_3.y - charlie_outer.y)
+        // is the pathological over-shoot value that causes the zigzag.
+        let container_exit_distance = charlie_3.y - charlie_outer.y;
+        let to_protrusion = alice_charlie_3_edge.ortho_protrusion_params.to_protrusion;
+        assert!(
+            to_protrusion < container_exit_distance,
+            "to_protrusion ({to_protrusion:.2}) should be less than the \
+             container-exit distance ({container_exit_distance:.2} = \
+             charlie_3.y {:.2} - charlie_outer.y {:.2}). \
+             A to_protrusion equal to the container-exit distance means the \
+             path overshoots t_charlie_outer's top boundary, re-enters the \
+             container from outside, and produces a zigzag.",
+            charlie_3.y,
+            charlie_outer.y,
+        );
+    }
+}
+
+/// In `0008`, `t_charlie_3` is at rank 1 inside `t_charlie_outer`, and the
+/// only lower rank (rank 0) contains two siblings: `t_charlie_1` and
+/// `t_charlie_2`. The edge from `t_alice` to `t_charlie_3` should route
+/// around the rank-0 row as a whole -- one spacer per rank group is
+/// sufficient, so exactly one spacer protrusion should be recorded.
+#[test]
+fn test_edge_to_nested_rank_1_node_has_exactly_one_cross_container_spacer() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_rank_1_node() {
+        let alice_charlie_3_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_charlie_3"
+            })
+            .expect("Expected edge from t_alice to t_charlie_3");
+
+        let spacer_count = alice_charlie_3_edge
+            .ortho_protrusion_params
+            .spacer_protrusions
+            .len();
+        assert_eq!(
+            spacer_count,
+            1,
+            "Expected exactly one cross-container spacer protrusion for edge \
+             t_alice -> t_charlie_3. Both rank-0 siblings t_charlie_1 and \
+             t_charlie_2 belong to the same rank group and should share one \
+             spacer. Got {spacer_count} spacer(s): {:?}",
+            alice_charlie_3_edge
+                .ortho_protrusion_params
+                .spacer_protrusions,
+        );
+    }
+}
+
+/// Edges to `t_charlie_1` (rank 0 in `t_charlie_outer`) should have no
+/// cross-container spacers, even in the presence of a rank-1 sibling
+/// (`t_charlie_3`).
+#[test]
+fn test_edge_to_nested_rank_0_node_has_no_spacers_in_complex_diagram() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_rank_1_node() {
+        // alice -> charlie_1 edge
+        let alice_charlie_1_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_charlie_1"
+            })
+            .expect("Expected edge from t_alice to t_charlie_1");
+
+        assert!(
+            alice_charlie_1_edge
+                .ortho_protrusion_params
+                .spacer_protrusions
+                .is_empty(),
+            "Expected no spacer protrusions for edge t_alice -> t_charlie_1 \
+             in the 0008 diagram (t_charlie_1 is at rank 0): \
+             spacer_protrusions = {:?}",
+            alice_charlie_1_edge
+                .ortho_protrusion_params
+                .spacer_protrusions,
+        );
+
+        // bob -> charlie_1 edge: also no spacers
+        let bob_charlie_1_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_charlie_1")
+            .expect("Expected edge from t_bob to t_charlie_1");
+
+        assert!(
+            bob_charlie_1_edge
+                .ortho_protrusion_params
+                .spacer_protrusions
+                .is_empty(),
+            "Expected no spacer protrusions for edge t_bob -> t_charlie_1 \
+             in the 0008 diagram (t_charlie_1 is at rank 0): \
+             spacer_protrusions = {:?}",
+            bob_charlie_1_edge
+                .ortho_protrusion_params
+                .spacer_protrusions,
+        );
+    }
+}
+
+/// The edge from `t_alice_inner` to `t_charlie_inner` in the doubly-nested
+/// diagram must route orthogonally without entering `t_charlie_outer`'s
+/// interior.
+///
+/// Two bugs could cause intermediate routing coordinates to fall below
+/// `t_charlie_outer`'s top:
+///
+/// 1. The `connect_waypoints` collinear check using `dot_p.abs() > 0.95`
+///    incorrectly treated the nearly anti-collinear displacement between the
+///    two protrusion tips as "straight", drawing a diagonal line instead of an
+///    orthogonal Z/S bend.
+///
+/// 2. The from-protrusion (73.44 px) plus the to-protrusion (110.0 px) summed
+///    to 183.44 px, exceeding the node-to-node gap (153 px). The
+///    from-protrusion tip was placed inside `t_charlie_outer` (at y=245.44),
+///    below the to-protrusion tip (at y=215.0).
+///
+/// After the fix the from-protrusion is capped to 43 px (= 153 - 110), so
+/// both tips meet at `t_charlie_outer`'s top boundary (y=215). The V-spike
+/// guard in `connect_waypoints` (see
+/// `test_nested_x2_node_edge_routing_no_upward_detour`) then replaces the Z/S
+/// U-bend between the tips with a straight horizontal line, so no intermediate
+/// coordinate falls below `t_charlie_outer.y`.
+#[test]
+fn test_nested_x2_node_edge_routing_stays_above_charlie_outer() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0002_NESTED_NODE_EDGE_PROTRUSION)
+    {
+        let charlie_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_outer")
+            .expect("Expected t_charlie_outer in svg_node_infos");
+
+        let alice_inner_charlie_inner_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice_inner"
+                    && e.to_node_id.as_str() == "t_charlie_inner"
+            })
+            .expect("Expected edge from t_alice_inner to t_charlie_inner");
+
+        let charlie_outer_top_y = charlie_outer.y;
+
+        // The path is built in SVG order from the to-node (t_charlie_inner,
+        // at the bottom) to the from-node (t_alice_inner, at the top). The
+        // first coordinate is t_charlie_inner's contact point (inside
+        // t_charlie_outer) and the last is t_alice_inner's contact point
+        // (above all containers).
+        //
+        // All *intermediate* coordinates represent the routing segment
+        // connecting the two protrusion tips. None of them should fall below
+        // t_charlie_outer's top, which would indicate the Z/S bend dipped
+        // into the destination container.
+        let all_coords = parse_path_endpoints(&alice_inner_charlie_inner_edge.path_d);
+
+        let intermediate_coords = all_coords
+            .iter()
+            .skip(1)
+            .take(all_coords.len().saturating_sub(2));
+
+        for &(x, y) in intermediate_coords {
+            assert!(
+                y <= charlie_outer_top_y + 0.5,
+                "Intermediate routing coordinate ({x:.3}, {y:.3}) is below \
+                 t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}). \
+                 The Z/S bend dipped into the destination container. \
+                 path_d = {:?}",
+                alice_inner_charlie_inner_edge.path_d,
+            );
+        }
+    }
+}
+
+/// The edge from `t_alice_inner` to `t_charlie_inner` in the doubly-nested
+/// diagram must not create a V-spike at the `t_charlie_outer` boundary.
+///
+/// After `from_protrusion_capped` places both protrusion tips at y=215
+/// (t_charlie_outer's top), the naive Z/S U-bend would route: upward from
+/// the to-tip at (97,215) to y=211, across to x=88.5, then back down to
+/// the from-tip at (88.5,215). The `is_same_axis` return leg then
+/// immediately travels upward to (88.5,172), reversing direction and
+/// creating an incoherent V-spike.
+///
+/// The fix in `connect_waypoints` detects vertical tips at the same Y with
+/// opposite departure directions and draws a straight horizontal line instead.
+/// No intermediate coordinate should appear above `t_charlie_outer`'s top
+/// (y < charlie_outer.y - 0.5 would indicate an upward detour).
+#[test]
+fn test_nested_x2_node_edge_routing_no_upward_detour() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0002_NESTED_NODE_EDGE_PROTRUSION)
+    {
+        let charlie_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_outer")
+            .expect("Expected t_charlie_outer in svg_node_infos");
+
+        let alice_inner_charlie_inner_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice_inner"
+                    && e.to_node_id.as_str() == "t_charlie_inner"
+            })
+            .expect("Expected edge from t_alice_inner to t_charlie_inner");
+
+        let charlie_outer_top_y = charlie_outer.y;
+
+        // The path is built in SVG order: to-node first, from-node last.
+        // After the fix, all intermediate points lie at exactly y=215.
+        // Before the fix they included arc control points at y≈211--213
+        // (the U-bend detour) that are above t_charlie_outer's top.
+        let all_coords = parse_path_endpoints(&alice_inner_charlie_inner_edge.path_d);
+        let intermediate_coords = all_coords
+            .iter()
+            .skip(1)
+            .take(all_coords.len().saturating_sub(2));
+
+        for &(x, y) in intermediate_coords {
+            assert!(
+                y >= charlie_outer_top_y - 0.5,
+                "Intermediate routing coordinate ({x:.3}, {y:.3}) is above \
+                 t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}). \
+                 The path detours above the boundary, indicating a V-spike. \
+                 path_d = {:?}",
+                alice_inner_charlie_inner_edge.path_d,
+            );
+        }
+    }
+}
+
+/// In `0008`, edges from `t_bob` to `t_charlie_1` (rank 0 inside
+/// `t_charlie_outer`) should use normal Bottom -> Top face routing, not
+/// cycle-edge routing, even though both nodes have local rank 0 in their
+/// respective parent contexts.
+#[test]
+fn test_edge_from_toplevel_to_nested_rank_0_node_uses_normal_routing_complex_diagram() {
+    for svg_elements in build_svg_elements_from_edge_from_node_to_nested_rank_1_node() {
+        let bob = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_bob")
+            .expect("Expected t_bob");
+        let charlie_1 = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_1")
+            .expect("Expected t_charlie_1");
+
+        let bob_charlie_1_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_charlie_1")
+            .expect("Expected edge from t_bob to t_charlie_1");
+
+        let path_tokens: Vec<&str> = bob_charlie_1_edge.path_d.split_whitespace().collect();
+        assert!(
+            !path_tokens.is_empty(),
+            "Expected non-empty path for edge t_bob -> t_charlie_1"
+        );
+
+        let parse_suffixed = |s: &str, prefix: char| -> Option<(f32, f32)> {
+            let s = s.strip_prefix(prefix)?;
+            let (x_str, y_str) = s.split_once(',')?;
+            Some((x_str.parse().ok()?, y_str.parse().ok()?))
+        };
+
+        let tolerance = 20.0_f32;
+
+        // Path starts at to-node (t_charlie_1 top face).
+        let (_, first_y) = path_tokens
+            .first()
+            .and_then(|t| parse_suffixed(t, 'M'))
+            .expect("Path should start with M command (e.g. M80,210)");
+        let expected_first_y = charlie_1.y;
+        assert!(
+            (first_y - expected_first_y).abs() <= tolerance,
+            "First path point y={first_y:.2} should be near t_charlie_1 top face \
+             y={expected_first_y:.2} (tolerance {tolerance:.0} px). \
+             Cycle-edge routing produces a different starting y. \
+             path_d = {:?}",
+            bob_charlie_1_edge.path_d,
+        );
+
+        // Path ends at from-node (t_bob bottom face).
+        let (_, last_y) = path_tokens
+            .last()
+            .and_then(|t| parse_suffixed(t, 'L').or_else(|| parse_suffixed(t, 'M')))
+            .expect("Path should end with an L or M command");
+        let expected_last_y = bob.y + bob.height_collapsed;
+        assert!(
+            (last_y - expected_last_y).abs() <= tolerance,
+            "Last path point y={last_y:.2} should be near t_bob bottom face \
+             y={expected_last_y:.2} (tolerance {tolerance:.0} px). \
+             path_d = {:?}",
+            bob_charlie_1_edge.path_d,
+        );
+    }
 }

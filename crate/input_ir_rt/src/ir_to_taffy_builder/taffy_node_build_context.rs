@@ -1,7 +1,7 @@
 use disposition_ir_model::{
     entity::EntityTypes,
     layout::{LeafLayout, NodeLayouts},
-    node::{NodeHierarchy, NodeId, NodeNames, NodeRanks, NodeShapes},
+    node::{NodeHierarchy, NodeId, NodeNames, NodeNestingInfos, NodeRanksNested, NodeShapes},
 };
 use disposition_model_common::{entity::EntityDescs, Map};
 use disposition_taffy_model::{
@@ -20,7 +20,8 @@ pub(crate) struct TaffyNodeBuildContext<'ctx> {
     pub(crate) node_hierarchy: &'ctx NodeHierarchy<'static>,
     pub(crate) entity_types: &'ctx EntityTypes<'static>,
     pub(crate) node_shapes: &'ctx NodeShapes<'static>,
-    pub(crate) node_ranks: &'ctx NodeRanks<'static>,
+    pub(crate) node_ranks_nested: &'ctx NodeRanksNested<'static>,
+    pub(crate) node_nesting_infos: &'ctx NodeNestingInfos<'static>,
     pub(crate) node_id_to_taffy: &'ctx mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
     pub(crate) taffy_id_to_node: &'ctx mut Map<taffy::NodeId, NodeId<'static>>,
 }

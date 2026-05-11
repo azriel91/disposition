@@ -5,7 +5,10 @@ use crate::{
     edge::EdgeGroups,
     entity::{EntityDescs, EntityTailwindClasses, EntityTypes},
     layout::NodeLayouts,
-    node::{NodeCopyText, NodeHierarchy, NodeNames, NodeOrdering, NodeRanks, NodeShapes},
+    node::{
+        NodeCopyText, NodeHierarchy, NodeNames, NodeNestingInfos, NodeOrdering, NodeRanksNested,
+        NodeShapes,
+    },
     process::ProcessStepEntities,
 };
 
@@ -154,13 +157,21 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "NodeLayouts::is_empty")]
     pub node_layouts: NodeLayouts<'id>,
 
-    /// Computed ranks for nodes based on dependency edges.
+    /// Hierarchy-aware computed ranks for nodes based on dependency edges.
     ///
-    /// Nodes with higher ranks are positioned further along the flex direction
-    /// axis (further down for column layouts, further right for row layouts).
-    /// Nodes without any dependency edges default to rank `0`.
-    #[serde(default, skip_serializing_if = "NodeRanks::is_empty")]
-    pub node_ranks: NodeRanks<'id>,
+    /// Holds a rank map for the root level and for each container node.
+    /// Within each level, nodes with higher ranks are positioned further along
+    /// the flex direction axis. Dependency edges that cross container
+    /// boundaries are attributed to the lowest common ancestor (LCA) level.
+    #[serde(default, skip_serializing_if = "NodeRanksNested::is_empty")]
+    pub node_ranks_nested: NodeRanksNested<'id>,
+
+    /// Nesting information for each node in the hierarchy.
+    ///
+    /// Contains each node's ancestor chain and sibling index path from the
+    /// root. Used to compute edge spacer positions for cross-rank edges.
+    #[serde(default, skip_serializing_if = "NodeNestingInfos::is_empty")]
+    pub node_nesting_infos: NodeNestingInfos<'id>,
 
     /// Shape configuration for each node.
     ///
@@ -213,7 +224,8 @@ impl<'id> IrDiagram<'id> {
             entity_types: self.entity_types.into_static(),
             tailwind_classes: self.tailwind_classes.into_static(),
             node_layouts: self.node_layouts.into_static(),
-            node_ranks: self.node_ranks.into_static(),
+            node_ranks_nested: self.node_ranks_nested.into_static(),
+            node_nesting_infos: self.node_nesting_infos.into_static(),
             node_shapes: self.node_shapes.into_static(),
             process_step_entities: self.process_step_entities.into_static(),
             render_options: self.render_options,

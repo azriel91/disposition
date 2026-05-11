@@ -3,9 +3,9 @@
 1. Nodes are connected to other nodes via edges
 2. Nodes are laid out in a flex layout with recursive flex layout containers
 3. Between nodes, "spacer nodes" may be inserted, which serve as coordinate markers for edge paths, so that when edge paths are calculated, the path is routed through spacer nodes to avoid drawing lines over the diagram nodes.
-4. Nodes also have a `NodeRank`, which is "the highest rank of nodes connected to this node, plus one". If there are no nodes connected to this node, the `NodeRank` is `0`.
+4. Nodes have a `NodeRank` that positions them along the rank axis within their container level. Ranks are stored in [`NodeRanksNested`](crate/ir_model/src/node/node_ranks_nested.rs), which holds a rank map for the root level and for each container node's direct children. Dependency edges that cross container boundaries are attributed to the lowest common ancestor (LCA) level. See [Node Rank Calculation](#node-rank-calculation) for details.
 5. Part of the information gathered for calculating spacer nodes is collecting a `BTreeMap<NodeRank, Vec<taffy::NodeId>>`.
-6. Calculation of where to place spacer nodes is done in [`ir_to_taffy_builder.rs`](crate/input_ir_rt/src/ir_to_taffy_builder.rs), in `fn build_taffy_child_nodes_for_node_by_rank`, called by `fn build_taffy_nodes_for_node_with_child_hierarchy`.
+6. Calculation of where to place spacer nodes is done in [`ir_to_taffy_builder.rs`](crate/input_ir_rt/src/ir_to_taffy_builder.rs), in `fn build_taffy_child_nodes_for_node_by_rank`, called by `fn build_taffy_nodes_for_node_with_child_hierarchy`. Cross-container spacers (alongside sibling children of a container that an edge passes through) are only inserted for siblings whose rank is **strictly less than** the target child's rank. Siblings at the same rank as the target are side-by-side and do not block the incoming edge path; siblings at higher ranks are beyond the target and are similarly not in the path. In particular, edges that connect to a rank-0 node inside a container require no cross-container spacers at all, because there are no siblings between the container entry and rank 0. Furthermore, **at most one spacer is created per rank group**: if multiple siblings share the same rank (and therefore occupy the same layout row), a single spacer is sufficient to route the edge around the entire row -- creating one spacer per sibling would cause the path builder to zigzag through redundant waypoints.
 7. Edge path calculation is done in two passes.
 8. Both passes are called in [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs)
 9. The first pass calculates a path between the from-node and to-node without taking into account spacer nodes, and the information from this first path is used in subsequent calculations. This is defined in [`edge_path_builder_pass_1.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_path_builder_pass_1.rs)
@@ -15,6 +15,89 @@
 13. Protrusion is the length that the edge path extends out of the node face, so that an edge path isn't drawn directly on a node face.
 14. The second pass is defined in [`edge_path_builder_pass_2.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_path_builder_pass_2.rs)
 15. The second pass computes the edge paths with the offsets and protrusion, which should result in paths that are visually non-overlapping with other paths and node content, creating visual clarity.
+
+
+## Node Rank Calculation
+
+Node ranks are stored in [`NodeRanksNested`](crate/ir_model/src/node/node_ranks_nested.rs) and computed by [`NodeRanksCalculator`](crate/input_ir_rt/src/node_ranks_calculator.rs). Ranks are hierarchy-aware: each container node has its own [`NodeRanks`](crate/ir_model/src/node/node_ranks.rs) for its direct children, computed independently from other levels.
+
+
+### Why hierarchy-aware ranks exist
+
+In a nested node hierarchy, dependency edges may connect nodes at different nesting depths. A flat rank assignment would assign ranks globally, conflating unrelated nodes at different levels. By computing `NodeRanks` per level, each container's children are ranked relative to their siblings only, which correctly drives their layout position within their container.
+
+
+### Concepts
+
+- **Level**: a set of sibling nodes sharing the same parent container. The root level consists of the top-level nodes in the diagram. Each container node defines its own level for its direct children.
+- **Container**: a node that has at least one direct child. Its direct children form a level with their own `NodeRanks`.
+- **LCA (Lowest Common Ancestor)**: for two nodes `A` and `B`, the deepest node in the hierarchy that is an ancestor of both. For same-level siblings, the LCA is their shared parent. For top-level nodes, the LCA is the diagram root.
+- **Divergent ancestor**: given two nodes and their LCA, the divergent ancestor of a node is the direct child of the LCA that is an ancestor of (or equal to) that node. It is the element at depth `lca_depth` in the node's `ancestor_chain`.
+- **LCA-level edge**: for an edge `(from, to)`, the corresponding edge `(divergent_from, divergent_to)` between the two divergent ancestors at the LCA. Cross-container edges are "lifted" to the LCA level.
+
+
+### Algorithm
+
+`NodeRanksNested` is computed in four steps:
+
+1. **Build container-to-children map.** Using [`NodeNestingInfos`](crate/ir_model/src/node/node_nesting_infos.rs), group each node under its parent container: the second-to-last element of its `ancestor_chain`, or `None` for top-level nodes.
+
+2. **Collect dependency edges.** Dependency edges are extracted from `EdgeGroups` by checking entity types for `DependencyEdge*` variants.
+
+3. **Lift edges to LCA level.** For each dependency edge `(from, to)`:
+   - Look up `NodeNestingInfo` for both endpoints.
+   - Compute the LCA depth: the length of the common prefix of the two `ancestor_chain`s.
+   - Derive `divergent_from = ancestor_chain_from[lca_depth]` and `divergent_to = ancestor_chain_to[lca_depth]`.
+   - Derive `lca_container = ancestor_chain_from[lca_depth - 1]` (or `None` if `lca_depth == 0`).
+   - Skip edges where one node is an ancestor of the other (`lca_depth >= min chain length`).
+   - Group the LCA-level edge `(divergent_from, divergent_to)` under `lca_container`.
+
+4. **Compute ranks per level.** For each container and its direct children, run the SCC-based longest-path rank assignment using only the LCA-level edges for that container. Nodes in cycles receive the same rank.
+
+
+### Example
+
+For the hierarchy and edges:
+
+```yaml
+node_hierarchy:
+  a: { a_child: {} }
+  b: { b_child_0: {}, b_child_1: {} }
+  c: { c_child: {} }
+  d: { d_child: {} }
+
+edges:
+  edge_dep_a__b:                  { from: a,         to: b         }
+  edge_dep_b_child_0__b_child_1:  { from: b_child_0, to: b_child_1 }
+  edge_dep_b_child_0__c_child:    { from: b_child_0, to: c_child   }
+```
+
+Edge attribution:
+
+- `edge_dep_a__b`: `ancestor_chain(a) = [a]`, `ancestor_chain(b) = [b]`, LCA depth = 0, LCA = root, LCA-level edge = `(a, b)` at root level.
+- `edge_dep_b_child_0__b_child_1`: `ancestor_chain(b_child_0) = [b, b_child_0]`, `ancestor_chain(b_child_1) = [b, b_child_1]`, LCA depth = 1, LCA = `b`, LCA-level edge = `(b_child_0, b_child_1)` at `b`'s level.
+- `edge_dep_b_child_0__c_child`: `ancestor_chain(b_child_0) = [b, b_child_0]`, `ancestor_chain(c_child) = [c, c_child]`, LCA depth = 0, LCA = root, divergent ancestors = `b` and `c`, LCA-level edge = `(b, c)` at root level.
+
+Resulting `NodeRanksNested`:
+
+```yaml
+node_ranks_nested:
+  root:
+    a: 0
+    b: 1
+    c: 2  # LCA-lifted from edge_dep_b_child_0__c_child: b -> c
+    d: 0
+  containers:
+    a:
+      a_child: 0  # no edges in a's level
+    b:
+      b_child_0: 0
+      b_child_1: 1
+    c:
+      c_child: 0  # edge_dep_b_child_0__c_child is at root level, not c's level
+    d:
+      d_child: 0  # no edges in d's level
+```
 
 
 ## Offset Calculation
@@ -82,6 +165,13 @@ Protrusion calculation is implemented in [`ortho_protrusion_calculator.rs`](crat
 20. **Rank gap entry**: a `RankGapEntry` record representing one endpoint in one rank gap. It stores: the edge's group/index, which endpoint kind it is (`FromEndpoint`, `ToEndpoint`, `SpacerEntry`, `SpacerExit`), which gap side, the cross-axis coordinate (perpendicular to the rank direction), the face offset (slot offset from face midpoint), and the pixel distance of the rank gap.
 21. **Crossing edge**: an edge that has entries on **both** sides of the same rank gap (e.g. a from-endpoint on the `Low` side and a spacer entry on the `High` side of the same gap). Crossing edges need special treatment to avoid their routing midpoints coinciding.
 22. **Cross-axis coordinate**: the coordinate perpendicular to the rank direction. For `Top`/`Bottom` faces (vertical rank flow) this is the X coordinate; for `Left`/`Right` faces (horizontal rank flow) this is the Y coordinate. Used to sort endpoints spatially within a gap.
+23. **Node category**: a coarse grouping of node entity types used to keep protrusion and rank-gap calculations independent across unrelated node groups. The categories are:
+    - `Thing` -- `ThingDefault` nodes.
+    - `Tag` -- `TagDefault` nodes.
+    - `Process` -- `ProcessDefault` and `ProcessStepDefault` nodes.
+    - `Other` -- nodes with no recognised entity type.
+
+    When computing rank-gap boundaries (for cycle edges) or divergent-sibling extents (for all edges), only nodes within the **same category** as the edge's from-node are considered. This prevents thing-node edges from being routed around process nodes, and tag-node edges from being routed around thing nodes, even when those unrelated nodes share the same rank in the layout. Implemented by `OrthoProtrusionCalculator::node_category` and applied in `cycle_edge_collect_rank_gap_entries` and `min_protrusion_divergent_sibling_extent`.
 
 
 ### Algorithm overview (`fn calculate`)
@@ -96,8 +186,8 @@ The algorithm in `OrthoProtrusionCalculator::calculate` has four steps:
 
     For each edge across all groups:
 
-    - The from-endpoint is registered in the rank gap between the from-node's rank and the adjacent rank toward the to-node.
-    - The to-endpoint is registered in the rank gap between the to-node's rank and the adjacent rank toward the from-node.
+    - **Same-rank (cycle) edges** with `Top` or `Bottom` faces are handled by `cycle_edge_collect_rank_gap_entries`. Both the from-endpoint and the to-endpoint are registered as same-side entries in the adjacent rank gap: `Top` face -> gap `(rank-1, rank)` on the `High` side; `Bottom` face -> gap `(rank, rank+1)` on the `Low` side. The `rank_gap_px` for each endpoint is the pixel distance from the node's face to the nearest boundary of the adjacent rank (the maximum bottom edge of rank-R-1 nodes for `Top`, or the minimum top edge of rank-R+1 nodes for `Bottom`). **Only nodes of the same category as the from-node** are included in this boundary search, so thing-node cycle edges are not pushed out by process nodes at the same rank. Cycle edges with `Left` or `Right` faces are skipped here and fall through to the `MIN_PROTRUSION_PX` safety net in Step 6.
+    - **Non-cycle edges**: The from-endpoint is registered in the rank gap between the from-node's rank and the adjacent rank toward the to-node. The to-endpoint is registered in the rank gap between the to-node's rank and the adjacent rank toward the from-node.
     - Each intermediate spacer contributes two entries: its entry side protrudes into the gap before it, and its exit side protrudes into the gap after it. The first spacer's entry shares the same gap as the from-endpoint (opposite side), and the last spacer's exit shares the same gap as the to-endpoint (opposite side).
     - Each entry records its `GapSide`, cross-axis coordinate, face offset, and rank gap pixel distance (computed by `rank_gap_px` for node endpoints or `spacer_gap_px` for spacer-to-spacer gaps).
 
@@ -108,6 +198,12 @@ The algorithm in `OrthoProtrusionCalculator::calculate` has four steps:
 26. **Step 4: Propagate node protrusions to shared spacer sides (fallback).**
 
     If the first spacer's entry protrusion or the last spacer's exit protrusion was not assigned (because the node face was `None`), it falls back to the from/to protrusion value as a safety net.
+
+27. **Step 5: Enforce minimum protrusions to clear divergent ancestor siblings (`fn protrusions_adjust_for_divergent_siblings`).**
+
+    For edges where the from/to nodes are at different nesting levels, each endpoint's protrusion must be large enough to clear all same-rank sibling nodes of the endpoint's **Divergent ancestor** at the LCA level. **Only nodes of the same category as the endpoint node** are considered as siblings, so a thing-node endpoint is not made to clear process nodes that happen to share the same rank.
+
+    The FROM endpoint adjustment is always applied. The **TO endpoint adjustment is skipped when the edge has cross-container spacers**: in that case the spacer already handles routing inside the to-node's container, so the `to_protrusion` only needs to reach the spacer exit (not exit the container's far boundary). Applying the adjustment with a spacer present would force `to_protrusion` all the way to the container boundary, causing the path to overshoot the spacer, re-enter the container from the outside, and produce a visual zigzag.
 
 
 ### Protrusion depth assignment (`fn protrusions_assign`)
@@ -148,13 +244,14 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
 ### Helper functions
 
-33. **`rank_gap_px`**: computes the pixel distance in the rank direction for one endpoint. For the from-endpoint, this is the distance from the from-node's face center to the first spacer entry (or to-node if no spacers). For the to-endpoint, it is the distance from the to-node's face center to the last spacer exit (or from-node if no spacers).
+33. **`rank_gap_px`**: computes the pixel distance in the rank direction for one non-cycle endpoint. For the from-endpoint, this is the distance from the from-node's face center to the first spacer entry (or to-node if no spacers). For the to-endpoint, it is the distance from the to-node's face center to the last spacer exit (or from-node if no spacers). Cycle edge endpoints use a different computation in `cycle_edge_collect_rank_gap_entries` (see below).
 34. **`spacer_gap_px`**: computes the pixel distance between two consecutive spacers along the rank axis (from the exit of one spacer to the entry of the next).
 35. **`spacer_gap_key`**: computes the `RankGapKey` for the gap between two consecutive spacers by interpolating ranks between the from-node and to-node.
 36. **`face_offset_resolve`**: resolves the face offset (slot offset) for a single endpoint from `face_offsets_by_node_face`. Spacer endpoints have a face offset of `0.0`.
 37. **`cross_axis_coord`**: returns the cross-axis coordinate: X for `Top`/`Bottom` faces, Y for `Left`/`Right` faces.
 38. **`axis_distance`**: computes the absolute distance along the rank axis between two points: `|by - ay|` for `Top`/`Bottom` faces, `|bx - ax|` for `Left`/`Right` faces.
 39. **`protrusion_write`**: writes the computed protrusion depth into the correct slot in the output (`from_protrusion`, `to_protrusion`, or `spacer_protrusions[i].entry_protrusion` / `exit_protrusion`), dispatching on `RankGapEndpointKind`.
+40. **`node_category`**: maps a node's entity types to a [`NodeCategory`](#concepts) variant (`Thing`, `Tag`, `Process`, or `Other`). Used in `cycle_edge_collect_rank_gap_entries` and `min_protrusion_divergent_sibling_extent` to filter out unrelated node types from rank-gap and sibling-extent calculations.
 
 
 ### How protrusions are consumed
@@ -163,13 +260,140 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 41. At each node endpoint, if the protrusion is non-zero, an extra waypoint is added at `(contact_x + face_outward_dx * protrusion, contact_y + face_outward_dy * protrusion)`, extending the path perpendicular to the face before the main routing segment begins.
 42. At each spacer, four waypoints are added: the exit + exit protrusion, the exit, the entry, and the entry - entry protrusion. The protrusion waypoints push the routing legs away from node faces so that parallel edges sharing the same gap run at distinct depths.
 
+### Protrusion-tip crossing guard (`fn from_protrusion_capped`)
+
+43. For edges between deeply-nested nodes the slot-assigned `from_protrusion` can exceed the available gap between the two outer containers. When the divergent-sibling adjustment (Step 5) simultaneously raises `to_protrusion` to clear the destination container hierarchy, the sum `from_protrusion + to_protrusion` can exceed the full node-to-node gap. This places the from-tip *past* the to-tip in the routing direction -- the tips cross -- so any Z/S segment drawn between them would re-enter the destination container.
+
+    **Example (0002 doubly-nested diagram):**
+    - `t_alice_inner` bottom face: y = 172.
+    - `t_charlie_inner` top face: y = 325. Gap = 153 px.
+    - Slot-assigned `from_protrusion = 73.44`, divergent-sibling `to_protrusion = 110.0`.
+    - Sum = 183.44 > 153 -- tips would cross: from-tip at y = 245.44 is below to-tip at y = 215.
+
+    The fix is applied in `build_ortho_edge_path` via a helper `fn from_protrusion_capped`. For aligned opposite-face pairs (Bottom-Top, Top-Bottom, Left-Right, Right-Left), it computes `gap = |end_axis - start_axis|` and, when `from_protrusion + to_protrusion > gap`, caps the from-protrusion to `(gap - to_protrusion).max(0.0)`. For other face-pair combinations (cycle edges, L-shaped routing) it returns the from-protrusion unchanged.
+
+    After the cap, both protrusion tips meet at the same axis coordinate. The V-spike guard in `connect_waypoints` (see item 45) then replaces the Z/S U-bend between the tips with a straight horizontal line -- no direction reversal occurs at the meeting point.
+
+### Same-axis collinear check in `connect_waypoints`
+
+44. `connect_waypoints` uses a dot-product check to detect when two consecutive waypoints are collinear with the departure direction and should be joined by a straight line rather than a Z/S or L-shaped bend. The original check was `dot_p.abs() > 0.95`, which accepted both collinear (`dot_p > 0.95`) and *anti*-collinear (`dot_p < -0.95`) cases.
+
+    The anti-collinear case includes two fundamentally different situations:
+
+    - **Same-axis return** -- the return leg from a protrusion tip back to the node contact point. Both points have the same x-coordinate (for a vertical face) or same y-coordinate (for a horizontal face). The displacement is purely backward (dot_p = -1), and a straight line is correct.
+
+    - **Anti-collinear with perpendicular offset** -- the protrusion tips cross (see above) or the path connects two tips at different positions with a large backward component. `dot_p` approaches -1 when the perpendicular offset is small relative to the backward displacement. A straight diagonal line is *incorrect* here; an orthogonal Z/S bend is required.
+
+    The fix replaces `dot_p.abs() > 0.95` with `dot_p > 0.95 || is_same_axis`, where `is_same_axis` is `true` when both waypoints share the same routing axis (no perpendicular component): `|dx| < 1e-3` for a vertical departure, `|dy| < 1e-3` for a horizontal departure. This correctly draws straight lines for same-axis returns while routing the anti-collinear-with-offset case through the Z/S logic.
+
+### V-spike guard for opposite-direction tips at the same axis coordinate
+
+45. After `from_protrusion_capped` lands both protrusion tips at the same Y (or X for horizontal routing), the two tip waypoints have **opposite** departure directions: the to-tip departs upward (`Top` face, `dir = (0,-1)`) and the from-tip departs downward (`Bottom` face, `dir = (0,+1)`). The standard Z/S U-bend logic would route:
+
+    1. **Leg 1** -- upward from the to-tip `p = (px, py)` to a bend at `(px, py - ARC_RADIUS)`.
+    2. **Leg 2** -- horizontally across to `(qx, py - ARC_RADIUS)`.
+    3. **Leg 3** -- downward from the bend back to the from-tip `q = (qx, qy)` (same Y as p).
+
+    But the continuation from q (the `is_same_axis` return leg toward the from-contact point) immediately travels **upward**, reversing direction. The resulting down-then-up **V-spike** at q is visually incoherent.
+
+    The fix is in `connect_waypoints`: at the start of the vertical Z/S branch, before computing the bend point, a guard fires when `|py - qy| < 1e-3` **and** `p_dy * q_dy < 0` (opposite vertical directions). In that case a **straight horizontal line** is drawn from p to q and the function returns early. The horizontal analogue applies for the horizontal Z/S branch (`|px - qx| < 1e-3`, `p_dx * q_dx < 0`).
+
+    **Example (0002 doubly-nested diagram):** after capping, `from_protrusion_eff = 43`, placing the from-tip at `(88.5, 215)` with `dir = (0,+1)` and the to-tip at `(97, 215)` with `dir = (0,-1)`. The guard fires and the complete path becomes:
+
+    ```
+    M97,325 L97,215 L88.5,215 L88.5,172
+    ```
+
+    an orthogonal Z-shape (up 110 px stub, left 8.5 px cross, up 43 px stub) with no direction reversals.
+
 
 ## Spacer Coordinate Direction Awareness
 
 43. Spacer nodes are 5x5 px taffy leaf nodes inserted at intermediate ranks. After taffy computes the layout, each spacer's absolute position is resolved into a `SpacerCoordinates { entry_x, entry_y, exit_x, exit_y }`, representing the entry and exit points that the edge path passes through.
-44. The entry and exit points of a spacer depend on the diagram's `RankDir`. This is implemented in `fn spacer_absolute_coordinates` in both [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs) and [`ortho_protrusion_calculator.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/ortho_protrusion_calculator.rs):
+44. The entry and exit points of a spacer depend on the diagram's `RankDir`. This is implemented in `fn calculate` in [`edge_spacer_coordinates_calculator.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_spacer_coordinates_calculator.rs):
     - `TopToBottom` -- entry at the top midpoint (smallest y), exit at the bottom midpoint (largest y). The path passes vertically downward through the spacer.
     - `BottomToTop` -- entry at the bottom midpoint (largest y), exit at the top midpoint (smallest y). The path passes vertically upward through the spacer.
     - `LeftToRight` -- entry at the left midpoint (smallest x), exit at the right midpoint (largest x). The path passes horizontally rightward through the spacer.
     - `RightToLeft` -- entry at the right midpoint (largest x), exit at the left midpoint (smallest x). The path passes horizontally leftward through the spacer.
 45. When cross-container spacers are merged with rank-based spacers, they are sorted by the main-axis coordinate (`entry_y` for vertical flows, `entry_x` for horizontal flows) so that the spacers appear in the correct visual order along the edge path. This sorting is implemented in `fn spacer_coordinates_from_spacers` in [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs) and `fn spacer_coordinates_resolve` in [`ortho_protrusion_calculator.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/ortho_protrusion_calculator.rs).
+
+
+## Cycle Edge Routing
+
+46. Edges between nodes at the **same `NodeRank`** (cycle edges) need special treatment for two reasons. First, they need clockwise face selection to route around the outside of nodes (rather than connecting nearest faces, which would route through nodes). Second, their protrusions must be distributed using the adjacent rank gap's available space, so that multiple cycle edges sharing the same gap get distinct protrusion depths instead of all collapsing to the same fixed minimum. Without special handling the Z/S routing bend falls exactly at the node face boundary and the segment overlaps the node.
+47. Same-rank edges are detected in `build_edge_pass1_infos` in [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs) by comparing the ranks of the `from` and `to` nodes at their **LCA (Lowest Common Ancestor) level** before face selection. Using local context ranks (each node's rank within its own parent container) would give false positives for cross-container edges: two nodes in different containers can both have rank 0 in their respective parent contexts while sitting at visually different positions in the diagram. The LCA-level ranks avoid this by comparing the ranks of the *divergent ancestors* -- the direct children of the LCA that are ancestors of (or equal to) each node. When `rank_from == rank_to` at the LCA level, the `is_same_rank` flag is set to `true` and passed to `faces_select`. The `is_cycle_edge` flag is set to `true` only when all of the following conditions hold:
+    - `rank_from == rank_to` at the LCA level (same visual rank),
+    - the two nodes are **not** adjacent siblings (nesting-path index difference > 1).
+
+
+### Clockwise face selection (`fn cycle_edge_faces_select`)
+
+48. When `is_same_rank` is `true`, `faces_select` delegates to `cycle_edge_faces_select` in [`edge_path_builder_pass_1.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_path_builder_pass_1.rs). This function returns a pair of node faces that routes the edge **clockwise around the outside** of the involved nodes.
+49. The selection is purely geometric and does not depend on the `RankDir`:
+
+    | Relative position of `from` vs `to` | `from` face | `to` face | Routing path |
+    |--------------------------------------|-------------|-----------|----------------------------------------------|
+    | `from` left of `to` (`dx > 0`)       | `Top`       | `Top`     | Protrude up, arc right above, enter top |
+    | `from` right of `to` (`dx < 0`)      | `Bottom`    | `Bottom`  | Protrude down, arc left below, enter bottom |
+    | `from` above `to` (`|dy| > |dx|`, `dy > 0`) | `Right` | `Right` | Protrude right, arc down right side, enter right |
+    | `from` below `to` (`|dy| > |dx|`, `dy < 0`) | `Left`  | `Left`  | Protrude left, arc up left side, enter left |
+
+    The tie-breaking condition `dx.abs() >= dy.abs()` means that when the horizontal displacement equals the vertical displacement, the horizontal rule applies.
+
+
+### Gap-based protrusion for cycle edges (`fn cycle_edge_collect_rank_gap_entries`)
+
+50. For cycle edges with `Top` or `Bottom` faces, only the **from-endpoint** is registered in the adjacent rank gap in Step 2 of `calculate` (not the to-endpoint). This lets it compete for protrusion slots alongside non-cycle edges in the same gap. Step 6 (`fn protrusions_assign_cycle_edges`) then copies the assigned depth to the to-endpoint, producing a symmetric U-shaped arc.
+
+    - **`rank_gap_px` for cycle edges**: the pixel distance is computed directly from layout coordinates, not from the distance to the other endpoint. The **adjacent rank boundary** is found by iterating over all nodes at the adjacent rank within the same scope (`node_ranks_nested.ranks_for(parent_container)`), then taking:
+      - For `Top` face: the **maximum** `y + height_collapsed` (bottom edge) of adjacent rank-R-1 nodes.
+      - For `Bottom` face: the **minimum** `y` (top edge) of adjacent rank-R+1 nodes.
+
+      Then `rank_gap_px = node.y - adjacent_boundary` (Top) or `adjacent_boundary - (node.y + node.height_collapsed)` (Bottom). If no adjacent-rank nodes exist, or the computed gap is non-positive, the endpoint is not registered (falls through to Step 6).
+
+    - **Gap side**: the from-endpoint of a cycle edge is on the `High` side for `Top` face, or `Low` side for `Bottom` face. This makes it a `single_side` entry in `protrusions_assign`, receiving a unique slot.
+
+    - **Sharing the gap with non-cycle edges**: if non-cycle edges also have endpoints in the same gap (e.g. an edge from rank R-1 to rank R contributes its to-endpoint on the `High` side of gap (R-1, R)), all entries compete together for slots. The tightest `rank_gap_px` across all entries determines the maximum protrusion via `MAX_GAP_FRACTION = 0.48`. This ensures protrusions never exceed 48% of the actual gap, leaving room for the routing segment, arrowhead, and other entries on the opposite side.
+
+### Cycle edge protrusion finalisation (`fn protrusions_assign_cycle_edges`)
+
+51. After gap-based assignment (Steps 2–5), Step 6 calls `protrusions_assign_cycle_edges` which handles two cases:
+
+    **Case A -- registered cycle edges** (`from_protrusion > 0`): the from-endpoint was assigned a depth by the gap-based step. This depth is copied to `to_protrusion` (with `MIN_PROTRUSION_PX` as a floor) so both endpoints protrude equally, producing a symmetric U-shaped arc.
+
+    **Case B -- unregistered cycle edges** (`from_protrusion == 0`): edges that returned early from `cycle_edge_collect_rank_gap_entries` (boundary ranks, no adjacent rank nodes, or `Left`/`Right` faces). These are grouped by `(from_face, rank_from)` -- all edges routing in the same direction at the same rank -- then sorted by face offset then cross-axis coordinate (matching the ordering in `protrusions_assign`). Within each group of N edges, depths are assigned:
+
+    - `slot[0]` (first sorted entry) -> `N × MIN_PROTRUSION_PX` (longest, outermost arc)
+    - `slot[N-1]` (last sorted entry) -> `1 × MIN_PROTRUSION_PX` (shortest, innermost arc)
+    - Intermediate slots evenly spaced between `N × MIN` and `1 × MIN`
+
+    Both `from_protrusion` and `to_protrusion` are set to the same assigned depth.
+
+52. The stacking order -- first-sorted entry gets the longest protrusion -- mirrors the slot assignment in `protrusions_assign` for single-side entries. This matches the face-offset + cross-axis sorting used for the adjacent-rank case, so the visual layering is consistent whether or not an adjacent rank exists.
+
+
+### Z/S bend direction for same-coordinate protrusion tips
+
+53. The `connect_waypoints` function in [`edge_path_builder_pass_2_ortho.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_path_builder_pass_2/edge_path_builder_pass_2_ortho.rs) connects two consecutive waypoints with a Z/S-shaped three-leg segment when both waypoints have the same axis orientation (both vertical or both horizontal). The bend point is determined by a sign computed from the relative positions of the two waypoints.
+54. For cycle edges using `Top`/`Top` or `Bottom`/`Bottom` faces, both protrusion tips end up at the same Y coordinate (because both nodes are at the same `y` in the typical same-rank layout). The standard heuristic (`sign = if py < qy { -1 } else { 1 }`) would pick `sign = 1` when `py == qy`, placing the bend below the protrusion tips and **inside** the node bounding boxes.
+55. To fix this, when the two waypoints are at the **same coordinate on the routing axis** (`|py - qy| < 1e-3` for vertical, `|px - qx| < 1e-3` for horizontal), the bend direction is determined from the **departure direction** (`p_dir`) of the source waypoint instead:
+    - Vertical Z/S: if `p_dy < 0.0` (face points upward, e.g. `Top`) then `sign = -1` (bend upward); if `p_dy > 0.0` (face points downward, e.g. `Bottom`) then `sign = +1` (bend downward).
+    - Horizontal Z/S: if `p_dx < 0.0` (face points leftward, e.g. `Left`) then `sign = -1` (bend leftward); if `p_dx > 0.0` (face points rightward, e.g. `Right`) then `sign = +1` (bend rightward).
+
+    This ensures the U-shaped bend of the routing segment is placed entirely outside the node bounding boxes.
+
+### Small-gap guard for Z/S bends
+
+56. A second edge case arises when the gap between the two protrusion tips is **smaller than `ARC_RADIUS`**. The standard formula `bend = qy + sign * ARC_RADIUS` (for vertical) or `bend = qx + sign * ARC_RADIUS` (for horizontal) can then place the bend **past `p`** in the direction opposite to `p`'s departure, making Leg 1 travel against the departure direction.
+
+    **Example**: in a `TopToBottom` diagram with an edge from a nested node `alice` (inside `alice_outer`) to another nested node `charlie_1` (inside `charlie_outer`), the to-protrusion tip `p = (70, 155)` is at the top of `charlie_outer` and the from-protrusion tip `q = (58, 152.696)` is 36.7 px below alice's bottom face. The gap `py - qy = 2.304 < ARC_RADIUS = 4.0`, so with `sign = +1` the formula gives `bend_y = qy + ARC_RADIUS = 156.696 > py = 155`. Leg 1 then goes **downward** from `p` (into `charlie_outer`) even though `p.dir = (0, -1)` says the path should depart **upward**.
+
+57. There is a second failure mode: placing the bend **above both tips** (e.g. `bend_y = min(py, qy) - ARC_RADIUS = 148.696`) fixes Leg 1 (which now travels upward from `p`), but makes Leg 3 travel **downward** from the bend to `q`. Since the next path segment continues upward from `q` toward the from-node, this creates a sharp direction reversal (V-spike) at `q`. In the visual arrow direction the edge loops backward -- going upward past `q` before returning downward to `p`.
+
+58. The guard after the sign/bend computation detects the Leg-1 failure and recomputes the bend. For the **typical case** where `p` and `q` are on opposite sides of each other in the departure direction (e.g. `py > qy` for an upward-departing `p`), the bend is reset to the **midpoint** `(py + qy) / 2`. This places the bend strictly inside the routing gap between the two containers, so both Leg 1 and Leg 3 travel in the correct direction and no backward loop appears:
+
+    - Vertical, upward departure (`p_dy < 0.0`), `bend_y >= py` **and** `py > qy`: reset `bend_y = (py + qy) / 2`.
+    - Vertical, downward departure (`p_dy > 0.0`), `bend_y <= py` **and** `py < qy`: reset `bend_y = (py + qy) / 2`.
+    - Horizontal: symmetric conditions on `p_dx`, `bend_x`, `px`, and `qx`.
+
+    For the **unusual case** where `p` and `q` are on the same side (e.g. `py <= qy` for an upward-departing `p`, which does not arise in normal `TopToBottom` routing), the bend is placed `ARC_RADIUS` beyond `p` in its departure direction so Leg 1 is still correct.

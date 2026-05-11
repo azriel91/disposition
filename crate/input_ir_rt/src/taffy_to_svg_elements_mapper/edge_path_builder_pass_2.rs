@@ -11,9 +11,11 @@ use crate::taffy_to_svg_elements_mapper::{
     },
 };
 
+use disposition_svg_model::OrthoProtrusionParams;
+
 use self::{
     edge_path_builder_pass_2_curve::EdgePathBuilderPass2Curve,
-    edge_path_builder_pass_2_ortho::{EdgePathBuilderPass2Ortho, OrthoProtrusionParams},
+    edge_path_builder_pass_2_ortho::EdgePathBuilderPass2Ortho,
 };
 
 mod edge_path_builder_pass_2_curve;
@@ -73,6 +75,10 @@ impl EdgePathBuilderPass2 {
     ///   150.0, exit_y: 205.0 }]`.
     /// * `ortho_protrusion`: precomputed protrusion lengths for orthogonal edge
     ///   endpoints. Ignored when `edge_curvature` is `Curved`.
+    /// * `face_override`: when `Some`, overrides the automatic face selection.
+    ///   This is used to propagate the cycle-aware faces chosen in pass 1 so
+    ///   that pass 2 produces a consistent path. When `None` the faces are
+    ///   re-derived from the relative node positions.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn build(
         edge_curvature: EdgeCurvature,
@@ -83,6 +89,7 @@ impl EdgePathBuilderPass2 {
         face_offset: EdgeFaceOffset,
         spacers: &[SpacerCoordinates],
         ortho_protrusion: &OrthoProtrusionParams,
+        face_override: Option<(NodeFace, NodeFace)>,
     ) -> BezPath {
         // Handle self-loop case (curvature mode and spacers ignored).
         if from_info.node_id == to_info.node_id {
@@ -109,9 +116,11 @@ impl EdgePathBuilderPass2 {
         let from_geom = EdgePathBuilderPass1::node_edge_geometry(from_info);
         let to_geom = EdgePathBuilderPass1::node_edge_geometry(to_info);
 
-        // Determine which faces to use based on relative positions.
-        let (from_face, to_face) =
-            EdgePathBuilderPass1::select_edge_faces(rank_dir, from_info, to_info);
+        // Determine which faces to use based on relative positions, or use
+        // the pre-computed override from pass 1 (e.g. for cycle edges).
+        let (from_face, to_face) = face_override.unwrap_or_else(|| {
+            EdgePathBuilderPass1::select_edge_faces(rank_dir, from_info, to_info)
+        });
 
         // Get base connection points.
         let (mut start_x, mut start_y) =

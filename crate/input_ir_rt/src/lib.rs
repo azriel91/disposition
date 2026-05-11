@@ -4,10 +4,11 @@ pub use disposition_input_ir_model::EdgeAnimationActive;
 pub use disposition_input_rt::id_parse;
 
 pub use crate::{
-    input_diagram_merger::InputDiagramMerger,
+    edge_id_generator::EdgeIdGenerator, input_diagram_merger::InputDiagramMerger,
     input_diagram_theme_sources::InputDiagramThemeSources,
     input_to_ir_diagram_mapper::InputToIrDiagramMapper, ir_to_taffy_builder::IrToTaffyBuilder,
-    string_xml_escaper::StringXmlEscaper, svg_elements_to_svg_mapper::SvgElementsToSvgMapper,
+    node_ranks_calculator::NodeRanksCalculator, string_xml_escaper::StringXmlEscaper,
+    svg_elements_to_svg_mapper::SvgElementsToSvgMapper,
     taffy_to_svg_elements_mapper::TaffyToSvgElementsMapper, theme_value_source::ThemeValueSource,
 };
 
@@ -16,6 +17,7 @@ pub use crate::{
 const NOTO_SANS_MONO_TTF: &[u8] =
     include_bytes!("../fonts/noto_sans_mono/NotoSansMono-Regular.ttf");
 
+mod edge_id_generator;
 mod input_diagram_merger;
 mod input_diagram_theme_sources;
 mod input_to_ir_diagram_mapper;

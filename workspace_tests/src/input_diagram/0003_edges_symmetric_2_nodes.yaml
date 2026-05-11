@@ -1,0 +1,12 @@
+things:
+  t_alice: Alice
+  t_bob: Bob
+thing_hierarchy:
+  t_alice: {}
+  t_bob: {}
+thing_dependencies:
+  edge_dep_bob_alice:
+    kind: symmetric
+    things:
+      - t_bob
+      - t_alice

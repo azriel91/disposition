@@ -2,30 +2,32 @@ use disposition_input_ir_model::EdgeAnimationActive;
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeId},
     entity::EntityTypes,
-    node::{NodeId, NodeRank, NodeRanks},
+    node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
     IrDiagram,
 };
 use disposition_model_common::{
     edge::EdgeCurvature, entity::EntityType, theme::Css, Id, Map, RankDir,
 };
-use disposition_svg_model::{SvgEdgeInfo, SvgNodeInfo};
+use disposition_svg_model::{OrthoProtrusionParams, SvgEdgeInfo, SvgNodeInfo};
 use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
 use kurbo::Shape;
 
 use disposition_ir_model::entity::EntityTailwindClasses;
 use disposition_model_common::edge::EdgeGroupId;
 
-use crate::taffy_to_svg_elements_mapper::{
-    edge_face_contact_tracker::EdgeFaceContactTracker,
-    edge_model::{
-        EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeFace,
-        NodeIdAndFace, PathBounds, PathMidpoint,
+use crate::{
+    taffy_to_svg_elements_mapper::{
+        edge_face_contact_tracker::EdgeFaceContactTracker,
+        edge_model::{
+            EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeFace,
+            NodeIdAndFace, PathBounds, PathMidpoint,
+        },
+        edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
+        ortho_protrusion_calculator::OrthoProtrusionCalculator,
+        ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
+        EdgePathLocusCalculator, EdgeSpacerCoordinatesCalculator, StringCharReplacer,
     },
-    edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
-    edge_path_builder_pass_2::edge_path_builder_pass_2_ortho::OrthoProtrusionParams,
-    ortho_protrusion_calculator::OrthoProtrusionCalculator,
-    ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
-    EdgePathLocusCalculator, StringCharReplacer,
+    EdgeIdGenerator,
 };
 
 /// Builds [`SvgEdgeInfo`]s for all edges in the diagram from edge groups and
@@ -123,7 +125,8 @@ impl SvgEdgeInfosBuilder {
                 edge_group,
                 entity_types,
                 svg_node_info_map,
-                &ir_diagram.node_ranks,
+                &ir_diagram.node_ranks_nested,
+                &ir_diagram.node_nesting_infos,
                 &mut face_contact_tracker,
             );
             all_pass1_groups.push(edge_group_pass1);
@@ -160,6 +163,9 @@ impl SvgEdgeInfosBuilder {
             svg_node_info_map,
             taffy_tree,
             edge_spacer_taffy_nodes,
+            &ir_diagram.node_nesting_infos,
+            &ir_diagram.node_ranks_nested,
+            entity_types,
         );
 
         // === Global Pass 2: rebuild paths with offsets, emit SvgEdgeInfos === //
@@ -245,6 +251,7 @@ impl SvgEdgeInfosBuilder {
                     path,
                     path_length: _,
                     preceding_visible_segments_lengths: _,
+                    ortho_protrusion_params,
                 } = edge_path_info;
 
                 let path_d = path.to_svg();
@@ -286,6 +293,7 @@ impl SvgEdgeInfosBuilder {
                     arrow_head_path_d,
                     locus_path_d,
                     tooltip,
+                    ortho_protrusion_params,
                 ));
             });
         }
@@ -300,13 +308,15 @@ impl SvgEdgeInfosBuilder {
     ///
     /// The returned `EdgeGroupPass1` contains everything needed for
     /// pass 2 to rebuild the paths with offsets.
+    #[allow(clippy::too_many_arguments)]
     fn build_edge_pass1_infos<'edge, 'id>(
         rank_dir: RankDir,
         edge_group_id: &'edge EdgeGroupId<'id>,
         edge_group: &'edge EdgeGroup<'id>,
         entity_types: &'edge EntityTypes<'id>,
         svg_node_info_map: &'edge Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
-        node_ranks: &NodeRanks<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
         face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
     ) -> EdgeGroupPass1<'edge, 'id> {
         let edge_animation_params = EdgeAnimationParams::default();
@@ -322,12 +332,46 @@ impl SvgEdgeInfosBuilder {
                 continue;
             };
 
-            let edge_id = Self::generate_edge_id(edge_group_id, edge_index);
+            let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
             let edge_type = Self::edge_type_determine(&edge_id, entity_types);
+
+            // Compute rank distance before face selection so that same-rank
+            // (cycle) edges can use clockwise face routing. Adjacent siblings
+            // with the same direct parent, and edges involving tag, process, or
+            // process step nodes always use normal face selection regardless of
+            // rank.
+            //
+            // Use LCA-level ranks so that cross-container edges (e.g. a top-level
+            // node connecting to a nested node) are not incorrectly classified as
+            // cycle edges. A simple local-context comparison can give false
+            // positives: both endpoints might have rank 0 in their respective
+            // parent containers while sitting at visually different positions in
+            // the diagram (because their containers have different root-level
+            // ranks).
+            let (rank_from, rank_to) = Self::nodes_lca_ranks_compute(
+                &edge.from,
+                &edge.to,
+                node_ranks_nested,
+                node_nesting_infos,
+            )
+            .unwrap_or_else(|| {
+                let rank_from = node_ranks_nested
+                    .node_rank_for(&edge.from, node_nesting_infos)
+                    .unwrap_or_default();
+                let rank_to = node_ranks_nested
+                    .node_rank_for(&edge.to, node_nesting_infos)
+                    .unwrap_or_default();
+                (rank_from, rank_to)
+            });
+            let rank_distance = rank_to.value().abs_diff(rank_from.value());
+            let is_same_rank = rank_from == rank_to;
+            let is_cycle_edge = is_same_rank
+                && !Self::nodes_adjacent_siblings_are(&edge.from, &edge.to, node_nesting_infos);
 
             // Build the path with zero offsets to determine natural coordinates.
             let path = EdgePathBuilderPass1::build(rank_dir, from_info, to_info, edge_type);
-            let faces = EdgePathBuilderPass1::faces_select(rank_dir, from_info, to_info);
+            let faces =
+                EdgePathBuilderPass1::faces_select(rank_dir, from_info, to_info, is_cycle_edge);
 
             let (from_face, to_face) = match faces {
                 Some((from_face, to_face)) => (Some(from_face), Some(to_face)),
@@ -345,11 +389,6 @@ impl SvgEdgeInfosBuilder {
             // Compute path midpoint and bounds for curvature-center sorting.
             let path_midpoint = Self::path_midpoint_compute(&path);
             let path_bounds = Self::path_bounds_compute(&path);
-
-            // Compute rank distance between from and to nodes.
-            let rank_from = node_ranks.get(&edge.from).copied().unwrap_or_default();
-            let rank_to = node_ranks.get(&edge.to).copied().unwrap_or_default();
-            let rank_distance = rank_to.value().abs_diff(rank_from.value());
 
             // Store to-node coordinates for tie-breaking during sorting.
             let to_node_x = to_info.x;
@@ -373,6 +412,7 @@ impl SvgEdgeInfosBuilder {
                 rank_to,
                 from_node_x,
                 from_node_y,
+                is_cycle_edge,
             });
         }
 
@@ -658,6 +698,9 @@ impl SvgEdgeInfosBuilder {
                     face_offset,
                     &spacer_coordinates,
                     ortho_protrusion,
+                    // Pass the faces computed in pass 1 (which uses cycle-aware
+                    // face selection) so that pass 2 uses the same faces.
+                    pass1_info.from_face.zip(pass1_info.to_face),
                 );
                 let path_length = {
                     let accuracy = 1.0;
@@ -672,6 +715,7 @@ impl SvgEdgeInfosBuilder {
                     path_length,
                     preceding_visible_segments_lengths: pass1_info.edge_index as f64
                         * visible_segments_length,
+                    ortho_protrusion_params: ortho_protrusion.clone(),
                 }
             })
             .collect::<Vec<EdgePathInfo>>()
@@ -707,8 +751,11 @@ impl SvgEdgeInfosBuilder {
             .rank_to_spacer_taffy_node_id
             .iter()
             .filter_map(|(rank, &taffy_node_id)| {
-                let coords =
-                    Self::spacer_absolute_coordinates(rank_dir, taffy_tree, taffy_node_id)?;
+                let coords = EdgeSpacerCoordinatesCalculator::calculate(
+                    rank_dir,
+                    taffy_tree,
+                    taffy_node_id,
+                )?;
                 Some((*rank, coords))
             })
             .collect();
@@ -718,7 +765,7 @@ impl SvgEdgeInfosBuilder {
             .cross_container_spacer_taffy_node_ids
             .iter()
             .filter_map(|&taffy_node_id| {
-                Self::spacer_absolute_coordinates(rank_dir, taffy_tree, taffy_node_id)
+                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
             })
             .collect();
 
@@ -753,81 +800,6 @@ impl SvgEdgeInfosBuilder {
         });
 
         all_spacers
-    }
-
-    /// Computes absolute spacer coordinates for a single taffy node.
-    ///
-    /// Walks up the taffy tree to accumulate the absolute position, then
-    /// returns `SpacerCoordinates` with entry and exit points that
-    /// depend on `rank_dir`:
-    ///
-    /// * `RankDir::TopToBottom`: entry at top midpoint (smallest y), exit at
-    ///   bottom midpoint (largest y).
-    /// * `RankDir::BottomToTop`: entry at bottom midpoint (largest y), exit at
-    ///   top midpoint (smallest y).
-    /// * `RankDir::LeftToRight`: entry at left midpoint (smallest x), exit at
-    ///   right midpoint (largest x).
-    /// * `RankDir::RightToLeft`: entry at right midpoint (largest x), exit at
-    ///   left midpoint (smallest x).
-    fn spacer_absolute_coordinates(
-        rank_dir: RankDir,
-        taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        taffy_node_id: taffy::NodeId,
-    ) -> Option<SpacerCoordinates> {
-        let layout = taffy_tree.layout(taffy_node_id).ok()?;
-
-        // === Absolute Coordinates === //
-        let mut x_acc = layout.location.x;
-        let mut y_acc = layout.location.y;
-        let mut current_node_id = taffy_node_id;
-        while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
-            let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
-                break;
-            };
-            x_acc += parent_layout.location.x;
-            y_acc += parent_layout.location.y;
-            current_node_id = parent_taffy_node_id;
-        }
-
-        let cx = x_acc + layout.size.width / 2.0;
-        let cy = y_acc + layout.size.height / 2.0;
-        let left_x = x_acc;
-        let right_x = x_acc + layout.size.width;
-        let top_y = y_acc;
-        let bottom_y = y_acc + layout.size.height;
-
-        let spacer_coordinates = match rank_dir {
-            // Vertical flow: entry/exit share the same x (center),
-            // differ in y.
-            RankDir::TopToBottom => SpacerCoordinates {
-                entry_x: cx,
-                entry_y: top_y,
-                exit_x: cx,
-                exit_y: bottom_y,
-            },
-            RankDir::BottomToTop => SpacerCoordinates {
-                entry_x: cx,
-                entry_y: bottom_y,
-                exit_x: cx,
-                exit_y: top_y,
-            },
-            // Horizontal flow: entry/exit share the same y (center),
-            // differ in x.
-            RankDir::LeftToRight => SpacerCoordinates {
-                entry_x: left_x,
-                entry_y: cy,
-                exit_x: right_x,
-                exit_y: cy,
-            },
-            RankDir::RightToLeft => SpacerCoordinates {
-                entry_x: right_x,
-                entry_y: cy,
-                exit_x: left_x,
-                exit_y: cy,
-            },
-        };
-
-        Some(spacer_coordinates)
     }
 
     /// Determines the `EdgeType` for an edge based on the entity types
@@ -870,6 +842,110 @@ impl SvgEdgeInfosBuilder {
                 }
             })
             .unwrap_or(EdgeType::Unpaired)
+    }
+
+    /// Returns `true` if the two nodes are adjacent siblings with the same
+    /// direct parent.
+    ///
+    /// Two nodes are adjacent siblings when:
+    ///
+    /// - They are at the same nesting depth (equal `nesting_path` lengths).
+    /// - All ancestor chain entries except the last are identical (same
+    ///   parent).
+    /// - Their sibling indices (last `nesting_path` element) differ by exactly
+    ///   1.
+    fn nodes_adjacent_siblings_are<'id>(
+        node_id_from: &NodeId<'id>,
+        node_id_to: &NodeId<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> bool {
+        let Some(info_from) = node_nesting_infos.get(node_id_from) else {
+            return false;
+        };
+        let Some(info_to) = node_nesting_infos.get(node_id_to) else {
+            return false;
+        };
+
+        let len = info_from.nesting_path.len();
+        if len == 0 || len != info_to.nesting_path.len() {
+            return false;
+        }
+
+        // Same parent: all ancestor chain entries except the last must match.
+        let parent_len = len.saturating_sub(1);
+        if info_from.ancestor_chain[..parent_len] != info_to.ancestor_chain[..parent_len] {
+            return false;
+        }
+
+        // Adjacent: sibling indices differ by exactly 1.
+        let idx_from = info_from.nesting_path[len - 1];
+        let idx_to = info_to.nesting_path[len - 1];
+        idx_from.abs_diff(idx_to) == 1
+    }
+
+    /// Computes the ranks of the two nodes' divergent ancestors at their
+    /// lowest common ancestor (LCA) level.
+    ///
+    /// This is used to determine whether two nodes are truly at the same
+    /// visual rank in the diagram, accounting for hierarchy nesting.
+    ///
+    /// For nodes in the same container the result is identical to their
+    /// local `node_rank_for` values. For cross-container edges the local
+    /// ranks can give false positives (both endpoints at rank 0 in their
+    /// respective parent contexts even though their containers are at
+    /// different root-level ranks).
+    ///
+    /// Returns `None` when:
+    /// * either node is not found in `node_nesting_infos`, or
+    /// * one node is an ancestor of the other (contained edge -- handled
+    ///   separately by `is_node_contained_in`).
+    fn nodes_lca_ranks_compute<'id>(
+        node_id_from: &NodeId<'id>,
+        node_id_to: &NodeId<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> Option<(NodeRank, NodeRank)> {
+        let info_from = node_nesting_infos.get(node_id_from)?;
+        let info_to = node_nesting_infos.get(node_id_to)?;
+
+        // Find the LCA depth: length of the common prefix of ancestor chains.
+        let max_compare = info_from
+            .ancestor_chain
+            .len()
+            .min(info_to.ancestor_chain.len());
+        let mut lca_depth = 0;
+        for i in 0..max_compare {
+            if info_from.ancestor_chain[i] == info_to.ancestor_chain[i] {
+                lca_depth = i + 1;
+            } else {
+                break;
+            }
+        }
+
+        let divergent_from = info_from.ancestor_chain.get(lca_depth)?;
+        let divergent_to = info_to.ancestor_chain.get(lca_depth)?;
+
+        // If both diverge to the same node, one is an ancestor of the other.
+        if divergent_from == divergent_to {
+            return None;
+        }
+
+        // Get the LCA container (None means root level).
+        let lca_container = lca_depth
+            .checked_sub(1)
+            .map(|i| &info_from.ancestor_chain[i]);
+        let container_ranks = node_ranks_nested.ranks_for(lca_container)?;
+
+        let rank_from = container_ranks
+            .get(divergent_from)
+            .copied()
+            .unwrap_or_default();
+        let rank_to = container_ranks
+            .get(divergent_to)
+            .copied()
+            .unwrap_or_default();
+
+        Some((rank_from, rank_to))
     }
 
     /// Computes the midpoint of a `BezPath` as the mean of its anchor
@@ -1094,14 +1170,6 @@ impl SvgEdgeInfosBuilder {
             .into_static();
         tailwind_classes.insert(arrow_head_entity_id, arrow_head_classes);
     }
-
-    /// Generates an edge ID from the edge group ID and edge index.
-    fn generate_edge_id(edge_group_id: &EdgeGroupId<'_>, edge_index: usize) -> EdgeId<'static> {
-        let edge_id_str = format!("{edge_group_id}__{edge_index}");
-        Id::try_from(edge_id_str)
-            .expect("edge ID should be valid")
-            .into()
-    }
 }
 
 // === Supporting types === //
@@ -1242,6 +1310,16 @@ pub(super) struct EdgePass1Info<'edge, 'id> {
     ///
     /// `30.0`
     pub(super) from_node_y: f32,
+    /// Whether this edge uses cycle (clockwise) face routing.
+    ///
+    /// `true` when all of the following hold:
+    /// - `rank_from == rank_to` (same rank).
+    /// - The `from` and `to` nodes are not adjacent siblings with the same
+    ///   direct parent.
+    /// - Neither endpoint is a tag, process, or process step node.
+    ///
+    /// When `false` the nearest-face heuristic is used instead.
+    pub(super) is_cycle_edge: bool,
 }
 
 /// All pass-1 data for a single edge group.

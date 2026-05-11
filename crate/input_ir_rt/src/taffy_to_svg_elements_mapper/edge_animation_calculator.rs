@@ -35,6 +35,7 @@ impl EdgeAnimationCalculator {
             path: _,
             path_length,
             preceding_visible_segments_lengths,
+            ortho_protrusion_params: _,
         } = edge_path_info;
         let path_length = *path_length;
 

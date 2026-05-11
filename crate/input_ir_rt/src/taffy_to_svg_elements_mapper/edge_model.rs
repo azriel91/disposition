@@ -2,6 +2,7 @@ use disposition_ir_model::{
     edge::{Edge, EdgeId},
     node::NodeId,
 };
+use disposition_svg_model::OrthoProtrusionParams;
 use kurbo::BezPath;
 
 /// Represents a face/side of a rectangular node.
@@ -130,6 +131,11 @@ pub(super) struct EdgePathInfo<'edge, 'id> {
     pub(super) path: BezPath,
     pub(super) path_length: f64,
     pub(super) preceding_visible_segments_lengths: f64,
+    /// Orthogonal protrusion parameters used when building this edge's path.
+    ///
+    /// Contains the computed from/to protrusion lengths and per-spacer
+    /// protrusion depths. Zero for non-orthogonal (curved) edges.
+    pub(super) ortho_protrusion_params: OrthoProtrusionParams,
 }
 
 /// Parameters for edge `stroke-dasharray` animation generation.

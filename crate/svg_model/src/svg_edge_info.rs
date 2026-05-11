@@ -2,6 +2,8 @@ use disposition_ir_model::{edge::EdgeId, node::NodeId};
 use disposition_model_common::edge::EdgeGroupId;
 use serde::{Deserialize, Serialize};
 
+use crate::OrthoProtrusionParams;
+
 /// Information to render SVG elements for edges.
 ///
 /// This includes:
@@ -14,7 +16,7 @@ use serde::{Deserialize, Serialize};
     all(feature = "schemars", not(feature = "test")),
     derive(schemars::JsonSchema)
 )]
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct SvgEdgeInfo<'id> {
     /// ID of the edge this `SvgEdgeInfo` represents.
     pub edge_id: EdgeId<'id>,
@@ -44,6 +46,16 @@ pub struct SvgEdgeInfo<'id> {
     /// When non-empty, rendered as a `<title>` element inside the edge's `<g>`
     /// element. Example value: `"Sends a request to the API server."`.
     pub tooltip: String,
+    /// Orthogonal protrusion parameters computed for this edge.
+    ///
+    /// Contains the from/to protrusion lengths and per-spacer protrusion
+    /// depths used when building the edge's orthogonal path. Zero for
+    /// non-orthogonal (curved) edges.
+    ///
+    /// Example value: `OrthoProtrusionParams { from_protrusion: 12.0,
+    /// to_protrusion: 8.0, .. }`
+    #[serde(default)]
+    pub ortho_protrusion_params: OrthoProtrusionParams,
 }
 
 impl<'id> SvgEdgeInfo<'id> {
@@ -58,6 +70,7 @@ impl<'id> SvgEdgeInfo<'id> {
         arrow_head_path_d: String,
         locus_path_d: String,
         tooltip: String,
+        ortho_protrusion_params: OrthoProtrusionParams,
     ) -> Self {
         Self {
             edge_id,
@@ -68,6 +81,7 @@ impl<'id> SvgEdgeInfo<'id> {
             arrow_head_path_d,
             locus_path_d,
             tooltip,
+            ortho_protrusion_params,
         }
     }
 }

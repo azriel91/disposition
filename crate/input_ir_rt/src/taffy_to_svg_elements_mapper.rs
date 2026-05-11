@@ -13,6 +13,7 @@ use self::{
     edge_path_builder_pass_1::EdgePathBuilderPass1,
     edge_path_builder_pass_2::EdgePathBuilderPass2,
     edge_path_locus_calculator::EdgePathLocusCalculator,
+    edge_spacer_coordinates_calculator::EdgeSpacerCoordinatesCalculator,
     process_step_heights::ProcessStepsHeight,
     process_step_heights_calculator::ProcessStepHeightsCalculator,
     string_char_replacer::StringCharReplacer,
@@ -31,6 +32,7 @@ mod edge_model;
 mod edge_path_builder_pass_1;
 mod edge_path_builder_pass_2;
 mod edge_path_locus_calculator;
+mod edge_spacer_coordinates_calculator;
 mod ortho_protrusion_calculator;
 mod process_step_heights;
 mod process_step_heights_calculator;

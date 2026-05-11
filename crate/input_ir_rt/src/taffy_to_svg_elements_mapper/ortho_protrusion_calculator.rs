@@ -1,14 +1,15 @@
-use disposition_ir_model::node::{NodeId, NodeRank};
-use disposition_model_common::{Map, RankDir};
-use disposition_svg_model::SvgNodeInfo;
+use disposition_ir_model::{
+    entity::EntityTypes,
+    node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
+};
+use disposition_model_common::{entity::EntityType, Map, RankDir};
+use disposition_svg_model::{OrthoProtrusionParams, SpacerProtrusionParams, SvgNodeInfo};
 use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
 
 use crate::taffy_to_svg_elements_mapper::{
     edge_model::{EdgeContactPointOffsets, NodeFace, NodeIdAndFace},
     edge_path_builder_pass_1::SpacerCoordinates,
-    edge_path_builder_pass_2::edge_path_builder_pass_2_ortho::{
-        OrthoProtrusionParams, SpacerProtrusionParams,
-    },
+    EdgeSpacerCoordinatesCalculator,
 };
 
 use super::svg_edge_infos_builder::{EdgeGroupPass1, EdgePass1Info};
@@ -143,6 +144,20 @@ struct RankGapKey {
     rank_high: NodeRank,
 }
 
+/// The high-level category of a node for grouping protrusion calculations.
+///
+/// Protrusions and spacer computations are independent per category:
+/// thing-node edges only consider other thing nodes when computing rank
+/// gap boundaries and sibling extents; tag-node edges only consider tag nodes;
+/// process-node edges only consider process and process step nodes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NodeCategory {
+    Thing,
+    Tag,
+    Process,
+    Other,
+}
+
 impl OrthoProtrusionCalculator {
     /// Calculates protrusion parameters for every edge in every group.
     ///
@@ -170,6 +185,9 @@ impl OrthoProtrusionCalculator {
             disposition_ir_model::edge::EdgeId<'id>,
             EdgeSpacerTaffyNodes,
         >,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        entity_types: &EntityTypes<'id>,
     ) -> Vec<Vec<OrthoProtrusionParams>> {
         // === Step 1: Resolve spacer coordinates and initialize output === //
         //
@@ -225,15 +243,36 @@ impl OrthoProtrusionCalculator {
                 let rank_to = pass1_info.rank_to;
 
                 // Determine rank ordering.
-                let (rank_low, rank_high) = if rank_from <= rank_to {
+                let (_rank_low, _rank_high) = if rank_from <= rank_to {
                     (rank_from, rank_to)
                 } else {
                     (rank_to, rank_from)
                 };
 
-                // Skip self-loops and same-rank edges (no rank gap to
-                // protrude into).
-                if rank_low == rank_high {
+                // Cycle edges: register their endpoints in the adjacent rank
+                // gap so protrusion depths are distributed proportionally.
+                // Left/Right face pairs fall through to the MIN_PROTRUSION_PX
+                // safety net in Step 6.
+                if pass1_info.is_cycle_edge {
+                    Self::cycle_edge_collect_rank_gap_entries(
+                        group_idx,
+                        edge_idx,
+                        pass1_info,
+                        from_slot_indices[edge_idx],
+                        face_offsets_by_node_face,
+                        svg_node_info_map,
+                        node_nesting_infos,
+                        node_ranks_nested,
+                        entity_types,
+                        &mut rank_gap_entries,
+                    );
+                    continue;
+                }
+
+                // Same-rank non-cycle edges (adjacent siblings, tag/process
+                // nodes) use normal face routing with zero protrusion and do
+                // not register rank-gap entries.
+                if rank_from == rank_to {
                     continue;
                 }
 
@@ -604,6 +643,46 @@ impl OrthoProtrusionCalculator {
                 }
             }
         }
+
+        // === Step 5: Enforce minimum protrusions to clear divergent ancestor siblings
+        // === //
+        //
+        // For edges where the from/to nodes are at different nesting levels,
+        // the protrusion for each endpoint must be large enough to clear all
+        // sibling nodes of the endpoint's Divergent ancestor at the LCA level.
+        //
+        // The "Divergent ancestor" of a node is the ancestor that is a direct
+        // child of the LCA of the from and to nodes for this edge.
+        //
+        // Note: the TO endpoint adjustment is skipped when the edge has
+        // cross-container spacers. In that case the spacer already handles
+        // the routing inside the container, so the to_protrusion only needs
+        // to reach the spacer exit (not exit the container entirely).
+        Self::protrusions_adjust_for_divergent_siblings(
+            all_pass1_groups,
+            &all_spacer_coordinates,
+            node_nesting_infos,
+            node_ranks_nested,
+            svg_node_info_map,
+            entity_types,
+            &mut result,
+        );
+
+        // === Step 6: Finalise protrusion depths for cycle edges === //
+        //
+        // For cycle edges registered in the adjacent rank gap (Step 2), equalise
+        // from and to protrusions to produce symmetric U-shaped arcs.
+        //
+        // For unregistered cycle edges (boundary ranks or Left/Right faces),
+        // group by routing direction and assign stacked depths
+        // `(N * MIN_PROTRUSION_PX down to 1 * MIN_PROTRUSION_PX)` so that edges in
+        // the same group do not overlap.
+        Self::protrusions_assign_cycle_edges(
+            all_pass1_groups,
+            from_slot_indices_all,
+            face_offsets_by_node_face,
+            &mut result,
+        );
 
         result
     }
@@ -1060,8 +1139,11 @@ impl OrthoProtrusionCalculator {
             .rank_to_spacer_taffy_node_id
             .iter()
             .filter_map(|(rank, &taffy_node_id)| {
-                let coords =
-                    Self::spacer_absolute_coordinates(rank_dir, taffy_tree, taffy_node_id)?;
+                let coords = EdgeSpacerCoordinatesCalculator::calculate(
+                    rank_dir,
+                    taffy_tree,
+                    taffy_node_id,
+                )?;
                 Some((*rank, coords))
             })
             .collect();
@@ -1071,7 +1153,7 @@ impl OrthoProtrusionCalculator {
             .cross_container_spacer_taffy_node_ids
             .iter()
             .filter_map(|&taffy_node_id| {
-                Self::spacer_absolute_coordinates(rank_dir, taffy_tree, taffy_node_id)
+                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
             })
             .collect();
 
@@ -1108,80 +1190,6 @@ impl OrthoProtrusionCalculator {
         all_spacers
     }
 
-    /// Computes absolute spacer coordinates for a single taffy node.
-    ///
-    /// Walks up the taffy tree to accumulate the absolute position, then
-    /// returns `SpacerCoordinates` with entry and exit points that
-    /// depend on `rank_dir`:
-    ///
-    /// * `RankDir::TopToBottom`: entry at top midpoint (smallest y), exit at
-    ///   bottom midpoint (largest y).
-    /// * `RankDir::BottomToTop`: entry at bottom midpoint (largest y), exit at
-    ///   top midpoint (smallest y).
-    /// * `RankDir::LeftToRight`: entry at left midpoint (smallest x), exit at
-    ///   right midpoint (largest x).
-    /// * `RankDir::RightToLeft`: entry at right midpoint (largest x), exit at
-    ///   left midpoint (smallest x).
-    fn spacer_absolute_coordinates(
-        rank_dir: RankDir,
-        taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        taffy_node_id: taffy::NodeId,
-    ) -> Option<SpacerCoordinates> {
-        let layout = taffy_tree.layout(taffy_node_id).ok()?;
-
-        let mut x_acc = layout.location.x;
-        let mut y_acc = layout.location.y;
-        let mut current_node_id = taffy_node_id;
-        while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
-            let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
-                break;
-            };
-            x_acc += parent_layout.location.x;
-            y_acc += parent_layout.location.y;
-            current_node_id = parent_taffy_node_id;
-        }
-
-        let cx = x_acc + layout.size.width / 2.0;
-        let cy = y_acc + layout.size.height / 2.0;
-        let left_x = x_acc;
-        let right_x = x_acc + layout.size.width;
-        let top_y = y_acc;
-        let bottom_y = y_acc + layout.size.height;
-
-        let spacer_coordinates = match rank_dir {
-            // Vertical flow: entry/exit share the same x (center),
-            // differ in y.
-            RankDir::TopToBottom => SpacerCoordinates {
-                entry_x: cx,
-                entry_y: top_y,
-                exit_x: cx,
-                exit_y: bottom_y,
-            },
-            RankDir::BottomToTop => SpacerCoordinates {
-                entry_x: cx,
-                entry_y: bottom_y,
-                exit_x: cx,
-                exit_y: top_y,
-            },
-            // Horizontal flow: entry/exit share the same y (center),
-            // differ in x.
-            RankDir::LeftToRight => SpacerCoordinates {
-                entry_x: left_x,
-                entry_y: cy,
-                exit_x: right_x,
-                exit_y: cy,
-            },
-            RankDir::RightToLeft => SpacerCoordinates {
-                entry_x: right_x,
-                entry_y: cy,
-                exit_x: left_x,
-                exit_y: cy,
-            },
-        };
-
-        Some(spacer_coordinates)
-    }
-
     /// Returns the cross-axis coordinate of a node for a given face.
     ///
     /// For `Top` / `Bottom` faces the cross-axis is horizontal (X).
@@ -1213,5 +1221,629 @@ impl OrthoProtrusionCalculator {
             NodeFace::Left => (info.x, info.y + info.height_collapsed / 2.0),
             NodeFace::Right => (info.x + info.width, info.y + info.height_collapsed / 2.0),
         }
+    }
+
+    /// Finalises protrusion depths for same-rank (cycle) edges.
+    ///
+    /// After gap-based protrusion assignment in Step 2–3, some cycle edges may
+    /// have a `from_protrusion` assigned (those whose `Top`/`Bottom` face
+    /// registered in an adjacent rank gap), while others still have zero
+    /// (boundary-rank edges, or `Left`/`Right` face edges with no rank gap).
+    ///
+    /// This step handles both:
+    ///
+    /// 1. **Registered cycle edges** (`from_protrusion > 0`): copies
+    ///    `from_protrusion` to `to_protrusion` so both endpoints protrude
+    ///    equally, creating a symmetric U-shaped routing arc. Applies
+    ///    `MIN_PROTRUSION_PX` as a floor.
+    ///
+    /// 2. **Unregistered cycle edges** (`from_protrusion == 0`): groups edges
+    ///    by `(from_face, rank_from)` -- all edges routing in the same
+    ///    direction at the same rank. Within each group, sorts by face offset
+    ///    then cross-axis coordinate (same ordering as `protrusions_assign` for
+    ///    single-side entries). Assigns stacked depths:
+    ///    - N edges in group -> depths `[N * MIN, (N-1) * MIN, .., MIN]`
+    ///    - Sets `from_protrusion = to_protrusion = depth` for each edge.
+    fn protrusions_assign_cycle_edges<'id>(
+        all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+        from_slot_indices_all: &[Vec<Option<usize>>],
+        face_offsets_by_node_face: &Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        struct UnregisteredEntry {
+            group_idx: usize,
+            edge_idx: usize,
+            face_offset: f32,
+            cross_axis: f32,
+            from_face: NodeFace,
+            rank_from: NodeRank,
+        }
+
+        let mut unregistered: Vec<UnregisteredEntry> = Vec::new();
+
+        for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            let from_slot_indices = &from_slot_indices_all[group_idx];
+            for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
+                // Only cycle edges with a valid face.
+                if !pass1_info.is_cycle_edge {
+                    continue;
+                }
+                let Some(from_face) = pass1_info.from_face else {
+                    continue;
+                };
+
+                let params = &mut result[group_idx][edge_idx];
+
+                if params.from_protrusion > 0.0 {
+                    // Registered in adjacent rank gap: equalize from and to, apply
+                    // MIN floor.
+                    let depth = params.from_protrusion.max(MIN_PROTRUSION_PX);
+                    params.from_protrusion = depth;
+                    params.to_protrusion = depth;
+                } else {
+                    // Unregistered: collect for group stacking.
+                    let face_offset = Self::face_offset_resolve(
+                        pass1_info,
+                        from_slot_indices[edge_idx],
+                        true,
+                        face_offsets_by_node_face,
+                    );
+                    let cross_axis = Self::cross_axis_coord(
+                        pass1_info.from_node_x,
+                        pass1_info.from_node_y,
+                        from_face,
+                    );
+                    unregistered.push(UnregisteredEntry {
+                        group_idx,
+                        edge_idx,
+                        face_offset,
+                        cross_axis,
+                        from_face,
+                        rank_from: pass1_info.rank_from,
+                    });
+                }
+            }
+        }
+
+        if unregistered.is_empty() {
+            return;
+        }
+
+        // Sort: group by (face discriminant, rank_from), then within group by
+        // (face_offset ascending, cross_axis ascending). This produces the same
+        // ordering as `protrusions_assign` for single-side entries.
+        unregistered.sort_by(|a, b| {
+            let face_a = match a.from_face {
+                NodeFace::Top => 0u8,
+                NodeFace::Bottom => 1,
+                NodeFace::Left => 2,
+                NodeFace::Right => 3,
+            };
+            let face_b = match b.from_face {
+                NodeFace::Top => 0u8,
+                NodeFace::Bottom => 1,
+                NodeFace::Left => 2,
+                NodeFace::Right => 3,
+            };
+            let face_cmp = face_a.cmp(&face_b);
+            if face_cmp != std::cmp::Ordering::Equal {
+                return face_cmp;
+            }
+            let rank_cmp = a.rank_from.cmp(&b.rank_from);
+            if rank_cmp != std::cmp::Ordering::Equal {
+                return rank_cmp;
+            }
+            let off_cmp = a
+                .face_offset
+                .partial_cmp(&b.face_offset)
+                .unwrap_or(std::cmp::Ordering::Equal);
+            if off_cmp != std::cmp::Ordering::Equal {
+                return off_cmp;
+            }
+            a.cross_axis
+                .partial_cmp(&b.cross_axis)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        // Assign stacked depths within each group.
+        let mut group_start = 0;
+        while group_start < unregistered.len() {
+            // Find the end of the current group (same face + rank).
+            let group_end = {
+                let key_face = unregistered[group_start].from_face;
+                let key_rank = unregistered[group_start].rank_from;
+                unregistered[group_start..]
+                    .iter()
+                    .position(|e| e.from_face != key_face || e.rank_from != key_rank)
+                    .map(|rel| group_start + rel)
+                    .unwrap_or(unregistered.len())
+            };
+
+            let group = &unregistered[group_start..group_end];
+            let n = group.len();
+            let max_prot = n as f32 * MIN_PROTRUSION_PX;
+
+            for (k, entry) in group.iter().enumerate() {
+                // Slot 0 (first sorted entry) -> longest protrusion (n * MIN).
+                // Slot N-1 (last sorted entry) -> shortest protrusion (1 * MIN).
+                let depth = if n == 1 {
+                    MIN_PROTRUSION_PX
+                } else {
+                    max_prot - k as f32 * (max_prot - MIN_PROTRUSION_PX) / (n - 1) as f32
+                };
+                let params = &mut result[entry.group_idx][entry.edge_idx];
+                params.from_protrusion = depth;
+                params.to_protrusion = depth;
+            }
+
+            group_start = group_end;
+        }
+    }
+
+    /// Registers the cycle edge's **from-endpoint** in the adjacent rank gap
+    /// so protrusion depths are distributed proportionally to the available gap
+    /// space.
+    ///
+    /// For cycle edges (`rank_from == rank_to`), both endpoints are at the same
+    /// rank and use the same face. Depending on the face, the from-endpoint is
+    /// registered in an adjacent gap:
+    ///
+    /// - `Top` face at rank R -> register in gap `(R-1, R)` on the `High` side.
+    ///   Skipped if R == 0 (no gap above).
+    /// - `Bottom` face at rank R -> register in gap `(R, R+1)` on the `Low`
+    ///   side.
+    /// - `Left` / `Right` faces -> return early;
+    ///   `protrusions_assign_cycle_edges` (Step 6) handles the fallback.
+    ///
+    /// Only the from-endpoint is registered here.
+    /// `protrusions_assign_cycle_edges` (Step 6) later copies
+    /// `from_protrusion` to `to_protrusion` so both endpoints protrude equally,
+    /// producing a symmetric U-shaped arc.
+    ///
+    /// This allows multiple cycle edges sharing the same gap to receive
+    /// proportionally distributed protrusion depths rather than all getting the
+    /// same fixed minimum.
+    #[allow(clippy::too_many_arguments)]
+    fn cycle_edge_collect_rank_gap_entries<'id>(
+        group_idx: usize,
+        edge_idx: usize,
+        pass1_info: &EdgePass1Info<'_, 'id>,
+        from_slot_index: Option<usize>,
+        face_offsets_by_node_face: &Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>,
+        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        entity_types: &EntityTypes<'id>,
+        rank_gap_entries: &mut Map<RankGapKey, Vec<RankGapEntry>>,
+    ) {
+        // Step 1: Skip if from_face or to_face is None.
+        let Some(from_face) = pass1_info.from_face else {
+            return;
+        };
+        let Some(_to_face) = pass1_info.to_face else {
+            return;
+        };
+
+        // For cycle edges, both endpoints are at the same rank.
+        let rank = pass1_info.rank_from;
+
+        // Steps 2–4: Determine gap key, gap side, and adjacent rank based on
+        // face. Left/Right faces have no applicable rank gap.
+        let (gap_key, gap_side, adjacent_rank) = match from_face {
+            NodeFace::Top => {
+                // Protrudes upward into gap (R-1, R). Skip if R == 0.
+                if rank.value() == 0 {
+                    return;
+                }
+                let adjacent_rank = NodeRank::new(rank.value() - 1);
+                (
+                    RankGapKey {
+                        rank_low: adjacent_rank,
+                        rank_high: rank,
+                    },
+                    GapSide::High,
+                    adjacent_rank,
+                )
+            }
+            NodeFace::Bottom => {
+                // Protrudes downward into gap (R, R+1).
+                let adjacent_rank = NodeRank::new(rank.value() + 1);
+                (
+                    RankGapKey {
+                        rank_low: rank,
+                        rank_high: adjacent_rank,
+                    },
+                    GapSide::Low,
+                    adjacent_rank,
+                )
+            }
+            NodeFace::Left | NodeFace::Right => {
+                // No rank gap applicable; protrusions_assign_cycle_edges
+                // handles the fallback for these faces.
+                return;
+            }
+        };
+
+        // Step 5: Find parent container scope from the from-node's nesting
+        // info. The second-to-last element of the ancestor chain is the
+        // immediate parent container (None for root-level nodes).
+        let parent_container = node_nesting_infos
+            .get(&pass1_info.edge.from)
+            .and_then(|ni| {
+                ni.ancestor_chain
+                    .len()
+                    .checked_sub(2)
+                    .map(|i| &ni.ancestor_chain[i])
+            });
+
+        // Step 6: Look up ranks in scope for the parent container.
+        let Some(ranks_in_scope) = node_ranks_nested.ranks_for(parent_container) else {
+            return;
+        };
+
+        // Look up from node layout info.
+        let Some(&from_info) = svg_node_info_map.get(&pass1_info.edge.from) else {
+            return;
+        };
+        // Guard: if the to-node is missing from layout, skip registration.
+        if svg_node_info_map.get(&pass1_info.edge.to).is_none() {
+            return;
+        }
+
+        // Step 7: Compute the adjacent rank boundary.
+        //
+        // For `Top` face: adjacent rank R-1 is visually above; we want the
+        // maximum bottom edge (y + height_collapsed) of all R-1 nodes.
+        // For `Bottom` face: adjacent rank R+1 is visually below; we want the
+        // minimum top edge (y) of all R+1 nodes.
+        let from_category = Self::node_category(&pass1_info.edge.from, entity_types);
+        let adjacent_boundary_opt: Option<f32> = ranks_in_scope
+            .iter()
+            .filter(|&(_, rank)| *rank == adjacent_rank)
+            .filter(|(node_id, _)| Self::node_category(node_id, entity_types) == from_category)
+            .filter_map(|(node_id, _)| svg_node_info_map.get(node_id).copied())
+            .fold(None, |acc, info| {
+                let coord = match from_face {
+                    NodeFace::Top => info.y + info.height_collapsed,
+                    NodeFace::Bottom => info.y,
+                    _ => unreachable!(),
+                };
+                Some(match acc {
+                    None => coord,
+                    Some(existing) => match from_face {
+                        NodeFace::Top => existing.max(coord),
+                        NodeFace::Bottom => existing.min(coord),
+                        _ => unreachable!(),
+                    },
+                })
+            });
+
+        let Some(adjacent_boundary) = adjacent_boundary_opt else {
+            // No adjacent-rank nodes found; no gap exists to register in.
+            return;
+        };
+
+        // Step 8: Compute from_rank_gap_px (distance from from-node face to
+        // the adjacent rank boundary). Return if the gap is zero or negative
+        // (nodes overlap or touch).
+        let from_rank_gap_px = match from_face {
+            NodeFace::Top => from_info.y - adjacent_boundary,
+            NodeFace::Bottom => adjacent_boundary - (from_info.y + from_info.height_collapsed),
+            _ => unreachable!(),
+        };
+        if from_rank_gap_px <= 0.0 {
+            return;
+        }
+
+        // Step 9: Resolve from face offset.
+        let from_offset =
+            Self::face_offset_resolve(pass1_info, from_slot_index, true, face_offsets_by_node_face);
+
+        // Step 10: Compute from cross-axis coordinate.
+        let cross_axis_from =
+            Self::cross_axis_coord(pass1_info.from_node_x, pass1_info.from_node_y, from_face);
+
+        // Step 11: Register the from-endpoint in the rank gap.
+        // `protrusions_assign_cycle_edges` (Step 6) will copy from_protrusion
+        // to to_protrusion afterward to produce a symmetric U-shaped arc.
+        rank_gap_entries
+            .entry(gap_key)
+            .or_default()
+            .push(RankGapEntry {
+                pass1_group_index: group_idx,
+                edge_index: edge_idx,
+                endpoint_kind: RankGapEndpointKind::FromEndpoint,
+                gap_side,
+                cross_axis_coord: cross_axis_from,
+                face_offset: from_offset,
+                rank_gap_px: from_rank_gap_px,
+            });
+    }
+
+    /// Adjusts protrusion values to clear sibling nodes of the Divergent
+    /// ancestor of each edge endpoint.
+    ///
+    /// For each edge, the from-endpoint's protrusion must be large enough
+    /// that the routing segment is in the gap between the tallest sibling
+    /// node (at the same rank as the Divergent ancestor) and the to-node.
+    /// Symmetric logic applies for the to-endpoint.
+    fn protrusions_adjust_for_divergent_siblings<'id>(
+        all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+        all_spacer_coordinates: &[Vec<Vec<SpacerCoordinates>>],
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        entity_types: &EntityTypes<'id>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
+                // Same-rank non-cycle edges (adjacent siblings, tag/process
+                // nodes) use direct nearest-face routing with zero protrusion.
+                // Divergent-sibling adjustment does not apply to them.
+                if pass1_info.rank_from == pass1_info.rank_to && !pass1_info.is_cycle_edge {
+                    continue;
+                }
+                // === From endpoint === //
+                if let Some(from_face) = pass1_info.from_face {
+                    let min_from = Self::min_protrusion_divergent_sibling_extent(
+                        &pass1_info.edge.from,
+                        &pass1_info.edge.to,
+                        from_face,
+                        node_nesting_infos,
+                        node_ranks_nested,
+                        svg_node_info_map,
+                        entity_types,
+                    );
+                    if min_from > 0.0 {
+                        let params = &mut result[group_idx][edge_idx];
+                        params.from_protrusion = params.from_protrusion.max(min_from);
+                    }
+                }
+
+                // === To endpoint === //
+                //
+                // When the edge has cross-container spacers, the spacer
+                // already handles routing inside the to-node's container.
+                // The to_protrusion only needs to reach the spacer exit,
+                // not exit the entire container. Applying the
+                // divergent-sibling adjustment in this case would force
+                // the protrusion all the way to the container's far
+                // boundary, causing the path to overshoot the spacer
+                // and produce a zigzag.
+                let edge_has_spacers = all_spacer_coordinates
+                    .get(group_idx)
+                    .and_then(|g| g.get(edge_idx))
+                    .map(|spacers| !spacers.is_empty())
+                    .unwrap_or(false);
+
+                if !edge_has_spacers && let Some(to_face) = pass1_info.to_face {
+                    let min_to = Self::min_protrusion_divergent_sibling_extent(
+                        &pass1_info.edge.to,
+                        &pass1_info.edge.from,
+                        to_face,
+                        node_nesting_infos,
+                        node_ranks_nested,
+                        svg_node_info_map,
+                        entity_types,
+                    );
+                    if min_to > 0.0 {
+                        let params = &mut result[group_idx][edge_idx];
+                        params.to_protrusion = params.to_protrusion.max(min_to);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Computes the minimum protrusion needed for `node_id`'s endpoint to
+    /// clear all sibling nodes of the node's Divergent ancestor at the LCA
+    /// level.
+    ///
+    /// The Divergent ancestor is the ancestor of `node_id` that is a direct
+    /// child of the LCA of (`node_id`, `other_node_id`).
+    ///
+    /// # Parameters
+    ///
+    /// * `node_id`: the endpoint node whose protrusion is being computed.
+    /// * `other_node_id`: the opposite endpoint of the edge (used to find the
+    ///   LCA).
+    /// * `face`: the face at which `node_id` protrudes.
+    fn min_protrusion_divergent_sibling_extent<'id>(
+        node_id: &NodeId<'id>,
+        other_node_id: &NodeId<'id>,
+        face: NodeFace,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        entity_types: &EntityTypes<'id>,
+    ) -> f32 {
+        // 1. Compute LCA depth.
+        let lca_depth = Self::lca_depth(node_id, other_node_id, node_nesting_infos);
+
+        // 2. Find divergent ancestor of node_id.
+        let Some(div_ancestor_id) =
+            Self::divergent_ancestor_id(node_id, lca_depth, node_nesting_infos)
+        else {
+            return 0.0;
+        };
+
+        // 3. Find parent container of divergent ancestor (None = root level).
+        let div_ancestor_parent = node_nesting_infos.get(div_ancestor_id).and_then(|ni| {
+            ni.ancestor_chain
+                .len()
+                .checked_sub(2)
+                .map(|i| &ni.ancestor_chain[i])
+        });
+
+        // 4. Get rank of divergent ancestor in its parent container.
+        let Some(ranks) = node_ranks_nested.ranks_for(div_ancestor_parent) else {
+            return 0.0;
+        };
+        let Some(&div_ancestor_rank) = ranks.get(div_ancestor_id) else {
+            return 0.0;
+        };
+
+        // 5. Collect all same-rank siblings of the same node category (including the
+        //    divergent ancestor). Nodes from other categories (e.g. process nodes) are
+        //    excluded so that thing-node edges are not routed around process nodes.
+        let node_cat = Self::node_category(node_id, entity_types);
+        let same_rank_siblings: Vec<&NodeId<'id>> = ranks
+            .iter()
+            .filter(|&(_, rank)| *rank == div_ancestor_rank)
+            .filter(|(id, _)| Self::node_category(id, entity_types) == node_cat)
+            .map(|(id, _)| id)
+            .collect();
+
+        // 6. Get face coordinate of node_id (the coordinate of the face in the
+        //    rank/protrusion direction).
+        let Some(&node_info) = svg_node_info_map.get(node_id) else {
+            return 0.0;
+        };
+        let node_face_coord = Self::face_coord_for_endpoint(node_info, face);
+
+        // 7. Find extreme sibling coordinate in the protrusion direction.
+        let Some(sibling_extreme) =
+            Self::same_rank_sibling_extreme(&same_rank_siblings, face, svg_node_info_map)
+        else {
+            return 0.0;
+        };
+
+        // 8. Compute minimum protrusion: face_sign * (sibling_extreme -
+        //    node_face_coord). For Bottom/Right faces (sign = +1): min =
+        //    sibling_extreme - node_face_coord. For Top/Left faces (sign = -1): min =
+        //    node_face_coord - sibling_extreme.
+        let face_sign: f32 = match face {
+            NodeFace::Bottom | NodeFace::Right => 1.0,
+            NodeFace::Top | NodeFace::Left => -1.0,
+        };
+        (face_sign * (sibling_extreme - node_face_coord)).max(0.0)
+    }
+
+    /// Returns the coordinate of a node's face along the protrusion axis.
+    ///
+    /// For `Bottom` face: the bottom edge y-coordinate.
+    /// For `Top` face: the top edge y-coordinate.
+    /// For `Right` face: the right edge x-coordinate.
+    /// For `Left` face: the left edge x-coordinate.
+    fn face_coord_for_endpoint(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+        match face {
+            NodeFace::Bottom => info.y + info.height_collapsed,
+            NodeFace::Top => info.y,
+            NodeFace::Right => info.x + info.width,
+            NodeFace::Left => info.x,
+        }
+    }
+
+    /// Returns the extreme coordinate of the same-rank sibling nodes in the
+    /// protrusion direction.
+    ///
+    /// For `Bottom`/`Right` faces: returns the maximum far-edge coordinate
+    /// (max of bottom edges or right edges across all siblings).
+    ///
+    /// For `Top`/`Left` faces: returns the minimum near-edge coordinate
+    /// (min of top edges or left edges across all siblings).
+    ///
+    /// Returns `None` if no sibling has a known layout in `svg_node_info_map`.
+    fn same_rank_sibling_extreme<'id>(
+        sibling_ids: &[&NodeId<'id>],
+        face: NodeFace,
+        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+    ) -> Option<f32> {
+        let mut extreme: Option<f32> = None;
+        for id in sibling_ids {
+            let Some(&info) = svg_node_info_map.get(*id) else {
+                continue;
+            };
+            let coord = Self::face_coord_for_endpoint(info, face);
+            extreme = Some(match extreme {
+                None => coord,
+                Some(existing) => match face {
+                    NodeFace::Bottom | NodeFace::Right => existing.max(coord),
+                    NodeFace::Top | NodeFace::Left => existing.min(coord),
+                },
+            });
+        }
+        extreme
+    }
+
+    /// Returns the depth of the Lowest Common Ancestor (LCA) of two nodes.
+    ///
+    /// The LCA depth is the number of common ancestors the two nodes share.
+    /// A depth of 0 means the LCA is the diagram root (no shared ancestors),
+    /// so the Divergent ancestors are the nodes' first ancestors (or themselves
+    /// for root-level nodes).
+    ///
+    /// # Examples
+    ///
+    /// For root-level nodes `a` and `b`: returns `0` (no common ancestors).
+    ///
+    /// For siblings `c/child_0` and `c/child_1`: returns `1` (one common
+    /// ancestor: `c`).
+    fn lca_depth<'id>(
+        from_id: &NodeId<'id>,
+        to_id: &NodeId<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> usize {
+        let from_chain = match node_nesting_infos.get(from_id) {
+            Some(info) => info.ancestor_chain.as_slice(),
+            None => return 0,
+        };
+        let to_chain = match node_nesting_infos.get(to_id) {
+            Some(info) => info.ancestor_chain.as_slice(),
+            None => return 0,
+        };
+
+        // Exclude the nodes themselves (last element of each chain).
+        let from_ancestors = from_chain.len().saturating_sub(1);
+        let to_ancestors = to_chain.len().saturating_sub(1);
+
+        from_chain[..from_ancestors]
+            .iter()
+            .zip(to_chain[..to_ancestors].iter())
+            .take_while(|(a, b)| a == b)
+            .count()
+    }
+
+    /// Returns the divergent ancestor ID of `node_id` at the given LCA depth.
+    ///
+    /// The divergent ancestor is the ancestor of `node_id` that is a direct
+    /// child of the LCA. For root-level nodes (LCA is the diagram root, depth
+    /// = 0), this is the node's first ancestor (or itself if root-level).
+    ///
+    /// Returns `None` if the node is not found in `node_nesting_infos` or the
+    /// ancestor chain does not have an element at `lca_depth`.
+    fn divergent_ancestor_id<'a, 'id>(
+        node_id: &'a NodeId<'id>,
+        lca_depth: usize,
+        node_nesting_infos: &'a NodeNestingInfos<'id>,
+    ) -> Option<&'a NodeId<'id>> {
+        let chain = &node_nesting_infos.get(node_id)?.ancestor_chain;
+        chain.get(lca_depth)
+    }
+
+    /// Returns the [`NodeCategory`] of a node from its entity types.
+    ///
+    /// - `ThingDefault` nodes are [`NodeCategory::Thing`].
+    /// - `TagDefault` nodes are [`NodeCategory::Tag`].
+    /// - `ProcessDefault` and `ProcessStepDefault` nodes are
+    ///   [`NodeCategory::Process`].
+    /// - All other nodes are [`NodeCategory::Other`].
+    fn node_category<'id>(node_id: &NodeId<'id>, entity_types: &EntityTypes<'id>) -> NodeCategory {
+        entity_types
+            .get(node_id.as_ref())
+            .map_or(NodeCategory::Other, |types| {
+                if types.contains(&EntityType::ThingDefault) {
+                    NodeCategory::Thing
+                } else if types.contains(&EntityType::TagDefault) {
+                    NodeCategory::Tag
+                } else if types.contains(&EntityType::ProcessDefault)
+                    || types.contains(&EntityType::ProcessStepDefault)
+                {
+                    NodeCategory::Process
+                } else {
+                    NodeCategory::Other
+                }
+            })
     }
 }
