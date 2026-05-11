@@ -3,6 +3,7 @@ use disposition::{
     input_model::InputDiagram,
     ir_model::IrDiagram,
     model_common::{id, Id},
+    svg_model::SvgElements,
     taffy_model::{taffy::TaffyError, DimensionAndLod},
 };
 use disposition_input_ir_rt::{
@@ -12,15 +13,15 @@ use disposition_input_ir_rt::{
 
 use crate::input_ir_rt::{
     EXAMPLE_IR, INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION,
-    INPUT_DIAGRAM_0002_EDGES_SYMMETRIC_2_NODES, INPUT_DIAGRAM_0003_EDGES_SYMMETRIC_3_NODES,
-    INPUT_DIAGRAM_0004_TAG_NODES_CYCLIC_EDGE, INPUT_DIAGRAM_0005_PROCESS_STEP_NODES_CYCLIC_EDGE,
-    INPUT_DIAGRAM_0006_EDGE_FROM_NODE_TO_NESTED_NODE,
-    INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE,
+    INPUT_DIAGRAM_0002_NESTED_NODE_EDGE_PROTRUSION, INPUT_DIAGRAM_0003_EDGES_SYMMETRIC_2_NODES,
+    INPUT_DIAGRAM_0004_EDGES_SYMMETRIC_3_NODES, INPUT_DIAGRAM_0005_TAG_NODES_CYCLIC_EDGE,
+    INPUT_DIAGRAM_0006_PROCESS_STEP_NODES_CYCLIC_EDGE,
+    INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_NODE,
+    INPUT_DIAGRAM_0008_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
-fn build_svg_elements_from_example_ir(
-) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
+fn build_svg_elements_from_example_ir() -> impl Iterator<Item = SvgElements<'static>> {
     let ir_example = serde_saphyr::from_str::<IrDiagram>(EXAMPLE_IR).unwrap();
     let ir_to_taffy_builder = IrToTaffyBuilder::builder()
         .with_ir_diagram(&ir_example)
@@ -664,12 +665,11 @@ fn test_process_infos_map_structure() -> Result<(), TaffyError> {
 }
 
 /// Helper: run the full input-diagram -> IR -> taffy -> SVG pipeline for the
-/// nested-node-edge-protrusion fixture and return the `SvgElements`.
-fn build_svg_elements_from_nested_node_edge_protrusion(
-) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
-    let overlay_diagram =
-        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION)
-            .unwrap();
+/// given input diagram.
+fn build_svg_elements_for_diagram(
+    input_diagram: &str,
+) -> impl Iterator<Item = SvgElements<'static>> {
+    let overlay_diagram = serde_saphyr::from_str::<InputDiagram>(input_diagram).unwrap();
     let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
     let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
     let diagram: IrDiagram<'static> = diagram.into_static();
@@ -704,7 +704,9 @@ fn build_svg_elements_from_nested_node_edge_protrusion(
 /// bottom edge and `t_charlie`'s top edge -- not through `t_alice_outer`.
 #[test]
 fn test_nested_node_edge_protrusion_from_bob_clears_alice_outer() {
-    for svg_elements in build_svg_elements_from_nested_node_edge_protrusion() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION)
+    {
         // Find the relevant nodes.
         let alice_outer = svg_elements
             .svg_node_infos
@@ -761,7 +763,9 @@ fn test_nested_node_edge_bob_charlie_routing_clears_alice_outer() {
     // `edge_path_builder_pass_2_ortho.rs`.
     const ARC_RADIUS: f32 = 4.0;
 
-    for svg_elements in build_svg_elements_from_nested_node_edge_protrusion() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION)
+    {
         let alice_outer = svg_elements
             .svg_node_infos
             .iter()
@@ -867,31 +871,8 @@ fn parse_coord_pair(s: &str) -> Option<(f32, f32)> {
 /// edge group (`edge_dep_tags_cyclic`), producing edges `tag_a -> tag_b`,
 /// `tag_b -> tag_c`, `tag_c -> tag_a`. All three tags end up at the same rank
 /// due to the cycle.
-fn build_svg_elements_from_tag_nodes_cyclic_edge(
-) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
-    let overlay_diagram =
-        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0004_TAG_NODES_CYCLIC_EDGE).unwrap();
-    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
-    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
-    let diagram: IrDiagram<'static> = diagram.into_static();
-    let taffy_results: Vec<_> = IrToTaffyBuilder::builder()
-        .with_ir_diagram(&diagram)
-        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
-        .build()
-        .build()
-        .expect("taffy build")
-        .collect();
-    taffy_results
-        .into_iter()
-        .map(move |taffy_node_mappings| {
-            TaffyToSvgElementsMapper::map(
-                &diagram,
-                &taffy_node_mappings,
-                EdgeAnimationActive::Always,
-            )
-        })
-        .collect::<Vec<_>>()
-        .into_iter()
+fn build_svg_elements_from_tag_nodes_cyclic_edge() -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0005_TAG_NODES_CYCLIC_EDGE)
 }
 
 /// Builds `SvgElements` from the process-step-nodes cyclic edge fixture.
@@ -904,31 +885,8 @@ fn build_svg_elements_from_tag_nodes_cyclic_edge(
 ///   (`edge_dep_proc_steps_cyclic`). All three steps end up at the same rank
 ///   due to the cycle.
 fn build_svg_elements_from_process_step_nodes_cyclic_edge(
-) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
-    let overlay_diagram =
-        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0005_PROCESS_STEP_NODES_CYCLIC_EDGE)
-            .unwrap();
-    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
-    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
-    let diagram: IrDiagram<'static> = diagram.into_static();
-    let taffy_results: Vec<_> = IrToTaffyBuilder::builder()
-        .with_ir_diagram(&diagram)
-        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
-        .build()
-        .build()
-        .expect("taffy build")
-        .collect();
-    taffy_results
-        .into_iter()
-        .map(move |taffy_node_mappings| {
-            TaffyToSvgElementsMapper::map(
-                &diagram,
-                &taffy_node_mappings,
-                EdgeAnimationActive::Always,
-            )
-        })
-        .collect::<Vec<_>>()
-        .into_iter()
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0006_PROCESS_STEP_NODES_CYCLIC_EDGE)
 }
 
 /// Tag nodes use cycle routing around other tag nodes, and nothing else.
@@ -1025,7 +983,7 @@ fn test_tag_node_edges_protrusion_is_zero() {
 /// thing-node cycle edges must be routed using only thing-node sibling extents
 /// -- not clearing process nodes.
 ///
-/// In the `0005` fixture, thing nodes sit in a single vertical column at
+/// In the `0006` fixture, thing nodes sit in a single vertical column at
 /// `x = 20`, `width = 83` (right face at `x = 103`). The process node starts
 /// further to the right. The non-adjacent same-rank edge `alice -> charlie`
 /// uses Right/Right face routing and protrudes to the right. Before the
@@ -1084,59 +1042,13 @@ fn test_thing_node_cycle_edges_not_routed_around_process_node() {
 }
 
 /// Builds `SvgElements` from the 2-node symmetric edge fixture.
-fn build_svg_elements_from_symmetric_2_nodes(
-) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
-    let overlay_diagram =
-        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0002_EDGES_SYMMETRIC_2_NODES).unwrap();
-    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
-    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
-    let diagram: IrDiagram<'static> = diagram.into_static();
-    let taffy_results: Vec<_> = IrToTaffyBuilder::builder()
-        .with_ir_diagram(&diagram)
-        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
-        .build()
-        .build()
-        .expect("taffy build")
-        .collect();
-    taffy_results
-        .into_iter()
-        .map(move |taffy_node_mappings| {
-            TaffyToSvgElementsMapper::map(
-                &diagram,
-                &taffy_node_mappings,
-                EdgeAnimationActive::Always,
-            )
-        })
-        .collect::<Vec<_>>()
-        .into_iter()
+fn build_svg_elements_from_symmetric_2_nodes() -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0003_EDGES_SYMMETRIC_2_NODES)
 }
 
 /// Builds `SvgElements` from the 3-node symmetric edge fixture.
-fn build_svg_elements_from_symmetric_3_nodes(
-) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
-    let overlay_diagram =
-        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0003_EDGES_SYMMETRIC_3_NODES).unwrap();
-    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
-    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
-    let diagram: IrDiagram<'static> = diagram.into_static();
-    let taffy_results: Vec<_> = IrToTaffyBuilder::builder()
-        .with_ir_diagram(&diagram)
-        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
-        .build()
-        .build()
-        .expect("taffy build")
-        .collect();
-    taffy_results
-        .into_iter()
-        .map(move |taffy_node_mappings| {
-            TaffyToSvgElementsMapper::map(
-                &diagram,
-                &taffy_node_mappings,
-                EdgeAnimationActive::Always,
-            )
-        })
-        .collect::<Vec<_>>()
-        .into_iter()
+fn build_svg_elements_from_symmetric_3_nodes() -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0004_EDGES_SYMMETRIC_3_NODES)
 }
 
 /// For the 2-node symmetric edge diagram, edges between adjacent siblings
@@ -1357,37 +1269,13 @@ fn test_cycle_edges_3_nodes_no_overlap_with_nodes() {
     }
 }
 
-// === Edge from node to nested node (0006) === //
+// === Edge from node to nested node (0007) === //
 
-/// Loads `0006_edge_from_node_to_nested_node.yaml` and returns one
+/// Loads `0007_edge_from_node_to_nested_node.yaml` and returns one
 /// `SvgElements` per LOD.
 fn build_svg_elements_from_edge_from_node_to_nested_node(
-) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
-    let overlay_diagram =
-        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0006_EDGE_FROM_NODE_TO_NESTED_NODE)
-            .unwrap();
-    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
-    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
-    let diagram: IrDiagram<'static> = diagram.into_static();
-    let ir_to_taffy_builder = IrToTaffyBuilder::builder()
-        .with_ir_diagram(&diagram)
-        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
-        .build();
-    let taffy_results: Vec<_> = ir_to_taffy_builder
-        .build()
-        .expect("Expected taffy_node_mappings to be built.")
-        .collect();
-    taffy_results
-        .into_iter()
-        .map(move |taffy_node_mappings| {
-            TaffyToSvgElementsMapper::map(
-                &diagram,
-                &taffy_node_mappings,
-                EdgeAnimationActive::Always,
-            )
-        })
-        .collect::<Vec<_>>()
-        .into_iter()
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_NODE)
 }
 
 /// An edge from `t_alice` to `t_charlie_1` connects to a node at rank 0 inside
@@ -1596,39 +1484,14 @@ fn test_edge_from_nested_routing_stays_within_gap() {
     }
 }
 
-/// Loads `0007_edge_from_node_to_nested_rank_1_node.yaml` and returns one
+/// Loads `0008_edge_from_node_to_nested_rank_1_node.yaml` and returns one
 /// `SvgElements` per LOD.
 fn build_svg_elements_from_edge_from_node_to_nested_rank_1_node(
-) -> impl Iterator<Item = disposition::svg_model::SvgElements<'static>> {
-    let overlay_diagram = serde_saphyr::from_str::<InputDiagram>(
-        INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE,
-    )
-    .unwrap();
-    let merged = InputDiagramMerger::merge(InputDiagram::base(), &overlay_diagram);
-    let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&merged);
-    let diagram: IrDiagram<'static> = diagram.into_static();
-    let ir_to_taffy_builder = IrToTaffyBuilder::builder()
-        .with_ir_diagram(&diagram)
-        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
-        .build();
-    let taffy_results: Vec<_> = ir_to_taffy_builder
-        .build()
-        .expect("Expected taffy_node_mappings to be built.")
-        .collect();
-    taffy_results
-        .into_iter()
-        .map(move |taffy_node_mappings| {
-            TaffyToSvgElementsMapper::map(
-                &diagram,
-                &taffy_node_mappings,
-                EdgeAnimationActive::Always,
-            )
-        })
-        .collect::<Vec<_>>()
-        .into_iter()
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0008_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE)
 }
 
-/// In `0007`, `t_charlie_3` is at rank 1 inside `t_charlie_outer` (because
+/// In `0008`, `t_charlie_3` is at rank 1 inside `t_charlie_outer` (because
 /// `edge_dep_charlie_2_charlie_3` promotes `t_charlie_3` to rank 1 within
 /// that container). An edge from `t_alice` to `t_charlie_3` therefore needs
 /// cross-container spacers alongside the rank-0 siblings (`t_charlie_1` and
@@ -1657,7 +1520,7 @@ fn test_edge_to_nested_rank_1_node_has_cross_container_spacers() {
     }
 }
 
-/// In `0007`, the `t_alice -> t_charlie_3` edge has one cross-container
+/// In `0008`, the `t_alice -> t_charlie_3` edge has one cross-container
 /// spacer inside `t_charlie_outer` that routes around the rank-0 siblings.
 /// The to_protrusion from `t_charlie_3`'s Top face should be small enough
 /// to only reach the spacer exit (inside `t_charlie_outer`), NOT overshoot
@@ -1705,7 +1568,7 @@ fn test_edge_to_nested_rank_1_node_to_protrusion_stays_within_container() {
     }
 }
 
-/// In `0007`, `t_charlie_3` is at rank 1 inside `t_charlie_outer`, and the
+/// In `0008`, `t_charlie_3` is at rank 1 inside `t_charlie_outer`, and the
 /// only lower rank (rank 0) contains two siblings: `t_charlie_1` and
 /// `t_charlie_2`. The edge from `t_alice` to `t_charlie_3` should route
 /// around the rank-0 row as a whole -- one spacer per rank group is
@@ -1760,7 +1623,7 @@ fn test_edge_to_nested_rank_0_node_has_no_spacers_in_complex_diagram() {
                 .spacer_protrusions
                 .is_empty(),
             "Expected no spacer protrusions for edge t_alice -> t_charlie_1 \
-             in the 0007 diagram (t_charlie_1 is at rank 0): \
+             in the 0008 diagram (t_charlie_1 is at rank 0): \
              spacer_protrusions = {:?}",
             alice_charlie_1_edge
                 .ortho_protrusion_params
@@ -1780,7 +1643,7 @@ fn test_edge_to_nested_rank_0_node_has_no_spacers_in_complex_diagram() {
                 .spacer_protrusions
                 .is_empty(),
             "Expected no spacer protrusions for edge t_bob -> t_charlie_1 \
-             in the 0007 diagram (t_charlie_1 is at rank 0): \
+             in the 0008 diagram (t_charlie_1 is at rank 0): \
              spacer_protrusions = {:?}",
             bob_charlie_1_edge
                 .ortho_protrusion_params
@@ -1789,7 +1652,7 @@ fn test_edge_to_nested_rank_0_node_has_no_spacers_in_complex_diagram() {
     }
 }
 
-/// In `0007`, edges from `t_bob` to `t_charlie_1` (rank 0 inside
+/// In `0008`, edges from `t_bob` to `t_charlie_1` (rank 0 inside
 /// `t_charlie_outer`) should use normal Bottom -> Top face routing, not
 /// cycle-edge routing, even though both nodes have local rank 0 in their
 /// respective parent contexts.
