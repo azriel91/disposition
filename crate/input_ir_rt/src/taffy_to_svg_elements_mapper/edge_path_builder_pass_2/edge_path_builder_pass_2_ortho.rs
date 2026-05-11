@@ -389,6 +389,18 @@ impl EdgePathBuilderPass2Ortho {
             if p_is_vertical {
                 // Both directions are vertical: route via a horizontal mid-leg.
                 //
+                // Special case: both tips at the same Y with opposite departure
+                // directions (e.g. a `Bottom` from-tip and a `Top` to-tip that
+                // `from_protrusion_capped` placed at the same Y). A Z/S U-bend
+                // would exit above p, cross to qx, then descend back to qy.
+                // But the continuation from q (an `is_same_axis` return leg)
+                // immediately reverses direction, creating a V-spike. Draw a
+                // straight horizontal line instead.
+                if (py - qy).abs() < 1e-3 && p_dy * q_dy < 0.0 {
+                    path.line_to(Point::new(qx as f64, qy as f64));
+                    return;
+                }
+                //
                 // When `py == qy` the departure direction disambiguates which
                 // side to bend toward -- otherwise the standard relative-
                 // position heuristic is used.
@@ -461,6 +473,13 @@ impl EdgePathBuilderPass2Ortho {
                 );
             } else {
                 // Both directions are horizontal: route via a vertical mid-leg.
+                //
+                // Horizontal analogue of the vertical V-spike guard above:
+                // same X with opposite departure directions -> straight line.
+                if (px - qx).abs() < 1e-3 && p_dx * q_dx < 0.0 {
+                    path.line_to(Point::new(qx as f64, qy as f64));
+                    return;
+                }
                 //
                 // When `px == qx` the departure direction disambiguates which
                 // side to bend toward -- otherwise the standard relative-

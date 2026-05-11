@@ -1670,9 +1670,11 @@ fn test_edge_to_nested_rank_0_node_has_no_spacers_in_complex_diagram() {
 ///    below the to-protrusion tip (at y=215.0).
 ///
 /// After the fix the from-protrusion is capped to 43 px (= 153 - 110), so
-/// both tips meet at `t_charlie_outer`'s top boundary (y=215). The Z/S bend
-/// is then routed above that boundary, and all intermediate coordinates stay
-/// at or above `t_charlie_outer.y`.
+/// both tips meet at `t_charlie_outer`'s top boundary (y=215). The V-spike
+/// guard in `connect_waypoints` (see
+/// `test_nested_x2_node_edge_routing_no_upward_detour`) then replaces the Z/S
+/// U-bend between the tips with a straight horizontal line, so no intermediate
+/// coordinate falls below `t_charlie_outer.y`.
 #[test]
 fn test_nested_x2_node_edge_routing_stays_above_charlie_outer() {
     for svg_elements in
@@ -1718,6 +1720,65 @@ fn test_nested_x2_node_edge_routing_stays_above_charlie_outer() {
                 "Intermediate routing coordinate ({x:.3}, {y:.3}) is below \
                  t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}). \
                  The Z/S bend dipped into the destination container. \
+                 path_d = {:?}",
+                alice_inner_charlie_inner_edge.path_d,
+            );
+        }
+    }
+}
+
+/// The edge from `t_alice_inner` to `t_charlie_inner` in the doubly-nested
+/// diagram must not create a V-spike at the `t_charlie_outer` boundary.
+///
+/// After `from_protrusion_capped` places both protrusion tips at y=215
+/// (t_charlie_outer's top), the naive Z/S U-bend would route: upward from
+/// the to-tip at (97,215) to y=211, across to x=88.5, then back down to
+/// the from-tip at (88.5,215). The `is_same_axis` return leg then
+/// immediately travels upward to (88.5,172), reversing direction and
+/// creating an incoherent V-spike.
+///
+/// The fix in `connect_waypoints` detects vertical tips at the same Y with
+/// opposite departure directions and draws a straight horizontal line instead.
+/// No intermediate coordinate should appear above `t_charlie_outer`'s top
+/// (y < charlie_outer.y - 0.5 would indicate an upward detour).
+#[test]
+fn test_nested_x2_node_edge_routing_no_upward_detour() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0002_NESTED_NODE_EDGE_PROTRUSION)
+    {
+        let charlie_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_outer")
+            .expect("Expected t_charlie_outer in svg_node_infos");
+
+        let alice_inner_charlie_inner_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice_inner"
+                    && e.to_node_id.as_str() == "t_charlie_inner"
+            })
+            .expect("Expected edge from t_alice_inner to t_charlie_inner");
+
+        let charlie_outer_top_y = charlie_outer.y;
+
+        // The path is built in SVG order: to-node first, from-node last.
+        // After the fix, all intermediate points lie at exactly y=215.
+        // Before the fix they included arc control points at y≈211--213
+        // (the U-bend detour) that are above t_charlie_outer's top.
+        let all_coords = parse_path_endpoints(&alice_inner_charlie_inner_edge.path_d);
+        let intermediate_coords = all_coords
+            .iter()
+            .skip(1)
+            .take(all_coords.len().saturating_sub(2));
+
+        for &(x, y) in intermediate_coords {
+            assert!(
+                y >= charlie_outer_top_y - 0.5,
+                "Intermediate routing coordinate ({x:.3}, {y:.3}) is above \
+                 t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}). \
+                 The path detours above the boundary, indicating a V-spike. \
                  path_d = {:?}",
                 alice_inner_charlie_inner_edge.path_d,
             );

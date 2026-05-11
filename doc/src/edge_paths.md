@@ -272,7 +272,7 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
     The fix is applied in `build_ortho_edge_path` via a helper `fn from_protrusion_capped`. For aligned opposite-face pairs (Bottom-Top, Top-Bottom, Left-Right, Right-Left), it computes `gap = |end_axis - start_axis|` and, when `from_protrusion + to_protrusion > gap`, caps the from-protrusion to `(gap - to_protrusion).max(0.0)`. For other face-pair combinations (cycle edges, L-shaped routing) it returns the from-protrusion unchanged.
 
-    After the cap, both protrusion tips meet at the same axis coordinate and the Z/S bend is routed entirely within the inter-container gap.
+    After the cap, both protrusion tips meet at the same axis coordinate. The V-spike guard in `connect_waypoints` (see item 45) then replaces the Z/S U-bend between the tips with a straight horizontal line -- no direction reversal occurs at the meeting point.
 
 ### Same-axis collinear check in `connect_waypoints`
 
@@ -285,6 +285,26 @@ This function assigns protrusion depths to all endpoints within a single rank ga
     - **Anti-collinear with perpendicular offset** -- the protrusion tips cross (see above) or the path connects two tips at different positions with a large backward component. `dot_p` approaches -1 when the perpendicular offset is small relative to the backward displacement. A straight diagonal line is *incorrect* here; an orthogonal Z/S bend is required.
 
     The fix replaces `dot_p.abs() > 0.95` with `dot_p > 0.95 || is_same_axis`, where `is_same_axis` is `true` when both waypoints share the same routing axis (no perpendicular component): `|dx| < 1e-3` for a vertical departure, `|dy| < 1e-3` for a horizontal departure. This correctly draws straight lines for same-axis returns while routing the anti-collinear-with-offset case through the Z/S logic.
+
+### V-spike guard for opposite-direction tips at the same axis coordinate
+
+45. After `from_protrusion_capped` lands both protrusion tips at the same Y (or X for horizontal routing), the two tip waypoints have **opposite** departure directions: the to-tip departs upward (`Top` face, `dir = (0,-1)`) and the from-tip departs downward (`Bottom` face, `dir = (0,+1)`). The standard Z/S U-bend logic would route:
+
+    1. **Leg 1** -- upward from the to-tip `p = (px, py)` to a bend at `(px, py - ARC_RADIUS)`.
+    2. **Leg 2** -- horizontally across to `(qx, py - ARC_RADIUS)`.
+    3. **Leg 3** -- downward from the bend back to the from-tip `q = (qx, qy)` (same Y as p).
+
+    But the continuation from q (the `is_same_axis` return leg toward the from-contact point) immediately travels **upward**, reversing direction. The resulting down-then-up **V-spike** at q is visually incoherent.
+
+    The fix is in `connect_waypoints`: at the start of the vertical Z/S branch, before computing the bend point, a guard fires when `|py - qy| < 1e-3` **and** `p_dy * q_dy < 0` (opposite vertical directions). In that case a **straight horizontal line** is drawn from p to q and the function returns early. The horizontal analogue applies for the horizontal Z/S branch (`|px - qx| < 1e-3`, `p_dx * q_dx < 0`).
+
+    **Example (0002 doubly-nested diagram):** after capping, `from_protrusion_eff = 43`, placing the from-tip at `(88.5, 215)` with `dir = (0,+1)` and the to-tip at `(97, 215)` with `dir = (0,-1)`. The guard fires and the complete path becomes:
+
+    ```
+    M97,325 L97,215 L88.5,215 L88.5,172
+    ```
+
+    an orthogonal Z-shape (up 110 px stub, left 8.5 px cross, up 43 px stub) with no direction reversals.
 
 
 ## Spacer Coordinate Direction Awareness
