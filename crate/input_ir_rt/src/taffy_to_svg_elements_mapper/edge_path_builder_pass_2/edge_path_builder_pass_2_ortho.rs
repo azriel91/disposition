@@ -239,9 +239,25 @@ impl EdgePathBuilderPass2Ortho {
         }
 
         // --- From-node protrusion tip --- //
-        if protrusion.from_protrusion > 1e-3 {
+        //
+        // Cap the from-protrusion so that its tip does not cross the
+        // to-protrusion tip. This can happen for deeply-nested nodes
+        // when the slot-assigned from-protrusion plus the
+        // divergent-sibling-adjusted to-protrusion exceeds the full
+        // node-to-node gap.
+        let from_protrusion_eff = Self::from_protrusion_capped(
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+            from_face,
+            to_face,
+            protrusion.from_protrusion,
+            protrusion.to_protrusion,
+        );
+        if from_protrusion_eff > 1e-3 {
             let (eff_start_x, eff_start_y) =
-                Self::protrusion_offset(start_x, start_y, from_face, protrusion.from_protrusion);
+                Self::protrusion_offset(start_x, start_y, from_face, from_protrusion_eff);
             waypoints.push(Waypoint {
                 x: eff_start_x,
                 y: eff_start_y,
@@ -334,9 +350,32 @@ impl EdgePathBuilderPass2Ortho {
         let disp_uy = dy / dist;
         let dot_p = disp_ux * p_dx + disp_uy * p_dy;
 
-        if dot_p.abs() > 0.95 {
-            // Nearly collinear with the departure direction -- just
-            // draw a straight line.
+        // Two cases warrant a straight line:
+        //
+        // 1. `dot_p > 0.95`: the displacement is nearly collinear with the departure
+        //    direction (same direction, small angular difference).
+        //
+        // 2. `is_same_axis`: both waypoints lie on the same routing axis -- no
+        //    perpendicular component (same x for a vertical departure, same y for a
+        //    horizontal departure). Such segments are always straight lines regardless
+        //    of whether dot_p is positive or negative (e.g. the return leg from a
+        //    protrusion tip back to the node contact point travels against the
+        //    face-outward direction, giving dot_p ≈ -1, yet still requires a straight
+        //    line).
+        //
+        // The previous check `dot_p.abs() > 0.95` incorrectly treated
+        // nearly anti-collinear displacements with a non-zero
+        // perpendicular component as "straight", causing a diagonal
+        // line instead of an orthogonal Z/S bend when the protrusion
+        // tips were on opposite sides of the routing axis.
+        let is_same_axis = if p_is_vertical {
+            dx.abs() < 1e-3
+        } else {
+            dy.abs() < 1e-3
+        };
+        if dot_p > 0.95 || is_same_axis {
+            // Collinear in departure direction, or on the same routing
+            // axis -- draw a straight line.
             path.line_to(Point::new(qx as f64, qy as f64));
             return;
         }
@@ -487,6 +526,49 @@ impl EdgePathBuilderPass2Ortho {
                 let corner_y = py;
                 Self::two_leg_segment_append(path, px, py, corner_x, corner_y, qx, qy);
             }
+        }
+    }
+
+    /// Caps the from-protrusion depth so that its tip does not overshoot
+    /// the to-protrusion tip for aligned opposite-face pairs.
+    ///
+    /// For face pairs where both protrusions extend toward each other along
+    /// the same axis (Bottom-Top, Top-Bottom, Left-Right, Right-Left), the
+    /// from-protrusion tip must not cross the to-protrusion tip. When
+    /// `from_protrusion + to_protrusion` exceeds the node-to-node gap, the
+    /// from-protrusion is reduced so that both tips meet at the same axis
+    /// coordinate.
+    ///
+    /// For non-aligned face pairs (e.g. Bottom-Bottom cycle edges, or
+    /// perpendicular L-shaped pairs) the from-protrusion is returned
+    /// unchanged.
+    ///
+    /// # Example values
+    ///
+    /// * `start_y = 172.0, end_y = 325.0, from_face = Bottom, to_face = Top,
+    ///   from_protrusion = 73.44, to_protrusion = 110.0`: `gap = 153.0`, sum `=
+    ///   183.44 > 153.0` -> returns `43.0`.
+    fn from_protrusion_capped(
+        start_x: f32,
+        start_y: f32,
+        end_x: f32,
+        end_y: f32,
+        from_face: NodeFace,
+        to_face: NodeFace,
+        from_protrusion: f32,
+        to_protrusion: f32,
+    ) -> f32 {
+        let gap = match (from_face, to_face) {
+            (NodeFace::Bottom, NodeFace::Top) => end_y - start_y,
+            (NodeFace::Top, NodeFace::Bottom) => start_y - end_y,
+            (NodeFace::Right, NodeFace::Left) => end_x - start_x,
+            (NodeFace::Left, NodeFace::Right) => start_x - end_x,
+            _ => return from_protrusion,
+        };
+        if gap > 1e-3 && from_protrusion + to_protrusion > gap + 1e-3 {
+            (gap - to_protrusion).max(0.0)
+        } else {
+            from_protrusion
         }
     }
 

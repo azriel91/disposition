@@ -260,6 +260,32 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 41. At each node endpoint, if the protrusion is non-zero, an extra waypoint is added at `(contact_x + face_outward_dx * protrusion, contact_y + face_outward_dy * protrusion)`, extending the path perpendicular to the face before the main routing segment begins.
 42. At each spacer, four waypoints are added: the exit + exit protrusion, the exit, the entry, and the entry - entry protrusion. The protrusion waypoints push the routing legs away from node faces so that parallel edges sharing the same gap run at distinct depths.
 
+### Protrusion-tip crossing guard (`fn from_protrusion_capped`)
+
+43. For edges between deeply-nested nodes the slot-assigned `from_protrusion` can exceed the available gap between the two outer containers. When the divergent-sibling adjustment (Step 5) simultaneously raises `to_protrusion` to clear the destination container hierarchy, the sum `from_protrusion + to_protrusion` can exceed the full node-to-node gap. This places the from-tip *past* the to-tip in the routing direction -- the tips cross -- so any Z/S segment drawn between them would re-enter the destination container.
+
+    **Example (0002 doubly-nested diagram):**
+    - `t_alice_inner` bottom face: y = 172.
+    - `t_charlie_inner` top face: y = 325. Gap = 153 px.
+    - Slot-assigned `from_protrusion = 73.44`, divergent-sibling `to_protrusion = 110.0`.
+    - Sum = 183.44 > 153 -- tips would cross: from-tip at y = 245.44 is below to-tip at y = 215.
+
+    The fix is applied in `build_ortho_edge_path` via a helper `fn from_protrusion_capped`. For aligned opposite-face pairs (Bottom-Top, Top-Bottom, Left-Right, Right-Left), it computes `gap = |end_axis - start_axis|` and, when `from_protrusion + to_protrusion > gap`, caps the from-protrusion to `(gap - to_protrusion).max(0.0)`. For other face-pair combinations (cycle edges, L-shaped routing) it returns the from-protrusion unchanged.
+
+    After the cap, both protrusion tips meet at the same axis coordinate and the Z/S bend is routed entirely within the inter-container gap.
+
+### Same-axis collinear check in `connect_waypoints`
+
+44. `connect_waypoints` uses a dot-product check to detect when two consecutive waypoints are collinear with the departure direction and should be joined by a straight line rather than a Z/S or L-shaped bend. The original check was `dot_p.abs() > 0.95`, which accepted both collinear (`dot_p > 0.95`) and *anti*-collinear (`dot_p < -0.95`) cases.
+
+    The anti-collinear case includes two fundamentally different situations:
+
+    - **Same-axis return** -- the return leg from a protrusion tip back to the node contact point. Both points have the same x-coordinate (for a vertical face) or same y-coordinate (for a horizontal face). The displacement is purely backward (dot_p = -1), and a straight line is correct.
+
+    - **Anti-collinear with perpendicular offset** -- the protrusion tips cross (see above) or the path connects two tips at different positions with a large backward component. `dot_p` approaches -1 when the perpendicular offset is small relative to the backward displacement. A straight diagonal line is *incorrect* here; an orthogonal Z/S bend is required.
+
+    The fix replaces `dot_p.abs() > 0.95` with `dot_p > 0.95 || is_same_axis`, where `is_same_axis` is `true` when both waypoints share the same routing axis (no perpendicular component): `|dx| < 1e-3` for a vertical departure, `|dy| < 1e-3` for a horizontal departure. This correctly draws straight lines for same-axis returns while routing the anti-collinear-with-offset case through the Z/S logic.
+
 
 ## Spacer Coordinate Direction Awareness
 

@@ -1652,6 +1652,79 @@ fn test_edge_to_nested_rank_0_node_has_no_spacers_in_complex_diagram() {
     }
 }
 
+/// The edge from `t_alice_inner` to `t_charlie_inner` in the doubly-nested
+/// diagram must route orthogonally without entering `t_charlie_outer`'s
+/// interior.
+///
+/// Two bugs could cause intermediate routing coordinates to fall below
+/// `t_charlie_outer`'s top:
+///
+/// 1. The `connect_waypoints` collinear check using `dot_p.abs() > 0.95`
+///    incorrectly treated the nearly anti-collinear displacement between the
+///    two protrusion tips as "straight", drawing a diagonal line instead of an
+///    orthogonal Z/S bend.
+///
+/// 2. The from-protrusion (73.44 px) plus the to-protrusion (110.0 px) summed
+///    to 183.44 px, exceeding the node-to-node gap (153 px). The
+///    from-protrusion tip was placed inside `t_charlie_outer` (at y=245.44),
+///    below the to-protrusion tip (at y=215.0).
+///
+/// After the fix the from-protrusion is capped to 43 px (= 153 - 110), so
+/// both tips meet at `t_charlie_outer`'s top boundary (y=215). The Z/S bend
+/// is then routed above that boundary, and all intermediate coordinates stay
+/// at or above `t_charlie_outer.y`.
+#[test]
+fn test_nested_x2_node_edge_routing_stays_above_charlie_outer() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0002_NESTED_NODE_EDGE_PROTRUSION)
+    {
+        let charlie_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_outer")
+            .expect("Expected t_charlie_outer in svg_node_infos");
+
+        let alice_inner_charlie_inner_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice_inner"
+                    && e.to_node_id.as_str() == "t_charlie_inner"
+            })
+            .expect("Expected edge from t_alice_inner to t_charlie_inner");
+
+        let charlie_outer_top_y = charlie_outer.y;
+
+        // The path is built in SVG order from the to-node (t_charlie_inner,
+        // at the bottom) to the from-node (t_alice_inner, at the top). The
+        // first coordinate is t_charlie_inner's contact point (inside
+        // t_charlie_outer) and the last is t_alice_inner's contact point
+        // (above all containers).
+        //
+        // All *intermediate* coordinates represent the routing segment
+        // connecting the two protrusion tips. None of them should fall below
+        // t_charlie_outer's top, which would indicate the Z/S bend dipped
+        // into the destination container.
+        let all_coords = parse_path_endpoints(&alice_inner_charlie_inner_edge.path_d);
+
+        let intermediate_coords = all_coords
+            .iter()
+            .skip(1)
+            .take(all_coords.len().saturating_sub(2));
+
+        for &(x, y) in intermediate_coords {
+            assert!(
+                y <= charlie_outer_top_y + 0.5,
+                "Intermediate routing coordinate ({x:.3}, {y:.3}) is below \
+                 t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}). \
+                 The Z/S bend dipped into the destination container. \
+                 path_d = {:?}",
+                alice_inner_charlie_inner_edge.path_d,
+            );
+        }
+    }
+}
+
 /// In `0008`, edges from `t_bob` to `t_charlie_1` (rank 0 inside
 /// `t_charlie_outer`) should use normal Bottom -> Top face routing, not
 /// cycle-edge routing, even though both nodes have local rank 0 in their
