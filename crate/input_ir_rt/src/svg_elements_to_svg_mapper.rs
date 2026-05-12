@@ -3,6 +3,7 @@ use std::fmt::Write;
 use crate::string_xml_escaper::StringXmlEscaper;
 
 use base64::{prelude::BASE64_STANDARD, Engine};
+use disposition_input_model::InputDiagram;
 use disposition_ir_model::entity::EntityTailwindClasses;
 use disposition_svg_model::{SvgEdgeInfo, SvgElements, SvgNodeInfo};
 use disposition_taffy_model::{TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
@@ -79,7 +80,100 @@ pub struct SvgElementsToSvgMapper;
 
 impl SvgElementsToSvgMapper {
     /// Renders the SVG elements to a string.
+    ///
+    /// See [`Self::map_with_input`] if you want the `InputDiagram` source to be
+    /// included as well.
     pub fn map(svg_elements: &SvgElements) -> String {
+        let mut buffer = String::new();
+        Self::map_svg(&mut buffer, svg_elements, None);
+        buffer
+    }
+
+    /// Renders the SVG elements to a string, prepended with an XML declaration
+    /// and a brief XML comment, with the source `input_diagram` serialized as
+    /// YAML inside a `<source><![CDATA[...]]></source>` element within the SVG.
+    ///
+    /// The output follows the format:
+    ///
+    /// ```xml
+    /// <?xml version="1.0" encoding="UTF-8"?>
+    /// <!--
+    ///     This diagram was generated using `disposition` on `2026-05-13 06:15:00.000+13:00`.
+    ///
+    ///     See <https://azriel.im/disposition>.
+    /// -->
+    /// <svg xmlns="http://www.w3.org/2000/svg" ...>
+    ///   <source><![CDATA[---
+    /// things:
+    ///   t_alice: Alice
+    /// ]]></source>
+    ///   <!-- .. -->
+    /// </svg>
+    /// ```
+    ///
+    /// # Notes
+    ///
+    /// - The only sequence that would break a CDATA section (`]]>`) is escaped
+    ///   by splitting it across two adjacent CDATA sections: `]]]]><![CDATA[>`.
+    /// - If `input_diagram` cannot be serialized to YAML, the `<source>`
+    ///   element is omitted.
+    pub fn map_with_input(input_diagram: &InputDiagram<'_>, svg_elements: &SvgElements) -> String {
+        let timestamp = jiff::Zoned::now()
+            .strftime("%Y-%m-%d %H:%M:%S%.3f%:z")
+            .to_string();
+
+        let yaml = {
+            let mut yaml_buffer = String::new();
+            let yaml_result = serde_saphyr::to_fmt_writer(&mut yaml_buffer, input_diagram);
+            if yaml_result.is_ok() {
+                // `]]>` is the only sequence that cannot appear unescaped
+                // inside a CDATA section. Split it across two adjacent
+                // CDATA sections so the content remains valid.
+                if yaml_buffer.contains("]]>") {
+                    yaml_buffer.replace("]]>", "]]]]><![CDATA[>")
+                } else {
+                    yaml_buffer
+                }
+            } else {
+                String::new()
+            }
+        };
+
+        let source_yaml = if yaml.is_empty() {
+            None
+        } else {
+            Some(yaml.as_str())
+        };
+
+        let mut buffer = String::with_capacity(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n".len() + 256 + yaml.len(),
+        );
+
+        // XML declaration
+        buffer.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+
+        // Brief comment with generation info (source YAML goes inside the SVG)
+        buffer.push_str("<!--\n");
+        write!(
+            buffer,
+            "    This diagram was generated using `disposition` on `{timestamp}`.\n"
+        )
+        .unwrap();
+        buffer.push('\n');
+        buffer.push_str("    See <https://azriel.im/disposition>.\n");
+        buffer.push_str("-->\n");
+
+        Self::map_svg(&mut buffer, svg_elements, source_yaml);
+
+        buffer
+    }
+
+    /// Writes the `<svg>` element to `buffer`.
+    ///
+    /// If `source_yaml` is `Some`, a `<source><![CDATA[...]]></source>` element
+    /// is injected immediately after the opening `<svg ...>` tag, embedding the
+    /// YAML source so it can be copied verbatim.
+    fn map_svg(buffer: &mut String, svg_elements: &SvgElements, source_yaml: Option<&str>) {
         let SvgElements {
             svg_width,
             svg_height,
@@ -169,8 +263,11 @@ impl SvgElementsToSvgMapper {
             style_content.push_str(css.as_str());
         }
 
-        // Build final SVG
-        let mut buffer = String::with_capacity(128 + style_content.len() + content_buffer.len());
+        // Reserve capacity for the SVG content before writing.
+        let source_len = source_yaml
+            .map(|yaml| "<source><![CDATA[".len() + yaml.len() + "]]></source>".len() + 1)
+            .unwrap_or(0);
+        buffer.reserve(128 + style_content.len() + content_buffer.len() + source_len);
 
         // Start SVG element
         write!(
@@ -184,6 +281,17 @@ impl SvgElementsToSvgMapper {
         )
         .unwrap();
 
+        // Embed YAML source in a CDATA section so it can be copied verbatim.
+        if let Some(yaml) = source_yaml {
+            buffer.push_str("<source><![CDATA[");
+            buffer.push_str(yaml);
+            // Ensure the YAML ends with a newline before the closing marker.
+            if !yaml.ends_with('\n') {
+                buffer.push('\n');
+            }
+            buffer.push_str("]]></source>");
+        }
+
         // Add style element first (before content)
         if !style_content.is_empty() {
             write!(buffer, "<style>{style_content}</style>").unwrap();
@@ -194,8 +302,6 @@ impl SvgElementsToSvgMapper {
 
         // Close SVG element
         buffer.push_str("</svg>");
-
-        buffer
     }
 
     /// Writes nodes to the SVG content buffer.
