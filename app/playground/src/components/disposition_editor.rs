@@ -553,10 +553,13 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
     });
 
     let svg: Memo<String> = use_memo(move || {
+        let input_diagram = input_diagram.read();
         let svg_elements = &*svg_elements.read();
         let svg_generation_start = Instant::now();
         let svg = match svg_elements {
-            Ok(svg_elements) => SvgElementsToSvgMapper::map(svg_elements),
+            Ok(svg_elements) => {
+                SvgElementsToSvgMapper::map_with_input(&input_diagram, svg_elements)
+            }
             Err(_) => String::new(),
         };
         let svg_generation_duration_ms = Instant::now()
