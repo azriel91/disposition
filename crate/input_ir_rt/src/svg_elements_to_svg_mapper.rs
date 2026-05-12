@@ -154,9 +154,9 @@ impl SvgElementsToSvgMapper {
 
         // Brief comment with generation info (source YAML goes inside the SVG)
         buffer.push_str("<!--\n");
-        write!(
+        writeln!(
             buffer,
-            "    This diagram was generated using `disposition` on `{timestamp}`.\n"
+            "    This diagram was generated using `disposition` on `{timestamp}`."
         )
         .unwrap();
         buffer.push('\n');
