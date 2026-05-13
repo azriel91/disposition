@@ -33,9 +33,9 @@ use crate::node::{NodeId, NodeNestingInfos, NodeRank, NodeRanks};
 ///   c: { c_child: {} }
 ///
 /// edges:
-///   edge_a_b:                     { from: a,         to: b         }
-///   edge_b_child_0__b_child_1:    { from: b_child_0, to: b_child_1 }
-///   edge_b_child_0__c_child:      { from: b_child_0, to: c_child   }
+///   edge_a_b:                  { from: a,         to: b         }
+///   edge_b_child_0__b_child_1: { from: b_child_0, to: b_child_1 }
+///   edge_b_child_0__c_child:   { from: b_child_0, to: c_child   }
 /// ```
 ///
 /// The resulting `NodeRanksNested` would be:
