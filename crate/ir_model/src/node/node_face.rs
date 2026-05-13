@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 /// A face/side of a rectangular diagram node.
 ///
 /// Used to identify which side of a node an edge exits or enters,
@@ -6,7 +8,12 @@
 /// # Examples
 ///
 /// Valid values: `Top`, `Bottom`, `Left`, `Right`
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[cfg_attr(
+    all(feature = "schemars", not(feature = "test")),
+    derive(schemars::JsonSchema)
+)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum NodeFace {
     /// The top edge of the node rectangle.
     Top,

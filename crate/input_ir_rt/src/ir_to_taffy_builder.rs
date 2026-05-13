@@ -136,6 +136,8 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_ranks_nested,
             node_nesting_infos,
+            edge_face_assignments: _,
+            node_face_edges: _,
             node_shapes,
             process_step_entities: _,
             render_options: _,
