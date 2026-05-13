@@ -6,8 +6,10 @@ use disposition_model_common::{entity::EntityType, Map, RankDir};
 use disposition_svg_model::{OrthoProtrusionParams, SpacerProtrusionParams, SvgNodeInfo};
 use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
 
+use disposition_ir_model::node::NodeFace;
+
 use crate::taffy_to_svg_elements_mapper::{
-    edge_model::{EdgeContactPointOffsets, NodeFace, NodeIdAndFace},
+    edge_model::{EdgeContactPointOffsets, NodeIdAndFace},
     edge_path_builder_pass_1::SpacerCoordinates,
     EdgeSpacerCoordinatesCalculator,
 };

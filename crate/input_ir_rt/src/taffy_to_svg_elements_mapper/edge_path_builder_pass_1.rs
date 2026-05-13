@@ -3,7 +3,9 @@ use disposition_svg_model::SvgNodeInfo;
 use disposition_taffy_model::TEXT_LINE_HEIGHT;
 use kurbo::{BezPath, Point};
 
-use super::edge_model::{EdgeType, NodeFace};
+use disposition_ir_model::node::NodeFace;
+
+use super::edge_model::EdgeType;
 
 /// Per-endpoint face offset in pixels, applied perpendicular to the
 /// face normal (i.e. along the face).

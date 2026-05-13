@@ -1,9 +1,9 @@
 use disposition_svg_model::OrthoProtrusionParams;
 use kurbo::{BezPath, Point};
 
-use crate::taffy_to_svg_elements_mapper::{
-    edge_model::NodeFace, edge_path_builder_pass_1::SpacerCoordinates,
-};
+use disposition_ir_model::node::NodeFace;
+
+use crate::taffy_to_svg_elements_mapper::edge_path_builder_pass_1::SpacerCoordinates;
 
 /// Arc radius in pixels for orthogonal path corners.
 ///

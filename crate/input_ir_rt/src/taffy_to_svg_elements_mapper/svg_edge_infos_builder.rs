@@ -2,7 +2,7 @@ use disposition_input_ir_model::EdgeAnimationActive;
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeId},
     entity::EntityTypes,
-    node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
+    node::{NodeFace, NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
     IrDiagram,
 };
 use disposition_model_common::{
@@ -19,8 +19,8 @@ use crate::{
     taffy_to_svg_elements_mapper::{
         edge_face_contact_tracker::EdgeFaceContactTracker,
         edge_model::{
-            EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeFace,
-            NodeIdAndFace, PathBounds, PathMidpoint,
+            EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeIdAndFace,
+            PathBounds, PathMidpoint,
         },
         edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
         ortho_protrusion_calculator::OrthoProtrusionCalculator,

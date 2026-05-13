@@ -2,8 +2,10 @@ use disposition_model_common::{edge::EdgeCurvature, RankDir};
 use disposition_svg_model::SvgNodeInfo;
 use kurbo::BezPath;
 
+use disposition_ir_model::node::NodeFace;
+
 use crate::taffy_to_svg_elements_mapper::{
-    edge_model::{EdgeType, NodeFace},
+    edge_model::EdgeType,
     edge_path_builder_pass_1::{
         EdgeFaceOffset, EdgePathBuilderPass1, NodeEdgeGeometry, SpacerCoordinates,
         BIDIRECTIONAL_OFFSET_RATIO, CURVE_CONTROL_RATIO, SELF_LOOP_X_EXTENSION_RATIO,
