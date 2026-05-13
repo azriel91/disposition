@@ -32,8 +32,12 @@ Rust SVG diagram generation library with a dioxus web frontend.
 ## Additional Context
 
 1. When editing the `disposition_playground` crate, see <@agent/dioxus.md> if you need context on working wtih dioxus `0.7`.
-2. See `<@doc/src/diagram_generation.md> for a high level overview of the diagram generation process.
-2. See `<@doc/src/edge_paths.md> for context about how paths are calculated.
+2. See `<@doc/src/diagram_generation.md>` for a high level overview of the diagram generation process.
+3. See `<@doc/src/edge_paths.md>` for context about how edge paths are calculated, including node rank concepts and offset/protrusion routing.
+4. See `<@doc/src/node_nesting_info.md>` for how `NodeNestingInfo` and `NodeNestingInfos` are built -- covers `NodeNestingInfosBuilder`, the `ancestor_chain` / `nesting_path` fields, and how they are used by rank computation and edge spacer insertion.
+5. See `<@doc/src/node_ranks.md>` for how `NodeRank` and `NodeRanksNested` are computed per hierarchy level -- covers `NodeRanksCalculator`, LCA edge lifting, SCC-based cycle handling, and the full worked example.
+6. See `<@doc/src/taffy_node_hierarchy.md>` for how the `taffy` layout node tree is structured -- covers inbuilt containers, rank containers, leaf and container diagram nodes (rect and circle shapes), taffy node styles, and `TaffyNodeCtx` variants.
+7. See `<@doc/src/edge_spacers.md>` for how edge spacer taffy nodes are inserted to help route edges around diagram nodes -- covers same-level cross-rank spacers and cross-container spacers, including the `EdgeSpacerBuildDecider` decision logic and insertion-index accounting.
 
 
 ## Tests
