@@ -188,7 +188,7 @@ impl SvgNodeInfoBuilder {
     /// The coordinates of the taffy node in the Taffy tree are relative to each
     /// node's parent, whereas we need them to be absolute when rendering the
     /// SVG.
-    fn node_absolute_xy_coordinates(
+    pub(super) fn node_absolute_xy_coordinates(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         taffy_node_id: taffy::NodeId,
         layout: &taffy::Layout,

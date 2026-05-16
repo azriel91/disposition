@@ -297,6 +297,14 @@ impl IrToTaffyBuilder<'_> {
             )
             .expect("Expected layout computation to succeed.");
 
+        // Merge collected edge label leaf nodes into the edge label taffy node
+        // map now that all envelope nodes have been built.
+        let edge_label_taffy_nodes = Self::edge_label_taffy_nodes_build(
+            edge_label_leaves,
+            edge_face_assignments,
+            edge_groups,
+        );
+
         // Compute highlighted spans *after* layout is complete.
         //
         // This is done once per node instead of multiple times during layout
@@ -304,18 +312,11 @@ impl IrToTaffyBuilder<'_> {
         let entity_highlighted_spans = Self::highlighted_spans_compute(
             &taffy_tree,
             &node_id_to_taffy,
+            &edge_label_taffy_nodes,
             nodes,
             entity_descs,
             char_width,
             lod,
-        );
-
-        // Merge collected edge label leaf nodes into the edge label taffy node
-        // map now that all envelope nodes have been built.
-        let edge_label_taffy_nodes = Self::edge_label_taffy_nodes_build(
-            edge_label_leaves,
-            edge_face_assignments,
-            edge_groups,
         );
 
         std::iter::once(TaffyNodeMappings {
@@ -336,13 +337,15 @@ impl IrToTaffyBuilder<'_> {
     fn highlighted_spans_compute(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
+        edge_label_taffy_nodes: &Map<EdgeId<'static>, EdgeLabelTaffyNodeIds>,
         nodes: &NodeNames<'static>,
         entity_descs: &EntityDescs<'static>,
         char_width: f32,
         lod: &DiagramLod,
     ) -> EntityHighlightedSpans<'static> {
-        let mut entity_highlighted_spans =
-            EntityHighlightedSpans::with_capacity(node_id_to_taffy.len());
+        let mut entity_highlighted_spans = EntityHighlightedSpans::with_capacity(
+            node_id_to_taffy.len() + edge_label_taffy_nodes.len(),
+        );
 
         let line_height = TEXT_LINE_HEIGHT;
 
@@ -484,6 +487,62 @@ impl IrToTaffyBuilder<'_> {
 
                 entity_highlighted_spans.insert(node_id.as_ref().clone(), highlighted_spans);
             });
+
+        // === Edge label spans === //
+        //
+        // For DiagramLod::Normal, compute highlighted spans for edge label
+        // slots. Both the from_label and to_label slots for a given edge show
+        // the same description text, so a single span set is computed and
+        // stored per edge, keyed by the edge's raw Id.  The width of the
+        // from_label slot is used as the line-wrapping constraint (falling
+        // back to the to_label slot when from_label is absent).
+        if matches!(lod, DiagramLod::Normal) {
+            edge_label_taffy_nodes
+                .iter()
+                .for_each(|(edge_id, edge_label_taffy_node_ids)| {
+                    let Some(desc) = entity_descs.get(edge_id.as_ref()).map(String::as_str) else {
+                        return;
+                    };
+
+                    // Pick whichever label slot is present to get the layout width.
+                    let label_taffy_node_id = edge_label_taffy_node_ids
+                        .from_label_taffy_node_id
+                        .or(edge_label_taffy_node_ids.to_label_taffy_node_id);
+                    let Some(label_taffy_node_id) = label_taffy_node_id else {
+                        return;
+                    };
+                    let Ok(label_node_layout) = taffy_tree.layout(label_taffy_node_id) else {
+                        return;
+                    };
+
+                    let max_width = label_node_layout.size.width;
+                    let wrapped_lines = wrap_text_monospace(desc, char_width, max_width);
+
+                    let padding_left = label_node_layout.padding.left;
+                    let padding_top = label_node_layout.padding.top;
+                    let text_leftmost_x = padding_left + 0.5 * char_width;
+
+                    let highlighted_spans: Vec<EntityHighlightedSpan> = wrapped_lines
+                        .iter()
+                        .enumerate()
+                        .map(|(line_index, line)| {
+                            let x = text_leftmost_x;
+                            let y = (line_index + 1) as f32 * line_height + padding_top;
+                            let width = line_width_measure(line, char_width);
+                            EntityHighlightedSpan {
+                                x,
+                                y,
+                                width,
+                                height: line_height,
+                                text: line.to_string(),
+                            }
+                        })
+                        .collect();
+
+                    entity_highlighted_spans
+                        .insert(edge_id.as_ref().clone(), highlighted_spans);
+                });
+        }
 
         entity_highlighted_spans
     }
