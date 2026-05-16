@@ -1722,18 +1722,23 @@ impl OrthoProtrusionCalculator {
         (face_sign * (sibling_extreme - node_face_coord)).max(0.0)
     }
 
-    /// Returns the coordinate of a node's face along the protrusion axis.
+    /// Returns the coordinate of a node's envelope face along the protrusion
+    /// axis.
     ///
-    /// For `Bottom` face: the bottom edge y-coordinate.
-    /// For `Top` face: the top edge y-coordinate.
-    /// For `Right` face: the right edge x-coordinate.
-    /// For `Left` face: the left edge x-coordinate.
+    /// Uses envelope bounds (which include edge label wrapper slots) so that
+    /// protrusions clear the full label area, not just the inner node
+    /// rectangle.
+    ///
+    /// For `Bottom` face: the bottom edge y-coordinate of the envelope.
+    /// For `Top` face: the top edge y-coordinate of the envelope.
+    /// For `Right` face: the right edge x-coordinate of the envelope.
+    /// For `Left` face: the left edge x-coordinate of the envelope.
     fn face_coord_for_endpoint(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
         match face {
-            NodeFace::Bottom => info.y + info.height_collapsed,
-            NodeFace::Top => info.y,
-            NodeFace::Right => info.x + info.width,
-            NodeFace::Left => info.x,
+            NodeFace::Bottom => info.envelope_y + info.envelope_height_collapsed,
+            NodeFace::Top => info.envelope_y,
+            NodeFace::Right => info.envelope_x + info.envelope_width,
+            NodeFace::Left => info.envelope_x,
         }
     }
 
