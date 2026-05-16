@@ -355,8 +355,10 @@ structure as node text spans. Apply Tailwind / entity CSS classes via the
 
 ## Phase 4 -- Edge path routing around label nodes
 
-**Goal:** edge paths connect to the envelope boundary (outer edge of the label
-wrappers) rather than the wrapper boundary, so labels are not drawn over.
+**Goal:** edge paths route around the full envelope (inner node + label wrapper
+slots) so that label text is not obscured by a passing edge. Edge paths still
+connect to the inner wrapper node boundary -- the rendered `<rect>` -- not to
+the envelope boundary.
 
 ### Step 4.1 -- Envelope bounds in `SvgNodeInfo`
 
@@ -377,25 +379,54 @@ In `SvgNodeInfoBuilder::build`, look up `node_id_to_envelope_taffy_node` to get
 the envelope taffy node and compute its absolute coordinates using the same
 `node_absolute_xy_coordinates` helper.
 
-### Step 4.2 -- Face selection uses envelope bounds
+### Step 4.2 -- Face contact points remain on inner wrapper bounds (no change)
 
-In `SvgEdgeInfosBuilder::build_edge_pass1_infos`, pass envelope bounds to
-`EdgePathBuilderPass1::faces_select` and `select_edge_faces` (currently these
-read `svg_node_info.x/y/width/height_collapsed`). Switch them to use
-`envelope_x/y/width/envelope_height_collapsed` so face contact points lie on
-the envelope boundary.
+Edge face contact points should lie on the inner wrapper node's boundary, not
+the envelope boundary. The rendered `<rect>` is the inner wrapper, so edges
+should visually connect to it.
 
-Contained-edge detection (`is_node_contained_in`) should continue to use the
-inner `wrapper` bounds, not the envelope bounds, to avoid false positives from
-envelope overlap.
+No changes are needed to `EdgePathBuilderPass1::faces_select`,
+`select_edge_faces`, or `get_face_center` -- all of these already use
+`svg_node_info.x/y/width/height_collapsed` (wrapper bounds) and must continue
+to do so.
 
-### Step 4.3 -- Offset and protrusion calculations use envelope bounds
+Contained-edge detection (`is_node_contained_in`) likewise continues to use
+wrapper bounds.
 
-`face_offsets_compute` and `OrthoProtrusionCalculator::calculate` use
-`svg_node_info_map` to look up node dimensions for face lengths and protrusion
-extents. Update those lookups to use `envelope_width` / `envelope_height_collapsed`
-instead of `width` / `height_collapsed`. This ensures protrusions clear the
-full label area, not just the inner node rectangle.
+### Step 4.3 -- Protrusion calculations use envelope bounds
+
+`OrthoProtrusionCalculator::face_coord_for_endpoint` returns the coordinate of
+a node face along the protrusion axis (e.g. `y + height_collapsed` for the
+`Bottom` face). It is used by `min_protrusion_divergent_sibling_extent` and
+`same_rank_sibling_extreme` to compute how far an edge must protrude to clear
+adjacent nodes.
+
+Update `face_coord_for_endpoint` to use the envelope bounds instead of the
+wrapper bounds:
+
+```rust
+NodeFace::Bottom => info.envelope_y + info.envelope_height_collapsed,
+NodeFace::Top    => info.envelope_y,
+NodeFace::Right  => info.envelope_x + info.envelope_width,
+NodeFace::Left   => info.envelope_x,
+```
+
+This ensures protrusions clear the full label area, not just the inner
+node rectangle. Because `same_rank_sibling_extreme` calls
+`face_coord_for_endpoint` for every sibling, it will also automatically use
+envelope bounds, so sibling-clearance protrusions account for their label
+slots as well.
+
+Leave the following unchanged (wrapper bounds are correct for these):
+
+- `face_offsets_compute` / `face_length_for_node` in `SvgEdgeInfosBuilder` --
+  face lengths for distributing contact points along a face should match the
+  inner node dimensions, since contact points lie on the wrapper boundary.
+- `OrthoProtrusionCalculator::face_center` (used in `rank_gap_px`) -- measures
+  the distance between actual contact points; must remain wrapper-based.
+- `cycle_edge_collect_rank_gap_entries` direct use of
+  `info.y + info.height_collapsed` -- cycle-edge rank-gap geometry is tied to
+  the rendered node boundary, not the envelope.
 
 ### Step 4.4 -- Reconcile pre-layout vs post-layout face selection
 
