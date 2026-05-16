@@ -1,0 +1,14 @@
+things:
+  t_a: Alpha
+  t_b: Beta
+thing_hierarchy:
+  t_a: {}
+  t_b: {}
+thing_dependencies:
+  edge_ab:
+    kind: sequence
+    things:
+      - t_a
+      - t_b
+entity_descs:
+  edge_ab__0: "Alpha to Beta connection"

@@ -19,6 +19,8 @@ pub(crate) const INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_NODE: &str =
     include_str!("input_diagram/0007_edge_from_node_to_nested_node.yaml");
 pub(crate) const INPUT_DIAGRAM_0008_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE: &str =
     include_str!("input_diagram/0008_edge_from_node_to_nested_rank_1_node.yaml");
+pub(crate) const INPUT_DIAGRAM_0009_EDGE_WITH_DESCRIPTION: &str =
+    include_str!("input_diagram/0009_edge_with_description.yaml");
 
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

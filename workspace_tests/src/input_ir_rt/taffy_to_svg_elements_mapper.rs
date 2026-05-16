@@ -18,6 +18,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0006_PROCESS_STEP_NODES_CYCLIC_EDGE,
     INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_NODE,
     INPUT_DIAGRAM_0008_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE,
+    INPUT_DIAGRAM_0009_EDGE_WITH_DESCRIPTION,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -1851,6 +1852,103 @@ fn test_edge_from_toplevel_to_nested_rank_0_node_uses_normal_routing_complex_dia
              y={expected_last_y:.2} (tolerance {tolerance:.0} px). \
              path_d = {:?}",
             bob_charlie_1_edge.path_d,
+        );
+    }
+}
+
+// === Edge description / label tests === //
+
+/// Returns `SvgElements` for the edge-with-description fixture (0009).
+///
+/// The fixture has two nodes (`t_a`, `t_b`) connected by a single sequence
+/// edge (`edge_ab__0`) and an entity_desc for that edge.
+fn build_svg_elements_from_edge_with_description() -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0009_EDGE_WITH_DESCRIPTION)
+}
+
+/// An edge with a description in `entity_descs` must produce a non-empty
+/// `edge_label_infos` entry in `SvgElements`.
+///
+/// The edge ID used as the `entity_descs` key follows the generated format
+/// `"{edge_group_id}__{edge_index}"`, e.g. `edge_ab__0` for index 0 of the
+/// `edge_ab` group.
+#[test]
+fn test_edge_description_produces_edge_label_infos() {
+    for svg_elements in build_svg_elements_from_edge_with_description() {
+        assert!(
+            !svg_elements.edge_label_infos.is_empty(),
+            "Expected edge_label_infos to be non-empty when entity_descs contains the edge ID"
+        );
+
+        let label_info = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|info| info.edge_id.as_str() == "edge_ab__0")
+            .expect("Expected an edge_label_info entry for edge_ab__0");
+
+        // Both the from-endpoint (t_a bottom face) and to-endpoint (t_b top
+        // face) should have label slots with text spans.
+        let from_label = label_info
+            .from_label
+            .as_ref()
+            .expect("Expected from_label to be present for edge_ab__0");
+        assert!(
+            !from_label.text_spans.is_empty(),
+            "Expected from_label.text_spans to be non-empty for edge_ab__0"
+        );
+
+        let to_label = label_info
+            .to_label
+            .as_ref()
+            .expect("Expected to_label to be present for edge_ab__0");
+        assert!(
+            !to_label.text_spans.is_empty(),
+            "Expected to_label.text_spans to be non-empty for edge_ab__0"
+        );
+    }
+}
+
+/// The text in the edge label spans must match the description from
+/// `entity_descs`.
+#[test]
+fn test_edge_description_text_matches_entity_descs() {
+    let expected_text = "Alpha to Beta connection";
+
+    for svg_elements in build_svg_elements_from_edge_with_description() {
+        let label_info = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|info| info.edge_id.as_str() == "edge_ab__0")
+            .expect("Expected an edge_label_info entry for edge_ab__0");
+
+        // Collect all span text from both endpoints (both show the same
+        // description text).
+        let from_texts: Vec<&str> = label_info
+            .from_label
+            .as_ref()
+            .map(|l| l.text_spans.iter().map(|s| s.text.as_str()).collect())
+            .unwrap_or_default();
+        let combined_from = from_texts.join("");
+        assert!(
+            combined_from.contains(expected_text)
+                || expected_text
+                    .split_whitespace()
+                    .all(|word| from_texts.iter().any(|t| t.contains(word))),
+            "from_label spans {from_texts:?} should contain the description text '{expected_text}'"
+        );
+
+        let to_texts: Vec<&str> = label_info
+            .to_label
+            .as_ref()
+            .map(|l| l.text_spans.iter().map(|s| s.text.as_str()).collect())
+            .unwrap_or_default();
+        let combined_to = to_texts.join("");
+        assert!(
+            combined_to.contains(expected_text)
+                || expected_text
+                    .split_whitespace()
+                    .all(|word| to_texts.iter().any(|t| t.contains(word))),
+            "to_label spans {to_texts:?} should contain the description text '{expected_text}'"
         );
     }
 }
