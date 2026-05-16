@@ -5,8 +5,8 @@ use disposition_ir_model::{
     entity::{EntityDescs, EntityType, EntityTypes},
     layout::{FlexDirection as ModelFlexDirection, NodeLayout, NodeLayouts},
     node::{
-        NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeNestingInfos, NodeRank, NodeRanksNested,
-        NodeShape, NodeShapes,
+        NodeFace, NodeFaceEdges, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeNestingInfos,
+        NodeRank, NodeRanksNested, NodeShape, NodeShapes,
     },
     IrDiagram,
 };
@@ -18,9 +18,10 @@ use disposition_taffy_model::{
         AlignContent, AlignItems, AvailableSpace, Display, FlexWrap, LengthPercentage, Rect, Size,
         Style, TaffyTree,
     },
-    DiagramLod, DiagramNodeCtx, Dimension, DimensionAndLod, EdgeSpacerTaffyNodes,
-    EntityHighlightedSpan, EntityHighlightedSpans, IrToTaffyError, NodeToTaffyNodeIds,
-    ProcessesIncluded, TaffyNodeCtx, TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
+    DiagramLod, DiagramNodeCtx, Dimension, DimensionAndLod, EdgeLabelCtx, EdgeLabelTaffyNodeIds,
+    EdgeSpacerTaffyNodes, EntityHighlightedSpan, EntityHighlightedSpans, IrToTaffyError,
+    NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeCtx, TaffyNodeMappings, TEXT_FONT_SIZE,
+    TEXT_LINE_HEIGHT,
 };
 use taffy::{prelude::TaffyZero, JustifyContent, JustifyItems};
 use typed_builder::TypedBuilder;
@@ -28,7 +29,9 @@ use typed_builder::TypedBuilder;
 use self::{
     edge_lca_sibling_distance::EdgeLcaSiblingDistance,
     edge_spacer_builder::EdgeSpacerBuilder,
-    taffy_node_build_context::{NodeMeasureContext, TaffyNodeBuildContext, TaffyWrapperNodeStyles},
+    taffy_node_build_context::{
+        EdgeLabelLeafBuilt, NodeMeasureContext, TaffyNodeBuildContext, TaffyWrapperNodeStyles,
+    },
     text_measure::{
         compute_text_dimensions, line_width_measure, wrap_text_monospace,
         MONOSPACE_CHAR_WIDTH_RATIO,
@@ -309,6 +312,8 @@ impl IrToTaffyBuilder<'_> {
             taffy_id_to_node,
             edge_spacer_taffy_nodes,
             entity_highlighted_spans,
+            edge_label_taffy_nodes: Map::new(),
+            node_id_to_envelope_taffy_node: Map::new(),
         })
     }
 
@@ -1339,7 +1344,7 @@ impl IrToTaffyBuilder<'_> {
                         }
                     }
                 }
-                TaffyNodeCtx::EdgeSpacer(_) => None,
+                TaffyNodeCtx::EdgeSpacer(_) | TaffyNodeCtx::EdgeLabel(_) => None,
             })
             .unwrap_or(Cow::Borrowed(""));
 
@@ -1369,5 +1374,195 @@ impl IrToTaffyBuilder<'_> {
                 + style.padding.top.into_raw().value()
                 + style.padding.bottom.into_raw().value(),
         }
+    }
+
+    /// Builds an envelope taffy node around `diagram_node_wrapper_node`.
+    ///
+    /// The envelope adds flex-row/column slots for edge label leaf nodes on
+    /// each face of the diagram node. The structure is:
+    ///
+    /// ```text
+    /// envelope_node:               (flex column, align_items: Stretch)
+    ///   edge_wrapper_top:          (flex row)
+    ///   edge_and_diagram_wrapper:  (flex row, align_items: Stretch)
+    ///     edge_wrapper_left:       (flex column)
+    ///     diagram_node_wrapper_node
+    ///     edge_wrapper_right:      (flex column)
+    ///   edge_wrapper_bottom:       (flex row)
+    /// ```
+    ///
+    /// # Parameters
+    ///
+    /// * `taffy_tree`: The `TaffyTree` to insert nodes into.
+    /// * `node_id`: The diagram node ID for this envelope.
+    /// * `diagram_node_wrapper_node`: The existing wrapper node taffy ID to
+    ///   wrap.
+    /// * `node_face_edges`: The per-node face-to-edge-IDs mapping from
+    ///   `IrDiagram`.
+    fn taffy_envelope_node_build(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        node_id: &NodeId<'static>,
+        diagram_node_wrapper_node: taffy::NodeId,
+        node_face_edges: &NodeFaceEdges<'static>,
+    ) -> (taffy::NodeId, Vec<EdgeLabelLeafBuilt>) {
+        let mut label_leaves = Vec::new();
+
+        let face_row_style = Style {
+            display: Display::Flex,
+            flex_direction: FlexDirection::Row,
+            ..Default::default()
+        };
+        let face_column_style = Style {
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+            ..Default::default()
+        };
+        let label_leaf_style = Style {
+            flex_shrink: 0.0,
+            ..Default::default()
+        };
+
+        let top_leaf_ids = Self::taffy_envelope_node_build_face_leaves(
+            taffy_tree,
+            node_id,
+            NodeFace::Top,
+            node_face_edges.edges_for(node_id, NodeFace::Top),
+            &label_leaf_style,
+            &mut label_leaves,
+        );
+        let bottom_leaf_ids = Self::taffy_envelope_node_build_face_leaves(
+            taffy_tree,
+            node_id,
+            NodeFace::Bottom,
+            node_face_edges.edges_for(node_id, NodeFace::Bottom),
+            &label_leaf_style,
+            &mut label_leaves,
+        );
+        let left_leaf_ids = Self::taffy_envelope_node_build_face_leaves(
+            taffy_tree,
+            node_id,
+            NodeFace::Left,
+            node_face_edges.edges_for(node_id, NodeFace::Left),
+            &label_leaf_style,
+            &mut label_leaves,
+        );
+        let right_leaf_ids = Self::taffy_envelope_node_build_face_leaves(
+            taffy_tree,
+            node_id,
+            NodeFace::Right,
+            node_face_edges.edges_for(node_id, NodeFace::Right),
+            &label_leaf_style,
+            &mut label_leaves,
+        );
+
+        let edge_wrapper_top = taffy_tree
+            .new_with_children(face_row_style.clone(), &top_leaf_ids)
+            .unwrap_or_else(|e| {
+                panic!("Expected to create edge_wrapper_top for {node_id}. Error: {e}")
+            });
+        let edge_wrapper_bottom = taffy_tree
+            .new_with_children(face_row_style, &bottom_leaf_ids)
+            .unwrap_or_else(|e| {
+                panic!("Expected to create edge_wrapper_bottom for {node_id}. Error: {e}")
+            });
+        let edge_wrapper_left = taffy_tree
+            .new_with_children(face_column_style.clone(), &left_leaf_ids)
+            .unwrap_or_else(|e| {
+                panic!("Expected to create edge_wrapper_left for {node_id}. Error: {e}")
+            });
+        let edge_wrapper_right = taffy_tree
+            .new_with_children(face_column_style, &right_leaf_ids)
+            .unwrap_or_else(|e| {
+                panic!("Expected to create edge_wrapper_right for {node_id}. Error: {e}")
+            });
+
+        let edge_and_diagram_wrapper = taffy_tree
+            .new_with_children(
+                Style {
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Row,
+                    align_items: Some(AlignItems::Stretch),
+                    ..Default::default()
+                },
+                &[
+                    edge_wrapper_left,
+                    diagram_node_wrapper_node,
+                    edge_wrapper_right,
+                ],
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create edge_and_diagram_wrapper for {node_id}. Error: {e}")
+            });
+
+        let envelope_node = taffy_tree
+            .new_with_children(
+                Style {
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Column,
+                    align_items: Some(AlignItems::Stretch),
+                    ..Default::default()
+                },
+                &[
+                    edge_wrapper_top,
+                    edge_and_diagram_wrapper,
+                    edge_wrapper_bottom,
+                ],
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create envelope_node for {node_id}. Error: {e}")
+            });
+
+        (envelope_node, label_leaves)
+    }
+
+    /// Builds the edge label leaf nodes for one face of an envelope node.
+    ///
+    /// For each edge ID in `edge_ids`, a leaf node is created with
+    /// [`TaffyNodeCtx::EdgeLabel`] context and appended to `label_leaves`.
+    /// Returns the `taffy::NodeId`s of all created leaves in order.
+    ///
+    /// # Parameters
+    ///
+    /// * `taffy_tree`: The `TaffyTree` to insert nodes into.
+    /// * `node_id`: The diagram node ID that owns this face.
+    /// * `face`: Which face of the node these labels are on.
+    /// * `edge_ids`: The edge IDs that attach to `face` on `node_id`.
+    /// * `label_leaf_style`: The taffy `Style` applied to every label leaf.
+    /// * `label_leaves`: Output accumulator for the built leaves.
+    fn taffy_envelope_node_build_face_leaves(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        node_id: &NodeId<'static>,
+        face: NodeFace,
+        edge_ids: &[EdgeId<'static>],
+        label_leaf_style: &Style,
+        label_leaves: &mut Vec<EdgeLabelLeafBuilt>,
+    ) -> Vec<taffy::NodeId> {
+        edge_ids
+            .iter()
+            .map(|edge_id| {
+                let taffy_node_id = taffy_tree
+                    .new_leaf_with_context(
+                        label_leaf_style.clone(),
+                        TaffyNodeCtx::EdgeLabel(EdgeLabelCtx {
+                            edge_id: edge_id.clone(),
+                            node_id: node_id.clone(),
+                            face,
+                        }),
+                    )
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "Expected to create edge label leaf for edge {edge_id} on \
+                             face {face:?} of node {node_id}. Error: {e}"
+                        )
+                    });
+                label_leaves.push(EdgeLabelLeafBuilt {
+                    edge_id: edge_id.clone(),
+                    node_id: node_id.clone(),
+                    face,
+                    taffy_node_id,
+                });
+                taffy_node_id
+            })
+            .collect()
     }
 }

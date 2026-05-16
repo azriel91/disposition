@@ -5,7 +5,10 @@ use disposition_ir_model::{
 use disposition_model_common::Map;
 use taffy::TaffyTree;
 
-use crate::{EdgeSpacerTaffyNodes, EntityHighlightedSpans, NodeToTaffyNodeIds, TaffyNodeCtx};
+use crate::{
+    EdgeLabelTaffyNodeIds, EdgeSpacerTaffyNodes, EntityHighlightedSpans, NodeToTaffyNodeIds,
+    TaffyNodeCtx,
+};
 
 /// The taffy tree and mappings from each IR node ID to its `taffy` node ID.
 #[derive(Clone, Debug)]
@@ -32,6 +35,23 @@ pub struct TaffyNodeMappings<'id> {
     /// generation increases from 20 ms to 1000 ms (debug mode). This was
     /// removed in `a331529`.
     pub entity_highlighted_spans: EntityHighlightedSpans<'id>,
+    /// Map from each edge ID to its two edge label taffy leaf node IDs.
+    ///
+    /// Populated during envelope node construction (Phase 2). Each entry
+    /// holds the label leaf on the `from` endpoint's face and the label leaf
+    /// on the `to` endpoint's face. Both may be `None` for contained or
+    /// self-loop edges.
+    pub edge_label_taffy_nodes: Map<EdgeId<'id>, EdgeLabelTaffyNodeIds>,
+    /// Map from each diagram node ID to its envelope taffy node ID.
+    ///
+    /// The envelope wraps the existing `diagram_node_wrapper_node` and adds
+    /// flex-row/column slots for edge label leaf nodes on each face.
+    /// Populated during envelope node construction (Phase 2).
+    ///
+    /// Kept separate from `node_id_to_taffy` (which maps to
+    /// `NodeToTaffyNodeIds`) to avoid churn in all existing code that reads
+    /// `node_id_to_taffy`.
+    pub node_id_to_envelope_taffy_node: Map<NodeId<'id>, taffy::NodeId>,
 }
 
 impl<'id> PartialEq for TaffyNodeMappings<'id> {
@@ -47,6 +67,8 @@ impl<'id> PartialEq for TaffyNodeMappings<'id> {
             && self.taffy_id_to_node == other.taffy_id_to_node
             && self.edge_spacer_taffy_nodes == other.edge_spacer_taffy_nodes
             && self.entity_highlighted_spans == other.entity_highlighted_spans
+            && self.edge_label_taffy_nodes == other.edge_label_taffy_nodes
+            && self.node_id_to_envelope_taffy_node == other.node_id_to_envelope_taffy_node
     }
 }
 

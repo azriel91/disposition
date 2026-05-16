@@ -73,6 +73,8 @@ fn assert_taffy_measurements(
         taffy_id_to_node: _,
         edge_spacer_taffy_nodes: _,
         entity_highlighted_spans: _,
+        edge_label_taffy_nodes: _,
+        node_id_to_envelope_taffy_node: _,
     } = taffy_node_mappings;
     let root_layout = node_inbuilt_to_taffy
         .get(&NodeInbuilt::Root)

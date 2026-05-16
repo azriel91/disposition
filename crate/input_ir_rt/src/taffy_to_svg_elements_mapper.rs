@@ -63,6 +63,8 @@ impl TaffyToSvgElementsMapper {
             taffy_id_to_node: _,
             edge_spacer_taffy_nodes,
             entity_highlighted_spans,
+            edge_label_taffy_nodes: _,
+            node_id_to_envelope_taffy_node: _,
         } = taffy_node_mappings;
 
         // Get root layout for SVG dimensions

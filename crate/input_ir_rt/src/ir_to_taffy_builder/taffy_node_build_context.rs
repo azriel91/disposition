@@ -1,7 +1,10 @@
 use disposition_ir_model::{
+    edge::EdgeId,
     entity::EntityTypes,
     layout::{LeafLayout, NodeLayouts},
-    node::{NodeHierarchy, NodeId, NodeNames, NodeNestingInfos, NodeRanksNested, NodeShapes},
+    node::{
+        NodeFace, NodeHierarchy, NodeId, NodeNames, NodeNestingInfos, NodeRanksNested, NodeShapes,
+    },
 };
 use disposition_model_common::{entity::EntityDescs, Map};
 use disposition_taffy_model::{
@@ -102,4 +105,19 @@ pub(crate) struct NodeMeasureContext<'ctx> {
     pub(crate) char_width: f32,
     /// Level of detail for the diagram.
     pub(crate) lod: &'ctx DiagramLod,
+}
+
+/// A single edge label leaf node built during envelope node construction.
+///
+/// Collected across all envelope nodes so that `edge_label_taffy_nodes` can
+/// be populated in `TaffyNodeMappings` at the end of Phase 2 Step 2.5.
+pub(crate) struct EdgeLabelLeafBuilt {
+    /// The edge ID this label leaf belongs to.
+    pub(crate) edge_id: EdgeId<'static>,
+    /// The endpoint node this label leaf is attached to.
+    pub(crate) node_id: NodeId<'static>,
+    /// The face of the endpoint node this label leaf is on.
+    pub(crate) face: NodeFace,
+    /// The taffy node ID of the label leaf.
+    pub(crate) taffy_node_id: taffy::NodeId,
 }
