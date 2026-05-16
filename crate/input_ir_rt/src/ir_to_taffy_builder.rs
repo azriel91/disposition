@@ -1394,7 +1394,12 @@ impl IrToTaffyBuilder<'_> {
             lod,
         } = node_measure_context;
 
-        let text = taffy_node_ctx
+        // Edge spacers, edge labels, and empty wrapper containers (no context)
+        // have no text to measure.  Return zero size immediately so that
+        // empty face-wrapper rows/columns (e.g. `edge_wrapper_top` when a
+        // node has no top-face edges) do not contribute spurious height via
+        // the `(line_count + 0.5) * line_height` bias.
+        let text = match taffy_node_ctx
             .as_ref()
             .and_then(|taffy_node_ctx| match taffy_node_ctx {
                 TaffyNodeCtx::DiagramNode(diagram_node_ctx) => {
@@ -1417,8 +1422,15 @@ impl IrToTaffyBuilder<'_> {
                     }
                 }
                 TaffyNodeCtx::EdgeSpacer(_) | TaffyNodeCtx::EdgeLabel(_) => None,
-            })
-            .unwrap_or(Cow::Borrowed(""));
+            }) {
+            Some(text) => text,
+            None => {
+                return Size {
+                    width: 0.0,
+                    height: 0.0,
+                }
+            }
+        };
 
         // Set width constraint
         let width_constraint = known_dimensions.width.or(match available_space.width {
