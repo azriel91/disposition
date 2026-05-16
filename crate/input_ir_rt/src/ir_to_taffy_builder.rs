@@ -505,21 +505,22 @@ impl IrToTaffyBuilder<'_> {
                     };
 
                     // Pick whichever label slot is present to get the layout width.
-                    let label_taffy_node_id = edge_label_taffy_node_ids
+                    let edge_label_taffy_node_id = edge_label_taffy_node_ids
                         .from_label_taffy_node_id
                         .or(edge_label_taffy_node_ids.to_label_taffy_node_id);
-                    let Some(label_taffy_node_id) = label_taffy_node_id else {
+                    let Some(edge_label_taffy_node_id) = edge_label_taffy_node_id else {
                         return;
                     };
-                    let Ok(label_node_layout) = taffy_tree.layout(label_taffy_node_id) else {
+                    let Ok(edge_label_node_layout) = taffy_tree.layout(edge_label_taffy_node_id)
+                    else {
                         return;
                     };
 
-                    let max_width = label_node_layout.size.width;
+                    let max_width = edge_label_node_layout.size.width;
                     let wrapped_lines = wrap_text_monospace(desc, char_width, max_width);
 
-                    let padding_left = label_node_layout.padding.left;
-                    let padding_top = label_node_layout.padding.top;
+                    let padding_left = edge_label_node_layout.padding.left;
+                    let padding_top = edge_label_node_layout.padding.top;
                     let text_leftmost_x = padding_left + 0.5 * char_width;
 
                     let highlighted_spans: Vec<EntityHighlightedSpan> = wrapped_lines
@@ -539,8 +540,7 @@ impl IrToTaffyBuilder<'_> {
                         })
                         .collect();
 
-                    entity_highlighted_spans
-                        .insert(edge_id.as_ref().clone(), highlighted_spans);
+                    entity_highlighted_spans.insert(edge_id.as_ref().clone(), highlighted_spans);
                 });
         }
 
