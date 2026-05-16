@@ -199,16 +199,20 @@ Keeping `node_id_to_envelope_taffy_node` separate (rather than changing
 
 ### Step 2.4 -- Envelope node structure
 
-New helper (can be a free function or a builder method in `IrToTaffyBuilder`):
-`fn taffy_envelope_node_build`
+Two methods on `IrToTaffyBuilder`:
 
-Given the `diagram_node_wrapper_node` taffy ID and a list of edge IDs per face
-(read from `node_face_edges`), build:
+- `fn taffy_envelope_node_build` -- builds the full envelope structure.
+- `fn taffy_envelope_node_build_face_leaves` -- extracted helper (per naming
+  convention: called function name is prefixed by the calling function name)
+  that creates label leaves for one face and appends them to an accumulator.
+
+`taffy_envelope_node_build` takes `diagram_node_wrapper_node` and
+`node_face_edges`, and builds:
 
 ```yaml
-envelope_node:               # (flex column)
+envelope_node:               # (flex column, align_items: Stretch)
   edge_wrapper_top:          # (flex row,    children = label leaves for Top edges)
-  edge_and_diagram_wrapper:  # (flex row)
+  edge_and_diagram_wrapper:  # (flex row,    align_items: Stretch)
     edge_wrapper_left:       # (flex column, children = label leaves for Left edges)
     diagram_node_wrapper_node
     edge_wrapper_right:      # (flex column, children = label leaves for Right edges)
@@ -221,8 +225,24 @@ Each label leaf is created with:
 TaffyNodeCtx::EdgeLabel(EdgeLabelCtx { edge_id, node_id, face })
 ```
 
-The `edge_wrapper_*` nodes with zero children should still be created (so the
-flex layout stays consistent), but they will have zero size.
+The `edge_wrapper_*` nodes with zero children are still created so the flex
+layout stays consistent; they will have zero size.
+
+The return type is `(taffy::NodeId, Vec<EdgeLabelLeafBuilt>)` where
+`EdgeLabelLeafBuilt` (defined in
+`crate/input_ir_rt/src/ir_to_taffy_builder/taffy_node_build_context.rs`) is:
+
+```rust
+pub(crate) struct EdgeLabelLeafBuilt {
+    pub(crate) edge_id: EdgeId<'static>,
+    pub(crate) node_id: NodeId<'static>,
+    pub(crate) face: NodeFace,
+    pub(crate) taffy_node_id: taffy::NodeId,
+}
+```
+
+This carries per-leaf info out of envelope construction so step 2.5 can
+populate `edge_label_taffy_nodes` after all nodes have been built.
 
 ### Step 2.5 -- Wire into `IrToTaffyBuilder`
 
@@ -231,16 +251,29 @@ Modify `build_taffy_nodes_for_node_without_child_hierarchy` and
 `crate/input_ir_rt/src/ir_to_taffy_builder.rs`:
 
 1. Build `diagram_node_wrapper_node` (the existing `wrapper_node`) as before.
-2. Call `taffy_envelope_node_build` with `diagram_node_wrapper_node` and the
-   relevant entries from `node_face_edges`.
+2. Call `taffy_envelope_node_build` with `diagram_node_wrapper_node` and
+   `node_face_edges`. Collect the returned `Vec<EdgeLabelLeafBuilt>` alongside
+   the returned `envelope_node`.
 3. Return `envelope_node` (not `wrapper_node`) as the ID stored in rank
    containers and passed up the call stack.
 4. Record `node_id → envelope_node` in `node_id_to_envelope_taffy_node`.
-5. Record `edge_id → EdgeLabelTaffyNodeIds` in `edge_label_taffy_nodes` (collect
-   from all nodes after building).
+5. After all nodes are built, merge the collected `EdgeLabelLeafBuilt` entries
+   into `edge_label_taffy_nodes`. For each `EdgeLabelLeafBuilt`:
+   - Look up `edge_face_assignments.get(&built.edge_id)` and the raw edge
+     (from `edge_groups`) to obtain its `.from` and `.to` node IDs.
+   - If `assignment.from_face.is_some()` and `built.node_id == edge.from`,
+     this leaf is the `from_label_taffy_node_id` for that edge.
+   - If `assignment.to_face.is_some()` and `built.node_id == edge.to`,
+     this leaf is the `to_label_taffy_node_id` for that edge.
+   - Both slots default to `None` for contained and self-loop edges.
 
-Pass `node_face_edges` into `TaffyNodeBuildContext` alongside the existing
-fields.
+Add `node_face_edges` to `TaffyNodeBuildContext` alongside the existing fields
+so it is available during the recursive child-node build (used by the two
+`build_taffy_nodes_for_node_*` functions, which receive the context).
+
+`edge_face_assignments` is only needed during the post-build collection in
+step 5 above, so it can be passed directly at that call site rather than
+threaded through `TaffyNodeBuildContext`.
 
 ### Step 2.6 -- Edge label text measurement
 
@@ -248,6 +281,8 @@ In `IrToTaffyBuilder::node_size_measure`, add a match arm for
 `TaffyNodeCtx::EdgeLabel(ctx)`:
 
 - Look up `entity_descs.get(ctx.edge_id.as_ref())` for the description text.
+  `EntityDescs` is keyed by `Id<'static>` and `EdgeId` wraps `Id`, so
+  `ctx.edge_id.as_ref()` gives `&Id<'static>` which works as the lookup key.
 - Apply the same monospace wrapping logic used for `DiagramNode`.
 - `NodeMeasureContext` already carries `entity_descs`, so no new context field
   is needed.
@@ -398,6 +433,12 @@ slot. These stack in a flex column (left/right) or flex row (top/bottom). The
 slot order should match the face-offset slot order produced by
 `face_offsets_compute` (rank distance ascending, then target coordinate) so
 labels align with their corresponding edge exit points.
+
+Currently `taffy_envelope_node_build_face_leaves` iterates
+`node_face_edges.edges_for(node_id, face)` in insertion order, which is the
+order edges appear in `EdgeGroups`. Before step 2.5 is finalised, verify that
+this order agrees with `face_offsets_compute`'s slot ordering, or add an
+explicit sort inside `taffy_envelope_node_build_face_leaves`.
 
 ### OQ4 -- Edge label slot styling
 
