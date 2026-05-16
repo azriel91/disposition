@@ -1421,7 +1421,16 @@ impl IrToTaffyBuilder<'_> {
                         }
                     }
                 }
-                TaffyNodeCtx::EdgeSpacer(_) | TaffyNodeCtx::EdgeLabel(_) => None,
+                TaffyNodeCtx::EdgeSpacer(_) => None,
+                TaffyNodeCtx::EdgeLabel(ctx) => match lod {
+                    DiagramLod::Simple => None,
+                    DiagramLod::Normal => {
+                        let edge_id = &ctx.edge_id;
+                        entity_descs
+                            .get(edge_id.as_ref())
+                            .map(|desc| Cow::Borrowed(desc.as_str()))
+                    }
+                },
             }) {
             Some(text) => text,
             None => {
