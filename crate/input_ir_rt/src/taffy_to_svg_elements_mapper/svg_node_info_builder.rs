@@ -32,6 +32,7 @@ impl SvgNodeInfoBuilder {
             default_shape,
             process_steps_heights,
             svg_process_infos,
+            node_id_to_envelope_taffy_node,
         } = svg_node_info_build_context;
 
         let is_process = ir_diagram
@@ -67,6 +68,20 @@ impl SvgNodeInfoBuilder {
 
             node_height
         };
+
+        // Compute envelope bounds -- the outer taffy node that wraps the
+        // diagram node and includes edge label wrapper slots on each face.
+        // Fall back to wrapper bounds if no envelope is recorded.
+        let (envelope_x, envelope_y, envelope_width, envelope_height_collapsed) =
+            Self::node_envelope_bounds(
+                taffy_tree,
+                node_id,
+                node_id_to_envelope_taffy_node,
+                x,
+                y,
+                width,
+                height_collapsed,
+            );
         let height_to_expand_to = if is_process {
             Some(height_expanded)
         } else {
@@ -160,6 +175,10 @@ impl SvgNodeInfoBuilder {
                 y,
                 width,
                 height_collapsed,
+                envelope_x,
+                envelope_y,
+                envelope_width,
+                envelope_height_collapsed,
                 path_d_collapsed,
                 process_id,
                 text_spans,
@@ -175,6 +194,10 @@ impl SvgNodeInfoBuilder {
                 y,
                 width,
                 height_collapsed,
+                envelope_x,
+                envelope_y,
+                envelope_width,
+                envelope_height_collapsed,
                 path_d_collapsed,
                 process_id,
                 text_spans,
@@ -213,6 +236,59 @@ impl SvgNodeInfoBuilder {
             (x_acc, y_acc)
         };
         (x, y)
+    }
+
+    /// Returns the absolute envelope bounds for a diagram node.
+    ///
+    /// Looks up the envelope taffy node from `node_id_to_envelope_taffy_node`
+    /// and computes its absolute coordinates using
+    /// [`Self::node_absolute_xy_coordinates`]. Falls back to the wrapper node
+    /// bounds (`fallback_x/y/width/height_collapsed`) when no envelope is
+    /// recorded for the node.
+    ///
+    /// Returns `(envelope_x, envelope_y, envelope_width,
+    /// envelope_height_collapsed)`.
+    fn node_envelope_bounds<'id>(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        node_id: &NodeId<'id>,
+        node_id_to_envelope_taffy_node: &Map<NodeId<'id>, taffy::NodeId>,
+        fallback_x: f32,
+        fallback_y: f32,
+        fallback_width: f32,
+        fallback_height_collapsed: f32,
+    ) -> (f32, f32, f32, f32) {
+        let Some(&envelope_taffy_node_id) = node_id_to_envelope_taffy_node.get(node_id) else {
+            return (
+                fallback_x,
+                fallback_y,
+                fallback_width,
+                fallback_height_collapsed,
+            );
+        };
+
+        let Ok(envelope_layout) = taffy_tree.layout(envelope_taffy_node_id) else {
+            return (
+                fallback_x,
+                fallback_y,
+                fallback_width,
+                fallback_height_collapsed,
+            );
+        };
+
+        let (envelope_x, envelope_y) =
+            Self::node_absolute_xy_coordinates(taffy_tree, envelope_taffy_node_id, envelope_layout);
+        let envelope_width = envelope_layout.size.width;
+        let envelope_height_collapsed = envelope_layout
+            .size
+            .height
+            .min(envelope_layout.content_size.height);
+
+        (
+            envelope_x,
+            envelope_y,
+            envelope_width,
+            envelope_height_collapsed,
+        )
     }
 
     /// Finds the process ID that a given node belongs to (if any).

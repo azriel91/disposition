@@ -66,7 +66,7 @@ impl TaffyToSvgElementsMapper {
             edge_spacer_taffy_nodes,
             entity_highlighted_spans,
             edge_label_taffy_nodes,
-            node_id_to_envelope_taffy_node: _,
+            node_id_to_envelope_taffy_node,
         } = taffy_node_mappings;
 
         // Get root layout for SVG dimensions
@@ -136,6 +136,7 @@ impl TaffyToSvgElementsMapper {
             default_shape: &default_shape,
             process_steps_heights: &process_steps_heights,
             svg_process_infos: &svg_process_infos,
+            node_id_to_envelope_taffy_node,
         };
         let (svg_node_infos, mut tailwind_classes) = ir_diagram.node_ordering.iter().fold(
             (Vec::new(), tailwind_classes),
