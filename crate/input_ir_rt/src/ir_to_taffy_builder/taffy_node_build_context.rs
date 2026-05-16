@@ -3,7 +3,8 @@ use disposition_ir_model::{
     entity::EntityTypes,
     layout::{LeafLayout, NodeLayouts},
     node::{
-        NodeFace, NodeHierarchy, NodeId, NodeNames, NodeNestingInfos, NodeRanksNested, NodeShapes,
+        NodeFace, NodeFaceEdges, NodeHierarchy, NodeId, NodeNames, NodeNestingInfos,
+        NodeRanksNested, NodeShapes,
     },
 };
 use disposition_model_common::{entity::EntityDescs, Map};
@@ -27,6 +28,17 @@ pub(crate) struct TaffyNodeBuildContext<'ctx> {
     pub(crate) node_nesting_infos: &'ctx NodeNestingInfos<'static>,
     pub(crate) node_id_to_taffy: &'ctx mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
     pub(crate) taffy_id_to_node: &'ctx mut Map<taffy::NodeId, NodeId<'static>>,
+    /// Per-node face-to-edge-IDs mapping used to build envelope label slots.
+    pub(crate) node_face_edges: &'ctx NodeFaceEdges<'static>,
+    /// Map from each diagram node ID to its envelope taffy node ID.
+    ///
+    /// Populated incrementally as each node's envelope is built.
+    pub(crate) node_id_to_envelope_taffy_node: &'ctx mut Map<NodeId<'static>, taffy::NodeId>,
+    /// Accumulator for edge label leaf nodes built across all envelope nodes.
+    ///
+    /// After all nodes are built, merged into `edge_label_taffy_nodes` in
+    /// `TaffyNodeMappings`.
+    pub(crate) edge_label_leaves: &'ctx mut Vec<EdgeLabelLeafBuilt>,
 }
 
 /// Layout information for a wrapper node and its text node.
