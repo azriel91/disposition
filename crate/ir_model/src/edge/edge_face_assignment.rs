@@ -17,11 +17,18 @@ use crate::node::NodeFace;
 /// EdgeFaceAssignment { from_face: Some(NodeFace::Right), to_face: Some(NodeFace::Left) }
 /// ```
 ///
-/// A contained edge (one endpoint is an ancestor of the other) has no face
-/// assignment:
+/// A self-loop edge (where `from == to`) exits the bottom face of the node;
+/// `to_face` is `None` since only one label slot is needed:
 ///
 /// ```rust,ignore
-/// EdgeFaceAssignment { from_face: None, to_face: None }
+/// EdgeFaceAssignment { from_face: Some(NodeFace::Bottom), to_face: None }
+/// ```
+///
+/// A contained edge where `from` is an ancestor of `to` in a top-to-bottom
+/// diagram uses the same faces as a forward edge:
+///
+/// ```rust,ignore
+/// EdgeFaceAssignment { from_face: Some(NodeFace::Bottom), to_face: Some(NodeFace::Top) }
 /// ```
 #[cfg_attr(
     all(feature = "schemars", not(feature = "test")),
@@ -31,11 +38,13 @@ use crate::node::NodeFace;
 pub struct EdgeFaceAssignment {
     /// The face of the `from` node that this edge exits, if any.
     ///
-    /// `None` for contained edges (one endpoint is an ancestor of the other).
+    /// `None` when the node is absent from `NodeNestingInfos`.
     pub from_face: Option<NodeFace>,
 
     /// The face of the `to` node that this edge enters, if any.
     ///
-    /// `None` for contained edges.
+    /// `None` for self-loop edges (where `from == to`), since only a single
+    /// label slot on the `from_face` is used. Also `None` when the node is
+    /// absent from `NodeNestingInfos`.
     pub to_face: Option<NodeFace>,
 }

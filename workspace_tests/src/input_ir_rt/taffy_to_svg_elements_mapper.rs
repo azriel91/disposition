@@ -18,7 +18,8 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0006_PROCESS_STEP_NODES_CYCLIC_EDGE,
     INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_NODE,
     INPUT_DIAGRAM_0008_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE,
-    INPUT_DIAGRAM_0009_EDGE_WITH_DESCRIPTION,
+    INPUT_DIAGRAM_0009_EDGE_WITH_DESCRIPTION, INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION,
+    INPUT_DIAGRAM_0011_CONTAINED_EDGE_WITH_DESCRIPTION,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -1908,6 +1909,16 @@ fn test_edge_description_produces_edge_label_infos() {
     }
 }
 
+fn build_svg_elements_from_self_loop_edge_with_description(
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION)
+}
+
+fn build_svg_elements_from_contained_edge_with_description(
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0011_CONTAINED_EDGE_WITH_DESCRIPTION)
+}
+
 /// The text in the edge label spans must match the description from
 /// `entity_descs`.
 #[test]
@@ -1949,6 +1960,82 @@ fn test_edge_description_text_matches_entity_descs() {
                     .split_whitespace()
                     .all(|word| to_texts.iter().any(|t| t.contains(word))),
             "to_label spans {to_texts:?} should contain the description text '{expected_text}'"
+        );
+    }
+}
+
+/// A self-loop edge with a description must produce a non-empty
+/// `edge_label_infos` entry in `SvgElements` with a `from_label` slot.
+///
+/// Since `from == to`, only a single label slot is used (`from_label`).
+/// `to_label` is expected to be `None`.
+#[test]
+fn test_self_loop_edge_description_produces_from_label() {
+    for svg_elements in build_svg_elements_from_self_loop_edge_with_description() {
+        assert!(
+            !svg_elements.edge_label_infos.is_empty(),
+            "Expected edge_label_infos to be non-empty for a self-loop with a description"
+        );
+
+        let label_info = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|info| info.edge_id.as_str() == "edge_self__0")
+            .expect("Expected an edge_label_info entry for edge_self__0");
+
+        // Self-loop: from_label must be present with text spans.
+        let from_label = label_info
+            .from_label
+            .as_ref()
+            .expect("Expected from_label to be present for a self-loop edge");
+        assert!(
+            !from_label.text_spans.is_empty(),
+            "Expected from_label.text_spans to be non-empty for self-loop edge_self__0"
+        );
+
+        // Self-loop: to_label is None because from == to and one slot suffices.
+        assert!(
+            label_info.to_label.is_none(),
+            "Expected to_label to be None for a self-loop edge (from == to)"
+        );
+    }
+}
+
+/// A contained edge (parent -> child where child is inside parent) with a
+/// description must produce a non-empty `edge_label_infos` entry in
+/// `SvgElements` with both `from_label` and `to_label` slots populated.
+#[test]
+fn test_contained_edge_description_produces_both_labels() {
+    for svg_elements in build_svg_elements_from_contained_edge_with_description() {
+        assert!(
+            !svg_elements.edge_label_infos.is_empty(),
+            "Expected edge_label_infos to be non-empty for a contained edge with a description"
+        );
+
+        let label_info = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|info| info.edge_id.as_str() == "edge_contained__0")
+            .expect("Expected an edge_label_info entry for edge_contained__0");
+
+        // Contained edge: from_label (on parent node) must have text spans.
+        let from_label = label_info
+            .from_label
+            .as_ref()
+            .expect("Expected from_label to be present for contained edge_contained__0");
+        assert!(
+            !from_label.text_spans.is_empty(),
+            "Expected from_label.text_spans to be non-empty for contained edge_contained__0"
+        );
+
+        // Contained edge: to_label (on child node) must also have text spans.
+        let to_label = label_info
+            .to_label
+            .as_ref()
+            .expect("Expected to_label to be present for contained edge_contained__0");
+        assert!(
+            !to_label.text_spans.is_empty(),
+            "Expected to_label.text_spans to be non-empty for contained edge_contained__0"
         );
     }
 }

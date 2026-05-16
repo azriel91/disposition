@@ -100,8 +100,9 @@ For each edge in each group, apply the rules below (in priority order):
 
 | Case | from_face | to_face |
 |---|---|---|
-| Self-loop (`from == to`) | `Bottom` | `Bottom` |
-| Contained edge (one chain is prefix of other) | `None` | `None` |
+| Self-loop (`from == to`) | `Bottom` | `None` |
+| Contained (from is ancestor of to) | rank-dir face (see below) | opposite face |
+| Contained (to is ancestor of from) | opposite of forward | rank-dir face |
 | Cycle edge (same LCA rank, sibling distance > 1) | clockwise (see below) | clockwise |
 | Forward edge (`lca_rank_from < lca_rank_to`) | rank-dir face (see below) | opposite face |
 | Reverse edge (`lca_rank_from > lca_rank_to`) | opposite of forward | rank-dir face |
@@ -175,9 +176,12 @@ New file: `crate/taffy_model/src/edge_label_taffy_node_ids.rs`
 
 ```rust
 pub struct EdgeLabelTaffyNodeIds {
-    /// Label slot on the `from` endpoint's face. None for contained/self-loop edges.
+    /// Label slot on the `from` endpoint's face. `None` when the node is
+    /// absent from `NodeNestingInfos`.
     pub from_label_taffy_node_id: Option<taffy::NodeId>,
-    /// Label slot on the `to` endpoint's face. None for contained/self-loop edges.
+    /// Label slot on the `to` endpoint's face. `None` for self-loop edges
+    /// (only one slot needed) and when the node is absent from
+    /// `NodeNestingInfos`.
     pub to_label_taffy_node_id: Option<taffy::NodeId>,
 }
 ```
@@ -265,7 +269,8 @@ Modify `build_taffy_nodes_for_node_without_child_hierarchy` and
      this leaf is the `from_label_taffy_node_id` for that edge.
    - If `assignment.to_face.is_some()` and `built.node_id == edge.to`,
      this leaf is the `to_label_taffy_node_id` for that edge.
-   - Both slots default to `None` for contained and self-loop edges.
+   - Self-loop edges have `to_label_taffy_node_id = None` (only `from_label`
+     is populated). Contained edges populate both slots.
 
 Add `node_face_edges` to `TaffyNodeBuildContext` alongside the existing fields
 so it is available during the recursive child-node build (used by the two
@@ -411,12 +416,12 @@ cases (e.g. diagonal layouts). Options:
 
 ## Open questions
 
-### OQ1 -- Contained edges
+### OQ1 -- Contained edges (resolved)
 
-Contained edges (one endpoint is an ancestor of the other) have no face
-assignment and therefore no envelope label slots. If `entity_descs` contains a
-description for such an edge, it will not be rendered as a label. Consider
-rendering it mid-path as a `<text>` element offset from the path midpoint.
+Contained edges now have face assignments: downward edges (from is ancestor of
+to) use the forward faces for the rank direction; upward edges use the reverse
+faces. Both endpoints get label slots. Self-loop edges use a single `from_label`
+slot on the `Bottom` face.
 
 ### OQ2 -- `entity_highlighted_spans` extension
 

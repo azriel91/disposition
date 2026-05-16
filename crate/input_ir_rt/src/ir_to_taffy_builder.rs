@@ -1534,8 +1534,8 @@ impl IrToTaffyBuilder<'_> {
     /// For each [`EdgeLabelLeafBuilt`], the raw edge endpoints are looked up
     /// via `edge_groups` and compared against the leaf's `node_id` to
     /// determine whether the leaf is the `from` or `to` slot for that edge.
-    /// Self-loop edges (where `from == to`) are skipped -- they are handled
-    /// mid-path, not via face envelope slots.
+    /// Self-loop edges (where `from == to`) use only a `from_label` slot;
+    /// their `to_face` is `None`, so the `to_label` slot is never populated.
     fn edge_label_taffy_nodes_build(
         edge_label_leaves: Vec<EdgeLabelLeafBuilt>,
         edge_face_assignments: &EdgeFaceAssignments<'static>,
@@ -1548,12 +1548,6 @@ impl IrToTaffyBuilder<'_> {
             let Some((from_node_id, to_node_id)) = edge_id_to_node_ids.get(&built.edge_id) else {
                 continue;
             };
-
-            // Skip self-loops: both endpoints are the same node, and the edge
-            // label is handled mid-path rather than via envelope face slots.
-            if from_node_id == to_node_id {
-                continue;
-            }
 
             // Only create an entry when there is a face assignment to populate.
             let Some(assignment) = edge_face_assignments.get(&built.edge_id) else {

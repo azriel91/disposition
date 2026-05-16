@@ -108,8 +108,10 @@ A leaf is assigned to `from_label_taffy_node_id` when its `node_id` matches the
 edge's `from` endpoint and the pre-assigned `from_face` is `Some`.  The
 `to_label_taffy_node_id` is assigned symmetrically.
 
-Self-loop edges and contained edges (where one endpoint is an ancestor of the
-other) produce no label slots.
+Self-loop edges use only a `from_label` slot (since `from == to`, one slot
+is sufficient). Contained edges (where one endpoint is an ancestor of the
+other) produce label slots on both endpoints using forward or reverse faces
+depending on hierarchy direction.
 
 Source: `crate/input_ir_rt/src/ir_to_taffy_builder.rs` --
 `edge_label_taffy_nodes_build`, `edge_id_to_node_ids_build`.
@@ -178,11 +180,19 @@ dimension uses `DiagramLod::Simple` by default and will not show descriptions.
 Use `DimensionAndLod::default_md()`, `default_lg()`, `default_2xl()`, or
 `default_no_limit()` to get `Normal` detail.
 
-### 3 -- Non-contained, non-self-loop edges only
+### 3 -- All edges produce label slots
+
+Self-loop edges (`from == to`) produce a single `from_label` slot on the
+`Bottom` face of the node; `to_label` is `None` since one slot is sufficient.
 
 Contained edges (where one endpoint is an ancestor of the other in the node
-hierarchy) have `from_face: None, to_face: None` and therefore produce no label
-slots.  Self-loop edges are also excluded.
+hierarchy) produce label slots on both endpoints. The faces used depend on
+hierarchy direction, mirroring the forward/reverse face logic for regular edges:
+
+- `from` is ancestor of `to` (downward): `from_face` = rank-dir face,
+  `to_face` = opposite face (e.g. `Bottom`/`Top` for `TopToBottom`).
+- `to` is ancestor of `from` (upward): `from_face` = opposite face,
+  `to_face` = rank-dir face.
 
 ## Data Flow Summary
 

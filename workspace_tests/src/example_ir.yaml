@@ -2019,13 +2019,13 @@ edge_face_assignments:
     to_face: left
   edge_dep_t_localhost__t_localhost__within__0:
     from_face: bottom
-    to_face: bottom
+    to_face: ~
   edge_dep_t_github_user_repo__t_github_user_repo__within__0:
     from_face: bottom
-    to_face: bottom
+    to_face: ~
   edge_dep_t_github_user_repo__t_github_user_repo__within__1:
     from_face: bottom
-    to_face: bottom
+    to_face: ~
   edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0:
     from_face: bottom
     to_face: top
@@ -2043,13 +2043,13 @@ edge_face_assignments:
     to_face: left
   edge_ix_t_localhost__t_localhost__within__0:
     from_face: bottom
-    to_face: bottom
+    to_face: ~
   edge_ix_t_github_user_repo__t_github_user_repo__within__0:
     from_face: bottom
-    to_face: bottom
+    to_face: ~
   edge_ix_t_github_user_repo__t_github_user_repo__within__1:
     from_face: bottom
-    to_face: bottom
+    to_face: ~
   edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0:
     from_face: bottom
     to_face: top
@@ -2068,8 +2068,6 @@ node_face_edges:
       - edge_ix_t_localhost__t_github_user_repo__pull__1
     bottom:
       - edge_dep_t_localhost__t_localhost__within__0
-      - edge_dep_t_localhost__t_localhost__within__0
-      - edge_ix_t_localhost__t_localhost__within__0
       - edge_ix_t_localhost__t_localhost__within__0
   t_github_user_repo:
     left:
@@ -2082,13 +2080,9 @@ node_face_edges:
       - edge_ix_t_localhost__t_github_user_repo__pull__1
     bottom:
       - edge_dep_t_github_user_repo__t_github_user_repo__within__0
-      - edge_dep_t_github_user_repo__t_github_user_repo__within__0
-      - edge_dep_t_github_user_repo__t_github_user_repo__within__1
       - edge_dep_t_github_user_repo__t_github_user_repo__within__1
       - edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0
       - edge_ix_t_github_user_repo__t_github_user_repo__within__0
-      - edge_ix_t_github_user_repo__t_github_user_repo__within__0
-      - edge_ix_t_github_user_repo__t_github_user_repo__within__1
       - edge_ix_t_github_user_repo__t_github_user_repo__within__1
       - edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0
   t_aws_ecr_repo:

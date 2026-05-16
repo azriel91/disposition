@@ -18,13 +18,14 @@ use crate::EdgeIdGenerator;
 ///
 /// # Assignment rules (applied in priority order)
 ///
-/// | Case                                          | from_face                  | to_face       |
-/// |-----------------------------------------------|----------------------------|---------------|
-/// | Self-loop (`from == to`)                      | `Bottom`                   | `Bottom`      |
-/// | Contained edge (one chain is prefix of other) | `None`                     | `None`        |
-/// | Cycle edge (same LCA rank)                    | clockwise by sibling index | clockwise     |
-/// | Forward edge (`lca_rank_from < lca_rank_to`)  | rank-dir face              | opposite      |
-/// | Reverse edge (`lca_rank_from > lca_rank_to`)  | opposite                   | rank-dir face |
+/// | Case                                           | from_face                  | to_face       |
+/// |------------------------------------------------|----------------------------|---------------|
+/// | Self-loop (`from == to`)                       | `Bottom`                   | `None`        |
+/// | Contained (from is ancestor of to)             | rank-dir face              | opposite      |
+/// | Contained (to is ancestor of from)             | opposite                   | rank-dir face |
+/// | Cycle edge (same LCA rank)                     | clockwise by sibling index | clockwise     |
+/// | Forward edge (`lca_rank_from < lca_rank_to`)   | rank-dir face              | opposite      |
+/// | Reverse edge (`lca_rank_from > lca_rank_to`)   | opposite                   | rank-dir face |
 ///
 /// **Rank-direction face** for a forward edge's `from` node:
 ///
@@ -96,22 +97,25 @@ impl EdgeFaceAssigner {
         node_ranks_nested: &NodeRanksNested<'id>,
         rank_dir: RankDir,
     ) -> EdgeFaceAssignment {
-        // Case 1: Self-loop -- both endpoints touch the Bottom face.
+        // Case 1: Self-loop -- the from face is Bottom; no to face is needed
+        // since from == to, only one label slot is used.
         if edge.is_self_loop() {
             return EdgeFaceAssignment {
                 from_face: Some(NodeFace::Bottom),
-                to_face: Some(NodeFace::Bottom),
+                to_face: None,
             };
         }
 
         // Compute LCA info; returns None for contained edges.
         let Some(lca_info) = Self::lca_info_compute(&edge.from, &edge.to, node_nesting_infos)
         else {
-            // Case 2: Contained edge.
-            return EdgeFaceAssignment {
-                from_face: None,
-                to_face: None,
-            };
+            // Case 2: Contained edge -- assign faces based on hierarchy direction.
+            return Self::contained_edge_face_assignment(
+                &edge.from,
+                &edge.to,
+                node_nesting_infos,
+                rank_dir,
+            );
         };
 
         // Get LCA-level ranks for both divergent ancestors.
@@ -245,6 +249,54 @@ impl EdgeFaceAssigner {
                     (NodeFace::Left, NodeFace::Left)
                 }
             }
+        }
+    }
+
+    /// Computes the [`EdgeFaceAssignment`] for a contained edge (one endpoint
+    /// is an ancestor of the other).
+    ///
+    /// Assigns faces based on the hierarchy direction:
+    /// - If `from` is an ancestor of `to` (downward edge), uses forward faces
+    ///   matching the rank direction.
+    /// - If `to` is an ancestor of `from` (upward edge), uses the reverse of
+    ///   the forward faces.
+    ///
+    /// Falls back to `EdgeFaceAssignment::default()` (`None`, `None`) when
+    /// either node is absent from `node_nesting_infos`.
+    fn contained_edge_face_assignment<'id>(
+        from_id: &NodeId<'id>,
+        to_id: &NodeId<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        rank_dir: RankDir,
+    ) -> EdgeFaceAssignment {
+        let Some(info_from) = node_nesting_infos.get(from_id) else {
+            return EdgeFaceAssignment::default();
+        };
+        let Some(info_to) = node_nesting_infos.get(to_id) else {
+            return EdgeFaceAssignment::default();
+        };
+
+        let chain_from = &info_from.ancestor_chain;
+        let chain_to = &info_to.ancestor_chain;
+
+        let lca_depth = chain_from
+            .iter()
+            .zip(chain_to.iter())
+            .take_while(|(a, b)| a == b)
+            .count();
+
+        let (from_face, to_face) = if lca_depth >= chain_from.len() {
+            // `from` is an ancestor of `to` (downward edge) -- use forward faces.
+            Self::forward_faces(rank_dir)
+        } else {
+            // `to` is an ancestor of `from` (upward edge) -- use reverse faces.
+            let (f, t) = Self::forward_faces(rank_dir);
+            (t, f)
+        };
+
+        EdgeFaceAssignment {
+            from_face: Some(from_face),
+            to_face: Some(to_face),
         }
     }
 }
