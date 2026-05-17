@@ -129,6 +129,8 @@ pub(crate) struct EdgeLabelLeafBuilt {
     /// The endpoint node this label leaf is attached to.
     pub(crate) node_id: NodeId<'static>,
     /// The face of the endpoint node this label leaf is on.
+    // Seems sensible to hold which `NodeFace` the label leaf is on, even if it is not read now.
+    #[allow(unused)]
     pub(crate) face: NodeFace,
     /// The taffy node ID of the label leaf.
     pub(crate) taffy_node_id: taffy::NodeId,
