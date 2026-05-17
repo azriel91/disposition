@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use disposition_ir_model::{
     edge::{Edge, EdgeFaceAssignment, EdgeFaceAssignments, EdgeGroups},
     entity::EntityTypes,
@@ -23,6 +25,7 @@ use crate::EdgeIdGenerator;
 /// | Self-loop (`from == to`)                       | `Bottom`                   | `None`        |
 /// | Contained (from is ancestor of to)             | rank-dir face              | opposite      |
 /// | Contained (to is ancestor of from)             | opposite                   | rank-dir face |
+/// | Cycle edge adjacent siblings (same LCA rank)   | rank-dir face              | opposite      |
 /// | Cycle edge (same LCA rank)                     | clockwise by sibling index | clockwise     |
 /// | Forward edge (`lca_rank_from < lca_rank_to`)   | rank-dir face              | opposite      |
 /// | Reverse edge (`lca_rank_from > lca_rank_to`)   | opposite                   | rank-dir face |
@@ -243,20 +246,43 @@ impl EdgeFaceAssigner {
         sibling_index_to: usize,
         rank_dir: RankDir,
     ) -> (NodeFace, NodeFace) {
-        match rank_dir {
-            RankDir::LeftToRight | RankDir::RightToLeft => {
-                if sibling_index_from < sibling_index_to {
-                    (NodeFace::Right, NodeFace::Right)
-                } else {
-                    (NodeFace::Left, NodeFace::Left)
-                }
+        let sibling_index_from_cmp_to = sibling_index_from.cmp(&sibling_index_to);
+        let sibling_index_abs_diff = sibling_index_from.abs_diff(sibling_index_to);
+        match (rank_dir, sibling_index_from_cmp_to, sibling_index_abs_diff) {
+            // 3a: adjacent siblings don't use clockwise edges
+            (RankDir::LeftToRight, Ordering::Less, 1) => (NodeFace::Bottom, NodeFace::Top),
+            (RankDir::LeftToRight, Ordering::Equal | Ordering::Greater, 1) => {
+                (NodeFace::Top, NodeFace::Bottom)
             }
-            RankDir::TopToBottom | RankDir::BottomToTop => {
-                if sibling_index_from < sibling_index_to {
-                    (NodeFace::Top, NodeFace::Top)
-                } else {
-                    (NodeFace::Bottom, NodeFace::Bottom)
-                }
+            (RankDir::RightToLeft, Ordering::Less, 1) => (NodeFace::Top, NodeFace::Bottom),
+            (RankDir::RightToLeft, Ordering::Equal | Ordering::Greater, 1) => {
+                (NodeFace::Bottom, NodeFace::Top)
+            }
+            (RankDir::TopToBottom, Ordering::Less, 1) => (NodeFace::Right, NodeFace::Left),
+            (RankDir::TopToBottom, Ordering::Equal | Ordering::Greater, 1) => {
+                (NodeFace::Left, NodeFace::Right)
+            }
+            (RankDir::BottomToTop, Ordering::Less, 1) => (NodeFace::Left, NodeFace::Right),
+            (RankDir::BottomToTop, Ordering::Equal | Ordering::Greater, 1) => {
+                (NodeFace::Right, NodeFace::Left)
+            }
+
+            // 3b: non-adjacent siblings use clockwise edges
+            (RankDir::LeftToRight, Ordering::Less, _) => (NodeFace::Right, NodeFace::Right),
+            (RankDir::LeftToRight, Ordering::Equal | Ordering::Greater, _) => {
+                (NodeFace::Left, NodeFace::Left)
+            }
+            (RankDir::RightToLeft, Ordering::Less, _) => (NodeFace::Left, NodeFace::Left),
+            (RankDir::RightToLeft, Ordering::Equal | Ordering::Greater, _) => {
+                (NodeFace::Right, NodeFace::Right)
+            }
+            (RankDir::TopToBottom, Ordering::Less, _) => (NodeFace::Top, NodeFace::Top),
+            (RankDir::TopToBottom, Ordering::Equal | Ordering::Greater, _) => {
+                (NodeFace::Bottom, NodeFace::Bottom)
+            }
+            (RankDir::BottomToTop, Ordering::Less, _) => (NodeFace::Bottom, NodeFace::Bottom),
+            (RankDir::BottomToTop, Ordering::Equal | Ordering::Greater, _) => {
+                (NodeFace::Top, NodeFace::Top)
             }
         }
     }
