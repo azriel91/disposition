@@ -194,6 +194,42 @@ hierarchy direction, mirroring the forward/reverse face logic for regular edges:
 - `to` is ancestor of `from` (upward): `from_face` = opposite face,
   `to_face` = rank-dir face.
 
+### 4 -- Face selection: unified pre-layout source (Option B)
+
+Face assignment used to happen twice in the pipeline with different inputs:
+
+| Stage | Where | Method | Inputs |
+|-------|-------|--------|--------|
+| Pre-layout | `EdgeFaceAssigner::compute` | Rank-based heuristic | `NodeRanksNested`, `NodeNestingInfos` |
+| Post-layout | `EdgePathBuilderPass1::select_edge_faces` | Pixel-position geometry | `SvgNodeInfo` coordinates |
+
+As of Option B, **the pre-layout result is now the single source of truth for
+both envelope-slot construction and path routing**.
+
+`EdgeFaceAssigner` is used to produce `IrDiagram::edge_face_assignments`
+before taffy layout runs.  `SvgEdgeInfosBuilder::build_edge_pass1_infos`
+looks up the pre-computed assignment for each edge instead of calling
+`select_edge_faces` again.
+
+This guarantees that the face a label slot is reserved on always matches the
+face the edge path exits, eliminating the cosmetic mismatch that could occur
+with diagonal or unusual layouts.
+
+**Special cases:**
+
+- **Self-loops** (`from == to`): pre-layout assigns `(from_face: Bottom,
+  to_face: None)`.  Pass 2 returns a self-loop path early and never reads
+  the face, so `to_face = None` is harmless.
+- **Contained edges** (one endpoint is a pixel-level ancestor of the other):
+  face-based contact points are still bypassed (returns `(None, None)`),
+  consistent with the pass-2 `is_node_contained_in` early-return.
+- **Cycle edges** (same LCA rank, non-adjacent siblings):
+  `EdgeFaceAssigner::cycle_faces` now uses the same face mapping as
+  `cycle_edge_faces_select` -- sibling index is a reliable proxy for
+  horizontal/vertical relative position within a rank level.
+- **Missing assignment** (should not occur for well-formed diagrams):
+  falls back to the old post-layout `faces_select`.
+
 ## Data Flow Summary
 
 ```

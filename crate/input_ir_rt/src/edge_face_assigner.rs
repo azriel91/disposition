@@ -40,8 +40,8 @@ use crate::EdgeIdGenerator;
 ///
 /// | `RankDir`                     | `from_sibling < to_sibling` | `from_sibling > to_sibling` |
 /// |-------------------------------|-----------------------------|-----------------------------|
-/// | `LeftToRight` / `RightToLeft` | `(Top, Top)`                | `(Bottom, Bottom)`          |
-/// | `TopToBottom` / `BottomToTop` | `(Right, Right)`            | `(Left, Left)`              |
+/// | `LeftToRight` / `RightToLeft` | `(Right, Right)`            | `(Left, Left)`              |
+/// | `TopToBottom` / `BottomToTop` | `(Top, Top)`                | `(Bottom, Bottom)`          |
 #[derive(Clone, Copy, Debug)]
 pub struct EdgeFaceAssigner;
 
@@ -223,12 +223,21 @@ impl EdgeFaceAssigner {
     /// Returns the clockwise `(from_face, to_face)` pair for a cycle edge.
     ///
     /// Uses sibling indices at the LCA level as a proxy for relative position
-    /// along the non-rank axis.
+    /// along the non-rank axis, matching the geometry used by
+    /// `EdgePathBuilderPass1::cycle_edge_faces_select`:
+    ///
+    /// - `LeftToRight` / `RightToLeft`: siblings are stacked vertically; a
+    ///   smaller sibling index means the node is higher on screen, so the edge
+    ///   exits the `Right` face (arcs down the right side) or the `Left` face
+    ///   (arcs up the left side).
+    /// - `TopToBottom` / `BottomToTop`: siblings sit side-by-side horizontally;
+    ///   a smaller sibling index means the node is to the left, so the edge
+    ///   exits the `Top` face (arcs above) or the `Bottom` face (arcs below).
     ///
     /// | `RankDir` | `from_sibling < to_sibling` | else |
     /// |---|---|---|
-    /// | `LeftToRight` / `RightToLeft` | `(Top, Top)` | `(Bottom, Bottom)` |
-    /// | `TopToBottom` / `BottomToTop` | `(Right, Right)` | `(Left, Left)` |
+    /// | `LeftToRight` / `RightToLeft` | `(Right, Right)` | `(Left, Left)` |
+    /// | `TopToBottom` / `BottomToTop` | `(Top, Top)` | `(Bottom, Bottom)` |
     fn cycle_faces(
         sibling_index_from: usize,
         sibling_index_to: usize,
@@ -237,16 +246,16 @@ impl EdgeFaceAssigner {
         match rank_dir {
             RankDir::LeftToRight | RankDir::RightToLeft => {
                 if sibling_index_from < sibling_index_to {
-                    (NodeFace::Top, NodeFace::Top)
+                    (NodeFace::Right, NodeFace::Right)
                 } else {
-                    (NodeFace::Bottom, NodeFace::Bottom)
+                    (NodeFace::Left, NodeFace::Left)
                 }
             }
             RankDir::TopToBottom | RankDir::BottomToTop => {
                 if sibling_index_from < sibling_index_to {
-                    (NodeFace::Right, NodeFace::Right)
+                    (NodeFace::Top, NodeFace::Top)
                 } else {
-                    (NodeFace::Left, NodeFace::Left)
+                    (NodeFace::Bottom, NodeFace::Bottom)
                 }
             }
         }

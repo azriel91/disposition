@@ -1,6 +1,6 @@
 use disposition_input_ir_model::EdgeAnimationActive;
 use disposition_ir_model::{
-    edge::{Edge, EdgeGroup, EdgeId},
+    edge::{Edge, EdgeFaceAssignments, EdgeGroup, EdgeId},
     entity::EntityTypes,
     node::{NodeFace, NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
     IrDiagram,
@@ -66,6 +66,7 @@ impl SvgEdgeInfosBuilder {
         let IrDiagram {
             edge_groups,
             entity_types,
+            edge_face_assignments,
             process_step_entities,
             render_options,
             ..
@@ -124,6 +125,7 @@ impl SvgEdgeInfosBuilder {
                 edge_group_id,
                 edge_group,
                 entity_types,
+                edge_face_assignments,
                 svg_node_info_map,
                 &ir_diagram.node_ranks_nested,
                 &ir_diagram.node_nesting_infos,
@@ -314,6 +316,7 @@ impl SvgEdgeInfosBuilder {
         edge_group_id: &'edge EdgeGroupId<'id>,
         edge_group: &'edge EdgeGroup<'id>,
         entity_types: &'edge EntityTypes<'id>,
+        edge_face_assignments: &EdgeFaceAssignments<'id>,
         svg_node_info_map: &'edge Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
         node_ranks_nested: &NodeRanksNested<'id>,
         node_nesting_infos: &NodeNestingInfos<'id>,
@@ -370,13 +373,41 @@ impl SvgEdgeInfosBuilder {
 
             // Build the path with zero offsets to determine natural coordinates.
             let path = EdgePathBuilderPass1::build(rank_dir, from_info, to_info, edge_type);
-            let faces =
-                EdgePathBuilderPass1::faces_select(rank_dir, from_info, to_info, is_cycle_edge);
 
-            let (from_face, to_face) = match faces {
-                Some((from_face, to_face)) => (Some(from_face), Some(to_face)),
-                None => (None, None),
-            };
+            // Step 4.4 (Option B): Use pre-layout face assignments from
+            // `IrDiagram::edge_face_assignments` to drive path routing.
+            //
+            // `EdgeFaceAssigner` computes faces from rank and sibling data
+            // before layout (matching `cycle_edge_faces_select` for cycle
+            // edges, and `select_edge_faces` for all other cases).  Using
+            // the same source for both envelope-slot construction and path
+            // routing ensures the label slot always sits on the face the
+            // path exits.
+            //
+            // Contained edges (detected via pixel positions, consistent with
+            // pass-2 path building) still bypass face-based contact points.
+            //
+            // Fallback to post-layout `faces_select` when no pre-layout
+            // assignment exists (should not occur for a well-formed diagram).
+            let (from_face, to_face) =
+                if EdgePathBuilderPass1::is_node_contained_in(from_info, to_info) {
+                    // Contained edges bypass face-based contact points.
+                    (None, None)
+                } else if let Some(assignment) = edge_face_assignments.get(&edge_id) {
+                    (assignment.from_face, assignment.to_face)
+                } else {
+                    // Fallback for edges absent from pre-layout assignments.
+                    let faces = EdgePathBuilderPass1::faces_select(
+                        rank_dir,
+                        from_info,
+                        to_info,
+                        is_cycle_edge,
+                    );
+                    match faces {
+                        Some((ff, tf)) => (Some(ff), Some(tf)),
+                        None => (None, None),
+                    }
+                };
 
             // Register contacts.
             if let Some(from_face) = from_face {
