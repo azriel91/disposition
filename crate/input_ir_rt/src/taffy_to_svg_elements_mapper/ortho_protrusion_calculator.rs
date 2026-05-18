@@ -1676,8 +1676,8 @@ impl OrthoProtrusionCalculator {
     ///   LCA).
     /// * `face`: the face at which `node_id` protrudes.
     fn min_protrusion_divergent_sibling_extent<'id>(
-        node_id: &NodeId<'id>,
-        other_node_id: &NodeId<'id>,
+        node_id_from: &NodeId<'id>,
+        node_id_to: &NodeId<'id>,
         face: NodeFace,
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
@@ -1685,28 +1685,32 @@ impl OrthoProtrusionCalculator {
         entity_types: &EntityTypes<'id>,
     ) -> f32 {
         // 1. Compute LCA depth.
-        let lca_depth = Self::lca_depth(node_id, other_node_id, node_nesting_infos);
+        let lca_depth = Self::lca_depth(node_id_from, node_id_to, node_nesting_infos);
 
         // 2. Find divergent ancestor of node_id.
-        let Some(div_ancestor_id) =
-            Self::divergent_ancestor_id(node_id, lca_depth, node_nesting_infos)
+        let Some(divergent_ancestor_id_from) =
+            Self::divergent_ancestor_id(node_id_from, lca_depth, node_nesting_infos)
         else {
             return 0.0;
         };
 
         // 3. Find parent container of divergent ancestor (None = root level).
-        let div_ancestor_parent = node_nesting_infos.get(div_ancestor_id).and_then(|ni| {
-            ni.ancestor_chain
-                .len()
-                .checked_sub(2)
-                .map(|i| &ni.ancestor_chain[i])
-        });
+        let divergent_ancestor_parent_id_from = node_nesting_infos
+            .get(divergent_ancestor_id_from)
+            .and_then(|node_nesting_info| {
+                node_nesting_info
+                    .ancestor_chain
+                    .len()
+                    .checked_sub(2)
+                    .map(|parent_index| &node_nesting_info.ancestor_chain[parent_index])
+            });
 
         // 4. Get rank of divergent ancestor in its parent container.
-        let Some(ranks) = node_ranks_nested.ranks_for(div_ancestor_parent) else {
+        let Some(node_ranks) = node_ranks_nested.ranks_for(divergent_ancestor_parent_id_from)
+        else {
             return 0.0;
         };
-        let Some(&div_ancestor_rank) = ranks.get(div_ancestor_id) else {
+        let Some(&div_ancestor_rank) = node_ranks.get(divergent_ancestor_id_from) else {
             return 0.0;
         };
 
@@ -1721,7 +1725,7 @@ impl OrthoProtrusionCalculator {
         //    divergent ancestor prevents over-protrusion that would make
         //    `from_protrusion_capped` zero out the source protrusion.
         //
-        //    Additionally, siblings that lie entirely beyond the other divergent
+        //    Additionally, siblings that lie entirely beyond the `to` divergent
         //    ancestor in the protrusion direction are excluded. For adjacent
         //    divergent-ancestor pairs the protrusion only needs to exit the source
         //    container and reach the gap to the destination -- not route around any
@@ -1731,10 +1735,10 @@ impl OrthoProtrusionCalculator {
         //    endpoints' protrusions, so excluding the target's ancestor from the from-
         //    computation is compensated by the to-computation (which excludes the
         //    from-ancestor instead), and the max covers all nodes correctly.
-        let node_category = Self::node_category(node_id, entity_types);
-        let other_divergent_ancestor_id =
-            Self::divergent_ancestor_id(other_node_id, lca_depth, node_nesting_infos);
-        // Compute the far-edge coordinate of the other divergent ancestor in
+        let node_category = Self::node_category(node_id_from, entity_types);
+        let divergent_ancestor_id_to =
+            Self::divergent_ancestor_id(node_id_to, lca_depth, node_nesting_infos);
+        // Compute the far-edge coordinate of the `to` divergent ancestor in
         // the protrusion direction. Siblings whose near edge in the protrusion
         // direction lies beyond this coordinate are entirely past the
         // destination container and should not influence the minimum protrusion.
@@ -1744,34 +1748,42 @@ impl OrthoProtrusionCalculator {
         // pair is at indices 0 and 1) from inflating the sibling extreme and
         // causing over-protrusion that routes the path all the way past the
         // destination.
-        let other_divergent_ancestor_far_coord: Option<f32> = other_divergent_ancestor_id
-            .and_then(|id| svg_node_info_map.get(id))
+        let divergent_ancestor_far_coord_to: Option<f32> = divergent_ancestor_id_to
+            .and_then(|divergent_ancestor_id_to| svg_node_info_map.get(divergent_ancestor_id_to))
             .map(|svg_node_info| Self::face_coord_for_endpoint(svg_node_info, face));
-        let same_rank_siblings: Vec<&NodeId<'id>> = ranks
+        let same_rank_siblings: Vec<&NodeId<'id>> = node_ranks
             .iter()
-            .filter(|&(_, rank)| *rank == div_ancestor_rank)
-            .filter(|(id, _)| Self::node_category(id, entity_types) == node_category)
-            .filter(|(id, _)| other_divergent_ancestor_id != Some(*id))
-            .filter(|(id, _)| {
-                // Exclude siblings that are entirely beyond the other divergent
+            // Only include siblings that are at the same rank as the divergent_ancestor.
+            .filter(|&(_, sibling_rank)| *sibling_rank == div_ancestor_rank)
+            // Only include siblings that are of the same category as the divergent_ancestor.
+            .filter(|(node_id_sibling, _)| {
+                Self::node_category(node_id_sibling, entity_types) == node_category
+            })
+            // Only include siblings that are not the divergent_ancestor itself.
+            .filter(|(node_id_sibling, _)| divergent_ancestor_id_to != Some(*node_id_sibling))
+            // Only include siblings that are between this node and the target node in the
+            // protrusion direction.
+            .filter(|(node_id_sibling, _)| {
+                // Exclude siblings that are entirely beyond the `to` divergent
                 // ancestor in the protrusion direction.
-                let Some(other_far_coord) = other_divergent_ancestor_far_coord else {
+                let Some(far_coord_to) = divergent_ancestor_far_coord_to else {
                     return true;
                 };
-                let Some(&sibling_info) = svg_node_info_map.get(*id) else {
+                let Some(&node_info_sibling) = svg_node_info_map.get(*node_id_sibling) else {
                     return true;
                 };
                 // Keep the sibling only if its near edge in the protrusion
                 // direction is at or before `other_far_coord`.
                 match face {
-                    NodeFace::Right => sibling_info.envelope_x <= other_far_coord,
+                    NodeFace::Right => node_info_sibling.envelope_x <= far_coord_to,
                     NodeFace::Left => {
-                        sibling_info.envelope_x + sibling_info.envelope_width >= other_far_coord
+                        node_info_sibling.envelope_x + node_info_sibling.envelope_width
+                            >= far_coord_to
                     }
-                    NodeFace::Bottom => sibling_info.envelope_y <= other_far_coord,
+                    NodeFace::Bottom => node_info_sibling.envelope_y <= far_coord_to,
                     NodeFace::Top => {
-                        sibling_info.envelope_y + sibling_info.envelope_height_collapsed
-                            >= other_far_coord
+                        node_info_sibling.envelope_y + node_info_sibling.envelope_height_collapsed
+                            >= far_coord_to
                     }
                 }
             })
@@ -1780,10 +1792,10 @@ impl OrthoProtrusionCalculator {
 
         // 6. Get face coordinate of node_id (the coordinate of the face in the
         //    rank/protrusion direction).
-        let Some(&node_info) = svg_node_info_map.get(node_id) else {
+        let Some(&node_info_from) = svg_node_info_map.get(node_id_from) else {
             return 0.0;
         };
-        let node_face_coord = Self::face_coord_for_endpoint(node_info, face);
+        let node_face_coord = Self::face_coord_for_endpoint(node_info_from, face);
 
         // 7. Find extreme sibling coordinate in the protrusion direction.
         let Some(sibling_extreme) =
@@ -1792,10 +1804,14 @@ impl OrthoProtrusionCalculator {
             return 0.0;
         };
 
-        // 8. Compute minimum protrusion: face_sign * (sibling_extreme -
-        //    node_face_coord). For Bottom/Right faces (sign = +1): min =
-        //    sibling_extreme - node_face_coord. For Top/Left faces (sign = -1): min =
-        //    node_face_coord - sibling_extreme.
+        // 8. Compute minimum protrusion:
+        //
+        //     `face_sign * (sibling_extreme - node_face_coord)`
+        //
+        //     - For Bottom/Right faces (sign = +1): `min = sibling_extreme -
+        //       node_face_coord.`
+        //     - For Top/Left faces (sign = -1): `min = node_face_coord -
+        //       sibling_extreme.`
         let face_sign: f32 = match face {
             NodeFace::Bottom | NodeFace::Right => 1.0,
             NodeFace::Top | NodeFace::Left => -1.0,
