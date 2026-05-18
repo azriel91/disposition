@@ -1721,18 +1721,60 @@ impl OrthoProtrusionCalculator {
         //    divergent ancestor prevents over-protrusion that would make
         //    `from_protrusion_capped` zero out the source protrusion.
         //
+        //    Additionally, siblings that lie entirely beyond the other divergent
+        //    ancestor in the protrusion direction are excluded. For adjacent
+        //    divergent-ancestor pairs the protrusion only needs to exit the source
+        //    container and reach the gap to the destination -- not route around any
+        //    further containers past the destination.
+        //
         //    For cycle edges the equalization in Step 6 takes the max of both
         //    endpoints' protrusions, so excluding the target's ancestor from the from-
         //    computation is compensated by the to-computation (which excludes the
         //    from-ancestor instead), and the max covers all nodes correctly.
-        let node_cat = Self::node_category(node_id, entity_types);
-        let other_div_ancestor_id =
+        let node_category = Self::node_category(node_id, entity_types);
+        let other_divergent_ancestor_id =
             Self::divergent_ancestor_id(other_node_id, lca_depth, node_nesting_infos);
+        // Compute the far-edge coordinate of the other divergent ancestor in
+        // the protrusion direction. Siblings whose near edge in the protrusion
+        // direction lies beyond this coordinate are entirely past the
+        // destination container and should not influence the minimum protrusion.
+        //
+        // For adjacent divergent-ancestor pairs this prevents nodes beyond the
+        // destination container (e.g. `t_charlie` at index 2 when the adjacent
+        // pair is at indices 0 and 1) from inflating the sibling extreme and
+        // causing over-protrusion that routes the path all the way past the
+        // destination.
+        let other_divergent_ancestor_far_coord: Option<f32> = other_divergent_ancestor_id
+            .and_then(|id| svg_node_info_map.get(id))
+            .map(|svg_node_info| Self::face_coord_for_endpoint(svg_node_info, face));
         let same_rank_siblings: Vec<&NodeId<'id>> = ranks
             .iter()
             .filter(|&(_, rank)| *rank == div_ancestor_rank)
-            .filter(|(id, _)| Self::node_category(id, entity_types) == node_cat)
-            .filter(|(id, _)| other_div_ancestor_id != Some(*id))
+            .filter(|(id, _)| Self::node_category(id, entity_types) == node_category)
+            .filter(|(id, _)| other_divergent_ancestor_id != Some(*id))
+            .filter(|(id, _)| {
+                // Exclude siblings that are entirely beyond the other divergent
+                // ancestor in the protrusion direction.
+                let Some(other_far_coord) = other_divergent_ancestor_far_coord else {
+                    return true;
+                };
+                let Some(&sibling_info) = svg_node_info_map.get(*id) else {
+                    return true;
+                };
+                // Keep the sibling only if its near edge in the protrusion
+                // direction is at or before `other_far_coord`.
+                match face {
+                    NodeFace::Right => sibling_info.envelope_x <= other_far_coord,
+                    NodeFace::Left => {
+                        sibling_info.envelope_x + sibling_info.envelope_width >= other_far_coord
+                    }
+                    NodeFace::Bottom => sibling_info.envelope_y <= other_far_coord,
+                    NodeFace::Top => {
+                        sibling_info.envelope_y + sibling_info.envelope_height_collapsed
+                            >= other_far_coord
+                    }
+                }
+            })
             .map(|(id, _)| id)
             .collect();
 

@@ -21,6 +21,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0009_EDGE_WITH_DESCRIPTION, INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION,
     INPUT_DIAGRAM_0011_CONTAINED_EDGE_WITH_DESCRIPTION,
     INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC,
+    INPUT_DIAGRAM_0013_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC_2,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -2121,13 +2122,192 @@ fn test_edge_from_nested_to_outer_adjacent_divergent_ancestors_uses_forward_rout
         assert!(
             bob_alice_edge.ortho_protrusion_params.to_protrusion >= expected_min_from_protrusion,
             "edge t_bob -> t_alice to_protrusion {:.2} should be >= {:.2} \
-             (t_alice_outer right {:.2} - t_alice right {:.2}) to clear t_alice_outer. \
-             path_d = {:?}",
+                 (t_alice_outer right {:.2} - t_alice right {:.2}) to clear t_alice_outer. \
+                 path_d = {:?}",
             bob_alice_edge.ortho_protrusion_params.to_protrusion,
             expected_min_from_protrusion,
             alice_outer_right,
             alice_right,
             bob_alice_edge.path_d,
         );
+    }
+}
+
+// === Edge from nested node to outer node, cyclic part 2 (0013) === //
+
+/// Builds `SvgElements` from the 0013 fixture: cyclic edges between a nested
+/// node and an outer container in a diagram with three root-level siblings
+/// (`t_alice_outer`, `t_bob_outer`, `t_charlie`).
+fn build_svg_elements_from_edge_from_nested_node_to_outer_node_cyclic_2(
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0013_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC_2)
+}
+
+/// For the 0013 fixture with three root-level containers (`t_alice_outer` at
+/// index 0, `t_bob_outer` at index 1, `t_charlie` at index 2), the two cyclic
+/// cross-container edges must use Z/S forward routing that stays within the
+/// gap between the adjacent containers -- not route all the way past
+/// `t_charlie`.
+///
+/// Edge 1: `edge_dep_alice_bob_outer__0` (from `t_alice` nested inside
+/// `t_alice_outer` to `t_bob_outer`):
+///
+/// * Before the fix the `from_protrusion` was computed as the distance from
+///   `t_alice`'s right face all the way to `t_charlie`'s right edge (297 px),
+///   because `t_charlie` was incorrectly included in the same-rank sibling
+///   extreme. The `from_protrusion_capped` function then capped it to the
+///   node-to-node gap (80 px), placing the protrusion tip exactly at
+///   `t_bob_outer`'s left face. This made the path a degenerate L-shape with no
+///   Z/S bend.
+///
+/// * After the fix the sibling extreme excludes `t_charlie` (which is spatially
+///   beyond `t_bob_outer` in the rightward direction), so `from_protrusion`
+///   equals the distance from `t_alice`'s right face to `t_alice_outer`'s right
+///   edge (~56 px). The path is a proper Z/S curve that exits `t_alice_outer`
+///   and enters `t_bob_outer`'s left face.
+///
+/// Edge 2: `edge_dep_alice_bob__0` (from `t_bob` nested inside `t_bob_outer`
+/// to `t_alice_outer`):
+///
+/// * Before the fix the `to_protrusion` (for `t_alice_outer`'s right face) was
+///   computed as the distance from `t_alice_outer`'s right edge to
+///   `t_charlie`'s right edge (241 px), because `t_charlie` was included in the
+///   sibling extreme. The path went all the way to x = 388 (past `t_charlie`)
+///   before looping back to `t_bob`'s left face.
+///
+/// * After the fix `t_charlie` is excluded from the sibling extreme, so
+///   `to_protrusion` is 0 (only `t_alice_outer` itself is included, and its
+///   right edge equals its own right face coordinate). The path is a proper Z/S
+///   curve that stays within the gap between `t_alice_outer` and `t_bob_outer`.
+#[test]
+fn test_adjacent_divergent_ancestor_edges_dont_route_past_charlie() {
+    for svg_elements in build_svg_elements_from_edge_from_nested_node_to_outer_node_cyclic_2() {
+        let alice_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_alice_outer")
+            .expect("Expected t_alice_outer in svg_node_infos");
+        let alice = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_alice")
+            .expect("Expected t_alice in svg_node_infos");
+        let bob_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_bob_outer")
+            .expect("Expected t_bob_outer in svg_node_infos");
+        let charlie = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie")
+            .expect("Expected t_charlie in svg_node_infos");
+
+        let alice_right = alice.envelope_x + alice.envelope_width;
+        let alice_outer_right = alice_outer.envelope_x + alice_outer.envelope_width;
+        let bob_outer_right = bob_outer.envelope_x + bob_outer.envelope_width;
+        let charlie_left = charlie.envelope_x;
+
+        // === Edge 1: t_alice -> t_bob_outer === //
+        //
+        // `from_protrusion` must be large enough to exit `t_alice_outer` but
+        // small enough that it does not reach `t_charlie`'s left boundary.
+        let alice_bob_outer_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_bob_outer"
+            })
+            .expect("Expected edge from t_alice to t_bob_outer");
+
+        let min_from_protrusion = (alice_outer_right - alice_right).max(0.0);
+        let max_from_protrusion = charlie_left - alice_right;
+
+        assert!(
+            alice_bob_outer_edge.ortho_protrusion_params.from_protrusion >= min_from_protrusion,
+            "edge t_alice -> t_bob_outer from_protrusion {:.2} should be >= {:.2} \
+                 (t_alice_outer right {:.2} - t_alice right {:.2}) to exit t_alice_outer. \
+                 path_d = {:?}",
+            alice_bob_outer_edge.ortho_protrusion_params.from_protrusion,
+            min_from_protrusion,
+            alice_outer_right,
+            alice_right,
+            alice_bob_outer_edge.path_d,
+        );
+
+        assert!(
+            alice_bob_outer_edge.ortho_protrusion_params.from_protrusion < max_from_protrusion,
+            "edge t_alice -> t_bob_outer from_protrusion {:.2} should be < {:.2} \
+                 (t_charlie left {:.2} - t_alice right {:.2}): path should not route \
+                 past t_charlie. path_d = {:?}",
+            alice_bob_outer_edge.ortho_protrusion_params.from_protrusion,
+            max_from_protrusion,
+            charlie_left,
+            alice_right,
+            alice_bob_outer_edge.path_d,
+        );
+
+        // === Edge 2: t_bob -> t_alice_outer === //
+        //
+        // `to_protrusion` (for `t_alice_outer`'s right face) must be small
+        // enough that the path does not reach `t_charlie`'s left boundary.
+        let bob_alice_outer_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|svg_edge_info| svg_edge_info.edge_id.as_str() == "edge_dep_bob_alice_outer__0")
+            .expect("Expected edge from t_bob to t_alice_outer");
+
+        let max_to_protrusion = charlie_left - alice_outer_right;
+
+        assert!(
+            bob_alice_outer_edge.ortho_protrusion_params.to_protrusion < max_to_protrusion,
+            "edge t_bob -> t_alice_outer to_protrusion {:.2} should be < {:.2} \
+                 (t_charlie left {:.2} - t_alice_outer right {:.2}): path should not \
+                 route past t_charlie. path_d = {:?}",
+            bob_alice_outer_edge.ortho_protrusion_params.to_protrusion,
+            max_to_protrusion,
+            charlie_left,
+            alice_outer_right,
+            bob_alice_outer_edge.path_d,
+        );
+
+        // The path for edge 2 must also stay within the gap between
+        // `t_alice_outer`/`t_bob_outer` and `t_charlie`. No path coordinate
+        // should have an x value beyond `t_bob_outer`'s right edge.
+        let path_coords = {
+            let mut coords: Vec<(f32, f32)> = Vec::new();
+            let path_str = bob_alice_outer_edge.path_d.as_str();
+            // Parse all numeric coordinate pairs from M, L, C commands.
+            let mut chars = path_str.chars().peekable();
+            while let Some(ch) = chars.next() {
+                if ch == 'M' || ch == 'L' {
+                    let rest: String = chars
+                        .by_ref()
+                        .take_while(|&c| c != 'M' && c != 'L' && c != 'C')
+                        .collect();
+                    if let Some((x_str, y_str)) = rest.split_once(',') {
+                        let x: f32 = x_str.trim().parse().unwrap_or(0.0);
+                        let y: f32 = y_str
+                            .trim()
+                            .split_whitespace()
+                            .next()
+                            .unwrap_or("0")
+                            .parse()
+                            .unwrap_or(0.0);
+                        coords.push((x, y));
+                    }
+                }
+            }
+            coords
+        };
+        for (x, _y) in &path_coords {
+            assert!(
+                *x <= bob_outer_right + 1.0,
+                "edge t_bob -> t_alice_outer path has coordinate x={x:.2} which exceeds \
+                     t_bob_outer's right edge {bob_outer_right:.2}. The path is routing past \
+                     t_charlie. path_d = {:?}",
+                bob_alice_outer_edge.path_d,
+            );
+        }
     }
 }
