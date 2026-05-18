@@ -912,6 +912,7 @@ impl IrToTaffyBuilder<'_> {
         (rank_to_taffy_ids, edge_spacer_taffy_nodes)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn build_taffy_nodes_for_node_without_child_hierarchy(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         node_layouts: &NodeLayouts<'static>,

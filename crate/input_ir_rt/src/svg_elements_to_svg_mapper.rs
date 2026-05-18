@@ -538,50 +538,50 @@ impl SvgElementsToSvgMapper {
                 Self::class_attr_escaped(edge_classes.to_string())
             };
 
-            if let Some(from_label) = &svg_edge_label_info.from_label {
-                if !from_label.text_spans.is_empty() {
+            if let Some(from_label) = &svg_edge_label_info.from_label
+                && !from_label.text_spans.is_empty()
+            {
+                write!(
+                    content_buffer,
+                    "<g id=\"{edge_id}__from_label\"{class_attr}>"
+                )
+                .unwrap();
+                from_label.text_spans.iter().for_each(|span| {
+                    let text_x = span.x;
+                    let text_y = span.y;
+                    let text_content = &span.text;
                     write!(
                         content_buffer,
-                        "<g id=\"{edge_id}__from_label\"{class_attr}>"
+                        "<text \
+                                x=\"{text_x}\" \
+                                y=\"{text_y}\" \
+                                stroke-width=\"0\" \
+                            >{text_content}</text>"
                     )
                     .unwrap();
-                    from_label.text_spans.iter().for_each(|span| {
-                        let text_x = span.x;
-                        let text_y = span.y;
-                        let text_content = &span.text;
-                        write!(
-                            content_buffer,
-                            "<text \
-                                x=\"{text_x}\" \
-                                y=\"{text_y}\" \
-                                stroke-width=\"0\" \
-                            >{text_content}</text>"
-                        )
-                        .unwrap();
-                    });
-                    content_buffer.push_str("</g>");
-                }
+                });
+                content_buffer.push_str("</g>");
             }
 
-            if let Some(to_label) = &svg_edge_label_info.to_label {
-                if !to_label.text_spans.is_empty() {
-                    write!(content_buffer, "<g id=\"{edge_id}__to_label\"{class_attr}>").unwrap();
-                    to_label.text_spans.iter().for_each(|span| {
-                        let text_x = span.x;
-                        let text_y = span.y;
-                        let text_content = &span.text;
-                        write!(
-                            content_buffer,
-                            "<text \
+            if let Some(to_label) = &svg_edge_label_info.to_label
+                && !to_label.text_spans.is_empty()
+            {
+                write!(content_buffer, "<g id=\"{edge_id}__to_label\"{class_attr}>").unwrap();
+                to_label.text_spans.iter().for_each(|span| {
+                    let text_x = span.x;
+                    let text_y = span.y;
+                    let text_content = &span.text;
+                    write!(
+                        content_buffer,
+                        "<text \
                                 x=\"{text_x}\" \
                                 y=\"{text_y}\" \
                                 stroke-width=\"0\" \
                             >{text_content}</text>"
-                        )
-                        .unwrap();
-                    });
-                    content_buffer.push_str("</g>");
-                }
+                    )
+                    .unwrap();
+                });
+                content_buffer.push_str("</g>");
             }
         });
     }

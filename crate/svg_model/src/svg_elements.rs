@@ -57,6 +57,7 @@ pub struct SvgElements<'id> {
 
 impl<'id> SvgElements<'id> {
     /// Creates a new `SvgElements`.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         svg_width: f32,
         svg_height: f32,
