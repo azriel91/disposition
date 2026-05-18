@@ -8,12 +8,14 @@
 * Fix duplication of tailwind classes on edges. ([#28][#28])
 * Fix edge path routing issues regarding cross-container edges, spacers, and nested `NodeRank`s. ([#29][#29])
 * Include `InputDiagram` source in generated SVG. ([#30][#30])
+* Support rendering edge descriptions. ([#31][#31])
 
 [#26]: https://github.com/azriel91/disposition/pull/26
 [#27]: https://github.com/azriel91/disposition/pull/27
 [#28]: https://github.com/azriel91/disposition/pull/28
 [#29]: https://github.com/azriel91/disposition/pull/29
 [#30]: https://github.com/azriel91/disposition/pull/30
+[#31]: https://github.com/azriel91/disposition/pull/31
 
 
 ## 0.1.0 (2026-04-11)
