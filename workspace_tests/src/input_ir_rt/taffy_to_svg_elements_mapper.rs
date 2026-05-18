@@ -20,6 +20,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0008_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE,
     INPUT_DIAGRAM_0009_EDGE_WITH_DESCRIPTION, INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION,
     INPUT_DIAGRAM_0011_CONTAINED_EDGE_WITH_DESCRIPTION,
+    INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -2036,6 +2037,97 @@ fn test_contained_edge_description_produces_both_labels() {
         assert!(
             !to_label.text_spans.is_empty(),
             "Expected to_label.text_spans to be non-empty for contained edge_contained__0"
+        );
+    }
+}
+
+// === Edge from nested node to outer node, cyclic (0012) === //
+
+/// Builds `SvgElements` from the 0012 fixture: symmetric edge between
+/// `t_alice` (nested in `t_alice_outer`) and `t_bob` (root-level node).
+fn build_svg_elements_from_edge_from_nested_node_to_outer_node_cyclic(
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC)
+}
+
+/// For the symmetric edge between `t_alice` (nested in `t_alice_outer`) and
+/// `t_bob` (root level), the from-protrusion of the edge from `t_alice` to
+/// `t_bob` must be large enough to clear `t_alice_outer`'s right boundary.
+///
+/// Before the fix, the divergent ancestors of `t_alice` and `t_bob` --
+/// `t_alice_outer` (index 0) and `t_bob` (index 1) -- are adjacent siblings
+/// at the root level. The edge was incorrectly classified as a clockwise cycle
+/// edge because `t_alice` and `t_bob` are at the same LCA rank (both 0) and
+/// the `nodes_adjacent_siblings_are` check (which only compares the endpoint
+/// nodes' own sibling relationship) returned `false` for nodes at different
+/// nesting depths.
+///
+/// The fix introduces `nodes_divergent_ancestors_adjacent_siblings_are` and
+/// uses it in the `is_cycle_edge` check so that the edge is correctly
+/// classified as a forward edge. As a result:
+///
+/// * `from_protrusion` is at least `t_alice_outer.right - t_alice.right`,
+///   exiting `t_alice_outer` before connecting to `t_bob`.
+/// * `to_protrusion` is 0 (no container to exit for `t_bob`).
+/// * The path approaches `t_alice`'s right face from the right, not from the
+///   left.
+#[test]
+fn test_edge_from_nested_to_outer_adjacent_divergent_ancestors_uses_forward_routing() {
+    for svg_elements in build_svg_elements_from_edge_from_nested_node_to_outer_node_cyclic() {
+        let alice_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_alice_outer")
+            .expect("Expected t_alice_outer in svg_node_infos");
+        let alice = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_alice")
+            .expect("Expected t_alice in svg_node_infos");
+
+        let alice_right = alice.envelope_x + alice.envelope_width;
+        let alice_outer_right = alice_outer.envelope_x + alice_outer.envelope_width;
+        let expected_min_from_protrusion = (alice_outer_right - alice_right).max(0.0);
+
+        // Edge from t_alice (nested) to t_bob (root): from_protrusion must
+        // clear t_alice_outer's right boundary.
+        let alice_bob_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_bob")
+            .expect("Expected edge from t_alice to t_bob");
+
+        assert!(
+            alice_bob_edge.ortho_protrusion_params.from_protrusion >= expected_min_from_protrusion,
+            "edge t_alice -> t_bob from_protrusion {:.2} should be >= {:.2} \
+             (t_alice_outer right {:.2} - t_alice right {:.2}) to clear t_alice_outer. \
+             Path may be routing clockwise instead of forward. path_d = {:?}",
+            alice_bob_edge.ortho_protrusion_params.from_protrusion,
+            expected_min_from_protrusion,
+            alice_outer_right,
+            alice_right,
+            alice_bob_edge.path_d,
+        );
+
+        // Edge from t_bob (root) to t_alice (nested): to_protrusion must
+        // clear t_alice_outer's right boundary (the path arrives at t_alice
+        // from the right side of t_alice_outer).
+        let bob_alice_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_alice")
+            .expect("Expected edge from t_bob to t_alice");
+
+        assert!(
+            bob_alice_edge.ortho_protrusion_params.to_protrusion >= expected_min_from_protrusion,
+            "edge t_bob -> t_alice to_protrusion {:.2} should be >= {:.2} \
+             (t_alice_outer right {:.2} - t_alice right {:.2}) to clear t_alice_outer. \
+             path_d = {:?}",
+            bob_alice_edge.ortho_protrusion_params.to_protrusion,
+            expected_min_from_protrusion,
+            alice_outer_right,
+            alice_right,
+            bob_alice_edge.path_d,
         );
     }
 }

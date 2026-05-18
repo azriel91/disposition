@@ -340,7 +340,9 @@ impl SvgEdgeInfosBuilder {
 
             // Compute rank distance before face selection so that same-rank
             // (cycle) edges can use clockwise face routing. Adjacent siblings
-            // with the same direct parent, and edges involving tag, process, or
+            // with the same direct parent, adjacent divergent-ancestor siblings
+            // (cross-container edges where the divergent ancestors at the LCA
+            // level are adjacent), and edges involving tag, process, or
             // process step nodes always use normal face selection regardless of
             // rank.
             //
@@ -369,7 +371,12 @@ impl SvgEdgeInfosBuilder {
             let rank_distance = rank_to.value().abs_diff(rank_from.value());
             let is_same_rank = rank_from == rank_to;
             let is_cycle_edge = is_same_rank
-                && !Self::nodes_adjacent_siblings_are(&edge.from, &edge.to, node_nesting_infos);
+                && !Self::nodes_adjacent_siblings_are(&edge.from, &edge.to, node_nesting_infos)
+                && !Self::nodes_divergent_ancestors_adjacent_siblings_are(
+                    &edge.from,
+                    &edge.to,
+                    node_nesting_infos,
+                );
 
             // Build the path with zero offsets to determine natural coordinates.
             let path = EdgePathBuilderPass1::build(rank_dir, from_info, to_info, edge_type);
@@ -912,6 +919,66 @@ impl SvgEdgeInfosBuilder {
         let idx_from = info_from.nesting_path[len - 1];
         let idx_to = info_to.nesting_path[len - 1];
         idx_from.abs_diff(idx_to) == 1
+    }
+
+    /// Returns `true` if the divergent ancestors of the two nodes at their LCA
+    /// level are adjacent siblings.
+    ///
+    /// The divergent ancestor of a node is the ancestor that is a direct child
+    /// of the LCA of the two nodes. Two divergent ancestors are adjacent
+    /// siblings when their sibling indices at the LCA level differ by exactly
+    /// 1.
+    ///
+    /// This detects cross-container edges where the containers are adjacent
+    /// (e.g. a node nested inside one container connecting to a node at a
+    /// sibling container or at root level). Such edges should use forward face
+    /// routing rather than clockwise cycle routing, because the edge path
+    /// naturally traverses the gap between the two adjacent containers rather
+    /// than routing around the outside of all same-rank nodes.
+    ///
+    /// Returns `false` when:
+    ///
+    /// * either node is not found in `node_nesting_infos`,
+    /// * one node is an ancestor of the other (contained edge, no divergent
+    ///   ancestors),
+    /// * sibling index information is missing at the LCA level.
+    fn nodes_divergent_ancestors_adjacent_siblings_are<'id>(
+        node_id_from: &NodeId<'id>,
+        node_id_to: &NodeId<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> bool {
+        let Some(info_from) = node_nesting_infos.get(node_id_from) else {
+            return false;
+        };
+        let Some(info_to) = node_nesting_infos.get(node_id_to) else {
+            return false;
+        };
+
+        let chain_from = &info_from.ancestor_chain;
+        let chain_to = &info_to.ancestor_chain;
+
+        // Find the LCA depth: length of the common ancestor prefix.
+        let lca_depth = chain_from
+            .iter()
+            .zip(chain_to.iter())
+            .take_while(|(a, b)| a == b)
+            .count();
+
+        // Contained edge: one chain is a prefix of the other -- no divergent ancestors.
+        if lca_depth >= chain_from.len() || lca_depth >= chain_to.len() {
+            return false;
+        }
+
+        // Get sibling indices of the divergent ancestors at the LCA level.
+        let Some(&sibling_index_from) = info_from.nesting_path.get(lca_depth) else {
+            return false;
+        };
+        let Some(&sibling_index_to) = info_to.nesting_path.get(lca_depth) else {
+            return false;
+        };
+
+        // Adjacent: sibling indices differ by exactly 1.
+        sibling_index_from.abs_diff(sibling_index_to) == 1
     }
 
     /// Computes the ranks of the two nodes' divergent ancestors at their

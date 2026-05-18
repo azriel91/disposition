@@ -1580,11 +1580,35 @@ impl OrthoProtrusionCalculator {
     ) {
         for (group_idx, group) in all_pass1_groups.iter().enumerate() {
             for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
-                // Same-rank non-cycle edges (adjacent siblings, tag/process
-                // nodes) use direct nearest-face routing with zero protrusion.
-                // Divergent-sibling adjustment does not apply to them.
+                // Same-rank non-cycle edges that share the same direct parent
+                // (adjacent siblings) use nearest-face routing with zero
+                // protrusion and do not need the divergent-sibling adjustment.
+                //
+                // Cross-container same-rank non-cycle edges (e.g. a nested node
+                // connecting to an adjacent sibling container or root-level
+                // node) still need the adjustment so the protrusion exits the
+                // source container. These edges have endpoints at different
+                // nesting depths or in different parent containers.
                 if pass1_info.rank_from == pass1_info.rank_to && !pass1_info.is_cycle_edge {
-                    continue;
+                    let same_parent = {
+                        let from_chain = node_nesting_infos
+                            .get(&pass1_info.edge.from)
+                            .map(|ni| ni.ancestor_chain.as_slice())
+                            .unwrap_or(&[]);
+                        let to_chain = node_nesting_infos
+                            .get(&pass1_info.edge.to)
+                            .map(|ni| ni.ancestor_chain.as_slice())
+                            .unwrap_or(&[]);
+                        // Same parent: equal depth AND identical ancestor chain
+                        // up to (but not including) the node itself.
+                        let from_parent = from_chain.len().saturating_sub(1);
+                        let to_parent = to_chain.len().saturating_sub(1);
+                        from_parent == to_parent
+                            && from_chain.get(..from_parent) == to_chain.get(..to_parent)
+                    };
+                    if same_parent {
+                        continue;
+                    }
                 }
                 // === From endpoint === //
                 if let Some(from_face) = pass1_info.from_face {
@@ -1686,14 +1710,29 @@ impl OrthoProtrusionCalculator {
             return 0.0;
         };
 
-        // 5. Collect all same-rank siblings of the same node category (including the
+        // 5. Collect same-rank siblings of the same node category (including the
         //    divergent ancestor). Nodes from other categories (e.g. process nodes) are
         //    excluded so that thing-node edges are not routed around process nodes.
+        //
+        //    The divergent ancestor of `other_node_id` at the LCA level is also
+        //    excluded. For forward-facing cross-container edges (adjacent divergent
+        //    ancestors), the protrusion only needs to clear the source's own container
+        //    boundary, not route around the target container. Excluding the target's
+        //    divergent ancestor prevents over-protrusion that would make
+        //    `from_protrusion_capped` zero out the source protrusion.
+        //
+        //    For cycle edges the equalization in Step 6 takes the max of both
+        //    endpoints' protrusions, so excluding the target's ancestor from the from-
+        //    computation is compensated by the to-computation (which excludes the
+        //    from-ancestor instead), and the max covers all nodes correctly.
         let node_cat = Self::node_category(node_id, entity_types);
+        let other_div_ancestor_id =
+            Self::divergent_ancestor_id(other_node_id, lca_depth, node_nesting_infos);
         let same_rank_siblings: Vec<&NodeId<'id>> = ranks
             .iter()
             .filter(|&(_, rank)| *rank == div_ancestor_rank)
             .filter(|(id, _)| Self::node_category(id, entity_types) == node_cat)
+            .filter(|(id, _)| other_div_ancestor_id != Some(*id))
             .map(|(id, _)| id)
             .collect();
 
