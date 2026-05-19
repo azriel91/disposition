@@ -1725,11 +1725,14 @@ impl OrthoProtrusionCalculator {
         //    divergent ancestor prevents over-protrusion that would make
         //    `from_protrusion_capped` zero out the source protrusion.
         //
-        //    Additionally, siblings that lie entirely beyond the `to` divergent
-        //    ancestor in the protrusion direction are excluded. For adjacent
-        //    divergent-ancestor pairs the protrusion only needs to exit the source
+        //    Additionally, siblings outside the range between the `from` and `to`
+        //    divergent ancestors (by nesting-path index) are excluded. For adjacent
+        //    divergent-ancestor pairs, the protrusion only needs to exit the source
         //    container and reach the gap to the destination -- not route around any
-        //    further containers past the destination.
+        //    further containers past the destination. Only siblings that lie on the
+        //    same side as the `from` ancestor (up to and including the `to` ancestor
+        //    position) are considered. The nesting-path index reliably reflects the
+        //    structural ordering without relying on layout coordinates.
         //
         //    For cycle edges the equalization in Step 6 takes the max of both
         //    endpoints' protrusions, so excluding the target's ancestor from the from-
@@ -1738,19 +1741,17 @@ impl OrthoProtrusionCalculator {
         let node_category = Self::node_category(node_id_from, entity_types);
         let divergent_ancestor_id_to =
             Self::divergent_ancestor_id(node_id_to, lca_depth, node_nesting_infos);
-        // Compute the far-edge coordinate of the `to` divergent ancestor in
-        // the protrusion direction. Siblings whose near edge in the protrusion
-        // direction lies beyond this coordinate are entirely past the
-        // destination container and should not influence the minimum protrusion.
-        //
-        // For adjacent divergent-ancestor pairs this prevents nodes beyond the
-        // destination container (e.g. `t_charlie` at index 2 when the adjacent
-        // pair is at indices 0 and 1) from inflating the sibling extreme and
-        // causing over-protrusion that routes the path all the way past the
-        // destination.
-        let divergent_ancestor_far_coord_to: Option<f32> = divergent_ancestor_id_to
-            .and_then(|divergent_ancestor_id_to| svg_node_info_map.get(divergent_ancestor_id_to))
-            .map(|svg_node_info| Self::face_coord_for_endpoint(svg_node_info, face));
+        // Look up the nesting-path index of the `from` divergent ancestor at
+        // the LCA level. This bounds the sibling range to nodes structurally
+        // between the two divergent ancestors.
+        let divergent_ancestor_index_from: Option<usize> = node_nesting_infos
+            .get(divergent_ancestor_id_from)
+            .and_then(|nni| nni.nesting_path.get(lca_depth).copied());
+        // Look up the nesting-path index of the `to` divergent ancestor at the
+        // LCA level, if present.
+        let divergent_ancestor_index_to: Option<usize> = divergent_ancestor_id_to
+            .and_then(|div_anc_id_to| node_nesting_infos.get(div_anc_id_to))
+            .and_then(|nni| nni.nesting_path.get(lca_depth).copied());
         let same_rank_siblings: Vec<&NodeId<'id>> = node_ranks
             .iter()
             // Only include siblings that are at the same rank as the divergent_ancestor.
@@ -1759,32 +1760,30 @@ impl OrthoProtrusionCalculator {
             .filter(|(node_id_sibling, _)| {
                 Self::node_category(node_id_sibling, entity_types) == node_category
             })
-            // Only include siblings that are not the divergent_ancestor itself.
+            // Only include siblings that are not the `to` divergent ancestor.
             .filter(|(node_id_sibling, _)| divergent_ancestor_id_to != Some(*node_id_sibling))
-            // Only include siblings that are between this node and the target node in the
-            // protrusion direction.
+            // Only include siblings whose nesting-path index does not lie
+            // past the `to` divergent ancestor (i.e., keep siblings on the
+            // same side as the `from` ancestor, up to and including the `to`
+            // ancestor position). Siblings beyond the `to` ancestor lie past
+            // the destination container and should not influence the minimum
+            // protrusion.
             .filter(|(node_id_sibling, _)| {
-                // Exclude siblings that are entirely beyond the `to` divergent
-                // ancestor in the protrusion direction.
-                let Some(far_coord_to) = divergent_ancestor_far_coord_to else {
+                let (Some(index_from), Some(index_to)) =
+                    (divergent_ancestor_index_from, divergent_ancestor_index_to)
+                else {
                     return true;
                 };
-                let Some(&node_info_sibling) = svg_node_info_map.get(*node_id_sibling) else {
+                let Some(sibling_index) = node_nesting_infos
+                    .get(*node_id_sibling)
+                    .and_then(|nni| nni.nesting_path.get(lca_depth).copied())
+                else {
                     return true;
                 };
-                // Keep the sibling only if its near edge in the protrusion
-                // direction is at or before `other_far_coord`.
-                match face {
-                    NodeFace::Right => node_info_sibling.envelope_x <= far_coord_to,
-                    NodeFace::Left => {
-                        node_info_sibling.envelope_x + node_info_sibling.envelope_width
-                            >= far_coord_to
-                    }
-                    NodeFace::Bottom => node_info_sibling.envelope_y <= far_coord_to,
-                    NodeFace::Top => {
-                        node_info_sibling.envelope_y + node_info_sibling.envelope_height_collapsed
-                            >= far_coord_to
-                    }
+                if index_from <= index_to {
+                    sibling_index <= index_to
+                } else {
+                    sibling_index >= index_to
                 }
             })
             .map(|(id, _)| id)
