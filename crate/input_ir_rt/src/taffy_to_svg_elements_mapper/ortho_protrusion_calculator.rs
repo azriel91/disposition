@@ -1750,7 +1750,7 @@ impl OrthoProtrusionCalculator {
         // Look up the nesting-path index of the `to` divergent ancestor at the
         // LCA level, if present.
         let divergent_ancestor_index_to: Option<usize> = divergent_ancestor_id_to
-            .and_then(|div_anc_id_to| node_nesting_infos.get(div_anc_id_to))
+            .and_then(|divergent_ancestor_id_to| node_nesting_infos.get(divergent_ancestor_id_to))
             .and_then(|nni| nni.nesting_path.get(lca_depth).copied());
         let same_rank_siblings: Vec<&NodeId<'id>> = node_ranks
             .iter()
