@@ -21,7 +21,7 @@ use disposition_input_rt::{EntityPageOps, OnChangeTarget, ThingsPageOps};
 use crate::components::editor::{
     common::{RenameRefocus, ADD_BTN, SECTION_HEADING},
     datalists::list_ids,
-    id_value_row::IdValueRow,
+    id_value_row::IdValueRowTextSingle,
     reorderable::ReorderableContainer,
 };
 
@@ -73,7 +73,7 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                         let id = id.clone();
                         let name = name.clone();
                         rsx! {
-                            IdValueRow {
+                            IdValueRowTextSingle {
                                 key: "thing_name_{id}",
                                 entry_id: id,
                                 entry_value: name,
@@ -169,7 +169,7 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                         let on_change = OnChangeTarget::CopyText;
                         let current_value = text.clone();
                         rsx! {
-                            IdValueRow {
+                            IdValueRowTextSingle {
                                 key: "thing_copy_text_{id}",
                                 entry_id: id,
                                 entry_value: text,

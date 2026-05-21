@@ -16,7 +16,7 @@ use disposition_input_rt::{EntityPageOps, OnChangeTarget};
 use crate::components::editor::{
     common::{RenameRefocus, ADD_BTN, SECTION_HEADING},
     datalists::list_ids,
-    id_value_row::IdValueRow,
+    id_value_row::IdValueRowTextSingle,
     reorderable::ReorderableContainer,
 };
 
@@ -70,7 +70,7 @@ pub fn EntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
                         let on_change = OnChangeTarget::EntityTooltip;
                         let current_value = tip.clone();
                         rsx! {
-                            IdValueRow {
+                            IdValueRowTextSingle {
                                 key: "tip_{id}",
                                 entry_id: id,
                                 entry_value: tip,

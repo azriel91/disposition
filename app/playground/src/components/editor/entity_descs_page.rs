@@ -11,7 +11,7 @@ use disposition_input_rt::{EntityPageOps, OnChangeTarget};
 use crate::components::editor::{
     common::{RenameRefocus, ADD_BTN, SECTION_HEADING},
     datalists::list_ids,
-    id_value_row::IdValueRow,
+    id_value_row::IdValueRowTextMulti,
     reorderable::ReorderableContainer,
 };
 
@@ -61,7 +61,7 @@ pub fn EntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                         let on_change = OnChangeTarget::EntityDesc;
                         let current_value = desc.clone();
                         rsx! {
-                            IdValueRow {
+                            IdValueRowTextMulti {
                                 key: "entity_desc_{id}",
                                 entry_id: id,
                                 entry_value: desc,

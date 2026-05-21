@@ -1,6 +1,7 @@
 //! Tests for `disposition_input_rt` mutation operations.
 
 mod edge_group_card_ops;
+mod entity_page_ops;
 mod flat_entry;
 mod process_card_ops;
 mod processes_page_ops;

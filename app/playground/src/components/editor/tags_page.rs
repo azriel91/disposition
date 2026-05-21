@@ -47,7 +47,7 @@ use disposition_input_rt::TagsPageOps;
 use crate::components::editor::{
     common::{RenameRefocus, ADD_BTN, INPUT_CLASS, SECTION_HEADING},
     datalists::list_ids,
-    id_value_row::IdValueRow,
+    id_value_row::IdValueRowTextSingle,
     reorderable::ReorderableContainer,
 };
 
@@ -171,7 +171,7 @@ pub fn TagsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                         let tag_id = tag_id.clone();
                         let tag_name = tag_name.clone();
                         rsx! {
-                            IdValueRow {
+                            IdValueRowTextSingle {
                                 key: "{tag_id}",
                                 entry_id: tag_id,
                                 entry_value: tag_name,
