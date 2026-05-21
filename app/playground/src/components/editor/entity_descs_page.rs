@@ -1,8 +1,3 @@
-//! Entity Tooltips editor page.
-//!
-//! Allows editing `entity_tooltips`: tooltip text (markdown) shown on hover
-//! for both nodes (things) and edges.
-
 use dioxus::{
     hooks::use_signal,
     prelude::{
@@ -20,69 +15,65 @@ use crate::components::editor::{
     reorderable::ReorderableContainer,
 };
 
-/// The **Entity: Tooltips** editor sub-page.
+// === Entity Descriptions sub-page === //
+
+/// The **Things: Descriptions** editor sub-page.
 ///
-/// Edits `entity_tooltips` -- tooltip text (markdown) shown on hover for both
-/// nodes (things) and edges.
+/// Edits `entity_descs` -- descriptions rendered next to entities in the
+/// diagram.
 #[component]
-pub fn EntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
-    let tooltip_drag_idx: Signal<Option<usize>> = use_signal(|| None);
-    let tooltip_drop_target: Signal<Option<usize>> = use_signal(|| None);
-    let tooltip_focus_idx: Signal<Option<usize>> = use_signal(|| None);
-    let tooltip_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
+pub fn EntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
+    let desc_drag_idx: Signal<Option<usize>> = use_signal(|| None);
+    let desc_drop_target: Signal<Option<usize>> = use_signal(|| None);
+    let desc_focus_idx: Signal<Option<usize>> = use_signal(|| None);
+    let desc_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
 
     let diagram = input_diagram.read();
-    let tooltip_entries: Vec<(String, String)> = diagram
-        .entity_tooltips
+    let desc_entries: Vec<(String, String)> = diagram
+        .entity_descs
         .iter()
-        .map(|(id, tip)| (id.as_str().to_owned(), tip.clone()))
+        .map(|(id, desc)| (id.as_str().to_owned(), desc.clone()))
         .collect();
     drop(diagram);
 
-    let tooltip_count = tooltip_entries.len();
+    let desc_count = desc_entries.len();
 
     rsx! {
         div {
             class: "flex flex-col gap-2",
 
-            h3 { class: SECTION_HEADING, "Entity Tooltips" }
+            h3 { class: SECTION_HEADING, "Entity Descriptions" }
             p {
                 class: "text-xs text-gray-500 mb-1",
-                "Tooltip text (markdown) shown on hover."
-            }
-            p {
-                class: "text-xs text-gray-500 mb-1",
-                "Note that for edges, you need to add `__{{index}}` to the edge group ID where {{index}} is the n'th edge in the group."
-                br {}
-                "For example, for an edge group whose ID is `edge_dep_a_to_b`, the first edge's ID is `edge_dep_a_to_b__0`, the second `edge_dep_a_to_b__1`, and so on."
+                "Descriptions rendered next to entities in the diagram."
             }
 
             ReorderableContainer {
                 data_attr: "data-entry-id".to_owned(),
-                section_id: "entity_tooltips".to_owned(),
-                focus_index: tooltip_focus_idx,
-                rename_refocus: Some(tooltip_rename_refocus),
+                section_id: "entity_descs".to_owned(),
+                focus_index: desc_focus_idx,
+                rename_refocus: Some(desc_rename_refocus),
 
-                for (idx, (id, tip)) in tooltip_entries.iter().enumerate() {
+                for (idx, (id, desc)) in desc_entries.iter().enumerate() {
                     {
                         let id = id.clone();
-                        let tip = tip.clone();
-                        let on_change = OnChangeTarget::EntityTooltip;
-                        let current_value = tip.clone();
+                        let desc = desc.clone();
+                        let on_change = OnChangeTarget::EntityDesc;
+                        let current_value = desc.clone();
                         rsx! {
                             IdValueRow {
-                                key: "tip_{id}",
+                                key: "entity_desc_{id}",
                                 entry_id: id,
-                                entry_value: tip,
+                                entry_value: desc,
                                 id_list: list_ids::ENTITY_IDS.to_owned(),
                                 id_placeholder: "id".to_owned(),
                                 value_placeholder: "value".to_owned(),
                                 index: idx,
-                                entry_count: tooltip_count,
-                                drag_index: tooltip_drag_idx,
-                                drop_target: tooltip_drop_target,
-                                focus_index: tooltip_focus_idx,
-                                rename_refocus: tooltip_rename_refocus,
+                                entry_count: desc_count,
+                                drag_index: desc_drag_idx,
+                                drop_target: desc_drop_target,
+                                focus_index: desc_focus_idx,
+                                rename_refocus: desc_rename_refocus,
                                 on_move: move |(from, to)| {
                                     EntityPageOps::kv_entry_move(&mut input_diagram.write(), on_change, from, to);
                                 },
@@ -105,8 +96,8 @@ pub fn EntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
                                     EntityPageOps::kv_entry_remove(&mut input_diagram.write(), on_change, &id);
                                 },
                                 on_add: move |insert_at: usize| {
-                                    EntityPageOps::entity_tooltip_add(&mut input_diagram.write());
-                                    EntityPageOps::kv_entry_move(&mut input_diagram.write(), on_change, tooltip_count, insert_at);
+                                    EntityPageOps::entity_desc_add(&mut input_diagram.write());
+                                    EntityPageOps::kv_entry_move(&mut input_diagram.write(), on_change, desc_count, insert_at);
                                 },
                             }
                         }
@@ -118,9 +109,9 @@ pub fn EntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
                 class: ADD_BTN,
                 tabindex: 0,
                 onclick: move |_| {
-                    EntityPageOps::entity_tooltip_add(&mut input_diagram.write());
+                    EntityPageOps::entity_desc_add(&mut input_diagram.write());
                 },
-                "+ Add tooltip"
+                "+ Add description"
             }
         }
     }

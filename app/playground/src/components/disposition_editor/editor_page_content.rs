@@ -10,10 +10,10 @@ use disposition::input_model::InputDiagram;
 
 use crate::{
     components::editor::{
-        EntityPage, ProcessesPage, RenderOptionsPage, TagsPage, TextPage, ThemeBaseStylesPage,
-        ThemeDependenciesStylesPage, ThemeProcessStepStylesPage, ThemeStyleAliasesPage,
-        ThemeTagsFocusPage, ThemeTypesStylesPage, ThingCopyTextPage, ThingDependenciesPage,
-        ThingEntityDescsPage, ThingInteractionsPage, ThingLayoutPage, ThingNamesPage,
+        EntityDescsPage, EntityPage, ProcessesPage, RenderOptionsPage, TagsPage, TextPage,
+        ThemeBaseStylesPage, ThemeDependenciesStylesPage, ThemeProcessStepStylesPage,
+        ThemeStyleAliasesPage, ThemeTagsFocusPage, ThemeTypesStylesPage, ThingCopyTextPage,
+        ThingDependenciesPage, ThingInteractionsPage, ThingLayoutPage, ThingNamesPage,
     },
     editor_state::{EditorPage, EditorPageTheme, EditorPageThing},
 };
@@ -30,7 +30,7 @@ pub fn EditorPageContent(
         EditorPage::Thing(sub) => match sub {
             EditorPageThing::Names => rsx! { ThingNamesPage { input_diagram } },
             EditorPageThing::CopyText => rsx! { ThingCopyTextPage { input_diagram } },
-            EditorPageThing::EntityDescs => rsx! { ThingEntityDescsPage { input_diagram } },
+            EditorPageThing::EntityDescs => rsx! { EntityDescsPage { input_diagram } },
         },
         EditorPage::ThingLayout => rsx! { ThingLayoutPage { input_diagram } },
         EditorPage::ThingDependencies => rsx! { ThingDependenciesPage { input_diagram } },

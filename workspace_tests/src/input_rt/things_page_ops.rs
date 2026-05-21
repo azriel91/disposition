@@ -364,7 +364,7 @@ fn copy_text_add_inserts_entry() {
 fn entity_desc_add_inserts_entry() {
     let mut input_diagram = empty_diagram();
 
-    ThingsPageOps::entity_desc_add(&mut input_diagram);
+    EntityPageOps::entity_desc_add(&mut input_diagram);
 
     assert_eq!(input_diagram.entity_descs.len(), 1);
 }
@@ -375,7 +375,7 @@ fn entity_desc_add_inserts_entry() {
 fn entity_tooltip_add_inserts_entry() {
     let mut input_diagram = empty_diagram();
 
-    ThingsPageOps::entity_tooltip_add(&mut input_diagram);
+    EntityPageOps::entity_tooltip_add(&mut input_diagram);
 
     assert_eq!(input_diagram.entity_tooltips.len(), 1);
 }
@@ -390,7 +390,7 @@ fn kv_entry_update_copy_text() {
         .thing_copy_text
         .insert(thing_id.clone(), "old".to_owned());
 
-    ThingsPageOps::kv_entry_update(
+    EntityPageOps::kv_entry_update(
         &mut input_diagram,
         OnChangeTarget::CopyText,
         "thing_0",
@@ -408,7 +408,7 @@ fn kv_entry_update_entity_desc() {
         .entity_descs
         .insert(entity_id.clone(), "old".to_owned());
 
-    ThingsPageOps::kv_entry_update(
+    EntityPageOps::kv_entry_update(
         &mut input_diagram,
         OnChangeTarget::EntityDesc,
         "entity_0",
@@ -426,7 +426,7 @@ fn kv_entry_update_entity_tooltip() {
         .entity_tooltips
         .insert(entity_id.clone(), "old".to_owned());
 
-    ThingsPageOps::kv_entry_update(
+    EntityPageOps::kv_entry_update(
         &mut input_diagram,
         OnChangeTarget::EntityTooltip,
         "entity_0",
@@ -449,7 +449,7 @@ fn kv_entry_remove_copy_text() {
         .thing_copy_text
         .insert(thing_id.clone(), "text".to_owned());
 
-    ThingsPageOps::kv_entry_remove(&mut input_diagram, OnChangeTarget::CopyText, "thing_0");
+    EntityPageOps::kv_entry_remove(&mut input_diagram, OnChangeTarget::CopyText, "thing_0");
 
     assert!(!input_diagram.thing_copy_text.contains_key(&thing_id));
 }
@@ -462,7 +462,7 @@ fn kv_entry_remove_entity_desc() {
         .entity_descs
         .insert(entity_id.clone(), "desc".to_owned());
 
-    ThingsPageOps::kv_entry_remove(&mut input_diagram, OnChangeTarget::EntityDesc, "entity_0");
+    EntityPageOps::kv_entry_remove(&mut input_diagram, OnChangeTarget::EntityDesc, "entity_0");
 
     assert!(!input_diagram.entity_descs.contains_key(&entity_id));
 }
@@ -477,7 +477,7 @@ fn kv_entry_rename_copy_text() {
         .thing_copy_text
         .insert(thing_id_old.clone(), "value".to_owned());
 
-    ThingsPageOps::kv_entry_rename(
+    EntityPageOps::kv_entry_rename(
         &mut input_diagram,
         OnChangeTarget::CopyText,
         "thing_0",
@@ -501,7 +501,7 @@ fn kv_entry_rename_noop_when_same() {
         .thing_copy_text
         .insert(thing_id.clone(), "val".to_owned());
 
-    ThingsPageOps::kv_entry_rename(
+    EntityPageOps::kv_entry_rename(
         &mut input_diagram,
         OnChangeTarget::CopyText,
         "thing_0",
@@ -527,7 +527,7 @@ fn kv_entry_move_reorders_copy_text() {
         .thing_copy_text
         .insert(thing_id_b, "b".to_owned());
 
-    ThingsPageOps::kv_entry_move(&mut input_diagram, OnChangeTarget::CopyText, 0, 1);
+    EntityPageOps::kv_entry_move(&mut input_diagram, OnChangeTarget::CopyText, 0, 1);
 
     let keys: Vec<&str> = input_diagram
         .thing_copy_text
