@@ -8,11 +8,11 @@ use serde::{Deserialize, Serialize};
 pub enum EditorPageEntity {
     #[default]
     /// Entity: entity type assignments for common styling.
-    EntityTypes,
+    Types,
     /// Entity: entity tooltip text shown on hover.
-    EntityTooltips,
+    Tooltips,
     /// Entity: entity descriptions.
-    EntityDescs,
+    Descs,
 }
 
 impl EditorPageEntity {
@@ -22,9 +22,9 @@ impl EditorPageEntity {
     /// e.g. `"Entity: Types"`, `"Entity: Tooltips"`.
     pub fn label(&self) -> &'static str {
         match self {
-            Self::EntityTypes => "Entity: Types",
-            Self::EntityTooltips => "Entity: Tooltips",
-            Self::EntityDescs => "Entity: Descriptions",
+            Self::Types => "Entity: Types",
+            Self::Tooltips => "Entity: Tooltips",
+            Self::Descs => "Entity: Descriptions",
         }
     }
 }

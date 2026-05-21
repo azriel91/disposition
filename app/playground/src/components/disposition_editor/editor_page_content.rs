@@ -38,9 +38,9 @@ pub fn EditorPageContent(
         EditorPage::Processes => rsx! { ProcessesPage { input_diagram } },
         EditorPage::Tags => rsx! { TagsPage { input_diagram } },
         EditorPage::Entity(editor_page_entity) => match editor_page_entity {
-            EditorPageEntity::EntityTypes => rsx! { EntityTypesPage { input_diagram } },
-            EditorPageEntity::EntityTooltips => rsx! { EntityTooltipsPage { input_diagram } },
-            EditorPageEntity::EntityDescs => rsx! { EntityDescsPage { input_diagram } },
+            EditorPageEntity::Types => rsx! { EntityTypesPage { input_diagram } },
+            EditorPageEntity::Tooltips => rsx! { EntityTooltipsPage { input_diagram } },
+            EditorPageEntity::Descs => rsx! { EntityDescsPage { input_diagram } },
         },
         EditorPage::RenderOptions => rsx! { RenderOptionsPage { input_diagram } },
         EditorPage::Theme(sub) => match sub {
