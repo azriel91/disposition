@@ -8,7 +8,6 @@
 pub use self::{
     datalists::EditorDataLists,
     entity_descs_page::EntityDescsPage,
-    entity_page::EntityPage,
     entity_tooltips_page::EntityTooltipsPage,
     entity_types_page::EntityTypesPage,
     processes_page::ProcessesPage,
@@ -33,7 +32,6 @@ pub(crate) mod reorderable;
 pub(crate) mod theme_styles_editor;
 
 pub(crate) mod entity_descs_page;
-pub(crate) mod entity_page;
 pub(crate) mod entity_tooltips_page;
 pub(crate) mod entity_types_page;
 pub(crate) mod processes_page;

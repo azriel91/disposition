@@ -17,7 +17,7 @@ use crate::components::editor::{
 
 // === Entity Descriptions sub-page === //
 
-/// The **Things: Descriptions** editor sub-page.
+/// The **Entity: Descriptions** editor sub-page.
 ///
 /// Edits `entity_descs` -- descriptions rendered next to entities in the
 /// diagram.
