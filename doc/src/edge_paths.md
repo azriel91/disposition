@@ -100,14 +100,14 @@ node_ranks_nested:
 ```
 
 
-## Offset Calculation
+## Offset Calculation (Label-Aligned with Slot Fallback)
 
-Offset calculation spreads multiple edge contact points along a node face so they do not all touch at the same coordinate. The offset for each edge is a signed pixel distance from the face midpoint. Offsets are computed in `fn face_offsets_compute` in [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs), using [`edge_face_contact_tracker.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_face_contact_tracker.rs) for the per-face arithmetic.
+Offset calculation places each edge's contact point along a node face at a position that either aligns with the edge's description label or, when no label is present, spreads contacts evenly so they do not overlap. The offset for each edge is a signed pixel distance from the face midpoint. Offsets are computed in `fn face_offsets_compute` in [`svg_edge_infos_builder.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_infos_builder.rs), with label-based offsets derived via `SvgEdgeInfosBuilder::label_face_offset_compute` / `SvgEdgeInfosBuilder::taffy_node_absolute_xy_compute`, and slot-based fallback arithmetic provided by [`edge_face_contact_tracker.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_face_contact_tracker.rs).
 
 
 ### Why offsets exist
 
-When multiple edges connect to the same face of a node (e.g. three edges all exit from the Bottom face), their paths would all originate from the exact same point -- the face midpoint. Offsets shift each edge's contact point along the face so the paths fan out, making individual edges visually distinguishable.
+When multiple edges connect to the same face of a node (e.g. three edges all exit from the Bottom face), their paths would all originate from the exact same point -- the face midpoint. Offsets shift each edge's contact point along the face so the paths fan out, making individual edges visually distinguishable. When an edge has a description label rendered on the face, the offset additionally serves to align the edge path's contact point with the centre of that label, preventing the path from cutting through the label text.
 
 
 ### Concepts
@@ -116,6 +116,7 @@ When multiple edges connect to the same face of a node (e.g. three edges all exi
 - **Slot**: an ordered position within the list of contacts on a single (node, face) pair. Slot 0 is the first sorted contact, slot 1 the second, etc.
 - **Face length**: the pixel length of the face: width for `Top`/`Bottom` faces, collapsed height for `Left`/`Right` faces. Computed by `fn face_length_for_node`.
 - **Gap**: the pixel spacing between adjacent contact points. Starts at 10% of the face length (`CONTACT_GAP_RATIO = 0.10`), clamped to at least 5 px (`CONTACT_GAP_MIN_PX = 5.0`). If `contact_count * gap > face_length`, the gap is shrunk to `face_length / contact_count` so all contacts fit.
+- **Label-based offset**: when an edge has a non-zero description label node on a face (looked up from `TaffyNodeMappings::edge_label_taffy_nodes`), the offset is `label_center_along_face_axis - face_midpoint_along_face_axis`. For `Top`/`Bottom` faces (face axis = x): `offset = (label_abs_x + label_width / 2) - (node_info.x + node_info.width / 2)`. For `Left`/`Right` faces (face axis = y): `offset = (label_abs_y + label_height / 2) - (node_info.y + node_info.height_collapsed / 2)`. This aligns the edge path's contact point with the centre of the rendered label. The label-based offset is used only when the label has non-zero size (`label_width > 0` for Top/Bottom, `label_height > 0` for Left/Right); otherwise the slot-based fallback is used.
 
 
 ### Algorithm
@@ -129,9 +130,9 @@ The algorithm in `face_offsets_compute` proceeds in three phases:
     - **Secondary key** (tie-breaker) -- the target node's coordinate along the face axis: x ascending for `Top`/`Bottom` faces, y ascending for `Left`/`Right` faces. This ensures co-ranked edges follow the spatial order of their targets.
     - After sorting, each entry is assigned its slot index (0-based position in the sorted order). These slot indices are written back into `from_slot_indices` / `to_slot_indices` on the pass-1 group.
 
-3. **Compute offset values (`EdgeFaceContactTracker::offset_for_index`).** For each (node, face) with `n` contacts and computed `gap`:
-    - `offset[i] = (i - (n - 1) / 2.0) * gap`
-    - This distributes offsets symmetrically around 0 (the face midpoint). The first slot gets the most negative offset (leftward/upward), the middle slot(s) get ~0, and the last slot gets the most positive offset (rightward/downward).
+3. **Compute offset values.** For each contact entry, the offset is chosen as follows:
+    - **Label-based** (preferred): if the edge has a non-zero label node on this face (looked up from `edge_label_taffy_nodes` via `label_face_offset_compute`), the offset is `label_center_on_face_axis - face_midpoint_on_face_axis`, computed using the label's absolute SVG position from `taffy_node_absolute_xy_compute`. This places the contact point directly beneath / beside the label's centre.
+    - **Slot-based fallback**: when the edge has no label on this face, or the label has zero size, `EdgeFaceContactTracker::offset_for_index` is used: `offset[i] = (i - (n - 1) / 2.0) * gap`. This distributes offsets symmetrically around 0 (the face midpoint). The first slot gets the most negative offset (leftward/upward), the middle slot(s) get ~0, and the last slot gets the most positive offset (rightward/downward).
 
 
 ### Direction reversal for `BottomToTop` and `RightToLeft`
