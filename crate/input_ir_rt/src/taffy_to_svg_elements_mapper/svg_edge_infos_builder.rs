@@ -622,6 +622,7 @@ impl SvgEdgeInfosBuilder {
                         [entry.edge_index]
                         .edge_id;
                     Self::label_face_offset_compute(
+                        rank_dir,
                         node_id_and_face.face,
                         edge_id,
                         entry.is_from_endpoint,
@@ -1177,18 +1178,23 @@ impl SvgEdgeInfosBuilder {
     /// label taffy node.
     ///
     /// Returns the signed pixel distance from the face midpoint to the label
-    /// leaf's centre along the face axis:
+    /// leaf's entry-side edge along the face axis.  The entry side is the
+    /// edge of the label that the path arrives at first, which depends on
+    /// `rank_dir` and `face`:
     ///
-    /// - For `Top`/`Bottom` faces: `label_center_x - (node_info.x +
-    ///   node_info.width / 2.0)`
-    /// - For `Left`/`Right` faces: `label_center_y - (node_info.y +
-    ///   node_info.height_collapsed / 2.0)`
+    /// - `Top`/`Bottom` faces:
+    ///   - `TopToBottom`, `LeftToRight`, `RightToLeft`: left x (`label_abs_x`)
+    ///   - `BottomToTop`: right x (`label_abs_x + label_width`)
+    /// - `Left`/`Right` faces:
+    ///   - `LeftToRight`, `TopToBottom`, `BottomToTop`: top y (`label_abs_y`)
+    ///   - `RightToLeft`: bottom y (`label_abs_y + label_height`)
     ///
     /// Returns `None` when no label node is recorded for this edge endpoint, or
     /// when the label has zero size along the face axis (indicating no
     /// description text).  The caller should fall back to the slot-based
     /// offset in that case.
     fn label_face_offset_compute<'id>(
+        rank_dir: RankDir,
         face: NodeFace,
         edge_id: &EdgeId<'id>,
         is_from_endpoint: bool,
@@ -1214,9 +1220,15 @@ impl SvgEdgeInfosBuilder {
                 }
                 let (label_abs_x, _) =
                     Self::taffy_node_absolute_xy_compute(taffy_tree, taffy_node_id, layout);
-                let label_center_x = label_abs_x + label_width / 2.0;
+                // Route to the entry-side edge of the label along x.
+                let label_contact_x = match rank_dir {
+                    RankDir::BottomToTop => label_abs_x + label_width,
+                    RankDir::TopToBottom | RankDir::LeftToRight | RankDir::RightToLeft => {
+                        label_abs_x
+                    }
+                };
                 let face_midpoint_x = node_info.x + node_info.width / 2.0;
-                Some(label_center_x - face_midpoint_x)
+                Some(label_contact_x - face_midpoint_x)
             }
             NodeFace::Left | NodeFace::Right => {
                 if label_height == 0.0 {
@@ -1224,9 +1236,15 @@ impl SvgEdgeInfosBuilder {
                 }
                 let (_, label_abs_y) =
                     Self::taffy_node_absolute_xy_compute(taffy_tree, taffy_node_id, layout);
-                let label_center_y = label_abs_y + label_height / 2.0;
+                // Route to the entry-side edge of the label along y.
+                let label_contact_y = match rank_dir {
+                    RankDir::RightToLeft => label_abs_y + label_height,
+                    RankDir::LeftToRight | RankDir::TopToBottom | RankDir::BottomToTop => {
+                        label_abs_y
+                    }
+                };
                 let face_midpoint_y = node_info.y + node_info.height_collapsed / 2.0;
-                Some(label_center_y - face_midpoint_y)
+                Some(label_contact_y - face_midpoint_y)
             }
         }
     }
