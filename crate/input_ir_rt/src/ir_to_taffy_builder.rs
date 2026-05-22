@@ -1705,6 +1705,7 @@ impl IrToTaffyBuilder<'_> {
                     display: Display::Flex,
                     flex_direction: FlexDirection::Row,
                     align_items: Some(AlignItems::Stretch),
+                    justify_content: Some(JustifyContent::SpaceBetween),
                     ..Default::default()
                 },
                 &[
