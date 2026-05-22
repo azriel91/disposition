@@ -1,0 +1,14 @@
+things:
+  t_alice: Alice
+  t_bob: Bob
+thing_hierarchy:
+  t_alice: {}
+  t_bob: {}
+thing_dependencies:
+  edge_dep_alice_bob:
+    kind: sequence
+    things:
+      - t_alice
+      - t_bob
+entity_descs:
+  edge_dep_alice_bob__0: description
