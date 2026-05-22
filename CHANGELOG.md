@@ -1,6 +1,6 @@
 # Changelog
 
-## unreleased
+## 0.2.0 (2026-05-22)
 
 * Support rendering tooltips. ([#26][#26])
 * Add focus outlines around nodes and edges. ([#27][#27])
