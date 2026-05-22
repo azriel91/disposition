@@ -214,13 +214,12 @@ Two methods on `IrToTaffyBuilder`:
 `node_face_edges`, and builds:
 
 ```yaml
-envelope_node:               # (flex column, align_items: Stretch)
-  edge_wrapper_top:          # (flex row,    children = label leaves for Top edges)
-  edge_and_diagram_wrapper:  # (flex row,    align_items: Stretch)
-    edge_wrapper_left:       # (flex column, children = label leaves for Left edges)
-    diagram_node_wrapper_node
-    edge_wrapper_right:      # (flex column, children = label leaves for Right edges)
-  edge_wrapper_bottom:       # (flex row,    children = label leaves for Bottom edges)
+envelope_node:               # (grid 3x3, auto-sized columns and rows)
+  edge_wrapper_top:          # row 1, col 2 -- (flex row,    label leaves for Top edges)
+  edge_wrapper_left:         # row 2, col 1 -- (flex column, label leaves for Left edges)
+  diagram_node_wrapper_node: # row 2, col 2 -- the node's own content sub-tree
+  edge_wrapper_right:        # row 2, col 3 -- (flex column, label leaves for Right edges)
+  edge_wrapper_bottom:       # row 3, col 2 -- (flex row,    label leaves for Bottom edges)
 ```
 
 Each label leaf is created with:
@@ -229,8 +228,13 @@ Each label leaf is created with:
 TaffyNodeCtx::EdgeLabel(EdgeLabelCtx { edge_id, node_id, face })
 ```
 
-The `edge_wrapper_*` nodes with zero children are still created so the flex
-layout stays consistent; they will have zero size.
+The `edge_wrapper_*` nodes with zero children are still created so the grid
+structure stays consistent; they will have zero size.  The four corner cells
+are left empty -- no taffy nodes are created for them.
+
+`diagram_node_wrapper_node` is given explicit `grid_row: line(2)` /
+`grid_column: line(2)` placement via `set_style` after creation so it always
+occupies the center cell.
 
 The return type is `(taffy::NodeId, Vec<EdgeLabelLeafBuilt>)` where
 `EdgeLabelLeafBuilt` (defined in

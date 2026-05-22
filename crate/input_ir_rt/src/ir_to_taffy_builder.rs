@@ -23,7 +23,11 @@ use disposition_taffy_model::{
     NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeCtx, TaffyNodeMappings, TEXT_FONT_SIZE,
     TEXT_LINE_HEIGHT,
 };
-use taffy::{prelude::TaffyZero, JustifyContent, JustifyItems};
+use taffy::{
+    prelude::TaffyZero,
+    style_helpers::{auto, line},
+    JustifyContent, JustifyItems,
+};
 use typed_builder::TypedBuilder;
 
 use self::{
@@ -1630,16 +1634,6 @@ impl IrToTaffyBuilder<'_> {
     ) -> (taffy::NodeId, Vec<EdgeLabelLeafBuilt>) {
         let mut edge_label_leaves = Vec::new();
 
-        let face_row_style = Style {
-            display: Display::Flex,
-            flex_direction: FlexDirection::Row,
-            ..Default::default()
-        };
-        let face_column_style = Style {
-            display: Display::Flex,
-            flex_direction: FlexDirection::Column,
-            ..Default::default()
-        };
         let label_leaf_style = Style {
             flex_shrink: 0.0,
             ..Default::default()
@@ -1678,57 +1672,115 @@ impl IrToTaffyBuilder<'_> {
             &mut edge_label_leaves,
         );
 
+        // edge_wrapper_top: row 1, col 2 (top-middle cell of the 3x3 grid)
         let edge_wrapper_top = taffy_tree
-            .new_with_children(face_row_style.clone(), &top_leaf_ids)
-            .unwrap_or_else(|e| {
-                panic!("Expected to create edge_wrapper_top for {node_id}. Error: {e}")
-            });
-        let edge_wrapper_bottom = taffy_tree
-            .new_with_children(face_row_style, &bottom_leaf_ids)
-            .unwrap_or_else(|e| {
-                panic!("Expected to create edge_wrapper_bottom for {node_id}. Error: {e}")
-            });
-        let edge_wrapper_left = taffy_tree
-            .new_with_children(face_column_style.clone(), &left_leaf_ids)
-            .unwrap_or_else(|e| {
-                panic!("Expected to create edge_wrapper_left for {node_id}. Error: {e}")
-            });
-        let edge_wrapper_right = taffy_tree
-            .new_with_children(face_column_style, &right_leaf_ids)
-            .unwrap_or_else(|e| {
-                panic!("Expected to create edge_wrapper_right for {node_id}. Error: {e}")
-            });
-
-        let edge_and_diagram_wrapper = taffy_tree
             .new_with_children(
                 Style {
                     display: Display::Flex,
                     flex_direction: FlexDirection::Row,
-                    align_items: Some(AlignItems::Stretch),
-                    justify_content: Some(JustifyContent::SpaceBetween),
+                    grid_row: line(1),
+                    grid_column: line(2),
                     ..Default::default()
                 },
-                &[
-                    edge_wrapper_left,
-                    diagram_node_wrapper_node,
-                    edge_wrapper_right,
-                ],
+                &top_leaf_ids,
             )
             .unwrap_or_else(|e| {
-                panic!("Expected to create edge_and_diagram_wrapper for {node_id}. Error: {e}")
+                panic!("Expected to create edge_wrapper_top for {node_id}. Error: {e}")
             });
 
-        let envelope_node = taffy_tree
+        // edge_wrapper_left: row 2, col 1 (left-middle cell of the 3x3 grid)
+        let edge_wrapper_left = taffy_tree
             .new_with_children(
                 Style {
                     display: Display::Flex,
                     flex_direction: FlexDirection::Column,
-                    align_items: Some(AlignItems::Stretch),
+                    grid_row: line(2),
+                    grid_column: line(1),
+                    ..Default::default()
+                },
+                &left_leaf_ids,
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create edge_wrapper_left for {node_id}. Error: {e}")
+            });
+
+        // Place diagram_node_wrapper_node at row 2, col 2 (center cell of the 3x3
+        // grid).
+        let diagram_wrapper_style = taffy_tree
+            .style(diagram_node_wrapper_node)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Expected to get style of diagram_node_wrapper_node for {node_id}. \
+                     Error: {e}"
+                )
+            })
+            .clone();
+        taffy_tree
+            .set_style(
+                diagram_node_wrapper_node,
+                Style {
+                    grid_row: line(2),
+                    grid_column: line(2),
+                    ..diagram_wrapper_style
+                },
+            )
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Expected to set grid placement on diagram_node_wrapper_node for \
+                     {node_id}. Error: {e}"
+                )
+            });
+
+        // edge_wrapper_right: row 2, col 3 (right-middle cell of the 3x3 grid)
+        let edge_wrapper_right = taffy_tree
+            .new_with_children(
+                Style {
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Column,
+                    grid_row: line(2),
+                    grid_column: line(3),
+                    ..Default::default()
+                },
+                &right_leaf_ids,
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create edge_wrapper_right for {node_id}. Error: {e}")
+            });
+
+        // edge_wrapper_bottom: row 3, col 2 (bottom-middle cell of the 3x3 grid)
+        let edge_wrapper_bottom = taffy_tree
+            .new_with_children(
+                Style {
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Row,
+                    grid_row: line(3),
+                    grid_column: line(2),
+                    ..Default::default()
+                },
+                &bottom_leaf_ids,
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create edge_wrapper_bottom for {node_id}. Error: {e}")
+            });
+
+        // envelope_node: 3x3 CSS Grid -- top-middle, left, center, right,
+        // bottom-middle.  The four corner cells are left empty.  Column and
+        // row track sizes are `auto` so each track sizes to its content; the
+        // center cell stretches to fill the row/column size allocated by any
+        // larger adjacent cell.
+        let envelope_node = taffy_tree
+            .new_with_children(
+                Style {
+                    display: Display::Grid,
+                    grid_template_columns: vec![auto(), auto(), auto()],
+                    grid_template_rows: vec![auto(), auto(), auto()],
                     ..Default::default()
                 },
                 &[
                     edge_wrapper_top,
-                    edge_and_diagram_wrapper,
+                    edge_wrapper_left,
+                    diagram_node_wrapper_node,
+                    edge_wrapper_right,
                     edge_wrapper_bottom,
                 ],
             )

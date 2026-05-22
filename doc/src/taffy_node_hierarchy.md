@@ -117,6 +117,39 @@ The `label_wrapper_node` mirrors the leaf-with-circle layout (circle + text in a
 the rank containers below it follow the same pattern as the rect-shape container.
 
 
+## Envelope Node
+
+Every diagram node is wrapped in an **envelope node** -- a CSS Grid container that reserves
+face-wrapper slots for edge label text on each of the four sides of the node.  The envelope
+uses a 3x3 grid, with the center cell holding the node's own content and four edge-wrapper
+cells on the cardinal faces.  The four corner cells are left empty.
+
+```yaml
+envelope_node:               # (grid 3x3, auto-sized columns and rows)
+  edge_wrapper_top:          # row 1, col 2 -- flex row, label leaves for Top edges
+  edge_wrapper_left:         # row 2, col 1 -- flex column, label leaves for Left edges
+  diagram_node_wrapper_node: # row 2, col 2 -- the node's own content sub-tree
+  edge_wrapper_right:        # row 2, col 3 -- flex column, label leaves for Right edges
+  edge_wrapper_bottom:       # row 3, col 2 -- flex row, label leaves for Bottom edges
+```
+
+All four corner cells (row 1 col 1, row 1 col 3, row 3 col 1, row 3 col 3) are empty and
+occupy zero space.  When no edges attach to a face the corresponding `edge_wrapper_*` node
+has no children and collapses to zero size.
+
+The `diagram_node_wrapper_node` is given explicit `grid_row: line(2)` / `grid_column: line(2)`
+placement (via `set_style`) after it is created, so it always lands in the center cell
+regardless of the order in which children are appended to `envelope_node`.
+
+Because grid tracks are `auto`-sized, the center cell expands to accommodate whichever
+adjacent cell is largest.  For example, if the `edge_wrapper_top` label is wide, column 2
+grows to fit it, and `diagram_node_wrapper_node` stretches to fill that wider column.
+
+Each label leaf inside an `edge_wrapper_*` node is created with `TaffyNodeCtx::EdgeLabel`
+context so it is measured for text during layout.  Faces that have no edges still produce an
+`edge_wrapper_*` node (but with zero children), keeping the grid structure consistent.
+
+
 ## Taffy Node Styles
 
 ### Container Style (`taffy_container_style`)
