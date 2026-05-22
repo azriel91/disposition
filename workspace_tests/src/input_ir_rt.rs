@@ -19,6 +19,16 @@ pub(crate) const INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_NODE: &str =
     include_str!("input_diagram/0007_edge_from_node_to_nested_node.yaml");
 pub(crate) const INPUT_DIAGRAM_0008_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE: &str =
     include_str!("input_diagram/0008_edge_from_node_to_nested_rank_1_node.yaml");
+pub(crate) const INPUT_DIAGRAM_0009_EDGE_WITH_DESCRIPTION: &str =
+    include_str!("input_diagram/0009_edge_with_description.yaml");
+pub(crate) const INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION: &str =
+    include_str!("input_diagram/0010_self_loop_edge_with_description.yaml");
+pub(crate) const INPUT_DIAGRAM_0011_CONTAINED_EDGE_WITH_DESCRIPTION: &str =
+    include_str!("input_diagram/0011_contained_edge_with_description.yaml");
+pub(crate) const INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC: &str =
+    include_str!("input_diagram/0012_edge_from_nested_node_to_outer_node_cyclic.yaml");
+pub(crate) const INPUT_DIAGRAM_0013_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC_2: &str =
+    include_str!("input_diagram/0013_edge_from_nested_node_to_outer_node_cyclic_2.yaml");
 
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

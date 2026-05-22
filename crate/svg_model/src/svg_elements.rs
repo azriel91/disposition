@@ -2,7 +2,7 @@ use disposition_ir_model::{entity::EntityTailwindClasses, node::NodeId};
 use disposition_model_common::{theme::Css, Map};
 use serde::{Deserialize, Serialize};
 
-use crate::{SvgEdgeInfo, SvgNodeInfo, SvgProcessInfo};
+use crate::{SvgEdgeInfo, SvgEdgeLabelInfo, SvgNodeInfo, SvgProcessInfo};
 
 /// All the necessary information to output SVG nodes and edges and styling.
 #[cfg_attr(
@@ -32,6 +32,11 @@ pub struct SvgElements<'id> {
     /// * The `<path>` element's coordinates and its `d` attribute.
     /// * Tailwind classes to define its styling and visibility.
     pub svg_edge_infos: Vec<SvgEdgeInfo<'id>>,
+    /// Information to render SVG text labels on edge endpoints.
+    ///
+    /// Each entry holds the label slots (from and to) for one edge. Only edges
+    /// with a description and a face assignment produce non-empty slots.
+    pub edge_label_infos: Vec<SvgEdgeLabelInfo<'id>>,
     /// Process information indexed by process node ID.
     ///
     /// Used for calculating y-translations when processes expand.
@@ -52,11 +57,13 @@ pub struct SvgElements<'id> {
 
 impl<'id> SvgElements<'id> {
     /// Creates a new `SvgElements`.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         svg_width: f32,
         svg_height: f32,
         svg_node_infos: Vec<SvgNodeInfo<'id>>,
         svg_edge_infos: Vec<SvgEdgeInfo<'id>>,
+        edge_label_infos: Vec<SvgEdgeLabelInfo<'id>>,
         svg_process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>>,
         tailwind_classes: EntityTailwindClasses<'id>,
         css: Css,
@@ -66,6 +73,7 @@ impl<'id> SvgElements<'id> {
             svg_height,
             svg_node_infos,
             svg_edge_infos,
+            edge_label_infos,
             svg_process_infos,
             tailwind_classes,
             css,

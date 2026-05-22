@@ -1,7 +1,11 @@
 use disposition_ir_model::{
+    edge::EdgeId,
     entity::EntityTypes,
     layout::{LeafLayout, NodeLayouts},
-    node::{NodeHierarchy, NodeId, NodeNames, NodeNestingInfos, NodeRanksNested, NodeShapes},
+    node::{
+        NodeFace, NodeFaceEdges, NodeHierarchy, NodeId, NodeNames, NodeNestingInfos,
+        NodeRanksNested, NodeShapes,
+    },
 };
 use disposition_model_common::{entity::EntityDescs, Map};
 use disposition_taffy_model::{
@@ -24,6 +28,17 @@ pub(crate) struct TaffyNodeBuildContext<'ctx> {
     pub(crate) node_nesting_infos: &'ctx NodeNestingInfos<'static>,
     pub(crate) node_id_to_taffy: &'ctx mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
     pub(crate) taffy_id_to_node: &'ctx mut Map<taffy::NodeId, NodeId<'static>>,
+    /// Per-node face-to-edge-IDs mapping used to build envelope label slots.
+    pub(crate) node_face_edges: &'ctx NodeFaceEdges<'static>,
+    /// Map from each diagram node ID to its envelope taffy node ID.
+    ///
+    /// Populated incrementally as each node's envelope is built.
+    pub(crate) node_id_to_envelope_taffy_node: &'ctx mut Map<NodeId<'static>, taffy::NodeId>,
+    /// Accumulator for edge label leaf nodes built across all envelope nodes.
+    ///
+    /// After all nodes are built, merged into `edge_label_taffy_nodes` in
+    /// `TaffyNodeMappings`.
+    pub(crate) edge_label_leaves: &'ctx mut Vec<EdgeLabelLeafBuilt>,
 }
 
 /// Layout information for a wrapper node and its text node.
@@ -102,4 +117,21 @@ pub(crate) struct NodeMeasureContext<'ctx> {
     pub(crate) char_width: f32,
     /// Level of detail for the diagram.
     pub(crate) lod: &'ctx DiagramLod,
+}
+
+/// A single edge label leaf node built during envelope node construction.
+///
+/// Collected across all envelope nodes so that `edge_label_taffy_nodes` can
+/// be populated in `TaffyNodeMappings` at the end of Phase 2 Step 2.5.
+pub(crate) struct EdgeLabelLeafBuilt {
+    /// The edge ID this label leaf belongs to.
+    pub(crate) edge_id: EdgeId<'static>,
+    /// The endpoint node this label leaf is attached to.
+    pub(crate) node_id: NodeId<'static>,
+    /// The face of the endpoint node this label leaf is on.
+    // Seems sensible to hold which `NodeFace` the label leaf is on, even if it is not read now.
+    #[allow(unused)]
+    pub(crate) face: NodeFace,
+    /// The taffy node ID of the label leaf.
+    pub(crate) taffy_node_id: taffy::NodeId,
 }

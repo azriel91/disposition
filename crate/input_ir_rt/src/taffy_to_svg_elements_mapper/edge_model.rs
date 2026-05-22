@@ -1,18 +1,9 @@
 use disposition_ir_model::{
     edge::{Edge, EdgeId},
-    node::NodeId,
+    node::{NodeFace, NodeId},
 };
 use disposition_svg_model::OrthoProtrusionParams;
 use kurbo::BezPath;
-
-/// Represents a face/side of a rectangular node.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub(super) enum NodeFace {
-    Top,
-    Bottom,
-    Left,
-    Right,
-}
 
 /// Identifies a specific face of a specific node.
 ///

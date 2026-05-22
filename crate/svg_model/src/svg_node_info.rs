@@ -36,6 +36,25 @@ pub struct SvgNodeInfo<'id> {
     pub width: f32,
     /// Height of the node in collapsed state.
     pub height_collapsed: f32,
+    /// X coordinate of the envelope (the outermost taffy node, including edge
+    /// label wrapper slots).
+    ///
+    /// Equals `x` when no envelope is present. Used for face contact point
+    /// calculations so that edge paths connect to the outer boundary of the
+    /// label area rather than the inner node rectangle.
+    pub envelope_x: f32,
+    /// Y coordinate of the envelope.
+    ///
+    /// Equals `y` when no envelope is present.
+    pub envelope_y: f32,
+    /// Width of the envelope.
+    ///
+    /// Equals `width` when no envelope is present.
+    pub envelope_width: f32,
+    /// Height of the envelope in collapsed state.
+    ///
+    /// Equals `height_collapsed` when no envelope is present.
+    pub envelope_height_collapsed: f32,
     /// The path `d` attribute for the collapsed state.
     pub path_d_collapsed: String,
     /// Reference to the process this node belongs to (if any).
@@ -79,6 +98,10 @@ impl<'id> SvgNodeInfo<'id> {
         y: f32,
         width: f32,
         height_collapsed: f32,
+        envelope_x: f32,
+        envelope_y: f32,
+        envelope_width: f32,
+        envelope_height_collapsed: f32,
         path_d_collapsed: String,
         process_id: Option<NodeId<'id>>,
         text_spans: Vec<SvgTextSpan>,
@@ -92,6 +115,10 @@ impl<'id> SvgNodeInfo<'id> {
             y,
             width,
             height_collapsed,
+            envelope_x,
+            envelope_y,
+            envelope_width,
+            envelope_height_collapsed,
             path_d_collapsed,
             process_id,
             text_spans,
@@ -111,6 +138,10 @@ impl<'id> SvgNodeInfo<'id> {
         y: f32,
         width: f32,
         height_collapsed: f32,
+        envelope_x: f32,
+        envelope_y: f32,
+        envelope_width: f32,
+        envelope_height_collapsed: f32,
         path_d_collapsed: String,
         process_id: Option<NodeId<'id>>,
         text_spans: Vec<SvgTextSpan>,
@@ -125,6 +156,10 @@ impl<'id> SvgNodeInfo<'id> {
             y,
             width,
             height_collapsed,
+            envelope_x,
+            envelope_y,
+            envelope_width,
+            envelope_height_collapsed,
             path_d_collapsed,
             process_id,
             text_spans,

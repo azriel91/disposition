@@ -1,0 +1,14 @@
+things:
+  t_parent: Parent
+  t_child: Child
+thing_hierarchy:
+  t_parent:
+    t_child: {}
+thing_dependencies:
+  edge_contained:
+    kind: sequence
+    things:
+      - t_parent
+      - t_child
+entity_descs:
+  edge_contained__0: "Parent to child dependency"

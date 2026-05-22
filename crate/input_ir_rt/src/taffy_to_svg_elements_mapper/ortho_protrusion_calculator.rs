@@ -6,8 +6,10 @@ use disposition_model_common::{entity::EntityType, Map, RankDir};
 use disposition_svg_model::{OrthoProtrusionParams, SpacerProtrusionParams, SvgNodeInfo};
 use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
 
+use disposition_ir_model::node::NodeFace;
+
 use crate::taffy_to_svg_elements_mapper::{
-    edge_model::{EdgeContactPointOffsets, NodeFace, NodeIdAndFace},
+    edge_model::{EdgeContactPointOffsets, NodeIdAndFace},
     edge_path_builder_pass_1::SpacerCoordinates,
     EdgeSpacerCoordinatesCalculator,
 };
@@ -1578,11 +1580,35 @@ impl OrthoProtrusionCalculator {
     ) {
         for (group_idx, group) in all_pass1_groups.iter().enumerate() {
             for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
-                // Same-rank non-cycle edges (adjacent siblings, tag/process
-                // nodes) use direct nearest-face routing with zero protrusion.
-                // Divergent-sibling adjustment does not apply to them.
+                // Same-rank non-cycle edges that share the same direct parent
+                // (adjacent siblings) use nearest-face routing with zero
+                // protrusion and do not need the divergent-sibling adjustment.
+                //
+                // Cross-container same-rank non-cycle edges (e.g. a nested node
+                // connecting to an adjacent sibling container or root-level
+                // node) still need the adjustment so the protrusion exits the
+                // source container. These edges have endpoints at different
+                // nesting depths or in different parent containers.
                 if pass1_info.rank_from == pass1_info.rank_to && !pass1_info.is_cycle_edge {
-                    continue;
+                    let same_parent = {
+                        let from_chain = node_nesting_infos
+                            .get(&pass1_info.edge.from)
+                            .map(|ni| ni.ancestor_chain.as_slice())
+                            .unwrap_or(&[]);
+                        let to_chain = node_nesting_infos
+                            .get(&pass1_info.edge.to)
+                            .map(|ni| ni.ancestor_chain.as_slice())
+                            .unwrap_or(&[]);
+                        // Same parent: equal depth AND identical ancestor chain
+                        // up to (but not including) the node itself.
+                        let from_parent = from_chain.len().saturating_sub(1);
+                        let to_parent = to_chain.len().saturating_sub(1);
+                        from_parent == to_parent
+                            && from_chain.get(..from_parent) == to_chain.get(..to_parent)
+                    };
+                    if same_parent {
+                        continue;
+                    }
                 }
                 // === From endpoint === //
                 if let Some(from_face) = pass1_info.from_face {
@@ -1650,8 +1676,8 @@ impl OrthoProtrusionCalculator {
     ///   LCA).
     /// * `face`: the face at which `node_id` protrudes.
     fn min_protrusion_divergent_sibling_extent<'id>(
-        node_id: &NodeId<'id>,
-        other_node_id: &NodeId<'id>,
+        node_id_from: &NodeId<'id>,
+        node_id_to: &NodeId<'id>,
         face: NodeFace,
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
@@ -1659,48 +1685,116 @@ impl OrthoProtrusionCalculator {
         entity_types: &EntityTypes<'id>,
     ) -> f32 {
         // 1. Compute LCA depth.
-        let lca_depth = Self::lca_depth(node_id, other_node_id, node_nesting_infos);
+        let lca_depth = Self::lca_depth(node_id_from, node_id_to, node_nesting_infos);
 
         // 2. Find divergent ancestor of node_id.
-        let Some(div_ancestor_id) =
-            Self::divergent_ancestor_id(node_id, lca_depth, node_nesting_infos)
+        let Some(divergent_ancestor_id_from) =
+            Self::divergent_ancestor_id(node_id_from, lca_depth, node_nesting_infos)
         else {
             return 0.0;
         };
 
         // 3. Find parent container of divergent ancestor (None = root level).
-        let div_ancestor_parent = node_nesting_infos.get(div_ancestor_id).and_then(|ni| {
-            ni.ancestor_chain
-                .len()
-                .checked_sub(2)
-                .map(|i| &ni.ancestor_chain[i])
-        });
+        let divergent_ancestor_parent_id_from = node_nesting_infos
+            .get(divergent_ancestor_id_from)
+            .and_then(|node_nesting_info| {
+                node_nesting_info
+                    .ancestor_chain
+                    .len()
+                    .checked_sub(2)
+                    .map(|parent_index| &node_nesting_info.ancestor_chain[parent_index])
+            });
 
         // 4. Get rank of divergent ancestor in its parent container.
-        let Some(ranks) = node_ranks_nested.ranks_for(div_ancestor_parent) else {
+        let Some(node_ranks) = node_ranks_nested.ranks_for(divergent_ancestor_parent_id_from)
+        else {
             return 0.0;
         };
-        let Some(&div_ancestor_rank) = ranks.get(div_ancestor_id) else {
+        let Some(&div_ancestor_rank) = node_ranks.get(divergent_ancestor_id_from) else {
             return 0.0;
         };
 
-        // 5. Collect all same-rank siblings of the same node category (including the
+        // 5. Collect same-rank siblings of the same node category (including the
         //    divergent ancestor). Nodes from other categories (e.g. process nodes) are
         //    excluded so that thing-node edges are not routed around process nodes.
-        let node_cat = Self::node_category(node_id, entity_types);
-        let same_rank_siblings: Vec<&NodeId<'id>> = ranks
+        //
+        //    The divergent ancestor of `other_node_id` at the LCA level is also
+        //    excluded. For forward-facing cross-container edges (adjacent divergent
+        //    ancestors), the protrusion only needs to clear the source's own container
+        //    boundary, not route around the target container. Excluding the target's
+        //    divergent ancestor prevents over-protrusion that would make
+        //    `from_protrusion_capped` zero out the source protrusion.
+        //
+        //    Additionally, siblings outside the range between the `from` and `to`
+        //    divergent ancestors (by nesting-path index) are excluded. For adjacent
+        //    divergent-ancestor pairs, the protrusion only needs to exit the source
+        //    container and reach the gap to the destination -- not route around any
+        //    further containers past the destination. Only siblings that lie on the
+        //    same side as the `from` ancestor (up to and including the `to` ancestor
+        //    position) are considered. The nesting-path index reliably reflects the
+        //    structural ordering without relying on layout coordinates.
+        //
+        //    For cycle edges the equalization in Step 6 takes the max of both
+        //    endpoints' protrusions, so excluding the target's ancestor from the from-
+        //    computation is compensated by the to-computation (which excludes the
+        //    from-ancestor instead), and the max covers all nodes correctly.
+        let node_category = Self::node_category(node_id_from, entity_types);
+        let divergent_ancestor_id_to =
+            Self::divergent_ancestor_id(node_id_to, lca_depth, node_nesting_infos);
+        // Look up the nesting-path index of the `from` divergent ancestor at
+        // the LCA level. This bounds the sibling range to nodes structurally
+        // between the two divergent ancestors.
+        let divergent_ancestor_index_from: Option<usize> = node_nesting_infos
+            .get(divergent_ancestor_id_from)
+            .and_then(|nni| nni.nesting_path.get(lca_depth).copied());
+        // Look up the nesting-path index of the `to` divergent ancestor at the
+        // LCA level, if present.
+        let divergent_ancestor_index_to: Option<usize> = divergent_ancestor_id_to
+            .and_then(|divergent_ancestor_id_to| node_nesting_infos.get(divergent_ancestor_id_to))
+            .and_then(|nni| nni.nesting_path.get(lca_depth).copied());
+        let same_rank_siblings: Vec<&NodeId<'id>> = node_ranks
             .iter()
-            .filter(|&(_, rank)| *rank == div_ancestor_rank)
-            .filter(|(id, _)| Self::node_category(id, entity_types) == node_cat)
+            // Only include siblings that are at the same rank as the divergent_ancestor.
+            .filter(|&(_, sibling_rank)| *sibling_rank == div_ancestor_rank)
+            // Only include siblings that are of the same category as the divergent_ancestor.
+            .filter(|(node_id_sibling, _)| {
+                Self::node_category(node_id_sibling, entity_types) == node_category
+            })
+            // Only include siblings that are not the `to` divergent ancestor.
+            .filter(|(node_id_sibling, _)| divergent_ancestor_id_to != Some(*node_id_sibling))
+            // Only include siblings whose nesting-path index does not lie
+            // past the `to` divergent ancestor (i.e., keep siblings on the
+            // same side as the `from` ancestor, up to and including the `to`
+            // ancestor position). Siblings beyond the `to` ancestor lie past
+            // the destination container and should not influence the minimum
+            // protrusion.
+            .filter(|(node_id_sibling, _)| {
+                let (Some(index_from), Some(index_to)) =
+                    (divergent_ancestor_index_from, divergent_ancestor_index_to)
+                else {
+                    return true;
+                };
+                let Some(sibling_index) = node_nesting_infos
+                    .get(*node_id_sibling)
+                    .and_then(|nni| nni.nesting_path.get(lca_depth).copied())
+                else {
+                    return true;
+                };
+                if index_from <= index_to {
+                    sibling_index <= index_to
+                } else {
+                    sibling_index >= index_to
+                }
+            })
             .map(|(id, _)| id)
             .collect();
 
         // 6. Get face coordinate of node_id (the coordinate of the face in the
         //    rank/protrusion direction).
-        let Some(&node_info) = svg_node_info_map.get(node_id) else {
+        let Some(&node_info_from) = svg_node_info_map.get(node_id_from) else {
             return 0.0;
         };
-        let node_face_coord = Self::face_coord_for_endpoint(node_info, face);
+        let node_face_coord = Self::face_coord_for_endpoint(node_info_from, face);
 
         // 7. Find extreme sibling coordinate in the protrusion direction.
         let Some(sibling_extreme) =
@@ -1709,10 +1803,14 @@ impl OrthoProtrusionCalculator {
             return 0.0;
         };
 
-        // 8. Compute minimum protrusion: face_sign * (sibling_extreme -
-        //    node_face_coord). For Bottom/Right faces (sign = +1): min =
-        //    sibling_extreme - node_face_coord. For Top/Left faces (sign = -1): min =
-        //    node_face_coord - sibling_extreme.
+        // 8. Compute minimum protrusion:
+        //
+        //     `face_sign * (sibling_extreme - node_face_coord)`
+        //
+        //     - For Bottom/Right faces (sign = +1): `min = sibling_extreme -
+        //       node_face_coord.`
+        //     - For Top/Left faces (sign = -1): `min = node_face_coord -
+        //       sibling_extreme.`
         let face_sign: f32 = match face {
             NodeFace::Bottom | NodeFace::Right => 1.0,
             NodeFace::Top | NodeFace::Left => -1.0,
@@ -1720,18 +1818,23 @@ impl OrthoProtrusionCalculator {
         (face_sign * (sibling_extreme - node_face_coord)).max(0.0)
     }
 
-    /// Returns the coordinate of a node's face along the protrusion axis.
+    /// Returns the coordinate of a node's envelope face along the protrusion
+    /// axis.
     ///
-    /// For `Bottom` face: the bottom edge y-coordinate.
-    /// For `Top` face: the top edge y-coordinate.
-    /// For `Right` face: the right edge x-coordinate.
-    /// For `Left` face: the left edge x-coordinate.
+    /// Uses envelope bounds (which include edge label wrapper slots) so that
+    /// protrusions clear the full label area, not just the inner node
+    /// rectangle.
+    ///
+    /// For `Bottom` face: the bottom edge y-coordinate of the envelope.
+    /// For `Top` face: the top edge y-coordinate of the envelope.
+    /// For `Right` face: the right edge x-coordinate of the envelope.
+    /// For `Left` face: the left edge x-coordinate of the envelope.
     fn face_coord_for_endpoint(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
         match face {
-            NodeFace::Bottom => info.y + info.height_collapsed,
-            NodeFace::Top => info.y,
-            NodeFace::Right => info.x + info.width,
-            NodeFace::Left => info.x,
+            NodeFace::Bottom => info.envelope_y + info.envelope_height_collapsed,
+            NodeFace::Top => info.envelope_y,
+            NodeFace::Right => info.envelope_x + info.envelope_width,
+            NodeFace::Left => info.envelope_x,
         }
     }
 

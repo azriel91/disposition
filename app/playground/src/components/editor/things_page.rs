@@ -16,12 +16,12 @@ use dioxus::{
     signals::{ReadableExt, Signal},
 };
 use disposition::input_model::InputDiagram;
-use disposition_input_rt::{OnChangeTarget, ThingsPageOps};
+use disposition_input_rt::{EntityPageOps, OnChangeTarget, ThingsPageOps};
 
 use crate::components::editor::{
     common::{RenameRefocus, ADD_BTN, SECTION_HEADING},
     datalists::list_ids,
-    id_value_row::IdValueRow,
+    id_value_row::IdValueRowTextSingle,
     reorderable::ReorderableContainer,
 };
 
@@ -73,7 +73,7 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                         let id = id.clone();
                         let name = name.clone();
                         rsx! {
-                            IdValueRow {
+                            IdValueRowTextSingle {
                                 key: "thing_name_{id}",
                                 entry_id: id,
                                 entry_value: name,
@@ -169,7 +169,7 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                         let on_change = OnChangeTarget::CopyText;
                         let current_value = text.clone();
                         rsx! {
-                            IdValueRow {
+                            IdValueRowTextSingle {
                                 key: "thing_copy_text_{id}",
                                 entry_id: id,
                                 entry_value: text,
@@ -183,12 +183,12 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                                 focus_index: copy_text_focus_idx,
                                 rename_refocus: copy_text_rename_refocus,
                                 on_move: move |(from, to)| {
-                                    ThingsPageOps::kv_entry_move(&mut input_diagram.write(), on_change, from, to);
+                                    EntityPageOps::kv_entry_move(&mut input_diagram.write(), on_change, from, to);
                                 },
                                 on_rename: {
                                     let current_value = current_value.clone();
                                     move |(id_old, id_new): (String, String)| {
-                                        ThingsPageOps::kv_entry_rename(
+                                        EntityPageOps::kv_entry_rename(
                                             &mut input_diagram.write(),
                                             on_change,
                                             &id_old,
@@ -198,14 +198,14 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                                     }
                                 },
                                 on_update: move |(id, value): (String, String)| {
-                                    ThingsPageOps::kv_entry_update(&mut input_diagram.write(), on_change, &id, &value);
+                                    EntityPageOps::kv_entry_update(&mut input_diagram.write(), on_change, &id, &value);
                                 },
                                 on_remove: move |id: String| {
-                                    ThingsPageOps::kv_entry_remove(&mut input_diagram.write(), on_change, &id);
+                                    EntityPageOps::kv_entry_remove(&mut input_diagram.write(), on_change, &id);
                                 },
                                 on_add: move |insert_at: usize| {
                                     ThingsPageOps::copy_text_add(&mut input_diagram.write());
-                                    ThingsPageOps::kv_entry_move(&mut input_diagram.write(), on_change, copy_text_count, insert_at);
+                                    EntityPageOps::kv_entry_move(&mut input_diagram.write(), on_change, copy_text_count, insert_at);
                                 },
                             }
                         }
@@ -220,108 +220,6 @@ pub fn ThingCopyTextPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                     ThingsPageOps::copy_text_add(&mut input_diagram.write());
                 },
                 "+ Add copy text"
-            }
-        }
-    }
-}
-
-// === Entity Descriptions sub-page === //
-
-/// The **Things: Descriptions** editor sub-page.
-///
-/// Edits `entity_descs` -- descriptions rendered next to entities in the
-/// diagram.
-#[component]
-pub fn ThingEntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
-    let desc_drag_idx: Signal<Option<usize>> = use_signal(|| None);
-    let desc_drop_target: Signal<Option<usize>> = use_signal(|| None);
-    let desc_focus_idx: Signal<Option<usize>> = use_signal(|| None);
-    let desc_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
-
-    let diagram = input_diagram.read();
-    let desc_entries: Vec<(String, String)> = diagram
-        .entity_descs
-        .iter()
-        .map(|(id, desc)| (id.as_str().to_owned(), desc.clone()))
-        .collect();
-    drop(diagram);
-
-    let desc_count = desc_entries.len();
-
-    rsx! {
-        div {
-            class: "flex flex-col gap-2",
-
-            h3 { class: SECTION_HEADING, "Entity Descriptions" }
-            p {
-                class: "text-xs text-gray-500 mb-1",
-                "Descriptions rendered next to entities in the diagram."
-            }
-
-            ReorderableContainer {
-                data_attr: "data-entry-id".to_owned(),
-                section_id: "entity_descs".to_owned(),
-                focus_index: desc_focus_idx,
-                rename_refocus: Some(desc_rename_refocus),
-
-                for (idx, (id, desc)) in desc_entries.iter().enumerate() {
-                    {
-                        let id = id.clone();
-                        let desc = desc.clone();
-                        let on_change = OnChangeTarget::EntityDesc;
-                        let current_value = desc.clone();
-                        rsx! {
-                            IdValueRow {
-                                key: "entity_desc_{id}",
-                                entry_id: id,
-                                entry_value: desc,
-                                id_list: list_ids::ENTITY_IDS.to_owned(),
-                                id_placeholder: "id".to_owned(),
-                                value_placeholder: "value".to_owned(),
-                                index: idx,
-                                entry_count: desc_count,
-                                drag_index: desc_drag_idx,
-                                drop_target: desc_drop_target,
-                                focus_index: desc_focus_idx,
-                                rename_refocus: desc_rename_refocus,
-                                on_move: move |(from, to)| {
-                                    ThingsPageOps::kv_entry_move(&mut input_diagram.write(), on_change, from, to);
-                                },
-                                on_rename: {
-                                    let current_value = current_value.clone();
-                                    move |(id_old, id_new): (String, String)| {
-                                        ThingsPageOps::kv_entry_rename(
-                                            &mut input_diagram.write(),
-                                            on_change,
-                                            &id_old,
-                                            &id_new,
-                                            &current_value,
-                                        );
-                                    }
-                                },
-                                on_update: move |(id, value): (String, String)| {
-                                    ThingsPageOps::kv_entry_update(&mut input_diagram.write(), on_change, &id, &value);
-                                },
-                                on_remove: move |id: String| {
-                                    ThingsPageOps::kv_entry_remove(&mut input_diagram.write(), on_change, &id);
-                                },
-                                on_add: move |insert_at: usize| {
-                                    ThingsPageOps::entity_desc_add(&mut input_diagram.write());
-                                    ThingsPageOps::kv_entry_move(&mut input_diagram.write(), on_change, desc_count, insert_at);
-                                },
-                            }
-                        }
-                    }
-                }
-            }
-
-            button {
-                class: ADD_BTN,
-                tabindex: 0,
-                onclick: move |_| {
-                    ThingsPageOps::entity_desc_add(&mut input_diagram.write());
-                },
-                "+ Add description"
             }
         }
     }

@@ -18,6 +18,10 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0006_PROCESS_STEP_NODES_CYCLIC_EDGE,
     INPUT_DIAGRAM_0007_EDGE_FROM_NODE_TO_NESTED_NODE,
     INPUT_DIAGRAM_0008_EDGE_FROM_NODE_TO_NESTED_RANK_1_NODE,
+    INPUT_DIAGRAM_0009_EDGE_WITH_DESCRIPTION, INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION,
+    INPUT_DIAGRAM_0011_CONTAINED_EDGE_WITH_DESCRIPTION,
+    INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC,
+    INPUT_DIAGRAM_0013_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC_2,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -1852,5 +1856,458 @@ fn test_edge_from_toplevel_to_nested_rank_0_node_uses_normal_routing_complex_dia
              path_d = {:?}",
             bob_charlie_1_edge.path_d,
         );
+    }
+}
+
+// === Edge description / label tests === //
+
+/// Returns `SvgElements` for the edge-with-description fixture (0009).
+///
+/// The fixture has two nodes (`t_a`, `t_b`) connected by a single sequence
+/// edge (`edge_ab__0`) and an entity_desc for that edge.
+fn build_svg_elements_from_edge_with_description() -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0009_EDGE_WITH_DESCRIPTION)
+}
+
+/// An edge with a description in `entity_descs` must produce a non-empty
+/// `edge_label_infos` entry in `SvgElements`.
+///
+/// The edge ID used as the `entity_descs` key follows the generated format
+/// `"{edge_group_id}__{edge_index}"`, e.g. `edge_ab__0` for index 0 of the
+/// `edge_ab` group.
+#[test]
+fn test_edge_description_produces_edge_label_infos() {
+    for svg_elements in build_svg_elements_from_edge_with_description() {
+        assert!(
+            !svg_elements.edge_label_infos.is_empty(),
+            "Expected edge_label_infos to be non-empty when entity_descs contains the edge ID"
+        );
+
+        let label_info = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|info| info.edge_id.as_str() == "edge_ab__0")
+            .expect("Expected an edge_label_info entry for edge_ab__0");
+
+        // Both the from-endpoint (t_a bottom face) and to-endpoint (t_b top
+        // face) should have label slots with text spans.
+        let from_label = label_info
+            .from_label
+            .as_ref()
+            .expect("Expected from_label to be present for edge_ab__0");
+        assert!(
+            !from_label.text_spans.is_empty(),
+            "Expected from_label.text_spans to be non-empty for edge_ab__0"
+        );
+
+        let to_label = label_info
+            .to_label
+            .as_ref()
+            .expect("Expected to_label to be present for edge_ab__0");
+        assert!(
+            !to_label.text_spans.is_empty(),
+            "Expected to_label.text_spans to be non-empty for edge_ab__0"
+        );
+    }
+}
+
+fn build_svg_elements_from_self_loop_edge_with_description(
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION)
+}
+
+fn build_svg_elements_from_contained_edge_with_description(
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0011_CONTAINED_EDGE_WITH_DESCRIPTION)
+}
+
+/// The text in the edge label spans must match the description from
+/// `entity_descs`.
+#[test]
+fn test_edge_description_text_matches_entity_descs() {
+    let expected_text = "Alpha to Beta connection";
+
+    for svg_elements in build_svg_elements_from_edge_with_description() {
+        let label_info = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|info| info.edge_id.as_str() == "edge_ab__0")
+            .expect("Expected an edge_label_info entry for edge_ab__0");
+
+        // Collect all span text from both endpoints (both show the same
+        // description text).
+        let from_texts: Vec<&str> = label_info
+            .from_label
+            .as_ref()
+            .map(|l| l.text_spans.iter().map(|s| s.text.as_str()).collect())
+            .unwrap_or_default();
+        let combined_from = from_texts.join("");
+        assert!(
+            combined_from.contains(expected_text)
+                || expected_text
+                    .split_whitespace()
+                    .all(|word| from_texts.iter().any(|t| t.contains(word))),
+            "from_label spans {from_texts:?} should contain the description text '{expected_text}'"
+        );
+
+        let to_texts: Vec<&str> = label_info
+            .to_label
+            .as_ref()
+            .map(|l| l.text_spans.iter().map(|s| s.text.as_str()).collect())
+            .unwrap_or_default();
+        let combined_to = to_texts.join("");
+        assert!(
+            combined_to.contains(expected_text)
+                || expected_text
+                    .split_whitespace()
+                    .all(|word| to_texts.iter().any(|t| t.contains(word))),
+            "to_label spans {to_texts:?} should contain the description text '{expected_text}'"
+        );
+    }
+}
+
+/// A self-loop edge with a description must produce a non-empty
+/// `edge_label_infos` entry in `SvgElements` with a `from_label` slot.
+///
+/// Since `from == to`, only a single label slot is used (`from_label`).
+/// `to_label` is expected to be `None`.
+#[test]
+fn test_self_loop_edge_description_produces_from_label() {
+    for svg_elements in build_svg_elements_from_self_loop_edge_with_description() {
+        assert!(
+            !svg_elements.edge_label_infos.is_empty(),
+            "Expected edge_label_infos to be non-empty for a self-loop with a description"
+        );
+
+        let label_info = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|info| info.edge_id.as_str() == "edge_self__0")
+            .expect("Expected an edge_label_info entry for edge_self__0");
+
+        // Self-loop: from_label must be present with text spans.
+        let from_label = label_info
+            .from_label
+            .as_ref()
+            .expect("Expected from_label to be present for a self-loop edge");
+        assert!(
+            !from_label.text_spans.is_empty(),
+            "Expected from_label.text_spans to be non-empty for self-loop edge_self__0"
+        );
+
+        // Self-loop: to_label is None because from == to and one slot suffices.
+        assert!(
+            label_info.to_label.is_none(),
+            "Expected to_label to be None for a self-loop edge (from == to)"
+        );
+    }
+}
+
+/// A contained edge (parent -> child where child is inside parent) with a
+/// description must produce a non-empty `edge_label_infos` entry in
+/// `SvgElements` with both `from_label` and `to_label` slots populated.
+#[test]
+fn test_contained_edge_description_produces_both_labels() {
+    for svg_elements in build_svg_elements_from_contained_edge_with_description() {
+        assert!(
+            !svg_elements.edge_label_infos.is_empty(),
+            "Expected edge_label_infos to be non-empty for a contained edge with a description"
+        );
+
+        let label_info = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|info| info.edge_id.as_str() == "edge_contained__0")
+            .expect("Expected an edge_label_info entry for edge_contained__0");
+
+        // Contained edge: from_label (on parent node) must have text spans.
+        let from_label = label_info
+            .from_label
+            .as_ref()
+            .expect("Expected from_label to be present for contained edge_contained__0");
+        assert!(
+            !from_label.text_spans.is_empty(),
+            "Expected from_label.text_spans to be non-empty for contained edge_contained__0"
+        );
+
+        // Contained edge: to_label (on child node) must also have text spans.
+        let to_label = label_info
+            .to_label
+            .as_ref()
+            .expect("Expected to_label to be present for contained edge_contained__0");
+        assert!(
+            !to_label.text_spans.is_empty(),
+            "Expected to_label.text_spans to be non-empty for contained edge_contained__0"
+        );
+    }
+}
+
+// === Edge from nested node to outer node, cyclic (0012) === //
+
+/// Builds `SvgElements` from the 0012 fixture: symmetric edge between
+/// `t_alice` (nested in `t_alice_outer`) and `t_bob` (root-level node).
+fn build_svg_elements_from_edge_from_nested_node_to_outer_node_cyclic(
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC)
+}
+
+/// For the symmetric edge between `t_alice` (nested in `t_alice_outer`) and
+/// `t_bob` (root level), the from-protrusion of the edge from `t_alice` to
+/// `t_bob` must be large enough to clear `t_alice_outer`'s right boundary.
+///
+/// Before the fix, the divergent ancestors of `t_alice` and `t_bob` --
+/// `t_alice_outer` (index 0) and `t_bob` (index 1) -- are adjacent siblings
+/// at the root level. The edge was incorrectly classified as a clockwise cycle
+/// edge because `t_alice` and `t_bob` are at the same LCA rank (both 0) and
+/// the `nodes_adjacent_siblings_are` check (which only compares the endpoint
+/// nodes' own sibling relationship) returned `false` for nodes at different
+/// nesting depths.
+///
+/// The fix introduces `nodes_divergent_ancestors_adjacent_siblings_are` and
+/// uses it in the `is_cycle_edge` check so that the edge is correctly
+/// classified as a forward edge. As a result:
+///
+/// * `from_protrusion` is at least `t_alice_outer.right - t_alice.right`,
+///   exiting `t_alice_outer` before connecting to `t_bob`.
+/// * `to_protrusion` is 0 (no container to exit for `t_bob`).
+/// * The path approaches `t_alice`'s right face from the right, not from the
+///   left.
+#[test]
+fn test_edge_from_nested_to_outer_adjacent_divergent_ancestors_uses_forward_routing() {
+    for svg_elements in build_svg_elements_from_edge_from_nested_node_to_outer_node_cyclic() {
+        let alice_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_alice_outer")
+            .expect("Expected t_alice_outer in svg_node_infos");
+        let alice = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_alice")
+            .expect("Expected t_alice in svg_node_infos");
+
+        let alice_right = alice.envelope_x + alice.envelope_width;
+        let alice_outer_right = alice_outer.envelope_x + alice_outer.envelope_width;
+        let expected_min_from_protrusion = (alice_outer_right - alice_right).max(0.0);
+
+        // Edge from t_alice (nested) to t_bob (root): from_protrusion must
+        // clear t_alice_outer's right boundary.
+        let alice_bob_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_bob")
+            .expect("Expected edge from t_alice to t_bob");
+
+        assert!(
+            alice_bob_edge.ortho_protrusion_params.from_protrusion >= expected_min_from_protrusion,
+            "edge t_alice -> t_bob from_protrusion {:.2} should be >= {:.2} \
+             (t_alice_outer right {:.2} - t_alice right {:.2}) to clear t_alice_outer. \
+             Path may be routing clockwise instead of forward. path_d = {:?}",
+            alice_bob_edge.ortho_protrusion_params.from_protrusion,
+            expected_min_from_protrusion,
+            alice_outer_right,
+            alice_right,
+            alice_bob_edge.path_d,
+        );
+
+        // Edge from t_bob (root) to t_alice (nested): to_protrusion must
+        // clear t_alice_outer's right boundary (the path arrives at t_alice
+        // from the right side of t_alice_outer).
+        let bob_alice_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_alice")
+            .expect("Expected edge from t_bob to t_alice");
+
+        assert!(
+            bob_alice_edge.ortho_protrusion_params.to_protrusion >= expected_min_from_protrusion,
+            "edge t_bob -> t_alice to_protrusion {:.2} should be >= {:.2} \
+                 (t_alice_outer right {:.2} - t_alice right {:.2}) to clear t_alice_outer. \
+                 path_d = {:?}",
+            bob_alice_edge.ortho_protrusion_params.to_protrusion,
+            expected_min_from_protrusion,
+            alice_outer_right,
+            alice_right,
+            bob_alice_edge.path_d,
+        );
+    }
+}
+
+// === Edge from nested node to outer node, cyclic part 2 (0013) === //
+
+/// Builds `SvgElements` from the 0013 fixture: cyclic edges between a nested
+/// node and an outer container in a diagram with three root-level siblings
+/// (`t_alice_outer`, `t_bob_outer`, `t_charlie`).
+fn build_svg_elements_from_edge_from_nested_node_to_outer_node_cyclic_2(
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0013_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC_2)
+}
+
+/// For the 0013 fixture with three root-level containers (`t_alice_outer` at
+/// index 0, `t_bob_outer` at index 1, `t_charlie` at index 2), the two cyclic
+/// cross-container edges must use Z/S forward routing that stays within the
+/// gap between the adjacent containers -- not route all the way past
+/// `t_charlie`.
+///
+/// Edge 1: `edge_dep_alice_bob_outer__0` (from `t_alice` nested inside
+/// `t_alice_outer` to `t_bob_outer`):
+///
+/// * Before the fix the `from_protrusion` was computed as the distance from
+///   `t_alice`'s right face all the way to `t_charlie`'s right edge (297 px),
+///   because `t_charlie` was incorrectly included in the same-rank sibling
+///   extreme. The `from_protrusion_capped` function then capped it to the
+///   node-to-node gap (80 px), placing the protrusion tip exactly at
+///   `t_bob_outer`'s left face. This made the path a degenerate L-shape with no
+///   Z/S bend.
+///
+/// * After the fix the sibling extreme excludes `t_charlie` (which is spatially
+///   beyond `t_bob_outer` in the rightward direction), so `from_protrusion`
+///   equals the distance from `t_alice`'s right face to `t_alice_outer`'s right
+///   edge (~56 px). The path is a proper Z/S curve that exits `t_alice_outer`
+///   and enters `t_bob_outer`'s left face.
+///
+/// Edge 2: `edge_dep_alice_bob__0` (from `t_bob` nested inside `t_bob_outer`
+/// to `t_alice_outer`):
+///
+/// * Before the fix the `to_protrusion` (for `t_alice_outer`'s right face) was
+///   computed as the distance from `t_alice_outer`'s right edge to
+///   `t_charlie`'s right edge (241 px), because `t_charlie` was included in the
+///   sibling extreme. The path went all the way to x = 388 (past `t_charlie`)
+///   before looping back to `t_bob`'s left face.
+///
+/// * After the fix `t_charlie` is excluded from the sibling extreme, so
+///   `to_protrusion` is 0 (only `t_alice_outer` itself is included, and its
+///   right edge equals its own right face coordinate). The path is a proper Z/S
+///   curve that stays within the gap between `t_alice_outer` and `t_bob_outer`.
+#[test]
+fn test_adjacent_divergent_ancestor_edges_dont_route_past_charlie() {
+    for svg_elements in build_svg_elements_from_edge_from_nested_node_to_outer_node_cyclic_2() {
+        let alice_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_alice_outer")
+            .expect("Expected t_alice_outer in svg_node_infos");
+        let alice = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_alice")
+            .expect("Expected t_alice in svg_node_infos");
+        let bob_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_bob_outer")
+            .expect("Expected t_bob_outer in svg_node_infos");
+        let charlie = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie")
+            .expect("Expected t_charlie in svg_node_infos");
+
+        let alice_right = alice.envelope_x + alice.envelope_width;
+        let alice_outer_right = alice_outer.envelope_x + alice_outer.envelope_width;
+        let bob_outer_right = bob_outer.envelope_x + bob_outer.envelope_width;
+        let charlie_left = charlie.envelope_x;
+
+        // === Edge 1: t_alice -> t_bob_outer === //
+        //
+        // `from_protrusion` must be large enough to exit `t_alice_outer` but
+        // small enough that it does not reach `t_charlie`'s left boundary.
+        let alice_bob_outer_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| {
+                e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_bob_outer"
+            })
+            .expect("Expected edge from t_alice to t_bob_outer");
+
+        let min_from_protrusion = (alice_outer_right - alice_right).max(0.0);
+        let max_from_protrusion = charlie_left - alice_right;
+
+        assert!(
+            alice_bob_outer_edge.ortho_protrusion_params.from_protrusion >= min_from_protrusion,
+            "edge t_alice -> t_bob_outer from_protrusion {:.2} should be >= {:.2} \
+                 (t_alice_outer right {:.2} - t_alice right {:.2}) to exit t_alice_outer. \
+                 path_d = {:?}",
+            alice_bob_outer_edge.ortho_protrusion_params.from_protrusion,
+            min_from_protrusion,
+            alice_outer_right,
+            alice_right,
+            alice_bob_outer_edge.path_d,
+        );
+
+        assert!(
+            alice_bob_outer_edge.ortho_protrusion_params.from_protrusion < max_from_protrusion,
+            "edge t_alice -> t_bob_outer from_protrusion {:.2} should be < {:.2} \
+                 (t_charlie left {:.2} - t_alice right {:.2}): path should not route \
+                 past t_charlie. path_d = {:?}",
+            alice_bob_outer_edge.ortho_protrusion_params.from_protrusion,
+            max_from_protrusion,
+            charlie_left,
+            alice_right,
+            alice_bob_outer_edge.path_d,
+        );
+
+        // === Edge 2: t_bob -> t_alice_outer === //
+        //
+        // `to_protrusion` (for `t_alice_outer`'s right face) must be small
+        // enough that the path does not reach `t_charlie`'s left boundary.
+        let bob_alice_outer_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|svg_edge_info| svg_edge_info.edge_id.as_str() == "edge_dep_bob_alice_outer__0")
+            .expect("Expected edge from t_bob to t_alice_outer");
+
+        let max_to_protrusion = charlie_left - alice_outer_right;
+
+        assert!(
+            bob_alice_outer_edge.ortho_protrusion_params.to_protrusion < max_to_protrusion,
+            "edge t_bob -> t_alice_outer to_protrusion {:.2} should be < {:.2} \
+                 (t_charlie left {:.2} - t_alice_outer right {:.2}): path should not \
+                 route past t_charlie. path_d = {:?}",
+            bob_alice_outer_edge.ortho_protrusion_params.to_protrusion,
+            max_to_protrusion,
+            charlie_left,
+            alice_outer_right,
+            bob_alice_outer_edge.path_d,
+        );
+
+        // The path for edge 2 must also stay within the gap between
+        // `t_alice_outer`/`t_bob_outer` and `t_charlie`. No path coordinate
+        // should have an x value beyond `t_bob_outer`'s right edge.
+        let path_coords = {
+            let mut coords: Vec<(f32, f32)> = Vec::new();
+            let path_str = bob_alice_outer_edge.path_d.as_str();
+            // Parse all numeric coordinate pairs from M, L, C commands.
+            let mut chars = path_str.chars().peekable();
+            while let Some(ch) = chars.next() {
+                if ch == 'M' || ch == 'L' {
+                    let rest: String = chars
+                        .by_ref()
+                        .take_while(|&c| c != 'M' && c != 'L' && c != 'C')
+                        .collect();
+                    if let Some((x_str, y_str)) = rest.split_once(',') {
+                        let x: f32 = x_str.trim().parse().unwrap_or(0.0);
+                        let y: f32 = y_str
+                            .trim()
+                            .split_whitespace()
+                            .next()
+                            .unwrap_or("0")
+                            .parse()
+                            .unwrap_or(0.0);
+                        coords.push((x, y));
+                    }
+                }
+            }
+            coords
+        };
+        for (x, _y) in &path_coords {
+            assert!(
+                *x <= bob_outer_right + 1.0,
+                "edge t_bob -> t_alice_outer path has coordinate x={x:.2} which exceeds \
+                     t_bob_outer's right edge {bob_outer_right:.2}. The path is routing past \
+                     t_charlie. path_d = {:?}",
+                bob_alice_outer_edge.path_d,
+            );
+        }
     }
 }

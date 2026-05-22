@@ -1,7 +1,7 @@
-use disposition_ir_model::node::NodeId;
+use disposition_ir_model::node::{NodeFace, NodeId};
 use disposition_model_common::Map;
 
-use super::edge_model::{NodeFace, NodeIdAndFace};
+use super::edge_model::NodeIdAndFace;
 
 /// Tracks which edges contact which face of which node, and computes
 /// pixel offsets so that multiple edges sharing a face are spread evenly

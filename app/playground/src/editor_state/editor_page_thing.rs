@@ -14,8 +14,6 @@ pub enum EditorPageThing {
     Names,
     /// Things: clipboard text per ThingId.
     CopyText,
-    /// Things: entity descriptions.
-    EntityDescs,
 }
 
 impl EditorPageThing {
@@ -27,7 +25,6 @@ impl EditorPageThing {
         match self {
             Self::Names => "Things: Names",
             Self::CopyText => "Things: Copy Text",
-            Self::EntityDescs => "Things: Descriptions",
         }
     }
 }

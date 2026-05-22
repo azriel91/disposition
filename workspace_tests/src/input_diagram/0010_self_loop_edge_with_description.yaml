@@ -1,0 +1,12 @@
+things:
+  t_a: Alpha
+thing_hierarchy:
+  t_a: {}
+thing_dependencies:
+  edge_self:
+    kind: sequence
+    things:
+      - t_a
+      - t_a
+entity_descs:
+  edge_self__0: "Self-loop description"

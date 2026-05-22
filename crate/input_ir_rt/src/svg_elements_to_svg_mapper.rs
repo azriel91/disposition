@@ -5,7 +5,7 @@ use crate::string_xml_escaper::StringXmlEscaper;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use disposition_input_model::InputDiagram;
 use disposition_ir_model::entity::EntityTailwindClasses;
-use disposition_svg_model::{SvgEdgeInfo, SvgElements, SvgNodeInfo};
+use disposition_svg_model::{SvgEdgeInfo, SvgEdgeLabelInfo, SvgElements, SvgNodeInfo};
 use disposition_taffy_model::{TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
 
 use crate::NOTO_SANS_MONO_TTF;
@@ -179,6 +179,7 @@ impl SvgElementsToSvgMapper {
             svg_height,
             svg_node_infos,
             svg_edge_infos,
+            edge_label_infos,
             svg_process_infos: _,
             tailwind_classes,
             css,
@@ -221,6 +222,9 @@ impl SvgElementsToSvgMapper {
 
         // Render edges
         Self::render_edges(&mut content_buffer, svg_edge_infos, tailwind_classes);
+
+        // Render edge labels
+        Self::render_edge_labels(&mut content_buffer, edge_label_infos, tailwind_classes);
 
         // Generate CSS from tailwind classes
         //
@@ -498,6 +502,87 @@ impl SvgElementsToSvgMapper {
                 </g>"
             )
             .unwrap();
+        });
+    }
+
+    /// Writes edge labels to the SVG content buffer.
+    ///
+    /// For each [`SvgEdgeLabelInfo`], emits a `<g>` element for the `from`
+    /// label and a `<g>` element for the `to` label (when their `text_spans`
+    /// are non-empty). Each `<g>` carries the edge's Tailwind CSS classes so
+    /// that the label inherits the edge's colour and visibility behaviour.
+    ///
+    /// The text coordinates in the label's [`SvgTextSpan`]s are absolute (not
+    /// relative to the enclosing `<g>`).
+    ///
+    /// ```svg
+    /// <g id="{edge_id}__from_label" {class_attr}>
+    ///   <text x="{x}" y="{y}" stroke-width="0">{text}</text>
+    /// </g>
+    /// <g id="{edge_id}__to_label" {class_attr}>
+    ///   <text x="{x}" y="{y}" stroke-width="0">{text}</text>
+    /// </g>
+    /// ```
+    fn render_edge_labels(
+        content_buffer: &mut String,
+        edge_label_infos: &[SvgEdgeLabelInfo<'_>],
+        tailwind_classes: &EntityTailwindClasses<'_>,
+    ) {
+        edge_label_infos.iter().for_each(|svg_edge_label_info| {
+            let edge_id = &svg_edge_label_info.edge_id;
+            let class_attr = {
+                let edge_classes = tailwind_classes
+                    .get(edge_id.as_ref())
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+                Self::class_attr_escaped(edge_classes.to_string())
+            };
+
+            if let Some(from_label) = &svg_edge_label_info.from_label
+                && !from_label.text_spans.is_empty()
+            {
+                write!(
+                    content_buffer,
+                    "<g id=\"{edge_id}__from_label\"{class_attr}>"
+                )
+                .unwrap();
+                from_label.text_spans.iter().for_each(|span| {
+                    let text_x = span.x;
+                    let text_y = span.y;
+                    let text_content = &span.text;
+                    write!(
+                        content_buffer,
+                        "<text \
+                                x=\"{text_x}\" \
+                                y=\"{text_y}\" \
+                                stroke-width=\"0\" \
+                            >{text_content}</text>"
+                    )
+                    .unwrap();
+                });
+                content_buffer.push_str("</g>");
+            }
+
+            if let Some(to_label) = &svg_edge_label_info.to_label
+                && !to_label.text_spans.is_empty()
+            {
+                write!(content_buffer, "<g id=\"{edge_id}__to_label\"{class_attr}>").unwrap();
+                to_label.text_spans.iter().for_each(|span| {
+                    let text_x = span.x;
+                    let text_y = span.y;
+                    let text_content = &span.text;
+                    write!(
+                        content_buffer,
+                        "<text \
+                                x=\"{text_x}\" \
+                                y=\"{text_y}\" \
+                                stroke-width=\"0\" \
+                            >{text_content}</text>"
+                    )
+                    .unwrap();
+                });
+                content_buffer.push_str("</g>");
+            }
         });
     }
 

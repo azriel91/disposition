@@ -36,4 +36,9 @@ pub(super) struct SvgNodeInfoBuildContext<'ctx, 'id> {
     pub(super) process_steps_heights: &'ctx [ProcessStepsHeight<'id>],
     /// Map of process ID to SVG process info
     pub(super) svg_process_infos: &'ctx Map<NodeId<'id>, SvgProcessInfo<'id>>,
+    /// Map from diagram node ID to its envelope taffy node ID.
+    ///
+    /// Used to compute absolute envelope bounds for each node so that edge
+    /// face contact points land on the outer envelope boundary.
+    pub(super) node_id_to_envelope_taffy_node: &'ctx Map<NodeId<'id>, taffy::NodeId>,
 }

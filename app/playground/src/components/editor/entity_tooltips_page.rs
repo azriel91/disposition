@@ -11,12 +11,12 @@ use dioxus::{
     signals::{ReadableExt, Signal},
 };
 use disposition::input_model::InputDiagram;
-use disposition_input_rt::{OnChangeTarget, ThingsPageOps};
+use disposition_input_rt::{EntityPageOps, OnChangeTarget};
 
 use crate::components::editor::{
     common::{RenameRefocus, ADD_BTN, SECTION_HEADING},
     datalists::list_ids,
-    id_value_row::IdValueRow,
+    id_value_row::IdValueRowTextSingle,
     reorderable::ReorderableContainer,
 };
 
@@ -70,7 +70,7 @@ pub fn EntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
                         let on_change = OnChangeTarget::EntityTooltip;
                         let current_value = tip.clone();
                         rsx! {
-                            IdValueRow {
+                            IdValueRowTextSingle {
                                 key: "tip_{id}",
                                 entry_id: id,
                                 entry_value: tip,
@@ -84,12 +84,12 @@ pub fn EntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
                                 focus_index: tooltip_focus_idx,
                                 rename_refocus: tooltip_rename_refocus,
                                 on_move: move |(from, to)| {
-                                    ThingsPageOps::kv_entry_move(&mut input_diagram.write(), on_change, from, to);
+                                    EntityPageOps::kv_entry_move(&mut input_diagram.write(), on_change, from, to);
                                 },
                                 on_rename: {
                                     let current_value = current_value.clone();
                                     move |(id_old, id_new): (String, String)| {
-                                        ThingsPageOps::kv_entry_rename(
+                                        EntityPageOps::kv_entry_rename(
                                             &mut input_diagram.write(),
                                             on_change,
                                             &id_old,
@@ -99,14 +99,14 @@ pub fn EntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
                                     }
                                 },
                                 on_update: move |(id, value): (String, String)| {
-                                    ThingsPageOps::kv_entry_update(&mut input_diagram.write(), on_change, &id, &value);
+                                    EntityPageOps::kv_entry_update(&mut input_diagram.write(), on_change, &id, &value);
                                 },
                                 on_remove: move |id: String| {
-                                    ThingsPageOps::kv_entry_remove(&mut input_diagram.write(), on_change, &id);
+                                    EntityPageOps::kv_entry_remove(&mut input_diagram.write(), on_change, &id);
                                 },
                                 on_add: move |insert_at: usize| {
-                                    ThingsPageOps::entity_tooltip_add(&mut input_diagram.write());
-                                    ThingsPageOps::kv_entry_move(&mut input_diagram.write(), on_change, tooltip_count, insert_at);
+                                    EntityPageOps::entity_tooltip_add(&mut input_diagram.write());
+                                    EntityPageOps::kv_entry_move(&mut input_diagram.write(), on_change, tooltip_count, insert_at);
                                 },
                             }
                         }
@@ -118,7 +118,7 @@ pub fn EntityTooltipsPage(input_diagram: Signal<InputDiagram<'static>>) -> Eleme
                 class: ADD_BTN,
                 tabindex: 0,
                 onclick: move |_| {
-                    ThingsPageOps::entity_tooltip_add(&mut input_diagram.write());
+                    EntityPageOps::entity_tooltip_add(&mut input_diagram.write());
                 },
                 "+ Add tooltip"
             }

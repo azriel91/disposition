@@ -18,6 +18,7 @@ use self::{
     process_step_heights_calculator::ProcessStepHeightsCalculator,
     string_char_replacer::StringCharReplacer,
     svg_edge_infos_builder::SvgEdgeInfosBuilder,
+    svg_edge_labels_builder::SvgEdgeLabelsBuilder,
     svg_node_build_context::{SvgNodeInfoBuildContext, SvgProcessInfoBuildContext},
     svg_node_info_builder::SvgNodeInfoBuilder,
     svg_node_rect_path_builder::SvgNodeRectPathBuilder,
@@ -38,6 +39,7 @@ mod process_step_heights;
 mod process_step_heights_calculator;
 mod string_char_replacer;
 mod svg_edge_infos_builder;
+mod svg_edge_labels_builder;
 mod svg_node_build_context;
 mod svg_node_info_builder;
 mod svg_node_rect_path_builder;
@@ -63,6 +65,8 @@ impl TaffyToSvgElementsMapper {
             taffy_id_to_node: _,
             edge_spacer_taffy_nodes,
             entity_highlighted_spans,
+            edge_label_taffy_nodes,
+            node_id_to_envelope_taffy_node,
         } = taffy_node_mappings;
 
         // Get root layout for SVG dimensions
@@ -132,6 +136,7 @@ impl TaffyToSvgElementsMapper {
             default_shape: &default_shape,
             process_steps_heights: &process_steps_heights,
             svg_process_infos: &svg_process_infos,
+            node_id_to_envelope_taffy_node,
         };
         let (svg_node_infos, mut tailwind_classes) = ir_diagram.node_ordering.iter().fold(
             (Vec::new(), tailwind_classes),
@@ -173,11 +178,18 @@ impl TaffyToSvgElementsMapper {
             edge_animation_active,
         );
 
+        let edge_label_infos = SvgEdgeLabelsBuilder::build(
+            taffy_tree,
+            edge_label_taffy_nodes,
+            entity_highlighted_spans,
+        );
+
         SvgElements::new(
             svg_width,
             svg_height,
             svg_node_infos,
             svg_edge_infos,
+            edge_label_infos,
             svg_process_infos,
             tailwind_classes,
             css,

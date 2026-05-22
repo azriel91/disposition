@@ -16,7 +16,10 @@ use disposition_ir_model::{
     entity::EntityType,
     enum_iterator,
     layout::{FlexDirection, FlexLayout, LeafLayout, NodeLayout, NodeLayouts},
-    node::{NodeCopyText, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering, NodeShapes},
+    node::{
+        NodeCopyText, NodeFaceEdges, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering,
+        NodeShapes,
+    },
     process::ProcessStepEntities,
     IrDiagram,
 };
@@ -27,7 +30,7 @@ use disposition_model_common::{
     Id, Map, RankDir, Set,
 };
 
-use crate::node_ranks_calculator::NodeRanksCalculator;
+use crate::{edge_face_assigner::EdgeFaceAssigner, node_ranks_calculator::NodeRanksCalculator};
 
 use self::{
     css_theme_vars::CssThemeVars, node_nesting_infos_builder::NodeNestingInfosBuilder,
@@ -154,6 +157,18 @@ impl InputToIrDiagramMapper {
         let node_ranks_nested =
             NodeRanksCalculator::calculate(&edge_groups, &ir_entity_types, &node_nesting_infos);
 
+        // 15. Compute EdgeFaceAssignments from rank/sibling data before layout
+        let edge_face_assignments = EdgeFaceAssigner::compute(
+            &edge_groups,
+            &ir_entity_types,
+            &node_nesting_infos,
+            &node_ranks_nested,
+            render_options.rank_dir,
+        );
+
+        // 16. Derive NodeFaceEdges from edge_face_assignments and edge_groups
+        let node_face_edges = NodeFaceEdges::from_assignments(&edge_face_assignments, &edge_groups);
+
         let diagram = IrDiagram {
             nodes,
             node_copy_text,
@@ -167,6 +182,8 @@ impl InputToIrDiagramMapper {
             node_layouts,
             node_ranks_nested,
             node_nesting_infos,
+            edge_face_assignments,
+            node_face_edges,
             node_shapes,
             process_step_entities,
             render_options: *render_options,

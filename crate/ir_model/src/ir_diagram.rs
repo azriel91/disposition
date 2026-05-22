@@ -2,12 +2,12 @@ use disposition_model_common::{entity::EntityTooltips, theme::Css, RenderOptions
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    edge::EdgeGroups,
+    edge::{EdgeFaceAssignments, EdgeGroups},
     entity::{EntityDescs, EntityTailwindClasses, EntityTypes},
     layout::NodeLayouts,
     node::{
-        NodeCopyText, NodeHierarchy, NodeNames, NodeNestingInfos, NodeOrdering, NodeRanksNested,
-        NodeShapes,
+        NodeCopyText, NodeFaceEdges, NodeHierarchy, NodeNames, NodeNestingInfos, NodeOrdering,
+        NodeRanksNested, NodeShapes,
     },
     process::ProcessStepEntities,
 };
@@ -173,6 +173,23 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "NodeNestingInfos::is_empty")]
     pub node_nesting_infos: NodeNestingInfos<'id>,
 
+    /// Pre-layout face assignment for every edge.
+    ///
+    /// Maps each edge ID to the faces of its `from` and `to` nodes that the
+    /// edge exits or enters. Computed before taffy layout using rank and
+    /// sibling data. Used to build envelope nodes with the right number of
+    /// edge label slots per face.
+    #[serde(default, skip_serializing_if = "EdgeFaceAssignments::is_empty")]
+    pub edge_face_assignments: EdgeFaceAssignments<'id>,
+
+    /// Map from node ID and face to the edge IDs on that face.
+    ///
+    /// Derived from `edge_face_assignments` and `edge_groups`. Used by
+    /// `IrToTaffyBuilder` to build the right number of edge label leaf
+    /// nodes on each face of each envelope node.
+    #[serde(default, skip_serializing_if = "NodeFaceEdges::is_empty")]
+    pub node_face_edges: NodeFaceEdges<'id>,
+
     /// Shape configuration for each node.
     ///
     /// Defines the shape and corner radii for each node in the diagram.
@@ -226,6 +243,8 @@ impl<'id> IrDiagram<'id> {
             node_layouts: self.node_layouts.into_static(),
             node_ranks_nested: self.node_ranks_nested.into_static(),
             node_nesting_infos: self.node_nesting_infos.into_static(),
+            edge_face_assignments: self.edge_face_assignments.into_static(),
+            node_face_edges: self.node_face_edges.into_static(),
             node_shapes: self.node_shapes.into_static(),
             process_step_entities: self.process_step_entities.into_static(),
             render_options: self.render_options,

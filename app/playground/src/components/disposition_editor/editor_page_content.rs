@@ -10,12 +10,13 @@ use disposition::input_model::InputDiagram;
 
 use crate::{
     components::editor::{
-        EntityPage, ProcessesPage, RenderOptionsPage, TagsPage, TextPage, ThemeBaseStylesPage,
-        ThemeDependenciesStylesPage, ThemeProcessStepStylesPage, ThemeStyleAliasesPage,
-        ThemeTagsFocusPage, ThemeTypesStylesPage, ThingCopyTextPage, ThingDependenciesPage,
-        ThingEntityDescsPage, ThingInteractionsPage, ThingLayoutPage, ThingNamesPage,
+        EntityDescsPage, EntityTooltipsPage, EntityTypesPage, ProcessesPage, RenderOptionsPage,
+        TagsPage, TextPage, ThemeBaseStylesPage, ThemeDependenciesStylesPage,
+        ThemeProcessStepStylesPage, ThemeStyleAliasesPage, ThemeTagsFocusPage,
+        ThemeTypesStylesPage, ThingCopyTextPage, ThingDependenciesPage, ThingInteractionsPage,
+        ThingLayoutPage, ThingNamesPage,
     },
-    editor_state::{EditorPage, EditorPageTheme, EditorPageThing},
+    editor_state::{EditorPage, EditorPageEntity, EditorPageTheme, EditorPageThing},
 };
 
 /// Renders the content of the currently active editor page.
@@ -27,17 +28,20 @@ pub fn EditorPageContent(
     let page = active_page.read().clone();
 
     match page {
-        EditorPage::Thing(sub) => match sub {
+        EditorPage::Thing(editor_page_thing) => match editor_page_thing {
             EditorPageThing::Names => rsx! { ThingNamesPage { input_diagram } },
             EditorPageThing::CopyText => rsx! { ThingCopyTextPage { input_diagram } },
-            EditorPageThing::EntityDescs => rsx! { ThingEntityDescsPage { input_diagram } },
         },
         EditorPage::ThingLayout => rsx! { ThingLayoutPage { input_diagram } },
         EditorPage::ThingDependencies => rsx! { ThingDependenciesPage { input_diagram } },
         EditorPage::ThingInteractions => rsx! { ThingInteractionsPage { input_diagram } },
         EditorPage::Processes => rsx! { ProcessesPage { input_diagram } },
         EditorPage::Tags => rsx! { TagsPage { input_diagram } },
-        EditorPage::Entity(_) => rsx! { EntityPage { active_page, input_diagram } },
+        EditorPage::Entity(editor_page_entity) => match editor_page_entity {
+            EditorPageEntity::Types => rsx! { EntityTypesPage { input_diagram } },
+            EditorPageEntity::Tooltips => rsx! { EntityTooltipsPage { input_diagram } },
+            EditorPageEntity::Descs => rsx! { EntityDescsPage { input_diagram } },
+        },
         EditorPage::RenderOptions => rsx! { RenderOptionsPage { input_diagram } },
         EditorPage::Theme(sub) => match sub {
             EditorPageTheme::BaseStyles => rsx! { ThemeBaseStylesPage { input_diagram } },
