@@ -34,6 +34,7 @@ Playground: <https://azriel.im/disposition>.
 * [x] Light and dark modes.
 * [x] Dependencies between process steps.
 * [x] Tooltips.
+* [x] Edge descriptions.
 * [ ] Images in nodes.
 * [ ] Responsive layout.
 
