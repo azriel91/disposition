@@ -845,20 +845,30 @@ impl SvgEdgeInfosBuilder {
             })
             .collect();
 
-        if cross_container_spacers.is_empty() {
+        // Collect edge_description_container spacer coordinates.
+        let edge_desc_container_spacers: Vec<SpacerCoordinates> = spacer_nodes
+            .edge_desc_container_spacer_taffy_node_ids
+            .iter()
+            .filter_map(|&taffy_node_id| {
+                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
+            })
+            .collect();
+
+        if cross_container_spacers.is_empty() && edge_desc_container_spacers.is_empty() {
             // Fast path: only rank-based spacers -- sort by rank as before.
             let mut rank_spacers = rank_spacers;
             rank_spacers.sort_by_key(|(rank, _)| *rank);
             return rank_spacers.into_iter().map(|(_, coords)| coords).collect();
         }
 
-        // Merge both kinds and sort by absolute coordinate along the
+        // Merge all kinds and sort by absolute coordinate along the
         // main axis so the spacers appear in the correct visual order
         // along the edge path.
         let mut all_spacers: Vec<SpacerCoordinates> = rank_spacers
             .into_iter()
             .map(|(_, coords)| coords)
             .chain(cross_container_spacers)
+            .chain(edge_desc_container_spacers)
             .collect();
 
         all_spacers.sort_by(|a, b| {
