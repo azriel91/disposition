@@ -12,3 +12,7 @@ thing_dependencies:
       - t_child
 entity_descs:
   edge_contained__0: "Parent to child dependency"
+edge_labels:
+  edge_contained__0:
+    from: "Parent to child dependency"
+    to: "Parent to child dependency"

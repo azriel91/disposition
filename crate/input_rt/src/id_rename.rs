@@ -72,6 +72,7 @@ pub fn id_rename_in_input_diagram(
         tags: _,
         tag_things: _,
         entity_descs,
+        edge_labels: _,
         entity_tooltips,
         entity_types,
         theme_default,

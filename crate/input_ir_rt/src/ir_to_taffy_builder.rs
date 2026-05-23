@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use disposition_ir_model::{
-    edge::{EdgeFaceAssignments, EdgeGroups, EdgeId},
+    edge::{EdgeFaceAssignments, EdgeGroups, EdgeId, EdgeLabels},
     entity::{EntityDescs, EntityType, EntityTypes},
     layout::{FlexDirection as ModelFlexDirection, NodeLayout, NodeLayouts},
     node::{
@@ -148,6 +148,7 @@ impl IrToTaffyBuilder<'_> {
             node_ordering: _,
             edge_groups,
             entity_descs,
+            edge_labels,
             entity_tooltips: _,
             entity_types,
             tailwind_classes: _,
@@ -333,6 +334,7 @@ impl IrToTaffyBuilder<'_> {
             &edge_label_taffy_nodes,
             nodes,
             entity_descs,
+            edge_labels,
             char_width,
             lod,
         );
@@ -358,6 +360,7 @@ impl IrToTaffyBuilder<'_> {
         edge_label_taffy_nodes: &Map<EdgeId<'static>, EdgeLabelTaffyNodeIds>,
         nodes: &NodeNames<'static>,
         entity_descs: &EntityDescs<'static>,
+        edge_labels: &EdgeLabels<'static>,
         char_width: f32,
         lod: &DiagramLod,
     ) -> EntityHighlightedSpans<'static> {
@@ -509,60 +512,103 @@ impl IrToTaffyBuilder<'_> {
         // === Edge label spans === //
         //
         // For DiagramLod::Normal, compute highlighted spans for edge label
-        // slots. Both the from_label and to_label slots for a given edge show
-        // the same description text, so a single span set is computed and
-        // stored per edge, keyed by the edge's raw Id.  The width of the
-        // from_label slot is used as the line-wrapping constraint (falling
-        // back to the to_label slot when from_label is absent).
+        // slots. The from_label slot uses `edge_label.from` as its text and
+        // the to_label slot uses `edge_label.to`, allowing each endpoint to
+        // show different text. Spans are stored under
+        // `{edge_id}__from_label` and `{edge_id}__to_label` keys.
         if matches!(lod, DiagramLod::Normal) {
             edge_label_taffy_nodes
                 .iter()
                 .for_each(|(edge_id, edge_label_taffy_node_ids)| {
-                    let Some(desc) = entity_descs.get(edge_id.as_ref()).map(String::as_str) else {
+                    let Some(edge_label) = edge_labels.get(edge_id) else {
                         return;
                     };
 
-                    // Pick whichever label slot is present to get the layout width.
-                    let edge_label_taffy_node_id = edge_label_taffy_node_ids
-                        .from_label_taffy_node_id
-                        .or(edge_label_taffy_node_ids.to_label_taffy_node_id);
-                    let Some(edge_label_taffy_node_id) = edge_label_taffy_node_id else {
-                        return;
-                    };
-                    let Ok(edge_label_node_layout) = taffy_tree.layout(edge_label_taffy_node_id)
-                    else {
-                        return;
-                    };
+                    // Compute and store highlighted spans for the from_label slot.
+                    if let Some(from_taffy_node_id) =
+                        edge_label_taffy_node_ids.from_label_taffy_node_id
+                    {
+                        let from_text = edge_label.from.as_str();
+                        if let Some(from_spans) =
+                            Self::highlighted_spans_compute_edge_label_slot(
+                                taffy_tree,
+                                from_taffy_node_id,
+                                from_text,
+                                char_width,
+                                line_height,
+                            )
+                        {
+                            let from_label_key =
+                                Id::try_from(format!("{edge_id}__from_label"))
+                                    .expect("`edge_id` is a valid `Id`, so appending `__from_label` is also valid");
+                            entity_highlighted_spans.insert(from_label_key, from_spans);
+                        }
+                    }
 
-                    let max_width = edge_label_node_layout.size.width;
-                    let wrapped_lines = wrap_text_monospace(desc, char_width, max_width);
-
-                    let padding_left = edge_label_node_layout.padding.left;
-                    let padding_top = edge_label_node_layout.padding.top;
-                    let text_leftmost_x = padding_left + 0.5 * char_width;
-
-                    let highlighted_spans: Vec<EntityHighlightedSpan> = wrapped_lines
-                        .iter()
-                        .enumerate()
-                        .map(|(line_index, line)| {
-                            let x = text_leftmost_x;
-                            let y = (line_index + 1) as f32 * line_height + padding_top;
-                            let width = line_width_measure(line, char_width);
-                            EntityHighlightedSpan {
-                                x,
-                                y,
-                                width,
-                                height: line_height,
-                                text: line.to_string(),
-                            }
-                        })
-                        .collect();
-
-                    entity_highlighted_spans.insert(edge_id.as_ref().clone(), highlighted_spans);
+                    // Compute and store highlighted spans for the to_label slot.
+                    if let Some(to_taffy_node_id) =
+                        edge_label_taffy_node_ids.to_label_taffy_node_id
+                    {
+                        let to_text = edge_label.to.as_str();
+                        if let Some(to_spans) =
+                            Self::highlighted_spans_compute_edge_label_slot(
+                                taffy_tree,
+                                to_taffy_node_id,
+                                to_text,
+                                char_width,
+                                line_height,
+                            )
+                        {
+                            let to_label_key =
+                                Id::try_from(format!("{edge_id}__to_label"))
+                                    .expect("`edge_id` is a valid `Id`, so appending `__to_label` is also valid");
+                            entity_highlighted_spans.insert(to_label_key, to_spans);
+                        }
+                    }
                 });
         }
 
         entity_highlighted_spans
+    }
+
+    /// Computes highlighted spans for a single edge label slot.
+    ///
+    /// Returns `None` if `text` is empty or the taffy layout cannot be read.
+    fn highlighted_spans_compute_edge_label_slot(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        taffy_node_id: taffy::NodeId,
+        text: &str,
+        char_width: f32,
+        line_height: f32,
+    ) -> Option<Vec<EntityHighlightedSpan>> {
+        if text.is_empty() {
+            return None;
+        }
+
+        let Ok(node_layout) = taffy_tree.layout(taffy_node_id) else {
+            return None;
+        };
+
+        let max_width = node_layout.size.width;
+        let wrapped_lines = wrap_text_monospace(text, char_width, max_width);
+
+        let padding_left = node_layout.padding.left;
+        let padding_top = node_layout.padding.top;
+        let text_leftmost_x = padding_left + 0.5 * char_width;
+
+        let spans = wrapped_lines
+            .iter()
+            .enumerate()
+            .map(|(line_index, line)| EntityHighlightedSpan {
+                x: text_leftmost_x,
+                y: (line_index + 1) as f32 * line_height + padding_top,
+                width: line_width_measure(line, char_width),
+                height: line_height,
+                text: line.to_string(),
+            })
+            .collect();
+
+        Some(spans)
     }
 
     /// Creates rank sub-containers for first-level nodes of a given entity

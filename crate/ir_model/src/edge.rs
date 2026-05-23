@@ -1,4 +1,4 @@
-pub use disposition_model_common::edge::EdgeId;
+pub use disposition_model_common::edge::{EdgeId, EdgeLabel, EdgeLabels};
 
 pub use self::{
     edge::Edge, edge_face_assignment::EdgeFaceAssignment,
