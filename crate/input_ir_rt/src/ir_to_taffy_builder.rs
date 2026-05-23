@@ -56,6 +56,10 @@ type NodeRankToTaffyNodeId = BTreeMap<NodeRank, Vec<taffy::NodeId>>;
 /// labels or the face boundary on the exit side.
 const EDGE_LABEL_PADDING_PX: f32 = 4.0;
 
+/// Padding (in pixels) added to both sides of a node so edges don't begin at
+/// the very edge.
+const NODE_SIDE_PADDING_PX: LengthPercentage = LengthPercentage::length(8.0);
+
 /// Converts a model [`FlexDirection`](ModelFlexDirection) to a
 /// [`taffy::style::FlexDirection`].
 fn flex_direction_to_taffy(direction: ModelFlexDirection) -> FlexDirection {
@@ -1752,6 +1756,13 @@ impl IrToTaffyBuilder<'_> {
                     flex_direction: FlexDirection::Row,
                     grid_row: line(1),
                     grid_column: line(2),
+                    justify_content: Some(JustifyContent::SpaceEvenly),
+                    padding: Rect {
+                        left: NODE_SIDE_PADDING_PX,
+                        right: NODE_SIDE_PADDING_PX,
+                        top: zero,
+                        bottom: zero,
+                    },
                     ..Default::default()
                 },
                 &top_leaf_ids,
@@ -1768,6 +1779,13 @@ impl IrToTaffyBuilder<'_> {
                     flex_direction: FlexDirection::Column,
                     grid_row: line(2),
                     grid_column: line(1),
+                    justify_content: Some(JustifyContent::SpaceEvenly),
+                    padding: Rect {
+                        left: zero,
+                        right: zero,
+                        top: NODE_SIDE_PADDING_PX,
+                        bottom: NODE_SIDE_PADDING_PX,
+                    },
                     ..Default::default()
                 },
                 &left_leaf_ids,
@@ -1811,6 +1829,13 @@ impl IrToTaffyBuilder<'_> {
                     flex_direction: FlexDirection::Column,
                     grid_row: line(2),
                     grid_column: line(3),
+                    justify_content: Some(JustifyContent::SpaceEvenly),
+                    padding: Rect {
+                        left: zero,
+                        right: zero,
+                        top: NODE_SIDE_PADDING_PX,
+                        bottom: NODE_SIDE_PADDING_PX,
+                    },
                     ..Default::default()
                 },
                 &right_leaf_ids,
@@ -1827,6 +1852,13 @@ impl IrToTaffyBuilder<'_> {
                     flex_direction: FlexDirection::Row,
                     grid_row: line(3),
                     grid_column: line(2),
+                    justify_content: Some(JustifyContent::SpaceEvenly),
+                    padding: Rect {
+                        left: NODE_SIDE_PADDING_PX,
+                        right: NODE_SIDE_PADDING_PX,
+                        top: zero,
+                        bottom: zero,
+                    },
                     ..Default::default()
                 },
                 &bottom_leaf_ids,
