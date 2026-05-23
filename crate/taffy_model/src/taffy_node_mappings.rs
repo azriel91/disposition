@@ -6,8 +6,8 @@ use disposition_model_common::Map;
 use taffy::TaffyTree;
 
 use crate::{
-    EdgeDescriptionTaffyNodes, EdgeLabelTaffyNodeIds, EdgeSpacerTaffyNodes, EntityHighlightedSpans,
-    NodeToTaffyNodeIds, TaffyNodeCtx,
+    EdgeDescriptionTaffyNodes, EdgeLabelTaffyNodeIds, EdgeSpacerTaffyNodes, EntityHighlightedSpan,
+    EntityHighlightedSpans, NodeToTaffyNodeIds, TaffyNodeCtx,
 };
 
 /// The taffy tree and mappings from each IR node ID to its `taffy` node ID.
@@ -50,6 +50,12 @@ pub struct TaffyNodeMappings<'id> {
     /// rank containers) and the description taffy node ID (a leaf whose size
     /// is measured from the description text).
     pub edge_description_taffy_nodes: Map<EdgeId<'id>, EdgeDescriptionTaffyNodes>,
+    /// Highlighted spans computed for each edge description leaf node.
+    ///
+    /// Keyed by `EdgeId` (separate from `entity_highlighted_spans` to avoid
+    /// key collisions between edge IDs and node IDs).
+    /// Populated in Phase 3 after taffy layout completes.
+    pub edge_description_highlighted_spans: Map<EdgeId<'id>, Vec<EntityHighlightedSpan>>,
     /// Map from each diagram node ID to its envelope taffy node ID.
     ///
     /// The envelope wraps the existing `diagram_node_wrapper_node` and adds
@@ -77,6 +83,7 @@ impl<'id> PartialEq for TaffyNodeMappings<'id> {
             && self.entity_highlighted_spans == other.entity_highlighted_spans
             && self.edge_label_taffy_nodes == other.edge_label_taffy_nodes
             && self.edge_description_taffy_nodes == other.edge_description_taffy_nodes
+            && self.edge_description_highlighted_spans == other.edge_description_highlighted_spans
             && self.node_id_to_envelope_taffy_node == other.node_id_to_envelope_taffy_node
     }
 }

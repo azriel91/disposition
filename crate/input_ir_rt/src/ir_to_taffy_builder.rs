@@ -414,6 +414,15 @@ impl IrToTaffyBuilder<'_> {
             lod,
         );
 
+        let edge_description_highlighted_spans =
+            Self::highlighted_spans_compute_edge_desc_containers(
+                &taffy_tree,
+                &edge_description_taffy_nodes,
+                entity_descs,
+                char_width,
+                lod,
+            );
+
         std::iter::once(TaffyNodeMappings {
             taffy_tree,
             node_inbuilt_to_taffy,
@@ -423,6 +432,7 @@ impl IrToTaffyBuilder<'_> {
             entity_highlighted_spans,
             edge_label_taffy_nodes,
             edge_description_taffy_nodes,
+            edge_description_highlighted_spans,
             node_id_to_envelope_taffy_node,
         })
     }
@@ -686,6 +696,46 @@ impl IrToTaffyBuilder<'_> {
             .collect();
 
         Some(spans)
+    }
+
+    /// Computes highlighted spans for all edge description leaf nodes after
+    /// layout is complete.
+    ///
+    /// Only runs at [`DiagramLod::Normal`]; returns an empty map at
+    /// [`DiagramLod::Simple`].
+    ///
+    /// For each entry in `edge_description_taffy_nodes`, looks up the edge
+    /// description text in `entity_descs`, reads the layout width of the
+    /// `description_taffy_node_id` as the wrapping constraint, and builds
+    /// [`EntityHighlightedSpan`] values relative to the leaf node's top-left
+    /// corner.
+    fn highlighted_spans_compute_edge_desc_containers(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
+        entity_descs: &EntityDescs<'static>,
+        char_width: f32,
+        lod: &DiagramLod,
+    ) -> Map<EdgeId<'static>, Vec<EntityHighlightedSpan>> {
+        if !matches!(lod, DiagramLod::Normal) {
+            return Map::new();
+        }
+
+        let line_height = TEXT_LINE_HEIGHT;
+
+        edge_description_taffy_nodes
+            .iter()
+            .filter_map(|(edge_id, edge_desc_taffy_nodes)| {
+                let desc = entity_descs.get(edge_id.as_ref())?;
+                let spans = Self::highlighted_spans_compute_edge_label_slot(
+                    taffy_tree,
+                    edge_desc_taffy_nodes.description_taffy_node_id,
+                    desc,
+                    char_width,
+                    line_height,
+                )?;
+                Some((edge_id.clone(), spans))
+            })
+            .collect()
     }
 
     /// Creates rank sub-containers for first-level nodes of a given entity
@@ -1762,7 +1812,15 @@ impl IrToTaffyBuilder<'_> {
                     }
                 }
                 TaffyNodeCtx::EdgeSpacer(_) => None,
-                TaffyNodeCtx::EdgeDescription(_) => None,
+                TaffyNodeCtx::EdgeDescription(ctx) => match lod {
+                    DiagramLod::Simple => None,
+                    DiagramLod::Normal => {
+                        let edge_id = &ctx.edge_id;
+                        entity_descs
+                            .get(edge_id.as_ref())
+                            .map(|desc| Cow::Borrowed(desc.as_str()))
+                    }
+                },
                 TaffyNodeCtx::EdgeLabel(ctx) => match lod {
                     DiagramLod::Simple => None,
                     DiagramLod::Normal => {
