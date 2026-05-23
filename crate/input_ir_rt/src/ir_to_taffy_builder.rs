@@ -352,7 +352,7 @@ impl IrToTaffyBuilder<'_> {
             ) {
                 edge_spacer_taffy_nodes
                     .entry(edge_id)
-                    .or_insert_with(EdgeSpacerTaffyNodes::new)
+                    .or_default()
                     .edge_desc_container_spacer_taffy_node_ids
                     .extend(new_spacers.edge_desc_container_spacer_taffy_node_ids);
             }
@@ -1497,7 +1497,7 @@ impl IrToTaffyBuilder<'_> {
             ) {
                 edge_spacer_taffy_nodes
                     .entry(edge_id)
-                    .or_insert_with(EdgeSpacerTaffyNodes::new)
+                    .or_default()
                     .edge_desc_container_spacer_taffy_node_ids
                     .extend(new_spacers.edge_desc_container_spacer_taffy_node_ids);
             }

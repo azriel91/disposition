@@ -497,7 +497,7 @@ impl EdgeSpacerBuilder {
 
                     edge_spacer_taffy_nodes
                         .entry(edge_id.clone())
-                        .or_insert_with(EdgeSpacerTaffyNodes::new)
+                        .or_default()
                         .edge_desc_container_spacer_taffy_node_ids
                         .push(spacer_taffy_node_id);
                 });
