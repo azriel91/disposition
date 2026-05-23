@@ -10,13 +10,15 @@ use disposition::input_model::InputDiagram;
 
 use crate::{
     components::editor::{
-        EntityDescsPage, EntityTooltipsPage, EntityTypesPage, ProcessesPage, RenderOptionsPage,
-        TagsPage, TextPage, ThemeBaseStylesPage, ThemeDependenciesStylesPage,
+        EdgeLabelsPage, EntityDescsPage, EntityTooltipsPage, EntityTypesPage, ProcessesPage,
+        RenderOptionsPage, TagsPage, TextPage, ThemeBaseStylesPage, ThemeDependenciesStylesPage,
         ThemeProcessStepStylesPage, ThemeStyleAliasesPage, ThemeTagsFocusPage,
         ThemeTypesStylesPage, ThingCopyTextPage, ThingDependenciesPage, ThingInteractionsPage,
         ThingLayoutPage, ThingNamesPage,
     },
-    editor_state::{EditorPage, EditorPageEntity, EditorPageTheme, EditorPageThing},
+    editor_state::{
+        EditorPage, EditorPageEdges, EditorPageEntity, EditorPageTheme, EditorPageThing,
+    },
 };
 
 /// Renders the content of the currently active editor page.
@@ -33,8 +35,11 @@ pub fn EditorPageContent(
             EditorPageThing::CopyText => rsx! { ThingCopyTextPage { input_diagram } },
         },
         EditorPage::ThingLayout => rsx! { ThingLayoutPage { input_diagram } },
-        EditorPage::ThingDependencies => rsx! { ThingDependenciesPage { input_diagram } },
-        EditorPage::ThingInteractions => rsx! { ThingInteractionsPage { input_diagram } },
+        EditorPage::Edges(edges_sub_page) => match edges_sub_page {
+            EditorPageEdges::ThingDependencies => rsx! { ThingDependenciesPage { input_diagram } },
+            EditorPageEdges::ThingInteractions => rsx! { ThingInteractionsPage { input_diagram } },
+            EditorPageEdges::EdgeLabels => rsx! { EdgeLabelsPage { input_diagram } },
+        },
         EditorPage::Processes => rsx! { ProcessesPage { input_diagram } },
         EditorPage::Tags => rsx! { TagsPage { input_diagram } },
         EditorPage::Entity(editor_page_entity) => match editor_page_entity {

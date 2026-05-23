@@ -6,12 +6,12 @@
 use enum_iterator::Sequence;
 use serde::{Deserialize, Serialize};
 
-use super::{EditorPageEntity, EditorPageTheme, EditorPageThing};
+use super::{EditorPageEdges, EditorPageEntity, EditorPageTheme, EditorPageThing};
 
 /// Identifies which editor page (tab) is currently active.
 ///
-/// Top-level variants map directly to top-level tabs. The `Thing` and
-/// `Theme` variants wrap their own sub-page enums so that the type
+/// Top-level variants map directly to top-level tabs. The `Thing`, `Edges`,
+/// and `Theme` variants wrap their own sub-page enums so that the type
 /// system naturally represents the grouping.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Sequence)]
 #[serde(rename_all = "snake_case")]
@@ -21,12 +21,8 @@ pub enum EditorPage {
     Thing(EditorPageThing),
     /// Thing layout: interactive tree editor for `thing_hierarchy`.
     ThingLayout,
-    /// Thing dependencies: edge groups with
-    /// [`EdgeGroup`](disposition::input_model::edge::EdgeGroup) entries.
-    ThingDependencies,
-    /// Thing interactions: edge groups representing runtime
-    /// communication.
-    ThingInteractions,
+    /// Edges group: sub-pages for dependencies, interactions, and labels.
+    Edges(EditorPageEdges),
     /// Processes: process diagrams with steps and
     /// step-thing-interaction mappings.
     Processes,
@@ -75,8 +71,7 @@ impl EditorPage {
         match self {
             Self::Thing(sub) => sub.label(),
             Self::ThingLayout => "Layout",
-            Self::ThingDependencies => "Dependencies",
-            Self::ThingInteractions => "Interactions",
+            Self::Edges(sub) => sub.label(),
             Self::Processes => "Processes",
             Self::Tags => "Tags",
             Self::Entity(sub) => sub.label(),
@@ -88,11 +83,13 @@ impl EditorPage {
 
     /// The label shown on the top-level tab.
     ///
-    /// For `Thing(_)` this returns `"Things"`, for `Theme(_)` this
-    /// `"Theme"`, otherwise delegates to [`label`](Self::label).
+    /// For `Thing(_)` this returns `"Things"`, for `Edges(_)` this returns
+    /// `"Edges"`, for `Theme(_)` this returns `"Theme"`, otherwise
+    /// delegates to [`label`](Self::label).
     pub fn top_level_label(&self) -> &'static str {
         match self {
             Self::Thing(_) => "Things",
+            Self::Edges(_) => "Edges",
             Self::Entity(_) => "Entity",
             Self::Theme(_) => "Theme",
             other => other.label(),
@@ -102,6 +99,11 @@ impl EditorPage {
     /// Returns `true` if this page belongs to the Things group.
     pub fn is_thing(&self) -> bool {
         matches!(self, Self::Thing(_))
+    }
+
+    /// Returns `true` if this page belongs to the Edges group.
+    pub fn is_edges(&self) -> bool {
+        matches!(self, Self::Edges(_))
     }
 
     /// Returns `true` if this page belongs to the Entity group.
@@ -117,12 +119,13 @@ impl EditorPage {
     /// Returns `true` if `self` falls under the same top-level tab as
     /// `other`.
     ///
-    /// Two `Thing(_)` pages share a top-level tab, two `Theme(_)` pages
-    /// share a top-level tab, and standalone pages match only
-    /// themselves.
+    /// Two `Thing(_)` pages share a top-level tab, two `Edges(_)` pages
+    /// share a top-level tab, two `Theme(_)` pages share a top-level tab,
+    /// and standalone pages match only themselves.
     pub fn same_top_level(&self, other: &EditorPage) -> bool {
         match (self, other) {
             (Self::Thing(_), Self::Thing(_)) => true,
+            (Self::Edges(_), Self::Edges(_)) => true,
             (Self::Entity(_), Self::Entity(_)) => true,
             (Self::Theme(_), Self::Theme(_)) => true,
             _ => std::mem::discriminant(self) == std::mem::discriminant(other),
