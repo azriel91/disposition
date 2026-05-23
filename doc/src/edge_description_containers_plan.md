@@ -9,9 +9,13 @@ in `EntityDescs`, the text is rendered in that container at a position
 determined by the ranks of the edge's divergent ancestors at the LCA level.
 
 This is a separate rendering location from the face-label slots described in
-`edge_descriptions.md`, which place text at the `from`/`to` node faces. Edge
-description containers render the description text as a block centered along the
-edge path, between the source and destination rank containers.
+`edge_descriptions.md`. Note that `edge_descriptions.md` is currently out of
+date: face-label slots no longer render text from `EntityDescs`. `EntityDescs`
+is now the exclusive source for edge description containers (this feature).
+Step 7.5 covers updating that document.
+
+Edge description containers render the description text as a block positioned
+along the edge path, between the source and destination rank containers.
 
 Phases at a glance:
 
@@ -37,9 +41,14 @@ Given a `divergent_ancestor_node_rank_from` and a
   represented as `None`).
 
 - **Normal edge** (`rank_from != rank_to`):
-  `P = rank_from + (rank_to - rank_from) / 2`
+  `P = rank_low + (rank_high - rank_low) / 2`
   (integer division, flooring to the lower rank), inserting **after**
-  the rank container at rank P.
+  the rank container at rank P and **before** the rank container at rank P+1.
+
+  Examples:
+  - ranks 2 and 3: P = 2 + (3-2)/2 = 2 -- inserted between rank 2 and rank 3.
+  - ranks 0 and 4: P = 0 + (4-0)/2 = 2 -- inserted between rank 2 and rank 3.
+  - ranks 0 and 1: P = 0 + (1-0)/2 = 0 -- inserted between rank 0 and rank 1.
 
 The `edge_description_container` sits between rank containers as a sibling of
 them in the parent flex node (e.g., `ThingsContainer`). Its `taffy::Style`
@@ -47,7 +56,11 @@ mirrors the rank container style: same `display: Flex` and same `flex_direction`
 (the user-configured main axis direction).
 
 Multiple `edge_description_container`s at the same position P are inserted
-consecutively, each as its own flex container, ordered by `EdgeId`.
+consecutively, each as its own flex container. When multiple described edges
+share the same position P they are ordered ascending by **sibling middle index**
+`(nesting_path_from[lca_depth] + nesting_path_to[lca_depth]) / 2`, with
+`EdgeId` as a tiebreaker. This mirrors the spatial ordering used for same-level
+cross-rank spacer insertion (see `edge_spacers.md`).
 
 Like same-level cross-rank edge spacers (see `edge_spacers.md`), the
 `EdgeDescriptionBuilder` must be called once per LCA level (once at the root
@@ -173,7 +186,11 @@ pub struct EdgeDescriptionBuildResult {
     /// Key: `None` means before all rank containers;
     ///       `Some(rank_P)` means after rank_container[rank_P].
     /// Value: ordered list of edge_description_container taffy::NodeIds
-    ///        inserted at that position.
+    ///        inserted at that position, sorted ascending by sibling middle
+    ///        index `(nesting_path_from[lca_depth] + nesting_path_to[lca_depth])
+    ///        / 2` (with EdgeId as tiebreaker). Use a
+    ///        `BTreeMap<(usize, EdgeId), taffy::NodeId>` internally during
+    ///        construction, then flatten to `Vec` before returning.
     pub position_to_container_ids:
         BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
 }
@@ -241,10 +258,16 @@ if rank_from == rank_to {
 
 **Step 2.2.8 -- Create taffy nodes.**
 
-1. Create an `edge_description` leaf node with `TaffyNodeCtx::EdgeDescription(EdgeDescriptionCtx { edge_id })` and a style appropriate for text measurement (min-size: auto, stretch).
-2. Create an `edge_description_container` node (using `rank_container_style`) with the leaf as its sole child. Context: `TaffyNodeCtx::None`.
-3. Record `EdgeDescriptionTaffyNodes { container_taffy_node_id, description_taffy_node_id }`.
-4. Append `container_taffy_node_id` to `position_to_container_ids[position]`.
+1. Compute the sibling middle index (sort key):
+   ```text
+   sibling_index_from = nesting_path_from[lca_depth]
+   sibling_index_to   = nesting_path_to[lca_depth]
+   sibling_middle     = (sibling_index_from + sibling_index_to) / 2
+   ```
+2. Create an `edge_description` leaf node with `TaffyNodeCtx::EdgeDescription(EdgeDescriptionCtx { edge_id })` and a style appropriate for text measurement (min-size: auto, stretch).
+3. Create an `edge_description_container` node (using `rank_container_style`) with the leaf as its sole child. Context: `TaffyNodeCtx::None`.
+4. Record `EdgeDescriptionTaffyNodes { container_taffy_node_id, description_taffy_node_id }`.
+5. Insert `(sibling_middle, edge_id) -> container_taffy_node_id` into an internal `BTreeMap<(usize, EdgeId), taffy::NodeId>` keyed by `position`. On return, flatten each inner BTreeMap (in key order) into a `Vec<taffy::NodeId>` for `position_to_container_ids`.
 
 
 ### Step 2.3 -- Interleaving rank containers and edge_description_containers
@@ -557,16 +580,33 @@ Add a reference under **Additional Context**:
 ```
 
 
+### Step 7.5 -- Update `edge_descriptions.md`
+
+`edge_descriptions.md` currently documents that face-label slots render their
+text from `EntityDescs`. This is no longer accurate. Update the document to
+reflect the current state:
+
+1. **Remove** the `EntityDescs` data-flow sections that show description text
+   flowing into face-label taffy nodes and SVG `<text>` elements via
+   `node_size_measure` / `highlighted_spans_compute` / `SvgEdgeLabelsBuilder`.
+
+2. **Clarify the current role of face-label slots**: they are purely structural
+   taffy leaf nodes used for edge contact-point positioning and face-offset
+   calculations (see `edge_paths.md` -- Offset Calculation). They measure as
+   zero size when no other sizing applies and carry no rendered text.
+
+3. **Add a cross-reference** to `edge_description_containers_plan.md`
+   (this document) as the authoritative source for how `EntityDescs` text is
+   rendered in the diagram.
+
+4. Update the **Data Flow Summary** diagram to remove the `EntityDescs` ->
+   face-label path and add a note pointing to the edge-description-container
+   pipeline.
+
+
 ## Open Questions
 
-### OQ1 -- Multiple described edges at the same position
-
-If two edges share the same insertion position P and both have descriptions,
-their `edge_description_container` nodes are adjacent siblings. The plan inserts
-them consecutively ordered by `EdgeId`. Confirm whether a different ordering
-(e.g., by rank span width or by sibling index) would be visually preferable.
-
-### OQ2 -- Spacer rank sentinel for edge_description_container spacers
+### OQ1 -- Spacer rank sentinel for edge_description_container spacers
 
 Spacers inside `edge_description_container`s are not at an integer rank but
 between ranks. The `EdgeSpacerCtx` currently stores a `NodeRank`. Options:
@@ -580,16 +620,9 @@ Either approach works since the spacers are already segregated into the
 `edge_desc_container_spacer_taffy_node_ids` list and sorted by coordinate.
 Confirm which is cleaner during implementation.
 
-### OQ3 -- Cycle edges at rank 0
+### OQ2 -- Cycle edges at rank 0
 
 For a cycle edge whose divergent ancestors share rank 0, the computed position
 is `None` (before all rank containers). If there are no rank containers yet
 (e.g., a container with only cycle-rank-0 nodes), the container list is just
 the `edge_description_container`s. Confirm this is acceptable visually.
-
-### OQ4 -- Interaction with existing face labels
-
-Both the face-label slots (from `edge_descriptions.md`) and the new
-`edge_description_container` nodes render text from the same `EntityDescs`
-entry. Confirm whether both should coexist for the same edge, or whether the
-`edge_description_container` rendering should suppress the face labels.
