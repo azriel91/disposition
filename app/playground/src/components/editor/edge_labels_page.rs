@@ -5,13 +5,13 @@ use dioxus::{
     },
     signals::{ReadableExt, Signal},
 };
-use disposition::input_model::InputDiagram;
-use disposition_input_rt::{EntityPageOps, OnChangeTarget};
+use disposition::{input_model::InputDiagram, model_common::edge::EdgeLabel};
+use disposition_input_rt::EdgeLabelsPageOps;
 
 use crate::components::editor::{
     common::{RenameRefocus, ADD_BTN, SECTION_HEADING},
     datalists::list_ids,
-    id_value_row::IdValueRowTextMulti,
+    id_value_row::IdValueRowEdgeLabel,
     reorderable::ReorderableContainer,
 };
 
@@ -19,8 +19,8 @@ use crate::components::editor::{
 
 /// The **Edges: Labels** editor sub-page.
 ///
-/// Edits edge label entries -- labels rendered next to edges where they exit
-/// or enter a node.
+/// Edits `edge_labels` -- `from` and `to` endpoint labels per edge -- and the
+/// corresponding `entity_descs` entry for the same edge ID.
 #[component]
 pub fn EdgeLabelsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let label_drag_idx: Signal<Option<usize>> = use_signal(|| None);
@@ -29,11 +29,7 @@ pub fn EdgeLabelsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let label_rename_refocus: Signal<Option<RenameRefocus>> = use_signal(|| None);
 
     let diagram = input_diagram.read();
-    let label_entries: Vec<(String, String)> = diagram
-        .entity_descs
-        .iter()
-        .map(|(id, desc)| (id.as_str().to_owned(), desc.clone()))
-        .collect();
+    let label_entries = EdgeLabelsPageOps::edge_label_entries(&diagram);
     drop(diagram);
 
     let label_count = label_entries.len();
@@ -54,50 +50,87 @@ pub fn EdgeLabelsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 focus_index: label_focus_idx,
                 rename_refocus: Some(label_rename_refocus),
 
-                for (idx, (id, label)) in label_entries.iter().enumerate() {
+                for (idx, (id, from, to, entity_desc)) in label_entries.iter().enumerate() {
                     {
                         let id = id.clone();
-                        let label = label.clone();
-                        let on_change = OnChangeTarget::EntityDesc;
-                        let current_value = label.clone();
+                        let from = from.clone();
+                        let to = to.clone();
+                        let entity_desc = entity_desc.clone();
+                        let current_edge_label = EdgeLabel {
+                            from: from.clone(),
+                            to: to.clone(),
+                        };
+                        let current_entity_desc = entity_desc.clone();
+
                         rsx! {
-                            IdValueRowTextMulti {
+                            IdValueRowEdgeLabel {
                                 key: "edge_label_{id}",
                                 entry_id: id,
-                                entry_value: label,
+                                entry_from: from,
+                                entry_to: to,
+                                entry_entity_desc: entity_desc,
                                 id_list: list_ids::ENTITY_IDS.to_owned(),
-                                id_placeholder: "id".to_owned(),
-                                value_placeholder: "value".to_owned(),
+                                id_placeholder: "edge_id".to_owned(),
                                 index: idx,
                                 entry_count: label_count,
                                 drag_index: label_drag_idx,
                                 drop_target: label_drop_target,
                                 focus_index: label_focus_idx,
                                 rename_refocus: label_rename_refocus,
-                                on_move: move |(from, to)| {
-                                    EntityPageOps::kv_entry_move(&mut input_diagram.write(), on_change, from, to);
+                                on_move: move |(from_idx, to_idx)| {
+                                    EdgeLabelsPageOps::edge_label_move(
+                                        &mut input_diagram.write(),
+                                        from_idx,
+                                        to_idx,
+                                    );
                                 },
                                 on_rename: {
-                                    let current_value = current_value.clone();
+                                    let current_edge_label = current_edge_label.clone();
+                                    let current_entity_desc = current_entity_desc.clone();
                                     move |(id_old, id_new): (String, String)| {
-                                        EntityPageOps::kv_entry_rename(
+                                        EdgeLabelsPageOps::edge_label_rename(
                                             &mut input_diagram.write(),
-                                            on_change,
                                             &id_old,
                                             &id_new,
-                                            &current_value,
+                                            current_edge_label.clone(),
+                                            &current_entity_desc,
                                         );
                                     }
                                 },
-                                on_update: move |(id, value): (String, String)| {
-                                    EntityPageOps::kv_entry_update(&mut input_diagram.write(), on_change, &id, &value);
+                                on_update_from: move |(id, new_from): (String, String)| {
+                                    EdgeLabelsPageOps::edge_label_from_update(
+                                        &mut input_diagram.write(),
+                                        &id,
+                                        &new_from,
+                                    );
+                                },
+                                on_update_to: move |(id, new_to): (String, String)| {
+                                    EdgeLabelsPageOps::edge_label_to_update(
+                                        &mut input_diagram.write(),
+                                        &id,
+                                        &new_to,
+                                    );
+                                },
+                                on_update_entity_desc: move |(id, new_desc): (String, String)| {
+                                    EdgeLabelsPageOps::edge_label_entity_desc_update(
+                                        &mut input_diagram.write(),
+                                        &id,
+                                        &new_desc,
+                                    );
                                 },
                                 on_remove: move |id: String| {
-                                    EntityPageOps::kv_entry_remove(&mut input_diagram.write(), on_change, &id);
+                                    EdgeLabelsPageOps::edge_label_remove(
+                                        &mut input_diagram.write(),
+                                        &id,
+                                    );
                                 },
                                 on_add: move |insert_at: usize| {
-                                    EntityPageOps::entity_desc_add(&mut input_diagram.write());
-                                    EntityPageOps::kv_entry_move(&mut input_diagram.write(), on_change, label_count, insert_at);
+                                    EdgeLabelsPageOps::edge_label_add(&mut input_diagram.write());
+                                    EdgeLabelsPageOps::edge_label_move(
+                                        &mut input_diagram.write(),
+                                        label_count,
+                                        insert_at,
+                                    );
                                 },
                             }
                         }
@@ -109,9 +142,9 @@ pub fn EdgeLabelsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 class: ADD_BTN,
                 tabindex: 0,
                 onclick: move |_| {
-                    EntityPageOps::entity_desc_add(&mut input_diagram.write());
+                    EdgeLabelsPageOps::edge_label_add(&mut input_diagram.write());
                 },
-                "+ Add label"
+                "+ Add edge label"
             }
         }
     }

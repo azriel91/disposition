@@ -7,6 +7,8 @@
 //!   `<input type="text">` value field (retains the original behaviour).
 //! - [`IdValueRowTextMulti`] -- wraps [`IdValueRow`] with a multi-line
 //!   `<textarea>` value field.
+//! - [`IdValueRowEdgeLabel`] -- wraps [`IdValueRow`] with three stacked
+//!   `<textarea>` fields for `from`, `to`, and entity description.
 //!
 //! Keyboard shortcuts:
 //!
@@ -379,6 +381,148 @@ pub fn IdValueRowTextMulti(
             on_remove,
             on_add,
             on_duplicate,
+            value_input,
+        }
+    }
+}
+
+// === IdValueRowEdgeLabel component === //
+
+/// An [`IdValueRow`] with three stacked `<textarea>` fields for an edge label.
+///
+/// Renders one row per `edge_labels` entry. The value area contains:
+///
+/// * **from** -- the label displayed near the edge's source endpoint.
+/// * **to** -- the label displayed near the edge's destination endpoint.
+/// * **desc** -- the entity description (stored in `entity_descs`).
+///
+/// Each field has its own `on_update` callback so that the caller can dispatch
+/// each mutation to the correct field of the `InputDiagram`.
+///
+/// # Props
+///
+/// * `entry_id`: the current edge ID string.
+/// * `entry_from`: current `from` label (may contain newlines).
+/// * `entry_to`: current `to` label (may contain newlines).
+/// * `entry_entity_desc`: current entity description (may contain newlines).
+/// * `id_list`: datalist id for the ID input.
+/// * `id_placeholder`: placeholder text for the ID input.
+/// * `index`: position of this entry in its list.
+/// * `entry_count`: total number of entries.
+/// * `drag_index` / `drop_target`: shared drag-and-drop signals.
+/// * `focus_index`: shared focus-after-move signal.
+/// * `rename_refocus`: shared rename-refocus signal.
+/// * `on_update_from(id, from)`: update the `from` label.
+/// * `on_update_to(id, to)`: update the `to` label.
+/// * `on_update_entity_desc(id, desc)`: update the entity description.
+#[component]
+pub fn IdValueRowEdgeLabel(
+    entry_id: String,
+    entry_from: String,
+    entry_to: String,
+    entry_entity_desc: String,
+    id_list: String,
+    id_placeholder: String,
+    index: usize,
+    entry_count: usize,
+    drag_index: Signal<Option<usize>>,
+    drop_target: Signal<Option<usize>>,
+    focus_index: Signal<Option<usize>>,
+    rename_refocus: Signal<Option<RenameRefocus>>,
+    on_move: Callback<(usize, usize)>,
+    on_rename: Callback<(String, String)>,
+    on_update_from: Callback<(String, String)>,
+    on_update_to: Callback<(String, String)>,
+    on_update_entity_desc: Callback<(String, String)>,
+    on_remove: Callback<String>,
+    on_add: Callback<usize>,
+) -> Element {
+    let entry_id_for_from = entry_id.clone();
+    let entry_id_for_to = entry_id.clone();
+    let entry_id_for_desc = entry_id.clone();
+
+    let value_input = rsx! {
+        div {
+            class: "flex flex-col gap-1 flex-1",
+
+            // === from === //
+            div {
+                class: "flex items-start gap-1",
+                span {
+                    class: "text-xs text-gray-500 w-8 shrink-0 pt-1",
+                    "from"
+                }
+                textarea {
+                    class: INPUT_CLASS,
+                    tabindex: "-1",
+                    rows: "1",
+                    placeholder: "from label",
+                    value: "{entry_from}",
+                    onchange: move |evt: dioxus::events::FormEvent| {
+                        on_update_from.call((entry_id_for_from.clone(), evt.value()));
+                    },
+                    onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
+                }
+            }
+
+            // === to === //
+            div {
+                class: "flex items-start gap-1",
+                span {
+                    class: "text-xs text-gray-500 w-8 shrink-0 pt-1",
+                    "to"
+                }
+                textarea {
+                    class: INPUT_CLASS,
+                    tabindex: "-1",
+                    rows: "1",
+                    placeholder: "to label",
+                    value: "{entry_to}",
+                    onchange: move |evt: dioxus::events::FormEvent| {
+                        on_update_to.call((entry_id_for_to.clone(), evt.value()));
+                    },
+                    onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
+                }
+            }
+
+            // === entity desc === //
+            div {
+                class: "flex items-start gap-1",
+                span {
+                    class: "text-xs text-gray-500 w-8 shrink-0 pt-1",
+                    "desc"
+                }
+                textarea {
+                    class: INPUT_CLASS,
+                    tabindex: "-1",
+                    rows: "2",
+                    placeholder: "entity description",
+                    value: "{entry_entity_desc}",
+                    onchange: move |evt: dioxus::events::FormEvent| {
+                        on_update_entity_desc.call((entry_id_for_desc.clone(), evt.value()));
+                    },
+                    onkeydown: FieldNav::value_onkeydown(DATA_ATTR),
+                }
+            }
+        }
+    };
+
+    rsx! {
+        IdValueRow {
+            entry_id,
+            id_list,
+            id_placeholder,
+            index,
+            entry_count,
+            drag_index,
+            drop_target,
+            focus_index,
+            rename_refocus,
+            on_move,
+            on_rename,
+            on_remove,
+            on_add,
+            on_duplicate: None,
             value_input,
         }
     }
