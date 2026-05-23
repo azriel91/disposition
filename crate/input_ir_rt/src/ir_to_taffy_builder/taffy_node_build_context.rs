@@ -7,7 +7,7 @@ use disposition_ir_model::{
         NodeRanksNested, NodeShapes,
     },
 };
-use disposition_model_common::{entity::EntityDescs, Map};
+use disposition_model_common::{entity::EntityDescs, Map, RankDir};
 use disposition_taffy_model::{
     taffy::{
         self, style::FlexDirection, AlignContent, AlignItems, Display, FlexWrap, Size, Style,
@@ -39,6 +39,10 @@ pub(crate) struct TaffyNodeBuildContext<'ctx> {
     /// After all nodes are built, merged into `edge_label_taffy_nodes` in
     /// `TaffyNodeMappings`.
     pub(crate) edge_label_leaves: &'ctx mut Vec<EdgeLabelLeafBuilt>,
+    /// Direction of edges in the diagram.
+    ///
+    /// Used to compute face-specific padding for edge label leaf nodes.
+    pub(crate) rank_dir: RankDir,
 }
 
 /// Layout information for a wrapper node and its text node.

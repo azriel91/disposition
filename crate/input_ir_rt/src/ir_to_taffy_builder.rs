@@ -10,7 +10,7 @@ use disposition_ir_model::{
     },
     IrDiagram,
 };
-use disposition_model_common::{Id, Map};
+use disposition_model_common::{Id, Map, RankDir};
 use disposition_taffy_model::{
     taffy::{
         self,
@@ -48,6 +48,13 @@ mod taffy_node_build_context;
 mod text_measure;
 
 type NodeRankToTaffyNodeId = BTreeMap<NodeRank, Vec<taffy::NodeId>>;
+
+/// Padding (in pixels) added to the far side of an edge label leaf node.
+///
+/// The edge path contacts the label at one edge; this padding creates visual
+/// separation on the opposite side so the path does not overlap adjacent
+/// labels or the face boundary on the exit side.
+const EDGE_LABEL_PADDING_PX: f32 = 4.0;
 
 /// Converts a model [`FlexDirection`](ModelFlexDirection) to a
 /// [`taffy::style::FlexDirection`].
@@ -147,9 +154,11 @@ impl IrToTaffyBuilder<'_> {
             node_face_edges,
             node_shapes,
             process_step_entities: _,
-            render_options: _,
+            render_options,
             css: _,
         } = ir_diagram;
+
+        let rank_dir = render_options.rank_dir;
 
         let DimensionAndLod { dimension, lod } = dimension_and_lod;
 
@@ -173,6 +182,7 @@ impl IrToTaffyBuilder<'_> {
             node_face_edges,
             node_id_to_envelope_taffy_node: &mut node_id_to_envelope_taffy_node,
             edge_label_leaves: &mut edge_label_leaves,
+            rank_dir,
         };
         let (node_rank_to_nodes_by_entity_type, nested_edge_spacer_taffy_nodes) =
             Self::build_taffy_nodes_for_first_level_nodes(
@@ -735,6 +745,7 @@ impl IrToTaffyBuilder<'_> {
             node_face_edges,
             node_id_to_envelope_taffy_node,
             edge_label_leaves,
+            rank_dir,
         } = taffy_node_build_context;
 
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
@@ -776,6 +787,7 @@ impl IrToTaffyBuilder<'_> {
                         node_face_edges,
                         node_id_to_envelope_taffy_node,
                         edge_label_leaves,
+                        rank_dir,
                     )
                 } else {
                     let (wrapper_node_id, nested_edge_spacer_taffy_nodes) =
@@ -796,6 +808,7 @@ impl IrToTaffyBuilder<'_> {
                             node_face_edges,
                             node_id_to_envelope_taffy_node,
                             edge_label_leaves,
+                            rank_dir,
                         );
                     edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
                     wrapper_node_id
@@ -849,6 +862,7 @@ impl IrToTaffyBuilder<'_> {
             node_face_edges,
             node_id_to_envelope_taffy_node,
             edge_label_leaves,
+            rank_dir,
         } = taffy_node_build_context;
 
         let mut rank_to_taffy_ids: NodeRankToTaffyNodeId = BTreeMap::new();
@@ -877,6 +891,7 @@ impl IrToTaffyBuilder<'_> {
                     node_face_edges,
                     node_id_to_envelope_taffy_node,
                     edge_label_leaves,
+                    rank_dir,
                 )
             } else {
                 let (wrapper_node_id, nested_edge_spacer_taffy_nodes) =
@@ -897,6 +912,7 @@ impl IrToTaffyBuilder<'_> {
                         node_face_edges,
                         node_id_to_envelope_taffy_node,
                         edge_label_leaves,
+                        rank_dir,
                     );
                 edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
                 wrapper_node_id
@@ -928,6 +944,7 @@ impl IrToTaffyBuilder<'_> {
         node_face_edges: &NodeFaceEdges<'static>,
         node_id_to_envelope_taffy_node: &mut Map<NodeId<'static>, taffy::NodeId>,
         edge_label_leaves: &mut Vec<EdgeLabelLeafBuilt>,
+        rank_dir: RankDir,
     ) -> taffy::NodeId {
         let ir_node_id = NodeId::from(node_id.clone());
         let node_shape = node_shapes
@@ -959,6 +976,7 @@ impl IrToTaffyBuilder<'_> {
                     &ir_node_id,
                     taffy_text_node_id,
                     node_face_edges,
+                    rank_dir,
                 );
                 edge_label_leaves.extend(new_label_leaves);
                 node_id_to_envelope_taffy_node.insert(ir_node_id.clone(), envelope_node_id);
@@ -1034,6 +1052,7 @@ impl IrToTaffyBuilder<'_> {
                     &ir_node_id,
                     wrapper_node_id,
                     node_face_edges,
+                    rank_dir,
                 );
                 edge_label_leaves.extend(new_label_leaves);
                 node_id_to_envelope_taffy_node.insert(ir_node_id.clone(), envelope_node_id);
@@ -1062,6 +1081,7 @@ impl IrToTaffyBuilder<'_> {
         node_face_edges: &NodeFaceEdges<'static>,
         node_id_to_envelope_taffy_node: &mut Map<NodeId<'static>, taffy::NodeId>,
         edge_label_leaves: &mut Vec<EdgeLabelLeafBuilt>,
+        rank_dir: RankDir,
     ) -> (taffy::NodeId, Map<EdgeId<'static>, EdgeSpacerTaffyNodes>) {
         let ir_node_id = NodeId::from(node_id.clone());
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
@@ -1096,6 +1116,7 @@ impl IrToTaffyBuilder<'_> {
             node_face_edges,
             node_id_to_envelope_taffy_node,
             edge_label_leaves,
+            rank_dir,
         };
         let (mut rank_to_taffy_ids, nested_edge_spacer_taffy_nodes) =
             Self::build_taffy_child_nodes_for_node_by_rank(taffy_node_build_context, edge_groups);
@@ -1191,6 +1212,7 @@ impl IrToTaffyBuilder<'_> {
                     &ir_node_id,
                     wrapper_node_id,
                     node_face_edges,
+                    rank_dir,
                 );
                 edge_label_leaves.extend(new_label_leaves);
                 node_id_to_envelope_taffy_node.insert(ir_node_id.clone(), envelope_node_id);
@@ -1262,6 +1284,7 @@ impl IrToTaffyBuilder<'_> {
                     &ir_node_id,
                     wrapper_node_id,
                     node_face_edges,
+                    rank_dir,
                 );
                 edge_label_leaves.extend(new_label_leaves);
                 node_id_to_envelope_taffy_node.insert(ir_node_id.clone(), envelope_node_id);
@@ -1631,12 +1654,61 @@ impl IrToTaffyBuilder<'_> {
         node_id: &NodeId<'static>,
         diagram_node_wrapper_node: taffy::NodeId,
         node_face_edges: &NodeFaceEdges<'static>,
+        rank_dir: RankDir,
     ) -> (taffy::NodeId, Vec<EdgeLabelLeafBuilt>) {
         let mut edge_label_leaves = Vec::new();
 
-        let label_leaf_style = Style {
-            flex_shrink: 0.0,
-            ..Default::default()
+        let pad = LengthPercentage::length(EDGE_LABEL_PADDING_PX);
+        let zero = LengthPercentage::length(0.0);
+
+        // For Top/Bottom faces the edge contacts the left x edge (all rank
+        // directions except BottomToTop) or the right x edge (BottomToTop).
+        // Padding goes on the opposite side to avoid overlapping adjacent labels.
+        let label_leaf_style_top_bottom = {
+            let padding = match rank_dir {
+                RankDir::BottomToTop => Rect {
+                    left: pad,
+                    right: zero,
+                    top: zero,
+                    bottom: zero,
+                },
+                RankDir::TopToBottom | RankDir::LeftToRight | RankDir::RightToLeft => Rect {
+                    left: zero,
+                    right: pad,
+                    top: zero,
+                    bottom: zero,
+                },
+            };
+            Style {
+                flex_shrink: 0.0,
+                padding,
+                ..Default::default()
+            }
+        };
+
+        // For Left/Right faces the edge contacts the top y edge (all rank
+        // directions except RightToLeft) or the bottom y edge (RightToLeft).
+        // Padding goes on the opposite side.
+        let label_leaf_style_left_right = {
+            let padding = match rank_dir {
+                RankDir::RightToLeft => Rect {
+                    left: zero,
+                    right: zero,
+                    top: pad,
+                    bottom: zero,
+                },
+                RankDir::LeftToRight | RankDir::TopToBottom | RankDir::BottomToTop => Rect {
+                    left: zero,
+                    right: zero,
+                    top: zero,
+                    bottom: pad,
+                },
+            };
+            Style {
+                flex_shrink: 0.0,
+                padding,
+                ..Default::default()
+            }
         };
 
         let top_leaf_ids = Self::taffy_envelope_node_build_face_leaves(
@@ -1644,7 +1716,7 @@ impl IrToTaffyBuilder<'_> {
             node_id,
             NodeFace::Top,
             node_face_edges.edges_for(node_id, NodeFace::Top),
-            &label_leaf_style,
+            &label_leaf_style_top_bottom,
             &mut edge_label_leaves,
         );
         let bottom_leaf_ids = Self::taffy_envelope_node_build_face_leaves(
@@ -1652,7 +1724,7 @@ impl IrToTaffyBuilder<'_> {
             node_id,
             NodeFace::Bottom,
             node_face_edges.edges_for(node_id, NodeFace::Bottom),
-            &label_leaf_style,
+            &label_leaf_style_top_bottom,
             &mut edge_label_leaves,
         );
         let left_leaf_ids = Self::taffy_envelope_node_build_face_leaves(
@@ -1660,7 +1732,7 @@ impl IrToTaffyBuilder<'_> {
             node_id,
             NodeFace::Left,
             node_face_edges.edges_for(node_id, NodeFace::Left),
-            &label_leaf_style,
+            &label_leaf_style_left_right,
             &mut edge_label_leaves,
         );
         let right_leaf_ids = Self::taffy_envelope_node_build_face_leaves(
@@ -1668,7 +1740,7 @@ impl IrToTaffyBuilder<'_> {
             node_id,
             NodeFace::Right,
             node_face_edges.edges_for(node_id, NodeFace::Right),
-            &label_leaf_style,
+            &label_leaf_style_left_right,
             &mut edge_label_leaves,
         );
 
