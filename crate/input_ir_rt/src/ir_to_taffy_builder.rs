@@ -1359,14 +1359,18 @@ impl IrToTaffyBuilder<'_> {
                         bottom: LengthPercentage::length(flex_layout.padding_bottom()),
                     },
                     border: Rect::length(1.0f32),
-                    // We use `AlignItems::Stretch` because we want coordinates to be as close to
-                    // the top-left corner as possible, as well as resizing each node to be as wide
-                    // as the widest node which looks more visually aesthetic.
+                    // We previously used `AlignItems::Stretch` because we want coordinates to be as
+                    // close to the top-left corner as possible, as well as resizing each node to be
+                    // as wide as the widest node which looks more visually aesthetic.
+                    //
+                    // We now use `AlignItems::FlexStart` to align the content to the start of the
+                    // container, which ensures that the coordinates are as close to the top-left
+                    // corner as possible, as well as not inadvertently stretching nodes' height.
                     //
                     // If we use `AlignItems::Center`, the coordinates
                     // may be negative when the content width exceeds the diagram dimension, and
                     // starts outside the diagram bounds.
-                    align_items: Some(AlignItems::Stretch),
+                    align_items: Some(AlignItems::FlexStart),
                     align_content: Some(AlignContent::Start),
                     justify_items: Some(JustifyItems::Start),
                     justify_content: Some(JustifyContent::Start),
@@ -1427,6 +1431,7 @@ impl IrToTaffyBuilder<'_> {
                         align_content: Some(AlignContent::FlexStart),
                         justify_items: Some(JustifyItems::FlexStart),
                         justify_content: Some(JustifyContent::FlexStart),
+                        // Gap between the text node and the child container node.
                         gap: Size::length(flex_layout.gap()),
                         flex_direction: FlexDirection::Column,
                         flex_wrap: FlexWrap::NoWrap,
