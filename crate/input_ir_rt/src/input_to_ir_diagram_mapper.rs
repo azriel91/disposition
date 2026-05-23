@@ -23,11 +23,7 @@ use disposition_ir_model::{
     process::ProcessStepEntities,
     IrDiagram,
 };
-use disposition_model_common::{
-    edge::EdgeGroupId,
-    theme::Css,
-    Id, Map, RankDir, Set,
-};
+use disposition_model_common::{edge::EdgeGroupId, theme::Css, Id, Map, RankDir, Set};
 
 use crate::{edge_face_assigner::EdgeFaceAssigner, node_ranks_calculator::NodeRanksCalculator};
 
