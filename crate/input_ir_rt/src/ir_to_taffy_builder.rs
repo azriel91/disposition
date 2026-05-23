@@ -289,10 +289,15 @@ impl IrToTaffyBuilder<'_> {
         // Precompute monospace character width
         let char_width = TEXT_FONT_SIZE * MONOSPACE_CHAR_WIDTH_RATIO;
 
+        // Pre-compute edge endpoint node IDs for edge label slot sizing.
+        let edge_id_to_endpoint_node_ids = Self::edge_id_to_node_ids_build(edge_groups);
+
         // Compute layout (size measurement only, no syntax highlighting)
         let mut node_measure_context = NodeMeasureContext {
             nodes,
             entity_descs,
+            edge_labels,
+            edge_id_to_endpoint_node_ids: &edge_id_to_endpoint_node_ids,
             char_width,
             lod,
         };
@@ -1543,6 +1548,8 @@ impl IrToTaffyBuilder<'_> {
         let NodeMeasureContext {
             nodes,
             entity_descs,
+            edge_labels,
+            edge_id_to_endpoint_node_ids,
             char_width,
             lod,
         } = node_measure_context;
@@ -1579,9 +1586,25 @@ impl IrToTaffyBuilder<'_> {
                     DiagramLod::Simple => None,
                     DiagramLod::Normal => {
                         let edge_id = &ctx.edge_id;
-                        entity_descs
-                            .get(edge_id.as_ref())
-                            .map(|desc| Cow::Borrowed(desc.as_str()))
+                        let node_id = &ctx.node_id;
+                        edge_labels.get(edge_id).and_then(|edge_label| {
+                            // Use the from or to text depending on which
+                            // endpoint this label slot is attached to.
+                            let is_from_endpoint = edge_id_to_endpoint_node_ids
+                                .get(edge_id)
+                                .map(|(from_node_id, _)| from_node_id == node_id)
+                                .unwrap_or(false);
+                            let text = if is_from_endpoint {
+                                edge_label.from.as_str()
+                            } else {
+                                edge_label.to.as_str()
+                            };
+                            if text.is_empty() {
+                                None
+                            } else {
+                                Some(Cow::Borrowed(text))
+                            }
+                        })
                     }
                 },
             }) {

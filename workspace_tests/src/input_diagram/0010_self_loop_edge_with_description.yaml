@@ -8,8 +8,6 @@ thing_dependencies:
     things:
       - t_a
       - t_a
-entity_descs:
-  edge_self__0: "Self-loop description"
 edge_labels:
   edge_self__0:
     from: "Self-loop description"

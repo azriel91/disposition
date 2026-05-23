@@ -24,8 +24,7 @@ use disposition_ir_model::{
     IrDiagram,
 };
 use disposition_model_common::{
-    edge::{EdgeGroupId, EdgeLabels},
-    entity::{EntityDescs, EntityTooltips},
+    edge::EdgeGroupId,
     theme::Css,
     Id, Map, RankDir, Set,
 };

@@ -1,5 +1,5 @@
 use disposition_ir_model::{
-    edge::EdgeId,
+    edge::{EdgeId, EdgeLabels},
     entity::EntityTypes,
     layout::{LeafLayout, NodeLayouts},
     node::{
@@ -117,6 +117,15 @@ impl Default for TaffyWrapperNodeStyles {
 pub(crate) struct NodeMeasureContext<'ctx> {
     pub(crate) nodes: &'ctx NodeNames<'static>,
     pub(crate) entity_descs: &'ctx EntityDescs<'static>,
+    /// Text labels for each edge endpoint.
+    pub(crate) edge_labels: &'ctx EdgeLabels<'static>,
+    /// Pre-computed lookup from edge ID to its `from` and `to` endpoint node
+    /// IDs.
+    ///
+    /// Used to determine which endpoint text (`from` or `to`) to use when
+    /// sizing an edge label slot.
+    pub(crate) edge_id_to_endpoint_node_ids:
+        &'ctx Map<EdgeId<'static>, (NodeId<'static>, NodeId<'static>)>,
     /// Monospace character width in pixels.
     pub(crate) char_width: f32,
     /// Level of detail for the diagram.
