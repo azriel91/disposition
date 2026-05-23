@@ -23,6 +23,7 @@ pub(crate) struct TaffyNodeBuildContext<'ctx> {
     pub(crate) node_layouts: &'ctx NodeLayouts<'static>,
     pub(crate) node_hierarchy: &'ctx NodeHierarchy<'static>,
     pub(crate) entity_types: &'ctx EntityTypes<'static>,
+    pub(crate) entity_descs: &'ctx EntityDescs<'static>,
     pub(crate) node_shapes: &'ctx NodeShapes<'static>,
     pub(crate) node_ranks_nested: &'ctx NodeRanksNested<'static>,
     pub(crate) node_nesting_infos: &'ctx NodeNestingInfos<'static>,
