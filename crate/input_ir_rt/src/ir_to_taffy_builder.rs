@@ -31,7 +31,7 @@ use taffy::{
 use typed_builder::TypedBuilder;
 
 use self::{
-    edge_description_builder::EdgeDescriptionBuilder,
+    edge_description_builder::{EdgeDescriptionBuildResult, EdgeDescriptionBuilder},
     edge_lca_sibling_distance::EdgeLcaSiblingDistance,
     edge_spacer_builder::EdgeSpacerBuilder,
     taffy_node_build_context::{
@@ -279,7 +279,10 @@ impl IrToTaffyBuilder<'_> {
             Size::auto(),
         );
 
-        let thing_desc_build_result = EdgeDescriptionBuilder::build(
+        let EdgeDescriptionBuildResult {
+            edge_description_taffy_nodes: thing_edge_desc_taffy_nodes,
+            position_to_container_ids: thing_position_to_container_ids,
+        } = EdgeDescriptionBuilder::build(
             &mut taffy_tree,
             entity_descs,
             edge_groups,
@@ -290,7 +293,10 @@ impl IrToTaffyBuilder<'_> {
             None,
             &thing_rank_container_style,
         );
-        let tag_desc_build_result = EdgeDescriptionBuilder::build(
+        let EdgeDescriptionBuildResult {
+            edge_description_taffy_nodes: tag_edge_desc_taffy_nodes,
+            position_to_container_ids: tag_position_to_container_ids,
+        } = EdgeDescriptionBuilder::build(
             &mut taffy_tree,
             entity_descs,
             edge_groups,
@@ -301,7 +307,10 @@ impl IrToTaffyBuilder<'_> {
             None,
             &tag_rank_container_style,
         );
-        let process_desc_build_result = EdgeDescriptionBuilder::build(
+        let EdgeDescriptionBuildResult {
+            edge_description_taffy_nodes: process_edge_desc_taffy_nodes,
+            position_to_container_ids: process_position_to_container_ids,
+        } = EdgeDescriptionBuilder::build(
             &mut taffy_tree,
             entity_descs,
             edge_groups,
@@ -312,9 +321,42 @@ impl IrToTaffyBuilder<'_> {
             None,
             &process_rank_container_style,
         );
-        edge_description_taffy_nodes.extend(thing_desc_build_result.edge_description_taffy_nodes);
-        edge_description_taffy_nodes.extend(tag_desc_build_result.edge_description_taffy_nodes);
-        edge_description_taffy_nodes.extend(process_desc_build_result.edge_description_taffy_nodes);
+        edge_description_taffy_nodes.extend(thing_edge_desc_taffy_nodes);
+        edge_description_taffy_nodes.extend(tag_edge_desc_taffy_nodes);
+        edge_description_taffy_nodes.extend(process_edge_desc_taffy_nodes);
+
+        // === Build edge_description_container spacers === //
+        //
+        // For each edge that crosses through an edge_description_container at
+        // the top level, insert a spacer inside that container so the edge
+        // path can route around it. Must run before position_to_container_ids
+        // is consumed by `build_taffy_rank_containers_for_first_level_nodes`.
+        for (target_entity_type, position_to_container_ids) in [
+            (&EntityType::ThingDefault, &thing_position_to_container_ids),
+            (&EntityType::TagDefault, &tag_position_to_container_ids),
+            (
+                &EntityType::ProcessDefault,
+                &process_position_to_container_ids,
+            ),
+        ] {
+            for (edge_id, new_spacers) in EdgeSpacerBuilder::build_edge_desc_container_spacers(
+                &mut taffy_tree,
+                edge_groups,
+                node_nesting_infos,
+                node_ranks_nested,
+                entity_types,
+                target_entity_type,
+                None,
+                position_to_container_ids,
+                &edge_description_taffy_nodes,
+            ) {
+                edge_spacer_taffy_nodes
+                    .entry(edge_id)
+                    .or_insert_with(EdgeSpacerTaffyNodes::new)
+                    .edge_desc_container_spacer_taffy_node_ids
+                    .extend(new_spacers.edge_desc_container_spacer_taffy_node_ids);
+            }
+        }
 
         // Create rank sub-containers for top-level nodes, mirroring the
         // rank-based child container logic used inside
@@ -327,19 +369,19 @@ impl IrToTaffyBuilder<'_> {
             &mut taffy_tree,
             thing_rank_to_taffy_ids,
             thing_rank_container_style,
-            thing_desc_build_result.position_to_container_ids,
+            thing_position_to_container_ids,
         );
         let tag_rank_container_ids = Self::build_taffy_rank_containers_for_first_level_nodes(
             &mut taffy_tree,
             tag_rank_to_taffy_ids,
             tag_rank_container_style,
-            tag_desc_build_result.position_to_container_ids,
+            tag_position_to_container_ids,
         );
         let process_rank_container_ids = Self::build_taffy_rank_containers_for_first_level_nodes(
             &mut taffy_tree,
             process_rank_to_taffy_ids,
             process_rank_container_style,
-            process_desc_build_result.position_to_container_ids,
+            process_position_to_container_ids,
         );
 
         let node_inbuilt_to_taffy = Self::build_taffy_container_nodes(
@@ -1428,6 +1470,36 @@ impl IrToTaffyBuilder<'_> {
                     .entry(pos)
                     .or_default()
                     .extend(containers);
+            }
+        }
+
+        // === Build edge_description_container spacers === //
+        //
+        // For each edge that crosses through an edge_description_container at
+        // this nesting level, insert a spacer inside that container. Must run
+        // before position_to_container_ids is consumed by
+        // `rank_containers_interleave`.
+        for target_entity_type in &[
+            EntityType::ThingDefault,
+            EntityType::TagDefault,
+            EntityType::ProcessDefault,
+        ] {
+            for (edge_id, new_spacers) in EdgeSpacerBuilder::build_edge_desc_container_spacers(
+                taffy_tree,
+                edge_groups,
+                node_nesting_infos,
+                node_ranks_nested,
+                entity_types,
+                target_entity_type,
+                Some(&lca_node_id),
+                &position_to_container_ids,
+                &edge_description_taffy_nodes,
+            ) {
+                edge_spacer_taffy_nodes
+                    .entry(edge_id)
+                    .or_insert_with(EdgeSpacerTaffyNodes::new)
+                    .edge_desc_container_spacer_taffy_node_ids
+                    .extend(new_spacers.edge_desc_container_spacer_taffy_node_ids);
             }
         }
 

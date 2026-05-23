@@ -8,7 +8,7 @@ use disposition_ir_model::{
 use disposition_model_common::{edge::EdgeGroupId, Map};
 use disposition_taffy_model::{
     taffy::{self, Size, Style, TaffyTree},
-    EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx,
+    EdgeDescriptionTaffyNodes, EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx,
 };
 use taffy::AlignSelf;
 
@@ -308,6 +308,200 @@ impl EdgeSpacerBuilder {
                 .cross_container_spacer_taffy_node_ids
                 .extend(spacer_taffy_nodes.cross_container_spacer_taffy_node_ids);
         }
+    }
+
+    /// Inserts spacer taffy nodes inside `edge_description_container` nodes
+    /// for all edges that cross through those containers.
+    ///
+    /// An edge with `rank_low` and `rank_high` at the LCA level requires a
+    /// spacer in a container at position `Some(rank_P)` when
+    /// `rank_low <= rank_P.value() < rank_high`.
+    ///
+    /// The described edge itself (the edge whose description owns the
+    /// container) does NOT receive a spacer in its own container -- its path
+    /// terminates there rather than passing through.
+    ///
+    /// Only `edge_desc_container_spacer_taffy_node_ids` is populated in the
+    /// returned `EdgeSpacerTaffyNodes` values; callers must merge into any
+    /// existing rank or cross-container spacer entries.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn build_edge_desc_container_spacers(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        edge_groups: &EdgeGroups<'static>,
+        node_nesting_infos: &NodeNestingInfos<'static>,
+        node_ranks_nested: &NodeRanksNested<'static>,
+        entity_types: &EntityTypes<'static>,
+        target_entity_type: &EntityType,
+        lca_node_id: Option<&NodeId<'static>>,
+        position_to_container_ids: &BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
+        edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
+    ) -> Map<EdgeId<'static>, EdgeSpacerTaffyNodes> {
+        if position_to_container_ids.is_empty() {
+            return Map::new();
+        }
+
+        // Build reverse map: container_taffy_node_id -> edge_id for skipping
+        // the owning edge.
+        let container_to_edge_id: Map<taffy::NodeId, &EdgeId<'static>> =
+            edge_description_taffy_nodes
+                .iter()
+                .map(|(edge_id, nodes)| (nodes.container_taffy_node_id, edge_id))
+                .collect();
+
+        let spacer_style = Style {
+            min_size: Size {
+                width: taffy::Dimension::length(EDGE_SPACER_LENGTH),
+                height: taffy::Dimension::length(EDGE_SPACER_LENGTH),
+            },
+            align_self: Some(AlignSelf::Stretch),
+            ..Default::default()
+        };
+
+        let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
+
+        edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
+            edge_group
+                .iter()
+                .enumerate()
+                .for_each(|(edge_index, edge)| {
+                    let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
+                    Self::build_edge_desc_container_spacers_for_edge(
+                        taffy_tree,
+                        &edge_id,
+                        edge,
+                        node_nesting_infos,
+                        node_ranks_nested,
+                        entity_types,
+                        target_entity_type,
+                        lca_node_id,
+                        position_to_container_ids,
+                        &container_to_edge_id,
+                        &spacer_style,
+                        &mut edge_spacer_taffy_nodes,
+                    );
+                });
+        });
+
+        edge_spacer_taffy_nodes
+    }
+
+    /// Inserts spacers into `edge_description_container` nodes for a single
+    /// edge, if any containers lie within the edge's rank span.
+    #[allow(clippy::too_many_arguments)]
+    fn build_edge_desc_container_spacers_for_edge(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        edge_id: &EdgeId<'static>,
+        edge: &Edge<'static>,
+        node_nesting_infos: &NodeNestingInfos<'static>,
+        node_ranks_nested: &NodeRanksNested<'static>,
+        entity_types: &EntityTypes<'static>,
+        target_entity_type: &EntityType,
+        lca_node_id: Option<&NodeId<'static>>,
+        position_to_container_ids: &BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
+        container_to_edge_id: &Map<taffy::NodeId, &EdgeId<'static>>,
+        spacer_style: &Style,
+        edge_spacer_taffy_nodes: &mut Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
+    ) {
+        let Some(info_from) = node_nesting_infos.get(&edge.from) else {
+            return;
+        };
+        let Some(info_to) = node_nesting_infos.get(&edge.to) else {
+            return;
+        };
+
+        // Entity type and LCA filters (same logic as `edge_spacers_build`).
+        let lca_depth = LcaDepthCalculator::calculate(info_from, info_to);
+        let Some(divergent_from) = info_from.ancestor_chain.get(lca_depth) else {
+            return;
+        };
+        let Some(divergent_to) = info_to.ancestor_chain.get(lca_depth) else {
+            return;
+        };
+
+        let from_matches = entity_types
+            .get(divergent_from.as_ref())
+            .map(|types| types.contains(target_entity_type))
+            .unwrap_or(false);
+        let to_matches = entity_types
+            .get(divergent_to.as_ref())
+            .map(|types| types.contains(target_entity_type))
+            .unwrap_or(false);
+        if !from_matches || !to_matches {
+            return;
+        }
+
+        match lca_node_id {
+            None => {
+                if lca_depth > 0 {
+                    return;
+                }
+            }
+            Some(expected_lca_node_id) => {
+                if lca_depth == 0 {
+                    return;
+                }
+                let lca_ancestor = info_from.ancestor_chain.get(lca_depth - 1);
+                match lca_ancestor {
+                    Some(lca_ancestor) if lca_ancestor == expected_lca_node_id => {}
+                    _ => return,
+                }
+            }
+        }
+
+        let Some((rank_low, rank_high)) =
+            Self::divergent_ancestor_ranks(info_from, info_to, node_ranks_nested)
+        else {
+            return;
+        };
+
+        // Cycle edges share a rank -- no container lies between them.
+        if rank_low == rank_high {
+            return;
+        }
+
+        // For each container position that falls within [rank_low, rank_high),
+        // insert a spacer into the container (unless it is the edge's own
+        // description container).
+        position_to_container_ids
+            .iter()
+            .for_each(|(position, container_ids)| {
+                let Some(rank_p) = position else {
+                    // `None` means before rank 0; no edge spans across it.
+                    return;
+                };
+
+                // Condition: rank_low <= rank_P < rank_high.
+                if rank_low.value() > rank_p.value() || rank_p.value() >= rank_high.value() {
+                    return;
+                }
+
+                container_ids.iter().for_each(|container_id| {
+                    // Skip the edge's own description container.
+                    if container_to_edge_id.get(container_id) == Some(&edge_id) {
+                        return;
+                    }
+
+                    let spacer_taffy_node_id = taffy_tree
+                        .new_leaf_with_context(
+                            spacer_style.clone(),
+                            TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
+                                edge_id: edge_id.clone(),
+                                rank: *rank_p,
+                            }),
+                        )
+                        .expect("Expected to create edge_desc_container spacer leaf node.");
+
+                    taffy_tree
+                        .add_child(*container_id, spacer_taffy_node_id)
+                        .expect("Expected to add spacer child to edge_description_container.");
+
+                    edge_spacer_taffy_nodes
+                        .entry(edge_id.clone())
+                        .or_insert_with(EdgeSpacerTaffyNodes::new)
+                        .edge_desc_container_spacer_taffy_node_ids
+                        .push(spacer_taffy_node_id);
+                });
+            });
     }
 
     /// Builds spacer taffy nodes for a single edge if it crosses ranks.
