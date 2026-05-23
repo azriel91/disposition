@@ -83,14 +83,17 @@ Each spacer carries a `TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx { edge_id, rank })
 so the path builder can identify which edge the spacer belongs to and at which rank it sits.
 
 
-## Two Kinds of Spacer
+## Three Kinds of Spacer
 
     EdgeSpacerTaffyNodes {
         # Same-level cross-rank spacers, keyed by intermediate rank.
-        rank_to_spacer_taffy_node_id:           Map<NodeRank, taffy::NodeId>,
+        rank_to_spacer_taffy_node_id:                Map<NodeRank, taffy::NodeId>,
 
         # Cross-container spacers, ordered by layout position.
-        cross_container_spacer_taffy_node_ids:  Vec<taffy::NodeId>,
+        cross_container_spacer_taffy_node_ids:       Vec<taffy::NodeId>,
+
+        # Edge description container spacers, ordered by layout position.
+        edge_desc_container_spacer_taffy_node_ids:   Vec<taffy::NodeId>,
     }
 
 ### 1. Same-Level Cross-Rank Spacers
@@ -106,6 +109,16 @@ container and the other is outside, and the edge path must pass alongside the co
 children to reach the deeply-nested endpoint. Spacers are placed at the ranks of those intermediate
 sibling children within the container.
 
+### 3. Edge Description Container Spacers
+
+Built by `EdgeSpacerBuilder::build_edge_desc_container_spacers`. Used when an edge's rank span
+`[rank_low, rank_high)` crosses the position `rank_P` of an `edge_description_container` that
+belongs to a **different** described edge (condition: `rank_low <= rank_P < rank_high`). A single
+spacer leaf is appended as a direct child of that container, providing a coordinate waypoint so the
+crossing edge's path builder routes through the container's visual space rather than jumping over
+it. The described edge whose container it is does **not** receive a spacer inside its own container
+-- its path terminates there.
+
 
 ## When Spacer Building is Triggered
 
@@ -113,7 +126,7 @@ Spacer building is orchestrated by `IrToTaffyBuilder` in
 [`crate/input_ir_rt/src/ir_to_taffy_builder.rs`](crate/input_ir_rt/src/ir_to_taffy_builder.rs).
 
 After all diagram nodes and their child hierarchies have been added to the taffy tree, spacers are
-inserted in three stages per dimension:
+inserted in five stages per dimension:
 
 1. **Nested same-level spacers.** For every container diagram node (one that has children),
    `build_taffy_nodes_for_node_with_child_hierarchy` calls `EdgeSpacerBuilder::build` once per
@@ -124,13 +137,31 @@ inserted in three stages per dimension:
    `EdgeSpacerBuilder::build_cross_container_spacers` once per container, inserting spacers for
    edges that enter the container from outside.
 
-3. **Top-level same-level spacers.** After all containers have been processed,
+3. **Nested edge description container spacers.** After `EdgeDescriptionBuilder::build` has
+   produced `edge_description_container` nodes for this nesting level,
+   `build_taffy_nodes_for_node_with_child_hierarchy` calls
+   `EdgeSpacerBuilder::build_edge_desc_container_spacers` once per entity type with
+   `lca_node_id = Some(&container_id)`. Each edge whose rank span crosses an
+   `edge_description_container` at this level (other than its own) receives a spacer leaf appended
+   as a child of that container.
+
+4. **Top-level same-level spacers.** After all containers have been processed,
    `build_taffy_trees_for_dimension` calls `EdgeSpacerBuilder::build` once per entity type with
    `lca_node_id = None`. This inserts spacers for top-level edges whose LCA is the diagram root.
 
-All three stages accumulate their results into a single `Map<EdgeId, EdgeSpacerTaffyNodes>`. The
-maps from nested calls are merged into the top-level map, and the fully-merged map is stored as
+5. **Top-level edge description container spacers.** Immediately after the top-level
+   `EdgeDescriptionBuilder::build` calls, `build_taffy_trees_for_dimension` calls
+   `EdgeSpacerBuilder::build_edge_desc_container_spacers` once per entity type with
+   `lca_node_id = None`. Each top-level edge whose rank span crosses a top-level
+   `edge_description_container` (other than its own) receives a spacer inside that container.
+
+All five stages accumulate their results into a single `Map<EdgeId, EdgeSpacerTaffyNodes>`. Stages
+1-3 return results that are merged into `nested_edge_spacer_taffy_nodes` and carried back up to
+the top level. Stages 4-5 extend the top-level map directly. The fully-merged map is stored as
 `TaffyNodeMappings::edge_spacer_taffy_nodes`.
+
+Edge description container spacer results are merged entry-by-entry (not with a plain `extend`)
+to preserve any rank or cross-container spacer entries that may already exist for the same edge.
 
 
 ## Same-Level Cross-Rank Spacers: EdgeSpacerBuilder::build
@@ -359,8 +390,9 @@ All spacer nodes from both kinds of building are accumulated into:
 The `EdgeSpacerTaffyNodes` for each edge contains:
 
     EdgeSpacerTaffyNodes {
-        rank_to_spacer_taffy_node_id:          Map<NodeRank, taffy::NodeId>,
-        cross_container_spacer_taffy_node_ids: Vec<taffy::NodeId>,
+        rank_to_spacer_taffy_node_id:               Map<NodeRank, taffy::NodeId>,
+        cross_container_spacer_taffy_node_ids:      Vec<taffy::NodeId>,
+        edge_desc_container_spacer_taffy_node_ids:  Vec<taffy::NodeId>,
     }
 
 `rank_to_spacer_taffy_node_id` maps each intermediate rank value to the single spacer node
@@ -372,6 +404,11 @@ Multiple cross-container spacers can share the same global rank value (each cont
 independent rank numbering), so a map keyed by rank would conflate them. Instead the list is
 ordered by iteration order, and the edge path builder uses the computed absolute positions after
 layout to sort and route through them correctly.
+
+`edge_desc_container_spacer_taffy_node_ids` is an unkeyed list of edge description container
+spacer node IDs. Each entry corresponds to a spacer appended inside one `edge_description_container`
+that the edge's path crosses. Like cross-container spacers, the edge path builder sorts all three
+kinds together by main-axis coordinate after layout to determine the correct waypoint order.
 
 `TaffyNodeMappings::edge_spacer_taffy_nodes` is consumed by `TaffyToSvgElementsMapper` and the
 edge path routing code in
