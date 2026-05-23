@@ -27,7 +27,7 @@ Phases at a glance:
 | 4 | Edge spacers inside edge_description_containers |
 | 5 | SVG rendering |
 | 6 | Edge path routing through the new spacers |
-| 7 | Documentation updates |
+| 7 | Documentation updates (`taffy_node_hierarchy.md`, `edge_spacers.md`, `diagram_generation.md`, `CLAUDE.md`) |
 
 
 ## Background: Position Calculation
@@ -578,30 +578,6 @@ Add a reference under **Additional Context**:
    plan to render edge descriptions as container nodes interleaved between rank
    containers.
 ```
-
-
-### Step 7.5 -- Update `edge_descriptions.md`
-
-`edge_descriptions.md` currently documents that face-label slots render their
-text from `EntityDescs`. This is no longer accurate. Update the document to
-reflect the current state:
-
-1. **Remove** the `EntityDescs` data-flow sections that show description text
-   flowing into face-label taffy nodes and SVG `<text>` elements via
-   `node_size_measure` / `highlighted_spans_compute` / `SvgEdgeLabelsBuilder`.
-
-2. **Clarify the current role of face-label slots**: they are purely structural
-   taffy leaf nodes used for edge contact-point positioning and face-offset
-   calculations (see `edge_paths.md` -- Offset Calculation). They measure as
-   zero size when no other sizing applies and carry no rendered text.
-
-3. **Add a cross-reference** to `edge_description_containers_plan.md`
-   (this document) as the authoritative source for how `EntityDescs` text is
-   rendered in the diagram.
-
-4. Update the **Data Flow Summary** diagram to remove the `EntityDescs` ->
-   face-label path and add a note pointing to the edge-description-container
-   pipeline.
 
 
 ## Open Questions
