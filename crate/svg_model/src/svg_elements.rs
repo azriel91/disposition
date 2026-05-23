@@ -2,7 +2,7 @@ use disposition_ir_model::{entity::EntityTailwindClasses, node::NodeId};
 use disposition_model_common::{theme::Css, Map};
 use serde::{Deserialize, Serialize};
 
-use crate::{SvgEdgeInfo, SvgEdgeLabelInfo, SvgNodeInfo, SvgProcessInfo};
+use crate::{SvgEdgeDescriptionInfo, SvgEdgeInfo, SvgEdgeLabelInfo, SvgNodeInfo, SvgProcessInfo};
 
 /// All the necessary information to output SVG nodes and edges and styling.
 #[cfg_attr(
@@ -37,6 +37,11 @@ pub struct SvgElements<'id> {
     /// Each entry holds the label slots (from and to) for one edge. Only edges
     /// with a description and a face assignment produce non-empty slots.
     pub edge_label_infos: Vec<SvgEdgeLabelInfo<'id>>,
+    /// Information to render SVG elements for edge descriptions.
+    ///
+    /// Each entry holds the position, size, and text spans for one described
+    /// edge's leaf node within its `edge_description_container`.
+    pub edge_description_infos: Vec<SvgEdgeDescriptionInfo<'id>>,
     /// Process information indexed by process node ID.
     ///
     /// Used for calculating y-translations when processes expand.
@@ -64,6 +69,7 @@ impl<'id> SvgElements<'id> {
         svg_node_infos: Vec<SvgNodeInfo<'id>>,
         svg_edge_infos: Vec<SvgEdgeInfo<'id>>,
         edge_label_infos: Vec<SvgEdgeLabelInfo<'id>>,
+        edge_description_infos: Vec<SvgEdgeDescriptionInfo<'id>>,
         svg_process_infos: Map<NodeId<'id>, SvgProcessInfo<'id>>,
         tailwind_classes: EntityTailwindClasses<'id>,
         css: Css,
@@ -74,6 +80,7 @@ impl<'id> SvgElements<'id> {
             svg_node_infos,
             svg_edge_infos,
             edge_label_infos,
+            edge_description_infos,
             svg_process_infos,
             tailwind_classes,
             css,
