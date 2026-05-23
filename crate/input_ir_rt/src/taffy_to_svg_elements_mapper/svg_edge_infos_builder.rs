@@ -1193,6 +1193,7 @@ impl SvgEdgeInfosBuilder {
     /// when the label has zero size along the face axis (indicating no
     /// description text).  The caller should fall back to the slot-based
     /// offset in that case.
+    #[allow(clippy::too_many_arguments)]
     fn label_face_offset_compute<'id>(
         rank_dir: RankDir,
         face: NodeFace,

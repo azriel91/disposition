@@ -359,6 +359,7 @@ impl IrToTaffyBuilder<'_> {
     /// Compute highlighted spans for all nodes after layout is complete.
     /// This is much more efficient than doing it during measure() which gets
     /// called multiple times.
+    #[allow(clippy::too_many_arguments)]
     fn highlighted_spans_compute(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
