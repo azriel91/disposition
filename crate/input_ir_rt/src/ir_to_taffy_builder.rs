@@ -1323,7 +1323,18 @@ impl IrToTaffyBuilder<'_> {
             .expect("`TaffyTree::new_leaf_with_context` should be infallible.")
     }
 
-    /// Returns the `taffy::Style` for container nodes.
+    /// Returns the `taffy::Style` for container nodes and leaf nodes.
+    ///
+    /// The values for each style are taken from the `NodeLayouts` map.
+    ///
+    /// This includes:
+    ///
+    /// * `inbuilt` nodes: e.g. `NodeInbuilt::ThingsAndProcessesContainer`.
+    /// * `rank_container` nodes: `taffy` nodes that contain the taffy container
+    ///   nodes for a given rank.
+    /// * `rank` nodes: The `taffy` nodes that contain the child nodes for a
+    ///   given rank.
+    /// * leaf nodes: the `taffy` nodes that contain the text of a diagram node.
     fn taffy_container_style(
         node_layouts: &NodeLayouts,
         node_id: &Id,
