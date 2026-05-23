@@ -10,7 +10,8 @@ pub const TEXT_LINE_HEIGHT: f32 = 17.0f32;
 
 pub use crate::{
     diagram_lod::DiagramLod, diagram_node_ctx::DiagramNodeCtx, dimension::Dimension,
-    dimension_and_lod::DimensionAndLod, edge_label_ctx::EdgeLabelCtx,
+    dimension_and_lod::DimensionAndLod, edge_description_ctx::EdgeDescriptionCtx,
+    edge_description_taffy_nodes::EdgeDescriptionTaffyNodes, edge_label_ctx::EdgeLabelCtx,
     edge_label_taffy_node_ids::EdgeLabelTaffyNodeIds, edge_spacer_ctx::EdgeSpacerCtx,
     edge_spacer_taffy_nodes::EdgeSpacerTaffyNodes, entity_highlighted_span::EntityHighlightedSpan,
     entity_highlighted_spans::EntityHighlightedSpans, error::IrToTaffyError,
@@ -22,6 +23,8 @@ mod diagram_lod;
 mod diagram_node_ctx;
 mod dimension;
 mod dimension_and_lod;
+mod edge_description_ctx;
+mod edge_description_taffy_nodes;
 mod edge_label_ctx;
 mod edge_label_taffy_node_ids;
 mod edge_spacer_ctx;

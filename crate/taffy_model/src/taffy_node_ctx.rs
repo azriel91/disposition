@@ -1,4 +1,4 @@
-use crate::{DiagramNodeCtx, EdgeLabelCtx, EdgeSpacerCtx};
+use crate::{DiagramNodeCtx, EdgeDescriptionCtx, EdgeLabelCtx, EdgeSpacerCtx};
 
 /// Context data stored with each node in the `TaffyTree`.
 ///
@@ -13,6 +13,7 @@ use crate::{DiagramNodeCtx, EdgeLabelCtx, EdgeSpacerCtx};
 /// TaffyNodeCtx::DiagramNode(DiagramNodeCtx { entity_id: "app", entity_type: ThingDefault })
 /// TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {})
 /// TaffyNodeCtx::EdgeLabel(EdgeLabelCtx { edge_id: "edge_t_a__t_b__0", node_id: "t_a", face: NodeFace::Right })
+/// TaffyNodeCtx::EdgeDescription(EdgeDescriptionCtx { edge_id: "edge_t_a__t_b__0" })
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub enum TaffyNodeCtx {
@@ -24,4 +25,7 @@ pub enum TaffyNodeCtx {
     /// A leaf node that measures and positions an edge description label on a
     /// specific face of a diagram node's envelope.
     EdgeLabel(EdgeLabelCtx),
+    /// A leaf node that measures and positions an edge description in an
+    /// `edge_description_container` interleaved between rank containers.
+    EdgeDescription(EdgeDescriptionCtx),
 }

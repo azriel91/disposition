@@ -352,6 +352,7 @@ impl IrToTaffyBuilder<'_> {
             edge_spacer_taffy_nodes,
             entity_highlighted_spans,
             edge_label_taffy_nodes,
+            edge_description_taffy_nodes: Map::new(),
             node_id_to_envelope_taffy_node,
         })
     }
@@ -1583,6 +1584,7 @@ impl IrToTaffyBuilder<'_> {
                     }
                 }
                 TaffyNodeCtx::EdgeSpacer(_) => None,
+                TaffyNodeCtx::EdgeDescription(_) => None,
                 TaffyNodeCtx::EdgeLabel(ctx) => match lod {
                     DiagramLod::Simple => None,
                     DiagramLod::Normal => {

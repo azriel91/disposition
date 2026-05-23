@@ -37,6 +37,7 @@ impl TaffyTreeFmt {
             edge_spacer_taffy_nodes: _,
             entity_highlighted_spans: _,
             edge_label_taffy_nodes: _,
+            edge_description_taffy_nodes: _,
             node_id_to_envelope_taffy_node: _,
         } = taffy_node_mappings;
         let root_taffy_node_id = node_inbuilt_to_taffy
@@ -82,6 +83,10 @@ impl TaffyTreeFmt {
                             let edge_id = &edge_label_ctx.edge_id;
                             let face = edge_label_ctx.face;
                             Cow::Owned(format!("edge_label_{edge_id}_{face:?}"))
+                        }
+                        TaffyNodeCtx::EdgeDescription(edge_description_ctx) => {
+                            let edge_id = &edge_description_ctx.edge_id;
+                            Cow::Owned(format!("edge_description_{edge_id}"))
                         }
                     },
                 )
