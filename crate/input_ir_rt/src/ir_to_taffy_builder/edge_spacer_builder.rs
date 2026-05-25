@@ -340,14 +340,6 @@ impl EdgeSpacerBuilder {
             return Map::new();
         }
 
-        // Build reverse map: container_taffy_node_id -> edge_id for skipping
-        // the owning edge.
-        let container_to_edge_id: Map<taffy::NodeId, &EdgeId<'static>> =
-            edge_description_taffy_nodes
-                .iter()
-                .map(|(edge_id, nodes)| (nodes.container_taffy_node_id, edge_id))
-                .collect();
-
         let spacer_style = Style {
             min_size: Size {
                 width: taffy::Dimension::length(EDGE_SPACER_LENGTH),
@@ -375,7 +367,7 @@ impl EdgeSpacerBuilder {
                         target_entity_type,
                         lca_node_id,
                         position_to_container_ids,
-                        &container_to_edge_id,
+                        edge_description_taffy_nodes,
                         &spacer_style,
                         &mut edge_spacer_taffy_nodes,
                     );
@@ -398,7 +390,7 @@ impl EdgeSpacerBuilder {
         target_entity_type: &EntityType,
         lca_node_id: Option<&NodeId<'static>>,
         position_to_container_ids: &BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
-        container_to_edge_id: &Map<taffy::NodeId, &EdgeId<'static>>,
+        edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
         spacer_style: &Style,
         edge_spacer_taffy_nodes: &mut Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
     ) {
@@ -476,9 +468,21 @@ impl EdgeSpacerBuilder {
                 }
 
                 container_ids.iter().for_each(|container_id| {
-                    // Skip the edge's own description container.
-                    if container_to_edge_id.get(container_id) == Some(&edge_id) {
-                        return;
+                    // If this container already holds this edge's description,
+                    // use the description node itself as the routing waypoint
+                    // rather than inserting an extra spacer. This correctly
+                    // handles both single-edge containers and shared containers
+                    // where multiple descriptions sit side by side: each edge
+                    // routes through its own description node's position.
+                    if let Some(nodes) = edge_description_taffy_nodes.get(edge_id) {
+                        if nodes.container_taffy_node_id == *container_id {
+                            edge_spacer_taffy_nodes
+                                .entry(edge_id.clone())
+                                .or_default()
+                                .edge_desc_container_spacer_taffy_node_ids
+                                .push(nodes.description_taffy_node_id);
+                            return;
+                        }
                     }
 
                     let spacer_taffy_node_id = taffy_tree
