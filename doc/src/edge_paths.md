@@ -249,7 +249,7 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
 ### Helper functions
 
-33. **`rank_gap_px`**: computes the pixel distance in the rank direction for one non-cycle endpoint. For the from-endpoint, this is the distance from the from-node's face center to the first spacer entry (or to-node if no spacers). For the to-endpoint, it is the distance from the to-node's face center to the last spacer exit (or from-node if no spacers). Cycle edge endpoints use a different computation in `cycle_edge_collect_rank_gap_entries` (see below).
+33. **`rank_gap_px`**: computes the pixel distance in the rank direction for one non-cycle endpoint. For the from-endpoint, this is the distance from the from-node's face center to the first spacer entry (or to-node if no spacers). For the to-endpoint, it is the distance from the to-node's face center to the last spacer exit (or from-node if no spacers). The result is then **capped at the boundary of the other node's divergent ancestor**: for a Bottom-face protrusion the cap is the distance from the from-node's face to the Top face of the to-node's divergent ancestor (i.e. the near boundary of the destination container). This prevents the slot-assigned `max_protrusion` from exceeding the actual inter-rank gap when nodes are deeply nested, which would otherwise cause both protrusion tips to land at the same coordinate and suppress the Z/S bend. Cycle edge endpoints use a different computation in `cycle_edge_collect_rank_gap_entries` (see below).
 34. **`spacer_gap_px`**: computes the pixel distance between two consecutive spacers along the rank axis (from the exit of one spacer to the entry of the next).
 35. **`spacer_gap_key`**: computes the `RankGapKey` for the gap between two consecutive spacers by interpolating ranks between the from-node and to-node.
 36. **`face_offset_resolve`**: resolves the face offset (slot offset) for a single endpoint from `face_offsets_by_node_face`. Spacer endpoints have a face offset of `0.0`.
@@ -269,11 +269,7 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
 43. For edges between deeply-nested nodes the slot-assigned `from_protrusion` can exceed the available gap between the two outer containers. When the divergent-sibling adjustment (Step 5) simultaneously raises `to_protrusion` to clear the destination container hierarchy, the sum `from_protrusion + to_protrusion` can exceed the full node-to-node gap. This places the from-tip *past* the to-tip in the routing direction -- the tips cross -- so any Z/S segment drawn between them would re-enter the destination container.
 
-    **Example (0002 doubly-nested diagram):**
-    - `t_alice_inner` bottom face: y = 172.
-    - `t_charlie_inner` top face: y = 325. Gap = 153 px.
-    - Slot-assigned `from_protrusion = 73.44`, divergent-sibling `to_protrusion = 110.0`.
-    - Sum = 183.44 > 153 -- tips would cross: from-tip at y = 245.44 is below to-tip at y = 215.
+    Note: the `rank_gap_px` cap (see item 33) prevents this situation from arising in most cases by limiting the slot-assigned protrusion to the actual inter-rank gap. The `from_protrusion_capped` guard is a secondary safety net for remaining edge cases (e.g. very small rank gaps, or edges where the cap does not fully constrain the protrusion).
 
     The fix is applied in `build_ortho_edge_path` via a helper `fn from_protrusion_capped`. For aligned opposite-face pairs (Bottom-Top, Top-Bottom, Left-Right, Right-Left), it computes `gap = |end_axis - start_axis|` and, when `from_protrusion + to_protrusion > gap`, caps the from-protrusion to `(gap - to_protrusion).max(0.0)`. For other face-pair combinations (cycle edges, L-shaped routing) it returns the from-protrusion unchanged.
 
@@ -303,13 +299,7 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
     The fix is in `connect_waypoints`: at the start of the vertical Z/S branch, before computing the bend point, a guard fires when `|py - qy| < 1e-3` **and** `p_dy * q_dy < 0` (opposite vertical directions). In that case a **straight horizontal line** is drawn from p to q and the function returns early. The horizontal analogue applies for the horizontal Z/S branch (`|px - qx| < 1e-3`, `p_dx * q_dx < 0`).
 
-    **Example (0002 doubly-nested diagram):** after capping, `from_protrusion_eff = 43`, placing the from-tip at `(88.5, 215)` with `dir = (0,+1)` and the to-tip at `(97, 215)` with `dir = (0,-1)`. The guard fires and the complete path becomes:
-
-    ```
-    M97,325 L97,215 L88.5,215 L88.5,172
-    ```
-
-    an orthogonal Z-shape (up 110 px stub, left 8.5 px cross, up 43 px stub) with no direction reversals.
+    This guard is rarely triggered after the `rank_gap_px` cap fix, since the cap prevents both protrusion tips from landing at the same coordinate in normal routing. It remains as a safety net for degenerate layouts.
 
 
 ## Spacer Coordinate Direction Awareness
