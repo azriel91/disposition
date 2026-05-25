@@ -1160,27 +1160,24 @@ impl OrthoProtrusionCalculator {
         let lca_depth = Self::lca_depth(this_node_id, other_node_id, node_nesting_infos);
         if let Some(other_div_ancestor_id) =
             Self::divergent_ancestor_id(other_node_id, lca_depth, node_nesting_infos)
+            && let Some(&other_ancestor_info) = svg_node_info_map.get(other_div_ancestor_id)
         {
-            if let Some(&other_ancestor_info) = svg_node_info_map.get(other_div_ancestor_id) {
-                let (this_face_x, this_face_y) = if is_from {
-                    (from_x, from_y)
-                } else {
-                    (to_x, to_y)
-                };
-                // The other ancestor's face pointing toward this node
-                // is the opposite of the protrusion direction.
-                let other_opposite_face = match face {
-                    NodeFace::Bottom => NodeFace::Top,
-                    NodeFace::Top => NodeFace::Bottom,
-                    NodeFace::Right => NodeFace::Left,
-                    NodeFace::Left => NodeFace::Right,
-                };
-                let (other_bx, other_by) =
-                    Self::face_center(other_ancestor_info, other_opposite_face);
-                let capped =
-                    Self::axis_distance(this_face_x, this_face_y, other_bx, other_by, face);
-                return full_dist.min(capped);
-            }
+            let (this_face_x, this_face_y) = if is_from {
+                (from_x, from_y)
+            } else {
+                (to_x, to_y)
+            };
+            // The other ancestor's face pointing toward this node
+            // is the opposite of the protrusion direction.
+            let other_opposite_face = match face {
+                NodeFace::Bottom => NodeFace::Top,
+                NodeFace::Top => NodeFace::Bottom,
+                NodeFace::Right => NodeFace::Left,
+                NodeFace::Left => NodeFace::Right,
+            };
+            let (other_bx, other_by) = Self::face_center(other_ancestor_info, other_opposite_face);
+            let capped = Self::axis_distance(this_face_x, this_face_y, other_bx, other_by, face);
+            return full_dist.min(capped);
         }
         full_dist
     }
