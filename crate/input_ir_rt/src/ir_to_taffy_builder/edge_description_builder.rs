@@ -15,6 +15,14 @@ use crate::EdgeIdGenerator;
 
 use super::edge_spacer_builder::LcaDepthCalculator;
 
+use self::{
+    edge_id_and_taffy_description_node::EdgeIdAndTaffyDescriptionNode,
+    sibling_index_middle_and_edge_id::SiblingIndexMiddleAndEdgeId,
+};
+
+mod edge_id_and_taffy_description_node;
+mod sibling_index_middle_and_edge_id;
+
 /// Builds `edge_description_container` and `edge_description` leaf taffy nodes
 /// for all described edges at a single LCA level.
 ///
@@ -54,16 +62,16 @@ impl EdgeDescriptionBuilder {
 
         // Collect per-edge description leaf nodes grouped by insertion position.
         //
-        // Inner BTreeMap key: `(sibling_middle, edge_id_str)` -- sorted so
+        // Inner BTreeMap key: `MiddleSiblingNodeIndexAndEdgeId` -- sorted so
         // descriptions at the same position are ordered by sibling proximity
         // and then by edge ID as a tiebreaker.
         //
-        // Inner BTreeMap value: `(edge_id, description_taffy_node_id)` so we
-        // can build `EdgeDescriptionTaffyNodes` after the shared container is
+        // Inner BTreeMap value: `EdgeIdAndTaffyDescriptionNode` so we can
+        // build `EdgeDescriptionTaffyNodes` after the shared container is
         // created.
         let mut position_to_sorted_descriptions: BTreeMap<
             Option<NodeRank>,
-            BTreeMap<(usize, String), (EdgeId<'static>, taffy::NodeId)>,
+            BTreeMap<SiblingIndexMiddleAndEdgeId, EdgeIdAndTaffyDescriptionNode>,
         > = BTreeMap::new();
 
         edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
@@ -89,7 +97,13 @@ impl EdgeDescriptionBuilder {
                         position_to_sorted_descriptions
                             .entry(position)
                             .or_default()
-                            .insert(sort_key, (edge_id, description_taffy_node_id));
+                            .insert(
+                                sort_key,
+                                EdgeIdAndTaffyDescriptionNode {
+                                    edge_id,
+                                    description_taffy_node_id,
+                                },
+                            );
                     }
                 });
         });
@@ -100,18 +114,22 @@ impl EdgeDescriptionBuilder {
         let position_to_container_ids = position_to_sorted_descriptions
             .into_iter()
             .map(|(position, sorted)| {
-                let description_nodes: Vec<(EdgeId<'static>, taffy::NodeId)> =
+                let description_nodes: Vec<EdgeIdAndTaffyDescriptionNode> =
                     sorted.into_values().collect();
                 let leaf_node_ids: Vec<taffy::NodeId> = description_nodes
                     .iter()
-                    .map(|(_, node_id)| *node_id)
+                    .map(|node| node.description_taffy_node_id)
                     .collect();
 
                 let container_taffy_node_id = taffy_tree
                     .new_with_children(rank_container_style.clone(), &leaf_node_ids)
                     .expect("Expected to create edge_description_container node.");
 
-                for (edge_id, description_taffy_node_id) in description_nodes {
+                for EdgeIdAndTaffyDescriptionNode {
+                    edge_id,
+                    description_taffy_node_id,
+                } in description_nodes
+                {
                     edge_description_taffy_nodes.insert(
                         edge_id,
                         EdgeDescriptionTaffyNodes {
@@ -146,7 +164,7 @@ impl EdgeDescriptionBuilder {
     /// where:
     /// - `position` -- `None` = before all rank containers; `Some(rank)` =
     ///   after rank_container[rank].
-    /// - `sort_key` -- `(sibling_middle, edge_id_str)` for deterministic
+    /// - `sort_key` -- [`MiddleSiblingNodeIndexAndEdgeId`] for deterministic
     ///   ordering at the same position.
     /// - `description_taffy_node_id` -- the newly created leaf node.
     ///
@@ -163,7 +181,7 @@ impl EdgeDescriptionBuilder {
         entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
         lca_node_id: Option<&NodeId<'static>>,
-    ) -> Option<(Option<NodeRank>, (usize, String), taffy::NodeId)> {
+    ) -> Option<(Option<NodeRank>, SiblingIndexMiddleAndEdgeId, taffy::NodeId)> {
         // Step 2.2.1 -- Filter by entity_descs.
         entity_descs.get(edge_id.as_ref())?;
 
@@ -243,8 +261,11 @@ impl EdgeDescriptionBuilder {
         // Step 2.2.8 -- Compute sibling middle index (sort key).
         let sibling_index_from = info_from.nesting_path.get(lca_depth).copied().unwrap_or(0);
         let sibling_index_to = info_to.nesting_path.get(lca_depth).copied().unwrap_or(0);
-        let sibling_middle = (sibling_index_from + sibling_index_to) / 2;
-        let sort_key = (sibling_middle, edge_id.as_str().to_string());
+        let sibling_index_middle = (sibling_index_from + sibling_index_to) / 2;
+        let sort_key = SiblingIndexMiddleAndEdgeId {
+            sibling_index_middle,
+            edge_id: edge_id.as_str().to_string(),
+        };
 
         // Step 2.2.9 -- Create the description leaf node.
         let description_style = Style {
