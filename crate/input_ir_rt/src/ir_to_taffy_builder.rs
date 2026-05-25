@@ -1453,7 +1453,7 @@ impl IrToTaffyBuilder<'_> {
             EntityType::TagDefault,
             EntityType::ProcessDefault,
         ] {
-            let desc_build_result = EdgeDescriptionBuilder::build(
+            let edge_description_containers_build_result = EdgeDescriptionBuilder::build(
                 taffy_tree,
                 entity_descs,
                 edge_groups,
@@ -1464,8 +1464,11 @@ impl IrToTaffyBuilder<'_> {
                 Some(&lca_node_id),
                 &child_container_style,
             );
-            edge_description_taffy_nodes.extend(desc_build_result.edge_description_taffy_nodes);
-            for (pos, containers) in desc_build_result.position_to_container_ids {
+            edge_description_taffy_nodes
+                .extend(edge_description_containers_build_result.edge_description_taffy_nodes);
+            for (pos, containers) in
+                edge_description_containers_build_result.position_to_container_ids
+            {
                 position_to_container_ids
                     .entry(pos)
                     .or_default()
