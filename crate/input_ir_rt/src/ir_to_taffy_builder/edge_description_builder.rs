@@ -22,8 +22,9 @@ use super::edge_spacer_builder::LcaDepthCalculator;
 ///
 /// 1. A leaf node with `TaffyNodeCtx::EdgeDescription` whose size is measured
 ///    from the description text (placeholder zero size until Phase 3).
-/// 2. A container node (styled like a rank container) that wraps the leaf and
-///    is interleaved between existing rank containers.
+/// 2. A shared container node (styled like a rank container) that wraps all
+///    leaf nodes at the same insertion position and is interleaved between
+///    existing rank containers.
 pub(crate) struct EdgeDescriptionBuilder;
 
 impl EdgeDescriptionBuilder {
@@ -32,6 +33,10 @@ impl EdgeDescriptionBuilder {
     ///
     /// Returns the new taffy node IDs and the positions at which each
     /// `edge_description_container` should be interleaved with rank containers.
+    ///
+    /// One container node is created per insertion position, holding all
+    /// description leaf nodes for edges at that position. Positions with no
+    /// described edges produce no container.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
@@ -47,12 +52,18 @@ impl EdgeDescriptionBuilder {
         let mut edge_description_taffy_nodes: Map<EdgeId<'static>, EdgeDescriptionTaffyNodes> =
             Map::new();
 
+        // Collect per-edge description leaf nodes grouped by insertion position.
+        //
         // Inner BTreeMap key: `(sibling_middle, edge_id_str)` -- sorted so
-        // containers at the same position are ordered by sibling proximity
+        // descriptions at the same position are ordered by sibling proximity
         // and then by edge ID as a tiebreaker.
-        let mut position_to_sorted_containers: BTreeMap<
+        //
+        // Inner BTreeMap value: `(edge_id, description_taffy_node_id)` so we
+        // can build `EdgeDescriptionTaffyNodes` after the shared container is
+        // created.
+        let mut position_to_sorted_descriptions: BTreeMap<
             Option<NodeRank>,
-            BTreeMap<(usize, String), taffy::NodeId>,
+            BTreeMap<(usize, String), (EdgeId<'static>, taffy::NodeId)>,
         > = BTreeMap::new();
 
         edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
@@ -62,7 +73,7 @@ impl EdgeDescriptionBuilder {
                 .for_each(|(edge_index, edge)| {
                     let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
 
-                    if let Some((position, sort_key, edge_description_nodes)) =
+                    if let Some((position, sort_key, description_taffy_node_id)) =
                         Self::edge_desc_build(
                             taffy_tree,
                             entity_descs,
@@ -73,22 +84,45 @@ impl EdgeDescriptionBuilder {
                             entity_types,
                             target_entity_type,
                             lca_node_id,
-                            rank_container_style,
                         )
                     {
-                        position_to_sorted_containers
+                        position_to_sorted_descriptions
                             .entry(position)
                             .or_default()
-                            .insert(sort_key, edge_description_nodes.container_taffy_node_id);
-                        edge_description_taffy_nodes.insert(edge_id, edge_description_nodes);
+                            .insert(sort_key, (edge_id, description_taffy_node_id));
                     }
                 });
         });
 
-        // Flatten each inner BTreeMap to a Vec, preserving sort order.
-        let position_to_container_ids = position_to_sorted_containers
+        // For each position create one shared container holding all description
+        // leaf nodes at that position (in sort order). Then record each edge's
+        // `EdgeDescriptionTaffyNodes` with the shared container.
+        let position_to_container_ids = position_to_sorted_descriptions
             .into_iter()
-            .map(|(position, sorted)| (position, sorted.into_values().collect()))
+            .map(|(position, sorted)| {
+                let description_nodes: Vec<(EdgeId<'static>, taffy::NodeId)> =
+                    sorted.into_values().collect();
+                let leaf_node_ids: Vec<taffy::NodeId> = description_nodes
+                    .iter()
+                    .map(|(_, node_id)| *node_id)
+                    .collect();
+
+                let container_taffy_node_id = taffy_tree
+                    .new_with_children(rank_container_style.clone(), &leaf_node_ids)
+                    .expect("Expected to create edge_description_container node.");
+
+                for (edge_id, description_taffy_node_id) in description_nodes {
+                    edge_description_taffy_nodes.insert(
+                        edge_id,
+                        EdgeDescriptionTaffyNodes {
+                            container_taffy_node_id,
+                            description_taffy_node_id,
+                        },
+                    );
+                }
+
+                (position, vec![container_taffy_node_id])
+            })
             .collect();
 
         EdgeDescriptionBuildResult {
@@ -97,7 +131,7 @@ impl EdgeDescriptionBuilder {
         }
     }
 
-    /// Builds the two taffy nodes for a single edge description, if applicable.
+    /// Builds the description leaf taffy node for a single edge, if applicable.
     ///
     /// Applies the following filters in order:
     ///
@@ -108,12 +142,16 @@ impl EdgeDescriptionBuilder {
     /// 4. Both divergent ancestors must match `target_entity_type`.
     /// 5. The edge's LCA must match the `lca_node_id` filter.
     ///
-    /// On success returns `(position, sort_key, EdgeDescriptionTaffyNodes)`
+    /// On success returns `(position, sort_key, description_taffy_node_id)`
     /// where:
     /// - `position` -- `None` = before all rank containers; `Some(rank)` =
     ///   after rank_container[rank].
     /// - `sort_key` -- `(sibling_middle, edge_id_str)` for deterministic
     ///   ordering at the same position.
+    /// - `description_taffy_node_id` -- the newly created leaf node.
+    ///
+    /// The shared container node is created later in `build` once all leaves
+    /// at the same position have been collected.
     #[allow(clippy::too_many_arguments)]
     fn edge_desc_build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
@@ -125,8 +163,7 @@ impl EdgeDescriptionBuilder {
         entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
         lca_node_id: Option<&NodeId<'static>>,
-        rank_container_style: &Style,
-    ) -> Option<(Option<NodeRank>, (usize, String), EdgeDescriptionTaffyNodes)> {
+    ) -> Option<(Option<NodeRank>, (usize, String), taffy::NodeId)> {
         // Step 2.2.1 -- Filter by entity_descs.
         entity_descs.get(edge_id.as_ref())?;
 
@@ -209,7 +246,7 @@ impl EdgeDescriptionBuilder {
         let sibling_middle = (sibling_index_from + sibling_index_to) / 2;
         let sort_key = (sibling_middle, edge_id.as_str().to_string());
 
-        // Step 2.2.8 -- Create the leaf and container taffy nodes.
+        // Step 2.2.9 -- Create the description leaf node.
         let description_style = Style {
             align_self: Some(AlignSelf::Stretch),
             ..Default::default()
@@ -224,18 +261,7 @@ impl EdgeDescriptionBuilder {
             )
             .expect("Expected to create edge description leaf node.");
 
-        let container_taffy_node_id = taffy_tree
-            .new_with_children(rank_container_style.clone(), &[description_taffy_node_id])
-            .expect("Expected to create edge_description_container node.");
-
-        Some((
-            position,
-            sort_key,
-            EdgeDescriptionTaffyNodes {
-                container_taffy_node_id,
-                description_taffy_node_id,
-            },
-        ))
+        Some((position, sort_key, description_taffy_node_id))
     }
 }
 
