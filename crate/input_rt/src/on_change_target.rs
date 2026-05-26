@@ -7,8 +7,10 @@
 pub enum OnChangeTarget {
     /// Targets `thing_copy_text`.
     CopyText,
-    /// Targets `entity_descs`.
-    EntityDesc,
+    /// Targets `thing_descs`.
+    ThingDesc,
+    /// Targets `edge_descs`.
+    EdgeDesc,
     /// Targets `entity_tooltips`.
     EntityTooltip,
 }

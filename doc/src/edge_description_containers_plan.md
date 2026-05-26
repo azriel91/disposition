@@ -5,12 +5,12 @@
 This plan covers inserting `edge_description_container` taffy nodes -- each
 holding an `edge_description` leaf -- interleaved between the existing
 `rank_container` nodes in the taffy layout tree. When an edge has a description
-in `EntityDescs`, the text is rendered in that container at a position
+in `EdgeDescs`, the text is rendered in that container at a position
 determined by the ranks of the edge's divergent ancestors at the LCA level.
 
 This is a separate rendering location from the face-label slots described in
 `edge_descriptions.md`. Note that `edge_descriptions.md` is currently out of
-date: face-label slots no longer render text from `EntityDescs`. `EntityDescs`
+date: face-label slots no longer render text from `EdgeDescs`. `EdgeDescs`
 is now the exclusive source for edge description containers (this feature).
 Step 7.5 covers updating that document.
 
@@ -166,7 +166,7 @@ Approximate signature:
 impl EdgeDescriptionBuilder {
     pub fn build(
         taffy_tree:          &mut TaffyTree<TaffyNodeCtx>,
-        entity_descs:        &EntityDescs,
+        edge_descs:          &EdgeDescs,
         edge_groups:         &EdgeGroups,
         node_nesting_infos:  &NodeNestingInfos,
         node_ranks_nested:   &NodeRanksNested,
@@ -203,8 +203,8 @@ For each edge in every edge group, call the private helper
 `edge_desc_build`. The helper follows the same LCA-filtering pattern used
 by `EdgeSpacerBuilder::edge_spacers_build`:
 
-**Step 2.2.1 -- Filter by entity_descs.**
-Look up `entity_descs.get(edge_id)`. Return `None` if the edge has no
+**Step 2.2.1 -- Filter by edge_descs.**
+Look up `edge_descs.get(edge_id)`. Return `None` if the edge has no
 description.
 
 **Step 2.2.2 -- Resolve nesting infos.**
@@ -325,7 +325,7 @@ Source: `IrToTaffyBuilder::node_size_measure`
 Add a match arm for `TaffyNodeCtx::EdgeDescription(ctx)`:
 
 - Only measure text at `DiagramLod::Normal` (same as face labels).
-- Look up `entity_descs.get(ctx.edge_id.as_ref())`.
+- Look up `edge_descs.get(ctx.edge_id.as_ref())`.
 - If found, compute text width and line count exactly as for face-label nodes,
   returning a `Size<AvailableSpace>` that reflects the wrapped text dimensions.
 - If not found (should not occur for well-formed diagrams), return zero size.
@@ -338,7 +338,7 @@ function `highlighted_spans_compute_edge_desc_containers`).
 
 After taffy layout, for each entry in `edge_description_taffy_nodes`:
 
-1. Look up `entity_descs.get(edge_id.as_ref())`. Skip if absent.
+1. Look up `edge_descs.get(edge_id.as_ref())`. Skip if absent.
 2. Read the taffy layout width of `description_taffy_node_id` as the wrapping
    constraint.
 3. Call `wrap_text_monospace` to produce wrapped lines.

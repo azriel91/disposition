@@ -289,11 +289,11 @@ threaded through `TaffyNodeBuildContext`.
 In `IrToTaffyBuilder::node_size_measure`, add a match arm for
 `TaffyNodeCtx::EdgeLabel(ctx)`:
 
-- Look up `entity_descs.get(ctx.edge_id.as_ref())` for the description text.
-  `EntityDescs` is keyed by `Id<'static>` and `EdgeId` wraps `Id`, so
+- Look up `edge_descs.get(ctx.edge_id.as_ref())` for the description text.
+  `EdgeDescs` is keyed by `Id<'static>` and `EdgeId` wraps `Id`, so
   `ctx.edge_id.as_ref()` gives `&Id<'static>` which works as the lookup key.
 - Apply the same monospace wrapping logic used for `DiagramNode`.
-- `NodeMeasureContext` already carries `entity_descs`, so no new context field
+- `NodeMeasureContext` already carries `edge_descs`, so no new context field
   is needed.
 
 ---
@@ -489,7 +489,7 @@ wrapper at the same cross-axis size.
 
 ### OQ5 -- Edges with no description
 
-If `entity_descs` has no entry for an edge, the label leaf still exists in the
+If `edge_descs` has no entry for an edge, the label leaf still exists in the
 taffy tree but measures to zero size. The envelope will therefore have zero-size
 wrappers for those faces. This is correct behaviour -- no visible label is
 emitted and the layout is unchanged from the no-envelope case.

@@ -20,7 +20,7 @@ use crate::components::editor::{
 /// The **Edges: Labels** editor sub-page.
 ///
 /// Edits `edge_labels` -- `from` and `to` endpoint labels per edge -- and the
-/// corresponding `entity_descs` entry for the same edge ID.
+/// corresponding `edge_descs` entry for the same edge ID.
 #[component]
 pub fn EdgeLabelsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let label_drag_idx: Signal<Option<usize>> = use_signal(|| None);

@@ -84,7 +84,7 @@ impl TagsPageOps {
                 .replace_index(index, tag_key_new);
         }
 
-        // Shared rename across entity_descs, entity_tooltips, entity_types,
+        // Shared rename across thing_descs, entity_tooltips, entity_types,
         // and all theme style maps.
         let id_old = tag_id_old.into_inner();
         let id_new = tag_id_new.into_inner();

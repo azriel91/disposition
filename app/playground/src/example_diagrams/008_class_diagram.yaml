@@ -45,11 +45,13 @@ thing_dependencies:
       - t_owner
       - t_animal
 
-entity_descs:
+thing_descs:
   t_animal: "Abstract base class"
   t_dog: "Concrete subclass"
   t_cat: "Concrete subclass"
   t_owner: "Composition root"
+
+edge_descs:
   edge_dep_dog_extends_animal: "inherits"
   edge_dep_cat_extends_animal: "inherits"
   edge_dep_owner_has_animals: "has many"

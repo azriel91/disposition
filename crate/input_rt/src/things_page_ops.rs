@@ -224,7 +224,7 @@ impl ThingsPageOps {
             }
         });
 
-        // entity_descs, entity_tooltips, entity_types, and theme style maps.
+        // thing_descs, entity_tooltips, entity_types, and theme style maps.
         let id_orig = thing_id_orig.into_inner();
         let id_dup = thing_id_dup.into_inner();
         Self::id_copy_insert_in_input_diagram(input_diagram, &id_orig, &id_dup, &parts, dup_number);
@@ -407,16 +407,16 @@ impl ThingsPageOps {
         parts: &IdDuplicateParts,
         dup_number: u32,
     ) {
-        // entity_descs
-        if let Some(orig_index) = input_diagram.entity_descs.get_index_of(id_orig) {
+        // thing_descs
+        if let Some(orig_index) = input_diagram.thing_descs.get_index_of(id_orig) {
             let value = input_diagram
-                .entity_descs
+                .thing_descs
                 .get(id_orig)
                 .cloned()
                 .unwrap_or_default();
             let insert_at = parts.sorted_insert_index(
                 input_diagram
-                    .entity_descs
+                    .thing_descs
                     .keys()
                     .enumerate()
                     .map(|(i, k)| (i, k.as_str())),
@@ -424,7 +424,7 @@ impl ThingsPageOps {
                 dup_number,
             );
             input_diagram
-                .entity_descs
+                .thing_descs
                 .shift_insert(insert_at, id_dup.clone(), value);
         }
 
@@ -641,7 +641,7 @@ impl ThingsPageOps {
                 },
             );
 
-            // Shared rename across entity_descs, entity_tooltips, entity_types,
+            // Shared rename across thing_descs, entity_tooltips, entity_types,
             // and all theme style maps.
             let id_old = thing_id_old.into_inner();
             let id_new = thing_id_new.into_inner();
@@ -718,7 +718,7 @@ impl ThingsPageOps {
                 },
             );
 
-            // entity_descs, entity_tooltips, entity_types, and theme style
+            // thing_descs, entity_tooltips, entity_types, and theme style
             // maps: remove by Id.
             let id = thing_id.into_inner();
             Self::thing_remove_id_from_input_diagram(input_diagram, &id);
@@ -731,7 +731,7 @@ impl ThingsPageOps {
         input_diagram: &mut InputDiagram<'static>,
         id: &Id<'static>,
     ) {
-        input_diagram.entity_descs.remove(id);
+        input_diagram.thing_descs.remove(id);
         input_diagram.entity_tooltips.remove(id);
         input_diagram.entity_types.remove(id);
 

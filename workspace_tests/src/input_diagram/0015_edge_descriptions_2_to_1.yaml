@@ -17,6 +17,6 @@ thing_dependencies:
     things:
       - t_bob
       - t_charlie
-entity_descs:
+edge_descs:
   edge_dep_alice_charlie__0: alice->charlie
   edge_dep_bob_charlie__0: bob->charlie

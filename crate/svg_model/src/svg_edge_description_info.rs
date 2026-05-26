@@ -5,7 +5,7 @@ use crate::SvgTextSpan;
 
 /// Information to render SVG elements for an edge description.
 ///
-/// Each edge that has an `entity_descs` entry and a top-level or nested LCA
+/// Each edge that has an `edge_descs` entry and a top-level or nested LCA
 /// produces one `SvgEdgeDescriptionInfo`, which is rendered as a `<g>` element
 /// with `<text>` children positioned at the edge description container leaf
 /// node's absolute coordinates.

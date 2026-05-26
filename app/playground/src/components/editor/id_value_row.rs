@@ -308,7 +308,8 @@ pub fn IdValueRowTextSingle(
 /// An [`IdValueRow`] with a multi-line `<textarea>` value field.
 ///
 /// Use this variant when the value may span multiple lines, such as for
-/// `entity_descs` (descriptions rendered next to entities in the diagram).
+/// `thing_descs` or `edge_descs` (descriptions rendered next to things or
+/// edges in the diagram).
 ///
 /// The textarea saves its value on blur (`onchange`), consistent with the
 /// single-line variant. Enter inserts a newline (the browser default is not
@@ -394,7 +395,7 @@ pub fn IdValueRowTextMulti(
 ///
 /// * **from** -- the label displayed near the edge's source endpoint.
 /// * **to** -- the label displayed near the edge's destination endpoint.
-/// * **desc** -- the entity description (stored in `entity_descs`).
+/// * **desc** -- the edge description (stored in `edge_descs`).
 ///
 /// Each field has its own `on_update` callback so that the caller can dispatch
 /// each mutation to the correct field of the `InputDiagram`.

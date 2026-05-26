@@ -1,4 +1,4 @@
-pub use disposition_model_common::edge::{EdgeLabel, EdgeLabels};
+pub use disposition_model_common::edge::{EdgeDescs, EdgeLabel, EdgeLabels};
 
 pub use self::{
     edge_group::EdgeGroup,

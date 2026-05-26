@@ -1,6 +1,6 @@
 use disposition_input_model::{
-    edge::EdgeLabels,
-    entity::{EntityDescs, EntityTypes},
+    edge::{EdgeDescs, EdgeLabels},
+    entity::EntityTypes,
     process::Processes,
     tag::{TagNames, TagThings},
     theme::{
@@ -8,8 +8,8 @@ use disposition_input_model::{
         ThemeTypesStyles,
     },
     thing::{
-        ThingCopyText, ThingDependencies, ThingHierarchy, ThingInteractions, ThingLayouts,
-        ThingNames,
+        ThingCopyText, ThingDependencies, ThingDescs, ThingHierarchy, ThingInteractions,
+        ThingLayouts, ThingNames,
     },
     InputDiagram,
 };
@@ -70,8 +70,10 @@ impl InputDiagramMerger {
         let tags = Self::merge_tag_names(base_diagram.tags, &overlay_diagram.tags);
         let tag_things =
             Self::merge_tag_things(base_diagram.tag_things, &overlay_diagram.tag_things);
-        let entity_descs =
-            Self::merge_entity_descs(base_diagram.entity_descs, &overlay_diagram.entity_descs);
+        let thing_descs =
+            Self::merge_thing_descs(base_diagram.thing_descs, &overlay_diagram.thing_descs);
+        let edge_descs =
+            Self::merge_edge_descs(base_diagram.edge_descs, &overlay_diagram.edge_descs);
         let edge_labels =
             Self::merge_edge_labels(base_diagram.edge_labels, &overlay_diagram.edge_labels);
         let entity_tooltips = Self::merge_entity_tooltips(
@@ -104,10 +106,11 @@ impl InputDiagramMerger {
             thing_layouts,
             thing_dependencies,
             thing_interactions,
+            thing_descs,
             processes,
             tags,
             tag_things,
-            entity_descs,
+            edge_descs,
             edge_labels,
             entity_tooltips,
             entity_types,
@@ -214,10 +217,18 @@ impl InputDiagramMerger {
         result
     }
 
-    fn merge_entity_descs<'id>(
-        base: EntityDescs<'static>,
-        overlay: &EntityDescs<'id>,
-    ) -> EntityDescs<'id> {
+    fn merge_thing_descs<'id>(
+        base: ThingDescs<'static>,
+        overlay: &ThingDescs<'id>,
+    ) -> ThingDescs<'id> {
+        let mut result = base;
+        overlay.iter().for_each(|(key, value)| {
+            result.insert(key.clone(), value.clone());
+        });
+        result
+    }
+
+    fn merge_edge_descs<'id>(base: EdgeDescs<'static>, overlay: &EdgeDescs<'id>) -> EdgeDescs<'id> {
         let mut result = base;
         overlay.iter().for_each(|(key, value)| {
             result.insert(key.clone(), value.clone());

@@ -78,7 +78,7 @@ impl EntityTypesPageOps {
         input_diagram.entity_types.insert(id_new.clone(), types);
         input_diagram.entity_types.swap_remove(&id_old);
 
-        // Shared rename across entity_descs, entity_tooltips, entity_types,
+        // Shared rename across thing_descs, entity_tooltips, entity_types,
         // and all theme style maps.
         id_rename_in_input_diagram(input_diagram, &id_old, &id_new);
     }

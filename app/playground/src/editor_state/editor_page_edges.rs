@@ -14,6 +14,8 @@ pub enum EditorPageEdges {
     ThingInteractions,
     /// Edges: labels rendered next to edges where they exit or enter a node.
     EdgeLabels,
+    /// Edges: descriptions rendered next to edges in the diagram.
+    Descs,
 }
 
 impl EditorPageEdges {
@@ -26,6 +28,7 @@ impl EditorPageEdges {
             Self::ThingDependencies => "Edges: Dependencies",
             Self::ThingInteractions => "Edges: Interactions",
             Self::EdgeLabels => "Edges: Labels",
+            Self::Descs => "Edges: Descriptions",
         }
     }
 }

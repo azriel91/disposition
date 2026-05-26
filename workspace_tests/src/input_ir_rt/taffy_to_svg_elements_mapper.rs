@@ -1959,10 +1959,10 @@ fn build_svg_elements_from_edge_with_description() -> impl Iterator<Item = SvgEl
     build_svg_elements_for_diagram(INPUT_DIAGRAM_0009_EDGE_WITH_DESCRIPTION)
 }
 
-/// An edge with a description in `entity_descs` must produce a non-empty
+/// An edge with a description in `edge_descs` must produce a non-empty
 /// `edge_label_infos` entry in `SvgElements`.
 ///
-/// The edge ID used as the `entity_descs` key follows the generated format
+/// The edge ID used as the `edge_descs` key follows the generated format
 /// `"{edge_group_id}__{edge_index}"`, e.g. `edge_ab__0` for index 0 of the
 /// `edge_ab` group.
 #[test]
@@ -1970,7 +1970,7 @@ fn test_edge_description_produces_edge_label_infos() {
     for svg_elements in build_svg_elements_from_edge_with_description() {
         assert!(
             !svg_elements.edge_label_infos.is_empty(),
-            "Expected edge_label_infos to be non-empty when entity_descs contains the edge ID"
+            "Expected edge_label_infos to be non-empty when edge_descs contains the edge ID"
         );
 
         let label_info = svg_elements
@@ -2012,9 +2012,9 @@ fn build_svg_elements_from_contained_edge_with_description(
 }
 
 /// The text in the edge label spans must match the description from
-/// `entity_descs`.
+/// `edge_descs`.
 #[test]
-fn test_edge_description_text_matches_entity_descs() {
+fn test_edge_description_text_matches_edge_descs() {
     let expected_text = "Alpha to Beta connection";
 
     for svg_elements in build_svg_elements_from_edge_with_description() {

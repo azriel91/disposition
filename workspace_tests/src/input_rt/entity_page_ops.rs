@@ -10,15 +10,15 @@ fn empty_diagram() -> InputDiagram<'static> {
     InputDiagram::default()
 }
 
-// === entity_desc_add === //
+// === thing_desc_add === //
 
 #[test]
 fn entity_desc_add_inserts_entry() {
     let mut input_diagram = empty_diagram();
 
-    EntityPageOps::entity_desc_add(&mut input_diagram);
+    EntityPageOps::thing_desc_add(&mut input_diagram);
 
-    assert_eq!(input_diagram.entity_descs.len(), 1);
+    assert_eq!(input_diagram.thing_descs.len(), 1);
 }
 
 // === entity_tooltip_add === //
@@ -55,19 +55,19 @@ fn kv_entry_update_copy_text() {
 #[test]
 fn kv_entry_update_entity_desc() {
     let mut input_diagram = empty_diagram();
-    let entity_id = parse_id("entity_0").unwrap();
+    let thing_id = parse_id("thing_0").unwrap();
     input_diagram
-        .entity_descs
-        .insert(entity_id.clone(), "old".to_owned());
+        .thing_descs
+        .insert(thing_id.clone(), "old".to_owned());
 
     EntityPageOps::kv_entry_update(
         &mut input_diagram,
-        OnChangeTarget::EntityDesc,
-        "entity_0",
+        OnChangeTarget::ThingDesc,
+        "thing_0",
         "new",
     );
 
-    assert_eq!(input_diagram.entity_descs.get(&entity_id).unwrap(), "new");
+    assert_eq!(input_diagram.thing_descs.get(&thing_id).unwrap(), "new");
 }
 
 #[test]
@@ -109,14 +109,14 @@ fn kv_entry_remove_copy_text() {
 #[test]
 fn kv_entry_remove_entity_desc() {
     let mut input_diagram = empty_diagram();
-    let entity_id = parse_id("entity_0").unwrap();
+    let thing_id = parse_id("thing_0").unwrap();
     input_diagram
-        .entity_descs
-        .insert(entity_id.clone(), "desc".to_owned());
+        .thing_descs
+        .insert(thing_id.clone(), "desc".to_owned());
 
-    EntityPageOps::kv_entry_remove(&mut input_diagram, OnChangeTarget::EntityDesc, "entity_0");
+    EntityPageOps::kv_entry_remove(&mut input_diagram, OnChangeTarget::ThingDesc, "thing_0");
 
-    assert!(!input_diagram.entity_descs.contains_key(&entity_id));
+    assert!(!input_diagram.thing_descs.contains_key(&thing_id));
 }
 
 // === kv_entry_rename === //

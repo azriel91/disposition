@@ -6,8 +6,8 @@ use disposition_model_common::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    edge::EdgeLabels,
-    entity::{EntityDescs, EntityTypes},
+    edge::{EdgeDescs, EdgeLabels},
+    entity::EntityTypes,
     process::Processes,
     tag::{TagNames, TagThings},
     theme::{
@@ -16,8 +16,8 @@ use crate::{
         ThemeTypesStyles,
     },
     thing::{
-        ThingCopyText, ThingDependencies, ThingHierarchy, ThingInteractions, ThingLayouts,
-        ThingNames,
+        ThingCopyText, ThingDependencies, ThingDescs, ThingHierarchy, ThingInteractions,
+        ThingLayouts, ThingNames,
     },
 };
 
@@ -79,6 +79,10 @@ pub struct InputDiagram<'id> {
     #[serde(default, skip_serializing_if = "ThingInteractions::is_empty")]
     pub thing_interactions: ThingInteractions<'id>,
 
+    /// Descriptions to render next to things in the diagram.
+    #[serde(default, skip_serializing_if = "ThingDescs::is_empty")]
+    pub thing_descs: ThingDescs<'id>,
+
     /// Processes are groupings of interactions between things sequenced over
     /// time.
     #[serde(default, skip_serializing_if = "Processes::is_empty")]
@@ -93,9 +97,9 @@ pub struct InputDiagram<'id> {
     #[serde(default, skip_serializing_if = "TagThings::is_empty")]
     pub tag_things: TagThings<'id>,
 
-    /// Descriptions to render next to entities (things, edges, edge groups).
-    #[serde(default, skip_serializing_if = "EntityDescs::is_empty")]
-    pub entity_descs: EntityDescs<'id>,
+    /// Descriptions to render next to edges and edge groups.
+    #[serde(default, skip_serializing_if = "EdgeDescs::is_empty")]
+    pub edge_descs: EdgeDescs<'id>,
 
     /// Text labels for edges at each endpoint.
     ///
@@ -201,10 +205,11 @@ impl InputDiagram<'static> {
             thing_layouts: ThingLayouts::default(),
             thing_dependencies: ThingDependencies::default(),
             thing_interactions: ThingInteractions::default(),
+            thing_descs: ThingDescs::default(),
             processes: Processes::default(),
             tags: TagNames::default(),
             tag_things: TagThings::default(),
-            entity_descs: EntityDescs::default(),
+            edge_descs: EdgeDescs::default(),
             edge_labels: EdgeLabels::default(),
             entity_tooltips: EntityTooltips::default(),
             entity_types: EntityTypes::default(),

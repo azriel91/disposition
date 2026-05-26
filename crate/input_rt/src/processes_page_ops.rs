@@ -68,7 +68,7 @@ impl ProcessesPageOps {
                 .replace_index(index, process_id_new.clone());
         }
 
-        // Shared rename across entity_descs, entity_tooltips, entity_types,
+        // Shared rename across thing_descs, entity_tooltips, entity_types,
         // and all theme style maps.
         let id_old = process_id_old.into_inner();
         let id_new = process_id_new.into_inner();

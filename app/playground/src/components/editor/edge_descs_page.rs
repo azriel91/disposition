@@ -15,14 +15,14 @@ use crate::components::editor::{
     reorderable::ReorderableContainer,
 };
 
-// === Entity Descriptions sub-page === //
+// === Edge Descriptions sub-page === //
 
-/// The **Entity: Descriptions** editor sub-page.
+/// The **Edges: Descriptions** editor sub-page.
 ///
-/// Edits `entity_descs` -- descriptions rendered next to entities in the
+/// Edits `edge_descs` -- descriptions rendered next to edges in the
 /// diagram.
 #[component]
-pub fn EntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
+pub fn EdgeDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let desc_drag_idx: Signal<Option<usize>> = use_signal(|| None);
     let desc_drop_target: Signal<Option<usize>> = use_signal(|| None);
     let desc_focus_idx: Signal<Option<usize>> = use_signal(|| None);
@@ -30,7 +30,7 @@ pub fn EntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
 
     let diagram = input_diagram.read();
     let desc_entries: Vec<(String, String)> = diagram
-        .entity_descs
+        .edge_descs
         .iter()
         .map(|(id, desc)| (id.as_str().to_owned(), desc.clone()))
         .collect();
@@ -42,15 +42,15 @@ pub fn EntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
         div {
             class: "flex flex-col gap-2",
 
-            h3 { class: SECTION_HEADING, "Entity Descriptions" }
+            h3 { class: SECTION_HEADING, "Edge Descriptions" }
             p {
                 class: "text-xs text-gray-500 mb-1",
-                "Descriptions rendered next to entities in the diagram."
+                "Descriptions rendered next to edges in the diagram."
             }
 
             ReorderableContainer {
                 data_attr: "data-entry-id".to_owned(),
-                section_id: "entity_descs".to_owned(),
+                section_id: "edge_descs".to_owned(),
                 focus_index: desc_focus_idx,
                 rename_refocus: Some(desc_rename_refocus),
 
@@ -58,11 +58,11 @@ pub fn EntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                     {
                         let id = id.clone();
                         let desc = desc.clone();
-                        let on_change = OnChangeTarget::EntityDesc;
+                        let on_change = OnChangeTarget::EdgeDesc;
                         let current_value = desc.clone();
                         rsx! {
                             IdValueRowTextMulti {
-                                key: "entity_desc_{id}",
+                                key: "edge_desc_{id}",
                                 entry_id: id,
                                 entry_value: desc,
                                 id_list: list_ids::ENTITY_IDS.to_owned(),
@@ -96,7 +96,7 @@ pub fn EntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                                     EntityPageOps::kv_entry_remove(&mut input_diagram.write(), on_change, &id);
                                 },
                                 on_add: move |insert_at: usize| {
-                                    EntityPageOps::entity_desc_add(&mut input_diagram.write());
+                                    EntityPageOps::edge_desc_add(&mut input_diagram.write());
                                     EntityPageOps::kv_entry_move(&mut input_diagram.write(), on_change, desc_count, insert_at);
                                 },
                             }
@@ -109,7 +109,7 @@ pub fn EntityDescsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
                 class: ADD_BTN,
                 tabindex: 0,
                 onclick: move |_| {
-                    EntityPageOps::entity_desc_add(&mut input_diagram.write());
+                    EntityPageOps::edge_desc_add(&mut input_diagram.write());
                 },
                 "+ Add description"
             }

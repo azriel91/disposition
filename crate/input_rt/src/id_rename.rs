@@ -1,11 +1,11 @@
 //! Shared rename-across-diagram helpers.
 //!
 //! Many editor pages need to propagate a rename of an entity-level ID through
-//! `entity_descs`, `entity_tooltips`, `entity_types`, and all theme style
-//! maps. The functions in this module perform that common boilerplate so that
-//! each page's rename function only needs to handle the domain-specific maps
-//! (e.g. `things`, `tags`, `processes`, etc.) and then call
-//! [`id_rename_in_input_diagram`] for the shared fields.
+//! `thing_descs`, `edge_descs`, `entity_tooltips`, `entity_types`, and all
+//! theme style maps. The functions in this module perform that common
+//! boilerplate so that each page's rename function only needs to handle the
+//! domain-specific maps (e.g. `things`, `tags`, `processes`, etc.) and then
+//! call [`id_rename_in_input_diagram`] for the shared fields.
 
 use disposition_input_model::{
     theme::{IdOrDefaults, ThemeStyles},
@@ -38,7 +38,7 @@ pub fn rename_id_in_theme_styles(
 ///
 /// Specifically this renames the key in:
 ///
-/// * `entity_descs`
+/// * `thing_descs`
 /// * `entity_tooltips`
 /// * `entity_types`
 /// * `theme_default.base_styles`
@@ -68,10 +68,11 @@ pub fn id_rename_in_input_diagram(
         thing_layouts: _,
         thing_dependencies: _,
         thing_interactions: _,
+        thing_descs,
         processes: _,
         tags: _,
         tag_things: _,
-        entity_descs,
+        edge_descs: _,
         edge_labels: _,
         entity_tooltips,
         entity_types,
@@ -83,9 +84,9 @@ pub fn id_rename_in_input_diagram(
         css: _,
     } = input_diagram;
 
-    // entity_descs / entity_tooltips / entity_types: keys are Id.
-    if let Some(index) = entity_descs.get_index_of(id_old) {
-        let _result = entity_descs.replace_index(index, id_new.clone());
+    // thing_descs / entity_tooltips / entity_types: keys are Id.
+    if let Some(index) = thing_descs.get_index_of(id_old) {
+        let _result = thing_descs.replace_index(index, id_new.clone());
     }
     if let Some(index) = entity_tooltips.get_index_of(id_old) {
         let _result = entity_tooltips.replace_index(index, id_new.clone());

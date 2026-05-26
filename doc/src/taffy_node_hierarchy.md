@@ -119,7 +119,7 @@ the rank containers below it follow the same pattern as the rect-shape container
 
 ## Edge Description Containers
 
-For each edge that has an entry in `entity_descs` and whose two divergent ancestors at the LCA
+For each edge that has an entry in `edge_descs` and whose two divergent ancestors at the LCA
 level belong to the same entity type, an **edge description container** is interleaved among the
 rank containers at that LCA level. It sits as a sibling of rank containers inside `ThingsContainer`,
 `TagsContainer`, or `ProcessesContainer` (at the top level), or inside a container diagram node's
@@ -143,7 +143,7 @@ containers (i.e. `taffy_container_style` for the relevant entity type). It carri
 
 The **edge description leaf** (`edge_description`) is a child of the container. It carries
 `TaffyNodeCtx::EdgeDescription(EdgeDescriptionCtx { edge_id })` and is measured at
-`DiagramLod::Normal` using the description text from `entity_descs`. Its computed layout position
+`DiagramLod::Normal` using the description text from `edge_descs`. Its computed layout position
 is used by `SvgEdgeDescriptionsBuilder` to produce `SvgEdgeDescriptionInfo` values.
 
 Any other edge whose rank span crosses the position of this container receives an
@@ -240,7 +240,7 @@ and post-layout coordinate extraction.
   using the `from` or `to` text of the edge's `EdgeLabel`.
 - `TaffyNodeCtx::EdgeDescription(EdgeDescriptionCtx { edge_id })` -- attached to the
   `edge_description` leaf node inside an `edge_description_container`. Measured at
-  `DiagramLod::Normal` using the edge's description from `entity_descs`.
+  `DiagramLod::Normal` using the edge's description from `edge_descs`.
 - `None` -- structural nodes carry no context. This includes `wrapper_node`, `circle_node`,
   `label_wrapper_node`, rank containers, `edge_description_container` nodes, and all inbuilt
   containers.
