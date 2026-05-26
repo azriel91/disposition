@@ -40,6 +40,8 @@ impl TaffyTreeFmt {
             edge_description_taffy_nodes: _,
             edge_description_highlighted_spans: _,
             node_id_to_envelope_taffy_node: _,
+            md_node_taffy_ids: _,
+            entity_image_spans: _,
         } = taffy_node_mappings;
         let root_taffy_node_id = node_inbuilt_to_taffy
             .get(&NodeInbuilt::Root)
@@ -88,6 +90,12 @@ impl TaffyTreeFmt {
                         TaffyNodeCtx::EdgeDescription(edge_description_ctx) => {
                             let edge_id = &edge_description_ctx.edge_id;
                             Cow::Owned(format!("edge_description_{edge_id}"))
+                        }
+                        TaffyNodeCtx::MdToken(md_token_ctx) => {
+                            Cow::Owned(format!("md_token_{}", md_token_ctx.text))
+                        }
+                        TaffyNodeCtx::MdImage(md_image_ctx) => {
+                            Cow::Owned(format!("md_image_{}", md_image_ctx.src))
                         }
                     },
                 )

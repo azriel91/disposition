@@ -15,8 +15,11 @@ pub use crate::{
     edge_label_taffy_node_ids::EdgeLabelTaffyNodeIds, edge_spacer_ctx::EdgeSpacerCtx,
     edge_spacer_taffy_nodes::EdgeSpacerTaffyNodes, entity_highlighted_span::EntityHighlightedSpan,
     entity_highlighted_spans::EntityHighlightedSpans, error::IrToTaffyError,
-    node_to_taffy_node_ids::NodeToTaffyNodeIds, processes_included::ProcessesIncluded,
-    taffy_node_ctx::TaffyNodeCtx, taffy_node_mappings::TaffyNodeMappings,
+    md_block_taffy_ids::MdBlockTaffyIds, md_heading_level::MdHeadingLevel,
+    md_image_ctx::MdImageCtx, md_image_span::MdImageSpan, md_node_taffy_ids::MdNodeTaffyIds,
+    md_style::MdStyle, md_token_ctx::MdTokenCtx, node_to_taffy_node_ids::NodeToTaffyNodeIds,
+    processes_included::ProcessesIncluded, taffy_node_ctx::TaffyNodeCtx,
+    taffy_node_mappings::TaffyNodeMappings,
 };
 
 mod diagram_lod;
@@ -32,6 +35,13 @@ mod edge_spacer_taffy_nodes;
 mod entity_highlighted_span;
 mod entity_highlighted_spans;
 mod error;
+mod md_block_taffy_ids;
+mod md_heading_level;
+mod md_image_ctx;
+mod md_image_span;
+mod md_node_taffy_ids;
+mod md_style;
+mod md_token_ctx;
 mod node_to_taffy_node_ids;
 mod processes_included;
 mod taffy_node_ctx;

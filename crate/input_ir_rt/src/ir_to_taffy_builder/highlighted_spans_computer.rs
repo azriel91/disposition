@@ -172,6 +172,7 @@ impl HighlightedSpansComputer {
                                 height: line_height,
                                 // style,
                                 text: line.to_string(),
+                                md_style: None,
                             };
 
                             vec![entity_highlighted_span]
@@ -275,6 +276,7 @@ impl HighlightedSpansComputer {
                 width: line_width_measure(line, char_width),
                 height: line_height,
                 text: line.to_string(),
+                md_style: None,
             })
             .collect();
 

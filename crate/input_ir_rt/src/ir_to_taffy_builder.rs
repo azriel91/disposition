@@ -440,6 +440,8 @@ impl IrToTaffyBuilder<'_> {
             edge_description_taffy_nodes,
             edge_description_highlighted_spans,
             node_id_to_envelope_taffy_node,
+            md_node_taffy_ids: Map::new(),
+            entity_image_spans: Map::new(),
         })
     }
 }

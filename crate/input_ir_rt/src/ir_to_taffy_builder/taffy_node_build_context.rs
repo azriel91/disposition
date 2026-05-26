@@ -236,6 +236,7 @@ impl NodeMeasureContext<'_> {
                         })
                     }
                 },
+                TaffyNodeCtx::MdToken(_) | TaffyNodeCtx::MdImage(_) => None,
             }) {
             Some(text) => text,
             None => {

@@ -1,4 +1,6 @@
-use crate::{DiagramNodeCtx, EdgeDescriptionCtx, EdgeLabelCtx, EdgeSpacerCtx};
+use crate::{
+    DiagramNodeCtx, EdgeDescriptionCtx, EdgeLabelCtx, EdgeSpacerCtx, MdImageCtx, MdTokenCtx,
+};
 
 /// Context data stored with each node in the `TaffyTree`.
 ///
@@ -28,4 +30,8 @@ pub enum TaffyNodeCtx {
     /// A leaf node that measures and positions an edge description in an
     /// `edge_description_container` interleaved between rank containers.
     EdgeDescription(EdgeDescriptionCtx),
+    /// A word or text-fragment leaf inside a markdown content node.
+    MdToken(MdTokenCtx),
+    /// An image leaf inside a markdown content node.
+    MdImage(MdImageCtx),
 }
