@@ -230,7 +230,11 @@ impl SvgElementsToSvgMapper {
         Self::render_edge_labels(&mut content_buffer, edge_label_infos, tailwind_classes);
 
         // Render edge descriptions
-        Self::render_edge_descriptions(&mut content_buffer, edge_description_infos);
+        Self::render_edge_descriptions(
+            &mut content_buffer,
+            edge_description_infos,
+            tailwind_classes,
+        );
 
         // Generate CSS from tailwind classes
         //
@@ -605,17 +609,23 @@ impl SvgElementsToSvgMapper {
     fn render_edge_descriptions(
         content_buffer: &mut String,
         edge_description_infos: &[SvgEdgeDescriptionInfo<'_>],
+        tailwind_classes: &EntityTailwindClasses<'_>,
     ) {
         edge_description_infos
             .iter()
             .filter(|info| !info.text_spans.is_empty())
             .for_each(|info| {
                 let edge_id = &info.edge_id;
-                write!(
-                    content_buffer,
-                    "<g id=\"{edge_id}__desc\" class=\"edge-description\">"
-                )
-                .unwrap();
+
+                let class_attr = {
+                    let edge_classes = tailwind_classes
+                        .get(edge_id.as_ref())
+                        .map(|s| s.as_str())
+                        .unwrap_or("");
+                    Self::class_attr_escaped(edge_classes.to_string())
+                };
+
+                write!(content_buffer, "<g id=\"{edge_id}__desc\" {class_attr}>").unwrap();
                 info.text_spans.iter().for_each(|span| {
                     let text_x = span.x;
                     let text_y = span.y;
