@@ -54,10 +54,7 @@ impl SvgNodeInfoBuilder {
         let process_id = Self::find_process_id(node_id, ir_diagram, svg_process_infos);
 
         let width = wrapper_taffy_node_layout.size.width;
-        let height_expanded = wrapper_taffy_node_layout
-            .size
-            .height
-            .min(wrapper_taffy_node_layout.content_size.height);
+        let height_expanded = wrapper_taffy_node_layout.size.height;
         let height_collapsed = {
             let mut node_height = height_expanded;
 

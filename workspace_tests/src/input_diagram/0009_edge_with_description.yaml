@@ -10,5 +10,7 @@ thing_dependencies:
     things:
       - t_a
       - t_b
-entity_descs:
-  edge_ab__0: "Alpha to Beta connection"
+edge_labels:
+  edge_ab__0:
+    from: "Alpha to Beta connection"
+    to: "Alpha to Beta connection"

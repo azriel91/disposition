@@ -9,7 +9,10 @@ use disposition_model_common::{
     edge::EdgeCurvature, entity::EntityType, theme::Css, Id, Map, RankDir,
 };
 use disposition_svg_model::{OrthoProtrusionParams, SvgEdgeInfo, SvgNodeInfo};
-use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
+use disposition_taffy_model::{
+    taffy::{self, TaffyTree},
+    EdgeLabelTaffyNodeIds, EdgeSpacerTaffyNodes, TaffyNodeCtx,
+};
 use kurbo::Shape;
 
 use disposition_ir_model::entity::EntityTailwindClasses;
@@ -59,6 +62,7 @@ impl SvgEdgeInfosBuilder {
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
+        edge_label_taffy_nodes: &Map<EdgeId<'id>, EdgeLabelTaffyNodeIds>,
         tailwind_classes: &mut EntityTailwindClasses<'id>,
         css: &mut Css,
         edge_animation_active: EdgeAnimationActive,
@@ -141,6 +145,8 @@ impl SvgEdgeInfosBuilder {
             &mut all_pass1_groups,
             svg_node_info_map,
             &mut face_contact_tracker,
+            edge_label_taffy_nodes,
+            taffy_tree,
         );
 
         // === Global orthogonal protrusion computation === //
@@ -488,11 +494,19 @@ impl SvgEdgeInfosBuilder {
     ///
     /// This prevents edges from crossing each other: short-range edges
     /// stay tight against the node and long-range edges arc around them.
+    ///
+    /// When an edge has a description label on a face, the contact point
+    /// offset is derived from the label leaf's absolute SVG position so the
+    /// edge path exits through the centre of the rendered label rather than
+    /// cutting through it.  Edges without a label (zero-size leaf) fall back
+    /// to the slot-based formula.
     fn face_offsets_compute<'edge, 'id>(
         rank_dir: RankDir,
         all_pass1_groups: &mut Vec<EdgeGroupPass1<'edge, 'id>>,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
         face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
+        edge_label_taffy_nodes: &Map<EdgeId<'id>, EdgeLabelTaffyNodeIds>,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
     ) -> Map<NodeIdAndFace<'id>, EdgeContactPointOffsets> {
         // Collect face contact entries per (node, face) across all groups.
         let mut face_contact_entries_by_node_face: Map<NodeIdAndFace<'id>, Vec<FaceContactEntry>> =
@@ -582,7 +596,8 @@ impl SvgEdgeInfosBuilder {
             // mirrors the reversed visual flow, reducing edge crossover.
             let negate_offsets = matches!(rank_dir, RankDir::BottomToTop | RankDir::RightToLeft);
 
-            let offsets: Vec<f32> = (0..contact_count)
+            // Compute slot-based fallback offsets for all contacts first.
+            let slot_based_offsets: Vec<f32> = (0..contact_count)
                 .map(|_| {
                     let offset = face_contact_tracker.offset_calculate(
                         &node_id_and_face.node_id,
@@ -594,6 +609,29 @@ impl SvgEdgeInfosBuilder {
                     } else {
                         offset
                     }
+                })
+                .collect();
+
+            // Substitute label-based offsets where the edge has a
+            // non-zero description label on this face.
+            let offsets: Vec<f32> = face_contact_entries
+                .iter()
+                .zip(slot_based_offsets)
+                .map(|(entry, slot_offset)| {
+                    let edge_id = &all_pass1_groups[entry.pass1_group_index].pass1_infos
+                        [entry.edge_index]
+                        .edge_id;
+                    Self::label_face_offset_compute(
+                        rank_dir,
+                        node_id_and_face.face,
+                        edge_id,
+                        entry.is_from_endpoint,
+                        edge_label_taffy_nodes,
+                        taffy_tree,
+                        svg_node_info_map,
+                        &node_id_and_face.node_id,
+                    )
+                    .unwrap_or(slot_offset)
                 })
                 .collect();
             face_offsets_by_node_face.insert(
@@ -807,20 +845,30 @@ impl SvgEdgeInfosBuilder {
             })
             .collect();
 
-        if cross_container_spacers.is_empty() {
+        // Collect edge_description_container spacer coordinates.
+        let edge_desc_container_spacers: Vec<SpacerCoordinates> = spacer_nodes
+            .edge_desc_container_spacer_taffy_node_ids
+            .iter()
+            .filter_map(|&taffy_node_id| {
+                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
+            })
+            .collect();
+
+        if cross_container_spacers.is_empty() && edge_desc_container_spacers.is_empty() {
             // Fast path: only rank-based spacers -- sort by rank as before.
             let mut rank_spacers = rank_spacers;
             rank_spacers.sort_by_key(|(rank, _)| *rank);
             return rank_spacers.into_iter().map(|(_, coords)| coords).collect();
         }
 
-        // Merge both kinds and sort by absolute coordinate along the
+        // Merge all kinds and sort by absolute coordinate along the
         // main axis so the spacers appear in the correct visual order
         // along the edge path.
         let mut all_spacers: Vec<SpacerCoordinates> = rank_spacers
             .into_iter()
             .map(|(_, coords)| coords)
             .chain(cross_container_spacers)
+            .chain(edge_desc_container_spacers)
             .collect();
 
         all_spacers.sort_by(|a, b| {
@@ -1134,6 +1182,107 @@ impl SvgEdgeInfosBuilder {
             NodeFace::Top | NodeFace::Bottom => node_info.width,
             NodeFace::Left | NodeFace::Right => node_info.height_collapsed,
         }
+    }
+
+    /// Computes the edge contact point offset using the position of the edge's
+    /// label taffy node.
+    ///
+    /// Returns the signed pixel distance from the face midpoint to the label
+    /// leaf's entry-side edge along the face axis.  The entry side is the
+    /// edge of the label that the path arrives at first, which depends on
+    /// `rank_dir` and `face`:
+    ///
+    /// - `Top`/`Bottom` faces:
+    ///   - `TopToBottom`, `LeftToRight`, `RightToLeft`: left x (`label_abs_x`)
+    ///   - `BottomToTop`: right x (`label_abs_x + label_width`)
+    /// - `Left`/`Right` faces:
+    ///   - `LeftToRight`, `TopToBottom`, `BottomToTop`: top y (`label_abs_y`)
+    ///   - `RightToLeft`: bottom y (`label_abs_y + label_height`)
+    ///
+    /// Returns `None` when no label node is recorded for this edge endpoint, or
+    /// when the label has zero size along the face axis (indicating no
+    /// description text).  The caller should fall back to the slot-based
+    /// offset in that case.
+    #[allow(clippy::too_many_arguments)]
+    fn label_face_offset_compute<'id>(
+        rank_dir: RankDir,
+        face: NodeFace,
+        edge_id: &EdgeId<'id>,
+        is_from_endpoint: bool,
+        edge_label_taffy_nodes: &Map<EdgeId<'id>, EdgeLabelTaffyNodeIds>,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        node_id: &NodeId<'id>,
+    ) -> Option<f32> {
+        let edge_label_taffy_node_ids = edge_label_taffy_nodes.get(edge_id)?;
+        let taffy_node_id = if is_from_endpoint {
+            edge_label_taffy_node_ids.from_label_taffy_node_id?
+        } else {
+            edge_label_taffy_node_ids.to_label_taffy_node_id?
+        };
+        let layout = taffy_tree.layout(taffy_node_id).ok()?;
+        let label_width = layout.size.width;
+        let label_height = layout.size.height;
+        let node_info = svg_node_info_map.get(node_id)?;
+        match face {
+            NodeFace::Top | NodeFace::Bottom => {
+                if label_width == 0.0 {
+                    return None;
+                }
+                let (label_abs_x, _) =
+                    Self::taffy_node_absolute_xy_compute(taffy_tree, taffy_node_id, layout);
+                // Route to the entry-side edge of the label along x.
+                let label_contact_x = match rank_dir {
+                    RankDir::BottomToTop => label_abs_x + label_width,
+                    RankDir::TopToBottom | RankDir::LeftToRight | RankDir::RightToLeft => {
+                        label_abs_x
+                    }
+                };
+                let face_midpoint_x = node_info.x + node_info.width / 2.0;
+                Some(label_contact_x - face_midpoint_x)
+            }
+            NodeFace::Left | NodeFace::Right => {
+                if label_height == 0.0 {
+                    return None;
+                }
+                let (_, label_abs_y) =
+                    Self::taffy_node_absolute_xy_compute(taffy_tree, taffy_node_id, layout);
+                // Route to the entry-side edge of the label along y.
+                let label_contact_y = match rank_dir {
+                    RankDir::RightToLeft => label_abs_y + label_height,
+                    RankDir::LeftToRight | RankDir::TopToBottom | RankDir::BottomToTop => {
+                        label_abs_y
+                    }
+                };
+                let face_midpoint_y = node_info.y + node_info.height_collapsed / 2.0;
+                Some(label_contact_y - face_midpoint_y)
+            }
+        }
+    }
+
+    /// Computes the absolute SVG x and y coordinates of a taffy node by
+    /// traversing up the parent chain and accumulating position offsets.
+    ///
+    /// This mirrors `SvgNodeInfoBuilder::node_absolute_xy_coordinates` but is
+    /// used within `SvgEdgeInfosBuilder` to avoid a cross-module visibility
+    /// dependency.
+    fn taffy_node_absolute_xy_compute(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        taffy_node_id: taffy::NodeId,
+        layout: &taffy::Layout,
+    ) -> (f32, f32) {
+        let mut x_acc = layout.location.x;
+        let mut y_acc = layout.location.y;
+        let mut current_node_id = taffy_node_id;
+        while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
+            let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
+                break;
+            };
+            x_acc += parent_layout.location.x;
+            y_acc += parent_layout.location.y;
+            current_node_id = parent_taffy_node_id;
+        }
+        (x_acc, y_acc)
     }
 
     fn css_animation_append<'f, 'edge, 'id>(

@@ -29,6 +29,8 @@ pub(crate) const INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC: 
     include_str!("input_diagram/0012_edge_from_nested_node_to_outer_node_cyclic.yaml");
 pub(crate) const INPUT_DIAGRAM_0013_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC_2: &str =
     include_str!("input_diagram/0013_edge_from_nested_node_to_outer_node_cyclic_2.yaml");
+pub(crate) const INPUT_DIAGRAM_0017_EDGE_INNER_TO_INNER: &str =
+    include_str!("input_diagram/0017_edge_inner_to_inner.yaml");
 
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

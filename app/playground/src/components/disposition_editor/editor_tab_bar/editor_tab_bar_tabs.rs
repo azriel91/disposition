@@ -5,7 +5,9 @@ use dioxus::{
 
 use crate::{
     components::disposition_editor::editor_tab_bar::{TAB_ACTIVE, TAB_CLASS, TAB_INACTIVE},
-    editor_state::{EditorPage, EditorPageEntity, EditorPageTheme, EditorPageThing},
+    editor_state::{
+        EditorPage, EditorPageEdges, EditorPageEntity, EditorPageTheme, EditorPageThing,
+    },
 };
 
 #[component]
@@ -76,6 +78,13 @@ fn editor_tab_bar_top_level_activate(mut active_page: Signal<EditorPage>, entry:
             // otherwise default to Thing::Names.
             if !active_page.peek().is_thing() {
                 active_page.set(EditorPage::Thing(EditorPageThing::default()));
+            }
+        }
+        EditorPage::Edges(_) => {
+            // If already on an edges page, stay there;
+            // otherwise default to Edges::ThingDependencies.
+            if !active_page.peek().is_edges() {
+                active_page.set(EditorPage::Edges(EditorPageEdges::default()));
             }
         }
         EditorPage::Entity(_) => {

@@ -42,8 +42,16 @@ impl EdgePathLocusCalculator {
             &arrow_head_locus,
             FillRule::NonZero,
             BinaryOp::Union,
-        )
-        .unwrap_or_else(|e| panic!("Failed to compute union of locus paths: {e:?}"));
+        );
+
+        // `linesweeper::binary_op` can fail with `NonClosedPath` when the
+        // stroke expansion produces a path whose start and end points differ
+        // by a tiny floating-point rounding error.  Fall back to the edge
+        // locus alone rather than panicking.
+        let contours = match contours {
+            Ok(contours) => contours,
+            Err(_) => return edge_locus,
+        };
 
         // We expect only one contour, since the arrow head should overlap with the
         // edge path body.

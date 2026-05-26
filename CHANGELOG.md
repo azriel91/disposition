@@ -1,5 +1,13 @@
 # Changelog
 
+## unreleased
+
+* Add `EdgeLabel` to allow different labels at each end of an edge. ([#32][#32])
+* Render edge descriptions in the middle of the edge path. ([#32][#32])
+
+[#32]: https://github.com/azriel91/disposition/pull/32
+
+
 ## 0.2.0 (2026-05-22)
 
 * Support rendering tooltips. ([#26][#26])

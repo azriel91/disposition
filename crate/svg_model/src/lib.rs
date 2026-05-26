@@ -3,6 +3,7 @@
 pub use crate::{
     ortho_protrusion_params::OrthoProtrusionParams,
     spacer_protrusion_params::SpacerProtrusionParams,
+    svg_edge_description_info::SvgEdgeDescriptionInfo,
     svg_edge_info::SvgEdgeInfo,
     svg_edge_label_info::{SvgEdgeLabelEndpointInfo, SvgEdgeLabelInfo},
     svg_elements::SvgElements,
@@ -14,6 +15,7 @@ pub use crate::{
 
 mod ortho_protrusion_params;
 mod spacer_protrusion_params;
+mod svg_edge_description_info;
 mod svg_edge_info;
 mod svg_edge_label_info;
 mod svg_elements;

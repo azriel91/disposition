@@ -5,7 +5,9 @@ use crate::string_xml_escaper::StringXmlEscaper;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use disposition_input_model::InputDiagram;
 use disposition_ir_model::entity::EntityTailwindClasses;
-use disposition_svg_model::{SvgEdgeInfo, SvgEdgeLabelInfo, SvgElements, SvgNodeInfo};
+use disposition_svg_model::{
+    SvgEdgeDescriptionInfo, SvgEdgeInfo, SvgEdgeLabelInfo, SvgElements, SvgNodeInfo,
+};
 use disposition_taffy_model::{TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
 
 use crate::NOTO_SANS_MONO_TTF;
@@ -180,6 +182,7 @@ impl SvgElementsToSvgMapper {
             svg_node_infos,
             svg_edge_infos,
             edge_label_infos,
+            edge_description_infos,
             svg_process_infos: _,
             tailwind_classes,
             css,
@@ -225,6 +228,13 @@ impl SvgElementsToSvgMapper {
 
         // Render edge labels
         Self::render_edge_labels(&mut content_buffer, edge_label_infos, tailwind_classes);
+
+        // Render edge descriptions
+        Self::render_edge_descriptions(
+            &mut content_buffer,
+            edge_description_infos,
+            tailwind_classes,
+        );
 
         // Generate CSS from tailwind classes
         //
@@ -586,7 +596,55 @@ impl SvgElementsToSvgMapper {
         });
     }
 
-    /// Returns the `class=".."` attribute with `&` escaped as `&amp;`.
+    /// Writes edge descriptions to the SVG content buffer.
+    ///
+    /// For each [`SvgEdgeDescriptionInfo`], emits a `<g>` element with
+    /// `<text>` children for each line of wrapped description text.
+    ///
+    /// ```svg
+    /// <g id="{edge_id}__desc" class="edge-description">
+    ///   <text x="{x}" y="{y}" stroke-width="0">{text}</text>
+    /// </g>
+    /// ```
+    fn render_edge_descriptions(
+        content_buffer: &mut String,
+        edge_description_infos: &[SvgEdgeDescriptionInfo<'_>],
+        tailwind_classes: &EntityTailwindClasses<'_>,
+    ) {
+        edge_description_infos
+            .iter()
+            .filter(|info| !info.text_spans.is_empty())
+            .for_each(|info| {
+                let edge_id = &info.edge_id;
+
+                let class_attr = {
+                    let edge_classes = tailwind_classes
+                        .get(edge_id.as_ref())
+                        .map(|s| s.as_str())
+                        .unwrap_or("");
+                    Self::class_attr_escaped(edge_classes.to_string())
+                };
+
+                write!(content_buffer, "<g id=\"{edge_id}__desc\" {class_attr}>").unwrap();
+                info.text_spans.iter().for_each(|span| {
+                    let text_x = span.x;
+                    let text_y = span.y;
+                    let text_content = &span.text;
+                    write!(
+                        content_buffer,
+                        "<text \
+                            x=\"{text_x}\" \
+                            y=\"{text_y}\" \
+                            stroke-width=\"0\" \
+                        >{text_content}</text>"
+                    )
+                    .unwrap();
+                });
+                content_buffer.push_str("</g>");
+            });
+    }
+
+    /// Returns the `class=\"..\"` attribute with `&` escaped as `&amp;`.
     fn class_attr_escaped(tailwind_classes: String) -> String {
         if tailwind_classes.is_empty() {
             String::new()

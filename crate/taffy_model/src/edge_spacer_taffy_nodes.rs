@@ -52,6 +52,12 @@ pub struct EdgeSpacerTaffyNodes {
     /// Their absolute positions after layout are used to determine
     /// the correct ordering along the edge path.
     pub cross_container_spacer_taffy_node_ids: Vec<taffy::NodeId>,
+
+    /// Spacer taffy node IDs inside `edge_description_container` nodes.
+    ///
+    /// These spacers are inserted to allow edges to be routed alongside the
+    /// edge description container without being obscured by it.
+    pub edge_desc_container_spacer_taffy_node_ids: Vec<taffy::NodeId>,
 }
 
 impl EdgeSpacerTaffyNodes {
@@ -60,6 +66,7 @@ impl EdgeSpacerTaffyNodes {
         Self {
             rank_to_spacer_taffy_node_id: Map::new(),
             cross_container_spacer_taffy_node_ids: Vec::new(),
+            edge_desc_container_spacer_taffy_node_ids: Vec::new(),
         }
     }
 }

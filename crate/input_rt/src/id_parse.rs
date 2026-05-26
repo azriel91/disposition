@@ -11,7 +11,11 @@ use disposition_input_model::{
     theme::{IdOrDefaults, StyleAlias, TagIdOrDefaults},
     thing::ThingId,
 };
-use disposition_model_common::{edge::EdgeGroupId, entity::EntityTypeId, Id};
+use disposition_model_common::{
+    edge::{EdgeGroupId, EdgeId},
+    entity::EntityTypeId,
+    Id,
+};
 
 /// Try to construct an `Id<'static>` from a string, returning `None` if the
 /// string is not a valid identifier.
@@ -35,6 +39,14 @@ pub fn parse_thing_id(s: &str) -> Option<ThingId<'static>> {
 /// Valid values: `"edge_0"`, `"dep_network"`.
 pub fn parse_edge_group_id(s: &str) -> Option<EdgeGroupId<'static>> {
     EdgeGroupId::new(s).ok().map(|id| id.into_static())
+}
+
+/// Try to construct an `EdgeId<'static>` from a string, returning `None` if
+/// the string is not a valid identifier.
+///
+/// Valid values: `"edge_0"`, `"edge_t_src__t_dst__dep__0"`.
+pub fn parse_edge_id(s: &str) -> Option<EdgeId<'static>> {
+    EdgeId::new(s).ok().map(|id| id.into_static())
 }
 
 /// Try to construct a `TagId<'static>` from a string, returning `None` if the

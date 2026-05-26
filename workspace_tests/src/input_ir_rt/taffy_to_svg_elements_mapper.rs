@@ -22,6 +22,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0011_CONTAINED_EDGE_WITH_DESCRIPTION,
     INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC,
     INPUT_DIAGRAM_0013_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC_2,
+    INPUT_DIAGRAM_0017_EDGE_INNER_TO_INNER,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -1750,12 +1751,6 @@ fn test_nested_x2_node_edge_routing_no_upward_detour() {
     for svg_elements in
         build_svg_elements_for_diagram(INPUT_DIAGRAM_0002_NESTED_NODE_EDGE_PROTRUSION)
     {
-        let charlie_outer = svg_elements
-            .svg_node_infos
-            .iter()
-            .find(|n| n.node_id.as_str() == "t_charlie_outer")
-            .expect("Expected t_charlie_outer in svg_node_infos");
-
         let alice_inner_charlie_inner_edge = svg_elements
             .svg_edge_infos
             .iter()
@@ -1765,13 +1760,21 @@ fn test_nested_x2_node_edge_routing_no_upward_detour() {
             })
             .expect("Expected edge from t_alice_inner to t_charlie_inner");
 
-        let charlie_outer_top_y = charlie_outer.y;
-
         // The path is built in SVG order: to-node first, from-node last.
-        // After the fix, all intermediate points lie at exactly y=215.
-        // Before the fix they included arc control points at y≈211--213
-        // (the U-bend detour) that are above t_charlie_outer's top.
+        // The second-to-last coordinate is the from-protrusion tip -- the
+        // topmost (smallest y) point the routing is expected to reach.
+        //
+        // After the `rank_gap_px` cap fix, the routing now correctly enters
+        // the inter-rank gap between the containers. The fix ensures that
+        // no intermediate coordinate overshoots above (has a smaller y
+        // than) the from-protrusion tip, which would indicate a V-spike
+        // where the Z/S bend looped backward in the visual arrow direction.
         let all_coords = parse_path_endpoints(&alice_inner_charlie_inner_edge.path_d);
+        let from_protrusion_tip_y = all_coords
+            .get(all_coords.len().wrapping_sub(2))
+            .map(|&(_, y)| y)
+            .unwrap_or(0.0);
+
         let intermediate_coords = all_coords
             .iter()
             .skip(1)
@@ -1779,12 +1782,99 @@ fn test_nested_x2_node_edge_routing_no_upward_detour() {
 
         for &(x, y) in intermediate_coords {
             assert!(
-                y >= charlie_outer_top_y - 0.5,
+                y >= from_protrusion_tip_y - 0.5,
                 "Intermediate routing coordinate ({x:.3}, {y:.3}) is above \
-                 t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}). \
-                 The path detours above the boundary, indicating a V-spike. \
+                 the from-protrusion tip (y={from_protrusion_tip_y:.3}). \
+                 The Z/S bend was placed outside the routing gap, causing a \
+                 backward loop in the visual arrow direction. \
                  path_d = {:?}",
                 alice_inner_charlie_inner_edge.path_d,
+            );
+        }
+    }
+}
+
+/// In `0017`, `edge_dep_alice_charlie__0` connects `t_alice` (nested in
+/// `t_alice_outer`) to `t_charlie` (nested in `t_charlie_outer`). After the
+/// `rank_gap_px` cap fix, the protrusion tips must lie within the inter-rank
+/// gap -- not at the boundary of `t_charlie_outer`.
+///
+/// Before the fix:
+/// - `from_protrusion` was computed from the full face-to-face distance (94
+///   px), giving `max_protrusion = 94 * 0.48 = 45.12`.
+/// - Combined with `to_protrusion = 55` (to clear `t_charlie_outer`), the sum
+///   100.12 > 94 caused capping to 39, landing both tips at `t_charlie_outer.y
+///   = 215`.
+/// - The V-spike guard fired and drew a straight horizontal line at y = 215
+///   with no arc-rounded corners.
+///
+/// After the fix:
+/// - `rank_gap_px` is capped at `t_charlie_outer.y - t_alice.bottom_y = 39`,
+///   giving `max_protrusion = 39 * 0.48 ≈ 18.72`.
+/// - `from_protrusion ≈ 18.72` places the from-protrusion tip inside the
+///   inter-rank gap (above `t_charlie_outer.y`), so both tips are at different
+///   y-coordinates.
+/// - A proper Z/S bend with arc-rounded corners is drawn in the gap.
+#[test]
+fn test_0017_edge_inner_to_inner_routing_in_inter_rank_gap() {
+    for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0017_EDGE_INNER_TO_INNER) {
+        let charlie_outer = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_charlie_outer")
+            .expect("Expected t_charlie_outer in svg_node_infos");
+
+        let alice_charlie_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_alice" && e.to_node_id.as_str() == "t_charlie")
+            .expect("Expected edge from t_alice to t_charlie");
+
+        let charlie_outer_top_y = charlie_outer.y;
+        let all_coords = parse_path_endpoints(&alice_charlie_edge.path_d);
+
+        // The second-to-last coordinate is the from-protrusion tip.
+        // It must be above t_charlie_outer's top (smaller y) -- i.e. inside
+        // the inter-rank gap -- not at the boundary.
+        let from_protrusion_tip_y = all_coords
+            .get(all_coords.len().wrapping_sub(2))
+            .map(|&(_, y)| y)
+            .unwrap_or(charlie_outer_top_y);
+
+        assert!(
+            from_protrusion_tip_y < charlie_outer_top_y - 0.5,
+            "from_protrusion_tip_y ({from_protrusion_tip_y:.3}) should be above \
+             t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}), i.e. in \
+             the inter-rank gap. Before the rank_gap_px fix both tips landed at \
+             charlie_outer.y, suppressing the Z/S bend. \
+             path_d = {:?}",
+            alice_charlie_edge.path_d,
+        );
+
+        // All intermediate routing coordinates must stay above t_charlie_outer
+        // (no dip into the container) and not overshoot above the
+        // from-protrusion tip (no backward loop).
+        let intermediate_coords = all_coords
+            .iter()
+            .skip(1)
+            .take(all_coords.len().saturating_sub(2));
+
+        for &(x, y) in intermediate_coords {
+            assert!(
+                y <= charlie_outer_top_y + 0.5,
+                "Intermediate routing coordinate ({x:.3}, {y:.3}) is below \
+                 t_charlie_outer's top (y={charlie_outer_top_y:.3}): the Z/S bend \
+                 dipped into the destination container. \
+                 path_d = {:?}",
+                alice_charlie_edge.path_d,
+            );
+            assert!(
+                y >= from_protrusion_tip_y - 0.5,
+                "Intermediate routing coordinate ({x:.3}, {y:.3}) is above the \
+                 from-protrusion tip (y={from_protrusion_tip_y:.3}): the Z/S bend \
+                 looped backward past the routing gap. \
+                 path_d = {:?}",
+                alice_charlie_edge.path_d,
             );
         }
     }

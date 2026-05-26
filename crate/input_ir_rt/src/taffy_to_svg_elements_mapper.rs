@@ -17,6 +17,7 @@ use self::{
     process_step_heights::ProcessStepsHeight,
     process_step_heights_calculator::ProcessStepHeightsCalculator,
     string_char_replacer::StringCharReplacer,
+    svg_edge_descriptions_builder::SvgEdgeDescriptionsBuilder,
     svg_edge_infos_builder::SvgEdgeInfosBuilder,
     svg_edge_labels_builder::SvgEdgeLabelsBuilder,
     svg_node_build_context::{SvgNodeInfoBuildContext, SvgProcessInfoBuildContext},
@@ -38,6 +39,7 @@ mod ortho_protrusion_calculator;
 mod process_step_heights;
 mod process_step_heights_calculator;
 mod string_char_replacer;
+mod svg_edge_descriptions_builder;
 mod svg_edge_infos_builder;
 mod svg_edge_labels_builder;
 mod svg_node_build_context;
@@ -66,6 +68,8 @@ impl TaffyToSvgElementsMapper {
             edge_spacer_taffy_nodes,
             entity_highlighted_spans,
             edge_label_taffy_nodes,
+            edge_description_taffy_nodes,
+            edge_description_highlighted_spans,
             node_id_to_envelope_taffy_node,
         } = taffy_node_mappings;
 
@@ -173,6 +177,7 @@ impl TaffyToSvgElementsMapper {
             &svg_node_info_map,
             taffy_tree,
             edge_spacer_taffy_nodes,
+            edge_label_taffy_nodes,
             &mut tailwind_classes,
             &mut css,
             edge_animation_active,
@@ -184,12 +189,19 @@ impl TaffyToSvgElementsMapper {
             entity_highlighted_spans,
         );
 
+        let edge_description_infos = SvgEdgeDescriptionsBuilder::build(
+            taffy_tree,
+            edge_description_taffy_nodes,
+            edge_description_highlighted_spans,
+        );
+
         SvgElements::new(
             svg_width,
             svg_height,
             svg_node_infos,
             svg_edge_infos,
             edge_label_infos,
+            edge_description_infos,
             svg_process_infos,
             tailwind_classes,
             css,

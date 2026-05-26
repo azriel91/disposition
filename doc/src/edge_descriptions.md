@@ -1,8 +1,20 @@
 # Edge Descriptions
 
-Edge descriptions are text labels displayed near the endpoints of edges in the
-diagram.  They are specified via `entity_descs` in `InputDiagram`, keyed by the
-edge **instance** ID (not the edge group ID).
+Edge descriptions are text labels associated with edges in the diagram.  They
+are specified via `entity_descs` in `InputDiagram`, keyed by the edge
+**instance** ID (not the edge group ID).
+
+> **Note:** `EntityDescs` is **not** rendered through face-label slots.
+> Description text is rendered via `edge_description_container` nodes
+> interleaved between rank containers.  See
+> `edge_description_containers_plan.md` for the implementation plan of that
+> feature.
+
+Face-label slots (documented below) are structural taffy leaf nodes placed at
+the `from`/`to` node faces.  They exist purely for edge contact-point
+positioning and face-offset calculations (see `edge_paths.md` -- Offset
+Calculation).  They always measure as zero size and carry no rendered text.
+
 
 ## Edge ID Format
 
@@ -39,7 +51,16 @@ entity_descs:
   edge_dep__0: "A depends on B"
 ```
 
-## Step-by-Step: How a Description Reaches the SVG
+The description text is rendered in an `edge_description_container` node
+positioned between the rank containers of the edge's divergent ancestors.  See
+`edge_description_containers_plan.md` for details.
+
+
+## Step-by-Step: How Face-Label Slots Are Built
+
+Face-label slots are the taffy leaf nodes placed in each node's envelope
+face-wrappers.  They are used downstream as contact-point anchors for edge path
+routing.
 
 ### Step 1 -- `InputDiagram.entity_descs`
 
@@ -48,12 +69,13 @@ description string keyed by the edge instance ID (e.g. `edge_dep__0`).
 
 Source: `crate/input_model/src/input_diagram.rs`.
 
-### Step 2 -- `InputToIrDiagramMapper` copies entity_descs
+The map is carried through the pipeline as `IrDiagram.entity_descs`.  It is
+**not** consulted during face-label slot construction or measurement.
 
-`InputToIrDiagramMapper::build_entity_descs` copies the `entity_descs` map
-verbatim into `IrDiagram.entity_descs`.
+### Step 2 -- `InputToIrDiagramMapper` computes face assignments
 
-Simultaneously, two derived structures are computed that are needed later:
+`InputToIrDiagramMapper` copies `entity_descs` verbatim into
+`IrDiagram.entity_descs` and simultaneously computes two derived structures:
 
 - `EdgeFaceAssignments` -- maps each edge ID to the face of its `from` node
   that the edge leaves and the face of its `to` node that the edge enters.
@@ -68,7 +90,7 @@ Source: `crate/input_ir_rt/src/input_to_ir_diagram_mapper.rs`,
 `crate/input_ir_rt/src/edge_face_assigner.rs`,
 `crate/ir_model/src/node/node_face_edges.rs`.
 
-### Step 3 -- `IrToTaffyBuilder` builds taffy nodes and layout
+### Step 3 -- `IrToTaffyBuilder` builds face-label slots
 
 This step happens inside `IrToTaffyBuilder::build_taffy_trees_for_dimension`.
 
@@ -88,21 +110,20 @@ Source: `crate/input_ir_rt/src/ir_to_taffy_builder.rs` --
 #### Step 3b -- Layout measurement (`node_size_measure`)
 
 During `compute_layout_with_measure`, `node_size_measure` is called for each
-taffy node including every `EdgeLabel` leaf.
+taffy node.  For `EdgeLabel` leaves the handler returns zero size -- no text
+measurement is performed and `entity_descs` is not consulted here.
 
-For `DiagramLod::Normal`, the handler looks up
-`entity_descs.get(edge_id.as_ref())`.  If a description is found, it computes
-the text width and line count to return the leaf's size.  If not found the leaf
-collapses to zero size (no label slot reserved).
+The leaf collapses to zero size in the layout, reserving a structural slot in
+the envelope without affecting the node's rendered dimensions.
 
 Source: `crate/input_ir_rt/src/ir_to_taffy_builder.rs` -- `node_size_measure`.
 
 #### Step 3c -- `edge_label_taffy_nodes_build`
 
 After layout, `edge_label_taffy_nodes_build` assembles the collected
-`EdgeLabelLeafBuilt` entries into an
-`Map<EdgeId, EdgeLabelTaffyNodeIds>`.  Each entry maps an edge ID to its
-optional `from_label_taffy_node_id` and `to_label_taffy_node_id`.
+`EdgeLabelLeafBuilt` entries into a `Map<EdgeId, EdgeLabelTaffyNodeIds>`.
+Each entry maps an edge ID to its optional `from_label_taffy_node_id` and
+`to_label_taffy_node_id`.
 
 A leaf is assigned to `from_label_taffy_node_id` when its `node_id` matches the
 edge's `from` endpoint and the pre-assigned `from_face` is `Some`.  The
@@ -113,58 +134,13 @@ is sufficient). Contained edges (where one endpoint is an ancestor of the
 other) produce label slots on both endpoints using forward or reverse faces
 depending on hierarchy direction.
 
+This map is stored as `TaffyNodeMappings::edge_label_taffy_nodes` and consumed
+by the edge path routing code (see `edge_paths.md` -- Offset Calculation,
+label-based offset).
+
 Source: `crate/input_ir_rt/src/ir_to_taffy_builder.rs` --
 `edge_label_taffy_nodes_build`, `edge_id_to_node_ids_build`.
 
-#### Step 3d -- `highlighted_spans_compute`
-
-For `DiagramLod::Normal`, `highlighted_spans_compute` iterates over
-`edge_label_taffy_nodes`.  For each entry it:
-
-1. Looks up `entity_descs.get(edge_id.as_ref())`.  If no description is found,
-   the edge is skipped.
-2. Reads the taffy layout width of the `from_label` slot (or `to_label` as
-   fallback) to get the wrapping constraint.
-3. Calls `wrap_text_monospace` to compute wrapped lines.
-4. Builds `EntityHighlightedSpan` values (x, y, width, height, text) relative
-   to the label node's top-left corner.
-5. Inserts the spans into `entity_highlighted_spans` keyed by the edge's `Id`.
-
-Source: `crate/input_ir_rt/src/ir_to_taffy_builder.rs` --
-`highlighted_spans_compute`.
-
-### Step 4 -- `TaffyToSvgElementsMapper` builds `SvgEdgeLabelInfo`
-
-`SvgEdgeLabelsBuilder::build` iterates over `edge_label_taffy_nodes`.  For
-each edge it:
-
-1. Looks up `entity_highlighted_spans.get(edge_id.as_ref())` to get the
-   pre-computed span list.
-2. Calls `endpoint_info_build` for both `from_label` and `to_label` taffy
-   nodes.  This reads the absolute SVG position of the label slot from the
-   taffy layout and offsets each span's (x, y) accordingly.
-3. Produces an `SvgEdgeLabelInfo` with `from_label` and `to_label` fields, each
-   holding a `SvgEdgeLabelEndpointInfo` that contains the label slot bounds and
-   the list of `SvgTextSpan` values.
-
-The `SvgEdgeLabelInfo` values are collected into `SvgElements.edge_label_infos`.
-
-Source: `crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_edge_labels_builder.rs`.
-
-### Step 5 -- `SvgElementsToSvgMapper` renders the labels
-
-`render_edge_labels` iterates over `SvgElements.edge_label_infos`.  For each
-entry whose `from_label` or `to_label` has non-empty `text_spans`, it writes:
-
-```svg
-<g id="{edge_id}__from_label" class="...">
-  <text x="..." y="..." stroke-width="0">line text</text>
-  ...
-</g>
-```
-
-Source: `crate/input_ir_rt/src/svg_elements_to_svg_mapper.rs` --
-`render_edge_labels`.
 
 ## Key Requirements
 
@@ -173,14 +149,11 @@ Source: `crate/input_ir_rt/src/svg_elements_to_svg_mapper.rs` --
 The `entity_descs` key must be the edge **instance** ID in the format
 `{edge_group_id}__{edge_index}`, not the edge group ID by itself.
 
-### 2 -- Level of detail
+### 2 -- All edges produce face-label slots
 
-Edge descriptions are only rendered at `DiagramLod::Normal`.  The small (`sm`)
-dimension uses `DiagramLod::Simple` by default and will not show descriptions.
-Use `DimensionAndLod::default_md()`, `default_lg()`, `default_2xl()`, or
-`default_no_limit()` to get `Normal` detail.
-
-### 3 -- All edges produce label slots
+Face-label slots are created for every edge that has a valid face assignment,
+regardless of whether a description exists in `entity_descs`.  The slots are
+always zero-size but are necessary for the edge path routing calculations.
 
 Self-loop edges (`from == to`) produce a single `from_label` slot on the
 `Bottom` face of the node; `to_label` is `None` since one slot is sufficient.
@@ -194,26 +167,16 @@ hierarchy direction, mirroring the forward/reverse face logic for regular edges:
 - `to` is ancestor of `from` (upward): `from_face` = opposite face,
   `to_face` = rank-dir face.
 
-### 4 -- Face selection: unified pre-layout source (Option B)
+### 3 -- Face selection: unified pre-layout source (Option B)
 
-Face assignment used to happen twice in the pipeline with different inputs:
+Face assignment is computed once before taffy layout runs, by
+`EdgeFaceAssigner::compute`.  The result is stored as
+`IrDiagram::edge_face_assignments`.
 
-| Stage | Where | Method | Inputs |
-|-------|-------|--------|--------|
-| Pre-layout | `EdgeFaceAssigner::compute` | Rank-based heuristic | `NodeRanksNested`, `NodeNestingInfos` |
-| Post-layout | `EdgePathBuilderPass1::select_edge_faces` | Pixel-position geometry | `SvgNodeInfo` coordinates |
-
-As of Option B, **the pre-layout result is now the single source of truth for
-both envelope-slot construction and path routing**.
-
-`EdgeFaceAssigner` is used to produce `IrDiagram::edge_face_assignments`
-before taffy layout runs.  `SvgEdgeInfosBuilder::build_edge_pass1_infos`
-looks up the pre-computed assignment for each edge instead of calling
-`select_edge_faces` again.
-
+`SvgEdgeInfosBuilder::build_edge_pass1_infos` looks up the pre-computed
+assignment for each edge instead of re-computing faces from pixel geometry.
 This guarantees that the face a label slot is reserved on always matches the
-face the edge path exits, eliminating the cosmetic mismatch that could occur
-with diagonal or unusual layouts.
+face the edge path exits.
 
 **Special cases:**
 
@@ -221,14 +184,15 @@ with diagonal or unusual layouts.
   to_face: None)`.  Pass 2 returns a self-loop path early and never reads
   the face, so `to_face = None` is harmless.
 - **Contained edges** (one endpoint is a pixel-level ancestor of the other):
-  face-based contact points are still bypassed (returns `(None, None)`),
-  consistent with the pass-2 `is_node_contained_in` early-return.
+  face-based contact points are bypassed (returns `(None, None)`), consistent
+  with the pass-2 `is_node_contained_in` early-return.
 - **Cycle edges** (same LCA rank, non-adjacent siblings):
-  `EdgeFaceAssigner::cycle_faces` now uses the same face mapping as
+  `EdgeFaceAssigner::cycle_faces` uses the same face mapping as
   `cycle_edge_faces_select` -- sibling index is a reliable proxy for
   horizontal/vertical relative position within a rank level.
 - **Missing assignment** (should not occur for well-formed diagrams):
-  falls back to the old post-layout `faces_select`.
+  falls back to the post-layout `faces_select`.
+
 
 ## Data Flow Summary
 
@@ -239,7 +203,7 @@ InputDiagram
        | InputToIrDiagramMapper::map
        v
 IrDiagram
-  entity_descs: { "edge_dep__0": "A depends on B" }
+  entity_descs: { "edge_dep__0": "A depends on B" }  --> edge_description_containers_plan.md
   edge_face_assignments: { "edge_dep__0": { from_face: Bottom, to_face: Top } }
   node_face_edges: { t_a: { Bottom: ["edge_dep__0"] },
                      t_b: { Top:    ["edge_dep__0"] } }
@@ -248,9 +212,7 @@ IrDiagram
        v
 TaffyNodeMappings
   edge_label_taffy_nodes:
-    "edge_dep__0": { from_label: taffy_X, to_label: taffy_Y }
-  entity_highlighted_spans:
-    "edge_dep__0": [ EntityHighlightedSpan { text: "A depends on B", ... } ]
+    "edge_dep__0": { from_label: taffy_X (size 0), to_label: taffy_Y (size 0) }
        |
        | TaffyToSvgElementsMapper::map / SvgEdgeLabelsBuilder::build
        v
@@ -259,18 +221,15 @@ SvgElements
     [ SvgEdgeLabelInfo {
         edge_id: "edge_dep__0",
         from_label: Some(SvgEdgeLabelEndpointInfo {
-          text_spans: [ SvgTextSpan { x, y, text: "A depends on B" } ]
+          x, y, width, height,
+          text_spans: []   -- always empty; no text from face-label slots
         }),
         to_label: Some(SvgEdgeLabelEndpointInfo { ... })
       } ]
        |
-       | SvgElementsToSvgMapper::render_edge_labels
+       | SvgEdgeInfosBuilder::face_offsets_compute (label-based offset)
+       | SvgElementsToSvgMapper::render_edge_labels (no SVG output; text_spans empty)
        v
-SVG string
-  <g id="edge_dep__0__from_label" ...>
-    <text x="..." y="..." stroke-width="0">A depends on B</text>
-  </g>
-  <g id="edge_dep__0__to_label" ...>
-    ...
-  </g>
+Edge path contact points use from_label / to_label bounds as offset anchors
+(slot-based fallback applies since label size is 0).
 ```

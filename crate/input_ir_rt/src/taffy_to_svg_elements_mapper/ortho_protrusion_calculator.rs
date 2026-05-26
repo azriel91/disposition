@@ -295,6 +295,7 @@ impl OrthoProtrusionCalculator {
                         true,
                         svg_node_info_map,
                         spacer_coordinates,
+                        node_nesting_infos,
                     );
 
                     let cross_axis_from = Self::cross_axis_coord(
@@ -356,6 +357,7 @@ impl OrthoProtrusionCalculator {
                         false,
                         svg_node_info_map,
                         spacer_coordinates,
+                        node_nesting_infos,
                     );
 
                     let cross_axis_to =
@@ -483,6 +485,7 @@ impl OrthoProtrusionCalculator {
                                 true,
                                 svg_node_info_map,
                                 spacer_coordinates,
+                                node_nesting_infos,
                             );
 
                             let from_gap_key = if rank_from < rank_to {
@@ -571,6 +574,7 @@ impl OrthoProtrusionCalculator {
                                 false,
                                 svg_node_info_map,
                                 spacer_coordinates,
+                                node_nesting_infos,
                             );
 
                             let to_gap_key = if rank_to > rank_from {
@@ -1075,17 +1079,29 @@ impl OrthoProtrusionCalculator {
     ///
     /// For the "from" endpoint, this is the distance from the
     /// from-node's face center to the first spacer entry (or the
-    /// to-node's face center if there are no spacers).
+    /// to-node's face center if there are no spacers), capped at the
+    /// distance to the other node's divergent ancestor boundary.
     ///
     /// For the "to" endpoint, this is the distance from the to-node's
     /// face center to the last spacer exit (or the from-node's face
-    /// center if there are no spacers).
+    /// center if there are no spacers), capped at the distance to the
+    /// other node's divergent ancestor boundary.
+    ///
+    /// Capping at the divergent ancestor boundary prevents the
+    /// slot-assigned protrusion from exceeding the actual inter-rank
+    /// gap when nodes are deeply nested inside containers. Without the
+    /// cap, the protrusion tip can land at or past the destination
+    /// container boundary, and combined with the divergent-sibling
+    /// adjustment on the opposite endpoint, both protrusion tips end
+    /// up at the same coordinate. This suppresses proper Z/S bends and
+    /// arc-rounded corners.
     fn rank_gap_px<'id>(
         pass1_info: &EdgePass1Info<'_, 'id>,
         face: NodeFace,
         is_from: bool,
         svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
         spacer_coordinates: &[SpacerCoordinates],
+        node_nesting_infos: &NodeNestingInfos<'id>,
     ) -> f32 {
         // Get node coordinates.
         let from_info = svg_node_info_map.get(&pass1_info.edge.from);
@@ -1099,7 +1115,7 @@ impl OrthoProtrusionCalculator {
             .map(|info| Self::face_center(info, pass1_info.to_face.unwrap_or(NodeFace::Top)))
             .unwrap_or((pass1_info.to_node_x, pass1_info.to_node_y));
 
-        if is_from {
+        let full_dist = if is_from {
             if spacer_coordinates.is_empty() {
                 Self::axis_distance(from_x, from_y, to_x, to_y, face)
             } else {
@@ -1119,7 +1135,51 @@ impl OrthoProtrusionCalculator {
                 let last_spacer = &spacer_coordinates[spacer_coordinates.len() - 1];
                 Self::axis_distance(to_x, to_y, last_spacer.exit_x, last_spacer.exit_y, face)
             }
+        };
+
+        // Cap at the boundary of the other divergent ancestor.
+        //
+        // When from/to nodes are deeply nested inside containers, the
+        // full face-to-face distance inflates `max_protrusion` beyond
+        // the actual inter-rank gap. The slot-assigned protrusion can
+        // then exceed the gap distance, and combined with the
+        // divergent-sibling adjustment on the opposite endpoint, both
+        // protrusion tips land at the same coordinate. This suppresses
+        // the proper Z/S bend and its arc-rounded corners.
+        //
+        // The fix: cap the distance at the boundary of the other
+        // node's divergent ancestor facing this node. For a Bottom-face
+        // protrusion, this is the Top face of the other divergent
+        // ancestor. This limits `max_protrusion` to the inter-rank gap
+        // between the two outermost containers.
+        let (this_node_id, other_node_id) = if is_from {
+            (&pass1_info.edge.from, &pass1_info.edge.to)
+        } else {
+            (&pass1_info.edge.to, &pass1_info.edge.from)
+        };
+        let lca_depth = Self::lca_depth(this_node_id, other_node_id, node_nesting_infos);
+        if let Some(other_div_ancestor_id) =
+            Self::divergent_ancestor_id(other_node_id, lca_depth, node_nesting_infos)
+            && let Some(&other_ancestor_info) = svg_node_info_map.get(other_div_ancestor_id)
+        {
+            let (this_face_x, this_face_y) = if is_from {
+                (from_x, from_y)
+            } else {
+                (to_x, to_y)
+            };
+            // The other ancestor's face pointing toward this node
+            // is the opposite of the protrusion direction.
+            let other_opposite_face = match face {
+                NodeFace::Bottom => NodeFace::Top,
+                NodeFace::Top => NodeFace::Bottom,
+                NodeFace::Right => NodeFace::Left,
+                NodeFace::Left => NodeFace::Right,
+            };
+            let (other_bx, other_by) = Self::face_center(other_ancestor_info, other_opposite_face);
+            let capped = Self::axis_distance(this_face_x, this_face_y, other_bx, other_by, face);
+            return full_dist.min(capped);
         }
+        full_dist
     }
 
     /// Resolves spacer coordinates for an edge, reusing the same logic
@@ -1159,20 +1219,30 @@ impl OrthoProtrusionCalculator {
             })
             .collect();
 
-        if cross_container_spacers.is_empty() {
+        // Collect edge_description_container spacer coordinates.
+        let edge_desc_container_spacers: Vec<SpacerCoordinates> = spacer_nodes
+            .edge_desc_container_spacer_taffy_node_ids
+            .iter()
+            .filter_map(|&taffy_node_id| {
+                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
+            })
+            .collect();
+
+        if cross_container_spacers.is_empty() && edge_desc_container_spacers.is_empty() {
             // Fast path: only rank-based spacers -- sort by rank as before.
             let mut rank_spacers = rank_spacers;
             rank_spacers.sort_by_key(|(rank, _)| *rank);
             return rank_spacers.into_iter().map(|(_, coords)| coords).collect();
         }
 
-        // Merge both kinds and sort by absolute coordinate along the
+        // Merge all kinds and sort by absolute coordinate along the
         // main axis so the spacers appear in the correct visual order
         // along the edge path.
         let mut all_spacers: Vec<SpacerCoordinates> = rank_spacers
             .into_iter()
             .map(|(_, coords)| coords)
             .chain(cross_container_spacers)
+            .chain(edge_desc_container_spacers)
             .collect();
 
         all_spacers.sort_by(|a, b| {

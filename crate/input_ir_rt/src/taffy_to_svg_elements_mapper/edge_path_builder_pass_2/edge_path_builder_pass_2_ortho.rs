@@ -352,7 +352,7 @@ impl EdgePathBuilderPass2Ortho {
 
         // Two cases warrant a straight line:
         //
-        // 1. `dot_p > 0.95`: the displacement is nearly collinear with the departure
+        // 1. `dot_p > 0.999`: the displacement is nearly collinear with the departure
         //    direction (same direction, small angular difference).
         //
         // 2. `is_same_axis`: both waypoints lie on the same routing axis -- no
@@ -363,7 +363,7 @@ impl EdgePathBuilderPass2Ortho {
         //    face-outward direction, giving dot_p ≈ -1, yet still requires a straight
         //    line).
         //
-        // The previous check `dot_p.abs() > 0.95` incorrectly treated
+        // The previous check `dot_p.abs() > 0.999` incorrectly treated
         // nearly anti-collinear displacements with a non-zero
         // perpendicular component as "straight", causing a diagonal
         // line instead of an orthogonal Z/S bend when the protrusion
@@ -373,7 +373,7 @@ impl EdgePathBuilderPass2Ortho {
         } else {
             dy.abs() < 1e-3
         };
-        if dot_p > 0.95 || is_same_axis {
+        if dot_p > 0.999 || is_same_axis {
             // Collinear in departure direction, or on the same routing
             // axis -- draw a straight line.
             path.line_to(Point::new(qx as f64, qy as f64));

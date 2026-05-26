@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use disposition_ir_model::{
-    edge::{EdgeFaceAssignments, EdgeGroups, EdgeId},
+    edge::{EdgeFaceAssignments, EdgeGroups, EdgeId, EdgeLabels},
     entity::{EntityDescs, EntityType, EntityTypes},
     layout::{FlexDirection as ModelFlexDirection, NodeLayout, NodeLayouts},
     node::{
@@ -10,7 +10,7 @@ use disposition_ir_model::{
     },
     IrDiagram,
 };
-use disposition_model_common::{Id, Map};
+use disposition_model_common::{Id, Map, RankDir};
 use disposition_taffy_model::{
     taffy::{
         self,
@@ -18,15 +18,20 @@ use disposition_taffy_model::{
         AlignContent, AlignItems, AvailableSpace, Display, FlexWrap, LengthPercentage, Rect, Size,
         Style, TaffyTree,
     },
-    DiagramLod, DiagramNodeCtx, Dimension, DimensionAndLod, EdgeLabelCtx, EdgeLabelTaffyNodeIds,
-    EdgeSpacerTaffyNodes, EntityHighlightedSpan, EntityHighlightedSpans, IrToTaffyError,
-    NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeCtx, TaffyNodeMappings, TEXT_FONT_SIZE,
-    TEXT_LINE_HEIGHT,
+    DiagramLod, DiagramNodeCtx, Dimension, DimensionAndLod, EdgeDescriptionTaffyNodes,
+    EdgeLabelCtx, EdgeLabelTaffyNodeIds, EdgeSpacerTaffyNodes, EntityHighlightedSpan,
+    EntityHighlightedSpans, IrToTaffyError, NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeCtx,
+    TaffyNodeMappings, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
 };
-use taffy::{prelude::TaffyZero, JustifyContent, JustifyItems};
+use taffy::{
+    prelude::TaffyZero,
+    style_helpers::{auto, line},
+    JustifyContent, JustifyItems,
+};
 use typed_builder::TypedBuilder;
 
 use self::{
+    edge_description_builder::{EdgeDescriptionBuildResult, EdgeDescriptionBuilder},
     edge_lca_sibling_distance::EdgeLcaSiblingDistance,
     edge_spacer_builder::EdgeSpacerBuilder,
     taffy_node_build_context::{
@@ -38,12 +43,24 @@ use self::{
     },
 };
 
+mod edge_description_builder;
 mod edge_lca_sibling_distance;
 mod edge_spacer_builder;
 mod taffy_node_build_context;
 mod text_measure;
 
 type NodeRankToTaffyNodeId = BTreeMap<NodeRank, Vec<taffy::NodeId>>;
+
+/// Padding (in pixels) added to the far side of an edge label leaf node.
+///
+/// The edge path contacts the label at one edge; this padding creates visual
+/// separation on the opposite side so the path does not overlap adjacent
+/// labels or the face boundary on the exit side.
+const EDGE_LABEL_PADDING_PX: f32 = 4.0;
+
+/// Padding (in pixels) added to both sides of a node so edges don't begin at
+/// the very edge.
+const NODE_SIDE_PADDING_PX: LengthPercentage = LengthPercentage::length(8.0);
 
 /// Converts a model [`FlexDirection`](ModelFlexDirection) to a
 /// [`taffy::style::FlexDirection`].
@@ -133,6 +150,7 @@ impl IrToTaffyBuilder<'_> {
             node_ordering: _,
             edge_groups,
             entity_descs,
+            edge_labels,
             entity_tooltips: _,
             entity_types,
             tailwind_classes: _,
@@ -143,9 +161,11 @@ impl IrToTaffyBuilder<'_> {
             node_face_edges,
             node_shapes,
             process_step_entities: _,
-            render_options: _,
+            render_options,
             css: _,
         } = ir_diagram;
+
+        let rank_dir = render_options.rank_dir;
 
         let DimensionAndLod { dimension, lod } = dimension_and_lod;
 
@@ -161,6 +181,7 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy,
             entity_types,
+            entity_descs,
             node_shapes,
             node_ranks_nested,
             node_nesting_infos,
@@ -169,13 +190,17 @@ impl IrToTaffyBuilder<'_> {
             node_face_edges,
             node_id_to_envelope_taffy_node: &mut node_id_to_envelope_taffy_node,
             edge_label_leaves: &mut edge_label_leaves,
+            rank_dir,
         };
-        let (node_rank_to_nodes_by_entity_type, nested_edge_spacer_taffy_nodes) =
-            Self::build_taffy_nodes_for_first_level_nodes(
-                taffy_node_build_context,
-                processes_included,
-                edge_groups,
-            );
+        let (
+            node_rank_to_nodes_by_entity_type,
+            nested_edge_spacer_taffy_nodes,
+            nested_edge_description_taffy_nodes,
+        ) = Self::build_taffy_nodes_for_first_level_nodes(
+            taffy_node_build_context,
+            processes_included,
+            edge_groups,
+        );
         let mut thing_rank_to_taffy_ids = node_rank_to_nodes_by_entity_type
             .get(&EntityType::ThingDefault)
             .cloned()
@@ -228,29 +253,135 @@ impl IrToTaffyBuilder<'_> {
             None,
         ));
 
+        // === Build edge_description_container nodes for top-level described edges ===
+        // //
+        //
+        // For each described edge at the top level (LCA = root), we create a
+        // container node interleaved between rank containers, plus a leaf node
+        // for text measurement.
+        let mut edge_description_taffy_nodes: Map<EdgeId<'static>, EdgeDescriptionTaffyNodes> =
+            Map::new();
+        edge_description_taffy_nodes.extend(nested_edge_description_taffy_nodes);
+
+        let thing_rank_container_style = Self::taffy_container_style(
+            node_layouts,
+            &NodeInbuilt::ThingsContainer.id(),
+            Size::auto(),
+        );
+        let tag_rank_container_style = Self::taffy_container_style(
+            node_layouts,
+            &NodeInbuilt::TagsContainer.id(),
+            Size::auto(),
+        );
+        let process_rank_container_style = Self::taffy_container_style(
+            node_layouts,
+            &NodeInbuilt::ProcessesContainer.id(),
+            Size::auto(),
+        );
+
+        let EdgeDescriptionBuildResult {
+            edge_description_taffy_nodes: thing_edge_desc_taffy_nodes,
+            position_to_container_ids: thing_position_to_container_ids,
+        } = EdgeDescriptionBuilder::build(
+            &mut taffy_tree,
+            entity_descs,
+            edge_groups,
+            node_nesting_infos,
+            node_ranks_nested,
+            entity_types,
+            &EntityType::ThingDefault,
+            None,
+            &thing_rank_container_style,
+        );
+        let EdgeDescriptionBuildResult {
+            edge_description_taffy_nodes: tag_edge_desc_taffy_nodes,
+            position_to_container_ids: tag_position_to_container_ids,
+        } = EdgeDescriptionBuilder::build(
+            &mut taffy_tree,
+            entity_descs,
+            edge_groups,
+            node_nesting_infos,
+            node_ranks_nested,
+            entity_types,
+            &EntityType::TagDefault,
+            None,
+            &tag_rank_container_style,
+        );
+        let EdgeDescriptionBuildResult {
+            edge_description_taffy_nodes: process_edge_desc_taffy_nodes,
+            position_to_container_ids: process_position_to_container_ids,
+        } = EdgeDescriptionBuilder::build(
+            &mut taffy_tree,
+            entity_descs,
+            edge_groups,
+            node_nesting_infos,
+            node_ranks_nested,
+            entity_types,
+            &EntityType::ProcessDefault,
+            None,
+            &process_rank_container_style,
+        );
+        edge_description_taffy_nodes.extend(thing_edge_desc_taffy_nodes);
+        edge_description_taffy_nodes.extend(tag_edge_desc_taffy_nodes);
+        edge_description_taffy_nodes.extend(process_edge_desc_taffy_nodes);
+
+        // === Build edge_description_container spacers === //
+        //
+        // For each edge that crosses through an edge_description_container at
+        // the top level, insert a spacer inside that container so the edge
+        // path can route around it. Must run before position_to_container_ids
+        // is consumed by `build_taffy_rank_containers_for_first_level_nodes`.
+        for (target_entity_type, position_to_container_ids) in [
+            (&EntityType::ThingDefault, &thing_position_to_container_ids),
+            (&EntityType::TagDefault, &tag_position_to_container_ids),
+            (
+                &EntityType::ProcessDefault,
+                &process_position_to_container_ids,
+            ),
+        ] {
+            for (edge_id, new_spacers) in EdgeSpacerBuilder::build_edge_desc_container_spacers(
+                &mut taffy_tree,
+                edge_groups,
+                node_nesting_infos,
+                node_ranks_nested,
+                entity_types,
+                target_entity_type,
+                None,
+                position_to_container_ids,
+                &edge_description_taffy_nodes,
+            ) {
+                edge_spacer_taffy_nodes
+                    .entry(edge_id)
+                    .or_default()
+                    .edge_desc_container_spacer_taffy_node_ids
+                    .extend(new_spacers.edge_desc_container_spacer_taffy_node_ids);
+            }
+        }
+
         // Create rank sub-containers for top-level nodes, mirroring the
         // rank-based child container logic used inside
         // `build_taffy_nodes_for_node_with_child_hierarchy`.
         //
         // Each entity type gets its own set of rank containers using the
-        // style of its parent container.
+        // style of its parent container, interleaved with any
+        // edge_description_containers at the same level.
         let thing_rank_container_ids = Self::build_taffy_rank_containers_for_first_level_nodes(
             &mut taffy_tree,
-            node_layouts,
-            NodeInbuilt::ThingsContainer,
             thing_rank_to_taffy_ids,
+            thing_rank_container_style,
+            thing_position_to_container_ids,
         );
         let tag_rank_container_ids = Self::build_taffy_rank_containers_for_first_level_nodes(
             &mut taffy_tree,
-            node_layouts,
-            NodeInbuilt::TagsContainer,
             tag_rank_to_taffy_ids,
+            tag_rank_container_style,
+            tag_position_to_container_ids,
         );
         let process_rank_container_ids = Self::build_taffy_rank_containers_for_first_level_nodes(
             &mut taffy_tree,
-            node_layouts,
-            NodeInbuilt::ProcessesContainer,
             process_rank_to_taffy_ids,
+            process_rank_container_style,
+            process_position_to_container_ids,
         );
 
         let node_inbuilt_to_taffy = Self::build_taffy_container_nodes(
@@ -270,10 +401,15 @@ impl IrToTaffyBuilder<'_> {
         // Precompute monospace character width
         let char_width = TEXT_FONT_SIZE * MONOSPACE_CHAR_WIDTH_RATIO;
 
+        // Pre-compute edge endpoint node IDs for edge label slot sizing.
+        let edge_id_to_endpoint_node_ids = Self::edge_id_to_node_ids_build(edge_groups);
+
         // Compute layout (size measurement only, no syntax highlighting)
         let mut node_measure_context = NodeMeasureContext {
             nodes,
             entity_descs,
+            edge_labels,
+            edge_id_to_endpoint_node_ids: &edge_id_to_endpoint_node_ids,
             char_width,
             lod,
         };
@@ -315,9 +451,19 @@ impl IrToTaffyBuilder<'_> {
             &edge_label_taffy_nodes,
             nodes,
             entity_descs,
+            edge_labels,
             char_width,
             lod,
         );
+
+        let edge_description_highlighted_spans =
+            Self::highlighted_spans_compute_edge_desc_containers(
+                &taffy_tree,
+                &edge_description_taffy_nodes,
+                entity_descs,
+                char_width,
+                lod,
+            );
 
         std::iter::once(TaffyNodeMappings {
             taffy_tree,
@@ -327,6 +473,8 @@ impl IrToTaffyBuilder<'_> {
             edge_spacer_taffy_nodes,
             entity_highlighted_spans,
             edge_label_taffy_nodes,
+            edge_description_taffy_nodes,
+            edge_description_highlighted_spans,
             node_id_to_envelope_taffy_node,
         })
     }
@@ -334,12 +482,14 @@ impl IrToTaffyBuilder<'_> {
     /// Compute highlighted spans for all nodes after layout is complete.
     /// This is much more efficient than doing it during measure() which gets
     /// called multiple times.
+    #[allow(clippy::too_many_arguments)]
     fn highlighted_spans_compute(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
         edge_label_taffy_nodes: &Map<EdgeId<'static>, EdgeLabelTaffyNodeIds>,
         nodes: &NodeNames<'static>,
         entity_descs: &EntityDescs<'static>,
+        edge_labels: &EdgeLabels<'static>,
         char_width: f32,
         lod: &DiagramLod,
     ) -> EntityHighlightedSpans<'static> {
@@ -491,79 +641,161 @@ impl IrToTaffyBuilder<'_> {
         // === Edge label spans === //
         //
         // For DiagramLod::Normal, compute highlighted spans for edge label
-        // slots. Both the from_label and to_label slots for a given edge show
-        // the same description text, so a single span set is computed and
-        // stored per edge, keyed by the edge's raw Id.  The width of the
-        // from_label slot is used as the line-wrapping constraint (falling
-        // back to the to_label slot when from_label is absent).
+        // slots. The from_label slot uses `edge_label.from` as its text and
+        // the to_label slot uses `edge_label.to`, allowing each endpoint to
+        // show different text. Spans are stored under
+        // `{edge_id}__from_label` and `{edge_id}__to_label` keys.
         if matches!(lod, DiagramLod::Normal) {
             edge_label_taffy_nodes
                 .iter()
                 .for_each(|(edge_id, edge_label_taffy_node_ids)| {
-                    let Some(desc) = entity_descs.get(edge_id.as_ref()).map(String::as_str) else {
+                    let Some(edge_label) = edge_labels.get(edge_id) else {
                         return;
                     };
 
-                    // Pick whichever label slot is present to get the layout width.
-                    let edge_label_taffy_node_id = edge_label_taffy_node_ids
-                        .from_label_taffy_node_id
-                        .or(edge_label_taffy_node_ids.to_label_taffy_node_id);
-                    let Some(edge_label_taffy_node_id) = edge_label_taffy_node_id else {
-                        return;
-                    };
-                    let Ok(edge_label_node_layout) = taffy_tree.layout(edge_label_taffy_node_id)
-                    else {
-                        return;
-                    };
+                    // Compute and store highlighted spans for the from_label slot.
+                    if let Some(from_taffy_node_id) =
+                        edge_label_taffy_node_ids.from_label_taffy_node_id
+                    {
+                        let from_text = edge_label.from.as_str();
+                        if let Some(from_spans) =
+                            Self::highlighted_spans_compute_edge_label_slot(
+                                taffy_tree,
+                                from_taffy_node_id,
+                                from_text,
+                                char_width,
+                                line_height,
+                            )
+                        {
+                            let from_label_key =
+                                Id::try_from(format!("{edge_id}__from_label"))
+                                    .expect("`edge_id` is a valid `Id`, so appending `__from_label` is also valid");
+                            entity_highlighted_spans.insert(from_label_key, from_spans);
+                        }
+                    }
 
-                    let max_width = edge_label_node_layout.size.width;
-                    let wrapped_lines = wrap_text_monospace(desc, char_width, max_width);
-
-                    let padding_left = edge_label_node_layout.padding.left;
-                    let padding_top = edge_label_node_layout.padding.top;
-                    let text_leftmost_x = padding_left + 0.5 * char_width;
-
-                    let highlighted_spans: Vec<EntityHighlightedSpan> = wrapped_lines
-                        .iter()
-                        .enumerate()
-                        .map(|(line_index, line)| {
-                            let x = text_leftmost_x;
-                            let y = (line_index + 1) as f32 * line_height + padding_top;
-                            let width = line_width_measure(line, char_width);
-                            EntityHighlightedSpan {
-                                x,
-                                y,
-                                width,
-                                height: line_height,
-                                text: line.to_string(),
-                            }
-                        })
-                        .collect();
-
-                    entity_highlighted_spans.insert(edge_id.as_ref().clone(), highlighted_spans);
+                    // Compute and store highlighted spans for the to_label slot.
+                    if let Some(to_taffy_node_id) =
+                        edge_label_taffy_node_ids.to_label_taffy_node_id
+                    {
+                        let to_text = edge_label.to.as_str();
+                        if let Some(to_spans) =
+                            Self::highlighted_spans_compute_edge_label_slot(
+                                taffy_tree,
+                                to_taffy_node_id,
+                                to_text,
+                                char_width,
+                                line_height,
+                            )
+                        {
+                            let to_label_key =
+                                Id::try_from(format!("{edge_id}__to_label"))
+                                    .expect("`edge_id` is a valid `Id`, so appending `__to_label` is also valid");
+                            entity_highlighted_spans.insert(to_label_key, to_spans);
+                        }
+                    }
                 });
         }
 
         entity_highlighted_spans
     }
 
-    /// Creates rank sub-containers for first-level nodes of a given entity
-    /// type.
+    /// Computes highlighted spans for a single edge label slot.
     ///
-    /// Each rank level gets its own flex container using the style of the
-    /// parent `NodeInbuilt` container. The returned `Vec` contains one taffy
-    /// node per rank, ordered by rank.
+    /// Returns `None` if `text` is empty or the taffy layout cannot be read.
+    fn highlighted_spans_compute_edge_label_slot(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        taffy_node_id: taffy::NodeId,
+        text: &str,
+        char_width: f32,
+        line_height: f32,
+    ) -> Option<Vec<EntityHighlightedSpan>> {
+        if text.is_empty() {
+            return None;
+        }
+
+        let Ok(node_layout) = taffy_tree.layout(taffy_node_id) else {
+            return None;
+        };
+
+        let max_width = node_layout.size.width;
+        let wrapped_lines = wrap_text_monospace(text, char_width, max_width);
+
+        let padding_left = node_layout.padding.left;
+        let padding_top = node_layout.padding.top;
+        let text_leftmost_x = padding_left + 0.5 * char_width;
+
+        let spans = wrapped_lines
+            .iter()
+            .enumerate()
+            .map(|(line_index, line)| EntityHighlightedSpan {
+                x: text_leftmost_x,
+                y: (line_index + 1) as f32 * line_height + padding_top,
+                width: line_width_measure(line, char_width),
+                height: line_height,
+                text: line.to_string(),
+            })
+            .collect();
+
+        Some(spans)
+    }
+
+    /// Computes highlighted spans for all edge description leaf nodes after
+    /// layout is complete.
+    ///
+    /// Only runs at [`DiagramLod::Normal`]; returns an empty map at
+    /// [`DiagramLod::Simple`].
+    ///
+    /// For each entry in `edge_description_taffy_nodes`, looks up the edge
+    /// description text in `entity_descs`, reads the layout width of the
+    /// `description_taffy_node_id` as the wrapping constraint, and builds
+    /// [`EntityHighlightedSpan`] values relative to the leaf node's top-left
+    /// corner.
+    fn highlighted_spans_compute_edge_desc_containers(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
+        entity_descs: &EntityDescs<'static>,
+        char_width: f32,
+        lod: &DiagramLod,
+    ) -> Map<EdgeId<'static>, Vec<EntityHighlightedSpan>> {
+        if !matches!(lod, DiagramLod::Normal) {
+            return Map::new();
+        }
+
+        let line_height = TEXT_LINE_HEIGHT;
+
+        edge_description_taffy_nodes
+            .iter()
+            .filter_map(|(edge_id, edge_desc_taffy_nodes)| {
+                let desc = entity_descs.get(edge_id.as_ref())?;
+                let spans = Self::highlighted_spans_compute_edge_label_slot(
+                    taffy_tree,
+                    edge_desc_taffy_nodes.description_taffy_node_id,
+                    desc,
+                    char_width,
+                    line_height,
+                )?;
+                Some((edge_id.clone(), spans))
+            })
+            .collect()
+    }
+
+    /// Creates rank sub-containers for first-level nodes of a given entity
+    /// type, interleaved with `edge_description_container` nodes.
+    ///
+    /// Each rank level gets its own flex container using
+    /// `rank_container_style`. `edge_description_container` nodes from
+    /// `position_to_container_ids` are inserted before or after each rank
+    /// container according to their position key.
+    ///
+    /// The returned `Vec` contains rank containers and edge_description
+    /// containers in interleaved order.
     fn build_taffy_rank_containers_for_first_level_nodes(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
-        node_layouts: &NodeLayouts,
-        node_inbuilt: NodeInbuilt,
         rank_to_taffy_ids: NodeRankToTaffyNodeId,
+        rank_container_style: Style,
+        position_to_container_ids: BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
     ) -> Vec<taffy::NodeId> {
-        // Not sure if this is the best way to handle the container styles, but we use
-        // the `NodeInbuilt` container style for the rank children containers, and
-        // invert the `FlexDirection` on the actual `NodeInbuilt` container style.
-        let rank_container_style =
-            Self::taffy_container_style(node_layouts, &node_inbuilt.id(), Size::auto());
         // Creates a new taffy node for each rank to be placed in the container.
         //
         // i.e.
@@ -574,19 +806,22 @@ impl IrToTaffyBuilder<'_> {
         //   child_container_1: {} # nodes with rank n + 1
         //   child_container_2: {} # nodes with rank n + 2
         // ```
-        rank_to_taffy_ids
-            .into_values()
-            .map(|taffy_ids| {
-                taffy_tree
+        let rank_to_container: BTreeMap<NodeRank, taffy::NodeId> = rank_to_taffy_ids
+            .into_iter()
+            .map(|(rank, taffy_ids)| {
+                let container = taffy_tree
                     .new_with_children(rank_container_style.clone(), &taffy_ids)
                     .unwrap_or_else(|e| {
                         panic!(
                             "Expected to create rank container node for \
-                             top-level {node_inbuilt}. Error: {e}"
+                             top-level nodes. Error: {e}"
                         )
-                    })
+                    });
+                (rank, container)
             })
-            .collect()
+            .collect();
+
+        Self::rank_containers_interleave(rank_to_container, position_to_container_ids)
     }
 
     /// Adds the inbuilt container nodes to the `TaffyTree`.
@@ -701,6 +936,37 @@ impl IrToTaffyBuilder<'_> {
         }
     }
 
+    /// Interleaves rank containers with `edge_description_container` nodes.
+    ///
+    /// `position_to_container_ids` maps insertion positions to the
+    /// edge_description_container taffy node IDs to insert there:
+    ///
+    /// - `None` -- inserted before all rank containers.
+    /// - `Some(rank)` -- inserted after `rank_container[rank]`.
+    ///
+    /// Rank containers and edge_description_containers are combined into a
+    /// single ordered `Vec<taffy::NodeId>`.
+    fn rank_containers_interleave(
+        rank_to_container: BTreeMap<NodeRank, taffy::NodeId>,
+        position_to_container_ids: BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
+    ) -> Vec<taffy::NodeId> {
+        let mut result = Vec::new();
+
+        // Prepend containers positioned before all rank containers.
+        if let Some(before) = position_to_container_ids.get(&None) {
+            result.extend(before.iter().copied());
+        }
+
+        for (rank, rank_container) in rank_to_container {
+            result.push(rank_container);
+            if let Some(after) = position_to_container_ids.get(&Some(rank)) {
+                result.extend(after.iter().copied());
+            }
+        }
+
+        result
+    }
+
     /// Adds the tags, things, and process nodes to the taffy tree.
     ///
     /// This is different from `build_taffy_nodes_for_node` in that the parent
@@ -716,6 +982,7 @@ impl IrToTaffyBuilder<'_> {
     ) -> (
         Map<EntityType, NodeRankToTaffyNodeId>,
         Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
+        Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
     ) {
         let TaffyNodeBuildContext {
             nodes,
@@ -723,6 +990,7 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy,
             entity_types,
+            entity_descs,
             node_shapes,
             node_ranks_nested,
             node_nesting_infos,
@@ -731,9 +999,12 @@ impl IrToTaffyBuilder<'_> {
             node_face_edges,
             node_id_to_envelope_taffy_node,
             edge_label_leaves,
+            rank_dir,
         } = taffy_node_build_context;
 
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
+        let mut edge_description_taffy_nodes: Map<EdgeId<'static>, EdgeDescriptionTaffyNodes> =
+            Map::new();
 
         let entity_type_to_node_rank_to_taffy_node_ids = node_hierarchy.iter().fold(
             Map::<EntityType, NodeRankToTaffyNodeId>::new(),
@@ -772,28 +1043,35 @@ impl IrToTaffyBuilder<'_> {
                         node_face_edges,
                         node_id_to_envelope_taffy_node,
                         edge_label_leaves,
+                        rank_dir,
                     )
                 } else {
-                    let (wrapper_node_id, nested_edge_spacer_taffy_nodes) =
-                        Self::build_taffy_nodes_for_node_with_child_hierarchy(
-                            nodes,
-                            taffy_tree,
-                            node_layouts,
-                            node_shapes,
-                            entity_types,
-                            node_ranks_nested,
-                            node_nesting_infos,
-                            node_id_to_taffy,
-                            taffy_id_to_node,
-                            child_hierarchy,
-                            node_id,
-                            entity_type,
-                            edge_groups,
-                            node_face_edges,
-                            node_id_to_envelope_taffy_node,
-                            edge_label_leaves,
-                        );
+                    let (
+                        wrapper_node_id,
+                        nested_edge_spacer_taffy_nodes,
+                        nested_edge_description_taffy_nodes,
+                    ) = Self::build_taffy_nodes_for_node_with_child_hierarchy(
+                        nodes,
+                        taffy_tree,
+                        node_layouts,
+                        node_shapes,
+                        entity_types,
+                        entity_descs,
+                        node_ranks_nested,
+                        node_nesting_infos,
+                        node_id_to_taffy,
+                        taffy_id_to_node,
+                        child_hierarchy,
+                        node_id,
+                        entity_type,
+                        edge_groups,
+                        node_face_edges,
+                        node_id_to_envelope_taffy_node,
+                        edge_label_leaves,
+                        rank_dir,
+                    );
                     edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
+                    edge_description_taffy_nodes.extend(nested_edge_description_taffy_nodes);
                     wrapper_node_id
                 };
 
@@ -816,6 +1094,7 @@ impl IrToTaffyBuilder<'_> {
         (
             entity_type_to_node_rank_to_taffy_node_ids,
             edge_spacer_taffy_nodes,
+            edge_description_taffy_nodes,
         )
     }
 
@@ -830,6 +1109,7 @@ impl IrToTaffyBuilder<'_> {
     ) -> (
         NodeRankToTaffyNodeId,
         Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
+        Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
     ) {
         let TaffyNodeBuildContext {
             nodes,
@@ -837,6 +1117,7 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy,
             entity_types,
+            entity_descs,
             node_shapes,
             node_ranks_nested,
             node_nesting_infos,
@@ -845,10 +1126,13 @@ impl IrToTaffyBuilder<'_> {
             node_face_edges,
             node_id_to_envelope_taffy_node,
             edge_label_leaves,
+            rank_dir,
         } = taffy_node_build_context;
 
         let mut rank_to_taffy_ids: NodeRankToTaffyNodeId = BTreeMap::new();
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
+        let mut edge_description_taffy_nodes: Map<EdgeId<'static>, EdgeDescriptionTaffyNodes> =
+            Map::new();
 
         for (node_id, child_hierarchy) in node_hierarchy.iter() {
             let node_id: &Id = node_id.as_ref();
@@ -873,28 +1157,35 @@ impl IrToTaffyBuilder<'_> {
                     node_face_edges,
                     node_id_to_envelope_taffy_node,
                     edge_label_leaves,
+                    rank_dir,
                 )
             } else {
-                let (wrapper_node_id, nested_edge_spacer_taffy_nodes) =
-                    Self::build_taffy_nodes_for_node_with_child_hierarchy(
-                        nodes,
-                        taffy_tree,
-                        node_layouts,
-                        node_shapes,
-                        entity_types,
-                        node_ranks_nested,
-                        node_nesting_infos,
-                        node_id_to_taffy,
-                        taffy_id_to_node,
-                        child_hierarchy,
-                        node_id,
-                        entity_type,
-                        edge_groups,
-                        node_face_edges,
-                        node_id_to_envelope_taffy_node,
-                        edge_label_leaves,
-                    );
+                let (
+                    wrapper_node_id,
+                    nested_edge_spacer_taffy_nodes,
+                    nested_edge_description_taffy_nodes,
+                ) = Self::build_taffy_nodes_for_node_with_child_hierarchy(
+                    nodes,
+                    taffy_tree,
+                    node_layouts,
+                    node_shapes,
+                    entity_types,
+                    entity_descs,
+                    node_ranks_nested,
+                    node_nesting_infos,
+                    node_id_to_taffy,
+                    taffy_id_to_node,
+                    child_hierarchy,
+                    node_id,
+                    entity_type,
+                    edge_groups,
+                    node_face_edges,
+                    node_id_to_envelope_taffy_node,
+                    edge_label_leaves,
+                    rank_dir,
+                );
                 edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
+                edge_description_taffy_nodes.extend(nested_edge_description_taffy_nodes);
                 wrapper_node_id
             };
 
@@ -909,7 +1200,11 @@ impl IrToTaffyBuilder<'_> {
                 .push(taffy_node_id);
         }
 
-        (rank_to_taffy_ids, edge_spacer_taffy_nodes)
+        (
+            rank_to_taffy_ids,
+            edge_spacer_taffy_nodes,
+            edge_description_taffy_nodes,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -924,6 +1219,7 @@ impl IrToTaffyBuilder<'_> {
         node_face_edges: &NodeFaceEdges<'static>,
         node_id_to_envelope_taffy_node: &mut Map<NodeId<'static>, taffy::NodeId>,
         edge_label_leaves: &mut Vec<EdgeLabelLeafBuilt>,
+        rank_dir: RankDir,
     ) -> taffy::NodeId {
         let ir_node_id = NodeId::from(node_id.clone());
         let node_shape = node_shapes
@@ -955,6 +1251,7 @@ impl IrToTaffyBuilder<'_> {
                     &ir_node_id,
                     taffy_text_node_id,
                     node_face_edges,
+                    rank_dir,
                 );
                 edge_label_leaves.extend(new_label_leaves);
                 node_id_to_envelope_taffy_node.insert(ir_node_id.clone(), envelope_node_id);
@@ -1030,6 +1327,7 @@ impl IrToTaffyBuilder<'_> {
                     &ir_node_id,
                     wrapper_node_id,
                     node_face_edges,
+                    rank_dir,
                 );
                 edge_label_leaves.extend(new_label_leaves);
                 node_id_to_envelope_taffy_node.insert(ir_node_id.clone(), envelope_node_id);
@@ -1047,6 +1345,7 @@ impl IrToTaffyBuilder<'_> {
         node_layouts: &NodeLayouts<'static>,
         node_shapes: &NodeShapes<'static>,
         entity_types: &EntityTypes<'static>,
+        entity_descs: &EntityDescs<'static>,
         node_ranks_nested: &NodeRanksNested<'static>,
         node_nesting_infos: &NodeNestingInfos<'static>,
         node_id_to_taffy: &mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
@@ -1058,9 +1357,16 @@ impl IrToTaffyBuilder<'_> {
         node_face_edges: &NodeFaceEdges<'static>,
         node_id_to_envelope_taffy_node: &mut Map<NodeId<'static>, taffy::NodeId>,
         edge_label_leaves: &mut Vec<EdgeLabelLeafBuilt>,
-    ) -> (taffy::NodeId, Map<EdgeId<'static>, EdgeSpacerTaffyNodes>) {
+        rank_dir: RankDir,
+    ) -> (
+        taffy::NodeId,
+        Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
+        Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
+    ) {
         let ir_node_id = NodeId::from(node_id.clone());
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
+        let mut edge_description_taffy_nodes: Map<EdgeId<'static>, EdgeDescriptionTaffyNodes> =
+            Map::new();
 
         let TaffyWrapperNodeStyles {
             wrapper_style,
@@ -1084,6 +1390,7 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy: child_hierarchy,
             entity_types,
+            entity_descs,
             node_shapes,
             node_ranks_nested,
             node_nesting_infos,
@@ -1092,10 +1399,15 @@ impl IrToTaffyBuilder<'_> {
             node_face_edges,
             node_id_to_envelope_taffy_node,
             edge_label_leaves,
+            rank_dir,
         };
-        let (mut rank_to_taffy_ids, nested_edge_spacer_taffy_nodes) =
-            Self::build_taffy_child_nodes_for_node_by_rank(taffy_node_build_context, edge_groups);
+        let (
+            mut rank_to_taffy_ids,
+            nested_edge_spacer_taffy_nodes,
+            nested_edge_description_taffy_nodes,
+        ) = Self::build_taffy_child_nodes_for_node_by_rank(taffy_node_build_context, edge_groups);
         edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
+        edge_description_taffy_nodes.extend(nested_edge_description_taffy_nodes);
 
         // === Insert spacer nodes for edges nested within this node === //
         let lca_node_id = NodeId::from(node_id.clone());
@@ -1132,6 +1444,68 @@ impl IrToTaffyBuilder<'_> {
             child_hierarchy,
         ));
 
+        // === Build edge_description_container nodes for described edges at this
+        // === level === //
+        let mut position_to_container_ids: BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>> =
+            BTreeMap::new();
+        for target_entity_type in &[
+            EntityType::ThingDefault,
+            EntityType::TagDefault,
+            EntityType::ProcessDefault,
+        ] {
+            let edge_description_containers_build_result = EdgeDescriptionBuilder::build(
+                taffy_tree,
+                entity_descs,
+                edge_groups,
+                node_nesting_infos,
+                node_ranks_nested,
+                entity_types,
+                target_entity_type,
+                Some(&lca_node_id),
+                &child_container_style,
+            );
+            edge_description_taffy_nodes
+                .extend(edge_description_containers_build_result.edge_description_taffy_nodes);
+            for (pos, containers) in
+                edge_description_containers_build_result.position_to_container_ids
+            {
+                position_to_container_ids
+                    .entry(pos)
+                    .or_default()
+                    .extend(containers);
+            }
+        }
+
+        // === Build edge_description_container spacers === //
+        //
+        // For each edge that crosses through an edge_description_container at
+        // this nesting level, insert a spacer inside that container. Must run
+        // before position_to_container_ids is consumed by
+        // `rank_containers_interleave`.
+        for target_entity_type in &[
+            EntityType::ThingDefault,
+            EntityType::TagDefault,
+            EntityType::ProcessDefault,
+        ] {
+            for (edge_id, new_spacers) in EdgeSpacerBuilder::build_edge_desc_container_spacers(
+                taffy_tree,
+                edge_groups,
+                node_nesting_infos,
+                node_ranks_nested,
+                entity_types,
+                target_entity_type,
+                Some(&lca_node_id),
+                &position_to_container_ids,
+                &edge_description_taffy_nodes,
+            ) {
+                edge_spacer_taffy_nodes
+                    .entry(edge_id)
+                    .or_default()
+                    .edge_desc_container_spacer_taffy_node_ids
+                    .extend(new_spacers.edge_desc_container_spacer_taffy_node_ids);
+            }
+        }
+
         // === Build Rank-Based Child Containers === //
         //
         // Instead of a single child container with all children, we create one
@@ -1146,19 +1520,22 @@ impl IrToTaffyBuilder<'_> {
         //   child_container_1: {} # nodes with rank n + 1
         //   child_container_2: {} # nodes with rank n + 2
         // ```
-        let rank_container_ids: Vec<taffy::NodeId> = rank_to_taffy_ids
-            .into_values()
-            .map(|taffy_ids| {
-                taffy_tree
+        let rank_to_container: BTreeMap<NodeRank, taffy::NodeId> = rank_to_taffy_ids
+            .into_iter()
+            .map(|(rank, taffy_ids)| {
+                let container = taffy_tree
                     .new_with_children(child_container_style.clone(), &taffy_ids)
                     .unwrap_or_else(|e| {
                         panic!(
                             "Expected to create rank child container node for {node_id}. \
                              Error: {e}"
                         )
-                    })
+                    });
+                (rank, container)
             })
             .collect();
+        let rank_container_ids =
+            Self::rank_containers_interleave(rank_to_container, position_to_container_ids);
 
         let node_shape = node_shapes
             .get(&ir_node_id)
@@ -1187,12 +1564,17 @@ impl IrToTaffyBuilder<'_> {
                     &ir_node_id,
                     wrapper_node_id,
                     node_face_edges,
+                    rank_dir,
                 );
                 edge_label_leaves.extend(new_label_leaves);
                 node_id_to_envelope_taffy_node.insert(ir_node_id.clone(), envelope_node_id);
                 taffy_id_to_node.insert(wrapper_node_id, ir_node_id);
 
-                (envelope_node_id, edge_spacer_taffy_nodes)
+                (
+                    envelope_node_id,
+                    edge_spacer_taffy_nodes,
+                    edge_description_taffy_nodes,
+                )
             }
             NodeShape::Circle(node_shape_circle) => {
                 // Circle wrapper:
@@ -1258,12 +1640,17 @@ impl IrToTaffyBuilder<'_> {
                     &ir_node_id,
                     wrapper_node_id,
                     node_face_edges,
+                    rank_dir,
                 );
                 edge_label_leaves.extend(new_label_leaves);
                 node_id_to_envelope_taffy_node.insert(ir_node_id.clone(), envelope_node_id);
                 taffy_id_to_node.insert(wrapper_node_id, ir_node_id);
 
-                (envelope_node_id, edge_spacer_taffy_nodes)
+                (
+                    envelope_node_id,
+                    edge_spacer_taffy_nodes,
+                    edge_description_taffy_nodes,
+                )
             }
         }
     }
@@ -1292,7 +1679,18 @@ impl IrToTaffyBuilder<'_> {
             .expect("`TaffyTree::new_leaf_with_context` should be infallible.")
     }
 
-    /// Returns the `taffy::Style` for container nodes.
+    /// Returns the `taffy::Style` for container nodes and leaf nodes.
+    ///
+    /// The values for each style are taken from the `NodeLayouts` map.
+    ///
+    /// This includes:
+    ///
+    /// * `inbuilt` nodes: e.g. `NodeInbuilt::ThingsAndProcessesContainer`.
+    /// * `rank_container` nodes: `taffy` nodes that contain the taffy container
+    ///   nodes for a given rank.
+    /// * `rank` nodes: The `taffy` nodes that contain the child nodes for a
+    ///   given rank.
+    /// * leaf nodes: the `taffy` nodes that contain the text of a diagram node.
     fn taffy_container_style(
         node_layouts: &NodeLayouts,
         node_id: &Id,
@@ -1317,14 +1715,18 @@ impl IrToTaffyBuilder<'_> {
                         bottom: LengthPercentage::length(flex_layout.padding_bottom()),
                     },
                     border: Rect::length(1.0f32),
-                    // We use `AlignItems::Stretch` because we want coordinates to be as close to
-                    // the top-left corner as possible, as well as resizing each node to be as wide
-                    // as the widest node which looks more visually aesthetic.
+                    // We previously used `AlignItems::Stretch` because we want coordinates to be as
+                    // close to the top-left corner as possible, as well as resizing each node to be
+                    // as wide as the widest node which looks more visually aesthetic.
+                    //
+                    // We now use `AlignItems::FlexStart` to align the content to the start of the
+                    // container, which ensures that the coordinates are as close to the top-left
+                    // corner as possible, as well as not inadvertently stretching nodes' height.
                     //
                     // If we use `AlignItems::Center`, the coordinates
                     // may be negative when the content width exceeds the diagram dimension, and
                     // starts outside the diagram bounds.
-                    align_items: Some(AlignItems::Stretch),
+                    align_items: Some(AlignItems::FlexStart),
                     align_content: Some(AlignContent::Start),
                     justify_items: Some(JustifyItems::Start),
                     justify_content: Some(JustifyContent::Start),
@@ -1385,6 +1787,7 @@ impl IrToTaffyBuilder<'_> {
                         align_content: Some(AlignContent::FlexStart),
                         justify_items: Some(JustifyItems::FlexStart),
                         justify_content: Some(JustifyContent::FlexStart),
+                        // Gap between the text node and the child container node.
                         gap: Size::length(flex_layout.gap()),
                         flex_direction: FlexDirection::Column,
                         flex_wrap: FlexWrap::NoWrap,
@@ -1450,6 +1853,8 @@ impl IrToTaffyBuilder<'_> {
         let NodeMeasureContext {
             nodes,
             entity_descs,
+            edge_labels,
+            edge_id_to_endpoint_node_ids,
             char_width,
             lod,
         } = node_measure_context;
@@ -1482,13 +1887,38 @@ impl IrToTaffyBuilder<'_> {
                     }
                 }
                 TaffyNodeCtx::EdgeSpacer(_) => None,
-                TaffyNodeCtx::EdgeLabel(ctx) => match lod {
+                TaffyNodeCtx::EdgeDescription(ctx) => match lod {
                     DiagramLod::Simple => None,
                     DiagramLod::Normal => {
                         let edge_id = &ctx.edge_id;
                         entity_descs
                             .get(edge_id.as_ref())
                             .map(|desc| Cow::Borrowed(desc.as_str()))
+                    }
+                },
+                TaffyNodeCtx::EdgeLabel(ctx) => match lod {
+                    DiagramLod::Simple => None,
+                    DiagramLod::Normal => {
+                        let edge_id = &ctx.edge_id;
+                        let node_id = &ctx.node_id;
+                        edge_labels.get(edge_id).and_then(|edge_label| {
+                            // Use the from or to text depending on which
+                            // endpoint this label slot is attached to.
+                            let is_from_endpoint = edge_id_to_endpoint_node_ids
+                                .get(edge_id)
+                                .map(|(from_node_id, _)| from_node_id == node_id)
+                                .unwrap_or(false);
+                            let text = if is_from_endpoint {
+                                edge_label.from.as_str()
+                            } else {
+                                edge_label.to.as_str()
+                            };
+                            if text.is_empty() {
+                                None
+                            } else {
+                                Some(Cow::Borrowed(text))
+                            }
+                        })
                     }
                 },
             }) {
@@ -1627,22 +2057,61 @@ impl IrToTaffyBuilder<'_> {
         node_id: &NodeId<'static>,
         diagram_node_wrapper_node: taffy::NodeId,
         node_face_edges: &NodeFaceEdges<'static>,
+        rank_dir: RankDir,
     ) -> (taffy::NodeId, Vec<EdgeLabelLeafBuilt>) {
         let mut edge_label_leaves = Vec::new();
 
-        let face_row_style = Style {
-            display: Display::Flex,
-            flex_direction: FlexDirection::Row,
-            ..Default::default()
+        let pad = LengthPercentage::length(EDGE_LABEL_PADDING_PX);
+        let zero = LengthPercentage::length(0.0);
+
+        // For Top/Bottom faces the edge contacts the left x edge (all rank
+        // directions except BottomToTop) or the right x edge (BottomToTop).
+        // Padding goes on the opposite side to avoid overlapping adjacent labels.
+        let label_leaf_style_top_bottom = {
+            let padding = match rank_dir {
+                RankDir::BottomToTop => Rect {
+                    left: pad,
+                    right: zero,
+                    top: zero,
+                    bottom: zero,
+                },
+                RankDir::TopToBottom | RankDir::LeftToRight | RankDir::RightToLeft => Rect {
+                    left: zero,
+                    right: pad,
+                    top: zero,
+                    bottom: zero,
+                },
+            };
+            Style {
+                flex_shrink: 0.0,
+                padding,
+                ..Default::default()
+            }
         };
-        let face_column_style = Style {
-            display: Display::Flex,
-            flex_direction: FlexDirection::Column,
-            ..Default::default()
-        };
-        let label_leaf_style = Style {
-            flex_shrink: 0.0,
-            ..Default::default()
+
+        // For Left/Right faces the edge contacts the top y edge (all rank
+        // directions except RightToLeft) or the bottom y edge (RightToLeft).
+        // Padding goes on the opposite side.
+        let label_leaf_style_left_right = {
+            let padding = match rank_dir {
+                RankDir::RightToLeft => Rect {
+                    left: zero,
+                    right: zero,
+                    top: pad,
+                    bottom: zero,
+                },
+                RankDir::LeftToRight | RankDir::TopToBottom | RankDir::BottomToTop => Rect {
+                    left: zero,
+                    right: zero,
+                    top: zero,
+                    bottom: pad,
+                },
+            };
+            Style {
+                flex_shrink: 0.0,
+                padding,
+                ..Default::default()
+            }
         };
 
         let top_leaf_ids = Self::taffy_envelope_node_build_face_leaves(
@@ -1650,7 +2119,7 @@ impl IrToTaffyBuilder<'_> {
             node_id,
             NodeFace::Top,
             node_face_edges.edges_for(node_id, NodeFace::Top),
-            &label_leaf_style,
+            &label_leaf_style_top_bottom,
             &mut edge_label_leaves,
         );
         let bottom_leaf_ids = Self::taffy_envelope_node_build_face_leaves(
@@ -1658,7 +2127,7 @@ impl IrToTaffyBuilder<'_> {
             node_id,
             NodeFace::Bottom,
             node_face_edges.edges_for(node_id, NodeFace::Bottom),
-            &label_leaf_style,
+            &label_leaf_style_top_bottom,
             &mut edge_label_leaves,
         );
         let left_leaf_ids = Self::taffy_envelope_node_build_face_leaves(
@@ -1666,7 +2135,7 @@ impl IrToTaffyBuilder<'_> {
             node_id,
             NodeFace::Left,
             node_face_edges.edges_for(node_id, NodeFace::Left),
-            &label_leaf_style,
+            &label_leaf_style_left_right,
             &mut edge_label_leaves,
         );
         let right_leaf_ids = Self::taffy_envelope_node_build_face_leaves(
@@ -1674,61 +2143,147 @@ impl IrToTaffyBuilder<'_> {
             node_id,
             NodeFace::Right,
             node_face_edges.edges_for(node_id, NodeFace::Right),
-            &label_leaf_style,
+            &label_leaf_style_left_right,
             &mut edge_label_leaves,
         );
 
+        // edge_wrapper_top: row 1, col 2 (top-middle cell of the 3x3 grid)
         let edge_wrapper_top = taffy_tree
-            .new_with_children(face_row_style.clone(), &top_leaf_ids)
-            .unwrap_or_else(|e| {
-                panic!("Expected to create edge_wrapper_top for {node_id}. Error: {e}")
-            });
-        let edge_wrapper_bottom = taffy_tree
-            .new_with_children(face_row_style, &bottom_leaf_ids)
-            .unwrap_or_else(|e| {
-                panic!("Expected to create edge_wrapper_bottom for {node_id}. Error: {e}")
-            });
-        let edge_wrapper_left = taffy_tree
-            .new_with_children(face_column_style.clone(), &left_leaf_ids)
-            .unwrap_or_else(|e| {
-                panic!("Expected to create edge_wrapper_left for {node_id}. Error: {e}")
-            });
-        let edge_wrapper_right = taffy_tree
-            .new_with_children(face_column_style, &right_leaf_ids)
-            .unwrap_or_else(|e| {
-                panic!("Expected to create edge_wrapper_right for {node_id}. Error: {e}")
-            });
-
-        let edge_and_diagram_wrapper = taffy_tree
             .new_with_children(
                 Style {
                     display: Display::Flex,
                     flex_direction: FlexDirection::Row,
-                    align_items: Some(AlignItems::Stretch),
-                    justify_content: Some(JustifyContent::SpaceBetween),
+                    grid_row: line(1),
+                    grid_column: line(2),
+                    justify_content: Some(JustifyContent::SpaceEvenly),
+                    padding: Rect {
+                        left: NODE_SIDE_PADDING_PX,
+                        right: NODE_SIDE_PADDING_PX,
+                        top: zero,
+                        bottom: zero,
+                    },
                     ..Default::default()
                 },
-                &[
-                    edge_wrapper_left,
-                    diagram_node_wrapper_node,
-                    edge_wrapper_right,
-                ],
+                &top_leaf_ids,
             )
             .unwrap_or_else(|e| {
-                panic!("Expected to create edge_and_diagram_wrapper for {node_id}. Error: {e}")
+                panic!("Expected to create edge_wrapper_top for {node_id}. Error: {e}")
             });
 
-        let envelope_node = taffy_tree
+        // edge_wrapper_left: row 2, col 1 (left-middle cell of the 3x3 grid)
+        let edge_wrapper_left = taffy_tree
             .new_with_children(
                 Style {
                     display: Display::Flex,
                     flex_direction: FlexDirection::Column,
-                    align_items: Some(AlignItems::Stretch),
+                    grid_row: line(2),
+                    grid_column: line(1),
+                    justify_content: Some(JustifyContent::SpaceEvenly),
+                    padding: Rect {
+                        left: zero,
+                        right: zero,
+                        top: NODE_SIDE_PADDING_PX,
+                        bottom: NODE_SIDE_PADDING_PX,
+                    },
+                    ..Default::default()
+                },
+                &left_leaf_ids,
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create edge_wrapper_left for {node_id}. Error: {e}")
+            });
+
+        // Place diagram_node_wrapper_node at row 2, col 2 (center cell of the 3x3
+        // grid).
+        let diagram_wrapper_style = taffy_tree
+            .style(diagram_node_wrapper_node)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Expected to get style of diagram_node_wrapper_node for {node_id}. \
+                     Error: {e}"
+                )
+            })
+            .clone();
+        taffy_tree
+            .set_style(
+                diagram_node_wrapper_node,
+                Style {
+                    grid_row: line(2),
+                    grid_column: line(2),
+                    ..diagram_wrapper_style
+                },
+            )
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Expected to set grid placement on diagram_node_wrapper_node for \
+                     {node_id}. Error: {e}"
+                )
+            });
+
+        // edge_wrapper_right: row 2, col 3 (right-middle cell of the 3x3 grid)
+        let edge_wrapper_right = taffy_tree
+            .new_with_children(
+                Style {
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Column,
+                    grid_row: line(2),
+                    grid_column: line(3),
+                    justify_content: Some(JustifyContent::SpaceEvenly),
+                    padding: Rect {
+                        left: zero,
+                        right: zero,
+                        top: NODE_SIDE_PADDING_PX,
+                        bottom: NODE_SIDE_PADDING_PX,
+                    },
+                    ..Default::default()
+                },
+                &right_leaf_ids,
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create edge_wrapper_right for {node_id}. Error: {e}")
+            });
+
+        // edge_wrapper_bottom: row 3, col 2 (bottom-middle cell of the 3x3 grid)
+        let edge_wrapper_bottom = taffy_tree
+            .new_with_children(
+                Style {
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Row,
+                    grid_row: line(3),
+                    grid_column: line(2),
+                    justify_content: Some(JustifyContent::SpaceEvenly),
+                    padding: Rect {
+                        left: NODE_SIDE_PADDING_PX,
+                        right: NODE_SIDE_PADDING_PX,
+                        top: zero,
+                        bottom: zero,
+                    },
+                    ..Default::default()
+                },
+                &bottom_leaf_ids,
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create edge_wrapper_bottom for {node_id}. Error: {e}")
+            });
+
+        // envelope_node: 3x3 CSS Grid -- top-middle, left, center, right,
+        // bottom-middle.  The four corner cells are left empty.  Column and
+        // row track sizes are `auto` so each track sizes to its content; the
+        // center cell stretches to fill the row/column size allocated by any
+        // larger adjacent cell.
+        let envelope_node = taffy_tree
+            .new_with_children(
+                Style {
+                    display: Display::Grid,
+                    grid_template_columns: vec![auto(), auto(), auto()],
+                    grid_template_rows: vec![auto(), auto(), auto()],
                     ..Default::default()
                 },
                 &[
                     edge_wrapper_top,
-                    edge_and_diagram_wrapper,
+                    edge_wrapper_left,
+                    diagram_node_wrapper_node,
+                    edge_wrapper_right,
                     edge_wrapper_bottom,
                 ],
             )

@@ -1,4 +1,5 @@
 use disposition_input_model::{
+    edge::EdgeLabels,
     entity::{EntityDescs, EntityTypes},
     process::Processes,
     tag::{TagNames, TagThings},
@@ -71,6 +72,8 @@ impl InputDiagramMerger {
             Self::merge_tag_things(base_diagram.tag_things, &overlay_diagram.tag_things);
         let entity_descs =
             Self::merge_entity_descs(base_diagram.entity_descs, &overlay_diagram.entity_descs);
+        let edge_labels =
+            Self::merge_edge_labels(base_diagram.edge_labels, &overlay_diagram.edge_labels);
         let entity_tooltips = Self::merge_entity_tooltips(
             base_diagram.entity_tooltips,
             &overlay_diagram.entity_tooltips,
@@ -105,6 +108,7 @@ impl InputDiagramMerger {
             tags,
             tag_things,
             entity_descs,
+            edge_labels,
             entity_tooltips,
             entity_types,
             theme_default,
@@ -214,6 +218,17 @@ impl InputDiagramMerger {
         base: EntityDescs<'static>,
         overlay: &EntityDescs<'id>,
     ) -> EntityDescs<'id> {
+        let mut result = base;
+        overlay.iter().for_each(|(key, value)| {
+            result.insert(key.clone(), value.clone());
+        });
+        result
+    }
+
+    fn merge_edge_labels<'id>(
+        base: EdgeLabels<'static>,
+        overlay: &EdgeLabels<'id>,
+    ) -> EdgeLabels<'id> {
         let mut result = base;
         overlay.iter().for_each(|(key, value)| {
             result.insert(key.clone(), value.clone());

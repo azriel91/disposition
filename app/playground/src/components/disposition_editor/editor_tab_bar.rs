@@ -18,11 +18,13 @@ use dioxus::{
 use crate::editor_state::EditorPage;
 
 use self::{
-    editor_tab_bar_entity::EditorTabBarEntity, editor_tab_bar_tabs::EditorTabBarTabs,
-    editor_tab_bar_theme::EditorTabBarTheme, editor_tab_bar_thing::EditorTabBarThing,
-    editor_tab_bar_thing_pages::EditorTabBarThingPages,
+    editor_tab_bar_edges::EditorTabBarEdges, editor_tab_bar_entity::EditorTabBarEntity,
+    editor_tab_bar_tabs::EditorTabBarTabs, editor_tab_bar_theme::EditorTabBarTheme,
+    editor_tab_bar_thing::EditorTabBarThing, editor_tab_bar_thing_pages::EditorTabBarThingPages,
 };
 
+mod editor_tab_bar_edges;
+mod editor_tab_bar_edges_pages;
 mod editor_tab_bar_entity;
 mod editor_tab_bar_entity_pages;
 mod editor_tab_bar_tabs;
@@ -129,11 +131,10 @@ pub fn EditorTabBar(active_page: Signal<EditorPage>) -> Element {
             // === Sub-tabs (only visible when a grouped page is active) === //
             match current_page {
                 EditorPage::Thing(_) => rsx! { EditorTabBarThing { active_page } },
+                EditorPage::Edges(_) => rsx! { EditorTabBarEdges { active_page } },
                 EditorPage::Entity(_) => rsx! { EditorTabBarEntity { active_page } },
                 EditorPage::Theme(_) => rsx! { EditorTabBarTheme { active_page } },
                 EditorPage::ThingLayout |
-                EditorPage::ThingDependencies |
-                EditorPage::ThingInteractions |
                 EditorPage::Processes |
                 EditorPage::Tags |
                 EditorPage::RenderOptions |

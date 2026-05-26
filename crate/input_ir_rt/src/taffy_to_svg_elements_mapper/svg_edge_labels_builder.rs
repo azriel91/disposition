@@ -1,5 +1,5 @@
 use disposition_ir_model::edge::EdgeId;
-use disposition_model_common::Map;
+use disposition_model_common::{Id, Map};
 use disposition_svg_model::{SvgEdgeLabelEndpointInfo, SvgEdgeLabelInfo, SvgTextSpan};
 use disposition_taffy_model::{EdgeLabelTaffyNodeIds, EntityHighlightedSpans, TaffyNodeCtx};
 use taffy::TaffyTree;
@@ -24,20 +24,29 @@ impl SvgEdgeLabelsBuilder {
         edge_label_taffy_nodes
             .iter()
             .map(|(edge_id, edge_label_taffy_node_ids)| {
-                let spans = entity_highlighted_spans.get(edge_id.as_ref());
+                // Spans are stored under `{edge_id}__from_label` and
+                // `{edge_id}__to_label` keys, keyed separately so each
+                // endpoint can display different text.
+                let from_label_key = Id::try_from(format!("{edge_id}__from_label"))
+                    .expect("`edge_id` is a valid `Id`, so appending `__from_label` is also valid");
+                let to_label_key = Id::try_from(format!("{edge_id}__to_label"))
+                    .expect("`edge_id` is a valid `Id`, so appending `__to_label` is also valid");
+
+                let from_spans = entity_highlighted_spans.get(&from_label_key);
+                let to_spans = entity_highlighted_spans.get(&to_label_key);
 
                 let from_label =
                     edge_label_taffy_node_ids
                         .from_label_taffy_node_id
                         .and_then(|taffy_node_id| {
-                            Self::endpoint_info_build(taffy_tree, taffy_node_id, spans)
+                            Self::endpoint_info_build(taffy_tree, taffy_node_id, from_spans)
                         });
 
                 let to_label =
                     edge_label_taffy_node_ids
                         .to_label_taffy_node_id
                         .and_then(|taffy_node_id| {
-                            Self::endpoint_info_build(taffy_tree, taffy_node_id, spans)
+                            Self::endpoint_info_build(taffy_tree, taffy_node_id, to_spans)
                         });
 
                 SvgEdgeLabelInfo {

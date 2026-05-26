@@ -8,13 +8,15 @@
 //! fragment.
 
 mod editor_page;
+mod editor_page_edges;
 mod editor_page_entity;
 mod editor_page_theme;
 mod editor_page_thing;
 
 pub use self::{
-    editor_page::EditorPage, editor_page_entity::EditorPageEntity,
-    editor_page_theme::EditorPageTheme, editor_page_thing::EditorPageThing,
+    editor_page::EditorPage, editor_page_edges::EditorPageEdges,
+    editor_page_entity::EditorPageEntity, editor_page_theme::EditorPageTheme,
+    editor_page_thing::EditorPageThing,
 };
 
 use std::fmt;
@@ -134,7 +136,8 @@ mod tests {
         // Build a diagram where `thing_dependencies` has three entries
         // in a specific order: edge_c, edge_a, edge_b.
         let yaml_input = "\
-page: thing_dependencies
+page:
+  edges: thing_dependencies
 input_diagram:
   thing_dependencies:
     edge_c:
@@ -258,7 +261,7 @@ input_diagram:
     #[test]
     fn focus_field_missing_in_yaml_defaults_to_none() {
         let yaml_input = "\
-page: thing_dependencies
+page: thing_layout
 input_diagram:
   things: {}
 ";
@@ -307,7 +310,7 @@ input_diagram:
     #[test]
     fn svg_preview_expanded_missing_in_yaml_defaults_to_false() {
         let yaml_input = "\
-page: thing_dependencies
+page: thing_layout
 input_diagram:
   things: {}
 ";

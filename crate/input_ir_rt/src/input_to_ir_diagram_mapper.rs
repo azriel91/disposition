@@ -23,12 +23,7 @@ use disposition_ir_model::{
     process::ProcessStepEntities,
     IrDiagram,
 };
-use disposition_model_common::{
-    edge::EdgeGroupId,
-    entity::{EntityDescs, EntityTooltips},
-    theme::Css,
-    Id, Map, RankDir, Set,
-};
+use disposition_model_common::{edge::EdgeGroupId, theme::Css, Id, Map, RankDir, Set};
 
 use crate::{edge_face_assigner::EdgeFaceAssigner, node_ranks_calculator::NodeRanksCalculator};
 
@@ -68,6 +63,7 @@ impl InputToIrDiagramMapper {
             tags,
             tag_things,
             entity_descs,
+            edge_labels,
             entity_tooltips,
             entity_types,
             theme_default,
@@ -94,12 +90,15 @@ impl InputToIrDiagramMapper {
         let edge_groups = Self::build_edge_groups(thing_dependencies, thing_interactions);
 
         // 6. Build EntityDescs from input entity_descs
-        let entity_descs = Self::build_entity_descs(entity_descs);
+        let entity_descs = entity_descs.clone();
 
-        // 7. Build EntityTooltips from input entity_tooltips
-        let entity_tooltips = Self::build_entity_tooltips(entity_tooltips);
+        // 7. Build EdgeLabels from input edge_labels
+        let edge_labels = edge_labels.clone();
 
-        // 8. Build EntityTypes with defaults for each node type
+        // 8. Build EntityTooltips from input entity_tooltips
+        let entity_tooltips = entity_tooltips.clone();
+
+        // 9. Build EntityTypes with defaults for each node type
         let ir_entity_types = Self::build_entity_types(
             things,
             tags,
@@ -109,7 +108,7 @@ impl InputToIrDiagramMapper {
             thing_interactions,
         );
 
-        // 9. Build NodeLayouts from node_hierarchy and theme
+        // 10. Build NodeLayouts from node_hierarchy and theme
         let flex_direction_default = match render_options.rank_dir {
             RankDir::LeftToRight => FlexDirection::Column,
             RankDir::RightToLeft => FlexDirection::ColumnReverse,
@@ -127,11 +126,11 @@ impl InputToIrDiagramMapper {
             thing_layouts,
         );
 
-        // 10. Build NodeShapes from theme
+        // 11. Build NodeShapes from theme
         let node_shapes =
             Self::build_node_shapes(&nodes, &ir_entity_types, theme_default, theme_types_styles);
 
-        // 11. Build TailwindClasses from theme
+        // 12. Build TailwindClasses from theme
         let tailwind_classes_build_result = TailwindClassesBuilder::build(
             &nodes,
             &edge_groups,
@@ -146,18 +145,18 @@ impl InputToIrDiagramMapper {
         let tailwind_classes = tailwind_classes_build_result.tailwind_classes;
         let css_theme_vars = tailwind_classes_build_result.css_theme_vars;
 
-        // 12. Build ProcessStepEntities from step_thing_interactions
+        // 13. Build ProcessStepEntities from step_thing_interactions
         let process_step_entities = Self::build_process_step_entities(processes);
 
-        // 13. Compute NodeNestingInfos from node_hierarchy
+        // 14. Compute NodeNestingInfos from node_hierarchy
         let node_nesting_infos = NodeNestingInfosBuilder::build(&node_hierarchy);
 
-        // 14. Compute NodeRanksNested from dependency edges, using nesting infos to
+        // 15. Compute NodeRanksNested from dependency edges, using nesting infos to
         //     attribute cross-container edges to the correct level
         let node_ranks_nested =
             NodeRanksCalculator::calculate(&edge_groups, &ir_entity_types, &node_nesting_infos);
 
-        // 15. Compute EdgeFaceAssignments from rank/sibling data before layout
+        // 16. Compute EdgeFaceAssignments from rank/sibling data before layout
         let edge_face_assignments = EdgeFaceAssigner::compute(
             &edge_groups,
             &ir_entity_types,
@@ -166,7 +165,7 @@ impl InputToIrDiagramMapper {
             render_options.rank_dir,
         );
 
-        // 16. Derive NodeFaceEdges from edge_face_assignments and edge_groups
+        // 17. Derive NodeFaceEdges from edge_face_assignments and edge_groups
         let node_face_edges = NodeFaceEdges::from_assignments(&edge_face_assignments, &edge_groups);
 
         let diagram = IrDiagram {
@@ -176,6 +175,7 @@ impl InputToIrDiagramMapper {
             node_ordering,
             edge_groups,
             entity_descs,
+            edge_labels,
             entity_tooltips,
             entity_types: ir_entity_types,
             tailwind_classes,
@@ -558,28 +558,6 @@ impl InputToIrDiagramMapper {
                 }
             }
         }
-    }
-
-    // === Entity Descs / Tooltips === //
-
-    /// Build EntityDescs from input entity_descs.
-    fn build_entity_descs<'id>(input_entity_descs: &EntityDescs<'id>) -> EntityDescs<'id> {
-        // Copy existing entity descs
-        input_entity_descs
-            .iter()
-            .map(|(id, desc)| (id.clone(), desc.clone()))
-            .collect()
-    }
-
-    /// Build EntityTooltips from input entity_tooltips.
-    fn build_entity_tooltips<'id>(
-        input_entity_tooltips: &EntityTooltips<'id>,
-    ) -> EntityTooltips<'id> {
-        // Copy existing entity tooltips
-        input_entity_tooltips
-            .iter()
-            .map(|(id, tooltip)| (id.clone(), tooltip.clone()))
-            .collect()
     }
 
     // === Entity Types === //

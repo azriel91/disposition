@@ -283,6 +283,14 @@ entity_descs:
   edge_ix_t_localhost__t_github_user_repo__push__0: |-
     `git push`
 
+edge_labels:
+  edge_ix_t_localhost__t_github_user_repo__pull__0:
+    from: "`git pull`"
+    to: "`git pull`"
+  edge_ix_t_localhost__t_github_user_repo__push__0:
+    from: "`git push`"
+    to: "`git push`"
+
 entity_tooltips:
   proc_app_dev_step_repository_clone: |-
     ```bash

@@ -117,6 +117,72 @@ The `label_wrapper_node` mirrors the leaf-with-circle layout (circle + text in a
 the rank containers below it follow the same pattern as the rect-shape container.
 
 
+## Edge Description Containers
+
+For each edge that has an entry in `entity_descs` and whose two divergent ancestors at the LCA
+level belong to the same entity type, an **edge description container** is interleaved among the
+rank containers at that LCA level. It sits as a sibling of rank containers inside `ThingsContainer`,
+`TagsContainer`, or `ProcessesContainer` (at the top level), or inside a container diagram node's
+`wrapper_node` (at a nested level).
+
+```yaml
+ThingsContainer:        # or TagsContainer / ProcessesContainer / wrapper_node
+  rank_container_0:
+    # [diagram nodes at rank 0]
+  edge_description_container:   # (same style as rank containers, no TaffyNodeCtx)
+    edge_description:            # (leaf, EdgeDescriptionCtx context, measured for text)
+    # [spacer leaves for crossing edges, if any]
+  rank_container_1:
+    # [diagram nodes at rank 1]
+  # ...
+```
+
+The **edge description container** uses the same `rank_container_style` as the surrounding rank
+containers (i.e. `taffy_container_style` for the relevant entity type). It carries no
+`TaffyNodeCtx` (same as rank containers).
+
+The **edge description leaf** (`edge_description`) is a child of the container. It carries
+`TaffyNodeCtx::EdgeDescription(EdgeDescriptionCtx { edge_id })` and is measured at
+`DiagramLod::Normal` using the description text from `entity_descs`. Its computed layout position
+is used by `SvgEdgeDescriptionsBuilder` to produce `SvgEdgeDescriptionInfo` values.
+
+Any other edge whose rank span crosses the position of this container receives an
+`EdgeSpacer` leaf child inside the container (see `edge_spacers.md`).
+
+
+## Envelope Node
+
+Every diagram node is wrapped in an **envelope node** -- a CSS Grid container that reserves
+face-wrapper slots for edge label text on each of the four sides of the node.  The envelope
+uses a 3x3 grid, with the center cell holding the node's own content and four edge-wrapper
+cells on the cardinal faces.  The four corner cells are left empty.
+
+```yaml
+envelope_node:               # (grid 3x3, auto-sized columns and rows)
+  edge_wrapper_top:          # row 1, col 2 -- flex row, label leaves for Top edges
+  edge_wrapper_left:         # row 2, col 1 -- flex column, label leaves for Left edges
+  diagram_node_wrapper_node: # row 2, col 2 -- the node's own content sub-tree
+  edge_wrapper_right:        # row 2, col 3 -- flex column, label leaves for Right edges
+  edge_wrapper_bottom:       # row 3, col 2 -- flex row, label leaves for Bottom edges
+```
+
+All four corner cells (row 1 col 1, row 1 col 3, row 3 col 1, row 3 col 3) are empty and
+occupy zero space.  When no edges attach to a face the corresponding `edge_wrapper_*` node
+has no children and collapses to zero size.
+
+The `diagram_node_wrapper_node` is given explicit `grid_row: line(2)` / `grid_column: line(2)`
+placement (via `set_style`) after it is created, so it always lands in the center cell
+regardless of the order in which children are appended to `envelope_node`.
+
+Because grid tracks are `auto`-sized, the center cell expands to accommodate whichever
+adjacent cell is largest.  For example, if the `edge_wrapper_top` label is wide, column 2
+grows to fit it, and `diagram_node_wrapper_node` stretches to fill that wider column.
+
+Each label leaf inside an `edge_wrapper_*` node is created with `TaffyNodeCtx::EdgeLabel`
+context so it is measured for text during layout.  Faces that have no edges still produce an
+`edge_wrapper_*` node (but with zero children), keeping the grid structure consistent.
+
+
 ## Taffy Node Styles
 
 ### Container Style (`taffy_container_style`)
@@ -169,8 +235,15 @@ and post-layout coordinate extraction.
   content and sizing.
 - `TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx { edge_id, rank })` -- attached to spacer leaf nodes
   inserted to help route edge paths.
+- `TaffyNodeCtx::EdgeLabel(EdgeLabelCtx { edge_id, node_id })` -- attached to edge label leaf
+  nodes inside `edge_wrapper_*` cells of the envelope node. Measured at `DiagramLod::Normal`
+  using the `from` or `to` text of the edge's `EdgeLabel`.
+- `TaffyNodeCtx::EdgeDescription(EdgeDescriptionCtx { edge_id })` -- attached to the
+  `edge_description` leaf node inside an `edge_description_container`. Measured at
+  `DiagramLod::Normal` using the edge's description from `entity_descs`.
 - `None` -- structural nodes carry no context. This includes `wrapper_node`, `circle_node`,
-  `label_wrapper_node`, rank containers, and all inbuilt containers.
+  `label_wrapper_node`, rank containers, `edge_description_container` nodes, and all inbuilt
+  containers.
 
 
 ## Text Measurement

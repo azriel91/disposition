@@ -6,6 +6,7 @@ use disposition_model_common::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    edge::EdgeLabels,
     entity::{EntityDescs, EntityTypes},
     process::Processes,
     tag::{TagNames, TagThings},
@@ -95,6 +96,14 @@ pub struct InputDiagram<'id> {
     /// Descriptions to render next to entities (things, edges, edge groups).
     #[serde(default, skip_serializing_if = "EntityDescs::is_empty")]
     pub entity_descs: EntityDescs<'id>,
+
+    /// Text labels for edges at each endpoint.
+    ///
+    /// Each entry maps an edge instance ID to its `from` and `to` endpoint
+    /// labels. Both labels may be set independently, allowing the source and
+    /// destination context to be described with different text.
+    #[serde(default, skip_serializing_if = "EdgeLabels::is_empty")]
+    pub edge_labels: EdgeLabels<'id>,
 
     /// Tooltips for entities (nodes, edges, and edge groups).
     ///
@@ -196,6 +205,7 @@ impl InputDiagram<'static> {
             tags: TagNames::default(),
             tag_things: TagThings::default(),
             entity_descs: EntityDescs::default(),
+            edge_labels: EdgeLabels::default(),
             entity_tooltips: EntityTooltips::default(),
             entity_types: EntityTypes::default(),
             theme_default,

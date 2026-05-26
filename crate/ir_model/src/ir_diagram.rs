@@ -2,7 +2,7 @@ use disposition_model_common::{entity::EntityTooltips, theme::Css, RenderOptions
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    edge::{EdgeFaceAssignments, EdgeGroups},
+    edge::{EdgeFaceAssignments, EdgeGroups, EdgeLabels},
     entity::{EntityDescs, EntityTailwindClasses, EntityTypes},
     layout::NodeLayouts,
     node::{
@@ -131,6 +131,14 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "EntityDescs::is_empty")]
     pub entity_descs: EntityDescs<'id>,
 
+    /// Text labels for edges at each endpoint.
+    ///
+    /// Each entry maps an edge instance ID to its `from` and `to` endpoint
+    /// labels. Both labels may be set independently, allowing the source and
+    /// destination context to be described with different text.
+    #[serde(default, skip_serializing_if = "EdgeLabels::is_empty")]
+    pub edge_labels: EdgeLabels<'id>,
+
     /// Descriptions for entities (nodes, edges, and edge groups).
     ///
     /// Contains text (typically markdown) that provides additional context
@@ -237,6 +245,7 @@ impl<'id> IrDiagram<'id> {
             node_ordering: self.node_ordering.into_static(),
             edge_groups: self.edge_groups.into_static(),
             entity_descs: self.entity_descs.into_static(),
+            edge_labels: self.edge_labels.into_static(),
             entity_tooltips: self.entity_tooltips.into_static(),
             entity_types: self.entity_types.into_static(),
             tailwind_classes: self.tailwind_classes.into_static(),
