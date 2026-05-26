@@ -29,6 +29,7 @@ Phases at a glance:
 | 6 | SVG rendering (styled text + inline images) |
 | 7 | Documentation updates |
 | 8 | Extend markdown rendering to edge descriptions |
+| 9 | Copy button (copy plain markdown to clipboard) |
 
 
 ## Background
@@ -249,22 +250,35 @@ The `md_content_node` and `block_row_*` containers carry `TaffyNodeCtx::None`
 (same convention as rank containers and other structural nodes).
 
 
-### Step 1.6 -- `MdBlockTaffyIds` struct
+### Step 1.6 -- `MdBlockTaffyIds` enum
 
 Source: `crate/taffy_model/src/md_block_taffy_ids.rs`
 
-New file. Stores the taffy node IDs for one block-level markdown element and
-the ordered list of token or image leaf node IDs within it.
+New file. Records the taffy node IDs for one block-level markdown element.
+An enum because headings and paragraphs use a flat token row, while list items
+use a two-column row (bullet leaf + indented content column).
 
 ```rust
-pub struct MdBlockTaffyIds {
-    /// The flex-row-wrap container node for this block.
-    pub block_row_node_id: taffy::NodeId,
-    /// Ordered leaf node IDs for each token or image in this block.
-    ///
-    /// Each ID corresponds to either a `TaffyNodeCtx::MdToken` leaf or a
-    /// `TaffyNodeCtx::MdImage` leaf.
-    pub token_node_ids: Vec<taffy::NodeId>,
+pub enum MdBlockTaffyIds {
+    /// A flex-row-wrap block for a heading or paragraph.
+    InlineRow {
+        /// The flex-row-wrap container.
+        block_row_node_id: taffy::NodeId,
+        /// Ordered leaf IDs -- `TaffyNodeCtx::MdToken` or `TaffyNodeCtx::MdImage`.
+        token_node_ids: Vec<taffy::NodeId>,
+    },
+    /// One list item: a fixed-width bullet leaf beside an indented content column.
+    ListItem {
+        /// The outer flex-row, no-wrap container for this item.
+        list_item_row_node_id: taffy::NodeId,
+        /// The bullet text leaf (`TaffyNodeCtx::MdToken` with the bullet string).
+        bullet_node_id: taffy::NodeId,
+        /// The flex-column container that holds the item's blocks.
+        /// Text wraps inside this container, ensuring it never flows under the bullet.
+        item_content_node_id: taffy::NodeId,
+        /// Taffy IDs for the blocks inside this item (paragraphs, nested lists).
+        inner_block_taffy_ids: Vec<MdBlockTaffyIds>,
+    },
 }
 ```
 
@@ -490,12 +504,31 @@ These are internal types used only during parsing and taffy node construction.
 They do not need to be exported from the crate.
 
 ```rust
-/// One block-level markdown element (heading or paragraph).
-pub(crate) struct MdBlock {
-    /// Heading level, or `None` for a paragraph.
-    pub(crate) heading_level: Option<MdHeadingLevel>,
-    /// Ordered inline tokens within this block.
-    pub(crate) tokens: Vec<MdTokenItem>,
+/// One block-level markdown element.
+pub(crate) enum MdBlock {
+    Paragraph {
+        tokens: Vec<MdTokenItem>,
+    },
+    Heading {
+        level: MdHeadingLevel,
+        tokens: Vec<MdTokenItem>,
+    },
+    /// An ordered or unordered list.
+    List {
+        ordered: bool,
+        items: Vec<MdListItem>,
+    },
+}
+
+/// One item within a `MdBlock::List`.
+pub(crate) struct MdListItem {
+    /// The rendered bullet string, e.g. `"\u{2022} "` (unordered) or `"1. "`.
+    /// All items in the same list share the same allocated width -- the width
+    /// of the widest bullet in that list (see Step 4.1).
+    pub(crate) bullet: String,
+    /// The content blocks of this item (typically one `Paragraph`,
+    /// but may also contain nested `List` blocks).
+    pub(crate) blocks: Vec<MdBlock>,
 }
 
 /// One wrappable inline unit inside a block.
@@ -551,6 +584,18 @@ inline tags (strong, emphasis, strikethrough, link). For each event:
 - `Event::Start(Tag::Link { dest_url, .. })` -- push `link_dest: Some(dest_url)`.
 - `Event::Code(text)` -- emit a `MdTokenItem::Word { text, md_style: { code: true, ..rest } }`.
 - `Event::Text(text)` -- split `text` on ASCII whitespace; emit one `MdTokenItem::Word` per non-empty fragment, each carrying the current style stack snapshot.
+- `Event::Start(Tag::List(start))` -- push a `ListState` onto a list stack:
+  `ordered: start.is_some()`, `item_counter: start.unwrap_or(1)`,
+  `current_item_blocks: vec![]`, `items: vec![]`.
+- `Event::End(TagEnd::List(_))` -- pop `ListState`; compute
+  `max_bullet_width` (max char length across all bullet strings in the list);
+  pad each item's `bullet` string with trailing spaces to
+  `max_bullet_width + 1` chars; emit `MdBlock::List { ordered, items }`.
+- `Event::Start(Tag::Item)` -- push a new sub-block accumulator onto the
+  current `ListState`. The bullet string for this item is `"\u{2022} "`
+  (unordered) or `"{counter}. "` (ordered, then increment counter).
+- `Event::End(TagEnd::Item)` -- pop the sub-block accumulator and push a
+  completed `MdListItem { bullet, blocks }` onto the current `ListState`.
 - `Event::Start(Tag::Image { dest_url, .. })` -- record `dest_url` and begin
   collecting alt text from any nested `Event::Text` events.
 - `Event::End(TagEnd::Image)` -- parse any trailing `{WxH}` annotation from
@@ -558,6 +603,10 @@ inline tags (strong, emphasis, strikethrough, link). For each event:
   `explicit_width: Some(80.0)`, `explicit_height: Some(60.0)`), then emit
   `MdTokenItem::Image` with the stripped alt and the resolved dimensions.
 - All other events -- ignored.
+
+The block accumulator stack allows headings, paragraphs, and lists to nest
+correctly inside list items (a list item may contain a paragraph followed by
+a nested list).
 
 #### Style stack snapshot
 
@@ -632,7 +681,15 @@ impl MdNodeBuilder {
 }
 ```
 
-#### Block row style
+The `MdBlock::List` case requires computing the maximum bullet width before
+creating any taffy nodes for that list, so all bullet leaves in the list receive
+the same fixed width:
+
+```
+bullet_fixed_width = max(bullet.chars().count() for item in list) as f32 * char_width
+```
+
+#### Block row style (`MdBlock::Paragraph` / `MdBlock::Heading`)
 
 Each `block_row_node` uses:
 - `display: Flex`
@@ -642,6 +699,30 @@ Each `block_row_node` uses:
 
 The horizontal gap approximates the width of one space character. No explicit
 padding or border on block rows.
+
+#### List item row style (`MdBlock::List`)
+
+For each `MdListItem`, a `list_item_row_node` is created:
+- `display: Flex`
+- `flex_direction: Row`
+- `flex_wrap: NoWrap`
+- No gap (space between bullet and content is provided by the bullet text itself)
+
+Its two children are:
+
+**Bullet leaf** (`bullet_node`):
+- `TaffyNodeCtx::MdToken(MdTokenCtx { text: item.bullet.clone(), md_style: Default::default() })`
+- Fixed width: `bullet_fixed_width` (same for every item in the list, see above)
+- `flex_shrink: 0`
+
+**Item content node** (`item_content_node`):
+- `display: Flex`, `flex_direction: Column`, `flex_wrap: NoWrap`
+- `flex_grow: 1` -- fills the remaining width of the `list_item_row_node`
+- Children are the `MdBlockTaffyIds` built recursively from `item.blocks`
+
+Because `item_content_node` has `flex_grow: 1` and the outer container has a
+constrained width, wrapped text in any `block_row_node` inside it will wrap
+within the remaining width -- i.e. it never flows back under the bullet.
 
 #### Word leaf style
 
@@ -759,14 +840,16 @@ For each `(node_id, md_node_taffy_ids)` in the input map:
    calling `SvgNodeInfoBuilder::node_absolute_xy_coordinates` (already
    available in scope via the existing helper).
 
-2. For each `MdBlockTaffyIds` in `block_taffy_ids`:
+2. For each `MdBlockTaffyIds` in `block_taffy_ids`, dispatch on variant:
+
+   **`MdBlockTaffyIds::InlineRow { block_row_node_id, token_node_ids }`**:
 
    a. Initialise a `pending: Vec<(f32, f32, &TaffyNodeCtx)>` (x, y, context).
 
    b. For each `taffy_node_id` in `token_node_ids`:
       - Get `layout = taffy_tree.layout(taffy_node_id)`.
-      - Compute `abs_x = base_x + layout.location.x`,
-        `abs_y = base_y + layout.location.y`.
+      - Compute absolute `(abs_x, abs_y)` via
+        `SvgNodeInfoBuilder::node_absolute_xy_coordinates`.
       - Push `(abs_x, abs_y, context)` onto `pending`.
 
    c. Group `pending` entries by `floor(abs_y)` (same visual line).
@@ -784,6 +867,16 @@ For each `(node_id, md_node_taffy_ids)` in the input map:
 
    e. For each `MdImage` entry in the visual-line group, emit a `MdImageSpan`
       with absolute `(x, y)`, the stored `width` and `height`, `src`, and `alt`.
+
+   **`MdBlockTaffyIds::ListItem { bullet_node_id, item_content_node_id, inner_block_taffy_ids, .. }`**:
+
+   a. Process `bullet_node_id` as a single-token `InlineRow` (the bullet leaf
+      is a `TaffyNodeCtx::MdToken`; get its absolute position and emit one
+      `EntityHighlightedSpan` for the bullet text with `md_style: None`).
+
+   b. For each entry in `inner_block_taffy_ids`, apply the same dispatch
+      recursively. The inner tokens already have correct absolute coordinates
+      from `node_absolute_xy_coordinates` -- no manual offset is needed.
 
 3. Collect all `EntityHighlightedSpan` entries for this node into a `Vec` and
    insert into `EntityHighlightedSpans` under `node_id`.
@@ -1220,3 +1313,143 @@ that at `DiagramLod::Normal` the `edge_description` leaf is replaced by an
 `md_content_node` sub-tree, and that spans are produced by
 `MdSpansComputer::compute_edge_descs` rather than
 `HighlightedSpansComputer::compute_edge_desc_containers`.
+
+
+## Phase 9 -- Copy Button
+
+Each diagram node with markdown content shows a small copy-to-clipboard button
+positioned at the top-right corner of the node. The button is invisible by
+default and fades in on CSS hover. Clicking it copies the node's raw markdown
+source to the clipboard via the browser's `navigator.clipboard` API.
+
+
+### Step 9.1 -- Add `md_source` to `SvgNodeInfo`
+
+Source: `crate/svg_model/src/svg_node_info.rs`
+
+```rust
+pub struct SvgNodeInfo<'id> {
+    // ...existing fields...
+    /// Raw markdown source for this node's description.
+    ///
+    /// Set at `DiagramLod::Normal` for nodes that have a `thing_descs` entry.
+    /// `None` for nodes without a description or at `DiagramLod::Simple`.
+    /// Used to populate the copy button's `data-md` attribute.
+    pub md_source: Option<String>,
+}
+```
+
+Initialise `md_source: None` at all existing construction sites.
+
+
+### Step 9.2 -- Populate `md_source` in `SvgNodeInfoBuilder`
+
+Source: `crate/input_ir_rt/src/taffy_to_svg_elements_mapper/svg_node_info_builder.rs`
+
+Populate `md_source` from `thing_descs` when at `DiagramLod::Normal`:
+
+```rust
+let md_source = match lod {
+    DiagramLod::Normal => thing_descs
+        .get(node_id.as_ref())
+        .map(|desc| format!("# {node_name}\n\n{desc}")),
+    DiagramLod::Simple => None,
+};
+```
+
+Pass `thing_descs` and `lod` through `SvgNodeInfoBuildContext` if not already
+present. This is the same string that `MdBlocksParser::parse` receives, so the
+copy button always reproduces the exact source the user supplied.
+
+
+### Step 9.3 -- `StringXmlEscaper::escape_attr`
+
+Source: `crate/input_ir_rt/src/string_xml_escaper.rs`
+
+Add a method that also escapes `"` as `&amp;quot;` for use inside XML
+attribute values (the existing `escape` only escapes `<`, `>`, and `&`):
+
+```rust
+pub fn escape_attr(s: &str) -> String {
+    Self::escape(s).replace('"', "&quot;")
+}
+```
+
+
+### Step 9.4 -- Emit copy button in `SvgElementsToSvgMapper::render_nodes`
+
+Source: `crate/input_ir_rt/src/svg_elements_to_svg_mapper.rs`
+
+After `render_node_images`, emit a copy button `<g>` for nodes with
+`md_source`:
+
+```rust
+if let Some(md) = &svg_node_info.md_source {
+    let btn_x = svg_node_info.x + svg_node_info.width - 22.0;
+    let btn_y = svg_node_info.y + 4.0;
+    let md_escaped = StringXmlEscaper::escape_attr(md);
+    let node_id = &svg_node_info.node_id;
+    write!(
+        content_buffer,
+        "<g id=\"{node_id}__copy\" \
+             class=\"md-copy-btn\" \
+             data-md=\"{md_escaped}\" \
+             onclick=\"navigator.clipboard.writeText(this.dataset.md)\">\
+          <title>Copy markdown</title>\
+          <rect class=\"md-copy-btn-bg\" \
+              x=\"{btn_x}\" y=\"{btn_y}\" width=\"16\" height=\"16\" rx=\"2\" />\
+          <path class=\"md-copy-btn-icon\" transform=\"translate({btn_x},{btn_y})\" \
+              d=\"M4 1h7l3 3v10H4V1zm7 0v3h3M2 4v11h10M5 7h5M5 10h5\" />\
+        </g>",
+    ).unwrap();
+}
+```
+
+The `<path d>` is a minimal two-document clipboard icon (one page behind
+another). Adjust once the visual appearance is reviewed.
+
+
+### Step 9.5 -- CSS for copy button
+
+Source: `crate/input_ir_rt/src/svg_elements_to_svg_mapper.rs` -- inline
+`<style>` block.
+
+```css
+.md-copy-btn {
+    opacity: 0;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+    pointer-events: all;
+}
+g:hover .md-copy-btn,
+g:focus-within .md-copy-btn {
+    opacity: 1;
+}
+.md-copy-btn-bg {
+    fill: var(--md-copy-btn-bg, rgba(128,128,128,0.15));
+    stroke: var(--md-copy-btn-stroke, rgba(128,128,128,0.4));
+    stroke-width: 1;
+}
+.md-copy-btn-icon {
+    fill: none;
+    stroke: var(--md-copy-btn-icon, currentColor);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+```
+
+All colours use CSS custom properties so themes can override them. The button
+is invisible (`opacity: 0`) and becomes visible only when the enclosing node
+`<g>` is hovered or focused.
+
+
+### Step 9.6 -- Documentation updates
+
+**`diagram_generation.md`** -- In step 4 (SVG elements), note that
+`SvgNodeInfoBuilder` now sets `md_source` for nodes with descriptions, and
+that `SvgElementsToSvgMapper::render_nodes` emits a `<g class="md-copy-btn">`
+element for those nodes.
+
+**`CLAUDE.md`** -- No change; Phase 9 is already covered by the reference to
+`md_node_content_plan.md` added in Step 7.3.
