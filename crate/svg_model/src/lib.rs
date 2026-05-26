@@ -7,6 +7,8 @@ pub use crate::{
     svg_edge_info::SvgEdgeInfo,
     svg_edge_label_info::{SvgEdgeLabelEndpointInfo, SvgEdgeLabelInfo},
     svg_elements::SvgElements,
+    svg_image_span::SvgImageSpan,
+    svg_md_style::SvgMdStyle,
     svg_node_info::SvgNodeInfo,
     svg_node_info_circle::SvgNodeInfoCircle,
     svg_process_info::SvgProcessInfo,
@@ -19,6 +21,8 @@ mod svg_edge_description_info;
 mod svg_edge_info;
 mod svg_edge_label_info;
 mod svg_elements;
+mod svg_image_span;
+mod svg_md_style;
 mod svg_node_info;
 mod svg_node_info_circle;
 mod svg_process_info;

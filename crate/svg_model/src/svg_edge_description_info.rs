@@ -1,7 +1,7 @@
 use disposition_ir_model::edge::EdgeId;
 use serde::{Deserialize, Serialize};
 
-use crate::SvgTextSpan;
+use crate::{SvgImageSpan, SvgTextSpan};
 
 /// Information to render SVG elements for an edge description.
 ///
@@ -40,4 +40,6 @@ pub struct SvgEdgeDescriptionInfo<'id> {
     pub height: f32,
     /// Text spans to render, with absolute diagram-level coordinates.
     pub text_spans: Vec<SvgTextSpan>,
+    /// Inline image spans for edge descriptions containing markdown images.
+    pub image_spans: Vec<SvgImageSpan>,
 }

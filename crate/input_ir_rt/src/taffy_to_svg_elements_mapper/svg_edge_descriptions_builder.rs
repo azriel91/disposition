@@ -55,6 +55,7 @@ impl SvgEdgeDescriptionsBuilder {
                     width: layout.size.width,
                     height: layout.size.height,
                     text_spans,
+                    image_spans: Vec::new(),
                 })
             })
             .collect()
