@@ -7,7 +7,7 @@ use disposition_ir_model::{
         NodeRanksNested, NodeShapes,
     },
 };
-use disposition_model_common::{entity::EntityDescs, Map, RankDir};
+use disposition_model_common::{edge::EdgeDescs, thing::ThingDescs, Map, RankDir};
 use disposition_taffy_model::{
     taffy::{
         self, style::FlexDirection, AlignContent, AlignItems, Display, FlexWrap, Size, Style,
@@ -23,7 +23,8 @@ pub(crate) struct TaffyNodeBuildContext<'ctx> {
     pub(crate) node_layouts: &'ctx NodeLayouts<'static>,
     pub(crate) node_hierarchy: &'ctx NodeHierarchy<'static>,
     pub(crate) entity_types: &'ctx EntityTypes<'static>,
-    pub(crate) entity_descs: &'ctx EntityDescs<'static>,
+    pub(crate) thing_descs: &'ctx ThingDescs<'static>,
+    pub(crate) edge_descs: &'ctx EdgeDescs<'static>,
     pub(crate) node_shapes: &'ctx NodeShapes<'static>,
     pub(crate) node_ranks_nested: &'ctx NodeRanksNested<'static>,
     pub(crate) node_nesting_infos: &'ctx NodeNestingInfos<'static>,
@@ -117,7 +118,8 @@ impl Default for TaffyWrapperNodeStyles {
 
 pub(crate) struct NodeMeasureContext<'ctx> {
     pub(crate) nodes: &'ctx NodeNames<'static>,
-    pub(crate) entity_descs: &'ctx EntityDescs<'static>,
+    pub(crate) thing_descs: &'ctx ThingDescs<'static>,
+    pub(crate) edge_descs: &'ctx EdgeDescs<'static>,
     /// Text labels for each edge endpoint.
     pub(crate) edge_labels: &'ctx EdgeLabels<'static>,
     /// Pre-computed lookup from edge ID to its `from` and `to` endpoint node

@@ -18,6 +18,7 @@ pub mod edge;
 pub mod entity;
 pub mod layout;
 pub mod theme;
+pub mod thing;
 
 mod id;
 mod map;

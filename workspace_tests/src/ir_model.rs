@@ -27,18 +27,27 @@ fn test_parse_example_ir() {
             .collect::<Vec<_>>()
             .as_slice()
     );
-    assert_eq!(5, diagram.entity_descs.len());
+    assert_eq!(1, diagram.thing_descs.len());
+    assert_eq!(4, diagram.edge_descs.len());
     assert_eq!(8, diagram.entity_tooltips.len());
     assert_eq!(
+        &["t_localhost"],
+        diagram
+            .thing_descs
+            .iter()
+            .map(|(id, _)| id.as_str())
+            .collect::<Vec<_>>()
+            .as_slice()
+    );
+    assert_eq!(
         &[
-            "t_localhost",
             "edge_ix_t_localhost__t_github_user_repo__pull",
             "edge_ix_t_localhost__t_github_user_repo__push",
         ],
         diagram
-            .entity_descs
+            .edge_descs
             .iter()
-            .take(3)
+            .take(2)
             .map(|(id, _)| id.as_str())
             .collect::<Vec<_>>()
             .as_slice()

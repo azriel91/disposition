@@ -1,10 +1,10 @@
 # Edge Descriptions
 
 Edge descriptions are text labels associated with edges in the diagram.  They
-are specified via `entity_descs` in `InputDiagram`, keyed by the edge
+are specified via `edge_descs` in `InputDiagram`, keyed by the edge
 **instance** ID (not the edge group ID).
 
-> **Note:** `EntityDescs` is **not** rendered through face-label slots.
+> **Note:** `EdgeDescs` is **not** rendered through face-label slots.
 > Description text is rendered via `edge_description_container` nodes
 > interleaved between rank containers.  See
 > `edge_description_containers_plan.md` for the implementation plan of that
@@ -37,7 +37,7 @@ edges are:
 
 ## How to Add a Description
 
-In your `InputDiagram` (YAML or Rust), add an entry to `entity_descs`:
+In your `InputDiagram` (YAML or Rust), add an entry to `edge_descs`:
 
 ```yaml
 thing_dependencies:
@@ -47,7 +47,7 @@ thing_dependencies:
       - t_a
       - t_b
 
-entity_descs:
+edge_descs:
   edge_dep__0: "A depends on B"
 ```
 
@@ -62,20 +62,20 @@ Face-label slots are the taffy leaf nodes placed in each node's envelope
 face-wrappers.  They are used downstream as contact-point anchors for edge path
 routing.
 
-### Step 1 -- `InputDiagram.entity_descs`
+### Step 1 -- `InputDiagram.edge_descs`
 
-`InputDiagram.entity_descs` is a `Map<Id, String>`.  The user places a
+`InputDiagram.edge_descs` is a `Map<Id, String>`.  The user places a
 description string keyed by the edge instance ID (e.g. `edge_dep__0`).
 
 Source: `crate/input_model/src/input_diagram.rs`.
 
-The map is carried through the pipeline as `IrDiagram.entity_descs`.  It is
+The map is carried through the pipeline as `IrDiagram.edge_descs`.  It is
 **not** consulted during face-label slot construction or measurement.
 
 ### Step 2 -- `InputToIrDiagramMapper` computes face assignments
 
-`InputToIrDiagramMapper` copies `entity_descs` verbatim into
-`IrDiagram.entity_descs` and simultaneously computes two derived structures:
+`InputToIrDiagramMapper` copies `edge_descs` verbatim into
+`IrDiagram.edge_descs` and simultaneously computes two derived structures:
 
 - `EdgeFaceAssignments` -- maps each edge ID to the face of its `from` node
   that the edge leaves and the face of its `to` node that the edge enters.
@@ -111,7 +111,7 @@ Source: `crate/input_ir_rt/src/ir_to_taffy_builder.rs` --
 
 During `compute_layout_with_measure`, `node_size_measure` is called for each
 taffy node.  For `EdgeLabel` leaves the handler returns zero size -- no text
-measurement is performed and `entity_descs` is not consulted here.
+measurement is performed and `edge_descs` is not consulted here.
 
 The leaf collapses to zero size in the layout, reserving a structural slot in
 the envelope without affecting the node's rendered dimensions.
@@ -146,13 +146,13 @@ Source: `crate/input_ir_rt/src/ir_to_taffy_builder.rs` --
 
 ### 1 -- Correct edge ID key
 
-The `entity_descs` key must be the edge **instance** ID in the format
+The `edge_descs` key must be the edge **instance** ID in the format
 `{edge_group_id}__{edge_index}`, not the edge group ID by itself.
 
 ### 2 -- All edges produce face-label slots
 
 Face-label slots are created for every edge that has a valid face assignment,
-regardless of whether a description exists in `entity_descs`.  The slots are
+regardless of whether a description exists in `edge_descs`.  The slots are
 always zero-size but are necessary for the edge path routing calculations.
 
 Self-loop edges (`from == to`) produce a single `from_label` slot on the
@@ -198,12 +198,12 @@ face the edge path exits.
 
 ```
 InputDiagram
-  entity_descs: { "edge_dep__0": "A depends on B" }
+  edge_descs: { "edge_dep__0": "A depends on B" }
        |
        | InputToIrDiagramMapper::map
        v
 IrDiagram
-  entity_descs: { "edge_dep__0": "A depends on B" }  --> edge_description_containers_plan.md
+  edge_descs: { "edge_dep__0": "A depends on B" }  --> edge_description_containers_plan.md
   edge_face_assignments: { "edge_dep__0": { from_face: Bottom, to_face: Top } }
   node_face_edges: { t_a: { Bottom: ["edge_dep__0"] },
                      t_b: { Top:    ["edge_dep__0"] } }

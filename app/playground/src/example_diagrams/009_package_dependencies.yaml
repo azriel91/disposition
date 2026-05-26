@@ -50,7 +50,7 @@ thing_dependencies:
       - pkg_config
       - pkg_utils
 
-entity_descs:
+thing_descs:
   pkg_app: "Top-level application binary"
   pkg_api: "HTTP API server library"
   pkg_utils: "Shared utility functions with no dependencies"

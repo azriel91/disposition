@@ -108,14 +108,14 @@ fn test_input_to_ir_mapping() {
     assert_eq!("t_localhost", push_edges[0].from.as_str());
     assert_eq!("t_github_user_repo", push_edges[0].to.as_str());
 
-    // 5. Verify EntityDescs includes input entity_descs and process step_descs
-    // From example_input: entity_descs has 4 entries, plus step_descs from 3
-    // processes
-    assert!(diagram.entity_descs.len() >= 4);
+    // 5. Verify ThingDescs and EdgeDescs are populated from input
+    // From example_input: thing_descs has 1 entry; edge_descs has 4 entries
+    assert_eq!(1, diagram.thing_descs.len());
+    assert!(diagram.edge_descs.len() >= 4);
 
-    // Check entity desc from input
+    // Check edge desc from input
     let pull_edge_id = id!("edge_ix_t_localhost__t_github_user_repo__pull");
-    assert!(diagram.entity_descs.contains_key(&pull_edge_id));
+    assert!(diagram.edge_descs.contains_key(&pull_edge_id));
 
     // 6. Check entity tooltip from input
     let proc_app_dev_step_repository_clone_id = id!("proc_app_dev_step_repository_clone");

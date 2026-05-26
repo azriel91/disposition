@@ -5,7 +5,7 @@ use disposition_ir_model::{
     entity::{EntityType, EntityTypes},
     node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
 };
-use disposition_model_common::{entity::EntityDescs, Map};
+use disposition_model_common::{edge::EdgeDescs, Map};
 use disposition_taffy_model::{
     taffy::{self, AlignSelf, Style, TaffyTree},
     EdgeDescriptionCtx, EdgeDescriptionTaffyNodes, TaffyNodeCtx,
@@ -48,7 +48,7 @@ impl EdgeDescriptionBuilder {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
-        entity_descs: &EntityDescs<'static>,
+        edge_descs: &EdgeDescs<'static>,
         edge_groups: &EdgeGroups<'static>,
         node_nesting_infos: &NodeNestingInfos<'static>,
         node_ranks_nested: &NodeRanksNested<'static>,
@@ -84,7 +84,7 @@ impl EdgeDescriptionBuilder {
                     if let Some((position, sort_key, description_taffy_node_id)) =
                         Self::edge_desc_build(
                             taffy_tree,
-                            entity_descs,
+                            edge_descs,
                             &edge_id,
                             edge,
                             node_nesting_infos,
@@ -153,7 +153,7 @@ impl EdgeDescriptionBuilder {
     ///
     /// Applies the following filters in order:
     ///
-    /// 1. The edge must have a description in `entity_descs`.
+    /// 1. The edge must have a description in `edge_descs`.
     /// 2. Both endpoints must have `NodeNestingInfo` entries.
     /// 3. Neither endpoint may be an ancestor of the other (divergent ancestors
     ///    must exist at `lca_depth`).
@@ -173,7 +173,7 @@ impl EdgeDescriptionBuilder {
     #[allow(clippy::too_many_arguments)]
     fn edge_desc_build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
-        entity_descs: &EntityDescs<'static>,
+        edge_descs: &EdgeDescs<'static>,
         edge_id: &EdgeId<'static>,
         edge: &Edge<'static>,
         node_nesting_infos: &NodeNestingInfos<'static>,
@@ -182,8 +182,8 @@ impl EdgeDescriptionBuilder {
         target_entity_type: &EntityType,
         lca_node_id: Option<&NodeId<'static>>,
     ) -> Option<(Option<NodeRank>, SiblingIndexMiddleAndEdgeId, taffy::NodeId)> {
-        // Step 2.2.1 -- Filter by entity_descs.
-        entity_descs.get(edge_id.as_ref())?;
+        // Step 2.2.1 -- Filter by edge_descs.
+        edge_descs.get(edge_id.as_ref())?;
 
         // Step 2.2.2 -- Resolve nesting infos.
         let info_from = node_nesting_infos.get(&edge.from)?;

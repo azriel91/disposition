@@ -13,5 +13,6 @@ pub mod entity;
 pub mod layout;
 pub mod node;
 pub mod process;
+pub mod thing;
 
 mod ir_diagram;

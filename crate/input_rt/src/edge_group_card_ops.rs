@@ -188,7 +188,7 @@ impl EdgeGroupCardOps {
                     });
             });
 
-        // Shared rename across entity_descs, entity_tooltips, entity_types,
+        // Shared rename across thing_descs, entity_tooltips, entity_types,
         // and all theme style maps.
         let id_old = edge_group_id_old.into_inner();
         let id_new = edge_group_id_new.into_inner();

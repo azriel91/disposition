@@ -158,8 +158,9 @@ edge_groups:
   edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push:
     - from: t_aws_ecr_repo
       to: t_aws_ecs_cluster
-entity_descs:
+thing_descs:
   t_localhost: User's computer
+edge_descs:
   edge_ix_t_localhost__t_github_user_repo__pull: Fetch from GitHub
   edge_ix_t_localhost__t_github_user_repo__push: Push to GitHub
   edge_ix_t_localhost__t_github_user_repo__pull__0: "`git pull`"

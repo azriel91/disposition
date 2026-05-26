@@ -3,7 +3,7 @@
 //! Provides sub-pages for:
 //! - Thing Names (`things`: `ThingId` -> display name)
 //! - Thing Copy Text (`thing_copy_text`: `ThingId` -> clipboard text)
-//! - Entity Descriptions (`entity_descs`: `Id` -> description)
+//! - Thing Descriptions (`thing_descs`: `Id` -> description)
 //!
 //! Note: Entity Tooltips have moved to the "Entity" group tab
 //! ([`EntityTooltipsPage`](crate::components::editor::EntityTooltipsPage)).

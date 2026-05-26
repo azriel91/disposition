@@ -1,8 +1,8 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use disposition_ir_model::{
-    edge::{EdgeFaceAssignments, EdgeGroups, EdgeId, EdgeLabels},
-    entity::{EntityDescs, EntityType, EntityTypes},
+    edge::{EdgeDescs, EdgeFaceAssignments, EdgeGroups, EdgeId, EdgeLabels},
+    entity::{EntityType, EntityTypes},
     layout::{FlexDirection as ModelFlexDirection, NodeLayout, NodeLayouts},
     node::{
         NodeFace, NodeFaceEdges, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeNestingInfos,
@@ -10,7 +10,7 @@ use disposition_ir_model::{
     },
     IrDiagram,
 };
-use disposition_model_common::{Id, Map, RankDir};
+use disposition_model_common::{thing::ThingDescs, Id, Map, RankDir};
 use disposition_taffy_model::{
     taffy::{
         self,
@@ -149,7 +149,8 @@ impl IrToTaffyBuilder<'_> {
             node_hierarchy,
             node_ordering: _,
             edge_groups,
-            entity_descs,
+            thing_descs,
+            edge_descs,
             edge_labels,
             entity_tooltips: _,
             entity_types,
@@ -181,7 +182,8 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy,
             entity_types,
-            entity_descs,
+            thing_descs,
+            edge_descs,
             node_shapes,
             node_ranks_nested,
             node_nesting_infos,
@@ -284,7 +286,7 @@ impl IrToTaffyBuilder<'_> {
             position_to_container_ids: thing_position_to_container_ids,
         } = EdgeDescriptionBuilder::build(
             &mut taffy_tree,
-            entity_descs,
+            edge_descs,
             edge_groups,
             node_nesting_infos,
             node_ranks_nested,
@@ -298,7 +300,7 @@ impl IrToTaffyBuilder<'_> {
             position_to_container_ids: tag_position_to_container_ids,
         } = EdgeDescriptionBuilder::build(
             &mut taffy_tree,
-            entity_descs,
+            edge_descs,
             edge_groups,
             node_nesting_infos,
             node_ranks_nested,
@@ -312,7 +314,7 @@ impl IrToTaffyBuilder<'_> {
             position_to_container_ids: process_position_to_container_ids,
         } = EdgeDescriptionBuilder::build(
             &mut taffy_tree,
-            entity_descs,
+            edge_descs,
             edge_groups,
             node_nesting_infos,
             node_ranks_nested,
@@ -407,7 +409,8 @@ impl IrToTaffyBuilder<'_> {
         // Compute layout (size measurement only, no syntax highlighting)
         let mut node_measure_context = NodeMeasureContext {
             nodes,
-            entity_descs,
+            thing_descs,
+            edge_descs,
             edge_labels,
             edge_id_to_endpoint_node_ids: &edge_id_to_endpoint_node_ids,
             char_width,
@@ -450,7 +453,7 @@ impl IrToTaffyBuilder<'_> {
             &node_id_to_taffy,
             &edge_label_taffy_nodes,
             nodes,
-            entity_descs,
+            thing_descs,
             edge_labels,
             char_width,
             lod,
@@ -460,7 +463,7 @@ impl IrToTaffyBuilder<'_> {
             Self::highlighted_spans_compute_edge_desc_containers(
                 &taffy_tree,
                 &edge_description_taffy_nodes,
-                entity_descs,
+                edge_descs,
                 char_width,
                 lod,
             );
@@ -488,7 +491,7 @@ impl IrToTaffyBuilder<'_> {
         node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
         edge_label_taffy_nodes: &Map<EdgeId<'static>, EdgeLabelTaffyNodeIds>,
         nodes: &NodeNames<'static>,
-        entity_descs: &EntityDescs<'static>,
+        thing_descs: &ThingDescs<'static>,
         edge_labels: &EdgeLabels<'static>,
         char_width: f32,
         lod: &DiagramLod,
@@ -583,7 +586,7 @@ impl IrToTaffyBuilder<'_> {
                 let text: Cow<'_, str> = match lod {
                     DiagramLod::Simple => Cow::Borrowed(node_name),
                     DiagramLod::Normal => {
-                        let node_desc = entity_descs.get(entity_id).map(String::as_str);
+                        let node_desc = thing_descs.get(entity_id).map(String::as_str);
                         match node_desc {
                             Some(desc) => Cow::Owned(format!("# {node_name}\n\n{desc}")),
                             None => Cow::Borrowed(node_name),
@@ -747,14 +750,14 @@ impl IrToTaffyBuilder<'_> {
     /// [`DiagramLod::Simple`].
     ///
     /// For each entry in `edge_description_taffy_nodes`, looks up the edge
-    /// description text in `entity_descs`, reads the layout width of the
+    /// description text in `edge_descs`, reads the layout width of the
     /// `description_taffy_node_id` as the wrapping constraint, and builds
     /// [`EntityHighlightedSpan`] values relative to the leaf node's top-left
     /// corner.
     fn highlighted_spans_compute_edge_desc_containers(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
-        entity_descs: &EntityDescs<'static>,
+        edge_descs: &EdgeDescs<'static>,
         char_width: f32,
         lod: &DiagramLod,
     ) -> Map<EdgeId<'static>, Vec<EntityHighlightedSpan>> {
@@ -767,7 +770,7 @@ impl IrToTaffyBuilder<'_> {
         edge_description_taffy_nodes
             .iter()
             .filter_map(|(edge_id, edge_desc_taffy_nodes)| {
-                let desc = entity_descs.get(edge_id.as_ref())?;
+                let desc = edge_descs.get(edge_id.as_ref())?;
                 let spans = Self::highlighted_spans_compute_edge_label_slot(
                     taffy_tree,
                     edge_desc_taffy_nodes.description_taffy_node_id,
@@ -990,7 +993,8 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy,
             entity_types,
-            entity_descs,
+            thing_descs,
+            edge_descs,
             node_shapes,
             node_ranks_nested,
             node_nesting_infos,
@@ -1056,7 +1060,8 @@ impl IrToTaffyBuilder<'_> {
                         node_layouts,
                         node_shapes,
                         entity_types,
-                        entity_descs,
+                        thing_descs,
+                        edge_descs,
                         node_ranks_nested,
                         node_nesting_infos,
                         node_id_to_taffy,
@@ -1117,7 +1122,8 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy,
             entity_types,
-            entity_descs,
+            thing_descs,
+            edge_descs,
             node_shapes,
             node_ranks_nested,
             node_nesting_infos,
@@ -1170,7 +1176,8 @@ impl IrToTaffyBuilder<'_> {
                     node_layouts,
                     node_shapes,
                     entity_types,
-                    entity_descs,
+                    thing_descs,
+                    edge_descs,
                     node_ranks_nested,
                     node_nesting_infos,
                     node_id_to_taffy,
@@ -1345,7 +1352,8 @@ impl IrToTaffyBuilder<'_> {
         node_layouts: &NodeLayouts<'static>,
         node_shapes: &NodeShapes<'static>,
         entity_types: &EntityTypes<'static>,
-        entity_descs: &EntityDescs<'static>,
+        thing_descs: &ThingDescs<'static>,
+        edge_descs: &EdgeDescs<'static>,
         node_ranks_nested: &NodeRanksNested<'static>,
         node_nesting_infos: &NodeNestingInfos<'static>,
         node_id_to_taffy: &mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
@@ -1390,7 +1398,8 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy: child_hierarchy,
             entity_types,
-            entity_descs,
+            thing_descs,
+            edge_descs,
             node_shapes,
             node_ranks_nested,
             node_nesting_infos,
@@ -1455,7 +1464,7 @@ impl IrToTaffyBuilder<'_> {
         ] {
             let edge_description_containers_build_result = EdgeDescriptionBuilder::build(
                 taffy_tree,
-                entity_descs,
+                edge_descs,
                 edge_groups,
                 node_nesting_infos,
                 node_ranks_nested,
@@ -1852,7 +1861,8 @@ impl IrToTaffyBuilder<'_> {
 
         let NodeMeasureContext {
             nodes,
-            entity_descs,
+            thing_descs,
+            edge_descs,
             edge_labels,
             edge_id_to_endpoint_node_ids,
             char_width,
@@ -1877,7 +1887,7 @@ impl IrToTaffyBuilder<'_> {
                     match lod {
                         DiagramLod::Simple => Some(Cow::Borrowed(node_name)),
                         DiagramLod::Normal => {
-                            let node_desc = entity_descs.get(entity_id).map(String::as_str);
+                            let node_desc = thing_descs.get(entity_id).map(String::as_str);
 
                             match node_desc {
                                 Some(desc) => Some(Cow::Owned(format!("# {node_name}\n\n{desc}"))),
@@ -1891,7 +1901,7 @@ impl IrToTaffyBuilder<'_> {
                     DiagramLod::Simple => None,
                     DiagramLod::Normal => {
                         let edge_id = &ctx.edge_id;
-                        entity_descs
+                        edge_descs
                             .get(edge_id.as_ref())
                             .map(|desc| Cow::Borrowed(desc.as_str()))
                     }

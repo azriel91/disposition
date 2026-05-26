@@ -11,8 +11,6 @@ pub enum EditorPageEntity {
     Types,
     /// Entity: entity tooltip text shown on hover.
     Tooltips,
-    /// Entity: entity descriptions.
-    Descs,
 }
 
 impl EditorPageEntity {
@@ -24,7 +22,6 @@ impl EditorPageEntity {
         match self {
             Self::Types => "Entity: Types",
             Self::Tooltips => "Entity: Tooltips",
-            Self::Descs => "Entity: Descriptions",
         }
     }
 }

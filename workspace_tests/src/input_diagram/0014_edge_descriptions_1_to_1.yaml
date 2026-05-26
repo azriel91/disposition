@@ -10,5 +10,5 @@ thing_dependencies:
     things:
       - t_alice
       - t_bob
-entity_descs:
+edge_descs:
   edge_dep_alice_bob__0: description

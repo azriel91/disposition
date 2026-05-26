@@ -77,7 +77,7 @@ processes:
       step_smoke_test: [edge_ix_staging_staging_test]
       step_deploy_prod: [edge_ix_registry_prod_deploy]
 
-entity_descs:
+thing_descs:
   t_dev: "The developer pushing code changes"
   t_ci: "Runs automated builds and tests"
 

@@ -24,15 +24,30 @@ use crate::{
 pub struct EntityPageOps;
 
 impl EntityPageOps {
-    /// Adds a new entity description row with a unique placeholder Id.
-    pub fn entity_desc_add(input_diagram: &mut InputDiagram<'static>) {
-        let mut n = input_diagram.entity_descs.len();
+    /// Adds a new thing description row with a unique placeholder Id.
+    pub fn thing_desc_add(input_diagram: &mut InputDiagram<'static>) {
+        let mut n = input_diagram.thing_descs.len();
         loop {
-            let candidate = format!("entity_{n}");
+            let candidate = format!("thing_{n}");
             if let Some(id) = parse_id(&candidate)
-                && !input_diagram.entity_descs.contains_key(&id)
+                && !input_diagram.thing_descs.contains_key(&id)
             {
-                input_diagram.entity_descs.insert(id, String::new());
+                input_diagram.thing_descs.insert(id, String::new());
+                break;
+            }
+            n += 1;
+        }
+    }
+
+    /// Adds a new edge description row with a unique placeholder Id.
+    pub fn edge_desc_add(input_diagram: &mut InputDiagram<'static>) {
+        let mut n = input_diagram.edge_descs.len();
+        loop {
+            let candidate = format!("edge_{n}");
+            if let Some(id) = parse_id(&candidate)
+                && !input_diagram.edge_descs.contains_key(&id)
+            {
+                input_diagram.edge_descs.insert(id, String::new());
                 break;
             }
             n += 1;
@@ -82,7 +97,7 @@ impl EntityPageOps {
                     .insert(entity_id_new, current_value.to_owned());
                 input_diagram.thing_copy_text.swap_remove(&entity_id_old);
             }
-            OnChangeTarget::EntityDesc => {
+            OnChangeTarget::ThingDesc => {
                 let id_old = match parse_id(id_old_str) {
                     Some(id) => id,
                     None => return,
@@ -92,9 +107,23 @@ impl EntityPageOps {
                     None => return,
                 };
                 input_diagram
-                    .entity_descs
+                    .thing_descs
                     .insert(id_new, current_value.to_owned());
-                input_diagram.entity_descs.swap_remove(&id_old);
+                input_diagram.thing_descs.swap_remove(&id_old);
+            }
+            OnChangeTarget::EdgeDesc => {
+                let id_old = match parse_id(id_old_str) {
+                    Some(id) => id,
+                    None => return,
+                };
+                let id_new = match parse_id(id_new_str) {
+                    Some(id) => id,
+                    None => return,
+                };
+                input_diagram
+                    .edge_descs
+                    .insert(id_new, current_value.to_owned());
+                input_diagram.edge_descs.swap_remove(&id_old);
             }
             OnChangeTarget::EntityTooltip => {
                 let id_old = match parse_id(id_old_str) {
@@ -128,9 +157,16 @@ impl EntityPageOps {
                     *entry = value.to_owned();
                 }
             }
-            OnChangeTarget::EntityDesc => {
+            OnChangeTarget::ThingDesc => {
                 if let Some(entity_id) = parse_id(id_str)
-                    && let Some(entry) = input_diagram.entity_descs.get_mut(&entity_id)
+                    && let Some(entry) = input_diagram.thing_descs.get_mut(&entity_id)
+                {
+                    *entry = value.to_owned();
+                }
+            }
+            OnChangeTarget::EdgeDesc => {
+                if let Some(entity_id) = parse_id(id_str)
+                    && let Some(entry) = input_diagram.edge_descs.get_mut(&entity_id)
                 {
                     *entry = value.to_owned();
                 }
@@ -157,9 +193,14 @@ impl EntityPageOps {
                     input_diagram.thing_copy_text.remove(&entity_id);
                 }
             }
-            OnChangeTarget::EntityDesc => {
+            OnChangeTarget::ThingDesc => {
                 if let Some(entity_id) = parse_id(id_str) {
-                    input_diagram.entity_descs.remove(&entity_id);
+                    input_diagram.thing_descs.remove(&entity_id);
+                }
+            }
+            OnChangeTarget::EdgeDesc => {
+                if let Some(entity_id) = parse_id(id_str) {
+                    input_diagram.edge_descs.remove(&entity_id);
                 }
             }
             OnChangeTarget::EntityTooltip => {
@@ -179,7 +220,8 @@ impl EntityPageOps {
     ) {
         match target {
             OnChangeTarget::CopyText => input_diagram.thing_copy_text.move_index(from, to),
-            OnChangeTarget::EntityDesc => input_diagram.entity_descs.move_index(from, to),
+            OnChangeTarget::ThingDesc => input_diagram.thing_descs.move_index(from, to),
+            OnChangeTarget::EdgeDesc => input_diagram.edge_descs.move_index(from, to),
             OnChangeTarget::EntityTooltip => input_diagram.entity_tooltips.move_index(from, to),
         }
     }

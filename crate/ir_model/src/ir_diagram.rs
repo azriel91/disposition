@@ -2,14 +2,15 @@ use disposition_model_common::{entity::EntityTooltips, theme::Css, RenderOptions
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    edge::{EdgeFaceAssignments, EdgeGroups, EdgeLabels},
-    entity::{EntityDescs, EntityTailwindClasses, EntityTypes},
+    edge::{EdgeDescs, EdgeFaceAssignments, EdgeGroups, EdgeLabels},
+    entity::{EntityTailwindClasses, EntityTypes},
     layout::NodeLayouts,
     node::{
         NodeCopyText, NodeFaceEdges, NodeHierarchy, NodeNames, NodeNestingInfos, NodeOrdering,
         NodeRanksNested, NodeShapes,
     },
     process::ProcessStepEntities,
+    thing::ThingDescs,
 };
 
 /// The intermediate representation of a diagram.
@@ -55,8 +56,10 @@ use crate::{
 ///     - from: t_localhost
 ///       to: t_github_user_repo
 ///
-/// entity_descs:
+/// thing_descs:
 ///   t_localhost: "User's computer"
+///
+/// edge_descs:
 ///   edge_t_localhost__t_github_user_repo__pull: "Fetch from GitHub"
 ///
 /// entity_tooltips:
@@ -124,12 +127,13 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "EdgeGroups::is_empty")]
     pub edge_groups: EdgeGroups<'id>,
 
-    /// Descriptions for entities (nodes, edges, and edge groups).
-    ///
-    /// Contains text (typically markdown) that provides additional context
-    /// about entities in the diagram, such as things or edge labels.
-    #[serde(default, skip_serializing_if = "EntityDescs::is_empty")]
-    pub entity_descs: EntityDescs<'id>,
+    /// Descriptions to render next to things in the diagram.
+    #[serde(default, skip_serializing_if = "ThingDescs::is_empty")]
+    pub thing_descs: ThingDescs<'id>,
+
+    /// Descriptions to render next to edges and edge groups.
+    #[serde(default, skip_serializing_if = "EdgeDescs::is_empty")]
+    pub edge_descs: EdgeDescs<'id>,
 
     /// Text labels for edges at each endpoint.
     ///
@@ -244,7 +248,8 @@ impl<'id> IrDiagram<'id> {
             node_hierarchy: self.node_hierarchy.into_static(),
             node_ordering: self.node_ordering.into_static(),
             edge_groups: self.edge_groups.into_static(),
-            entity_descs: self.entity_descs.into_static(),
+            thing_descs: self.thing_descs.into_static(),
+            edge_descs: self.edge_descs.into_static(),
             edge_labels: self.edge_labels.into_static(),
             entity_tooltips: self.entity_tooltips.into_static(),
             entity_types: self.entity_types.into_static(),

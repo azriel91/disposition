@@ -162,7 +162,7 @@ tag_things:
     - t_rds_replica
     - t_cache
 
-entity_descs:
+thing_descs:
   t_alb: "Distributes traffic across web servers"
   t_rds_primary: "PostgreSQL primary database"
   t_cache: "In-memory session and query cache"

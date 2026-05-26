@@ -7,8 +7,8 @@
 
 pub use self::{
     datalists::EditorDataLists,
+    edge_descs_page::EdgeDescsPage,
     edge_labels_page::EdgeLabelsPage,
-    entity_descs_page::EntityDescsPage,
     entity_tooltips_page::EntityTooltipsPage,
     entity_types_page::EntityTypesPage,
     processes_page::ProcessesPage,
@@ -20,6 +20,7 @@ pub use self::{
         ThemeStyleAliasesPage, ThemeTagsFocusPage, ThemeTypesStylesPage,
     },
     thing_dependencies_page::{ThingDependenciesPage, ThingInteractionsPage},
+    thing_descs_page::ThingDescsPage,
     thing_layout_page::ThingLayoutPage,
     things_page::{ThingCopyTextPage, ThingNamesPage},
 };
@@ -32,8 +33,8 @@ pub(crate) mod keyboard_nav;
 pub(crate) mod reorderable;
 pub(crate) mod theme_styles_editor;
 
+pub(crate) mod edge_descs_page;
 pub(crate) mod edge_labels_page;
-pub(crate) mod entity_descs_page;
 pub(crate) mod entity_tooltips_page;
 pub(crate) mod entity_types_page;
 pub(crate) mod processes_page;
@@ -42,5 +43,6 @@ pub(crate) mod tags_page;
 pub(crate) mod text_page;
 pub(crate) mod theme_page;
 pub(crate) mod thing_dependencies_page;
+pub(crate) mod thing_descs_page;
 pub(crate) mod thing_layout_page;
 pub(crate) mod things_page;
