@@ -444,8 +444,12 @@ impl IrToTaffyBuilder<'_> {
         // (their `text_node_id` holds a `TaffyNodeCtx::MdToken` /
         // `TaffyNodeCtx::MdImage` rather than a `TaffyNodeCtx::DiagramNode`),
         // so their spans must be computed separately here and merged in.
-        let (md_entity_spans, entity_image_spans) =
-            MdSpansComputer::compute(&taffy_tree, &md_node_taffy_ids, char_width);
+        let (md_entity_spans, entity_image_spans) = MdSpansComputer::compute(
+            &taffy_tree,
+            &node_id_to_taffy,
+            &md_node_taffy_ids,
+            char_width,
+        );
 
         let mut entity_highlighted_spans = entity_highlighted_spans;
         for (node_id, spans) in md_entity_spans.into_inner() {

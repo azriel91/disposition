@@ -3,7 +3,7 @@ use disposition_model_common::Map;
 use disposition_taffy_model::{
     taffy::{self, TaffyTree},
     EntityHighlightedSpan, EntityHighlightedSpans, MdHeadingLevel, MdImageSpan, MdNodeTaffyIds,
-    TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 
 /// Computes `EntityHighlightedSpan` and `MdImageSpan` entries for nodes that
@@ -15,9 +15,15 @@ impl MdSpansComputer {
     /// `MdNodeTaffyIds` entries in `md_node_taffy_ids`.
     ///
     /// Runs after taffy layout is complete. For each markdown node the taffy
-    /// tree is walked to collect the absolute positions of every token and
-    /// image leaf, which are then grouped into visual lines and merged into
+    /// tree is walked to collect the positions of every token and image leaf,
+    /// which are then grouped into visual lines and merged into
     /// `EntityHighlightedSpan` and `MdImageSpan` values.
+    ///
+    /// Span coordinates are **node-relative** (relative to the diagram wrapper
+    /// node's top-left corner), matching the convention used by
+    /// `HighlightedSpansComputer`. The wrapper node is CSS-translated to its
+    /// absolute position, so coordinates inside the `<g>` must not include that
+    /// translation a second time.
     ///
     /// The `char_width` parameter is accepted for API consistency with the
     /// surrounding span-computation functions; token widths are read from the
@@ -25,6 +31,7 @@ impl MdSpansComputer {
     /// `char_width`.
     pub(crate) fn compute(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
         md_node_taffy_ids: &Map<NodeId<'static>, MdNodeTaffyIds>,
         _char_width: f32,
     ) -> (
@@ -36,8 +43,26 @@ impl MdSpansComputer {
         let mut entity_image_spans: Map<NodeId<'static>, Vec<MdImageSpan>> = Map::new();
 
         for (node_id, md_node_taffy_ids_entry) in md_node_taffy_ids {
+            // Compute the absolute position of the diagram wrapper node.
+            //
+            // The wrapper is CSS-translated to (wrapper_abs_x, wrapper_abs_y), so
+            // all span coordinates must be relative to that origin to avoid being
+            // double-translated when the `<g>` element is rendered.
+            let wrapper_abs_xy = node_id_to_taffy
+                .get(node_id)
+                .and_then(|&taffy_node_ids| {
+                    let wrapper_node_id = taffy_node_ids.wrapper_taffy_node_id();
+                    let wrapper_layout = taffy_tree.layout(wrapper_node_id).ok()?;
+                    Some(Self::node_absolute_xy_coordinates(
+                        taffy_tree,
+                        wrapper_node_id,
+                        wrapper_layout,
+                    ))
+                })
+                .unwrap_or((0.0, 0.0));
+
             let (highlighted_spans, image_spans) =
-                Self::compute_node(taffy_tree, md_node_taffy_ids_entry);
+                Self::compute_node(taffy_tree, md_node_taffy_ids_entry, wrapper_abs_xy);
 
             if !highlighted_spans.is_empty() {
                 entity_highlighted_spans.insert(node_id.as_ref().clone(), highlighted_spans);
@@ -54,6 +79,7 @@ impl MdSpansComputer {
     fn compute_node(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         md_node_taffy_ids: &MdNodeTaffyIds,
+        wrapper_abs_xy: (f32, f32),
     ) -> (Vec<EntityHighlightedSpan>, Vec<MdImageSpan>) {
         let mut all_highlighted_spans = Vec::new();
         let mut all_image_spans = Vec::new();
@@ -70,15 +96,19 @@ impl MdSpansComputer {
                 };
                 let (abs_x, abs_y) =
                     Self::node_absolute_xy_coordinates(taffy_tree, taffy_node_id, layout);
+                // Make coordinates relative to the wrapper node so they are not
+                // double-translated by the CSS translate on the node's `<g>`.
+                let rel_x = abs_x - wrapper_abs_xy.0;
+                let rel_y = abs_y - wrapper_abs_xy.1;
                 pending.push(TokenPosition {
-                    abs_x,
-                    abs_y,
+                    abs_x: rel_x,
+                    abs_y: rel_y,
                     layout_width: layout.size.width,
                     ctx: ctx.clone(),
                 });
             }
 
-            // Sort into visual lines: primary key = floor(abs_y), secondary key = abs_x.
+            // Sort into visual lines: primary key = floor(rel_y), secondary key = rel_x.
             pending.sort_by(|a, b| {
                 let line_a = a.abs_y.floor() as i32;
                 let line_b = b.abs_y.floor() as i32;
@@ -213,9 +243,11 @@ impl MdSpansComputer {
 /// Position information for a single token or image in a markdown content
 /// node, after taffy layout has been computed.
 struct TokenPosition {
-    /// Absolute x coordinate of the token's top-left corner in the SVG space.
+    /// X coordinate of the token's top-left corner, relative to the diagram
+    /// wrapper node (matching the coordinate space used by legacy text spans).
     abs_x: f32,
-    /// Absolute y coordinate of the token's top-left corner in the SVG space.
+    /// Y coordinate of the token's top-left corner, relative to the diagram
+    /// wrapper node.
     abs_y: f32,
     /// Width of the token as computed by taffy layout.
     layout_width: f32,
