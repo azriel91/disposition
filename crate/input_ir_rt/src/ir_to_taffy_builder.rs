@@ -18,6 +18,7 @@ use self::{
     edge_lca_sibling_distance::EdgeLcaSiblingDistance,
     edge_spacer_builder::EdgeSpacerBuilder,
     highlighted_spans_computer::HighlightedSpansComputer,
+    md_spans_computer::MdSpansComputer,
     taffy_container_builder::TaffyContainerBuilder,
     taffy_diagram_node_builder::TaffyDiagramNodeBuilder,
     taffy_node_build_context::{NodeMeasureContext, TaffyNodeBuildContext},
@@ -30,6 +31,7 @@ mod edge_lca_sibling_distance;
 mod edge_spacer_builder;
 mod highlighted_spans_computer;
 mod md_node_builder;
+mod md_spans_computer;
 mod taffy_container_builder;
 mod taffy_diagram_node_builder;
 mod taffy_envelope_builder;
@@ -435,6 +437,21 @@ impl IrToTaffyBuilder<'_> {
                 lod,
             );
 
+        // Compute highlighted text spans and image spans for markdown nodes
+        // after layout is complete.
+        //
+        // Markdown nodes are skipped by `HighlightedSpansComputer::compute`
+        // (their `text_node_id` holds a `TaffyNodeCtx::MdToken` /
+        // `TaffyNodeCtx::MdImage` rather than a `TaffyNodeCtx::DiagramNode`),
+        // so their spans must be computed separately here and merged in.
+        let (md_entity_spans, entity_image_spans) =
+            MdSpansComputer::compute(&taffy_tree, &md_node_taffy_ids, char_width);
+
+        let mut entity_highlighted_spans = entity_highlighted_spans;
+        for (node_id, spans) in md_entity_spans.into_inner() {
+            entity_highlighted_spans.insert(node_id, spans);
+        }
+
         std::iter::once(TaffyNodeMappings {
             taffy_tree,
             node_inbuilt_to_taffy,
@@ -447,7 +464,7 @@ impl IrToTaffyBuilder<'_> {
             edge_description_highlighted_spans,
             node_id_to_envelope_taffy_node,
             md_node_taffy_ids,
-            entity_image_spans: Map::new(),
+            entity_image_spans,
         })
     }
 }
