@@ -49,6 +49,15 @@ struct StyleStack {
     link_dest: Option<String>,
 }
 
+enum ListState {
+    /// Not currently in a list.
+    None,
+    /// Inside an ordered list, tracking the current item number.
+    Ordered { current_number: u64 },
+    /// Inside an unordered list.
+    Unordered,
+}
+
 impl MdBlocksParser {
     /// Parses a markdown string into an ordered list of [`MdBlock`] values.
     pub(crate) fn parse(markdown: &str) -> Vec<MdBlock> {
@@ -65,6 +74,8 @@ impl MdBlocksParser {
         };
         let mut image_state: Option<ImageState> = None;
         let mut heading_prefix_pending: Option<String> = None;
+        let mut list_state = ListState::None;
+        let mut list_item_prefix_pending: Option<String> = None;
 
         for event in parser {
             match event {
@@ -97,6 +108,40 @@ impl MdBlocksParser {
                     });
                 }
                 Event::End(TagEnd::Paragraph) => {
+                    if let Some(block) = current_block.take() {
+                        blocks.push(block);
+                    }
+                }
+                Event::Start(Tag::List(first_item_number)) => {
+                    list_state = if let Some(start_number) = first_item_number {
+                        ListState::Ordered {
+                            current_number: start_number,
+                        }
+                    } else {
+                        ListState::Unordered
+                    };
+                }
+                Event::End(TagEnd::List(_)) => {
+                    list_state = ListState::None;
+                }
+                Event::Start(Tag::Item) => {
+                    // Prepare the list item prefix based on current list state
+                    let prefix = match &mut list_state {
+                        ListState::Ordered { current_number } => {
+                            let prefix = format!("{}. ", current_number);
+                            *current_number += 1;
+                            prefix
+                        }
+                        ListState::Unordered => "- ".to_string(),
+                        ListState::None => String::new(),
+                    };
+                    list_item_prefix_pending = Some(prefix);
+                    current_block = Some(MdBlock {
+                        heading_level: None,
+                        tokens: vec![],
+                    });
+                }
+                Event::End(TagEnd::Item) => {
                     if let Some(block) = current_block.take() {
                         blocks.push(block);
                     }
@@ -135,8 +180,10 @@ impl MdBlocksParser {
                         link_dest: style_stack.link_dest.clone(),
                     };
                     if let Some(block) = current_block.as_mut() {
-                        // Prepend heading prefix if pending
+                        // Prepend heading or list item prefix if pending
                         let code_text = if let Some(prefix) = heading_prefix_pending.take() {
+                            format!("{}{}", prefix, text)
+                        } else if let Some(prefix) = list_item_prefix_pending.take() {
                             format!("{}{}", prefix, text)
                         } else {
                             String::from(text)
@@ -161,8 +208,11 @@ impl MdBlocksParser {
                         };
                         if let Some(block) = current_block.as_mut() {
                             let mut words: Vec<&str> = text.split_ascii_whitespace().collect();
-                            // Prepend heading prefix to the first word if pending
-                            if let Some(prefix) = heading_prefix_pending.take() {
+                            // Prepend heading or list item prefix to the first word if pending
+                            if let Some(prefix) = heading_prefix_pending
+                                .take()
+                                .or_else(|| list_item_prefix_pending.take())
+                            {
                                 if let Some(first_word) = words.first_mut() {
                                     let prefixed_word = format!("{}{}", prefix, first_word);
                                     block.tokens.push(MdTokenItem::Word {
@@ -178,6 +228,8 @@ impl MdBlocksParser {
                                     }
                                 } else {
                                     // No words in text, keep prefix pending
+                                    // Note: we can't distinguish which prefix it was, so we
+                                    // store it back in heading_prefix_pending as a fallback
                                     heading_prefix_pending = Some(prefix);
                                 }
                             } else {
