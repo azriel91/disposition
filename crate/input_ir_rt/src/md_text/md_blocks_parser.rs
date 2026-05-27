@@ -64,12 +64,24 @@ impl MdBlocksParser {
             link_dest: None,
         };
         let mut image_state: Option<ImageState> = None;
+        let mut heading_prefix_pending: Option<String> = None;
 
         for event in parser {
             match event {
                 Event::Start(Tag::Heading { level, .. }) => {
+                    let heading_level = Self::heading_level_from(level);
+                    // Prepare the heading prefix (e.g., "# " for H1, "## " for H2)
+                    let prefix_count = match level {
+                        pulldown_cmark::HeadingLevel::H1 => 1,
+                        pulldown_cmark::HeadingLevel::H2 => 2,
+                        pulldown_cmark::HeadingLevel::H3 => 3,
+                        pulldown_cmark::HeadingLevel::H4 => 4,
+                        pulldown_cmark::HeadingLevel::H5 => 5,
+                        pulldown_cmark::HeadingLevel::H6 => 6,
+                    };
+                    heading_prefix_pending = Some(format!("{} ", "#".repeat(prefix_count)));
                     current_block = Some(MdBlock {
-                        heading_level: Some(Self::heading_level_from(level)),
+                        heading_level: Some(heading_level),
                         tokens: vec![],
                     });
                 }
@@ -123,8 +135,14 @@ impl MdBlocksParser {
                         link_dest: style_stack.link_dest.clone(),
                     };
                     if let Some(block) = current_block.as_mut() {
+                        // Prepend heading prefix if pending
+                        let code_text = if let Some(prefix) = heading_prefix_pending.take() {
+                            format!("{}{}", prefix, text)
+                        } else {
+                            String::from(text)
+                        };
                         block.tokens.push(MdTokenItem::Word {
-                            text: String::from(text),
+                            text: code_text,
                             md_style,
                         });
                     }
@@ -142,11 +160,34 @@ impl MdBlocksParser {
                             link_dest: style_stack.link_dest.clone(),
                         };
                         if let Some(block) = current_block.as_mut() {
-                            for word in text.split_ascii_whitespace() {
-                                block.tokens.push(MdTokenItem::Word {
-                                    text: word.to_string(),
-                                    md_style: md_style.clone(),
-                                });
+                            let mut words: Vec<&str> = text.split_ascii_whitespace().collect();
+                            // Prepend heading prefix to the first word if pending
+                            if let Some(prefix) = heading_prefix_pending.take() {
+                                if let Some(first_word) = words.first_mut() {
+                                    let prefixed_word = format!("{}{}", prefix, first_word);
+                                    block.tokens.push(MdTokenItem::Word {
+                                        text: prefixed_word,
+                                        md_style: md_style.clone(),
+                                    });
+                                    // Add remaining words
+                                    for word in &words[1..] {
+                                        block.tokens.push(MdTokenItem::Word {
+                                            text: word.to_string(),
+                                            md_style: md_style.clone(),
+                                        });
+                                    }
+                                } else {
+                                    // No words in text, keep prefix pending
+                                    heading_prefix_pending = Some(prefix);
+                                }
+                            } else {
+                                // No prefix pending, add words normally
+                                for word in words {
+                                    block.tokens.push(MdTokenItem::Word {
+                                        text: word.to_string(),
+                                        md_style: md_style.clone(),
+                                    });
+                                }
                             }
                         }
                     }

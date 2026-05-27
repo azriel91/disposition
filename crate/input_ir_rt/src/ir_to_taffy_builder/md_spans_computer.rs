@@ -2,8 +2,8 @@ use disposition_ir_model::node::NodeId;
 use disposition_model_common::Map;
 use disposition_taffy_model::{
     taffy::{self, TaffyTree},
-    EntityHighlightedSpan, EntityHighlightedSpans, MdHeadingLevel, MdImageSpan, MdNodeTaffyIds,
-    NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    EntityHighlightedSpan, EntityHighlightedSpans, MdImageSpan, MdNodeTaffyIds, NodeToTaffyNodeIds,
+    TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 
 /// Computes `EntityHighlightedSpan` and `MdImageSpan` entries for nodes that
@@ -244,19 +244,13 @@ impl MdSpansComputer {
                             break;
                         }
 
-                        let font_scale = run_style
-                            .heading_level
-                            .map(MdHeadingLevel::font_scale)
-                            .unwrap_or(1.0);
-                        let effective_line_height = TEXT_LINE_HEIGHT * font_scale;
-
                         let tailwind_classes = run_style.to_tailwind_classes();
 
                         highlighted_spans.push(EntityHighlightedSpan {
                             x: run_start_x,
-                            y: run_abs_y + effective_line_height,
+                            y: run_abs_y + TEXT_LINE_HEIGHT,
                             width: run_width,
-                            height: effective_line_height,
+                            height: TEXT_LINE_HEIGHT,
                             text: run_texts.join(" "),
                             md_style: Some(run_style),
                             tailwind_classes,
