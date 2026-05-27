@@ -250,6 +250,8 @@ impl MdSpansComputer {
                             .unwrap_or(1.0);
                         let effective_line_height = TEXT_LINE_HEIGHT * font_scale;
 
+                        let tailwind_classes = run_style.to_tailwind_classes();
+
                         highlighted_spans.push(EntityHighlightedSpan {
                             x: run_start_x,
                             y: run_abs_y + effective_line_height,
@@ -257,6 +259,7 @@ impl MdSpansComputer {
                             height: effective_line_height,
                             text: run_texts.join(" "),
                             md_style: Some(run_style),
+                            tailwind_classes,
                         });
                     }
                     TaffyNodeCtx::MdImage(image_ctx) => {

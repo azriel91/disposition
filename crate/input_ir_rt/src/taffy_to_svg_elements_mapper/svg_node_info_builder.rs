@@ -121,15 +121,14 @@ impl SvgNodeInfoBuilder {
             .map(|spans| {
                 spans
                     .iter()
-                    .map(|span| {
-                        SvgTextSpan::new_styled(
-                            span.x,
-                            span.y,
-                            span.width,
-                            span.height,
-                            StringXmlEscaper::escape(&span.text),
-                            span.md_style.as_ref().map(svg_md_style_from),
-                        )
+                    .map(|span| SvgTextSpan {
+                        x: span.x,
+                        y: span.y,
+                        width: span.width,
+                        height: span.height,
+                        text: StringXmlEscaper::escape(&span.text),
+                        md_style: span.md_style.as_ref().map(svg_md_style_from),
+                        tailwind_classes: span.tailwind_classes.clone(),
                     })
                     .collect()
             })

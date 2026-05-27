@@ -26,6 +26,9 @@ pub struct SvgTextSpan {
     pub text: String,
     /// Markdown style for this span. `None` for plain/unstyled text.
     pub md_style: Option<SvgMdStyle>,
+    /// Tailwind classes to apply to this span. Empty for plain/unstyled text.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tailwind_classes: Vec<String>,
 }
 
 impl SvgTextSpan {
@@ -51,6 +54,7 @@ impl SvgTextSpan {
             height: 0.0,
             text,
             md_style: None,
+            tailwind_classes: Vec::new(),
         }
     }
 
@@ -89,6 +93,7 @@ impl SvgTextSpan {
             height,
             text,
             md_style,
+            tailwind_classes: Vec::new(),
         }
     }
 }

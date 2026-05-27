@@ -259,12 +259,37 @@ impl SvgElementsToSvgMapper {
             .values()
             .map(|classes| Self::escape_ids_in_brackets(classes))
             .collect();
-        let tailwind_classes_iter = escaped_classes.iter().map(String::as_str).chain(
-            svg_node_infos
-                .iter()
-                .flat_map(|svg_node_info| svg_node_info.wrapper_tailwind_classes.iter())
-                .map(|wrapper_tailwind_classes| wrapper_tailwind_classes.as_ref()),
-        );
+        let tailwind_classes_iter = escaped_classes
+            .iter()
+            .map(String::as_str)
+            .chain(
+                svg_node_infos
+                    .iter()
+                    .flat_map(|svg_node_info| svg_node_info.wrapper_tailwind_classes.iter())
+                    .map(|wrapper_tailwind_classes| wrapper_tailwind_classes.as_ref()),
+            )
+            .chain(
+                svg_node_infos
+                    .iter()
+                    .flat_map(|svg_node_info| {
+                        svg_node_info
+                            .text_spans
+                            .iter()
+                            .flat_map(|text_span| text_span.tailwind_classes.iter())
+                    })
+                    .map(|class| class.as_str()),
+            )
+            .chain(
+                edge_description_infos
+                    .iter()
+                    .flat_map(|edge_desc_info| {
+                        edge_desc_info
+                            .text_spans
+                            .iter()
+                            .flat_map(|text_span| text_span.tailwind_classes.iter())
+                    })
+                    .map(|class| class.as_str()),
+            );
         // TODO: generate an ID for the SVG so that the `<styles>` don't leak to outer
         // document.
         let encre_css_config = {
@@ -412,7 +437,8 @@ impl SvgElementsToSvgMapper {
     ///
     /// Handles:
     /// - Code background rectangles with `.md-code-bg` class
-    /// - Text styling (bold, italic, strikethrough, headings, links)
+    /// - Text styling via Tailwind classes (bold, italic, strikethrough,
+    ///   headings, links)
     /// - Inline images
     fn render_text_and_images(
         content_buffer: &mut String,
@@ -424,38 +450,6 @@ impl SvgElementsToSvgMapper {
             let text_x = span.x;
             let text_y = span.y;
             let text_content = &span.text;
-
-            let style_attrs = span
-                .md_style
-                .as_ref()
-                .map(|s| {
-                    let font_size = if s.heading_level > 0 {
-                        let scale = match s.heading_level {
-                            1 => 2.0f32,
-                            2 => 1.5,
-                            3 => 1.25,
-                            _ => 1.0,
-                        };
-                        format!(" font-size=\"{}\"", TEXT_FONT_SIZE * scale)
-                    } else {
-                        String::new()
-                    };
-                    let font_weight = if s.bold { " font-weight=\"bold\"" } else { "" };
-                    let font_style = if s.italic {
-                        " font-style=\"italic\""
-                    } else {
-                        ""
-                    };
-                    let text_deco = if s.strikethrough {
-                        " text-decoration=\"line-through\""
-                    } else if s.link_dest.is_some() {
-                        " text-decoration=\"underline\""
-                    } else {
-                        ""
-                    };
-                    format!("{font_size}{font_weight}{font_style}{text_deco}")
-                })
-                .unwrap_or_default();
 
             // Emit a background rect before code spans.
             if span.md_style.as_ref().is_some_and(|s| s.code) {
@@ -479,11 +473,18 @@ impl SvgElementsToSvgMapper {
                 .unwrap();
             }
 
+            // Build class attribute from tailwind classes
+            let class_attr = if !span.tailwind_classes.is_empty() {
+                format!(" class=\"{}\"", span.tailwind_classes.join(" "))
+            } else {
+                String::new()
+            };
+
             // zero stroke-width because we want the tailwind classes from `<g>` to
             // apply to the `<path>`, but not to the `<text>`
             write!(
                 content_buffer,
-                "<text x=\"{text_x}\" y=\"{text_y}\" stroke-width=\"0\"{style_attrs}>\
+                "<text x=\"{text_x}\" y=\"{text_y}\" stroke-width=\"0\"{class_attr}>\
                     {text_content}</text>",
             )
             .unwrap();

@@ -173,6 +173,7 @@ impl HighlightedSpansComputer {
                                 // style,
                                 text: line.to_string(),
                                 md_style: None,
+                                tailwind_classes: Vec::new(),
                             };
 
                             vec![entity_highlighted_span]
@@ -277,6 +278,7 @@ impl HighlightedSpansComputer {
                 height: line_height,
                 text: line.to_string(),
                 md_style: None,
+                tailwind_classes: Vec::new(),
             })
             .collect();
 

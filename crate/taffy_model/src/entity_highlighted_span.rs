@@ -13,4 +13,7 @@ pub struct EntityHighlightedSpan {
     /// Markdown style for this span. `None` for plain/unstyled text spans
     /// produced by the legacy path.
     pub md_style: Option<MdStyle>,
+    /// Tailwind classes to apply to this span. Empty for plain/unstyled text.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tailwind_classes: Vec<String>,
 }
