@@ -1,6 +1,6 @@
 use disposition_taffy_model::{
     taffy::{self, AlignItems, Display, FlexDirection, FlexWrap, Size, Style, TaffyTree},
-    MdBlockTaffyIds, MdImageCtx, MdNodeTaffyIds, MdTokenCtx, TaffyNodeCtx,
+    MdBlockTaffyIds, MdImageCtx, MdNodeTaffyIds, MdTokenCtx, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 use taffy::LengthPercentage;
 
@@ -57,6 +57,19 @@ impl MdNodeBuilder {
                             )
                             .expect("Expected to create MdImage leaf")
                     }
+                    MdTokenItem::LineBreak => {
+                        // Insert a zero-height line break element that takes full width,
+                        // forcing subsequent tokens to wrap to the next line.
+                        taffy_tree
+                            .new_leaf(Style {
+                                size: Size {
+                                    width: taffy::style::Dimension::percent(1.0),
+                                    height: taffy::style::Dimension::length(0.0),
+                                },
+                                ..Default::default()
+                            })
+                            .expect("Expected to create LineBreak leaf")
+                    }
                 };
                 token_node_ids.push(leaf_id);
             }
@@ -86,6 +99,10 @@ impl MdNodeBuilder {
             flex_direction: FlexDirection::Column,
             flex_wrap: FlexWrap::NoWrap,
             align_items: Some(AlignItems::FlexStart),
+            gap: Size {
+                width: LengthPercentage::length(0.0),
+                height: LengthPercentage::length(TEXT_LINE_HEIGHT),
+            },
             ..Default::default()
         };
         let block_row_node_ids: Vec<taffy::NodeId> = block_taffy_ids

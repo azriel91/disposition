@@ -48,7 +48,7 @@ impl MdImageSizer {
                 }
                 (None, None) => Self::png_intrinsic_size(src).unwrap_or((100.0, 100.0)),
             },
-            MdTokenItem::Word { .. } => (0.0, 0.0),
+            MdTokenItem::Word { .. } | MdTokenItem::LineBreak => (0.0, 0.0),
         }
     }
 

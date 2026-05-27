@@ -30,6 +30,8 @@ pub(crate) enum MdTokenItem {
         /// Height in pixels from the same alt-text annotation.
         explicit_height: Option<f32>,
     },
+    /// A line break within a block, typically from a soft break in markdown.
+    LineBreak,
 }
 
 /// Parses a markdown string into an ordered list of [`MdBlock`] values.
@@ -166,6 +168,13 @@ impl MdBlocksParser {
                                 explicit_width,
                                 explicit_height,
                             });
+                        }
+                    }
+                }
+                Event::SoftBreak => {
+                    if image_state.is_none() {
+                        if let Some(block) = current_block.as_mut() {
+                            block.tokens.push(MdTokenItem::LineBreak);
                         }
                     }
                 }
