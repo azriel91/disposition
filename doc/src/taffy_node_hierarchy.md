@@ -57,6 +57,38 @@ A diagram node that has no children and uses a rectangular shape maps to a singl
 Stored as `NodeToTaffyNodeIds::Leaf { text_node_id }`.
 
 
+## Markdown Content Nodes
+
+When rendering at `DiagramLod::Normal` and a node has a description, the single `text_node` is
+replaced by an `md_content_node` sub-tree that renders markdown with inline images:
+
+```yaml
+md_content_node:          # (flex column, wraps md blocks)
+  block_row_0:            # (flex row, wraps first block)
+    word_leaf_0: {}       # (leaf, MdToken context, measured for individual token)
+    word_leaf_1: {}       # (leaf, MdToken context)
+    # ...
+  block_row_1:            # (flex row, wraps second block)
+    word_leaf_2: {}       # (leaf, MdToken context)
+    image_leaf_0: {}      # (leaf, MdImage context, fixed size from image dimensions)
+    word_leaf_3: {}       # (leaf, MdToken context)
+    # ...
+  # ...
+```
+
+This structure is built by `MdBlocksParser` (which parses markdown into `MdBlock` structures) and
+`MdNodeBuilder` (which creates the taffy sub-tree). Each word or whitespace span becomes a separate
+`MdToken` leaf, and each image becomes an `MdImage` leaf with fixed dimensions.
+
+After layout is computed, `MdSpansComputer::compute` walks the layout tree and merges adjacent
+word leaves on the same line into consolidated text spans for rendering, while image leaves are
+converted directly to image spans.
+
+Stored as `NodeToTaffyNodeIds::MdContent { md_node_taffy_ids }`, where `md_node_taffy_ids` is an
+`MdNodeTaffyIds` struct containing the `content_node_id` and a vector of `MdBlockTaffyIds` (one per
+block row, each holding the row's `block_row_node_id` and `token_node_ids`).
+
+
 ## Leaf Diagram Nodes (Circle Shape)
 
 A diagram node that has no children and uses a circular shape maps to a small sub-tree:
@@ -254,8 +286,11 @@ Text nodes are measured during `taffy_tree.compute_layout_with_measure(...)` via
 The text content depends on the diagram level of detail (`DiagramLod`):
 
 - `DiagramLod::Simple`: the node name only.
-- `DiagramLod::Normal`: `"# {name}\n\n{description}"` when a description exists; otherwise just the
-  name.
+- `DiagramLod::Normal`: when a description exists, an `md_content_node` sub-tree is built instead
+  of a single `text_node`. Each `MdToken` leaf is measured individually based on its text content
+  and markdown style (bold, italic, heading level, etc.). `MdImage` leaves have fixed sizes
+  determined by `MdImageSizer::compute_size` from the image's intrinsic dimensions or explicit
+  width/height attributes.
 
 Width is estimated using a monospace character width ratio
 (`MONOSPACE_CHAR_WIDTH_RATIO * TEXT_FONT_SIZE`). The estimator computes wrapped line widths and
@@ -263,7 +298,9 @@ line counts from the available width constraint, then converts them to pixel dim
 uses to size the node.
 
 Syntax highlighting spans are computed **after** layout is complete, not during measurement, to
-avoid redundant work during the iterative constraint-solving phase.
+avoid redundant work during the iterative constraint-solving phase. For markdown content,
+`MdSpansComputer::compute` merges adjacent word leaves on the same rendered line into consolidated
+text spans and converts image leaves to image spans.
 
 
 ## Node ID Maps
