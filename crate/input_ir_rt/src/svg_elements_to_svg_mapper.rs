@@ -227,6 +227,14 @@ impl SvgElementsToSvgMapper {
         )
         .unwrap();
 
+        // Add link styles
+        writeln!(
+            &mut styles_buffer,
+            "a {{ cursor: pointer; }} \
+             a text {{ fill: var(--link-color, #0066cc); }}"
+        )
+        .unwrap();
+
         // Render nodes
         Self::render_nodes(&mut content_buffer, svg_node_infos, tailwind_classes);
 
@@ -462,6 +470,15 @@ impl SvgElementsToSvgMapper {
                 .unwrap();
             }
 
+            // Wrap in <a> element if this is a link
+            if let Some(link_dest) = span.md_style.as_ref().and_then(|s| s.link_dest.as_ref()) {
+                write!(
+                    content_buffer,
+                    "<a href=\"{link_dest}\" target=\"_blank\" rel=\"noopener noreferrer\">",
+                )
+                .unwrap();
+            }
+
             // zero stroke-width because we want the tailwind classes from `<g>` to
             // apply to the `<path>`, but not to the `<text>`
             write!(
@@ -470,6 +487,15 @@ impl SvgElementsToSvgMapper {
                     {text_content}</text>",
             )
             .unwrap();
+
+            // Close <a> element if this was a link
+            if span
+                .md_style
+                .as_ref()
+                .is_some_and(|s| s.link_dest.is_some())
+            {
+                write!(content_buffer, "</a>").unwrap();
+            }
         });
 
         // Add image elements for inline images
