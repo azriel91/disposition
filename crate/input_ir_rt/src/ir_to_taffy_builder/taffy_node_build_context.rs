@@ -15,11 +15,11 @@ use disposition_taffy_model::{
         self, style::FlexDirection, AlignContent, AlignItems, AvailableSpace, Display, FlexWrap,
         Size, Style, TaffyTree,
     },
-    DiagramLod, NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    DiagramLod, MdHeadingLevel, MdNodeTaffyIds, NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 use taffy::{LengthPercentage, LengthPercentageAuto, Rect};
 
-use super::text_measure::compute_text_dimensions;
+use super::text_measure::{compute_text_dimensions, line_width_measure};
 
 pub(crate) struct TaffyNodeBuildContext<'ctx> {
     pub(crate) taffy_tree: &'ctx mut TaffyTree<TaffyNodeCtx>,
@@ -49,6 +49,12 @@ pub(crate) struct TaffyNodeBuildContext<'ctx> {
     ///
     /// Used to compute face-specific padding for edge label leaf nodes.
     pub(crate) rank_dir: RankDir,
+    /// Level of detail for this diagram build.
+    pub(crate) lod: DiagramLod,
+    /// Monospace character width in pixels.
+    pub(crate) char_width: f32,
+    /// Accumulator for md node taffy IDs built across all diagram nodes.
+    pub(crate) md_node_taffy_ids: &'ctx mut Map<NodeId<'static>, MdNodeTaffyIds>,
 }
 
 /// Layout information for a wrapper node and its text node.
@@ -173,6 +179,28 @@ impl NodeMeasureContext<'_> {
             char_width,
             lod,
         } = self;
+
+        // MdToken leaves are sized per-token using heading-level font scaling.
+        if let Some(ctx) = taffy_node_ctx.as_ref().and_then(|n| {
+            if let TaffyNodeCtx::MdToken(ctx) = n {
+                Some(ctx)
+            } else {
+                None
+            }
+        }) {
+            let font_scale = ctx
+                .md_style
+                .heading_level
+                .map(MdHeadingLevel::font_scale)
+                .unwrap_or(1.0);
+            let effective_char_width = *char_width * font_scale;
+            let effective_line_height = TEXT_LINE_HEIGHT * font_scale;
+            let width = line_width_measure(&ctx.text, effective_char_width);
+            return Size {
+                width,
+                height: effective_line_height,
+            };
+        }
 
         // Edge spacers, edge labels, and empty wrapper containers (no context)
         // have no text to measure.  Return zero size immediately so that

@@ -12,17 +12,19 @@ use disposition_ir_model::{
 use disposition_model_common::{edge::EdgeDescs, thing::ThingDescs, Id, Map, RankDir};
 use disposition_taffy_model::{
     taffy::{self, AlignItems, Display, FlexDirection, Size, Style, TaffyTree},
-    DiagramNodeCtx, EdgeDescriptionTaffyNodes, EdgeSpacerTaffyNodes, NodeToTaffyNodeIds,
-    ProcessesIncluded, TaffyNodeCtx,
+    DiagramLod, DiagramNodeCtx, EdgeDescriptionTaffyNodes, EdgeSpacerTaffyNodes, MdNodeTaffyIds,
+    NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeCtx,
 };
 
 use super::{
     edge_description_builder::EdgeDescriptionBuilder,
     edge_spacer_builder::EdgeSpacerBuilder,
+    md_node_builder::MdNodeBuilder,
     taffy_container_builder::{NodeRankToTaffyNodeId, TaffyContainerBuilder},
     taffy_envelope_builder::TaffyEnvelopeBuilder,
     taffy_node_build_context::{EdgeLabelLeafBuilt, TaffyNodeBuildContext, TaffyWrapperNodeStyles},
 };
+use crate::md_text::md_blocks_parser::MdBlocksParser;
 
 /// Builds taffy nodes for diagram nodes, handling both leaf nodes (no children)
 /// and container nodes (with child hierarchies), grouping children by rank.
@@ -57,6 +59,9 @@ impl TaffyDiagramNodeBuilder {
             node_id_to_envelope_taffy_node,
             edge_label_leaves,
             rank_dir,
+            lod,
+            char_width,
+            md_node_taffy_ids,
         } = taffy_node_build_context;
 
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
@@ -101,6 +106,11 @@ impl TaffyDiagramNodeBuilder {
                         node_id_to_envelope_taffy_node,
                         edge_label_leaves,
                         rank_dir,
+                        nodes,
+                        thing_descs,
+                        lod,
+                        char_width,
+                        md_node_taffy_ids,
                     )
                 } else {
                     let (
@@ -127,6 +137,9 @@ impl TaffyDiagramNodeBuilder {
                         node_id_to_envelope_taffy_node,
                         edge_label_leaves,
                         rank_dir,
+                        lod,
+                        char_width,
+                        md_node_taffy_ids,
                     );
                     edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
                     edge_description_taffy_nodes.extend(nested_edge_description_taffy_nodes);
@@ -186,6 +199,9 @@ impl TaffyDiagramNodeBuilder {
             node_id_to_envelope_taffy_node,
             edge_label_leaves,
             rank_dir,
+            lod,
+            char_width,
+            md_node_taffy_ids,
         } = taffy_node_build_context;
 
         let mut rank_to_taffy_ids: NodeRankToTaffyNodeId = BTreeMap::new();
@@ -217,6 +233,11 @@ impl TaffyDiagramNodeBuilder {
                     node_id_to_envelope_taffy_node,
                     edge_label_leaves,
                     rank_dir,
+                    nodes,
+                    thing_descs,
+                    lod,
+                    char_width,
+                    md_node_taffy_ids,
                 )
             } else {
                 let (
@@ -243,6 +264,9 @@ impl TaffyDiagramNodeBuilder {
                     node_id_to_envelope_taffy_node,
                     edge_label_leaves,
                     rank_dir,
+                    lod,
+                    char_width,
+                    md_node_taffy_ids,
                 );
                 edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
                 edge_description_taffy_nodes.extend(nested_edge_description_taffy_nodes);
@@ -280,6 +304,11 @@ impl TaffyDiagramNodeBuilder {
         node_id_to_envelope_taffy_node: &mut Map<NodeId<'static>, taffy::NodeId>,
         edge_label_leaves: &mut Vec<EdgeLabelLeafBuilt>,
         rank_dir: RankDir,
+        nodes: &NodeNames<'static>,
+        thing_descs: &ThingDescs<'static>,
+        lod: DiagramLod,
+        char_width: f32,
+        md_node_taffy_ids: &mut Map<NodeId<'static>, MdNodeTaffyIds>,
     ) -> taffy::NodeId {
         let ir_node_id = NodeId::from(node_id.clone());
         let node_shape = node_shapes
@@ -292,17 +321,18 @@ impl TaffyDiagramNodeBuilder {
                     node_id,
                     Size::auto(),
                 );
-                let taffy_text_node_id = taffy_tree
-                    .new_leaf_with_context(
-                        taffy_style,
-                        TaffyNodeCtx::DiagramNode(DiagramNodeCtx {
-                            entity_id: node_id.clone(),
-                            entity_type: entity_type.clone(),
-                        }),
-                    )
-                    .unwrap_or_else(|e| {
-                        panic!("Expected to create text leaf node for {node_id}. Error: {e}")
-                    });
+                let taffy_text_node_id = Self::text_leaf_build(
+                    taffy_tree,
+                    node_id,
+                    entity_type,
+                    &ir_node_id,
+                    nodes,
+                    thing_descs,
+                    lod,
+                    char_width,
+                    md_node_taffy_ids,
+                    taffy_style,
+                );
 
                 node_id_to_taffy.insert(
                     ir_node_id.clone(),
@@ -348,17 +378,18 @@ impl TaffyDiagramNodeBuilder {
                     });
 
                 let text_style = Style::default();
-                let taffy_text_node_id = taffy_tree
-                    .new_leaf_with_context(
-                        text_style,
-                        TaffyNodeCtx::DiagramNode(DiagramNodeCtx {
-                            entity_id: node_id.clone(),
-                            entity_type: entity_type.clone(),
-                        }),
-                    )
-                    .unwrap_or_else(|e| {
-                        panic!("Expected to create text leaf node for {node_id}. Error: {e}")
-                    });
+                let taffy_text_node_id = Self::text_leaf_build(
+                    taffy_tree,
+                    node_id,
+                    entity_type,
+                    &ir_node_id,
+                    nodes,
+                    thing_descs,
+                    lod,
+                    char_width,
+                    md_node_taffy_ids,
+                    text_style,
+                );
 
                 let label_wrapper_style = TaffyContainerBuilder::taffy_container_style(
                     node_layouts,
@@ -426,6 +457,9 @@ impl TaffyDiagramNodeBuilder {
         node_id_to_envelope_taffy_node: &mut Map<NodeId<'static>, taffy::NodeId>,
         edge_label_leaves: &mut Vec<EdgeLabelLeafBuilt>,
         rank_dir: RankDir,
+        lod: DiagramLod,
+        char_width: f32,
+        md_node_taffy_ids: &mut Map<NodeId<'static>, MdNodeTaffyIds>,
     ) -> (
         taffy::NodeId,
         Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
@@ -441,17 +475,18 @@ impl TaffyDiagramNodeBuilder {
             text_style,
             child_container_style,
         } = TaffyContainerBuilder::taffy_wrapper_node_styles(node_layouts, node_id);
-        let taffy_text_node_id = taffy_tree
-            .new_leaf_with_context(
-                text_style,
-                TaffyNodeCtx::DiagramNode(DiagramNodeCtx {
-                    entity_id: node_id.clone(),
-                    entity_type: entity_type.clone(),
-                }),
-            )
-            .unwrap_or_else(|e| {
-                panic!("Expected to create text leaf node for {node_id}. Error: {e}")
-            });
+        let taffy_text_node_id = Self::text_leaf_build(
+            taffy_tree,
+            node_id,
+            entity_type,
+            &ir_node_id,
+            nodes,
+            thing_descs,
+            lod,
+            char_width,
+            md_node_taffy_ids,
+            text_style,
+        );
         let taffy_node_build_context = TaffyNodeBuildContext {
             nodes,
             taffy_tree,
@@ -469,6 +504,9 @@ impl TaffyDiagramNodeBuilder {
             node_id_to_envelope_taffy_node,
             edge_label_leaves,
             rank_dir,
+            lod,
+            char_width,
+            md_node_taffy_ids,
         };
         let (
             mut rank_to_taffy_ids,
@@ -724,5 +762,56 @@ impl TaffyDiagramNodeBuilder {
                 )
             }
         }
+    }
+
+    /// Creates the text leaf for a diagram node.
+    ///
+    /// For `DiagramLod::Normal` nodes with a description, builds a markdown
+    /// content sub-tree via `MdNodeBuilder` and wraps it in `wrapper_style`
+    /// to preserve padding and margin. Records the `MdNodeTaffyIds` in the
+    /// accumulator.
+    ///
+    /// For all other cases, falls back to a single `TaffyNodeCtx::DiagramNode`
+    /// leaf.
+    #[allow(clippy::too_many_arguments)]
+    fn text_leaf_build(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        node_id: &Id<'static>,
+        entity_type: &EntityType,
+        ir_node_id: &NodeId<'static>,
+        nodes: &NodeNames<'static>,
+        thing_descs: &ThingDescs<'static>,
+        lod: DiagramLod,
+        char_width: f32,
+        md_node_taffy_ids: &mut Map<NodeId<'static>, MdNodeTaffyIds>,
+        fallback_style: Style,
+    ) -> taffy::NodeId {
+        if lod == DiagramLod::Normal {
+            let node_name = nodes
+                .get(ir_node_id)
+                .map(String::as_str)
+                .unwrap_or_else(|| node_id.as_str());
+            if let Some(desc) = thing_descs.get(ir_node_id.as_ref()) {
+                let markdown = format!("# {node_name}\n\n{desc}");
+                let blocks = MdBlocksParser::parse(&markdown);
+                let md_ids = MdNodeBuilder::build(taffy_tree, &blocks, char_width);
+                let text_node_id = taffy_tree
+                    .new_with_children(fallback_style, &[md_ids.content_node_id])
+                    .expect("Expected to create markdown wrapper node");
+                md_node_taffy_ids.insert(ir_node_id.clone(), md_ids);
+                return text_node_id;
+            }
+        }
+        taffy_tree
+            .new_leaf_with_context(
+                fallback_style,
+                TaffyNodeCtx::DiagramNode(DiagramNodeCtx {
+                    entity_id: node_id.clone(),
+                    entity_type: entity_type.clone(),
+                }),
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create text leaf node for {node_id}. Error: {e}")
+            })
     }
 }

@@ -8,7 +8,7 @@ use disposition_model_common::Map;
 use disposition_taffy_model::{
     taffy::{self, AvailableSpace, Size, TaffyTree},
     DimensionAndLod, EdgeDescriptionTaffyNodes, EdgeSpacerTaffyNodes, IrToTaffyError,
-    ProcessesIncluded, TaffyNodeMappings, TEXT_FONT_SIZE,
+    MdNodeTaffyIds, ProcessesIncluded, TaffyNodeMappings, TEXT_FONT_SIZE,
 };
 use typed_builder::TypedBuilder;
 
@@ -29,6 +29,7 @@ mod edge_label_builder;
 mod edge_lca_sibling_distance;
 mod edge_spacer_builder;
 mod highlighted_spans_computer;
+mod md_node_builder;
 mod taffy_container_builder;
 mod taffy_diagram_node_builder;
 mod taffy_envelope_builder;
@@ -138,6 +139,11 @@ impl IrToTaffyBuilder<'_> {
         let mut node_id_to_envelope_taffy_node: Map<NodeId<'static>, taffy::NodeId> = Map::new();
         let mut edge_label_leaves = Vec::new();
 
+        // Precompute monospace character width
+        let char_width = TEXT_FONT_SIZE * MONOSPACE_CHAR_WIDTH_RATIO;
+
+        let mut md_node_taffy_ids: Map<NodeId<'static>, MdNodeTaffyIds> = Map::new();
+
         let taffy_node_build_context = TaffyNodeBuildContext {
             taffy_tree: &mut taffy_tree,
             nodes,
@@ -155,6 +161,9 @@ impl IrToTaffyBuilder<'_> {
             node_id_to_envelope_taffy_node: &mut node_id_to_envelope_taffy_node,
             edge_label_leaves: &mut edge_label_leaves,
             rank_dir,
+            lod: *lod,
+            char_width,
+            md_node_taffy_ids: &mut md_node_taffy_ids,
         };
         let (
             node_rank_to_nodes_by_entity_type,
@@ -365,9 +374,6 @@ impl IrToTaffyBuilder<'_> {
             panic!("`root` node not present in `node_inbuilt_to_taffy`.");
         };
 
-        // Precompute monospace character width
-        let char_width = TEXT_FONT_SIZE * MONOSPACE_CHAR_WIDTH_RATIO;
-
         // Pre-compute edge endpoint node IDs for edge label slot sizing.
         let edge_id_to_endpoint_node_ids = EdgeLabelBuilder::edge_id_to_node_ids_build(edge_groups);
 
@@ -440,7 +446,7 @@ impl IrToTaffyBuilder<'_> {
             edge_description_taffy_nodes,
             edge_description_highlighted_spans,
             node_id_to_envelope_taffy_node,
-            md_node_taffy_ids: Map::new(),
+            md_node_taffy_ids,
             entity_image_spans: Map::new(),
         })
     }
