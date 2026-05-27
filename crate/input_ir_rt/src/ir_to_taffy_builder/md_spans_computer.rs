@@ -76,6 +76,74 @@ impl MdSpansComputer {
         (entity_highlighted_spans, entity_image_spans)
     }
 
+    /// Computes highlighted text spans and image spans for all edge
+    /// descriptions that used the markdown content path.
+    ///
+    /// Runs after taffy layout is complete. For each edge with
+    /// `md_node_taffy_ids.is_some()`, the taffy tree is walked to collect token
+    /// and image leaf positions, which are grouped into visual lines and merged
+    /// into `EntityHighlightedSpan` and `MdImageSpan` values.
+    ///
+    /// Span coordinates are **description-relative** (relative to the
+    /// `description_taffy_node_id` top-left corner), matching the convention
+    /// used by `HighlightedSpansComputer::compute_edge_desc_containers`.
+    ///
+    /// Returns two maps, keyed by `EdgeId`:
+    /// - Text spans map: used by `SvgEdgeDescriptionsBuilder` to produce
+    ///   `SvgTextSpan` values.
+    /// - Image spans map: used by `SvgEdgeDescriptionsBuilder` to produce
+    ///   `SvgImageSpan` values.
+    pub(crate) fn compute_edge_descs(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        edge_description_taffy_nodes: &Map<
+            disposition_ir_model::edge::EdgeId<'static>,
+            disposition_taffy_model::EdgeDescriptionTaffyNodes,
+        >,
+        _char_width: f32,
+    ) -> (
+        Map<disposition_ir_model::edge::EdgeId<'static>, Vec<EntityHighlightedSpan>>,
+        Map<disposition_ir_model::edge::EdgeId<'static>, Vec<MdImageSpan>>,
+    ) {
+        let mut edge_description_highlighted_spans = Map::new();
+        let mut edge_description_image_spans = Map::new();
+
+        for (edge_id, edge_desc_taffy_nodes) in edge_description_taffy_nodes {
+            let Some(md_node_taffy_ids) = &edge_desc_taffy_nodes.md_node_taffy_ids else {
+                // Skip edges using the legacy single-leaf path.
+                continue;
+            };
+
+            // Compute the absolute position of the description node.
+            let description_abs_xy = taffy_tree
+                .layout(edge_desc_taffy_nodes.description_taffy_node_id)
+                .ok()
+                .map(|layout| {
+                    Self::node_absolute_xy_coordinates(
+                        taffy_tree,
+                        edge_desc_taffy_nodes.description_taffy_node_id,
+                        layout,
+                    )
+                })
+                .unwrap_or((0.0, 0.0));
+
+            let (highlighted_spans, image_spans) =
+                Self::compute_node(taffy_tree, md_node_taffy_ids, description_abs_xy);
+
+            if !highlighted_spans.is_empty() {
+                edge_description_highlighted_spans.insert(edge_id.clone(), highlighted_spans);
+            }
+
+            if !image_spans.is_empty() {
+                edge_description_image_spans.insert(edge_id.clone(), image_spans);
+            }
+        }
+
+        (
+            edge_description_highlighted_spans,
+            edge_description_image_spans,
+        )
+    }
+
     fn compute_node(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         md_node_taffy_ids: &MdNodeTaffyIds,

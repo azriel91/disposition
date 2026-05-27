@@ -267,6 +267,8 @@ impl IrToTaffyBuilder<'_> {
             &EntityType::ThingDefault,
             None,
             &thing_rank_container_style,
+            lod,
+            char_width,
         );
         let EdgeDescriptionBuildResult {
             edge_description_taffy_nodes: tag_edge_desc_taffy_nodes,
@@ -281,6 +283,8 @@ impl IrToTaffyBuilder<'_> {
             &EntityType::TagDefault,
             None,
             &tag_rank_container_style,
+            lod,
+            char_width,
         );
         let EdgeDescriptionBuildResult {
             edge_description_taffy_nodes: process_edge_desc_taffy_nodes,
@@ -295,6 +299,8 @@ impl IrToTaffyBuilder<'_> {
             &EntityType::ProcessDefault,
             None,
             &process_rank_container_style,
+            lod,
+            char_width,
         );
         edge_description_taffy_nodes.extend(thing_edge_desc_taffy_nodes);
         edge_description_taffy_nodes.extend(tag_edge_desc_taffy_nodes);
@@ -456,6 +462,25 @@ impl IrToTaffyBuilder<'_> {
             entity_highlighted_spans.insert(node_id, spans);
         }
 
+        // Compute highlighted text spans and image spans for edge descriptions
+        // that used the markdown path.
+        //
+        // Edge descriptions with markdown are skipped by
+        // `HighlightedSpansComputer::compute_edge_desc_containers` (their
+        // `md_node_taffy_ids` is `Some`), so their spans must be computed
+        // separately here and merged in.
+        let (md_edge_desc_spans, edge_description_image_spans) =
+            MdSpansComputer::compute_edge_descs(
+                &taffy_tree,
+                &edge_description_taffy_nodes,
+                char_width,
+            );
+
+        let mut edge_description_highlighted_spans = edge_description_highlighted_spans;
+        for (edge_id, spans) in md_edge_desc_spans {
+            edge_description_highlighted_spans.insert(edge_id, spans);
+        }
+
         std::iter::once(TaffyNodeMappings {
             taffy_tree,
             node_inbuilt_to_taffy,
@@ -469,6 +494,7 @@ impl IrToTaffyBuilder<'_> {
             node_id_to_envelope_taffy_node,
             md_node_taffy_ids,
             entity_image_spans,
+            edge_description_image_spans,
         })
     }
 }

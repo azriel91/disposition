@@ -76,6 +76,11 @@ pub struct TaffyNodeMappings<'id> {
     ///
     /// Keyed by diagram `NodeId`. Absent for nodes without inline images.
     pub entity_image_spans: Map<NodeId<'id>, Vec<MdImageSpan>>,
+    /// Inline image spans for edge descriptions that used the markdown path.
+    ///
+    /// Keyed by `EdgeId`. Absent for edges using the legacy single-leaf path
+    /// or edges without inline images.
+    pub edge_description_image_spans: Map<EdgeId<'id>, Vec<MdImageSpan>>,
 }
 
 impl<'id> PartialEq for TaffyNodeMappings<'id> {
@@ -97,6 +102,7 @@ impl<'id> PartialEq for TaffyNodeMappings<'id> {
             && self.node_id_to_envelope_taffy_node == other.node_id_to_envelope_taffy_node
             && self.md_node_taffy_ids == other.md_node_taffy_ids
             && self.entity_image_spans == other.entity_image_spans
+            && self.edge_description_image_spans == other.edge_description_image_spans
     }
 }
 

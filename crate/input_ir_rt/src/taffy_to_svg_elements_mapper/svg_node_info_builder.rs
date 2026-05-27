@@ -359,7 +359,7 @@ impl SvgNodeInfoBuilder {
 
 /// Converts a [`MdStyle`] from the taffy model to a [`SvgMdStyle`] for the
 /// SVG model.
-fn svg_md_style_from(md_style: &MdStyle) -> SvgMdStyle {
+pub(super) fn svg_md_style_from(md_style: &MdStyle) -> SvgMdStyle {
     SvgMdStyle {
         bold: md_style.bold,
         italic: md_style.italic,

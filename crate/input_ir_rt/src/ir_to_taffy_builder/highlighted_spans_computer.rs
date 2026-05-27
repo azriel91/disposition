@@ -294,6 +294,9 @@ impl HighlightedSpansComputer {
     /// `description_taffy_node_id` as the wrapping constraint, and builds
     /// [`EntityHighlightedSpan`] values relative to the leaf node's top-left
     /// corner.
+    ///
+    /// Edges with `md_node_taffy_ids.is_some()` (markdown path) are skipped;
+    /// those are handled by `MdSpansComputer::compute_edge_descs`.
     pub(crate) fn compute_edge_desc_containers(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
@@ -309,6 +312,7 @@ impl HighlightedSpansComputer {
 
         edge_description_taffy_nodes
             .iter()
+            .filter(|(_, edge_desc_taffy_nodes)| edge_desc_taffy_nodes.md_node_taffy_ids.is_none())
             .filter_map(|(edge_id, edge_desc_taffy_nodes)| {
                 let desc = edge_descs.get(edge_id.as_ref())?;
                 let spans = Self::compute_edge_label_slot(

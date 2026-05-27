@@ -1,7 +1,9 @@
 use disposition_ir_model::edge::EdgeId;
+use disposition_taffy_model::MdNodeTaffyIds;
 use taffy::NodeId;
 
-/// An edge's description leaf taffy node paired with its typed edge ID.
+/// An edge's description leaf or markdown sub-tree taffy nodes paired with
+/// its typed edge ID.
 ///
 /// Used as the value in the per-position sorted map inside
 /// [`super::EdgeDescriptionBuilder::build`] so that both the `EdgeId` (needed
@@ -14,8 +16,10 @@ pub struct EdgeIdAndTaffyDescriptionNode {
     /// Example valid values: `EdgeId::from("edge_dep_alice_charlie__0")`.
     pub edge_id: EdgeId<'static>,
 
-    /// The taffy leaf node that holds the
-    /// [`disposition_taffy_model::TaffyNodeCtx::EdgeDescription`] context for
-    /// this edge.
+    /// The taffy leaf node (simple path) or `md_content_node` container
+    /// (markdown path) for this edge.
     pub description_taffy_node_id: NodeId,
+
+    /// Populated at `DiagramLod::Normal` with the markdown sub-tree IDs.
+    pub md_node_taffy_ids: Option<MdNodeTaffyIds>,
 }

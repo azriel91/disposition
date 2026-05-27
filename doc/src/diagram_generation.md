@@ -29,7 +29,9 @@ Diagram generation from an `InputDiagram` into an SVG goes through the following
     - `EdgeDescriptionBuilder::build` is called at the same three trigger points (once per entity
       type per container with `lca_node_id = Some(&container_id)`, and once per entity type at the
       top level with `lca_node_id = None`). Each call creates `edge_description_container` taffy
-      nodes interleaved among the rank containers for all described edges at that LCA level.
+      nodes interleaved among the rank containers for all described edges at that LCA level. At
+      `DiagramLod::Normal`, `EdgeDescriptionBuilder` also calls `MdNodeBuilder` to replace the
+      single description leaf with an `md_content_node` sub-tree for markdown rendering.
 
     - `EdgeSpacerBuilder::build_edge_desc_container_spacers` is called immediately after each
       `EdgeDescriptionBuilder::build`, inserting spacer leaves inside each
@@ -37,9 +39,11 @@ Diagram generation from an `InputDiagram` into an SVG goes through the following
 
     - After layout is computed, `HighlightedSpansComputer::compute` builds `entity_highlighted_spans` for
       node and edge-label text, `HighlightedSpansComputer::compute_edge_desc_containers` builds
-      `edge_description_highlighted_spans` for edge description text, and `MdSpansComputer::compute`
-      processes `md_content_node` sub-trees to merge adjacent word leaves into consolidated text
-      spans and convert image leaves to image spans (stored in `entity_image_spans`).
+      `edge_description_highlighted_spans` for edge description text (legacy single-leaf path),
+      `MdSpansComputer::compute` processes node `md_content_node` sub-trees to merge adjacent word
+      leaves into consolidated text spans and convert image leaves to image spans (stored in
+      `entity_image_spans`), and `MdSpansComputer::compute_edge_descs` processes edge description
+      `md_content_node` sub-trees similarly (stored in `edge_description_image_spans`).
 
 4. Calculate SVG elements and edges including attributes (`SvgElements`) based on `IrDiagram` and `TaffyNodeMappings`.
 

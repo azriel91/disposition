@@ -1,12 +1,14 @@
 use disposition_ir_model::edge::EdgeId;
 use disposition_model_common::Map;
-use disposition_svg_model::{SvgEdgeDescriptionInfo, SvgTextSpan};
-use disposition_taffy_model::{EdgeDescriptionTaffyNodes, EntityHighlightedSpan, TaffyNodeCtx};
+use disposition_svg_model::{SvgEdgeDescriptionInfo, SvgImageSpan, SvgTextSpan};
+use disposition_taffy_model::{
+    EdgeDescriptionTaffyNodes, EntityHighlightedSpan, MdImageSpan, TaffyNodeCtx,
+};
 use taffy::TaffyTree;
 
 use crate::string_xml_escaper::StringXmlEscaper;
 
-use super::svg_node_info_builder::SvgNodeInfoBuilder;
+use super::svg_node_info_builder::{svg_md_style_from, SvgNodeInfoBuilder};
 
 /// Builds [`SvgEdgeDescriptionInfo`] values from the edge description taffy
 /// nodes and their computed highlighted spans.
@@ -20,6 +22,7 @@ impl SvgEdgeDescriptionsBuilder {
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_description_taffy_nodes: &Map<EdgeId<'id>, EdgeDescriptionTaffyNodes>,
         edge_description_highlighted_spans: &Map<EdgeId<'id>, Vec<EntityHighlightedSpan>>,
+        edge_description_image_spans: &Map<EdgeId<'id>, Vec<MdImageSpan>>,
     ) -> Vec<SvgEdgeDescriptionInfo<'id>> {
         edge_description_taffy_nodes
             .iter()
@@ -40,13 +43,33 @@ impl SvgEdgeDescriptionsBuilder {
                 let text_spans: Vec<SvgTextSpan> = spans
                     .iter()
                     .map(|span| {
-                        SvgTextSpan::new(
+                        SvgTextSpan::new_styled(
                             x + span.x,
                             y + span.y,
+                            span.width,
+                            span.height,
                             StringXmlEscaper::escape(&span.text),
+                            span.md_style.as_ref().map(svg_md_style_from),
                         )
                     })
                     .collect();
+
+                let image_spans: Vec<SvgImageSpan> = edge_description_image_spans
+                    .get(edge_id)
+                    .map(|img_spans| {
+                        img_spans
+                            .iter()
+                            .map(|span| SvgImageSpan {
+                                x: x + span.x,
+                                y: y + span.y,
+                                width: span.width,
+                                height: span.height,
+                                src: span.src.clone(),
+                                alt: span.alt.clone(),
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
 
                 Some(SvgEdgeDescriptionInfo {
                     edge_id: edge_id.clone(),
@@ -55,7 +78,7 @@ impl SvgEdgeDescriptionsBuilder {
                     width: layout.size.width,
                     height: layout.size.height,
                     text_spans,
-                    image_spans: Vec::new(),
+                    image_spans,
                 })
             })
             .collect()

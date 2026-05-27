@@ -570,6 +570,8 @@ impl TaffyDiagramNodeBuilder {
                 target_entity_type,
                 Some(&lca_node_id),
                 &child_container_style,
+                &lod,
+                char_width,
             );
             edge_description_taffy_nodes
                 .extend(edge_description_containers_build_result.edge_description_taffy_nodes);

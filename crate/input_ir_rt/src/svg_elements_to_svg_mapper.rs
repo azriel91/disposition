@@ -387,69 +387,12 @@ impl SvgElementsToSvgMapper {
                 write!(content_buffer, r#"<path d="{circle_path_d}" />"#).unwrap();
             }
 
-            // Add text elements for highlighted spans
-            svg_node_info.text_spans.iter().for_each(|span| {
-                let text_x = span.x;
-                let text_y = span.y;
-                let text_content = &span.text;
-
-                let style_attrs = span
-                    .md_style
-                    .as_ref()
-                    .map(|s| {
-                        let font_size = if s.heading_level > 0 {
-                            let scale = match s.heading_level {
-                                1 => 2.0f32,
-                                2 => 1.5,
-                                3 => 1.25,
-                                _ => 1.0,
-                            };
-                            format!(" font-size=\"{}\"", TEXT_FONT_SIZE * scale)
-                        } else {
-                            String::new()
-                        };
-                        let font_weight = if s.bold { " font-weight=\"bold\"" } else { "" };
-                        let font_style = if s.italic {
-                            " font-style=\"italic\""
-                        } else {
-                            ""
-                        };
-                        let text_deco = if s.strikethrough {
-                            " text-decoration=\"line-through\""
-                        } else if s.link_dest.is_some() {
-                            " text-decoration=\"underline\""
-                        } else {
-                            ""
-                        };
-                        format!("{font_size}{font_weight}{font_style}{text_deco}")
-                    })
-                    .unwrap_or_default();
-
-                // Emit a background rect before code spans.
-                if span.md_style.as_ref().is_some_and(|s| s.code) {
-                    let rect_y = text_y - span.height;
-                    let rect_w = span.width;
-                    let rect_h = span.height;
-                    write!(
-                        content_buffer,
-                        "<rect x=\"{text_x}\" y=\"{rect_y}\" width=\"{rect_w}\" \
-                            height=\"{rect_h}\" class=\"md-code-bg\" />",
-                    )
-                    .unwrap();
-                }
-
-                // zero stroke-width because we want the tailwind classes from `<g>` to
-                // apply to the `<path>`, but not to the `<text>`
-                write!(
-                    content_buffer,
-                    "<text x=\"{text_x}\" y=\"{text_y}\" stroke-width=\"0\"{style_attrs}>\
-                        {text_content}</text>",
-                )
-                .unwrap();
-            });
-
-            // Add image elements for inline images
-            Self::render_node_images(content_buffer, svg_node_info);
+            // Add text and image elements
+            Self::render_text_and_images(
+                content_buffer,
+                &svg_node_info.text_spans,
+                &svg_node_info.image_spans,
+            );
 
             // Close group element
             content_buffer.push_str("</g>");
@@ -457,8 +400,80 @@ impl SvgElementsToSvgMapper {
     }
 
     /// Writes inline image elements for a node to the SVG content buffer.
-    fn render_node_images(content_buffer: &mut String, svg_node_info: &SvgNodeInfo<'_>) {
-        svg_node_info.image_spans.iter().for_each(|span| {
+    /// Renders text spans with markdown styling and inline images.
+    ///
+    /// Handles:
+    /// - Code background rectangles with `.md-code-bg` class
+    /// - Text styling (bold, italic, strikethrough, headings, links)
+    /// - Inline images
+    fn render_text_and_images(
+        content_buffer: &mut String,
+        text_spans: &[disposition_svg_model::SvgTextSpan],
+        image_spans: &[disposition_svg_model::SvgImageSpan],
+    ) {
+        // Add text elements for styled spans
+        text_spans.iter().for_each(|span| {
+            let text_x = span.x;
+            let text_y = span.y;
+            let text_content = &span.text;
+
+            let style_attrs = span
+                .md_style
+                .as_ref()
+                .map(|s| {
+                    let font_size = if s.heading_level > 0 {
+                        let scale = match s.heading_level {
+                            1 => 2.0f32,
+                            2 => 1.5,
+                            3 => 1.25,
+                            _ => 1.0,
+                        };
+                        format!(" font-size=\"{}\"", TEXT_FONT_SIZE * scale)
+                    } else {
+                        String::new()
+                    };
+                    let font_weight = if s.bold { " font-weight=\"bold\"" } else { "" };
+                    let font_style = if s.italic {
+                        " font-style=\"italic\""
+                    } else {
+                        ""
+                    };
+                    let text_deco = if s.strikethrough {
+                        " text-decoration=\"line-through\""
+                    } else if s.link_dest.is_some() {
+                        " text-decoration=\"underline\""
+                    } else {
+                        ""
+                    };
+                    format!("{font_size}{font_weight}{font_style}{text_deco}")
+                })
+                .unwrap_or_default();
+
+            // Emit a background rect before code spans.
+            if span.md_style.as_ref().is_some_and(|s| s.code) {
+                let rect_y = text_y - span.height;
+                let rect_w = span.width;
+                let rect_h = span.height;
+                write!(
+                    content_buffer,
+                    "<rect x=\"{text_x}\" y=\"{rect_y}\" width=\"{rect_w}\" \
+                        height=\"{rect_h}\" class=\"md-code-bg\" />",
+                )
+                .unwrap();
+            }
+
+            // zero stroke-width because we want the tailwind classes from `<g>` to
+            // apply to the `<path>`, but not to the `<text>`
+            write!(
+                content_buffer,
+                "<text x=\"{text_x}\" y=\"{text_y}\" stroke-width=\"0\"{style_attrs}>\
+                    {text_content}</text>",
+            )
+            .unwrap();
+        });
+
+        // Add image elements for inline images
+        image_spans.iter().for_each(|span| {
             let x = span.x;
             let y = span.y;
             let w = span.width;
@@ -683,7 +698,7 @@ impl SvgElementsToSvgMapper {
     ) {
         edge_description_infos
             .iter()
-            .filter(|info| !info.text_spans.is_empty())
+            .filter(|info| !info.text_spans.is_empty() || !info.image_spans.is_empty())
             .for_each(|info| {
                 let edge_id = &info.edge_id;
 
@@ -696,20 +711,10 @@ impl SvgElementsToSvgMapper {
                 };
 
                 write!(content_buffer, "<g id=\"{edge_id}__desc\" {class_attr}>").unwrap();
-                info.text_spans.iter().for_each(|span| {
-                    let text_x = span.x;
-                    let text_y = span.y;
-                    let text_content = &span.text;
-                    write!(
-                        content_buffer,
-                        "<text \
-                            x=\"{text_x}\" \
-                            y=\"{text_y}\" \
-                            stroke-width=\"0\" \
-                        >{text_content}</text>"
-                    )
-                    .unwrap();
-                });
+
+                // Add text and image elements
+                Self::render_text_and_images(content_buffer, &info.text_spans, &info.image_spans);
+
                 content_buffer.push_str("</g>");
             });
     }
