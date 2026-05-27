@@ -220,6 +220,13 @@ impl SvgElementsToSvgMapper {
         )
         .unwrap();
 
+        // Add code-span background style
+        writeln!(
+            &mut styles_buffer,
+            ".md-code-bg {{ fill: var(--md-code-bg, #e8e8e8); rx: 2; }}"
+        )
+        .unwrap();
+
         // Render nodes
         Self::render_nodes(&mut content_buffer, svg_node_infos, tailwind_classes);
 
@@ -386,21 +393,84 @@ impl SvgElementsToSvgMapper {
                 let text_y = span.y;
                 let text_content = &span.text;
 
+                let style_attrs = span
+                    .md_style
+                    .as_ref()
+                    .map(|s| {
+                        let font_size = if s.heading_level > 0 {
+                            let scale = match s.heading_level {
+                                1 => 2.0f32,
+                                2 => 1.5,
+                                3 => 1.25,
+                                _ => 1.0,
+                            };
+                            format!(" font-size=\"{}\"", TEXT_FONT_SIZE * scale)
+                        } else {
+                            String::new()
+                        };
+                        let font_weight = if s.bold { " font-weight=\"bold\"" } else { "" };
+                        let font_style = if s.italic {
+                            " font-style=\"italic\""
+                        } else {
+                            ""
+                        };
+                        let text_deco = if s.strikethrough {
+                            " text-decoration=\"line-through\""
+                        } else if s.link_dest.is_some() {
+                            " text-decoration=\"underline\""
+                        } else {
+                            ""
+                        };
+                        format!("{font_size}{font_weight}{font_style}{text_deco}")
+                    })
+                    .unwrap_or_default();
+
+                // Emit a background rect before code spans.
+                if span.md_style.as_ref().is_some_and(|s| s.code) {
+                    let rect_y = text_y - span.height;
+                    let rect_w = span.width;
+                    let rect_h = span.height;
+                    write!(
+                        content_buffer,
+                        "<rect x=\"{text_x}\" y=\"{rect_y}\" width=\"{rect_w}\" \
+                            height=\"{rect_h}\" class=\"md-code-bg\" />",
+                    )
+                    .unwrap();
+                }
+
                 // zero stroke-width because we want the tailwind classes from `<g>` to
                 // apply to the `<path>`, but not to the `<text>`
                 write!(
                     content_buffer,
-                    "<text \
-                        x=\"{text_x}\" \
-                        y=\"{text_y}\" \
-                        stroke-width=\"0\" \
-                    >{text_content}</text>"
+                    "<text x=\"{text_x}\" y=\"{text_y}\" stroke-width=\"0\"{style_attrs}>\
+                        {text_content}</text>",
                 )
                 .unwrap();
             });
 
+            // Add image elements for inline images
+            Self::render_node_images(content_buffer, svg_node_info);
+
             // Close group element
             content_buffer.push_str("</g>");
+        });
+    }
+
+    /// Writes inline image elements for a node to the SVG content buffer.
+    fn render_node_images(content_buffer: &mut String, svg_node_info: &SvgNodeInfo<'_>) {
+        svg_node_info.image_spans.iter().for_each(|span| {
+            let x = span.x;
+            let y = span.y;
+            let w = span.width;
+            let h = span.height;
+            let src = &span.src;
+            let alt = StringXmlEscaper::escape(&span.alt);
+            write!(
+                content_buffer,
+                "<image x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" \
+                    href=\"{src}\" alt=\"{alt}\" />",
+            )
+            .unwrap();
         });
     }
 

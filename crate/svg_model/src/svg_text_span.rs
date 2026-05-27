@@ -13,6 +13,10 @@ pub struct SvgTextSpan {
     pub x: f32,
     /// Y coordinate for the text element.
     pub y: f32,
+    /// Width of the span in pixels. Used to size the code-background `<rect>`.
+    ///
+    /// Set to `0.0` for spans created via [`SvgTextSpan::new`].
+    pub width: f32,
     /// Height of the span in pixels (equals `effective_line_height` for the
     /// heading scale). Used to size the code-background `<rect>`.
     ///
@@ -43,6 +47,7 @@ impl SvgTextSpan {
         Self {
             x,
             y,
+            width: 0.0,
             height: 0.0,
             text,
             md_style: None,
@@ -64,13 +69,15 @@ impl SvgTextSpan {
     ///     heading_level: 0,
     ///     link_dest: None,
     /// };
-    /// let span = SvgTextSpan::new_styled(1.0, 2.0, 17.0, "hello".to_string(), Some(style));
+    /// let span = SvgTextSpan::new_styled(1.0, 2.0, 50.0, 17.0, "hello".to_string(), Some(style));
+    /// assert_eq!(span.width, 50.0);
     /// assert_eq!(span.height, 17.0);
     /// assert!(span.md_style.is_some());
     /// ```
     pub fn new_styled(
         x: f32,
         y: f32,
+        width: f32,
         height: f32,
         text: String,
         md_style: Option<SvgMdStyle>,
@@ -78,6 +85,7 @@ impl SvgTextSpan {
         Self {
             x,
             y,
+            width,
             height,
             text,
             md_style,
