@@ -165,13 +165,13 @@ impl MdSpansComputer {
 
                         // Collect consecutive tokens on the same line with the same style.
                         while j < line_items.len() {
-                            if let TaffyNodeCtx::MdToken(next_ctx) = &line_items[j].ctx {
-                                if next_ctx.md_style == run_style {
-                                    run_texts.push(next_ctx.text.clone());
-                                    run_width += line_items[j].layout_width;
-                                    j += 1;
-                                    continue;
-                                }
+                            if let TaffyNodeCtx::MdToken(next_ctx) = &line_items[j].ctx
+                                && next_ctx.md_style == run_style
+                            {
+                                run_texts.push(next_ctx.text.clone());
+                                run_width += line_items[j].layout_width;
+                                j += 1;
+                                continue;
                             }
                             break;
                         }
