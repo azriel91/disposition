@@ -1,8 +1,9 @@
 use disposition_taffy_model::{
-    taffy::{self, AlignItems, Display, FlexDirection, FlexWrap, Size, Style, TaffyTree},
     MdBlockTaffyIds, MdImageCtx, MdNodeTaffyIds, MdTokenCtx, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
-use taffy::LengthPercentage;
+use taffy::{
+    self, AlignItems, Display, FlexDirection, FlexWrap, LengthPercentage, Size, Style, TaffyTree,
+};
 
 use crate::md_text::{
     md_blocks_parser::{MdBlock, MdTokenItem},
@@ -166,6 +167,11 @@ impl MdNodeBuilder {
             display: Display::Flex,
             flex_direction: FlexDirection::Row,
             flex_wrap: FlexWrap::Wrap,
+            // TODO: This should be correct, but when it is set, text items around an image are:
+            // * pushed to the next line
+            // * bunched together instead of to the left and right of the image.
+            //
+            // align_items: Some(AlignItems::End),
             gap: Size {
                 // Round to the nearest integer pixel so that gap * n_gaps is always an exact
                 // integer. This makes every term in taffy's flex-wrap line-length comparison an
