@@ -40,6 +40,7 @@ Rust SVG diagram generation library with a dioxus web frontend.
 7. See `<@doc/src/taffy_node_hierarchy.md>` for how the `taffy` layout node tree is structured -- covers inbuilt containers, rank containers, leaf and container diagram nodes (rect and circle shapes), taffy node styles, and `TaffyNodeCtx` variants.
 8. See `<@doc/src/edge_spacers.md>` for how edge spacer taffy nodes are inserted to help route edges around diagram nodes -- covers same-level cross-rank spacers and cross-container spacers, including the `EdgeSpacerBuildDecider` decision logic and insertion-index accounting.
 9. See `<@doc/src/edge_description_containers_plan.md>` for the step-by-step plan to render edge descriptions as container nodes interleaved between rank containers.
+10. See `<@doc/src/md_node_content_plan.md>` for the step-by-step plan to render node and edge description text as syntax-highlighted markdown with inline images.
 
 
 ## Tests

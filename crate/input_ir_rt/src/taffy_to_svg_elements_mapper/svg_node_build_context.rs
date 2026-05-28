@@ -1,7 +1,7 @@
 use disposition_ir_model::{node::NodeId, IrDiagram};
 use disposition_model_common::Map;
 use disposition_svg_model::SvgProcessInfo;
-use disposition_taffy_model::{EntityHighlightedSpans, TaffyNodeCtx};
+use disposition_taffy_model::{EntityHighlightedSpans, MdImageSpan, TaffyNodeCtx};
 use taffy::TaffyTree;
 
 use disposition_ir_model::node::NodeShape;
@@ -30,6 +30,9 @@ pub(super) struct SvgNodeInfoBuildContext<'ctx, 'id> {
     pub(super) taffy_tree: &'ctx TaffyTree<TaffyNodeCtx>,
     /// Holds the spans of text for each node.
     pub(super) entity_highlighted_spans: &'ctx EntityHighlightedSpans<'id>,
+    /// Inline image spans for markdown nodes. Absent for nodes without inline
+    /// images.
+    pub(super) entity_image_spans: &'ctx Map<NodeId<'id>, Vec<MdImageSpan>>,
     /// Default shape to when rendering a node.
     pub(super) default_shape: &'ctx NodeShape,
     /// Heights of all process steps for each process.

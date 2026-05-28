@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use disposition_ir_model::node::{NodeId, NodeRank};
 use serde::{Deserialize, Serialize};
 
-use crate::{SvgNodeInfoCircle, SvgTextSpan};
+use crate::{SvgImageSpan, SvgNodeInfoCircle, SvgTextSpan};
 
 /// Information to render SVG elements for a node.
 ///
@@ -68,6 +68,8 @@ pub struct SvgNodeInfo<'id> {
     pub process_id: Option<NodeId<'id>>,
     /// Text spans to render within this node.
     pub text_spans: Vec<SvgTextSpan>,
+    /// Inline image spans for nodes containing markdown images.
+    pub image_spans: Vec<SvgImageSpan>,
     /// Circle shape information, if this node has a circle shape.
     ///
     /// When present, the node's background `<path>` should have its
@@ -122,6 +124,7 @@ impl<'id> SvgNodeInfo<'id> {
             path_d_collapsed,
             process_id,
             text_spans,
+            image_spans: Vec::new(),
             circle: None,
             wrapper_tailwind_classes: None,
             tooltip,
@@ -163,6 +166,7 @@ impl<'id> SvgNodeInfo<'id> {
             path_d_collapsed,
             process_id,
             text_spans,
+            image_spans: Vec::new(),
             circle: Some(circle),
             wrapper_tailwind_classes: Some(Cow::Borrowed(
                 "[fill-opacity:0.0] [stroke-opacity:0.0]",

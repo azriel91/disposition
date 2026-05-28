@@ -8,12 +8,14 @@ use disposition_ir_model::{
 use disposition_model_common::{edge::EdgeDescs, Map};
 use disposition_taffy_model::{
     taffy::{self, AlignSelf, Style, TaffyTree},
-    EdgeDescriptionCtx, EdgeDescriptionTaffyNodes, TaffyNodeCtx,
+    DiagramLod, EdgeDescriptionCtx, EdgeDescriptionTaffyNodes, TaffyNodeCtx,
 };
 
 use crate::EdgeIdGenerator;
 
-use super::edge_spacer_builder::LcaDepthCalculator;
+use crate::md_text::md_blocks_parser::MdBlocksParser;
+
+use super::{edge_spacer_builder::LcaDepthCalculator, md_node_builder::MdNodeBuilder};
 
 use self::{
     edge_id_and_taffy_description_node::EdgeIdAndTaffyDescriptionNode,
@@ -45,6 +47,9 @@ impl EdgeDescriptionBuilder {
     /// One container node is created per insertion position, holding all
     /// description leaf nodes for edges at that position. Positions with no
     /// described edges produce no container.
+    ///
+    /// At `DiagramLod::Normal`, the single description leaf is replaced by an
+    /// `md_content_node` sub-tree built via `MdNodeBuilder`.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
@@ -56,6 +61,8 @@ impl EdgeDescriptionBuilder {
         target_entity_type: &EntityType,
         lca_node_id: Option<&NodeId<'static>>,
         rank_container_style: &Style,
+        lod: &DiagramLod,
+        char_width: f32,
     ) -> EdgeDescriptionBuildResult {
         let mut edge_description_taffy_nodes: Map<EdgeId<'static>, EdgeDescriptionTaffyNodes> =
             Map::new();
@@ -81,19 +88,24 @@ impl EdgeDescriptionBuilder {
                 .for_each(|(edge_index, edge)| {
                     let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
 
-                    if let Some((position, sort_key, description_taffy_node_id)) =
-                        Self::edge_desc_build(
-                            taffy_tree,
-                            edge_descs,
-                            &edge_id,
-                            edge,
-                            node_nesting_infos,
-                            node_ranks_nested,
-                            entity_types,
-                            target_entity_type,
-                            lca_node_id,
-                        )
-                    {
+                    if let Some((
+                        position,
+                        sort_key,
+                        description_taffy_node_id,
+                        md_node_taffy_ids,
+                    )) = Self::edge_desc_build(
+                        taffy_tree,
+                        edge_descs,
+                        &edge_id,
+                        edge,
+                        node_nesting_infos,
+                        node_ranks_nested,
+                        entity_types,
+                        target_entity_type,
+                        lca_node_id,
+                        lod,
+                        char_width,
+                    ) {
                         position_to_sorted_descriptions
                             .entry(position)
                             .or_default()
@@ -102,6 +114,7 @@ impl EdgeDescriptionBuilder {
                                 EdgeIdAndTaffyDescriptionNode {
                                     edge_id,
                                     description_taffy_node_id,
+                                    md_node_taffy_ids,
                                 },
                             );
                     }
@@ -128,6 +141,7 @@ impl EdgeDescriptionBuilder {
                 for EdgeIdAndTaffyDescriptionNode {
                     edge_id,
                     description_taffy_node_id,
+                    md_node_taffy_ids,
                 } in description_nodes
                 {
                     edge_description_taffy_nodes.insert(
@@ -135,6 +149,7 @@ impl EdgeDescriptionBuilder {
                         EdgeDescriptionTaffyNodes {
                             container_taffy_node_id,
                             description_taffy_node_id,
+                            md_node_taffy_ids,
                         },
                     );
                 }
@@ -149,7 +164,8 @@ impl EdgeDescriptionBuilder {
         }
     }
 
-    /// Builds the description leaf taffy node for a single edge, if applicable.
+    /// Builds the description leaf or markdown sub-tree taffy nodes for a
+    /// single edge, if applicable.
     ///
     /// Applies the following filters in order:
     ///
@@ -160,13 +176,16 @@ impl EdgeDescriptionBuilder {
     /// 4. Both divergent ancestors must match `target_entity_type`.
     /// 5. The edge's LCA must match the `lca_node_id` filter.
     ///
-    /// On success returns `(position, sort_key, description_taffy_node_id)`
-    /// where:
+    /// On success returns `(position, sort_key, description_taffy_node_id,
+    /// md_node_taffy_ids)` where:
     /// - `position` -- `None` = before all rank containers; `Some(rank)` =
     ///   after rank_container[rank].
     /// - `sort_key` -- [`MiddleSiblingNodeIndexAndEdgeId`] for deterministic
     ///   ordering at the same position.
-    /// - `description_taffy_node_id` -- the newly created leaf node.
+    /// - `description_taffy_node_id` -- the newly created leaf node (simple
+    ///   path) or `md_content_node` container (markdown path).
+    /// - `md_node_taffy_ids` -- populated at `DiagramLod::Normal` with the
+    ///   markdown sub-tree IDs.
     ///
     /// The shared container node is created later in `build` once all leaves
     /// at the same position have been collected.
@@ -181,9 +200,16 @@ impl EdgeDescriptionBuilder {
         entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
         lca_node_id: Option<&NodeId<'static>>,
-    ) -> Option<(Option<NodeRank>, SiblingIndexMiddleAndEdgeId, taffy::NodeId)> {
+        lod: &DiagramLod,
+        char_width: f32,
+    ) -> Option<(
+        Option<NodeRank>,
+        SiblingIndexMiddleAndEdgeId,
+        taffy::NodeId,
+        Option<disposition_taffy_model::MdNodeTaffyIds>,
+    )> {
         // Step 2.2.1 -- Filter by edge_descs.
-        edge_descs.get(edge_id.as_ref())?;
+        let desc_text = edge_descs.get(edge_id.as_ref())?;
 
         // Step 2.2.2 -- Resolve nesting infos.
         let info_from = node_nesting_infos.get(&edge.from)?;
@@ -267,22 +293,42 @@ impl EdgeDescriptionBuilder {
             edge_id: edge_id.as_str().to_string(),
         };
 
-        // Step 2.2.9 -- Create the description leaf node.
-        let description_style = Style {
-            align_self: Some(AlignSelf::Stretch),
-            ..Default::default()
+        // Step 2.2.9 -- Create the description leaf or markdown sub-tree.
+        let (description_taffy_node_id, md_node_taffy_ids) = match lod {
+            DiagramLod::Simple => {
+                // Legacy path: single leaf with EdgeDescription context.
+                let description_style = Style {
+                    align_self: Some(AlignSelf::Stretch),
+                    ..Default::default()
+                };
+
+                let description_taffy_node_id = taffy_tree
+                    .new_leaf_with_context(
+                        description_style,
+                        TaffyNodeCtx::EdgeDescription(EdgeDescriptionCtx {
+                            edge_id: edge_id.clone(),
+                        }),
+                    )
+                    .expect("Expected to create edge description leaf node.");
+
+                (description_taffy_node_id, None)
+            }
+            DiagramLod::Normal => {
+                // Markdown path: parse markdown and build token sub-tree.
+                let blocks = MdBlocksParser::parse(desc_text);
+                let md_node_taffy_ids = MdNodeBuilder::build(taffy_tree, &blocks, char_width);
+                let description_taffy_node_id = md_node_taffy_ids.content_node_id;
+
+                (description_taffy_node_id, Some(md_node_taffy_ids))
+            }
         };
 
-        let description_taffy_node_id = taffy_tree
-            .new_leaf_with_context(
-                description_style,
-                TaffyNodeCtx::EdgeDescription(EdgeDescriptionCtx {
-                    edge_id: edge_id.clone(),
-                }),
-            )
-            .expect("Expected to create edge description leaf node.");
-
-        Some((position, sort_key, description_taffy_node_id))
+        Some((
+            position,
+            sort_key,
+            description_taffy_node_id,
+            md_node_taffy_ids,
+        ))
     }
 }
 

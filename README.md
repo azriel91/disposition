@@ -35,7 +35,8 @@ Playground: <https://azriel.im/disposition>.
 * [x] Dependencies between process steps.
 * [x] Tooltips.
 * [x] Edge descriptions.
-* [ ] Images in nodes.
+* [x] Markdown node and edge descriptions.
+* [x] Images in nodes.
 * [ ] Responsive layout.
 
 </details>

@@ -7,7 +7,7 @@ use taffy::TaffyTree;
 
 use crate::{
     EdgeDescriptionTaffyNodes, EdgeLabelTaffyNodeIds, EdgeSpacerTaffyNodes, EntityHighlightedSpan,
-    EntityHighlightedSpans, NodeToTaffyNodeIds, TaffyNodeCtx,
+    EntityHighlightedSpans, MdImageSpan, MdNodeTaffyIds, NodeToTaffyNodeIds, TaffyNodeCtx,
 };
 
 /// The taffy tree and mappings from each IR node ID to its `taffy` node ID.
@@ -66,6 +66,21 @@ pub struct TaffyNodeMappings<'id> {
     /// `NodeToTaffyNodeIds`) to avoid churn in all existing code that reads
     /// `node_id_to_taffy`.
     pub node_id_to_envelope_taffy_node: Map<NodeId<'id>, taffy::NodeId>,
+    /// Per-token taffy node IDs for diagram nodes that use the markdown
+    /// content path (`DiagramLod::Normal` with a description).
+    ///
+    /// Keyed by diagram `NodeId`. Absent for nodes that use the legacy
+    /// single-leaf text path.
+    pub md_node_taffy_ids: Map<NodeId<'id>, MdNodeTaffyIds>,
+    /// Inline image spans computed after taffy layout for markdown nodes.
+    ///
+    /// Keyed by diagram `NodeId`. Absent for nodes without inline images.
+    pub entity_image_spans: Map<NodeId<'id>, Vec<MdImageSpan>>,
+    /// Inline image spans for edge descriptions that used the markdown path.
+    ///
+    /// Keyed by `EdgeId`. Absent for edges using the legacy single-leaf path
+    /// or edges without inline images.
+    pub edge_description_image_spans: Map<EdgeId<'id>, Vec<MdImageSpan>>,
 }
 
 impl<'id> PartialEq for TaffyNodeMappings<'id> {
@@ -85,6 +100,9 @@ impl<'id> PartialEq for TaffyNodeMappings<'id> {
             && self.edge_description_taffy_nodes == other.edge_description_taffy_nodes
             && self.edge_description_highlighted_spans == other.edge_description_highlighted_spans
             && self.node_id_to_envelope_taffy_node == other.node_id_to_envelope_taffy_node
+            && self.md_node_taffy_ids == other.md_node_taffy_ids
+            && self.entity_image_spans == other.entity_image_spans
+            && self.edge_description_image_spans == other.edge_description_image_spans
     }
 }
 

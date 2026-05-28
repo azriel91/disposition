@@ -1,8 +1,10 @@
 use crate::string_xml_escaper::StringXmlEscaper;
 use disposition_ir_model::{node::NodeId, IrDiagram};
 use disposition_model_common::{entity::EntityType, Map};
-use disposition_svg_model::{SvgNodeInfo, SvgNodeInfoCircle, SvgProcessInfo, SvgTextSpan};
-use disposition_taffy_model::{NodeToTaffyNodeIds, TaffyNodeCtx};
+use disposition_svg_model::{
+    SvgImageSpan, SvgMdStyle, SvgNodeInfo, SvgNodeInfoCircle, SvgProcessInfo, SvgTextSpan,
+};
+use disposition_taffy_model::{MdStyle, NodeToTaffyNodeIds, TaffyNodeCtx};
 use taffy::TaffyTree;
 
 use disposition_ir_model::{entity::EntityTailwindClasses, node::NodeShape};
@@ -29,6 +31,7 @@ impl SvgNodeInfoBuilder {
             ir_diagram,
             taffy_tree,
             entity_highlighted_spans,
+            entity_image_spans,
             default_shape,
             process_steps_heights,
             svg_process_infos,
@@ -118,8 +121,31 @@ impl SvgNodeInfoBuilder {
             .map(|spans| {
                 spans
                     .iter()
-                    .map(|span| {
-                        SvgTextSpan::new(span.x, span.y, StringXmlEscaper::escape(&span.text))
+                    .map(|span| SvgTextSpan {
+                        x: span.x,
+                        y: span.y,
+                        width: span.width,
+                        height: span.height,
+                        text: StringXmlEscaper::escape(&span.text),
+                        md_style: span.md_style.as_ref().map(svg_md_style_from),
+                        tailwind_classes: span.tailwind_classes.clone(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let image_spans: Vec<SvgImageSpan> = entity_image_spans
+            .get(node_id.as_ref())
+            .map(|spans| {
+                spans
+                    .iter()
+                    .map(|s| SvgImageSpan {
+                        x: s.x,
+                        y: s.y,
+                        width: s.width,
+                        height: s.height,
+                        src: s.src.clone(),
+                        alt: s.alt.clone(),
                     })
                     .collect()
             })
@@ -163,7 +189,7 @@ impl SvgNodeInfoBuilder {
             .cloned()
             .unwrap_or_default();
 
-        if let Some(circle) = circle_info {
+        let mut svg_node_info = if let Some(circle) = circle_info {
             SvgNodeInfo::with_circle(
                 node_id.clone(),
                 node_rank,
@@ -200,7 +226,9 @@ impl SvgNodeInfoBuilder {
                 text_spans,
                 tooltip,
             )
-        }
+        };
+        svg_node_info.image_spans = image_spans;
+        svg_node_info
     }
 
     /// Calculates the absolute x and y coordinates of a node.
@@ -325,5 +353,18 @@ impl SvgNodeInfoBuilder {
         } else {
             None
         }
+    }
+}
+
+/// Converts a [`MdStyle`] from the taffy model to a [`SvgMdStyle`] for the
+/// SVG model.
+pub(super) fn svg_md_style_from(md_style: &MdStyle) -> SvgMdStyle {
+    SvgMdStyle {
+        bold: md_style.bold,
+        italic: md_style.italic,
+        strikethrough: md_style.strikethrough,
+        code: md_style.code,
+        heading_level: md_style.heading_level.map(|h| h as u8 + 1).unwrap_or(0),
+        link_dest: md_style.link_dest.clone(),
     }
 }

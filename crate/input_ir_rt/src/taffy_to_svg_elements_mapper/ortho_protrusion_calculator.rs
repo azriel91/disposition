@@ -20,9 +20,8 @@ use super::svg_edge_infos_builder::{EdgeGroupPass1, EdgePass1Info};
 ///
 /// # Example values
 ///
-/// `0.48` -- each side (from and to) may use up to 48% of the gap,
-/// leaving at least 4% for the horizontal routing segment in between.
-const MAX_GAP_FRACTION: f32 = 0.48;
+/// `0.6` -- each side (from and to) may use up to 60% of the gap.
+const MAX_GAP_FRACTION: f32 = 0.6;
 
 /// Minimum protrusion length in pixels.
 ///

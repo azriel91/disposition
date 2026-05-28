@@ -16,6 +16,37 @@ positioning and face-offset calculations (see `edge_paths.md` -- Offset
 Calculation).  They always measure as zero size and carry no rendered text.
 
 
+## Text Measurement and Markdown Rendering
+
+Edge description text measurement and rendering follows one of two paths
+depending on the diagram level of detail:
+
+### DiagramLod::Simple
+
+At `DiagramLod::Simple`, each edge description is rendered as a single taffy
+leaf node with `TaffyNodeCtx::EdgeDescription` context. The leaf is measured
+using the description text as plain text (no markdown parsing), and spans are
+computed by `HighlightedSpansComputer::compute_edge_desc_containers` after
+layout.
+
+### DiagramLod::Normal
+
+At `DiagramLod::Normal`, the single description leaf is replaced by an
+`md_content_node` sub-tree built via `MdNodeBuilder`. The markdown text is
+parsed by `MdBlocksParser` into `MdBlock` structures, which are then converted
+into a flex sub-tree with per-token and per-image leaves.
+
+After layout, `MdSpansComputer::compute_edge_descs` processes these sub-trees
+to merge adjacent word leaves on the same visual line into consolidated text
+spans with markdown styling (bold, italic, code, headings, links) and converts
+image leaves into `MdImageSpan` values.
+
+The results are stored in `TaffyNodeMappings::edge_description_highlighted_spans`
+and `TaffyNodeMappings::edge_description_image_spans`, then mapped to
+`SvgTextSpan` and `SvgImageSpan` values by `SvgEdgeDescriptionsBuilder::build`
+for final SVG rendering.
+
+
 ## Edge ID Format
 
 Edge IDs are generated in the form:
