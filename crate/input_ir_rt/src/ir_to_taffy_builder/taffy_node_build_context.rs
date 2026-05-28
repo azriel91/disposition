@@ -15,7 +15,7 @@ use disposition_taffy_model::{
         self, style::FlexDirection, AlignContent, AlignItems, AvailableSpace, Display, FlexWrap,
         Size, Style, TaffyTree,
     },
-    DiagramLod, MdHeadingLevel, MdNodeTaffyIds, NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    DiagramLod, MdNodeTaffyIds, NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 use taffy::{LengthPercentage, LengthPercentageAuto, Rect};
 
@@ -188,13 +188,8 @@ impl NodeMeasureContext<'_> {
                 None
             }
         }) {
-            let font_scale = ctx
-                .md_style
-                .heading_level
-                .map(MdHeadingLevel::font_scale)
-                .unwrap_or(1.0);
-            let effective_char_width = *char_width * font_scale;
-            let effective_line_height = TEXT_LINE_HEIGHT * font_scale;
+            let effective_char_width = *char_width;
+            let effective_line_height = TEXT_LINE_HEIGHT;
             let width = line_width_measure(&ctx.text, effective_char_width);
             return Size {
                 width,
