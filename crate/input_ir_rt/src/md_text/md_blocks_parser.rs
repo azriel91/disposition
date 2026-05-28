@@ -270,11 +270,9 @@ impl MdBlocksParser {
                         }
                     }
                 }
-                Event::SoftBreak => {
-                    if image_state.is_none() {
-                        if let Some(block) = current_block.as_mut() {
-                            block.tokens.push(MdTokenItem::LineBreak);
-                        }
+                Event::HardBreak => {
+                    if let Some(block) = current_block.as_mut() {
+                        block.tokens.push(MdTokenItem::LineBreak);
                     }
                 }
                 _ => {}

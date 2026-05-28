@@ -4,14 +4,18 @@
 ///
 /// ```text
 /// MdBlockTaffyIds {
-///     block_row_node_id: NodeId(5),
+///     block_col_node_id: NodeId(5),
 ///     token_node_ids: vec![NodeId(6), NodeId(7)],
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct MdBlockTaffyIds {
-    /// The flex-row-wrap container node for this block.
-    pub block_row_node_id: taffy::NodeId,
+    /// The flex-column container node for this block.
+    ///
+    /// Contains one flex-row-wrap `line_row_node` per logical line, split at
+    /// `LineBreak` token boundaries. For blocks with no `LineBreak` tokens this
+    /// holds a single `line_row_node`.
+    pub block_col_node_id: taffy::NodeId,
     /// Ordered leaf node IDs for each token or image in this block.
     ///
     /// Each ID corresponds to either a `TaffyNodeCtx::MdToken` leaf or a
