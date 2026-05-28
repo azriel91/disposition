@@ -18,16 +18,16 @@ impl MdNodeBuilder {
     /// Returns the `MdNodeTaffyIds` describing the full sub-tree.
     pub(crate) fn build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
-        blocks: &[MdBlock],
+        md_blocks: &[MdBlock],
         char_width: f32,
     ) -> MdNodeTaffyIds {
-        let mut block_taffy_ids = Vec::with_capacity(blocks.len());
+        let mut md_block_taffy_ids_list = Vec::with_capacity(md_blocks.len());
 
-        for block in blocks {
-            let mut token_node_ids = Vec::with_capacity(block.tokens.len());
+        for md_block in md_blocks {
+            let mut md_token_taffy_node_ids = Vec::with_capacity(md_block.tokens.len());
 
-            for token in &block.tokens {
-                let leaf_id = match token {
+            for md_token_item in &md_block.tokens {
+                let md_token_taffy_node_id = match md_token_item {
                     MdTokenItem::Word { text, md_style } => taffy_tree
                         .new_leaf_with_context(
                             Style::default(),
@@ -38,7 +38,7 @@ impl MdNodeBuilder {
                         )
                         .expect("Expected to create MdToken leaf"),
                     MdTokenItem::Image { src, alt, .. } => {
-                        let (width, height) = MdImageSizer::compute_size(token);
+                        let (width, height) = MdImageSizer::compute_size(md_token_item);
                         taffy_tree
                             .new_leaf_with_context(
                                 Style {
@@ -71,7 +71,7 @@ impl MdNodeBuilder {
                             .expect("Expected to create LineBreak leaf")
                     }
                 };
-                token_node_ids.push(leaf_id);
+                md_token_taffy_node_ids.push(md_token_taffy_node_id);
             }
 
             let block_row_style = Style {
@@ -89,12 +89,12 @@ impl MdNodeBuilder {
                 ..Default::default()
             };
             let block_row_node_id = taffy_tree
-                .new_with_children(block_row_style, &token_node_ids)
+                .new_with_children(block_row_style, &md_token_taffy_node_ids)
                 .expect("Expected to create block_row_node");
 
-            block_taffy_ids.push(MdBlockTaffyIds {
+            md_block_taffy_ids_list.push(MdBlockTaffyIds {
                 block_row_node_id,
-                token_node_ids,
+                token_node_ids: md_token_taffy_node_ids,
             });
         }
 
@@ -109,9 +109,9 @@ impl MdNodeBuilder {
             },
             ..Default::default()
         };
-        let block_row_node_ids: Vec<taffy::NodeId> = block_taffy_ids
+        let block_row_node_ids: Vec<taffy::NodeId> = md_block_taffy_ids_list
             .iter()
-            .map(|b| b.block_row_node_id)
+            .map(|md_block_taffy_ids| md_block_taffy_ids.block_row_node_id)
             .collect();
         let content_node_id = taffy_tree
             .new_with_children(content_node_style, &block_row_node_ids)
@@ -119,7 +119,7 @@ impl MdNodeBuilder {
 
         MdNodeTaffyIds {
             content_node_id,
-            block_taffy_ids,
+            block_taffy_ids: md_block_taffy_ids_list,
         }
     }
 }
