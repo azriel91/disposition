@@ -171,12 +171,15 @@ impl MdBlocksParser {
                     style_stack.link_dest = None;
                 }
                 Event::Code(text) => {
+                    let heading_level = current_block
+                        .as_ref()
+                        .and_then(|current_block| current_block.heading_level);
                     let md_style = MdStyle {
                         code: true,
                         bold: style_stack.bold_depth > 0,
                         italic: style_stack.italic_depth > 0,
                         strikethrough: style_stack.strikethrough_depth > 0,
-                        heading_level: current_block.as_ref().and_then(|b| b.heading_level),
+                        heading_level,
                         link_dest: style_stack.link_dest.clone(),
                     };
                     if let Some(block) = current_block.as_mut() {
@@ -198,12 +201,15 @@ impl MdBlocksParser {
                     if let Some(state) = image_state.as_mut() {
                         state.alt_buffer.push_str(&text);
                     } else {
+                        let heading_level = current_block
+                            .as_ref()
+                            .and_then(|current_block| current_block.heading_level);
                         let md_style = MdStyle {
                             bold: style_stack.bold_depth > 0,
                             italic: style_stack.italic_depth > 0,
                             strikethrough: style_stack.strikethrough_depth > 0,
                             code: false,
-                            heading_level: current_block.as_ref().and_then(|b| b.heading_level),
+                            heading_level,
                             link_dest: style_stack.link_dest.clone(),
                         };
                         if let Some(block) = current_block.as_mut() {
