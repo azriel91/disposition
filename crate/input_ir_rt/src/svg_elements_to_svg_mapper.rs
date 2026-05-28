@@ -384,12 +384,12 @@ impl SvgElementsToSvgMapper {
             let path_d = &svg_node_info.path_d_collapsed;
 
             let class_attr = {
-                let tailwind_classes = tailwind_classes
+                let node_tailwind_classes = tailwind_classes
                     .get(node_id.as_ref())
-                    .cloned()
+                    .map(|node_tailwind_classes| node_tailwind_classes.as_str())
                     .unwrap_or_default();
 
-                Self::class_attr_escaped(tailwind_classes)
+                Self::class_attr_escaped(node_tailwind_classes)
             };
 
             // Start group element with id, tabindex, and optional class
@@ -442,20 +442,24 @@ impl SvgElementsToSvgMapper {
     /// - Inline images
     fn render_text_and_images(
         content_buffer: &mut String,
-        text_spans: &[disposition_svg_model::SvgTextSpan],
-        image_spans: &[disposition_svg_model::SvgImageSpan],
+        svg_text_spans: &[disposition_svg_model::SvgTextSpan],
+        svg_image_spans: &[disposition_svg_model::SvgImageSpan],
     ) {
         // Add text elements for styled spans
-        text_spans.iter().for_each(|span| {
-            let text_x = span.x;
-            let text_y = span.y;
-            let text_content = &span.text;
+        svg_text_spans.iter().for_each(|svg_text_span| {
+            let text_x = svg_text_span.x;
+            let text_y = svg_text_span.y;
+            let text_content = &svg_text_span.text;
 
             // Emit a background rect before code spans.
-            if span.md_style.as_ref().is_some_and(|s| s.code) {
-                let rect_y = text_y - span.height;
-                let rect_w = span.width;
-                let rect_h = span.height;
+            if svg_text_span
+                .md_style
+                .as_ref()
+                .is_some_and(|svg_md_style| svg_md_style.code)
+            {
+                let rect_y = text_y - svg_text_span.height;
+                let rect_w = svg_text_span.width;
+                let rect_h = svg_text_span.height;
                 write!(
                     content_buffer,
                     "<rect x=\"{text_x}\" y=\"{rect_y}\" width=\"{rect_w}\" \
@@ -465,7 +469,11 @@ impl SvgElementsToSvgMapper {
             }
 
             // Wrap in <a> element if this is a link
-            if let Some(link_dest) = span.md_style.as_ref().and_then(|s| s.link_dest.as_ref()) {
+            if let Some(link_dest) = svg_text_span
+                .md_style
+                .as_ref()
+                .and_then(|svg_md_style| svg_md_style.link_dest.as_ref())
+            {
                 write!(
                     content_buffer,
                     "<a href=\"{link_dest}\" target=\"_blank\" rel=\"noopener noreferrer\">",
@@ -474,8 +482,8 @@ impl SvgElementsToSvgMapper {
             }
 
             // Build class attribute from tailwind classes
-            let class_attr = if !span.tailwind_classes.is_empty() {
-                format!(" class=\"{}\"", span.tailwind_classes.join(" "))
+            let class_attr = if !svg_text_span.tailwind_classes.is_empty() {
+                format!(" class=\"{}\"", svg_text_span.tailwind_classes.join(" "))
             } else {
                 String::new()
             };
@@ -490,23 +498,23 @@ impl SvgElementsToSvgMapper {
             .unwrap();
 
             // Close <a> element if this was a link
-            if span
+            if svg_text_span
                 .md_style
                 .as_ref()
-                .is_some_and(|s| s.link_dest.is_some())
+                .is_some_and(|svg_md_style| svg_md_style.link_dest.is_some())
             {
                 write!(content_buffer, "</a>").unwrap();
             }
         });
 
         // Add image elements for inline images
-        image_spans.iter().for_each(|span| {
-            let x = span.x;
-            let y = span.y;
-            let w = span.width;
-            let h = span.height;
-            let src = &span.src;
-            let alt = StringXmlEscaper::escape(&span.alt);
+        svg_image_spans.iter().for_each(|svg_image_span| {
+            let x = svg_image_span.x;
+            let y = svg_image_span.y;
+            let w = svg_image_span.width;
+            let h = svg_image_span.height;
+            let src = &svg_image_span.src;
+            let alt = StringXmlEscaper::escape(&svg_image_span.alt);
             write!(
                 content_buffer,
                 "<image x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" \
@@ -550,12 +558,12 @@ impl SvgElementsToSvgMapper {
             // classes (edge group base + edge-specific overrides), so only
             // the edge ID needs to be looked up.
             let class_attr = {
-                let edge_classes = tailwind_classes
+                let edge_tailwind_classes = tailwind_classes
                     .get(edge_id.as_ref())
-                    .map(|s| s.as_str())
+                    .map(|edge_tailwind_classes| edge_tailwind_classes.as_str())
                     .unwrap_or("");
 
-                Self::class_attr_escaped(edge_classes.to_string())
+                Self::class_attr_escaped(edge_tailwind_classes)
             };
 
             // Build class attribute for the arrowhead element.
@@ -573,12 +581,12 @@ impl SvgElementsToSvgMapper {
                     .map(|s| s.as_str())
                     .unwrap_or("");
                 if extra.is_empty() {
-                    Self::class_attr_escaped("arrow_head".to_string())
+                    Self::class_attr_escaped("arrow_head")
                 } else {
-                    Self::class_attr_escaped(format!("arrow_head\n{extra}"))
+                    Self::class_attr_escaped(format!("arrow_head\n{extra}").as_str())
                 }
             } else {
-                Self::class_attr_escaped("arrow_head".to_string())
+                Self::class_attr_escaped("arrow_head")
             };
 
             // Render edge as a group with a path and an arrowhead path
@@ -653,11 +661,11 @@ impl SvgElementsToSvgMapper {
         edge_label_infos.iter().for_each(|svg_edge_label_info| {
             let edge_id = &svg_edge_label_info.edge_id;
             let class_attr = {
-                let edge_classes = tailwind_classes
+                let edge_tailwind_classes = tailwind_classes
                     .get(edge_id.as_ref())
                     .map(|s| s.as_str())
                     .unwrap_or("");
-                Self::class_attr_escaped(edge_classes.to_string())
+                Self::class_attr_escaped(edge_tailwind_classes)
             };
 
             if let Some(from_label) = &svg_edge_label_info.from_label
@@ -668,10 +676,10 @@ impl SvgElementsToSvgMapper {
                     "<g id=\"{edge_id}__from_label\"{class_attr}>"
                 )
                 .unwrap();
-                from_label.text_spans.iter().for_each(|span| {
-                    let text_x = span.x;
-                    let text_y = span.y;
-                    let text_content = &span.text;
+                from_label.text_spans.iter().for_each(|svg_text_span| {
+                    let text_x = svg_text_span.x;
+                    let text_y = svg_text_span.y;
+                    let text_content = &svg_text_span.text;
                     write!(
                         content_buffer,
                         "<text \
@@ -689,10 +697,10 @@ impl SvgElementsToSvgMapper {
                 && !to_label.text_spans.is_empty()
             {
                 write!(content_buffer, "<g id=\"{edge_id}__to_label\"{class_attr}>").unwrap();
-                to_label.text_spans.iter().for_each(|span| {
-                    let text_x = span.x;
-                    let text_y = span.y;
-                    let text_content = &span.text;
+                to_label.text_spans.iter().for_each(|svg_text_span| {
+                    let text_x = svg_text_span.x;
+                    let text_y = svg_text_span.y;
+                    let text_content = &svg_text_span.text;
                     write!(
                         content_buffer,
                         "<text \
@@ -725,29 +733,36 @@ impl SvgElementsToSvgMapper {
     ) {
         edge_description_infos
             .iter()
-            .filter(|info| !info.text_spans.is_empty() || !info.image_spans.is_empty())
-            .for_each(|info| {
-                let edge_id = &info.edge_id;
+            .filter(|svg_edge_description_info| {
+                !svg_edge_description_info.text_spans.is_empty()
+                    || !svg_edge_description_info.image_spans.is_empty()
+            })
+            .for_each(|svg_edge_description_info| {
+                let edge_id = &svg_edge_description_info.edge_id;
 
                 let class_attr = {
                     let edge_classes = tailwind_classes
                         .get(edge_id.as_ref())
-                        .map(|s| s.as_str())
+                        .map(|edge_tailwind_classes| edge_tailwind_classes.as_str())
                         .unwrap_or("");
-                    Self::class_attr_escaped(edge_classes.to_string())
+                    Self::class_attr_escaped(edge_classes)
                 };
 
                 write!(content_buffer, "<g id=\"{edge_id}__desc\" {class_attr}>").unwrap();
 
                 // Add text and image elements
-                Self::render_text_and_images(content_buffer, &info.text_spans, &info.image_spans);
+                Self::render_text_and_images(
+                    content_buffer,
+                    &svg_edge_description_info.text_spans,
+                    &svg_edge_description_info.image_spans,
+                );
 
                 content_buffer.push_str("</g>");
             });
     }
 
     /// Returns the `class=\"..\"` attribute with `&` escaped as `&amp;`.
-    fn class_attr_escaped(tailwind_classes: String) -> String {
+    fn class_attr_escaped(tailwind_classes: &str) -> String {
         if tailwind_classes.is_empty() {
             String::new()
         } else {
