@@ -181,16 +181,16 @@ impl NodeMeasureContext<'_> {
         } = self;
 
         // MdToken leaves are sized per-token using heading-level font scaling.
-        if let Some(ctx) = taffy_node_ctx.as_ref().and_then(|n| {
-            if let TaffyNodeCtx::MdToken(ctx) = n {
-                Some(ctx)
+        if let Some(md_token_ctx) = taffy_node_ctx.as_ref().and_then(|taffy_node_ctx| {
+            if let TaffyNodeCtx::MdToken(md_token_ctx) = taffy_node_ctx {
+                Some(md_token_ctx)
             } else {
                 None
             }
         }) {
             let effective_char_width = *char_width;
             let effective_line_height = TEXT_LINE_HEIGHT;
-            let width = line_width_measure(&ctx.text, effective_char_width);
+            let width = line_width_measure(&md_token_ctx.text, effective_char_width);
             return Size {
                 width,
                 height: effective_line_height,
