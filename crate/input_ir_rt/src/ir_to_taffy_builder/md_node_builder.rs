@@ -79,12 +79,10 @@ impl MdNodeBuilder {
                 flex_direction: FlexDirection::Row,
                 flex_wrap: FlexWrap::Wrap,
                 gap: Size {
-                    // Round to the nearest integer pixel so that gap * n_gaps
-                    // is always an exact integer.  Combined with the ceiled
-                    // token widths from the measure function, this makes every
-                    // term in taffy's flex-wrap line-length comparison an exact
-                    // f32 integer, preventing floating-point non-associativity
-                    // from pushing the last item onto the next line.
+                    // Round to the nearest integer pixel so that gap * n_gaps is always an exact
+                    // integer. This makes every term in taffy's flex-wrap line-length comparison an
+                    // exact f32 integer, preventing floating-point non-associativity from pushing
+                    // the last item onto the next line.
                     width: LengthPercentage::length(char_width.round()),
                     height: LengthPercentage::length(0.0),
                 },

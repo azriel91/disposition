@@ -190,13 +190,7 @@ impl NodeMeasureContext<'_> {
         }) {
             let effective_char_width = *char_width;
             let effective_line_height = TEXT_LINE_HEIGHT;
-            // Ceil to the nearest integer pixel so that the sum of token
-            // widths used by taffy's flex-wrap comparison matches the
-            // max-content width computation exactly.  Without this, f32
-            // non-associativity can cause the accumulated `line_length` to
-            // exceed `main_axis_available_space` by a fraction of a pixel,
-            // wrapping the last item (e.g. an image) to the next line.
-            let width = line_width_measure(&ctx.text, effective_char_width).ceil();
+            let width = line_width_measure(&ctx.text, effective_char_width);
             return Size {
                 width,
                 height: effective_line_height,
