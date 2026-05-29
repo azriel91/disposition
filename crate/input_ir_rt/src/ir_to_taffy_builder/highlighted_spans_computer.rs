@@ -129,7 +129,7 @@ impl HighlightedSpansComputer {
                     DiagramLod::Normal => {
                         let node_desc = thing_descs.get(entity_id).map(String::as_str);
                         match node_desc {
-                            Some(desc) => Cow::Owned(format!("# {node_name}\n\n{desc}")),
+                            Some(desc) => Cow::Owned(format!("{node_name}\n\n{desc}")),
                             None => Cow::Borrowed(node_name),
                         }
                     }

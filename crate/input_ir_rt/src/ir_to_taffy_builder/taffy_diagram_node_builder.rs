@@ -794,7 +794,7 @@ impl TaffyDiagramNodeBuilder {
                 .map(String::as_str)
                 .unwrap_or_else(|| node_id.as_str());
             if let Some(desc) = thing_descs.get(ir_node_id.as_ref()) {
-                let markdown = format!("# {node_name}\n\n{desc}");
+                let markdown = format!("{node_name}\n\n{desc}");
                 let blocks = MdBlocksParser::parse(&markdown);
                 let md_ids = MdNodeBuilder::build(taffy_tree, &blocks, char_width);
                 let text_node_id = taffy_tree

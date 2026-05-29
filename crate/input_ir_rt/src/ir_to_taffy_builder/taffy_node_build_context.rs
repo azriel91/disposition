@@ -218,7 +218,7 @@ impl NodeMeasureContext<'_> {
                             let node_desc = thing_descs.get(entity_id).map(String::as_str);
 
                             match node_desc {
-                                Some(desc) => Some(Cow::Owned(format!("# {node_name}\n\n{desc}"))),
+                                Some(desc) => Some(Cow::Owned(format!("{node_name}\n\n{desc}"))),
                                 None => Some(Cow::Borrowed(node_name)),
                             }
                         }
