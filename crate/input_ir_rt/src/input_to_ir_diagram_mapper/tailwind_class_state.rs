@@ -747,6 +747,12 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                 }
             }
         }
+
+        // Extra classes that the user has specified.
+        if let Some(extra_classes) = self.attrs.get(&ThemeAttr::Extra) {
+            classes.push_str(extra_classes.as_ref());
+            classes.push('\n');
+        }
     }
 
     /// Writes outline style classes for edge entities, which uses
