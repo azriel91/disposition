@@ -420,6 +420,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
             if diagram.things.is_empty()
                 && diagram.thing_dependencies.is_empty()
                 && diagram.thing_interactions.is_empty()
+                && diagram.processes.is_empty()
             {
                 return Err(vec![String::from("ℹ️ Add things to get started")]);
             }
