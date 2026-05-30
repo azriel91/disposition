@@ -13,9 +13,9 @@ use serde::{Deserialize, Serialize};
 /// ```rust
 /// use disposition_model_common::ProcessRenderCollapse;
 ///
-/// let collapse = ProcessRenderCollapse::Collapse;
-/// let expand_always = ProcessRenderCollapse::ExpandAlways;
 /// let expand_when_one = ProcessRenderCollapse::ExpandWhenOne;
+/// let expand_always = ProcessRenderCollapse::ExpandAlways;
+/// let collapse = ProcessRenderCollapse::Collapse;
 /// ```
 #[cfg_attr(
     all(feature = "schemars", not(feature = "test")),
@@ -24,14 +24,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProcessRenderCollapse {
-    /// Processes are rendered collapsed, expanding only when focused.
-    Collapse,
-    /// Processes are always rendered fully expanded.
-    ExpandAlways,
     /// Processes are rendered expanded when there is only a single process in
     /// the diagram, and collapsed otherwise.
     #[default]
     ExpandWhenOne,
+    /// Processes are always rendered fully expanded.
+    ExpandAlways,
+    /// Processes are rendered collapsed, expanding only when focused.
+    Collapse,
 }
 
 impl ProcessRenderCollapse {
@@ -43,14 +43,14 @@ impl ProcessRenderCollapse {
     /// Returns whether processes should be rendered fully expanded, given the
     /// number of processes in the diagram.
     ///
-    /// * `Collapse`: never expanded.
-    /// * `ExpandAlways`: always expanded.
     /// * `ExpandWhenOne`: expanded when there is at most one process.
+    /// * `ExpandAlways`: always expanded.
+    /// * `Collapse`: never expanded.
     pub fn process_render_expanded(&self, process_count: usize) -> bool {
         match self {
-            ProcessRenderCollapse::Collapse => false,
-            ProcessRenderCollapse::ExpandAlways => true,
             ProcessRenderCollapse::ExpandWhenOne => process_count <= 1,
+            ProcessRenderCollapse::ExpandAlways => true,
+            ProcessRenderCollapse::Collapse => false,
         }
     }
 }
@@ -60,9 +60,9 @@ impl FromStr for ProcessRenderCollapse {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "collapse" => Ok(ProcessRenderCollapse::Collapse),
-            "expand_always" => Ok(ProcessRenderCollapse::ExpandAlways),
             "expand_when_one" => Ok(ProcessRenderCollapse::ExpandWhenOne),
+            "expand_always" => Ok(ProcessRenderCollapse::ExpandAlways),
+            "collapse" => Ok(ProcessRenderCollapse::Collapse),
             _ => Err(()),
         }
     }
@@ -71,9 +71,9 @@ impl FromStr for ProcessRenderCollapse {
 impl Display for ProcessRenderCollapse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ProcessRenderCollapse::Collapse => write!(f, "collapse"),
-            ProcessRenderCollapse::ExpandAlways => write!(f, "expand_always"),
             ProcessRenderCollapse::ExpandWhenOne => write!(f, "expand_when_one"),
+            ProcessRenderCollapse::ExpandAlways => write!(f, "expand_always"),
+            ProcessRenderCollapse::Collapse => write!(f, "collapse"),
         }
     }
 }

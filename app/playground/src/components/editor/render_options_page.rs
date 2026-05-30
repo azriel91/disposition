@@ -215,18 +215,18 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                             input {
                                 r#type: "radio",
                                 name: "process_render_collapse",
-                                value: "collapse",
-                                checked: process_render_collapse == ProcessRenderCollapse::Collapse,
+                                value: "expand_when_one",
+                                checked: process_render_collapse == ProcessRenderCollapse::ExpandWhenOne,
                                 onchange: move |_| {
                                     input_diagram.write().render_options.process_render_collapse =
-                                        ProcessRenderCollapse::Collapse;
+                                        ProcessRenderCollapse::ExpandWhenOne;
                                 },
                             }
-                            "Collapse"
+                            "Expand When One"
                         }
                         p {
                             class: "text-xs text-gray-500 pl-6",
-                            "Processes are collapsed, expanding to reveal their steps when focused."
+                            "Expanded when there is a single process, collapsed otherwise."
                         }
                     }
                     div {
@@ -257,18 +257,18 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                             input {
                                 r#type: "radio",
                                 name: "process_render_collapse",
-                                value: "expand_when_one",
-                                checked: process_render_collapse == ProcessRenderCollapse::ExpandWhenOne,
+                                value: "collapse",
+                                checked: process_render_collapse == ProcessRenderCollapse::Collapse,
                                 onchange: move |_| {
                                     input_diagram.write().render_options.process_render_collapse =
-                                        ProcessRenderCollapse::ExpandWhenOne;
+                                        ProcessRenderCollapse::Collapse;
                                 },
                             }
-                            "Expand When One"
+                            "Collapse"
                         }
                         p {
                             class: "text-xs text-gray-500 pl-6",
-                            "Expanded when there is a single process, collapsed otherwise."
+                            "Processes are collapsed, expanding to reveal their steps when focused."
                         }
                     }
                 }
