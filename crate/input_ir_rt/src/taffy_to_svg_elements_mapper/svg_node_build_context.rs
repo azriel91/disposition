@@ -44,4 +44,9 @@ pub(super) struct SvgNodeInfoBuildContext<'ctx, 'id> {
     /// Used to compute absolute envelope bounds for each node so that edge
     /// face contact points land on the outer envelope boundary.
     pub(super) node_id_to_envelope_taffy_node: &'ctx Map<NodeId<'id>, taffy::NodeId>,
+    /// Whether processes are rendered fully expanded.
+    ///
+    /// When `true`, the collapsed-height logic and focus-driven expand
+    /// animation classes are not emitted for process nodes.
+    pub(super) process_render_expanded: bool,
 }

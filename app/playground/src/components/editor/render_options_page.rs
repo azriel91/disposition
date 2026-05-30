@@ -1,8 +1,8 @@
 //! Render options editor page.
 //!
 //! Provides controls for editing `input_diagram.render_options`,
-//! which includes edge curvature and rank direction settings.
-//! Uses radio buttons for each option group.
+//! which includes edge curvature, rank direction, and process rendering
+//! settings. Uses radio buttons for each option group.
 
 use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
@@ -10,7 +10,7 @@ use dioxus::{
 };
 use disposition::{
     input_model::InputDiagram,
-    model_common::{edge::EdgeCurvature, RankDir},
+    model_common::{edge::EdgeCurvature, ProcessRenderCollapse, RankDir},
 };
 
 use crate::components::editor::common::{LABEL_CLASS, SECTION_HEADING};
@@ -32,10 +32,13 @@ const RADIO_LABEL_CLASS: &str = "\
 /// * `edge_curvature`: whether edges are drawn as smooth curves or orthogonal
 ///   lines.
 /// * `rank_dir`: direction that edges connect nodes.
+/// * `process_render_collapse`: whether processes are rendered collapsed or
+///   expanded.
 #[component]
 pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let edge_curvature = input_diagram.read().render_options.edge_curvature;
     let rank_dir = input_diagram.read().render_options.rank_dir;
+    let process_render_collapse = input_diagram.read().render_options.process_render_collapse;
 
     rsx! {
         div {
@@ -192,6 +195,80 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                         p {
                             class: "text-xs text-gray-500 pl-6",
                             "e.g. Lower layers are the foundation for higher layers."
+                        }
+                    }
+                }
+            }
+
+            // === Process Rendering === //
+            fieldset {
+                class: "flex flex-col gap-1",
+
+                legend { class: LABEL_CLASS, "Process Rendering" }
+                div {
+                    class: RADIO_GROUP_CLASS,
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "process_render_collapse",
+                                value: "collapse",
+                                checked: process_render_collapse == ProcessRenderCollapse::Collapse,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.process_render_collapse =
+                                        ProcessRenderCollapse::Collapse;
+                                },
+                            }
+                            "Collapse"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Processes are collapsed, expanding to reveal their steps when focused."
+                        }
+                    }
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "process_render_collapse",
+                                value: "expand_always",
+                                checked: process_render_collapse == ProcessRenderCollapse::ExpandAlways,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.process_render_collapse =
+                                        ProcessRenderCollapse::ExpandAlways;
+                                },
+                            }
+                            "Expand Always"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Processes are always rendered fully expanded."
+                        }
+                    }
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "process_render_collapse",
+                                value: "expand_when_one",
+                                checked: process_render_collapse == ProcessRenderCollapse::ExpandWhenOne,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.process_render_collapse =
+                                        ProcessRenderCollapse::ExpandWhenOne;
+                                },
+                            }
+                            "Expand When One"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Expanded when there is a single process, collapsed otherwise."
                         }
                     }
                 }
