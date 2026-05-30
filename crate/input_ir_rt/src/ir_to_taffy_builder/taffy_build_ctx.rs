@@ -82,7 +82,13 @@ impl<'ctx> TaffyBuildCtx<'ctx> {
             let text = match lod {
                 DiagramLod::Simple => node_name.clone(),
                 DiagramLod::Normal => match thing_descs.get(node_id.as_ref()) {
-                    Some(desc) => format!("{node_name}\n\n{desc}"),
+                    Some(desc) => {
+                        if node_name.is_empty() {
+                            desc.clone()
+                        } else {
+                            format!("{node_name}\n\n{desc}")
+                        }
+                    }
                     None => node_name.clone(),
                 },
             };
