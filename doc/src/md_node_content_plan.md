@@ -706,7 +706,7 @@ add a branch:
 
 ```
 if lod == DiagramLod::Normal AND node has description:
-    let markdown = format!("{name}\n\n{desc}");
+    let markdown = format!("{node_name}\n\n{desc}");
     let blocks = MdBlocksParser::parse(&markdown);
     let md_node_taffy_ids = MdNodeBuilder::build(taffy_tree, &blocks, char_width);
     let text_node_id = md_node_taffy_ids.content_node_id;

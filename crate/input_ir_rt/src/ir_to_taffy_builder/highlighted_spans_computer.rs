@@ -1,17 +1,18 @@
-use std::borrow::Cow;
-
 use disposition_ir_model::{
     edge::{EdgeId, EdgeLabels},
-    node::{NodeId, NodeNames},
+    node::NodeId,
 };
-use disposition_model_common::{edge::EdgeDescs, thing::ThingDescs, Id, Map};
+use disposition_model_common::{edge::EdgeDescs, Id, Map};
 use disposition_taffy_model::{
     taffy::{self, TaffyTree},
     DiagramLod, EdgeDescriptionTaffyNodes, EdgeLabelTaffyNodeIds, EntityHighlightedSpan,
     EntityHighlightedSpans, NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 
-use super::text_measure::{line_width_measure, wrap_text_monospace};
+use super::{
+    taffy_build_ctx::TaffyBuildCtx,
+    text_measure::{line_width_measure, wrap_text_monospace},
+};
 
 /// Computes highlighted text spans for diagram nodes, edge label slots, and
 /// edge description containers after taffy layout is complete.
@@ -26,17 +27,16 @@ impl HighlightedSpansComputer {
     ///
     /// Nodes and edge label slots are sized by layout; this pass reads the
     /// computed widths to determine line-wrapping and span positions.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn compute(
+        ctx: TaffyBuildCtx<'_>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
         edge_label_taffy_nodes: &Map<EdgeId<'static>, EdgeLabelTaffyNodeIds>,
-        nodes: &NodeNames<'static>,
-        thing_descs: &ThingDescs<'static>,
         edge_labels: &EdgeLabels<'static>,
-        char_width: f32,
-        lod: &DiagramLod,
     ) -> EntityHighlightedSpans<'static> {
+        let char_width = ctx.char_width;
+        let lod = ctx.lod;
+
         let mut entity_highlighted_spans = EntityHighlightedSpans::with_capacity(
             node_id_to_taffy.len() + edge_label_taffy_nodes.len(),
         );
@@ -118,22 +118,10 @@ impl HighlightedSpansComputer {
 
                 let entity_id = &diagram_node_ctx.entity_id;
 
-                // Build the text content
-                let node_name = nodes
-                    .get(entity_id)
-                    .map(String::as_str)
+                // Build the text content from the precomputed markdown text.
+                let text = ctx
+                    .node_md_text(entity_id)
                     .unwrap_or_else(|| entity_id.as_str());
-
-                let text: Cow<'_, str> = match lod {
-                    DiagramLod::Simple => Cow::Borrowed(node_name),
-                    DiagramLod::Normal => {
-                        let node_desc = thing_descs.get(entity_id).map(String::as_str);
-                        match node_desc {
-                            Some(desc) => Cow::Owned(format!("{node_name}\n\n{desc}")),
-                            None => Cow::Borrowed(node_name),
-                        }
-                    }
-                };
 
                 if text.is_empty() {
                     return;
@@ -143,7 +131,7 @@ impl HighlightedSpansComputer {
                 let max_width = text_node_layout.size.width;
 
                 // Compute line wrapping using simple monospace calculation
-                let wrapped_lines = wrap_text_monospace(&text, char_width, max_width);
+                let wrapped_lines = wrap_text_monospace(text, char_width, max_width);
 
                 // Get style info for padding calculations
                 let padding_left = text_node_layout.padding.left;

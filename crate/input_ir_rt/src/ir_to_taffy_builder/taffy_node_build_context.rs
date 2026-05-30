@@ -2,60 +2,23 @@ use std::borrow::Cow;
 
 use disposition_ir_model::{
     edge::{EdgeId, EdgeLabels},
-    entity::EntityTypes,
-    layout::{LeafLayout, NodeLayouts},
-    node::{
-        NodeFace, NodeFaceEdges, NodeHierarchy, NodeId, NodeNames, NodeNestingInfos,
-        NodeRanksNested, NodeShapes,
-    },
+    layout::LeafLayout,
+    node::{NodeFace, NodeId},
 };
-use disposition_model_common::{edge::EdgeDescs, thing::ThingDescs, Map, RankDir};
+use disposition_model_common::Map;
 use disposition_taffy_model::{
     taffy::{
         self, style::FlexDirection, AlignContent, AlignItems, AvailableSpace, Display, FlexWrap,
-        Size, Style, TaffyTree,
+        Size, Style,
     },
-    DiagramLod, MdNodeTaffyIds, NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    DiagramLod, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 use taffy::{LengthPercentage, LengthPercentageAuto, Rect};
 
-use super::text_measure::{compute_text_dimensions, line_width_measure};
-
-pub(crate) struct TaffyNodeBuildContext<'ctx> {
-    pub(crate) taffy_tree: &'ctx mut TaffyTree<TaffyNodeCtx>,
-    pub(crate) nodes: &'ctx NodeNames<'static>,
-    pub(crate) node_layouts: &'ctx NodeLayouts<'static>,
-    pub(crate) node_hierarchy: &'ctx NodeHierarchy<'static>,
-    pub(crate) entity_types: &'ctx EntityTypes<'static>,
-    pub(crate) thing_descs: &'ctx ThingDescs<'static>,
-    pub(crate) edge_descs: &'ctx EdgeDescs<'static>,
-    pub(crate) node_shapes: &'ctx NodeShapes<'static>,
-    pub(crate) node_ranks_nested: &'ctx NodeRanksNested<'static>,
-    pub(crate) node_nesting_infos: &'ctx NodeNestingInfos<'static>,
-    pub(crate) node_id_to_taffy: &'ctx mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
-    pub(crate) taffy_id_to_node: &'ctx mut Map<taffy::NodeId, NodeId<'static>>,
-    /// Per-node face-to-edge-IDs mapping used to build envelope label slots.
-    pub(crate) node_face_edges: &'ctx NodeFaceEdges<'static>,
-    /// Map from each diagram node ID to its envelope taffy node ID.
-    ///
-    /// Populated incrementally as each node's envelope is built.
-    pub(crate) node_id_to_envelope_taffy_node: &'ctx mut Map<NodeId<'static>, taffy::NodeId>,
-    /// Accumulator for edge label leaf nodes built across all envelope nodes.
-    ///
-    /// After all nodes are built, merged into `edge_label_taffy_nodes` in
-    /// `TaffyNodeMappings`.
-    pub(crate) edge_label_leaves: &'ctx mut Vec<EdgeLabelLeafBuilt>,
-    /// Direction of edges in the diagram.
-    ///
-    /// Used to compute face-specific padding for edge label leaf nodes.
-    pub(crate) rank_dir: RankDir,
-    /// Level of detail for this diagram build.
-    pub(crate) lod: DiagramLod,
-    /// Monospace character width in pixels.
-    pub(crate) char_width: f32,
-    /// Accumulator for md node taffy IDs built across all diagram nodes.
-    pub(crate) md_node_taffy_ids: &'ctx mut Map<NodeId<'static>, MdNodeTaffyIds>,
-}
+use super::{
+    taffy_build_ctx::TaffyBuildCtx,
+    text_measure::{compute_text_dimensions, line_width_measure},
+};
 
 /// Layout information for a wrapper node and its text node.
 pub(crate) struct TaffyWrapperNodeStyles {
@@ -127,9 +90,9 @@ impl Default for TaffyWrapperNodeStyles {
 }
 
 pub(crate) struct NodeMeasureContext<'ctx> {
-    pub(crate) nodes: &'ctx NodeNames<'static>,
-    pub(crate) thing_descs: &'ctx ThingDescs<'static>,
-    pub(crate) edge_descs: &'ctx EdgeDescs<'static>,
+    /// Immutable build context (node names, descriptions, precomputed text,
+    /// character width, and level of detail).
+    pub(crate) ctx: TaffyBuildCtx<'ctx>,
     /// Text labels for each edge endpoint.
     pub(crate) edge_labels: &'ctx EdgeLabels<'static>,
     /// Pre-computed lookup from edge ID to its `from` and `to` endpoint node
@@ -139,10 +102,6 @@ pub(crate) struct NodeMeasureContext<'ctx> {
     /// sizing an edge label slot.
     pub(crate) edge_id_to_endpoint_node_ids:
         &'ctx Map<EdgeId<'static>, (NodeId<'static>, NodeId<'static>)>,
-    /// Monospace character width in pixels.
-    pub(crate) char_width: f32,
-    /// Level of detail for the diagram.
-    pub(crate) lod: &'ctx DiagramLod,
 }
 
 impl NodeMeasureContext<'_> {
@@ -171,14 +130,14 @@ impl NodeMeasureContext<'_> {
         }
 
         let NodeMeasureContext {
-            nodes,
-            thing_descs,
-            edge_descs,
+            ctx,
             edge_labels,
             edge_id_to_endpoint_node_ids,
-            char_width,
-            lod,
         } = self;
+        let ctx = *ctx;
+        let char_width = ctx.char_width;
+        let lod = ctx.lod;
+        let edge_descs = ctx.edge_descs;
 
         // MdToken leaves are sized per-token using heading-level font scaling.
         if let Some(md_token_ctx) = taffy_node_ctx.as_ref().and_then(|taffy_node_ctx| {
@@ -188,7 +147,7 @@ impl NodeMeasureContext<'_> {
                 None
             }
         }) {
-            let effective_char_width = *char_width;
+            let effective_char_width = char_width;
             let effective_line_height = TEXT_LINE_HEIGHT;
             let width = line_width_measure(&md_token_ctx.text, effective_char_width);
             return Size {
@@ -207,22 +166,10 @@ impl NodeMeasureContext<'_> {
             .and_then(|taffy_node_ctx| match taffy_node_ctx {
                 TaffyNodeCtx::DiagramNode(diagram_node_ctx) => {
                     let entity_id = &diagram_node_ctx.entity_id;
-                    let node_name = nodes
-                        .get(entity_id)
-                        .map(String::as_str)
+                    let text = ctx
+                        .node_md_text(entity_id)
                         .unwrap_or_else(|| entity_id.as_str());
-
-                    match lod {
-                        DiagramLod::Simple => Some(Cow::Borrowed(node_name)),
-                        DiagramLod::Normal => {
-                            let node_desc = thing_descs.get(entity_id).map(String::as_str);
-
-                            match node_desc {
-                                Some(desc) => Some(Cow::Owned(format!("{node_name}\n\n{desc}"))),
-                                None => Some(Cow::Borrowed(node_name)),
-                            }
-                        }
-                    }
+                    Some(Cow::Borrowed(text))
                 }
                 TaffyNodeCtx::EdgeSpacer(_) => None,
                 TaffyNodeCtx::EdgeDescription(ctx) => match lod {
@@ -279,7 +226,7 @@ impl NodeMeasureContext<'_> {
 
         // Compute layout using simple monospace calculations
         let (line_width_max, line_count) =
-            compute_text_dimensions(&text, *char_width, width_constraint);
+            compute_text_dimensions(&text, char_width, width_constraint);
 
         let line_height = TEXT_LINE_HEIGHT;
         let line_heights = (line_count as f32 + 0.5) * line_height;

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use disposition_ir_model::{
-    edge::{Edge, EdgeGroups, EdgeId},
+    edge::{Edge, EdgeId},
     entity::{EntityType, EntityTypes},
     node::{NodeHierarchy, NodeId, NodeNestingInfo, NodeNestingInfos, NodeRank, NodeRanksNested},
 };
@@ -13,6 +13,8 @@ use disposition_taffy_model::{
 use taffy::AlignSelf;
 
 use crate::EdgeIdGenerator;
+
+use super::taffy_build_ctx::TaffyBuildCtx;
 
 pub use self::{
     edge_spacer_build_decider::EdgeSpacerBuildDecider,
@@ -48,17 +50,18 @@ impl EdgeSpacerBuilder {
     /// leaf nodes at the computed positions within each intermediate rank.
     ///
     /// Returns a map from edge ID to the spacer taffy node IDs at each rank.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn build(
+        ctx: TaffyBuildCtx<'_>,
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
-        edge_groups: &EdgeGroups<'static>,
-        node_nesting_infos: &NodeNestingInfos<'static>,
-        node_ranks_nested: &NodeRanksNested<'static>,
-        entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
         lca_node_id: Option<&NodeId<'static>>,
     ) -> Map<EdgeId<'static>, EdgeSpacerTaffyNodes> {
+        let edge_groups = ctx.edge_groups;
+        let node_nesting_infos = ctx.node_nesting_infos;
+        let node_ranks_nested = ctx.node_ranks_nested;
+        let entity_types = ctx.entity_types;
+
         // === Find cross-rank edges and compute spacer placements === //
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
 
@@ -115,16 +118,17 @@ impl EdgeSpacerBuilder {
     /// * `container_node_hierarchy`: The children of `container_node_id`.
     /// * `rank_to_taffy_ids`: Mutable reference to the container's
     ///   rank-to-taffy-node mapping, for inserting spacer nodes.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn build_cross_container_spacers(
+        ctx: TaffyBuildCtx<'_>,
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
-        edge_groups: &EdgeGroups<'static>,
-        node_nesting_infos: &NodeNestingInfos<'static>,
-        node_ranks_nested: &NodeRanksNested<'static>,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
         container_node_id: &NodeId<'static>,
         container_node_hierarchy: &NodeHierarchy<'static>,
     ) -> Map<EdgeId<'static>, EdgeSpacerTaffyNodes> {
+        let edge_groups = ctx.edge_groups;
+        let node_nesting_infos = ctx.node_nesting_infos;
+        let node_ranks_nested = ctx.node_ranks_nested;
+
         // Collect direct child IDs of this container.
         let container_node_direct_child_ids: Vec<NodeId<'static>> = container_node_hierarchy
             .iter()
@@ -324,18 +328,19 @@ impl EdgeSpacerBuilder {
     /// Only `edge_desc_container_spacer_taffy_node_ids` is populated in the
     /// returned `EdgeSpacerTaffyNodes` values; callers must merge into any
     /// existing rank or cross-container spacer entries.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn build_edge_desc_container_spacers(
+        ctx: TaffyBuildCtx<'_>,
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
-        edge_groups: &EdgeGroups<'static>,
-        node_nesting_infos: &NodeNestingInfos<'static>,
-        node_ranks_nested: &NodeRanksNested<'static>,
-        entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
         lca_node_id: Option<&NodeId<'static>>,
         position_to_container_ids: &BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
         edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
     ) -> Map<EdgeId<'static>, EdgeSpacerTaffyNodes> {
+        let edge_groups = ctx.edge_groups;
+        let node_nesting_infos = ctx.node_nesting_infos;
+        let node_ranks_nested = ctx.node_ranks_nested;
+        let entity_types = ctx.entity_types;
+
         if position_to_container_ids.is_empty() {
             return Map::new();
         }
