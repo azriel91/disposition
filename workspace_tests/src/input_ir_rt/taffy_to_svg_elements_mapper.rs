@@ -2,7 +2,7 @@ use disposition::{
     input_ir_model::IrDiagramAndIssues,
     input_model::InputDiagram,
     ir_model::IrDiagram,
-    model_common::{id, Id},
+    model_common::{id, Id, ProcessRenderCollapse},
     svg_model::SvgElements,
     taffy_model::{taffy::TaffyError, DimensionAndLod},
 };
@@ -664,6 +664,54 @@ fn test_process_infos_map_structure() -> Result<(), TaffyError> {
                     );
                 }
             }
+        });
+
+    Ok(())
+}
+
+#[test]
+fn test_processes_rendered_expanded_skips_collapse_logic() -> Result<(), TaffyError> {
+    let mut ir_example = serde_saphyr::from_str::<IrDiagram>(EXAMPLE_IR).unwrap();
+    ir_example.render_options.process_render_collapse = ProcessRenderCollapse::ExpandAlways;
+
+    let ir_to_taffy_builder = IrToTaffyBuilder::builder()
+        .with_ir_diagram(&ir_example)
+        .with_dimension_and_lods(vec![DimensionAndLod::default_2xl()])
+        .build();
+    ir_to_taffy_builder
+        .build()
+        .expect("Expected `taffy_node_mappings` to be built.")
+        .map(|taffy_node_mappings| {
+            TaffyToSvgElementsMapper::map(
+                &ir_example,
+                &taffy_node_mappings,
+                EdgeAnimationActive::Always,
+            )
+        })
+        .for_each(|svg_elements| {
+            // Process step heights / infos are not computed when expanded.
+            assert!(
+                svg_elements.svg_process_infos.is_empty(),
+                "Expected svg_process_infos to be empty when processes are rendered expanded"
+            );
+
+            // Process nodes still get a translate and a collapsed (full-height)
+            // path, but no focus-driven expand classes.
+            let Some(proc_app_dev_tailwind_classes) =
+                svg_elements.tailwind_classes.get(&id!("proc_app_dev"))
+            else {
+                panic!("Expected tailwind classes for process node 'proc_app_dev'");
+            };
+            assert!(
+                proc_app_dev_tailwind_classes.contains("translate-x-"),
+                "Expected process node to have 'translate-x-' tailwind class"
+            );
+            assert!(
+                !proc_app_dev_tailwind_classes
+                    .contains(":focus-within]:[&>path.wrapper]:[d:path('"),
+                "Expected process node to NOT have focus-driven expand classes when expanded. \
+                 Got: {proc_app_dev_tailwind_classes}"
+            );
         });
 
     Ok(())

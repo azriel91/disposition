@@ -135,6 +135,12 @@ impl InputToIrDiagramMapper {
             Self::build_node_shapes(&nodes, &ir_entity_types, theme_default, theme_types_styles);
 
         // 13. Build TailwindClasses from theme
+        //
+        // Process steps are hidden (until focused) only when processes are
+        // rendered collapsed.
+        let process_render_expanded = render_options
+            .process_render_collapse
+            .process_render_expanded(processes.len());
         let tailwind_classes_build_result = TailwindClassesBuilder::build(
             &nodes,
             &edge_groups,
@@ -145,6 +151,7 @@ impl InputToIrDiagramMapper {
             tags,
             tag_things,
             processes,
+            process_render_expanded,
         );
         let tailwind_classes = tailwind_classes_build_result.tailwind_classes;
         let css_theme_vars = tailwind_classes_build_result.css_theme_vars;

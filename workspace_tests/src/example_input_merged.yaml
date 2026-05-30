@@ -661,7 +661,6 @@ theme_types_styles:
       stroke_style: "solid"
       shape_color: "sky"
       stroke_width: "2"
-      visibility: "invisible"
 
   # thing_dependencies - edge groups
   type_dependency_edge_sequence_default:

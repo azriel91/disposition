@@ -2,6 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{edge::EdgeCurvature, RankDir};
 
+pub use self::process_render_collapse::ProcessRenderCollapse;
+
+mod process_render_collapse;
+
 /// Options that control how the diagram is rendered.
 ///
 /// # Examples
@@ -12,6 +16,7 @@ use crate::{edge::EdgeCurvature, RankDir};
 /// let render_options = RenderOptions::default();
 /// assert_eq!(render_options.edge_curvature, Default::default());
 /// assert_eq!(render_options.rank_dir, Default::default());
+/// assert_eq!(render_options.process_render_collapse, Default::default());
 /// ```
 #[cfg_attr(
     all(feature = "schemars", not(feature = "test")),
@@ -34,11 +39,25 @@ pub struct RenderOptions {
     /// * `RankDir::BottomToTop`: edges connect nodes from bottom to top.
     #[serde(default, skip_serializing_if = "RankDir::is_default")]
     pub rank_dir: RankDir,
+
+    /// Controls whether processes are rendered collapsed or expanded.
+    ///
+    /// * `ProcessRenderCollapse::Collapse`: processes are rendered collapsed,
+    ///   expanding only when focused.
+    /// * `ProcessRenderCollapse::ExpandAlways`: processes are always rendered
+    ///   fully expanded.
+    /// * `ProcessRenderCollapse::ExpandWhenOne`: processes are rendered
+    ///   expanded when there is only a single process in the diagram, and
+    ///   collapsed otherwise.
+    #[serde(default, skip_serializing_if = "ProcessRenderCollapse::is_default")]
+    pub process_render_collapse: ProcessRenderCollapse,
 }
 
 impl RenderOptions {
     /// Returns `true` if all fields are at their default values.
     pub fn is_default(&self) -> bool {
-        self.edge_curvature.is_default() && self.rank_dir.is_default()
+        self.edge_curvature.is_default()
+            && self.rank_dir.is_default()
+            && self.process_render_collapse.is_default()
     }
 }

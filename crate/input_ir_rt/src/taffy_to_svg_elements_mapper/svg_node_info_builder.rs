@@ -36,6 +36,7 @@ impl SvgNodeInfoBuilder {
             process_steps_heights,
             svg_process_infos,
             node_id_to_envelope_taffy_node,
+            process_render_expanded,
         } = svg_node_info_build_context;
 
         let is_process = ir_diagram
@@ -82,7 +83,9 @@ impl SvgNodeInfoBuilder {
                 width,
                 height_collapsed,
             );
-        let height_to_expand_to = if is_process {
+        // When processes are rendered expanded, the node already uses its
+        // expanded height, so no focus-driven expand classes are needed.
+        let height_to_expand_to = if is_process && !process_render_expanded {
             Some(height_expanded)
         } else {
             None

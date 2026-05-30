@@ -10,7 +10,7 @@ pub use crate::{
     id::{Id, IdInvalidFmt},
     map::{Keys, Map},
     rank_dir::RankDir,
-    render_options::RenderOptions,
+    render_options::{ProcessRenderCollapse, RenderOptions},
     set::Set,
 };
 

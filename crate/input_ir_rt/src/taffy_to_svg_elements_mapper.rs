@@ -1,5 +1,6 @@
 use disposition_input_ir_model::EdgeAnimationActive;
 use disposition_ir_model::{
+    entity::EntityType,
     node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
 };
@@ -90,9 +91,34 @@ impl TaffyToSvgElementsMapper {
         // Default shape for nodes without explicit shape configuration
         let default_shape = NodeShape::Rect(NodeShapeRect::new());
 
-        // First, collect process information for y-coordinate calculations
-        let process_steps_heights =
-            ProcessStepHeightsCalculator::calculate(ir_diagram, taffy_tree, node_id_to_taffy);
+        // Determine whether processes should be rendered fully expanded.
+        //
+        // When expanded, the collapsed-height logic (and the focus-driven
+        // expand animation) is not used, so the process step heights and
+        // process infos are left empty.
+        let process_count = ir_diagram
+            .node_hierarchy
+            .iter()
+            .filter(|(node_id, _children)| {
+                ir_diagram
+                    .entity_types
+                    .get(node_id.as_ref())
+                    .is_some_and(|types| types.contains(&EntityType::ProcessDefault))
+            })
+            .count();
+        let process_render_expanded = ir_diagram
+            .render_options
+            .process_render_collapse
+            .process_render_expanded(process_count);
+
+        // First, collect process information for y-coordinate calculations.
+        //
+        // Not necessary when processes are rendered expanded.
+        let process_steps_heights = if process_render_expanded {
+            Vec::new()
+        } else {
+            ProcessStepHeightsCalculator::calculate(ir_diagram, taffy_tree, node_id_to_taffy)
+        };
 
         // Build process_infos map from process_steps_heights
         // We need to compute the actual values for each process node
@@ -145,6 +171,7 @@ impl TaffyToSvgElementsMapper {
             process_steps_heights: &process_steps_heights,
             svg_process_infos: &svg_process_infos,
             node_id_to_envelope_taffy_node,
+            process_render_expanded,
         };
         let (svg_node_infos, mut tailwind_classes) = ir_diagram.node_ordering.iter().fold(
             (Vec::new(), tailwind_classes),
