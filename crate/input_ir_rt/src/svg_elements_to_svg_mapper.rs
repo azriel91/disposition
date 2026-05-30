@@ -517,8 +517,13 @@ impl SvgElementsToSvgMapper {
             let alt = StringXmlEscaper::escape(&svg_image_span.alt);
             write!(
                 content_buffer,
-                "<image x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" \
-                    href=\"{src}\" alt=\"{alt}\" />",
+                "<g transform=\"translate({x}, {y})\">\
+                    <image \
+                        width=\"{w}\" \
+                        height=\"{h}\" \
+                        href=\"{src}\" \
+                        alt=\"{alt}\" />\
+                </g>",
             )
             .unwrap();
         });
