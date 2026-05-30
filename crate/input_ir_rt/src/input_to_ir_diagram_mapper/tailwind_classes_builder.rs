@@ -49,6 +49,7 @@ impl TailwindClassesBuilder {
         tags: &TagNames<'id>,
         tag_things: &TagThings<'id>,
         processes: &Processes<'id>,
+        process_render_expanded: bool,
     ) -> TailwindClassesBuildResult<'id> {
         let mut css_theme_vars = CssThemeVars::new(theme_default.dark_mode_config.selector);
 
@@ -108,6 +109,7 @@ impl TailwindClassesBuilder {
                         theme_default,
                         theme_types_styles,
                         &mut css_theme_vars,
+                        process_render_expanded,
                     )
                 } else {
                     // Regular thing node
@@ -347,6 +349,7 @@ impl TailwindClassesBuilder {
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
+        process_render_expanded: bool,
     ) -> String {
         let entity_type = entity_types
             .get(process_step_id)
@@ -365,6 +368,15 @@ impl TailwindClassesBuilder {
             IdOrDefaults::NodeDefaults,
             &mut tailwind_class_state,
         );
+
+        // When processes are rendered collapsed, their steps are hidden until
+        // the process (or one of its steps) is focused. When rendered expanded,
+        // the step keeps its resolved visibility (visible by default).
+        if !process_render_expanded {
+            tailwind_class_state
+                .attrs
+                .insert(ThemeAttr::Visibility, Cow::Borrowed("invisible"));
+        }
 
         let mut classes = String::new();
         tailwind_class_state.write_classes(

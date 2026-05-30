@@ -654,7 +654,6 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                         (ThemeAttr::StrokeStyle, "solid"),
                         (ThemeAttr::ShapeColor, "sky"),
                         (ThemeAttr::StrokeWidth, "2"),
-                        (ThemeAttr::Visibility, "invisible"),
                     ],
                 ),
             )]

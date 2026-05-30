@@ -7,7 +7,7 @@ use disposition::{
         node::NodeId,
         IrDiagram,
     },
-    model_common::{edge::EdgeGroupId, id, Id},
+    model_common::{edge::EdgeGroupId, id, Id, ProcessRenderCollapse},
 };
 use disposition_input_ir_rt::InputToIrDiagramMapper;
 use pretty_assertions::assert_eq;
@@ -657,6 +657,13 @@ fn test_tailwind_classes_generation() {
         step_classes.contains("\ngroup-has-[#proc_app_dev:focus-within]:visible"),
         "Process step should have group-has-[...] class for parent process. Got: {step_classes}"
     );
+    // EXAMPLE_INPUT_MERGED has multiple processes, so with the default
+    // `ExpandWhenOne` they are rendered collapsed and steps are hidden until
+    // focused.
+    assert!(
+        step_classes.contains("\ninvisible"),
+        "Process step should be invisible when processes are collapsed. Got: {step_classes}"
+    );
 
     // Test thing tailwind classes - t_aws should have yellow color from
     // base_styles
@@ -686,6 +693,28 @@ fn test_tailwind_classes_generation() {
     assert!(
         edge_classes.contains("\npeer-[:focus-within]/proc_app_dev_step_repository_clone:"),
         "Edge should have peer class for interacting step. Got: {edge_classes}"
+    );
+}
+
+#[test]
+fn test_tailwind_classes_process_step_visible_when_expanded() {
+    let mut input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
+    input_diagram.render_options.process_render_collapse = ProcessRenderCollapse::ExpandAlways;
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    let step_id = id!("proc_app_dev_step_repository_clone");
+    let step_classes = String::from("\n") + diagram.tailwind_classes.get(&step_id).unwrap();
+
+    // When processes are rendered expanded, steps keep their default `visible`
+    // visibility and are not hidden.
+    assert!(
+        !step_classes.contains("\ninvisible"),
+        "Process step should NOT be invisible when processes are expanded. Got: {step_classes}"
+    );
+    assert!(
+        step_classes.contains("\nvisible"),
+        "Process step should be visible when processes are expanded. Got: {step_classes}"
     );
 }
 
