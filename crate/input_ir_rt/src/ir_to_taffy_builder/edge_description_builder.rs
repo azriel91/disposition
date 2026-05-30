@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 
 use disposition_ir_model::{
-    edge::{Edge, EdgeGroups, EdgeId},
-    entity::{EntityType, EntityTypes},
-    node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
+    edge::{Edge, EdgeId},
+    entity::EntityType,
+    node::{NodeId, NodeRank},
 };
-use disposition_model_common::{edge::EdgeDescs, Map};
+use disposition_model_common::Map;
 use disposition_taffy_model::{
     taffy::{self, AlignSelf, Style, TaffyTree},
     DiagramLod, EdgeDescriptionCtx, EdgeDescriptionTaffyNodes, TaffyNodeCtx,
@@ -15,7 +15,10 @@ use crate::EdgeIdGenerator;
 
 use crate::md_text::md_blocks_parser::MdBlocksParser;
 
-use super::{edge_spacer_builder::LcaDepthCalculator, md_node_builder::MdNodeBuilder};
+use super::{
+    edge_spacer_builder::LcaDepthCalculator, md_node_builder::MdNodeBuilder,
+    taffy_build_ctx::TaffyBuildCtx,
+};
 
 use self::{
     edge_id_and_taffy_description_node::EdgeIdAndTaffyDescriptionNode,
@@ -50,20 +53,15 @@ impl EdgeDescriptionBuilder {
     ///
     /// At `DiagramLod::Normal`, the single description leaf is replaced by an
     /// `md_content_node` sub-tree built via `MdNodeBuilder`.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn build(
+        ctx: TaffyBuildCtx<'_>,
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
-        edge_descs: &EdgeDescs<'static>,
-        edge_groups: &EdgeGroups<'static>,
-        node_nesting_infos: &NodeNestingInfos<'static>,
-        node_ranks_nested: &NodeRanksNested<'static>,
-        entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
         lca_node_id: Option<&NodeId<'static>>,
         rank_container_style: &Style,
-        lod: &DiagramLod,
-        char_width: f32,
     ) -> EdgeDescriptionBuildResult {
+        let edge_groups = ctx.edge_groups;
+
         let mut edge_description_taffy_nodes: Map<EdgeId<'static>, EdgeDescriptionTaffyNodes> =
             Map::new();
 
@@ -94,17 +92,12 @@ impl EdgeDescriptionBuilder {
                         description_taffy_node_id,
                         md_node_taffy_ids,
                     )) = Self::edge_desc_build(
+                        ctx,
                         taffy_tree,
-                        edge_descs,
                         &edge_id,
                         edge,
-                        node_nesting_infos,
-                        node_ranks_nested,
-                        entity_types,
                         target_entity_type,
                         lca_node_id,
-                        lod,
-                        char_width,
                     ) {
                         position_to_sorted_descriptions
                             .entry(position)
@@ -189,25 +182,26 @@ impl EdgeDescriptionBuilder {
     ///
     /// The shared container node is created later in `build` once all leaves
     /// at the same position have been collected.
-    #[allow(clippy::too_many_arguments)]
     fn edge_desc_build(
+        ctx: TaffyBuildCtx<'_>,
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
-        edge_descs: &EdgeDescs<'static>,
         edge_id: &EdgeId<'static>,
         edge: &Edge<'static>,
-        node_nesting_infos: &NodeNestingInfos<'static>,
-        node_ranks_nested: &NodeRanksNested<'static>,
-        entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
         lca_node_id: Option<&NodeId<'static>>,
-        lod: &DiagramLod,
-        char_width: f32,
     ) -> Option<(
         Option<NodeRank>,
         SiblingIndexMiddleAndEdgeId,
         taffy::NodeId,
         Option<disposition_taffy_model::MdNodeTaffyIds>,
     )> {
+        let edge_descs = ctx.edge_descs;
+        let node_nesting_infos = ctx.node_nesting_infos;
+        let node_ranks_nested = ctx.node_ranks_nested;
+        let entity_types = ctx.entity_types;
+        let lod = &ctx.lod;
+        let char_width = ctx.char_width;
+
         // Step 2.2.1 -- Filter by edge_descs.
         let desc_text = edge_descs.get(edge_id.as_ref())?;
 

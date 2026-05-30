@@ -106,9 +106,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@master
+
+      # 2026-05-30: This should be `master` with the nightly toolchain, but:
+      # <https://github.com/rust-lang/rust-clippy/pull/17060>
+      # seems to conflict with the dioxus `rsx` macro's requirements.
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: nightly
+          toolchain: stable
           components: clippy
 
       - name: "Run clippy"

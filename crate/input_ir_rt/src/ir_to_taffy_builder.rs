@@ -19,9 +19,11 @@ use self::{
     edge_spacer_builder::EdgeSpacerBuilder,
     highlighted_spans_computer::HighlightedSpansComputer,
     md_spans_computer::MdSpansComputer,
+    taffy_build_ctx::TaffyBuildCtx,
+    taffy_build_state::TaffyBuildState,
     taffy_container_builder::TaffyContainerBuilder,
     taffy_diagram_node_builder::TaffyDiagramNodeBuilder,
-    taffy_node_build_context::{NodeMeasureContext, TaffyNodeBuildContext},
+    taffy_node_build_context::NodeMeasureContext,
     text_measure::MONOSPACE_CHAR_WIDTH_RATIO,
 };
 
@@ -32,6 +34,8 @@ mod edge_spacer_builder;
 mod highlighted_spans_computer;
 mod md_node_builder;
 mod md_spans_computer;
+mod taffy_build_ctx;
+mod taffy_build_state;
 mod taffy_container_builder;
 mod taffy_diagram_node_builder;
 mod taffy_envelope_builder;
@@ -146,9 +150,12 @@ impl IrToTaffyBuilder<'_> {
 
         let mut md_node_taffy_ids: Map<NodeId<'static>, MdNodeTaffyIds> = Map::new();
 
-        let taffy_node_build_context = TaffyNodeBuildContext {
-            taffy_tree: &mut taffy_tree,
-            nodes,
+        // Precompute markdown / text content per node once, so the
+        // node-building, size-measuring, and highlighted-span passes all share
+        // the same text.
+        let node_md_texts = TaffyBuildCtx::node_md_texts_compute(nodes, thing_descs, *lod);
+
+        let ctx = TaffyBuildCtx {
             node_layouts,
             node_hierarchy,
             entity_types,
@@ -157,25 +164,29 @@ impl IrToTaffyBuilder<'_> {
             node_shapes,
             node_ranks_nested,
             node_nesting_infos,
-            node_id_to_taffy: &mut node_id_to_taffy,
-            taffy_id_to_node: &mut taffy_id_to_node,
             node_face_edges,
-            node_id_to_envelope_taffy_node: &mut node_id_to_envelope_taffy_node,
-            edge_label_leaves: &mut edge_label_leaves,
+            edge_groups,
             rank_dir,
             lod: *lod,
             char_width,
-            md_node_taffy_ids: &mut md_node_taffy_ids,
+            node_md_texts: &node_md_texts,
         };
+
         let (
             node_rank_to_nodes_by_entity_type,
             nested_edge_spacer_taffy_nodes,
             nested_edge_description_taffy_nodes,
-        ) = TaffyDiagramNodeBuilder::build_first_level_nodes(
-            taffy_node_build_context,
-            processes_included,
-            edge_groups,
-        );
+        ) = {
+            let mut state = TaffyBuildState {
+                taffy_tree: &mut taffy_tree,
+                node_id_to_taffy: &mut node_id_to_taffy,
+                taffy_id_to_node: &mut taffy_id_to_node,
+                node_id_to_envelope_taffy_node: &mut node_id_to_envelope_taffy_node,
+                edge_label_leaves: &mut edge_label_leaves,
+                md_node_taffy_ids: &mut md_node_taffy_ids,
+            };
+            TaffyDiagramNodeBuilder::build_first_level_nodes(ctx, &mut state, processes_included)
+        };
         let mut thing_rank_to_taffy_ids = node_rank_to_nodes_by_entity_type
             .get(&EntityType::ThingDefault)
             .cloned()
@@ -198,31 +209,22 @@ impl IrToTaffyBuilder<'_> {
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
         edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
         edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
+            ctx,
             &mut taffy_tree,
-            edge_groups,
-            node_nesting_infos,
-            node_ranks_nested,
-            entity_types,
             &EntityType::ThingDefault,
             &mut thing_rank_to_taffy_ids,
             None,
         ));
         edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
+            ctx,
             &mut taffy_tree,
-            edge_groups,
-            node_nesting_infos,
-            node_ranks_nested,
-            entity_types,
             &EntityType::TagDefault,
             &mut tag_rank_to_taffy_ids,
             None,
         ));
         edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
+            ctx,
             &mut taffy_tree,
-            edge_groups,
-            node_nesting_infos,
-            node_ranks_nested,
-            entity_types,
             &EntityType::ProcessDefault,
             &mut process_rank_to_taffy_ids,
             None,
@@ -258,49 +260,31 @@ impl IrToTaffyBuilder<'_> {
             edge_description_taffy_nodes: thing_edge_desc_taffy_nodes,
             position_to_container_ids: thing_position_to_container_ids,
         } = EdgeDescriptionBuilder::build(
+            ctx,
             &mut taffy_tree,
-            edge_descs,
-            edge_groups,
-            node_nesting_infos,
-            node_ranks_nested,
-            entity_types,
             &EntityType::ThingDefault,
             None,
             &thing_rank_container_style,
-            lod,
-            char_width,
         );
         let EdgeDescriptionBuildResult {
             edge_description_taffy_nodes: tag_edge_desc_taffy_nodes,
             position_to_container_ids: tag_position_to_container_ids,
         } = EdgeDescriptionBuilder::build(
+            ctx,
             &mut taffy_tree,
-            edge_descs,
-            edge_groups,
-            node_nesting_infos,
-            node_ranks_nested,
-            entity_types,
             &EntityType::TagDefault,
             None,
             &tag_rank_container_style,
-            lod,
-            char_width,
         );
         let EdgeDescriptionBuildResult {
             edge_description_taffy_nodes: process_edge_desc_taffy_nodes,
             position_to_container_ids: process_position_to_container_ids,
         } = EdgeDescriptionBuilder::build(
+            ctx,
             &mut taffy_tree,
-            edge_descs,
-            edge_groups,
-            node_nesting_infos,
-            node_ranks_nested,
-            entity_types,
             &EntityType::ProcessDefault,
             None,
             &process_rank_container_style,
-            lod,
-            char_width,
         );
         edge_description_taffy_nodes.extend(thing_edge_desc_taffy_nodes);
         edge_description_taffy_nodes.extend(tag_edge_desc_taffy_nodes);
@@ -321,11 +305,8 @@ impl IrToTaffyBuilder<'_> {
             ),
         ] {
             for (edge_id, new_spacers) in EdgeSpacerBuilder::build_edge_desc_container_spacers(
+                ctx,
                 &mut taffy_tree,
-                edge_groups,
-                node_nesting_infos,
-                node_ranks_nested,
-                entity_types,
                 target_entity_type,
                 None,
                 position_to_container_ids,
@@ -387,13 +368,9 @@ impl IrToTaffyBuilder<'_> {
 
         // Compute layout (size measurement only, no syntax highlighting)
         let mut node_measure_context = NodeMeasureContext {
-            nodes,
-            thing_descs,
-            edge_descs,
+            ctx,
             edge_labels,
             edge_id_to_endpoint_node_ids: &edge_id_to_endpoint_node_ids,
-            char_width,
-            lod,
         };
 
         taffy_tree
@@ -424,14 +401,11 @@ impl IrToTaffyBuilder<'_> {
         // This is done once per node instead of multiple times during layout
         // measurement
         let entity_highlighted_spans = HighlightedSpansComputer::compute(
+            ctx,
             &taffy_tree,
             &node_id_to_taffy,
             &edge_label_taffy_nodes,
-            nodes,
-            thing_descs,
             edge_labels,
-            char_width,
-            lod,
         );
 
         let edge_description_highlighted_spans =

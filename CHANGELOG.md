@@ -6,10 +6,13 @@
 * Render edge descriptions in the middle of the edge path. ([#32][#32])
 * Replace `EntityDescs` with `ThingDescs` and `EdgeDescs`. ([#33][#33])
 * Support rendering markdown in node and edge descriptions, including images. ([#34][#34])
+* Include `ThemeAttr::Extra` classes in `Node` and `Edge` rendering. ([#35][#35])
+* Use `<g transform="translate(x, y)">` to position markdown images for more intuitive transform origin coordinates. ([#35][#35])
 
 [#32]: https://github.com/azriel91/disposition/pull/32
 [#33]: https://github.com/azriel91/disposition/pull/33
 [#34]: https://github.com/azriel91/disposition/pull/34
+[#35]: https://github.com/azriel91/disposition/pull/35
 
 
 ## 0.2.0 (2026-05-22)
