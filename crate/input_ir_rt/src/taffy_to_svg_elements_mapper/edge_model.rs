@@ -2,8 +2,17 @@ use disposition_ir_model::{
     edge::{Edge, EdgeId},
     node::{NodeFace, NodeId},
 };
+use disposition_model_common::Map;
 use disposition_svg_model::OrthoProtrusionParams;
 use kurbo::BezPath;
+
+/// Ordered pixel offsets for each edge contact point, keyed by the node face
+/// they belong to.
+///
+/// Edges sharing the same node face are spread symmetrically around the face
+/// midpoint using the per-face [`EdgeContactPointOffsets`].
+pub(super) type NodeIdAndFaceToContactPointOffsets<'id> =
+    Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>;
 
 /// Identifies a specific face of a specific node.
 ///

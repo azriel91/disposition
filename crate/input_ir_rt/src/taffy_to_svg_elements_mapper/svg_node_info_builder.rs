@@ -1,17 +1,22 @@
-use crate::string_xml_escaper::StringXmlEscaper;
-use disposition_ir_model::{node::NodeId, IrDiagram};
-use disposition_model_common::{entity::EntityType, Map};
-use disposition_svg_model::{
-    SvgImageSpan, SvgMdStyle, SvgNodeInfo, SvgNodeInfoCircle, SvgProcessInfo, SvgTextSpan,
+use crate::{
+    string_xml_escaper::StringXmlEscaper, AbsoluteCoordinates,
+    TaffyNodeAbsoluteCoordinatesCalculator,
 };
-use disposition_taffy_model::{MdStyle, NodeToTaffyNodeIds, TaffyNodeCtx};
+use disposition_ir_model::{node::NodeId, IrDiagram};
+use disposition_model_common::entity::EntityType;
+use disposition_svg_model::{
+    SvgImageSpan, SvgMdStyle, SvgNodeInfo, SvgNodeInfoCircle, SvgTextSpan,
+};
+use disposition_taffy_model::{
+    MdStyle, NodeIdToEnvelopeTaffyNode, NodeToTaffyNodeIds, TaffyNodeCtx,
+};
 use taffy::TaffyTree;
 
 use disposition_ir_model::{entity::EntityTailwindClasses, node::NodeShape};
 
 use super::{
-    svg_node_build_context::SvgNodeInfoBuildContext, SvgNodeRectPathBuilder,
-    SvgNodeTranslateClassesBuilder,
+    svg_node_build_context::SvgNodeInfoBuildContext, NodeIdToSvgProcessInfo,
+    SvgNodeRectPathBuilder, SvgNodeTranslateClassesBuilder,
 };
 
 /// Builds [`SvgNodeInfo`] values from IR nodes and their Taffy layouts.
@@ -50,7 +55,7 @@ impl SvgNodeInfoBuilder {
             .layout(wrapper_taffy_node_id)
             .unwrap_or_else(|e| panic!("Expected taffy layout to exist for {node_id}. Error: {e}"));
 
-        let (x, y) = Self::node_absolute_xy_coordinates(
+        let AbsoluteCoordinates { x, y } = TaffyNodeAbsoluteCoordinatesCalculator::calculate(
             taffy_tree,
             wrapper_taffy_node_id,
             wrapper_taffy_node_layout,
@@ -160,7 +165,10 @@ impl SvgNodeInfoBuilder {
                 let radius = circle_shape.radius();
 
                 // Look up the taffy node IDs for this node to find the circle taffy node
-                let (circle_abs_x, circle_abs_y) = {
+                let AbsoluteCoordinates {
+                    x: circle_abs_x,
+                    y: circle_abs_y,
+                } = {
                     let circle_taffy_node_id = taffy_node_ids.circle_taffy_node_id().unwrap_or_else(|| panic!("Expected `circle_taffy_node_id` to exist for {node_id} as it has a `NodeShape::Circle`."));
 
                     let circle_taffy_node_layout =
@@ -168,7 +176,7 @@ impl SvgNodeInfoBuilder {
                             panic!("Expected layout to exist for {node_id}. Error: {e}");
                         });
 
-                    Self::node_absolute_xy_coordinates(
+                    TaffyNodeAbsoluteCoordinatesCalculator::calculate(
                         taffy_tree,
                         circle_taffy_node_id,
                         circle_taffy_node_layout,
@@ -234,52 +242,20 @@ impl SvgNodeInfoBuilder {
         svg_node_info
     }
 
-    /// Calculates the absolute x and y coordinates of a node.
-    ///
-    /// The coordinates of the taffy node in the Taffy tree are relative to each
-    /// node's parent, whereas we need them to be absolute when rendering the
-    /// SVG.
-    pub(super) fn node_absolute_xy_coordinates(
-        taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        taffy_node_id: taffy::NodeId,
-        layout: &taffy::Layout,
-    ) -> (f32, f32) {
-        let (x, y) = {
-            // We don't use the content_box here because these are coordinates for the
-            // `<rect>` element.
-            let mut x_acc = layout.location.x;
-            let mut y_acc = layout.location.y;
-            let mut current_node_id = taffy_node_id;
-            while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
-                let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
-                    break;
-                };
-                // `content_box_x/y` places the inner nodes to align to the bottom right of
-                // the parent nodes instead of having appropriate padding around the inner
-                // node.
-                x_acc += parent_layout.location.x;
-                y_acc += parent_layout.location.y;
-                current_node_id = parent_taffy_node_id;
-            }
-            (x_acc, y_acc)
-        };
-        (x, y)
-    }
-
     /// Returns the absolute envelope bounds for a diagram node.
     ///
     /// Looks up the envelope taffy node from `node_id_to_envelope_taffy_node`
     /// and computes its absolute coordinates using
-    /// [`Self::node_absolute_xy_coordinates`]. Falls back to the wrapper node
-    /// bounds (`fallback_x/y/width/height_collapsed`) when no envelope is
-    /// recorded for the node.
+    /// [`TaffyNodeAbsoluteCoordinatesCalculator`]. Falls back to the wrapper
+    /// node bounds (`fallback_x/y/width/height_collapsed`) when no envelope
+    /// is recorded for the node.
     ///
     /// Returns `(envelope_x, envelope_y, envelope_width,
     /// envelope_height_collapsed)`.
     fn node_envelope_bounds<'id>(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         node_id: &NodeId<'id>,
-        node_id_to_envelope_taffy_node: &Map<NodeId<'id>, taffy::NodeId>,
+        node_id_to_envelope_taffy_node: &NodeIdToEnvelopeTaffyNode<'id>,
         fallback_x: f32,
         fallback_y: f32,
         fallback_width: f32,
@@ -303,8 +279,14 @@ impl SvgNodeInfoBuilder {
             );
         };
 
-        let (envelope_x, envelope_y) =
-            Self::node_absolute_xy_coordinates(taffy_tree, envelope_taffy_node_id, envelope_layout);
+        let AbsoluteCoordinates {
+            x: envelope_x,
+            y: envelope_y,
+        } = TaffyNodeAbsoluteCoordinatesCalculator::calculate(
+            taffy_tree,
+            envelope_taffy_node_id,
+            envelope_layout,
+        );
         let envelope_width = envelope_layout.size.width;
         let envelope_height_collapsed = envelope_layout
             .size
@@ -327,7 +309,7 @@ impl SvgNodeInfoBuilder {
     fn find_process_id<'id>(
         node_id: &NodeId<'id>,
         ir_diagram: &IrDiagram<'id>,
-        process_infos: &Map<NodeId<'id>, SvgProcessInfo<'id>>,
+        process_infos: &NodeIdToSvgProcessInfo<'id>,
     ) -> Option<NodeId<'id>> {
         let entity_types = ir_diagram.entity_types.get(node_id.as_ref());
 

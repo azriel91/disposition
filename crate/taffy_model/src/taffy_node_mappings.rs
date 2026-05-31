@@ -1,13 +1,11 @@
-use disposition_ir_model::{
-    edge::EdgeId,
-    node::{NodeId, NodeInbuilt},
-};
-use disposition_model_common::Map;
+use disposition_ir_model::node::NodeInbuilt;
 use taffy::TaffyTree;
 
 use crate::{
-    EdgeDescriptionTaffyNodes, EdgeLabelTaffyNodeIds, EdgeSpacerTaffyNodes, EntityHighlightedSpan,
-    EntityHighlightedSpans, MdImageSpan, MdNodeTaffyIds, NodeToTaffyNodeIds, TaffyNodeCtx,
+    EdgeIdToEdgeDescriptionTaffyNodes, EdgeIdToEdgeLabelTaffyNodeIds, EdgeIdToEdgeSpacerTaffyNodes,
+    EdgeIdToHighlightedSpans, EdgeIdToImageSpans, EntityHighlightedSpans,
+    NodeIdToEnvelopeTaffyNode, NodeIdToImageSpans, NodeIdToMdNodeTaffyIds, NodeIdToTaffyNodeIds,
+    NodeInbuiltToTaffyNode, TaffyNodeCtx, TaffyNodeToNodeId,
 };
 
 /// The taffy tree and mappings from each IR node ID to its `taffy` node ID.
@@ -17,18 +15,18 @@ pub struct TaffyNodeMappings<'id> {
     pub taffy_tree: TaffyTree<TaffyNodeCtx>,
     /// Map of each inbuilt node (root, thing container, etc.) to its `taffy`
     /// node ID.
-    pub node_inbuilt_to_taffy: Map<NodeInbuilt, taffy::NodeId>,
+    pub node_inbuilt_to_taffy: NodeInbuiltToTaffyNode,
     /// Map of each IR diagram node to related `taffy` node IDs.
-    pub node_id_to_taffy: Map<NodeId<'id>, NodeToTaffyNodeIds>,
+    pub node_id_to_taffy: NodeIdToTaffyNodeIds<'id>,
     /// Map of each `taffy` node ID to its corresponding IR node ID.
-    pub taffy_id_to_node: Map<taffy::NodeId, NodeId<'id>>,
+    pub taffy_id_to_node: TaffyNodeToNodeId<'id>,
     /// Map of each edge to its spacer taffy node IDs at intermediate ranks.
     ///
     /// When an edge crosses multiple ranks, spacer nodes are inserted in
     /// the flex layout at each intermediate rank. The edge path is then
     /// routed through these spacer positions to avoid overlapping other
     /// nodes.
-    pub edge_spacer_taffy_nodes: Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
+    pub edge_spacer_taffy_nodes: EdgeIdToEdgeSpacerTaffyNodes<'id>,
     /// Syntax highlighted spans of entity descriptions.
     ///
     /// Currently this does not contain any styling information, because diagram
@@ -41,7 +39,7 @@ pub struct TaffyNodeMappings<'id> {
     /// holds the label leaf on the `from` endpoint's face and the label leaf
     /// on the `to` endpoint's face. Both may be `None` for contained or
     /// self-loop edges.
-    pub edge_label_taffy_nodes: Map<EdgeId<'id>, EdgeLabelTaffyNodeIds>,
+    pub edge_label_taffy_nodes: EdgeIdToEdgeLabelTaffyNodeIds<'id>,
     /// Map from each edge ID to its `edge_description_container` and leaf
     /// taffy node IDs.
     ///
@@ -49,13 +47,13 @@ pub struct TaffyNodeMappings<'id> {
     /// holds the container taffy node ID (a flex container interleaved between
     /// rank containers) and the description taffy node ID (a leaf whose size
     /// is measured from the description text).
-    pub edge_description_taffy_nodes: Map<EdgeId<'id>, EdgeDescriptionTaffyNodes>,
+    pub edge_description_taffy_nodes: EdgeIdToEdgeDescriptionTaffyNodes<'id>,
     /// Highlighted spans computed for each edge description leaf node.
     ///
     /// Keyed by `EdgeId` (separate from `entity_highlighted_spans` to avoid
     /// key collisions between edge IDs and node IDs).
     /// Populated in Phase 3 after taffy layout completes.
-    pub edge_description_highlighted_spans: Map<EdgeId<'id>, Vec<EntityHighlightedSpan>>,
+    pub edge_description_highlighted_spans: EdgeIdToHighlightedSpans<'id>,
     /// Map from each diagram node ID to its envelope taffy node ID.
     ///
     /// The envelope wraps the existing `diagram_node_wrapper_node` and adds
@@ -65,22 +63,22 @@ pub struct TaffyNodeMappings<'id> {
     /// Kept separate from `node_id_to_taffy` (which maps to
     /// `NodeToTaffyNodeIds`) to avoid churn in all existing code that reads
     /// `node_id_to_taffy`.
-    pub node_id_to_envelope_taffy_node: Map<NodeId<'id>, taffy::NodeId>,
+    pub node_id_to_envelope_taffy_node: NodeIdToEnvelopeTaffyNode<'id>,
     /// Per-token taffy node IDs for diagram nodes that use the markdown
     /// content path (`DiagramLod::Normal` with a description).
     ///
     /// Keyed by diagram `NodeId`. Absent for nodes that use the legacy
     /// single-leaf text path.
-    pub md_node_taffy_ids: Map<NodeId<'id>, MdNodeTaffyIds>,
+    pub md_node_taffy_ids: NodeIdToMdNodeTaffyIds<'id>,
     /// Inline image spans computed after taffy layout for markdown nodes.
     ///
     /// Keyed by diagram `NodeId`. Absent for nodes without inline images.
-    pub entity_image_spans: Map<NodeId<'id>, Vec<MdImageSpan>>,
+    pub entity_image_spans: NodeIdToImageSpans<'id>,
     /// Inline image spans for edge descriptions that used the markdown path.
     ///
     /// Keyed by `EdgeId`. Absent for edges using the legacy single-leaf path
     /// or edges without inline images.
-    pub edge_description_image_spans: Map<EdgeId<'id>, Vec<MdImageSpan>>,
+    pub edge_description_image_spans: EdgeIdToImageSpans<'id>,
 }
 
 impl<'id> PartialEq for TaffyNodeMappings<'id> {

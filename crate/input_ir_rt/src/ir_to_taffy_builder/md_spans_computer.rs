@@ -1,10 +1,11 @@
 use disposition_ir_model::node::NodeId;
 use disposition_model_common::Map;
 use disposition_taffy_model::{
-    taffy::{self, TaffyTree},
-    EntityHighlightedSpan, EntityHighlightedSpans, MdImageSpan, MdNodeTaffyIds, NodeToTaffyNodeIds,
-    TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    taffy::TaffyTree, EntityHighlightedSpan, EntityHighlightedSpans, MdImageSpan, MdNodeTaffyIds,
+    NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
+
+use crate::{AbsoluteCoordinates, TaffyNodeAbsoluteCoordinatesCalculator};
 
 /// Computes `EntityHighlightedSpan` and `MdImageSpan` entries for nodes that
 /// used the markdown content path.
@@ -53,13 +54,13 @@ impl MdSpansComputer {
                 .and_then(|&taffy_node_ids| {
                     let wrapper_node_id = taffy_node_ids.wrapper_taffy_node_id();
                     let wrapper_layout = taffy_tree.layout(wrapper_node_id).ok()?;
-                    Some(Self::node_absolute_xy_coordinates(
+                    Some(TaffyNodeAbsoluteCoordinatesCalculator::calculate(
                         taffy_tree,
                         wrapper_node_id,
                         wrapper_layout,
                     ))
                 })
-                .unwrap_or((0.0, 0.0));
+                .unwrap_or_default();
 
             let (highlighted_spans, image_spans) =
                 Self::compute_node(taffy_tree, md_node_taffy_ids_entry, wrapper_abs_xy);
@@ -118,13 +119,13 @@ impl MdSpansComputer {
                 .layout(edge_desc_taffy_nodes.description_taffy_node_id)
                 .ok()
                 .map(|layout| {
-                    Self::node_absolute_xy_coordinates(
+                    TaffyNodeAbsoluteCoordinatesCalculator::calculate(
                         taffy_tree,
                         edge_desc_taffy_nodes.description_taffy_node_id,
                         layout,
                     )
                 })
-                .unwrap_or((0.0, 0.0));
+                .unwrap_or_default();
 
             let (highlighted_spans, image_spans) =
                 Self::compute_node(taffy_tree, md_node_taffy_ids, description_abs_xy);
@@ -147,7 +148,7 @@ impl MdSpansComputer {
     fn compute_node(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         md_node_taffy_ids: &MdNodeTaffyIds,
-        wrapper_abs_xy: (f32, f32),
+        wrapper_abs_xy: AbsoluteCoordinates,
     ) -> (Vec<EntityHighlightedSpan>, Vec<MdImageSpan>) {
         let mut all_highlighted_spans = Vec::new();
         let mut all_image_spans = Vec::new();
@@ -162,12 +163,16 @@ impl MdSpansComputer {
                 let Some(ctx) = taffy_tree.get_node_context(taffy_node_id) else {
                     continue;
                 };
-                let (abs_x, abs_y) =
-                    Self::node_absolute_xy_coordinates(taffy_tree, taffy_node_id, layout);
+                let AbsoluteCoordinates { x: abs_x, y: abs_y } =
+                    TaffyNodeAbsoluteCoordinatesCalculator::calculate(
+                        taffy_tree,
+                        taffy_node_id,
+                        layout,
+                    );
                 // Make coordinates relative to the wrapper node so they are not
                 // double-translated by the CSS translate on the node's `<g>`.
-                let rel_x = abs_x - wrapper_abs_xy.0;
-                let rel_y = abs_y - wrapper_abs_xy.1;
+                let rel_x = abs_x - wrapper_abs_xy.x;
+                let rel_y = abs_y - wrapper_abs_xy.y;
                 pending.push(TokenPosition {
                     abs_x: rel_x,
                     abs_y: rel_y,
@@ -277,31 +282,6 @@ impl MdSpansComputer {
 
             i = line_end;
         }
-    }
-
-    /// Calculates the absolute x and y coordinates of a node by traversing
-    /// up the parent chain and accumulating position offsets.
-    ///
-    /// This mirrors `SvgNodeInfoBuilder::node_absolute_xy_coordinates` but
-    /// operates within `MdSpansComputer` to avoid a cross-module visibility
-    /// dependency.
-    fn node_absolute_xy_coordinates(
-        taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        taffy_node_id: taffy::NodeId,
-        layout: &taffy::Layout,
-    ) -> (f32, f32) {
-        let mut x_acc = layout.location.x;
-        let mut y_acc = layout.location.y;
-        let mut current_node_id = taffy_node_id;
-        while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
-            let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
-                break;
-            };
-            x_acc += parent_layout.location.x;
-            y_acc += parent_layout.location.y;
-            current_node_id = parent_taffy_node_id;
-        }
-        (x_acc, y_acc)
     }
 }
 

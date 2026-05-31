@@ -1,12 +1,14 @@
-use disposition_ir_model::edge::EdgeId;
-use disposition_model_common::{Id, Map};
+use disposition_model_common::Id;
 use disposition_svg_model::{SvgEdgeLabelEndpointInfo, SvgEdgeLabelInfo, SvgTextSpan};
-use disposition_taffy_model::{EdgeLabelTaffyNodeIds, EntityHighlightedSpans, TaffyNodeCtx};
+use disposition_taffy_model::{
+    EdgeIdToEdgeLabelTaffyNodeIds, EntityHighlightedSpans, TaffyNodeCtx,
+};
 use taffy::TaffyTree;
 
-use crate::string_xml_escaper::StringXmlEscaper;
-
-use super::svg_node_info_builder::SvgNodeInfoBuilder;
+use crate::{
+    string_xml_escaper::StringXmlEscaper, AbsoluteCoordinates,
+    TaffyNodeAbsoluteCoordinatesCalculator,
+};
 
 /// Builds [`SvgEdgeLabelInfo`] values from the edge label taffy nodes and
 /// their computed highlighted spans.
@@ -18,7 +20,7 @@ impl SvgEdgeLabelsBuilder {
     /// slots.
     pub(super) fn build<'id>(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        edge_label_taffy_nodes: &Map<EdgeId<'id>, EdgeLabelTaffyNodeIds>,
+        edge_label_taffy_nodes: &EdgeIdToEdgeLabelTaffyNodeIds<'id>,
         entity_highlighted_spans: &EntityHighlightedSpans<'id>,
     ) -> Vec<SvgEdgeLabelInfo<'id>> {
         edge_label_taffy_nodes
@@ -67,8 +69,8 @@ impl SvgEdgeLabelsBuilder {
         spans: Option<&Vec<disposition_taffy_model::EntityHighlightedSpan>>,
     ) -> Option<SvgEdgeLabelEndpointInfo> {
         let layout = taffy_tree.layout(taffy_node_id).ok()?;
-        let (x, y) =
-            SvgNodeInfoBuilder::node_absolute_xy_coordinates(taffy_tree, taffy_node_id, layout);
+        let AbsoluteCoordinates { x, y } =
+            TaffyNodeAbsoluteCoordinatesCalculator::calculate(taffy_tree, taffy_node_id, layout);
         let width = layout.size.width;
         let height = layout.size.height;
 

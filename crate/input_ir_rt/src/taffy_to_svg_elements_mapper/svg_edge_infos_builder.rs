@@ -8,10 +8,9 @@ use disposition_ir_model::{
 use disposition_model_common::{
     edge::EdgeCurvature, entity::EntityType, theme::Css, Id, Map, RankDir,
 };
-use disposition_svg_model::{OrthoProtrusionParams, SvgEdgeInfo, SvgNodeInfo};
+use disposition_svg_model::{OrthoProtrusionParams, SvgEdgeInfo};
 use disposition_taffy_model::{
-    taffy::{self, TaffyTree},
-    EdgeLabelTaffyNodeIds, EdgeSpacerTaffyNodes, TaffyNodeCtx,
+    taffy::TaffyTree, EdgeIdToEdgeLabelTaffyNodeIds, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx,
 };
 use kurbo::Shape;
 
@@ -23,14 +22,15 @@ use crate::{
         edge_face_contact_tracker::EdgeFaceContactTracker,
         edge_model::{
             EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeIdAndFace,
-            PathBounds, PathMidpoint,
+            NodeIdAndFaceToContactPointOffsets, PathBounds, PathMidpoint,
         },
         edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
         ortho_protrusion_calculator::OrthoProtrusionCalculator,
         ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
         EdgePathLocusCalculator, EdgeSpacerCoordinatesCalculator, StringCharReplacer,
+        SvgNodeInfoByNodeId,
     },
-    EdgeIdGenerator,
+    AbsoluteCoordinates, EdgeIdGenerator, TaffyNodeAbsoluteCoordinatesCalculator,
 };
 
 /// Builds [`SvgEdgeInfo`]s for all edges in the diagram from edge groups and
@@ -59,10 +59,10 @@ impl SvgEdgeInfosBuilder {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn build<'id>(
         ir_diagram: &IrDiagram<'id>,
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        edge_spacer_taffy_nodes: &Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
-        edge_label_taffy_nodes: &Map<EdgeId<'id>, EdgeLabelTaffyNodeIds>,
+        edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
+        edge_label_taffy_nodes: &EdgeIdToEdgeLabelTaffyNodeIds<'id>,
         tailwind_classes: &mut EntityTailwindClasses<'id>,
         css: &mut Css,
         edge_animation_active: EdgeAnimationActive,
@@ -323,7 +323,7 @@ impl SvgEdgeInfosBuilder {
         edge_group: &'edge EdgeGroup<'id>,
         entity_types: &'edge EntityTypes<'id>,
         edge_face_assignments: &EdgeFaceAssignments<'id>,
-        svg_node_info_map: &'edge Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        svg_node_info_map: &'edge SvgNodeInfoByNodeId<'_, 'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
         node_nesting_infos: &NodeNestingInfos<'id>,
         face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
@@ -503,11 +503,11 @@ impl SvgEdgeInfosBuilder {
     fn face_offsets_compute<'edge, 'id>(
         rank_dir: RankDir,
         all_pass1_groups: &mut Vec<EdgeGroupPass1<'edge, 'id>>,
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
-        edge_label_taffy_nodes: &Map<EdgeId<'id>, EdgeLabelTaffyNodeIds>,
+        edge_label_taffy_nodes: &EdgeIdToEdgeLabelTaffyNodeIds<'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
-    ) -> Map<NodeIdAndFace<'id>, EdgeContactPointOffsets> {
+    ) -> NodeIdAndFaceToContactPointOffsets<'id> {
         // Collect face contact entries per (node, face) across all groups.
         let mut face_contact_entries_by_node_face: Map<NodeIdAndFace<'id>, Vec<FaceContactEntry>> =
             Map::new();
@@ -581,8 +581,7 @@ impl SvgEdgeInfosBuilder {
 
         // Pre-compute per-face ordered offset values so we can index by
         // slot rather than relying on call order.
-        let mut face_offsets_by_node_face: Map<NodeIdAndFace<'id>, EdgeContactPointOffsets> =
-            Map::new();
+        let mut face_offsets_by_node_face: NodeIdAndFaceToContactPointOffsets<'id> = Map::new();
 
         for (node_id_and_face, face_contact_entries) in &face_contact_entries_by_node_face {
             let contact_count = face_contact_entries.len();
@@ -700,10 +699,10 @@ impl SvgEdgeInfosBuilder {
         pass1_infos: &[EdgePass1Info<'edge, 'id>],
         from_slot_indices: &[Option<usize>],
         to_slot_indices: &[Option<usize>],
-        face_offsets_by_node_face: &Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>,
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        face_offsets_by_node_face: &NodeIdAndFaceToContactPointOffsets<'id>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        edge_spacer_taffy_nodes: &Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
+        edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
         visible_segments_length: f64,
         ortho_protrusions: &[OrthoProtrusionParams],
     ) -> Vec<EdgePathInfo<'edge, 'id>> {
@@ -816,7 +815,7 @@ impl SvgEdgeInfosBuilder {
         rank_dir: RankDir,
         edge_id: &EdgeId<'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        edge_spacer_taffy_nodes: &Map<EdgeId<'id>, EdgeSpacerTaffyNodes>,
+        edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
     ) -> Vec<SpacerCoordinates> {
         let Some(spacer_nodes) = edge_spacer_taffy_nodes.get(edge_id) else {
             return Vec::new();
@@ -1173,7 +1172,7 @@ impl SvgEdgeInfosBuilder {
     fn face_length_for_node<'id>(
         node_id: &NodeId<'id>,
         face: NodeFace,
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
     ) -> f32 {
         let Some(node_info) = svg_node_info_map.get(node_id) else {
             return 100.0; // fallback
@@ -1209,9 +1208,9 @@ impl SvgEdgeInfosBuilder {
         face: NodeFace,
         edge_id: &EdgeId<'id>,
         is_from_endpoint: bool,
-        edge_label_taffy_nodes: &Map<EdgeId<'id>, EdgeLabelTaffyNodeIds>,
+        edge_label_taffy_nodes: &EdgeIdToEdgeLabelTaffyNodeIds<'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         node_id: &NodeId<'id>,
     ) -> Option<f32> {
         let edge_label_taffy_node_ids = edge_label_taffy_nodes.get(edge_id)?;
@@ -1229,8 +1228,12 @@ impl SvgEdgeInfosBuilder {
                 if label_width == 0.0 {
                     return None;
                 }
-                let (label_abs_x, _) =
-                    Self::taffy_node_absolute_xy_compute(taffy_tree, taffy_node_id, layout);
+                let AbsoluteCoordinates { x: label_abs_x, .. } =
+                    TaffyNodeAbsoluteCoordinatesCalculator::calculate(
+                        taffy_tree,
+                        taffy_node_id,
+                        layout,
+                    );
                 // Route to the entry-side edge of the label along x.
                 let label_contact_x = match rank_dir {
                     RankDir::BottomToTop => label_abs_x + label_width,
@@ -1245,8 +1248,12 @@ impl SvgEdgeInfosBuilder {
                 if label_height == 0.0 {
                     return None;
                 }
-                let (_, label_abs_y) =
-                    Self::taffy_node_absolute_xy_compute(taffy_tree, taffy_node_id, layout);
+                let AbsoluteCoordinates { y: label_abs_y, .. } =
+                    TaffyNodeAbsoluteCoordinatesCalculator::calculate(
+                        taffy_tree,
+                        taffy_node_id,
+                        layout,
+                    );
                 // Route to the entry-side edge of the label along y.
                 let label_contact_y = match rank_dir {
                     RankDir::RightToLeft => label_abs_y + label_height,
@@ -1258,31 +1265,6 @@ impl SvgEdgeInfosBuilder {
                 Some(label_contact_y - face_midpoint_y)
             }
         }
-    }
-
-    /// Computes the absolute SVG x and y coordinates of a taffy node by
-    /// traversing up the parent chain and accumulating position offsets.
-    ///
-    /// This mirrors `SvgNodeInfoBuilder::node_absolute_xy_coordinates` but is
-    /// used within `SvgEdgeInfosBuilder` to avoid a cross-module visibility
-    /// dependency.
-    fn taffy_node_absolute_xy_compute(
-        taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        taffy_node_id: taffy::NodeId,
-        layout: &taffy::Layout,
-    ) -> (f32, f32) {
-        let mut x_acc = layout.location.x;
-        let mut y_acc = layout.location.y;
-        let mut current_node_id = taffy_node_id;
-        while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
-            let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
-                break;
-            };
-            x_acc += parent_layout.location.x;
-            y_acc += parent_layout.location.y;
-            current_node_id = parent_taffy_node_id;
-        }
-        (x_acc, y_acc)
     }
 
     fn css_animation_append<'f, 'edge, 'id>(

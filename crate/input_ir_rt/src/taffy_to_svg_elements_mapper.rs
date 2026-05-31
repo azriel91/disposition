@@ -1,11 +1,10 @@
 use disposition_input_ir_model::EdgeAnimationActive;
 use disposition_ir_model::{
     entity::EntityType,
-    node::{NodeId, NodeInbuilt, NodeShape, NodeShapeRect},
+    node::{NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
 };
-use disposition_model_common::Map;
-use disposition_svg_model::{SvgElements, SvgProcessInfo};
+use disposition_svg_model::SvgElements;
 use disposition_taffy_model::TaffyNodeMappings;
 
 use self::{
@@ -15,6 +14,7 @@ use self::{
     edge_path_builder_pass_2::EdgePathBuilderPass2,
     edge_path_locus_calculator::EdgePathLocusCalculator,
     edge_spacer_coordinates_calculator::EdgeSpacerCoordinatesCalculator,
+    node_id_to_svg_process_info::NodeIdToSvgProcessInfo,
     process_step_heights::ProcessStepsHeight,
     process_step_heights_calculator::ProcessStepHeightsCalculator,
     string_char_replacer::StringCharReplacer,
@@ -23,6 +23,7 @@ use self::{
     svg_edge_labels_builder::SvgEdgeLabelsBuilder,
     svg_node_build_context::{SvgNodeInfoBuildContext, SvgProcessInfoBuildContext},
     svg_node_info_builder::SvgNodeInfoBuilder,
+    svg_node_info_by_node_id::SvgNodeInfoByNodeId,
     svg_node_rect_path_builder::SvgNodeRectPathBuilder,
     svg_node_translate_classes_builder::SvgNodeTranslateClassesBuilder,
     svg_process_info_builder::SvgProcessInfoBuilder,
@@ -36,6 +37,7 @@ mod edge_path_builder_pass_1;
 mod edge_path_builder_pass_2;
 mod edge_path_locus_calculator;
 mod edge_spacer_coordinates_calculator;
+mod node_id_to_svg_process_info;
 mod ortho_protrusion_calculator;
 mod process_step_heights;
 mod process_step_heights_calculator;
@@ -45,6 +47,7 @@ mod svg_edge_infos_builder;
 mod svg_edge_labels_builder;
 mod svg_node_build_context;
 mod svg_node_info_builder;
+mod svg_node_info_by_node_id;
 mod svg_node_rect_path_builder;
 mod svg_node_translate_classes_builder;
 mod svg_process_info_builder;
@@ -129,7 +132,7 @@ impl TaffyToSvgElementsMapper {
             process_steps_heights: &process_steps_heights,
         };
         let svg_process_infos = process_steps_heights.iter().enumerate().fold(
-            Map::<NodeId<'id>, SvgProcessInfo<'id>>::new(),
+            NodeIdToSvgProcessInfo::<'id>::new(),
             |mut svg_process_infos, (process_idx, process_steps_height)| {
                 let process_node_id = &process_steps_height.process_id;
 
@@ -193,7 +196,7 @@ impl TaffyToSvgElementsMapper {
         );
 
         // Build a lookup map from NodeId to SvgNodeInfo for edge building
-        let svg_node_info_map: Map<&NodeId<'id>, &_> = svg_node_infos
+        let svg_node_info_map: SvgNodeInfoByNodeId<'_, 'id> = svg_node_infos
             .iter()
             .map(|info| (&info.node_id, info))
             .collect();

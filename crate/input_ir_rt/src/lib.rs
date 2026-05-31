@@ -3,6 +3,10 @@
 pub use disposition_input_ir_model::EdgeAnimationActive;
 pub use disposition_input_rt::id_parse;
 
+pub(crate) use crate::{
+    absolute_coordinates::AbsoluteCoordinates,
+    taffy_node_absolute_coordinates_calculator::TaffyNodeAbsoluteCoordinatesCalculator,
+};
 pub use crate::{
     edge_face_assigner::EdgeFaceAssigner, edge_id_generator::EdgeIdGenerator,
     input_diagram_merger::InputDiagramMerger,
@@ -18,6 +22,7 @@ pub use crate::{
 const NOTO_SANS_MONO_TTF: &[u8] =
     include_bytes!("../fonts/noto_sans_mono/NotoSansMono-Regular.ttf");
 
+mod absolute_coordinates;
 mod edge_face_assigner;
 mod edge_id_generator;
 mod input_diagram_merger;
@@ -28,5 +33,6 @@ mod md_text;
 mod node_ranks_calculator;
 mod string_xml_escaper;
 mod svg_elements_to_svg_mapper;
+mod taffy_node_absolute_coordinates_calculator;
 mod taffy_to_svg_elements_mapper;
 mod theme_value_source;

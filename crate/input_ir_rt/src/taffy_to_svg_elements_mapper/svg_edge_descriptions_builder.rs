@@ -1,14 +1,15 @@
-use disposition_ir_model::edge::EdgeId;
-use disposition_model_common::Map;
 use disposition_svg_model::{SvgEdgeDescriptionInfo, SvgImageSpan, SvgTextSpan};
 use disposition_taffy_model::{
-    EdgeDescriptionTaffyNodes, EntityHighlightedSpan, MdImageSpan, TaffyNodeCtx,
+    EdgeIdToEdgeDescriptionTaffyNodes, EdgeIdToHighlightedSpans, EdgeIdToImageSpans, TaffyNodeCtx,
 };
 use taffy::TaffyTree;
 
-use crate::string_xml_escaper::StringXmlEscaper;
+use crate::{
+    string_xml_escaper::StringXmlEscaper, AbsoluteCoordinates,
+    TaffyNodeAbsoluteCoordinatesCalculator,
+};
 
-use super::svg_node_info_builder::{svg_md_style_from, SvgNodeInfoBuilder};
+use super::svg_node_info_builder::svg_md_style_from;
 
 /// Builds [`SvgEdgeDescriptionInfo`] values from the edge description taffy
 /// nodes and their computed highlighted spans.
@@ -20,9 +21,9 @@ impl SvgEdgeDescriptionsBuilder {
     /// description spans.
     pub(super) fn build<'id>(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        edge_description_taffy_nodes: &Map<EdgeId<'id>, EdgeDescriptionTaffyNodes>,
-        edge_description_highlighted_spans: &Map<EdgeId<'id>, Vec<EntityHighlightedSpan>>,
-        edge_description_image_spans: &Map<EdgeId<'id>, Vec<MdImageSpan>>,
+        edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
+        edge_description_highlighted_spans: &EdgeIdToHighlightedSpans<'id>,
+        edge_description_image_spans: &EdgeIdToImageSpans<'id>,
     ) -> Vec<SvgEdgeDescriptionInfo<'id>> {
         edge_description_taffy_nodes
             .iter()
@@ -34,11 +35,12 @@ impl SvgEdgeDescriptionsBuilder {
 
                 let description_taffy_node_id = edge_desc_taffy_nodes.description_taffy_node_id;
                 let layout = taffy_tree.layout(description_taffy_node_id).ok()?;
-                let (x, y) = SvgNodeInfoBuilder::node_absolute_xy_coordinates(
-                    taffy_tree,
-                    description_taffy_node_id,
-                    layout,
-                );
+                let AbsoluteCoordinates { x, y } =
+                    TaffyNodeAbsoluteCoordinatesCalculator::calculate(
+                        taffy_tree,
+                        description_taffy_node_id,
+                        layout,
+                    );
 
                 let text_spans: Vec<SvgTextSpan> = spans
                     .iter()

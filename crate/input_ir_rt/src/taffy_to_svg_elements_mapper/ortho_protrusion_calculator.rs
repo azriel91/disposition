@@ -4,14 +4,14 @@ use disposition_ir_model::{
 };
 use disposition_model_common::{entity::EntityType, Map, RankDir};
 use disposition_svg_model::{OrthoProtrusionParams, SpacerProtrusionParams, SvgNodeInfo};
-use disposition_taffy_model::{taffy::TaffyTree, EdgeSpacerTaffyNodes, TaffyNodeCtx};
+use disposition_taffy_model::{taffy::TaffyTree, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx};
 
 use disposition_ir_model::node::NodeFace;
 
 use crate::taffy_to_svg_elements_mapper::{
-    edge_model::{EdgeContactPointOffsets, NodeIdAndFace},
+    edge_model::{NodeIdAndFace, NodeIdAndFaceToContactPointOffsets},
     edge_path_builder_pass_1::SpacerCoordinates,
-    EdgeSpacerCoordinatesCalculator,
+    EdgeSpacerCoordinatesCalculator, SvgNodeInfoByNodeId,
 };
 
 use super::svg_edge_infos_builder::{EdgeGroupPass1, EdgePass1Info};
@@ -179,13 +179,10 @@ impl OrthoProtrusionCalculator {
         all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
         from_slot_indices_all: &[Vec<Option<usize>>],
         to_slot_indices_all: &[Vec<Option<usize>>],
-        face_offsets_by_node_face: &Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>,
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        face_offsets_by_node_face: &NodeIdAndFaceToContactPointOffsets<'id>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        edge_spacer_taffy_nodes: &Map<
-            disposition_ir_model::edge::EdgeId<'id>,
-            EdgeSpacerTaffyNodes,
-        >,
+        edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
         entity_types: &EntityTypes<'id>,
@@ -1049,7 +1046,7 @@ impl OrthoProtrusionCalculator {
         pass1_info: &EdgePass1Info<'_, 'id>,
         slot_index: Option<usize>,
         is_from: bool,
-        face_offsets_by_node_face: &Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>,
+        face_offsets_by_node_face: &NodeIdAndFaceToContactPointOffsets<'id>,
     ) -> f32 {
         let (node_id, face) = if is_from {
             (&pass1_info.edge.from, pass1_info.from_face)
@@ -1098,7 +1095,7 @@ impl OrthoProtrusionCalculator {
         pass1_info: &EdgePass1Info<'_, 'id>,
         face: NodeFace,
         is_from: bool,
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         spacer_coordinates: &[SpacerCoordinates],
         node_nesting_infos: &NodeNestingInfos<'id>,
     ) -> f32 {
@@ -1187,10 +1184,7 @@ impl OrthoProtrusionCalculator {
         rank_dir: RankDir,
         pass1_info: &EdgePass1Info<'_, 'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        edge_spacer_taffy_nodes: &Map<
-            disposition_ir_model::edge::EdgeId<'id>,
-            EdgeSpacerTaffyNodes,
-        >,
+        edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
     ) -> Vec<SpacerCoordinates> {
         let Some(spacer_nodes) = edge_spacer_taffy_nodes.get(&pass1_info.edge_id) else {
             return Vec::new();
@@ -1318,7 +1312,7 @@ impl OrthoProtrusionCalculator {
     fn protrusions_assign_cycle_edges<'id>(
         all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
         from_slot_indices_all: &[Vec<Option<usize>>],
-        face_offsets_by_node_face: &Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>,
+        face_offsets_by_node_face: &NodeIdAndFaceToContactPointOffsets<'id>,
         result: &mut [Vec<OrthoProtrusionParams>],
     ) {
         struct UnregisteredEntry {
@@ -1480,8 +1474,8 @@ impl OrthoProtrusionCalculator {
         edge_idx: usize,
         pass1_info: &EdgePass1Info<'_, 'id>,
         from_slot_index: Option<usize>,
-        face_offsets_by_node_face: &Map<NodeIdAndFace<'id>, EdgeContactPointOffsets>,
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        face_offsets_by_node_face: &NodeIdAndFaceToContactPointOffsets<'id>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
         entity_types: &EntityTypes<'id>,
@@ -1643,7 +1637,7 @@ impl OrthoProtrusionCalculator {
         all_spacer_coordinates: &[Vec<Vec<SpacerCoordinates>>],
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         entity_types: &EntityTypes<'id>,
         result: &mut [Vec<OrthoProtrusionParams>],
     ) {
@@ -1750,7 +1744,7 @@ impl OrthoProtrusionCalculator {
         face: NodeFace,
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         entity_types: &EntityTypes<'id>,
     ) -> f32 {
         // 1. Compute LCA depth.
@@ -1920,7 +1914,7 @@ impl OrthoProtrusionCalculator {
     fn same_rank_sibling_extreme<'id>(
         sibling_ids: &[&NodeId<'id>],
         face: NodeFace,
-        svg_node_info_map: &Map<&NodeId<'id>, &SvgNodeInfo<'id>>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
     ) -> Option<f32> {
         let mut extreme: Option<f32> = None;
         for id in sibling_ids {

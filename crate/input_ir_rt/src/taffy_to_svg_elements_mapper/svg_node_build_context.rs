@@ -1,12 +1,12 @@
-use disposition_ir_model::{node::NodeId, IrDiagram};
-use disposition_model_common::Map;
-use disposition_svg_model::SvgProcessInfo;
-use disposition_taffy_model::{EntityHighlightedSpans, MdImageSpan, TaffyNodeCtx};
+use disposition_ir_model::IrDiagram;
+use disposition_taffy_model::{
+    EntityHighlightedSpans, NodeIdToEnvelopeTaffyNode, NodeIdToImageSpans, TaffyNodeCtx,
+};
 use taffy::TaffyTree;
 
 use disposition_ir_model::node::NodeShape;
 
-use super::ProcessStepsHeight;
+use super::{NodeIdToSvgProcessInfo, ProcessStepsHeight};
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SvgProcessInfoBuildContext<'ctx, 'id> {
@@ -32,18 +32,18 @@ pub(super) struct SvgNodeInfoBuildContext<'ctx, 'id> {
     pub(super) entity_highlighted_spans: &'ctx EntityHighlightedSpans<'id>,
     /// Inline image spans for markdown nodes. Absent for nodes without inline
     /// images.
-    pub(super) entity_image_spans: &'ctx Map<NodeId<'id>, Vec<MdImageSpan>>,
+    pub(super) entity_image_spans: &'ctx NodeIdToImageSpans<'id>,
     /// Default shape to when rendering a node.
     pub(super) default_shape: &'ctx NodeShape,
     /// Heights of all process steps for each process.
     pub(super) process_steps_heights: &'ctx [ProcessStepsHeight<'id>],
     /// Map of process ID to SVG process info
-    pub(super) svg_process_infos: &'ctx Map<NodeId<'id>, SvgProcessInfo<'id>>,
+    pub(super) svg_process_infos: &'ctx NodeIdToSvgProcessInfo<'id>,
     /// Map from diagram node ID to its envelope taffy node ID.
     ///
     /// Used to compute absolute envelope bounds for each node so that edge
     /// face contact points land on the outer envelope boundary.
-    pub(super) node_id_to_envelope_taffy_node: &'ctx Map<NodeId<'id>, taffy::NodeId>,
+    pub(super) node_id_to_envelope_taffy_node: &'ctx NodeIdToEnvelopeTaffyNode<'id>,
     /// Whether processes are rendered fully expanded.
     ///
     /// When `true`, the collapsed-height logic and focus-driven expand

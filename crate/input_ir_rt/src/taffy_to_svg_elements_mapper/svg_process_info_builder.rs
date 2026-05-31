@@ -1,7 +1,7 @@
 use disposition_ir_model::node::NodeId;
 use disposition_svg_model::SvgProcessInfo;
-use disposition_taffy_model::TaffyNodeCtx;
-use taffy::TaffyTree;
+
+use crate::TaffyNodeAbsoluteCoordinatesCalculator;
 
 use super::{
     process_step_heights::{self, ProcessStepsHeight},
@@ -31,7 +31,8 @@ impl SvgProcessInfoBuilder {
         } = svg_process_info_build_context;
 
         // Calculate y coordinate
-        let y = Self::compute_absolute_y(taffy_tree, taffy_node_id, layout);
+        let y =
+            TaffyNodeAbsoluteCoordinatesCalculator::calculate(taffy_tree, taffy_node_id, layout).y;
 
         let width = layout.size.width;
         let height_expanded = layout.size.height.min(layout.content_size.height);
@@ -60,24 +61,5 @@ impl SvgProcessInfoBuilder {
             process_steps_height.total_height,
             base_y,
         )
-    }
-
-    /// Computes the absolute y coordinate of a node by walking up the taffy
-    /// tree and accumulating parent layout offsets.
-    fn compute_absolute_y(
-        taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        taffy_node_id: taffy::NodeId,
-        layout: &taffy::Layout,
-    ) -> f32 {
-        let mut y_acc = layout.location.y;
-        let mut current_node_id = taffy_node_id;
-        while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
-            let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
-                break;
-            };
-            y_acc += parent_layout.location.y;
-            current_node_id = parent_taffy_node_id;
-        }
-        y_acc
     }
 }
