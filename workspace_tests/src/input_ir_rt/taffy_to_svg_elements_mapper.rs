@@ -22,7 +22,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0011_CONTAINED_EDGE_WITH_DESCRIPTION,
     INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC,
     INPUT_DIAGRAM_0013_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC_2,
-    INPUT_DIAGRAM_0017_EDGE_INNER_TO_INNER,
+    INPUT_DIAGRAM_0017_EDGE_INNER_TO_INNER, INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -366,6 +366,11 @@ fn test_svg_edge_infos_edge_group_id_preserved() -> Result<(), TaffyError> {
 fn test_svg_edge_infos_arrow_head_path_d_non_empty() -> Result<(), TaffyError> {
     for svg_elements in build_svg_elements_from_example_ir() {
         for edge_info in &svg_elements.svg_edge_infos {
+            // Process step graph connectors (`psgraph_*`) are git-style lines
+            // with no arrowhead, so they are excluded from this assertion.
+            if edge_info.edge_id.as_str().starts_with("psgraph_") {
+                continue;
+            }
             assert!(
                 !edge_info.arrow_head_path_d.is_empty(),
                 "arrow_head_path_d should not be empty for edge {:?}",
@@ -1122,6 +1127,60 @@ fn test_process_steps_ordered_by_rank_when_dependencies_absent() {
             y_a < y_b && y_b < y_c,
             "Expected process steps ordered by rank along the column \
              (a < b < c), got a={y_a:.2}, b={y_b:.2}, c={y_c:.2}"
+        );
+    }
+}
+
+/// Builds `SvgElements` from the process-step branch/merge fixture.
+fn build_svg_elements_from_process_step_branch_merge() -> impl Iterator<Item = SvgElements<'static>>
+{
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE)
+}
+
+/// In the branch/merge process, the bypassed step C is shifted to a higher
+/// lane (further right) than the lane-0 steps, and a git-style connector is
+/// drawn for each of the four process step dependencies.
+#[test]
+fn test_process_step_graph_bypass_shifts_circle_right_and_draws_connectors() {
+    for svg_elements in build_svg_elements_from_process_step_branch_merge() {
+        // Absolute circle centre x for a step (node.x + circle.cx).
+        let circle_cx = |step: &str| {
+            let node_info = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|node_info| node_info.node_id.as_str() == step)
+                .unwrap_or_else(|| panic!("Expected node {step} to exist."));
+            let circle = node_info
+                .circle
+                .as_ref()
+                .unwrap_or_else(|| panic!("Expected {step} to have a circle."));
+            node_info.x + circle.cx
+        };
+
+        let cx_a = circle_cx("proc_build_step_a");
+        let cx_b = circle_cx("proc_build_step_b");
+        let cx_c = circle_cx("proc_build_step_c");
+        let cx_d = circle_cx("proc_build_step_d");
+
+        // Lane-0 steps share the same lane x; C (lane 1) is shifted right.
+        assert!(
+            (cx_a - cx_b).abs() < 0.5 && (cx_a - cx_d).abs() < 0.5,
+            "Lane-0 steps A, B, D should share an x lane, got a={cx_a:.2}, b={cx_b:.2}, d={cx_d:.2}"
+        );
+        assert!(
+            cx_c > cx_a + 1.0,
+            "Bypassed step C should be shifted right of lane 0, got a={cx_a:.2}, c={cx_c:.2}"
+        );
+
+        // One connector per process step dependency.
+        let connector_count = svg_elements
+            .svg_edge_infos
+            .iter()
+            .filter(|edge_info| edge_info.edge_id.as_str().starts_with("psgraph_"))
+            .count();
+        assert_eq!(
+            4, connector_count,
+            "Expected 4 process step connectors (A->B, A->C, B->D, C->D)"
         );
     }
 }

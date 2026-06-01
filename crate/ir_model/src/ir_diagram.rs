@@ -9,7 +9,7 @@ use crate::{
         NodeCopyText, NodeFaceEdges, NodeHierarchy, NodeNames, NodeNestingInfos, NodeOrdering,
         NodeRanksNested, NodeShapes,
     },
-    process::{ProcessStepEdges, ProcessStepEntities, ProcessStepRanks},
+    process::{ProcessStepEdges, ProcessStepEntities, ProcessStepGraphs, ProcessStepRanks},
     thing::ThingDescs,
 };
 
@@ -232,6 +232,14 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "ProcessStepRanks::is_empty")]
     pub process_step_ranks: ProcessStepRanks<'id>,
 
+    /// Git-graph layout (lane placement and connectors) for each process's
+    /// steps.
+    ///
+    /// Drives the lane-based positioning of process step circles and the
+    /// connector paths drawn between them.
+    #[serde(default, skip_serializing_if = "ProcessStepGraphs::is_empty")]
+    pub process_step_graphs: ProcessStepGraphs<'id>,
+
     /// Options that control how the diagram is rendered.
     ///
     /// Includes edge curvature and rank direction settings.
@@ -278,6 +286,7 @@ impl<'id> IrDiagram<'id> {
             process_step_entities: self.process_step_entities.into_static(),
             process_step_edges: self.process_step_edges.into_static(),
             process_step_ranks: self.process_step_ranks.into_static(),
+            process_step_graphs: self.process_step_graphs.into_static(),
             render_options: self.render_options,
             css: self.css,
         }

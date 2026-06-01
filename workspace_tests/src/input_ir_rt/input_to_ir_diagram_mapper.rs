@@ -6,15 +6,17 @@ use disposition::{
         entity::EntityType,
         layout::{FlexDirection, LeafLayout, NodeLayout},
         node::NodeId,
-        process::ProcessStepRank,
+        process::{ProcessStepLane, ProcessStepRank},
         IrDiagram,
     },
     model_common::{edge::EdgeGroupId, id, Id, ProcessRenderCollapse},
 };
-use disposition_input_ir_rt::InputToIrDiagramMapper;
+use disposition_input_ir_rt::{InputDiagramMerger, InputToIrDiagramMapper};
 use pretty_assertions::assert_eq;
 
-use crate::input_ir_rt::{EXAMPLE_INPUT_MERGED, EXAMPLE_IR};
+use crate::input_ir_rt::{
+    EXAMPLE_INPUT_MERGED, EXAMPLE_IR, INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE,
+};
 
 #[test]
 fn test_input_to_ir_mapping() {
@@ -415,6 +417,50 @@ fn test_process_step_ranks_from_dependencies() {
         ProcessStepRank::new(0),
         rank("proc_i12e_region_tier_app_deploy_step_ecs_cluster_update")
     );
+}
+
+#[test]
+fn test_process_step_graph_lane_assignment_for_branch_merge() {
+    // A forks into B and C, which merge into D. B's connector to D bypasses
+    // C's row, so C is pushed to lane 1 while A, B, D stay in lane 0.
+    let overlay =
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE)
+            .unwrap();
+    let input_diagram = InputDiagramMerger::merge(InputDiagram::base(), &overlay);
+    let diagram = InputToIrDiagramMapper::map(&input_diagram).diagram;
+
+    let process_id = NodeId::from(id!("proc_build"));
+    let graph = diagram
+        .process_step_graphs
+        .get(&process_id)
+        .expect("Expected a process step graph for proc_build.");
+
+    assert_eq!(2, graph.lane_count);
+
+    let lane = |step: &str| {
+        graph
+            .step_placements
+            .get(&NodeId::from(Id::try_from(step.to_string()).unwrap()))
+            .unwrap_or_else(|| panic!("Expected placement for {step}."))
+            .lane
+    };
+
+    assert_eq!(ProcessStepLane::new(0), lane("proc_build_step_a"));
+    assert_eq!(ProcessStepLane::new(0), lane("proc_build_step_b"));
+    assert_eq!(ProcessStepLane::new(1), lane("proc_build_step_c"));
+    assert_eq!(ProcessStepLane::new(0), lane("proc_build_step_d"));
+
+    // Four connectors: A->B, A->C, B->D, C->D.
+    assert_eq!(4, graph.edges.len());
+    // The bypassing connector B->D travels in lane 0.
+    let b_to_d = graph
+        .edges
+        .iter()
+        .find(|edge| {
+            edge.from.as_str() == "proc_build_step_b" && edge.to.as_str() == "proc_build_step_d"
+        })
+        .expect("Expected a B->D connector.");
+    assert_eq!(ProcessStepLane::new(0), b_to_d.lane);
 }
 
 #[test]

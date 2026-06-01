@@ -25,7 +25,10 @@ use disposition_ir_model::{
 };
 use disposition_model_common::{edge::EdgeGroupId, theme::Css, Id, Map, RankDir, Set};
 
-use crate::{edge_face_assigner::EdgeFaceAssigner, node_ranks_calculator::NodeRanksCalculator};
+use crate::{
+    edge_face_assigner::EdgeFaceAssigner, node_ranks_calculator::NodeRanksCalculator,
+    process_step_graph_calculator::ProcessStepGraphCalculator,
+};
 
 use self::{
     css_theme_vars::CssThemeVars, node_nesting_infos_builder::NodeNestingInfosBuilder,
@@ -165,6 +168,13 @@ impl InputToIrDiagramMapper {
         // 14b. Compute ProcessStepRanks from process steps and their edges
         let process_step_ranks = Self::build_process_step_ranks(processes, &process_step_edges);
 
+        // 14c. Compute ProcessStepGraphs (git-graph lane layout) from ranks and edges
+        let process_step_graphs = ProcessStepGraphCalculator::calculate(
+            processes,
+            &process_step_ranks,
+            &process_step_edges,
+        );
+
         // 15. Compute NodeNestingInfos from node_hierarchy
         let node_nesting_infos = NodeNestingInfosBuilder::build(&node_hierarchy);
 
@@ -206,6 +216,7 @@ impl InputToIrDiagramMapper {
             process_step_entities,
             process_step_edges,
             process_step_ranks,
+            process_step_graphs,
             render_options: *render_options,
             css: Self::css_with_theme_vars(css, &css_theme_vars),
         };

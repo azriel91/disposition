@@ -4,12 +4,13 @@ use disposition_ir_model::{
     edge::EdgeId,
     entity::EntityType,
     node::{NodeHierarchy, NodeId, NodeRank, NodeShape},
+    process::{ProcessStepGraph, ProcessStepLane},
 };
 use disposition_model_common::{Id, Map};
 use disposition_taffy_model::{
-    taffy::{self, AlignItems, Display, FlexDirection, Size, Style},
+    taffy::{self, AlignItems, Display, FlexDirection, LengthPercentageAuto, Rect, Size, Style},
     DiagramLod, DiagramNodeCtx, EdgeDescriptionTaffyNodes, EdgeSpacerTaffyNodes,
-    NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeCtx,
+    NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeCtx, LANE_WIDTH,
 };
 
 use super::{
@@ -341,6 +342,28 @@ impl TaffyDiagramNodeBuilder {
         let mut edge_description_taffy_nodes: Map<EdgeId<'static>, EdgeDescriptionTaffyNodes> =
             Map::new();
 
+        // Processes with a git-graph layout lay their step circles out in lanes
+        // instead of rank containers. Connectors between steps are drawn later by
+        // `ProcessStepGraphEdgesBuilder`, so no edge spacers / descriptions are
+        // produced here.
+        if matches!(entity_type, EntityType::ProcessDefault)
+            && let Some(process_step_graph) = ctx.process_step_graphs.get(&ir_node_id)
+        {
+            let envelope_node_id = Self::process_node_step_graph_build(
+                ctx,
+                state,
+                node_id,
+                &ir_node_id,
+                entity_type,
+                process_step_graph,
+            );
+            return (
+                envelope_node_id,
+                edge_spacer_taffy_nodes,
+                edge_description_taffy_nodes,
+            );
+        }
+
         let TaffyWrapperNodeStyles {
             wrapper_style,
             text_style,
@@ -606,6 +629,190 @@ impl TaffyDiagramNodeBuilder {
                 )
             }
         }
+    }
+
+    /// Builds a process node whose steps use the git-graph lane layout.
+    ///
+    /// The process `wrapper_node` is a flex column holding the process label
+    /// followed by one step row per step (ordered by the step's row in the
+    /// graph). Each step row places the step circle in its lane and the step
+    /// label in a shared, left-aligned text column. Returns the envelope node
+    /// wrapping the process.
+    fn process_node_step_graph_build(
+        ctx: TaffyBuildCtx<'_>,
+        state: &mut TaffyBuildState<'_>,
+        node_id: &Id<'static>,
+        ir_node_id: &NodeId<'static>,
+        entity_type: &EntityType,
+        process_step_graph: &ProcessStepGraph<'static>,
+    ) -> taffy::NodeId {
+        let TaffyWrapperNodeStyles {
+            wrapper_style,
+            text_style,
+            child_container_style: _,
+        } = TaffyContainerBuilder::taffy_wrapper_node_styles(ctx.node_layouts, node_id);
+
+        // Process label.
+        let process_text_node_id =
+            Self::text_leaf_build(ctx, state, node_id, entity_type, ir_node_id, text_style);
+
+        let lane_count = process_step_graph.lane_count;
+
+        // Steps ordered by row (main-axis position).
+        let mut steps: Vec<(&NodeId<'static>, u32)> = process_step_graph
+            .step_placements
+            .iter()
+            .map(|(step_node_id, placement)| (step_node_id, placement.row))
+            .collect();
+        steps.sort_by_key(|(_step_node_id, row)| *row);
+
+        let mut wrapper_children = vec![process_text_node_id];
+        for (step_node_id, _row) in &steps {
+            let lane = process_step_graph
+                .step_placements
+                .get(*step_node_id)
+                .map(|placement| placement.lane)
+                .unwrap_or_default();
+            let step_wrapper_node_id =
+                Self::process_step_graph_leaf_build(ctx, state, step_node_id, lane, lane_count);
+            wrapper_children.push(step_wrapper_node_id);
+        }
+
+        let wrapper_node_id = state
+            .taffy_tree
+            .new_with_children(wrapper_style, &wrapper_children)
+            .unwrap_or_else(|e| {
+                panic!("Expected to create process wrapper node for {node_id}. Error: {e}")
+            });
+
+        state.node_id_to_taffy.insert(
+            ir_node_id.clone(),
+            NodeToTaffyNodeIds::Wrapper {
+                wrapper_node_id,
+                text_node_id: process_text_node_id,
+            },
+        );
+        let (envelope_node_id, new_label_leaves) = TaffyEnvelopeBuilder::build(
+            state.taffy_tree,
+            ir_node_id,
+            wrapper_node_id,
+            ctx.node_face_edges,
+            ctx.rank_dir,
+        );
+        state.edge_label_leaves.extend(new_label_leaves);
+        state
+            .node_id_to_envelope_taffy_node
+            .insert(ir_node_id.clone(), envelope_node_id);
+        state
+            .taffy_id_to_node
+            .insert(wrapper_node_id, ir_node_id.clone());
+
+        envelope_node_id
+    }
+
+    /// Builds a single process step row for the git-graph layout.
+    ///
+    /// The row is a flex row of `[lane_gutter, text]`. The `lane_gutter` has a
+    /// fixed width of `lane_count * LANE_WIDTH` and holds the step's circle
+    /// offset to its lane, so the text always begins at the same x across steps
+    /// (a single left-aligned column). Records the step as a
+    /// [`NodeToTaffyNodeIds::LeafWithCircle`].
+    fn process_step_graph_leaf_build(
+        ctx: TaffyBuildCtx<'_>,
+        state: &mut TaffyBuildState<'_>,
+        step_node_id: &NodeId<'static>,
+        lane: ProcessStepLane,
+        lane_count: u32,
+    ) -> taffy::NodeId {
+        let step_id: &Id<'static> = step_node_id.as_ref();
+        let entity_type = ctx
+            .entity_types
+            .get(step_id)
+            .and_then(|entity_types| entity_types.first())
+            .cloned()
+            .unwrap_or(EntityType::ProcessStepDefault);
+
+        let radius = match ctx.node_shapes.get(step_node_id) {
+            Some(NodeShape::Circle(node_shape_circle)) => node_shape_circle.radius(),
+            _ => LANE_WIDTH / 2.0 - 4.0,
+        };
+        let diameter = radius * 2.0;
+
+        // Circle centred within its lane: intra-lane centring + lane offset.
+        let circle_margin_left = ((LANE_WIDTH - diameter) / 2.0).max(0.0) + lane.value() as f32 * LANE_WIDTH;
+        let circle_node_id = state
+            .taffy_tree
+            .new_leaf(Style {
+                size: Size {
+                    width: taffy::style::Dimension::length(diameter),
+                    height: taffy::style::Dimension::length(diameter),
+                },
+                flex_shrink: 0.0,
+                margin: Rect {
+                    left: LengthPercentageAuto::length(circle_margin_left),
+                    right: LengthPercentageAuto::length(0.0),
+                    top: LengthPercentageAuto::length(0.0),
+                    bottom: LengthPercentageAuto::length(0.0),
+                },
+                ..Default::default()
+            })
+            .unwrap_or_else(|e| {
+                panic!("Expected to create circle leaf node for {step_id}. Error: {e}")
+            });
+
+        // Fixed-width gutter holding the lane circle, so the text column aligns.
+        let gutter_width = lane_count as f32 * LANE_WIDTH;
+        let lane_gutter_node_id = state
+            .taffy_tree
+            .new_with_children(
+                Style {
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Row,
+                    flex_shrink: 0.0,
+                    size: Size {
+                        width: taffy::style::Dimension::length(gutter_width),
+                        height: taffy::style::Dimension::auto(),
+                    },
+                    ..Default::default()
+                },
+                &[circle_node_id],
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create lane gutter node for {step_id}. Error: {e}")
+            });
+
+        let taffy_text_node_id =
+            Self::text_leaf_build(ctx, state, step_id, &entity_type, step_node_id, Style::default());
+
+        let step_wrapper_node_id = state
+            .taffy_tree
+            .new_with_children(
+                Style {
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Row,
+                    align_items: Some(AlignItems::Center),
+                    gap: Size::length(4.0f32),
+                    ..Default::default()
+                },
+                &[lane_gutter_node_id, taffy_text_node_id],
+            )
+            .unwrap_or_else(|e| {
+                panic!("Expected to create step wrapper node for {step_id}. Error: {e}")
+            });
+
+        state.node_id_to_taffy.insert(
+            step_node_id.clone(),
+            NodeToTaffyNodeIds::LeafWithCircle {
+                wrapper_node_id: step_wrapper_node_id,
+                circle_node_id,
+                text_node_id: taffy_text_node_id,
+            },
+        );
+        state
+            .taffy_id_to_node
+            .insert(taffy_text_node_id, step_node_id.clone());
+
+        step_wrapper_node_id
     }
 
     /// Creates the text leaf for a diagram node.
