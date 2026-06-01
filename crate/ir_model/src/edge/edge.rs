@@ -23,7 +23,7 @@ use crate::node::NodeId;
     all(feature = "schemars", not(feature = "test")),
     derive(schemars::JsonSchema)
 )]
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Edge<'id> {
     /// The source node ID where this edge originates.
     pub from: NodeId<'id>,

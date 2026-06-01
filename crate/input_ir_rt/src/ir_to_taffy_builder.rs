@@ -131,6 +131,8 @@ impl IrToTaffyBuilder<'_> {
             node_face_edges,
             node_shapes,
             process_step_entities: _,
+            process_step_edges: _,
+            process_step_ranks: _,
             render_options,
             css: _,
         } = ir_diagram;

@@ -20,7 +20,7 @@ use disposition_ir_model::{
         NodeCopyText, NodeFaceEdges, NodeHierarchy, NodeId, NodeInbuilt, NodeNames, NodeOrdering,
         NodeShapes,
     },
-    process::ProcessStepEntities,
+    process::{ProcessStepEdges, ProcessStepEntities, ProcessStepRank, ProcessStepRanks},
     IrDiagram,
 };
 use disposition_model_common::{edge::EdgeGroupId, theme::Css, Id, Map, RankDir, Set};
@@ -159,6 +159,12 @@ impl InputToIrDiagramMapper {
         // 14. Build ProcessStepEntities from step_thing_interactions
         let process_step_entities = Self::build_process_step_entities(processes);
 
+        // 14a. Build ProcessStepEdges from process_step_dependencies
+        let process_step_edges = Self::build_process_step_edges(processes);
+
+        // 14b. Compute ProcessStepRanks from process steps and their edges
+        let process_step_ranks = Self::build_process_step_ranks(processes, &process_step_edges);
+
         // 15. Compute NodeNestingInfos from node_hierarchy
         let node_nesting_infos = NodeNestingInfosBuilder::build(&node_hierarchy);
 
@@ -198,6 +204,8 @@ impl InputToIrDiagramMapper {
             node_face_edges,
             node_shapes,
             process_step_entities,
+            process_step_edges,
+            process_step_ranks,
             render_options: *render_options,
             css: Self::css_with_theme_vars(css, &css_theme_vars),
         };
@@ -1268,6 +1276,99 @@ impl InputToIrDiagramMapper {
                         (node_id, entity_ids)
                     })
             })
+            .collect()
+    }
+
+    // === Process Step Edges === //
+
+    /// Build [`ProcessStepEdges`] from each process's
+    /// `process_step_dependencies`.
+    ///
+    /// For each `(step, dependencies)` entry, an edge is created from each
+    /// dependency (prerequisite) to the dependent step, so the dependent step
+    /// is ranked after its prerequisites.
+    fn build_process_step_edges<'id>(processes: &Processes<'id>) -> ProcessStepEdges<'id> {
+        processes
+            .values()
+            .flat_map(|process_diagram| {
+                process_diagram
+                    .process_step_dependencies
+                    .iter()
+                    .flat_map(|(step_id, dependency_ids)| {
+                        let to_id = NodeId::from(step_id.as_ref().clone());
+                        dependency_ids.iter().map(move |dependency_id| {
+                            let from_id = NodeId::from(dependency_id.as_ref().clone());
+                            Edge::new(from_id, to_id.clone())
+                        })
+                    })
+            })
+            .collect()
+    }
+
+    // === Process Step Ranks === //
+
+    /// Build [`ProcessStepRanks`] from process steps and their edges.
+    ///
+    /// Steps that depend on other steps receive a higher rank. Steps with no
+    /// dependencies default to rank `0`. Ranks are computed via a longest-path
+    /// topological ordering (Kahn's algorithm) over the process step edges.
+    fn build_process_step_ranks<'id>(
+        processes: &Processes<'id>,
+        process_step_edges: &ProcessStepEdges<'id>,
+    ) -> ProcessStepRanks<'id> {
+        // Collect all process step node IDs in declaration order so that steps
+        // without dependencies still receive a rank.
+        let step_node_ids: Vec<NodeId<'id>> = processes
+            .values()
+            .flat_map(|process_diagram| process_diagram.steps.keys())
+            .map(|step_id| NodeId::from(step_id.as_ref().clone()))
+            .collect();
+        let node_count = step_node_ids.len();
+
+        // Assign each step node a numeric index.
+        let mut node_to_index: Map<NodeId<'id>, usize> = Map::with_capacity(node_count);
+        for (index, node_id) in step_node_ids.iter().enumerate() {
+            node_to_index.insert(node_id.clone(), index);
+        }
+
+        // Build adjacency list and in-degrees from the process step edges.
+        let mut adjacency: Vec<Vec<usize>> = vec![Vec::new(); node_count];
+        let mut in_degree: Vec<usize> = vec![0; node_count];
+        for edge in process_step_edges.iter() {
+            if let (Some(&from_idx), Some(&to_idx)) =
+                (node_to_index.get(&edge.from), node_to_index.get(&edge.to))
+            {
+                adjacency[from_idx].push(to_idx);
+                in_degree[to_idx] += 1;
+            }
+        }
+
+        // Longest-path ranks via Kahn's algorithm. Nodes that remain part of a
+        // cycle are never dequeued and keep their default rank of `0`.
+        let mut ranks: Vec<u32> = vec![0; node_count];
+        let mut queue: std::collections::VecDeque<usize> = in_degree
+            .iter()
+            .enumerate()
+            .filter(|(_index, in_degree_item)| **in_degree_item == 0)
+            .map(|(index, _in_degree_item)| index)
+            .collect();
+        while let Some(from_idx) = queue.pop_front() {
+            for &to_idx in &adjacency[from_idx] {
+                let candidate_rank = ranks[from_idx] + 1;
+                if candidate_rank > ranks[to_idx] {
+                    ranks[to_idx] = candidate_rank;
+                }
+                in_degree[to_idx] -= 1;
+                if in_degree[to_idx] == 0 {
+                    queue.push_back(to_idx);
+                }
+            }
+        }
+
+        step_node_ids
+            .into_iter()
+            .enumerate()
+            .map(|(index, node_id)| (node_id, ProcessStepRank::new(ranks[index])))
             .collect()
     }
 }

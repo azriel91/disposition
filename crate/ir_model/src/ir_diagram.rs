@@ -9,7 +9,7 @@ use crate::{
         NodeCopyText, NodeFaceEdges, NodeHierarchy, NodeNames, NodeNestingInfos, NodeOrdering,
         NodeRanksNested, NodeShapes,
     },
-    process::ProcessStepEntities,
+    process::{ProcessStepEdges, ProcessStepEntities, ProcessStepRanks},
     thing::ThingDescs,
 };
 
@@ -217,6 +217,21 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "ProcessStepEntities::is_empty")]
     pub process_step_entities: ProcessStepEntities<'id>,
 
+    /// Directed edges between process steps, derived from process step
+    /// dependencies.
+    ///
+    /// Each edge points from a prerequisite step to a step that depends on it.
+    #[serde(default, skip_serializing_if = "ProcessStepEdges::is_empty")]
+    pub process_step_edges: ProcessStepEdges<'id>,
+
+    /// Computed ranks for process steps based on process step dependencies.
+    ///
+    /// Steps that depend on other steps have higher ranks, positioning them
+    /// further along the flex direction axis. Steps without any dependencies
+    /// default to rank `0`.
+    #[serde(default, skip_serializing_if = "ProcessStepRanks::is_empty")]
+    pub process_step_ranks: ProcessStepRanks<'id>,
+
     /// Options that control how the diagram is rendered.
     ///
     /// Includes edge curvature and rank direction settings.
@@ -261,6 +276,8 @@ impl<'id> IrDiagram<'id> {
             node_face_edges: self.node_face_edges.into_static(),
             node_shapes: self.node_shapes.into_static(),
             process_step_entities: self.process_step_entities.into_static(),
+            process_step_edges: self.process_step_edges.into_static(),
+            process_step_ranks: self.process_step_ranks.into_static(),
             render_options: self.render_options,
             css: self.css,
         }

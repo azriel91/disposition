@@ -220,6 +220,13 @@ processes:
       proc_app_dev_step_repository_clone: "Clone repository"
       proc_app_dev_step_project_build: "Build project"
 
+    # Dependencies between process steps.
+    #
+    # Each step maps to the steps it depends on, which are positioned earlier.
+    process_step_dependencies:
+      proc_app_dev_step_project_build:
+        - proc_app_dev_step_repository_clone
+
     # Thing interactions that should be actively highlighted when this step is focused.
     #
     # The things associated with all of the interaction IDs in the list should be highlighted.
@@ -237,6 +244,16 @@ processes:
       proc_app_release_step_tag_and_push: "Tag and push"
       proc_app_release_step_gh_actions_build: "Github Actions build"
       proc_app_release_step_gh_actions_publish: "Github Actions publish"
+
+    process_step_dependencies:
+      proc_app_release_step_pull_request_open:
+        - proc_app_release_step_crate_version_update
+      proc_app_release_step_tag_and_push:
+        - proc_app_release_step_pull_request_open
+      proc_app_release_step_gh_actions_build:
+        - proc_app_release_step_tag_and_push
+      proc_app_release_step_gh_actions_publish:
+        - proc_app_release_step_gh_actions_build
 
     step_thing_interactions:
       proc_app_release_step_crate_version_update: [edge_ix_t_localhost__t_localhost__within]

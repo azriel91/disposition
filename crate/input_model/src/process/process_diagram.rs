@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::process::{ProcessSteps, StepThingInteractions};
+use crate::process::{ProcessStepDependencies, ProcessSteps, StepThingInteractions};
 
 /// Represents a process with its steps and associated metadata.
 ///
@@ -21,6 +21,9 @@ use crate::process::{ProcessSteps, StepThingInteractions};
 ///     steps:
 ///       proc_app_dev_step_repository_clone: "Clone repository"
 ///       proc_app_dev_step_project_build: "Build project"
+///     process_step_dependencies:
+///       proc_app_dev_step_project_build:
+///         - proc_app_dev_step_repository_clone
 ///     step_descs:
 ///       proc_app_dev_step_repository_clone: |-
 ///         ```bash
@@ -54,6 +57,16 @@ pub struct ProcessDiagram<'id> {
     /// Steps in the process and their display labels.
     #[serde(default, skip_serializing_if = "ProcessSteps::is_empty")]
     pub steps: ProcessSteps<'id>,
+
+    /// Dependencies between the steps in this process.
+    ///
+    /// Each process step maps to the set of process steps it depends on, which
+    /// are positioned earlier in the process.
+    #[serde(
+        default,
+        skip_serializing_if = "ProcessStepDependencies::is_empty"
+    )]
+    pub process_step_dependencies: ProcessStepDependencies<'id>,
 
     /// Thing interactions that should be actively highlighted when each step is
     /// focused.

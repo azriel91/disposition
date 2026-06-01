@@ -2,9 +2,11 @@ use disposition::{
     input_ir_model::IrDiagramAndIssues,
     input_model::InputDiagram,
     ir_model::{
+        edge::Edge,
         entity::EntityType,
         layout::{FlexDirection, LeafLayout, NodeLayout},
         node::NodeId,
+        process::ProcessStepRank,
         IrDiagram,
     },
     model_common::{edge::EdgeGroupId, id, Id, ProcessRenderCollapse},
@@ -334,6 +336,85 @@ fn test_self_loop_edge() {
     assert_eq!(id!("t_localhost"), *edges[0].from);
     assert_eq!(id!("t_localhost"), *edges[0].to);
     assert!(edges[0].is_self_loop());
+}
+
+#[test]
+fn test_process_step_edges_from_dependencies() {
+    // Process step dependencies should be expanded into directed edges from
+    // each prerequisite step to the step that depends on it.
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // proc_app_dev: build depends on clone -> edge clone -> build
+    // proc_app_release: a 5-step chain.
+    assert_eq!(5, diagram.process_step_edges.len());
+
+    let clone_to_build = Edge::new(
+        NodeId::from(id!("proc_app_dev_step_repository_clone")),
+        NodeId::from(id!("proc_app_dev_step_project_build")),
+    );
+    assert!(diagram.process_step_edges.contains(&clone_to_build));
+
+    let tag_to_build = Edge::new(
+        NodeId::from(id!("proc_app_release_step_tag_and_push")),
+        NodeId::from(id!("proc_app_release_step_gh_actions_build")),
+    );
+    assert!(diagram.process_step_edges.contains(&tag_to_build));
+}
+
+#[test]
+fn test_process_step_ranks_from_dependencies() {
+    // Steps that depend on other steps receive higher ranks; steps without
+    // dependencies default to rank 0.
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    let rank = |step: &str| {
+        *diagram
+            .process_step_ranks
+            .get(&NodeId::from(Id::try_from(step.to_string()).unwrap()))
+            .unwrap()
+    };
+
+    // proc_app_dev chain.
+    assert_eq!(
+        ProcessStepRank::new(0),
+        rank("proc_app_dev_step_repository_clone")
+    );
+    assert_eq!(
+        ProcessStepRank::new(1),
+        rank("proc_app_dev_step_project_build")
+    );
+
+    // proc_app_release chain (5 steps -> ranks 0..=4).
+    assert_eq!(
+        ProcessStepRank::new(0),
+        rank("proc_app_release_step_crate_version_update")
+    );
+    assert_eq!(
+        ProcessStepRank::new(1),
+        rank("proc_app_release_step_pull_request_open")
+    );
+    assert_eq!(
+        ProcessStepRank::new(2),
+        rank("proc_app_release_step_tag_and_push")
+    );
+    assert_eq!(
+        ProcessStepRank::new(3),
+        rank("proc_app_release_step_gh_actions_build")
+    );
+    assert_eq!(
+        ProcessStepRank::new(4),
+        rank("proc_app_release_step_gh_actions_publish")
+    );
+
+    // Single-step process with no dependencies defaults to rank 0.
+    assert_eq!(
+        ProcessStepRank::new(0),
+        rank("proc_i12e_region_tier_app_deploy_step_ecs_cluster_update")
+    );
 }
 
 #[test]
