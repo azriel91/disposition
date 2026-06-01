@@ -43,6 +43,30 @@ Rust SVG diagram generation library with a dioxus web frontend.
 10. See `<@doc/src/md_node_content_plan.md>` for the step-by-step plan to render node and edge description text as syntax-highlighted markdown with inline images.
 
 
+## Diagnosing Diagram Generation
+
+To diagnose / check the values generated at each stage of the diagram generation
+pipeline, run the `disposition_cli` and output the desired intermediate data to
+stdout:
+
+```bash
+cargo run -q -p disposition_cli -- --structure-only --data $intermediate_data --stdout $input_diagram_yaml_file 2>&1
+```
+
+* `$intermediate_data` is one of `ir-diagram`, `taffy-tree`, `svg-elements`, or
+  `svg`. The pipeline only computes up to the requested stage.
+* `--structure-only` omits styles / colors so the structural values are easier
+  to read; drop it to see styled values.
+* `--stdout` writes the selected data straight to stdout instead of files, and
+  `2>&1` merges any mapping issues (written to stderr) into the output.
+* `$input_diagram_yaml_file` is the input diagram, e.g.
+  `workspace_tests/src/input_diagram/0018_images_animated.yaml`.
+
+Omit `--data` / `--stdout` and pass an output directory to instead write all
+stages (`ir_diagram.yaml`, `taffy_tree.txt`, `svg_elements.yaml`, `diagram.svg`)
+to files.
+
+
 ## Tests
 
 Tests for all crates are placed inside the `workspace_tests` crate, and are run using the command:
