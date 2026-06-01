@@ -1,0 +1,25 @@
+[package]
+name = "disposition_cli"
+description = "CLI for generating disposition diagram artifacts from an input YAML diagram."
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+
+[dependencies]
+disposition = { workspace = true }
+disposition_input_ir_rt = { workspace = true }
+disposition_taffy_model = { workspace = true }
+serde-saphyr = { workspace = true }
+thiserror = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs"] }
+clap = { version = "4", features = ["derive"] }
+
+[lints]
+workspace = true

@@ -30,6 +30,7 @@ pub use crate::{
     node_inbuilt_to_taffy_node::NodeInbuiltToTaffyNode, node_to_taffy_node_ids::NodeToTaffyNodeIds,
     processes_included::ProcessesIncluded, taffy_node_ctx::TaffyNodeCtx,
     taffy_node_mappings::TaffyNodeMappings, taffy_node_to_node_id::TaffyNodeToNodeId,
+    taffy_tree_fmt::TaffyTreeFmt,
 };
 
 mod diagram_lod;
@@ -67,3 +68,4 @@ mod processes_included;
 mod taffy_node_ctx;
 mod taffy_node_mappings;
 mod taffy_node_to_node_id;
+mod taffy_tree_fmt;
