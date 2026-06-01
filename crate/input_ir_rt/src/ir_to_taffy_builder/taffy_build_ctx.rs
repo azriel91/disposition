@@ -6,6 +6,7 @@ use disposition_ir_model::{
         NodeFaceEdges, NodeHierarchy, NodeId, NodeNames, NodeNestingInfos, NodeRanksNested,
         NodeShapes,
     },
+    process::ProcessStepRanks,
 };
 use disposition_model_common::{edge::EdgeDescs, thing::ThingDescs, Id, Map, RankDir};
 use disposition_taffy_model::DiagramLod;
@@ -41,6 +42,10 @@ pub(crate) struct TaffyBuildCtx<'ctx> {
     pub(crate) node_shapes: &'ctx NodeShapes<'static>,
     /// Ranks for nodes at each hierarchy level.
     pub(crate) node_ranks_nested: &'ctx NodeRanksNested<'static>,
+    /// Ranks for process steps, derived from process step dependencies.
+    ///
+    /// Used to order process step taffy nodes within their process container.
+    pub(crate) process_step_ranks: &'ctx ProcessStepRanks<'static>,
     /// Nesting information (ancestor chain / nesting path) for each node.
     pub(crate) node_nesting_infos: &'ctx NodeNestingInfos<'static>,
     /// Per-node face-to-edge-IDs mapping used to build envelope label slots.

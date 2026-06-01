@@ -163,10 +163,21 @@ impl TaffyDiagramNodeBuilder {
             };
 
             let ir_node_id = NodeId::from(node_id.clone());
-            let rank = ctx
-                .node_ranks_nested
-                .node_rank_for(&ir_node_id, ctx.node_nesting_infos)
-                .unwrap_or(NodeRank::new(0));
+
+            // Process steps are ordered by their process step rank (derived from
+            // process step dependencies), with declaration order as the
+            // tiebreaker within a rank. All other nodes use the hierarchy-aware
+            // node ranks.
+            let rank = if matches!(entity_type, EntityType::ProcessStepDefault) {
+                ctx.process_step_ranks
+                    .get(&ir_node_id)
+                    .map(|process_step_rank| NodeRank::new(process_step_rank.value()))
+                    .unwrap_or(NodeRank::new(0))
+            } else {
+                ctx.node_ranks_nested
+                    .node_rank_for(&ir_node_id, ctx.node_nesting_infos)
+                    .unwrap_or(NodeRank::new(0))
+            };
 
             rank_to_taffy_ids
                 .entry(rank)

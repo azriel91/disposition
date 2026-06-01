@@ -1094,6 +1094,38 @@ fn test_thing_node_cycle_edges_not_routed_around_process_node() {
     }
 }
 
+/// Process steps without explicit `process_step_dependencies` are laid out in
+/// declaration order along the process's flex direction (assumed linear
+/// dependencies).
+///
+/// The `proc_test` process declares steps `a`, `b`, `c` with no
+/// `process_step_dependencies`, so they are assumed to depend linearly in
+/// declaration order, giving ranks 0, 1, 2. The process container lays steps
+/// out in a column, so the step `y` coordinates must increase `a < b < c`.
+#[test]
+fn test_process_steps_ordered_by_rank_when_dependencies_absent() {
+    for svg_elements in build_svg_elements_from_process_step_nodes_cyclic_edge() {
+        let step_y = |step: &str| {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|node_info| node_info.node_id.as_str() == step)
+                .unwrap_or_else(|| panic!("Expected node {step} to exist."))
+                .y
+        };
+
+        let y_a = step_y("proc_test_step_a");
+        let y_b = step_y("proc_test_step_b");
+        let y_c = step_y("proc_test_step_c");
+
+        assert!(
+            y_a < y_b && y_b < y_c,
+            "Expected process steps ordered by rank along the column \
+             (a < b < c), got a={y_a:.2}, b={y_b:.2}, c={y_c:.2}"
+        );
+    }
+}
+
 /// Builds `SvgElements` from the 2-node symmetric edge fixture.
 fn build_svg_elements_from_symmetric_2_nodes() -> impl Iterator<Item = SvgElements<'static>> {
     build_svg_elements_for_diagram(INPUT_DIAGRAM_0003_EDGES_SYMMETRIC_2_NODES)

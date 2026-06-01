@@ -2,7 +2,7 @@ use disposition_input_ir_model::IrDiagramAndIssues;
 use disposition_input_model::{
     edge::{EdgeGroup as InputEdgeGroup, EdgeKind},
     entity::EntityTypes,
-    process::Processes,
+    process::{ProcessDiagram, Processes},
     tag::TagNames,
     theme::{ThemeDefault, ThemeTypesStyles},
     thing::{
@@ -1283,26 +1283,49 @@ impl InputToIrDiagramMapper {
 
     /// Build [`ProcessStepEdges`] from each process's
     /// `process_step_dependencies`.
-    ///
-    /// For each `(step, dependencies)` entry, an edge is created from each
-    /// dependency (prerequisite) to the dependent step, so the dependent step
-    /// is ranked after its prerequisites.
     fn build_process_step_edges<'id>(processes: &Processes<'id>) -> ProcessStepEdges<'id> {
         processes
             .values()
-            .flat_map(|process_diagram| {
-                process_diagram
-                    .process_step_dependencies
-                    .iter()
-                    .flat_map(|(step_id, dependency_ids)| {
-                        let to_id = NodeId::from(step_id.as_ref().clone());
-                        dependency_ids.iter().map(move |dependency_id| {
-                            let from_id = NodeId::from(dependency_id.as_ref().clone());
-                            Edge::new(from_id, to_id.clone())
-                        })
-                    })
-            })
+            .flat_map(Self::process_step_edges_for_process)
             .collect()
+    }
+
+    /// Returns the process step edges for a single process.
+    ///
+    /// When `process_step_dependencies` is defined, an edge is created from
+    /// each dependency (prerequisite) to the dependent step, so the dependent
+    /// step is ranked after its prerequisites.
+    ///
+    /// When `process_step_dependencies` is empty, linear dependencies are
+    /// assumed in process step declaration order -- each step depends on the
+    /// step declared immediately before it.
+    fn process_step_edges_for_process<'id>(
+        process_diagram: &ProcessDiagram<'id>,
+    ) -> Vec<Edge<'id>> {
+        if process_diagram.process_step_dependencies.is_empty() {
+            let step_node_ids: Vec<NodeId<'id>> = process_diagram
+                .steps
+                .keys()
+                .map(|step_id| NodeId::from(step_id.as_ref().clone()))
+                .collect();
+
+            step_node_ids
+                .windows(2)
+                .map(|pair| Edge::new(pair[0].clone(), pair[1].clone()))
+                .collect()
+        } else {
+            process_diagram
+                .process_step_dependencies
+                .iter()
+                .flat_map(|(step_id, dependency_ids)| {
+                    let to_id = NodeId::from(step_id.as_ref().clone());
+                    dependency_ids.iter().map(move |dependency_id| {
+                        let from_id = NodeId::from(dependency_id.as_ref().clone());
+                        Edge::new(from_id, to_id.clone())
+                    })
+                })
+                .collect()
+        }
     }
 
     // === Process Step Ranks === //
