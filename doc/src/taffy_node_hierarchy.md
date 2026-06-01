@@ -167,9 +167,11 @@ process_wrapper_node:        # flex column
   # ...
 ```
 
-Each step is stored as a `NodeToTaffyNodeIds::LeafWithCircle` and is **not**
-wrapped in an envelope. Connector lines between steps are drawn afterward by
-`ProcessStepGraphEdgesBuilder`. See `process_step_graph.md` for the full
+Each step is stored as a `NodeToTaffyNodeIds::ProcessStepGraphLeaf` (the circle
+is nested inside the gutter rather than being a direct sibling of the text, so
+text-span offsets are computed differently than for `LeafWithCircle`) and is
+**not** wrapped in an envelope. Connector lines between steps are drawn afterward
+by `ProcessStepGraphEdgesBuilder`. See `process_step_graph.md` for the full
 algorithm.
 
 

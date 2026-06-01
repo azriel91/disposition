@@ -802,7 +802,7 @@ impl TaffyDiagramNodeBuilder {
 
         state.node_id_to_taffy.insert(
             step_node_id.clone(),
-            NodeToTaffyNodeIds::LeafWithCircle {
+            NodeToTaffyNodeIds::ProcessStepGraphLeaf {
                 wrapper_node_id: step_wrapper_node_id,
                 circle_node_id,
                 text_node_id: taffy_text_node_id,

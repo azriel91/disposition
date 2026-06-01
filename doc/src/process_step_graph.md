@@ -72,8 +72,11 @@ keeping labels left-aligned. The circle is centred within its lane via
 `margin_left = (LANE_WIDTH - diameter) / 2 + lane * LANE_WIDTH`, so the circle
 centre sits at `gutter_x + lane * LANE_WIDTH + LANE_WIDTH / 2`. `LANE_WIDTH` is a
 constant in `disposition_taffy_model`. Each step is recorded as a
-`NodeToTaffyNodeIds::LeafWithCircle`; steps are not wrapped in envelopes (their
-connectors are not drawn via envelope label slots).
+`NodeToTaffyNodeIds::ProcessStepGraphLeaf`; because the circle is nested inside
+the gutter (not a direct sibling of the text), `HighlightedSpansComputer`
+computes the text-span offset from the text node's own `location.x` so labels
+stay aligned across lanes. Steps are not wrapped in envelopes (their connectors
+are not drawn via envelope label slots).
 
 
 ## Connector router (`ProcessStepGraphEdgesBuilder`)

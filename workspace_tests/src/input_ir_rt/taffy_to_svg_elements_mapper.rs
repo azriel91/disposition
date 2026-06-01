@@ -1185,6 +1185,44 @@ fn test_process_step_graph_bypass_shifts_circle_right_and_draws_connectors() {
     }
 }
 
+/// Process step labels are left-aligned in a single column regardless of each
+/// step's lane.
+///
+/// The bypassed step C sits in lane 1, but its label must start at the same
+/// absolute x as the lane-0 steps' labels (the circle is offset, not the text).
+#[test]
+fn test_process_step_graph_labels_aligned_across_lanes() {
+    for svg_elements in build_svg_elements_from_process_step_branch_merge() {
+        // Absolute x where a step's label text begins (node.x + first span x).
+        let label_x = |step: &str| {
+            let node_info = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|node_info| node_info.node_id.as_str() == step)
+                .unwrap_or_else(|| panic!("Expected node {step} to exist."));
+            let span = node_info
+                .text_spans
+                .first()
+                .unwrap_or_else(|| panic!("Expected {step} to have a label span."));
+            node_info.x + span.x
+        };
+
+        let label_x_a = label_x("proc_build_step_a");
+        for step in [
+            "proc_build_step_b",
+            "proc_build_step_c",
+            "proc_build_step_d",
+        ] {
+            assert!(
+                (label_x(step) - label_x_a).abs() < 0.5,
+                "Label for {step} should be aligned with A's label, \
+                 got {} vs {label_x_a}",
+                label_x(step)
+            );
+        }
+    }
+}
+
 /// Builds `SvgElements` from the 2-node symmetric edge fixture.
 fn build_svg_elements_from_symmetric_2_nodes() -> impl Iterator<Item = SvgElements<'static>> {
     build_svg_elements_for_diagram(INPUT_DIAGRAM_0003_EDGES_SYMMETRIC_2_NODES)
