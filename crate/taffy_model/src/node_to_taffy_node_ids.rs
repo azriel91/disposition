@@ -42,9 +42,10 @@ pub enum NodeToTaffyNodeIds {
     ///
     /// The `wrapper_node_id` is a flex-row holding a fixed-width lane gutter
     /// (which contains the `circle_node_id`) followed by the `text_node_id`.
-    /// Unlike [`NodeToTaffyNodeIds::LeafWithCircle`], the circle is nested inside
-    /// the gutter rather than being a direct sibling of the text, so the text
-    /// always begins at the same x across steps (a left-aligned column).
+    /// Unlike [`NodeToTaffyNodeIds::LeafWithCircle`], the circle is nested
+    /// inside the gutter rather than being a direct sibling of the text, so
+    /// the text always begins at the same x across steps (a left-aligned
+    /// column).
     ProcessStepGraphLeaf {
         wrapper_node_id: taffy::NodeId,
         circle_node_id: taffy::NodeId,
@@ -95,7 +96,9 @@ impl NodeToTaffyNodeIds {
             NodeToTaffyNodeIds::LeafWithCircle { circle_node_id, .. } => Some(*circle_node_id),
             NodeToTaffyNodeIds::Wrapper { .. } => None,
             NodeToTaffyNodeIds::WrapperCircle { circle_node_id, .. } => Some(*circle_node_id),
-            NodeToTaffyNodeIds::ProcessStepGraphLeaf { circle_node_id, .. } => Some(*circle_node_id),
+            NodeToTaffyNodeIds::ProcessStepGraphLeaf { circle_node_id, .. } => {
+                Some(*circle_node_id)
+            }
         }
     }
 }

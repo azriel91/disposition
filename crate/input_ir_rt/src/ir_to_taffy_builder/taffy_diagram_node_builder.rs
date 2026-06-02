@@ -739,7 +739,8 @@ impl TaffyDiagramNodeBuilder {
         let diameter = radius * 2.0;
 
         // Circle centred within its lane: intra-lane centring + lane offset.
-        let circle_margin_left = ((LANE_WIDTH - diameter) / 2.0).max(0.0) + lane.value() as f32 * LANE_WIDTH;
+        let circle_margin_left =
+            ((LANE_WIDTH - diameter) / 2.0).max(0.0) + lane.value() as f32 * LANE_WIDTH;
         let circle_node_id = state
             .taffy_tree
             .new_leaf(Style {
@@ -781,8 +782,14 @@ impl TaffyDiagramNodeBuilder {
                 panic!("Expected to create lane gutter node for {step_id}. Error: {e}")
             });
 
-        let taffy_text_node_id =
-            Self::text_leaf_build(ctx, state, step_id, &entity_type, step_node_id, Style::default());
+        let taffy_text_node_id = Self::text_leaf_build(
+            ctx,
+            state,
+            step_id,
+            &entity_type,
+            step_node_id,
+            Style::default(),
+        );
 
         let step_wrapper_node_id = state
             .taffy_tree

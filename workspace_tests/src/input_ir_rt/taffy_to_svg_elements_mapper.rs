@@ -1251,7 +1251,10 @@ fn test_process_step_graph_connectors_have_arrow_locus_and_classes() {
                 .tailwind_classes
                 .get(connector.edge_id.as_ref())
                 .unwrap_or_else(|| {
-                    panic!("Connector {:?} should have tailwind classes", connector.edge_id)
+                    panic!(
+                        "Connector {:?} should have tailwind classes",
+                        connector.edge_id
+                    )
                 });
             assert!(
                 classes.contains("stroke-"),

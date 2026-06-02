@@ -62,10 +62,7 @@ pub struct ProcessDiagram<'id> {
     ///
     /// Each process step maps to the set of process steps it depends on, which
     /// are positioned earlier in the process.
-    #[serde(
-        default,
-        skip_serializing_if = "ProcessStepDependencies::is_empty"
-    )]
+    #[serde(default, skip_serializing_if = "ProcessStepDependencies::is_empty")]
     pub process_step_dependencies: ProcessStepDependencies<'id>,
 
     /// Thing interactions that should be actively highlighted when each step is

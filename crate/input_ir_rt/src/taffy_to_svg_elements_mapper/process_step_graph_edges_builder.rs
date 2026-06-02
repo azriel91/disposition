@@ -12,8 +12,8 @@ use crate::{AbsoluteCoordinates, TaffyNodeAbsoluteCoordinatesCalculator};
 /// Each `ProcessStepGraphEdge` is drawn as an orthogonal, arc-rounded connector
 /// that departs the `from` step's circle, runs vertically in its travel lane,
 /// and enters the `to` step's circle. Like dependency edges, each connector
-/// carries a positioned arrowhead at the `to` end and a locus path for the focus
-/// indicator. The connector's tailwind classes (resolved from the theme's
+/// carries a positioned arrowhead at the `to` end and a locus path for the
+/// focus indicator. The connector's tailwind classes (resolved from the theme's
 /// `edge_defaults`) are looked up from `ir_diagram.tailwind_classes` by the
 /// renderer, keyed by `ProcessStepGraphEdge::edge_id`.
 #[derive(Clone, Copy, Debug)]
@@ -96,8 +96,11 @@ impl ProcessStepGraphEdgesBuilder {
         let taffy_node_ids = node_id_to_taffy.get(node_id)?;
         let circle_taffy_node_id = taffy_node_ids.circle_taffy_node_id()?;
         let layout = taffy_tree.layout(circle_taffy_node_id).ok()?;
-        let AbsoluteCoordinates { x, y } =
-            TaffyNodeAbsoluteCoordinatesCalculator::calculate(taffy_tree, circle_taffy_node_id, layout);
+        let AbsoluteCoordinates { x, y } = TaffyNodeAbsoluteCoordinatesCalculator::calculate(
+            taffy_tree,
+            circle_taffy_node_id,
+            layout,
+        );
         let radius = layout.size.width / 2.0;
         Some((x + radius, y + radius, radius))
     }
@@ -107,13 +110,10 @@ impl ProcessStepGraphEdgesBuilder {
     ///
     /// Forward connectors (the `to` step below the `from` step) connect the top
     /// of the `to` circle to the bottom of the `from` circle, running down the
-    /// travel lane in between. Back connectors (cycles, `to` at or above `from`)
-    /// bulge out to the right to avoid overlapping the steps between them.
-    fn connector_path(
-        from: (f32, f32, f32),
-        to: (f32, f32, f32),
-        lane_x: f32,
-    ) -> BezPath {
+    /// travel lane in between. Back connectors (cycles, `to` at or above
+    /// `from`) bulge out to the right to avoid overlapping the steps
+    /// between them.
+    fn connector_path(from: (f32, f32, f32), to: (f32, f32, f32), lane_x: f32) -> BezPath {
         let (from_x, from_y, from_radius) = from;
         let (to_x, to_y, to_radius) = to;
 
@@ -163,9 +163,9 @@ impl ProcessStepGraphEdgesBuilder {
     /// Builds an orthogonal [`BezPath`] through `points` with arc-rounded
     /// corners.
     ///
-    /// Consecutive duplicate points are collapsed, so collapsed bends (e.g. when
-    /// the travel lane equals an endpoint's lane) do not produce zero-length
-    /// segments.
+    /// Consecutive duplicate points are collapsed, so collapsed bends (e.g.
+    /// when the travel lane equals an endpoint's lane) do not produce
+    /// zero-length segments.
     fn ortho_bez_path(points: &[(f32, f32)]) -> BezPath {
         // Collapse consecutive duplicate points.
         let mut points_collapsed: Vec<(f64, f64)> = Vec::with_capacity(points.len());

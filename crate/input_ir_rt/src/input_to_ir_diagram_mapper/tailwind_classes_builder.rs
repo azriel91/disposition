@@ -810,8 +810,7 @@ impl TailwindClassesBuilder {
         };
 
         // 1. Base EdgeDefaults (lowest priority).
-        if let Some(defaults_partials) =
-            theme_default.base_styles.get(&IdOrDefaults::EdgeDefaults)
+        if let Some(defaults_partials) = theme_default.base_styles.get(&IdOrDefaults::EdgeDefaults)
         {
             Self::apply_tailwind_from_partials(
                 defaults_partials,

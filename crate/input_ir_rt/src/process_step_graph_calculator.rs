@@ -12,22 +12,22 @@ use disposition_model_common::{Map, Set};
 ///
 /// Process steps are laid out like `git log --graph`: each step occupies a row
 /// (ordered by [`ProcessStepRank`] then declaration order) and a lane. A step
-/// shifts to a higher lane when a connector edge needs to bypass its row, so the
-/// bypassing connector keeps a straight vertical line in a lower lane.
+/// shifts to a higher lane when a connector edge needs to bypass its row, so
+/// the bypassing connector keeps a straight vertical line in a lower lane.
 ///
 /// The lane packing walks rows top-to-bottom maintaining a set of active lanes,
 /// one per pending connector. At each step:
 ///
-/// * the step takes the leftmost incoming-connector lane, or the first free lane
-///   if it has no incoming connector;
+/// * the step takes the leftmost incoming-connector lane, or the first free
+///   lane if it has no incoming connector;
 /// * the first outgoing connector reuses the step's lane, and additional
 ///   outgoing connectors (branches) each claim a new free lane;
 /// * lanes whose connector targets a later row stay reserved -- these are the
 ///   bypass lanes that push other steps to the right.
 ///
 /// Back connectors (target row at or before the source row, e.g. cycles) are
-/// handled on a best-effort basis: they reuse the source step's lane and are not
-/// reserved.
+/// handled on a best-effort basis: they reuse the source step's lane and are
+/// not reserved.
 ///
 /// [`ProcessStepRank`]: disposition_ir_model::process::ProcessStepRank
 #[derive(Clone, Copy, Debug)]
@@ -88,12 +88,8 @@ impl ProcessStepGraphCalculator {
 
         // Order steps into rows by (rank, declaration index). `sort_by` is
         // stable, so equal ranks keep declaration order.
-        let rank_of = |node_id: &NodeId<'id>| {
-            process_step_ranks
-                .get(node_id)
-                .copied()
-                .unwrap_or_default()
-        };
+        let rank_of =
+            |node_id: &NodeId<'id>| process_step_ranks.get(node_id).copied().unwrap_or_default();
         let mut rows = steps_decl.clone();
         rows.sort_by_key(|node_id| rank_of(node_id));
 
@@ -141,7 +137,10 @@ impl ProcessStepGraphCalculator {
                 .iter()
                 .enumerate()
                 .filter_map(|(lane, target)| {
-                    target.as_ref().filter(|target| *target == step).map(|_| lane)
+                    target
+                        .as_ref()
+                        .filter(|target| *target == step)
+                        .map(|_| lane)
                 })
                 .collect();
 
@@ -198,7 +197,8 @@ impl ProcessStepGraphCalculator {
         }
     }
 
-    /// Returns the index of the first free lane, growing the lane set if needed.
+    /// Returns the index of the first free lane, growing the lane set if
+    /// needed.
     fn lane_first_free(active_lanes: &mut Vec<Option<NodeId<'_>>>) -> usize {
         if let Some(index) = active_lanes.iter().position(Option::is_none) {
             index

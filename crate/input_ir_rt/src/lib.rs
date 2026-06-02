@@ -13,8 +13,8 @@ pub use crate::{
     input_diagram_theme_sources::InputDiagramThemeSources,
     input_to_ir_diagram_mapper::InputToIrDiagramMapper, ir_to_taffy_builder::IrToTaffyBuilder,
     node_ranks_calculator::NodeRanksCalculator,
-    process_step_graph_calculator::ProcessStepGraphCalculator, string_xml_escaper::StringXmlEscaper,
-    svg_elements_to_svg_mapper::SvgElementsToSvgMapper,
+    process_step_graph_calculator::ProcessStepGraphCalculator,
+    string_xml_escaper::StringXmlEscaper, svg_elements_to_svg_mapper::SvgElementsToSvgMapper,
     taffy_to_svg_elements_mapper::TaffyToSvgElementsMapper, theme_value_source::ThemeValueSource,
 };
 

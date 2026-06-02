@@ -101,7 +101,11 @@ impl TaffyTreeFmt {
             .unwrap_or_else(|| Cow::Borrowed(taffy_tree.get_debug_label(taffy_node_id)));
         let num_children = taffy_tree.child_count(taffy_node_id);
 
-        let fork_string = if has_sibling { "├── " } else { "└── " };
+        let fork_string = if has_sibling {
+            "├── "
+        } else {
+            "└── "
+        };
         let flex_direction = taffy_tree
             .style(taffy_node_id)
             .map(|style| Cow::Owned(format!("{:?}", style.flex_direction)))
