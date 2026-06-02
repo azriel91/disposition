@@ -112,7 +112,7 @@ async fn run() -> Result<(), CliError> {
     };
     let stage_max = data_selected.unwrap_or(Data::Svg);
     let data_is_selected =
-        |data: Data| data_selected.map_or(true, |data_selected| data_selected == data);
+        |data: Data| data_selected.is_none_or(|data_selected| data_selected == data);
 
     let contents = tokio::fs::read_to_string(&input).await?;
     let input_diagram: InputDiagram<'static> = serde_saphyr::from_str(&contents)?;
