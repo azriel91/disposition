@@ -39,7 +39,7 @@ impl<'id> ProcessStepGraphEdge<'id> {
 
     /// Returns the stable connector edge ID for this edge.
     ///
-    /// The ID is `psgraph_{from}__{to}`, used to look up the connector's
+    /// The ID is `edge_ps_{from}__{to}`, used to look up the connector's
     /// tailwind classes and to identify its rendered SVG element.
     ///
     /// # Examples
@@ -57,10 +57,10 @@ impl<'id> ProcessStepGraphEdge<'id> {
     ///     ProcessStepLane::new(0),
     /// );
     ///
-    /// assert_eq!(edge.edge_id().as_str(), "psgraph_step_a__step_b");
+    /// assert_eq!(edge.edge_id().as_str(), "edge_ps_step_a__step_b");
     /// ```
     pub fn edge_id(&self) -> EdgeId<'static> {
-        let id_string = format!("psgraph_{}__{}", self.from.as_str(), self.to.as_str());
+        let id_string = format!("edge_ps_{}__{}", self.from.as_str(), self.to.as_str());
         EdgeId::from(Id::try_from(id_string).expect("process step connector edge id is valid"))
     }
 

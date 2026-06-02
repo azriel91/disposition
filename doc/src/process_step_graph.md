@@ -104,4 +104,4 @@ Connector tailwind classes are resolved during IR mapping (not in the router):
 like dependency edges -- the theme's base `edge_defaults` overlaid with
 `type_dependency_edge_sequence_default` -- and the resulting string is stored in
 `IrDiagram::tailwind_classes` keyed by `ProcessStepGraphEdge::edge_id` (prefixed
-`psgraph_`). Per-lane colouring is a possible future enhancement.
+`edge_ps_`). Per-lane colouring is a possible future enhancement.

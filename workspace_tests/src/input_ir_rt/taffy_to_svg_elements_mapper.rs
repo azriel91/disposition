@@ -1171,7 +1171,7 @@ fn test_process_step_graph_bypass_shifts_circle_right_and_draws_connectors() {
         let connector_count = svg_elements
             .svg_edge_infos
             .iter()
-            .filter(|edge_info| edge_info.edge_id.as_str().starts_with("psgraph_"))
+            .filter(|edge_info| edge_info.edge_id.as_str().starts_with("edge_ps_"))
             .count();
         assert_eq!(
             4, connector_count,
@@ -1227,7 +1227,7 @@ fn test_process_step_graph_connectors_have_arrow_locus_and_classes() {
         let connectors: Vec<_> = svg_elements
             .svg_edge_infos
             .iter()
-            .filter(|edge_info| edge_info.edge_id.as_str().starts_with("psgraph_"))
+            .filter(|edge_info| edge_info.edge_id.as_str().starts_with("edge_ps_"))
             .collect();
         assert_eq!(4, connectors.len(), "Expected 4 process step connectors");
 
