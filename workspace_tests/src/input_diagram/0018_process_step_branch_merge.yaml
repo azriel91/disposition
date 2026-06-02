@@ -1,0 +1,35 @@
+things:
+  t_repo: Repository
+thing_hierarchy:
+  t_repo: {}
+processes:
+  proc_build:
+    name: Build
+    steps:
+      proc_build_step_a: "A"
+      proc_build_step_b: "B"
+      proc_build_step_c: "C"
+      proc_build_step_d: "D"
+
+    # ```
+    # a
+    # |\
+    # b |
+    # | c
+    # |/
+    # d
+    # ```
+    #
+    # A forks into B and C, which merge back into D.
+    #
+    # B's connector to D bypasses C's row, so C is pushed to lane 1.
+    process_step_dependencies:
+      proc_build_step_b:
+        - proc_build_step_a
+      proc_build_step_c:
+        - proc_build_step_a
+      proc_build_step_d:
+        - proc_build_step_b
+        - proc_build_step_c
+render_options:
+  rank_dir: left_to_right

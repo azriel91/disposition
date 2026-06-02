@@ -7,6 +7,13 @@ pub use taffy;
 pub const TEXT_FONT_SIZE: f32 = 14.0f32;
 /// Default text line height.
 pub const TEXT_LINE_HEIGHT: f32 = 17.0f32;
+/// Width of a single lane column in the process step git-graph layout.
+///
+/// Each process step circle is centred within a lane of this width, so adjacent
+/// lanes (and the connectors that run in them) are visually separated. The step
+/// text column always begins after `lane_count * LANE_WIDTH`, keeping step
+/// labels left-aligned in a single column.
+pub const LANE_WIDTH: f32 = 32.0f32;
 
 pub use crate::{
     diagram_lod::DiagramLod, diagram_node_ctx::DiagramNodeCtx, dimension::Dimension,
@@ -30,6 +37,7 @@ pub use crate::{
     node_inbuilt_to_taffy_node::NodeInbuiltToTaffyNode, node_to_taffy_node_ids::NodeToTaffyNodeIds,
     processes_included::ProcessesIncluded, taffy_node_ctx::TaffyNodeCtx,
     taffy_node_mappings::TaffyNodeMappings, taffy_node_to_node_id::TaffyNodeToNodeId,
+    taffy_tree_fmt::TaffyTreeFmt,
 };
 
 mod diagram_lod;
@@ -67,3 +75,4 @@ mod processes_included;
 mod taffy_node_ctx;
 mod taffy_node_mappings;
 mod taffy_node_to_node_id;
+mod taffy_tree_fmt;

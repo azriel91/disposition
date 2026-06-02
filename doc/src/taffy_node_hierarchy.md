@@ -149,6 +149,32 @@ The `label_wrapper_node` mirrors the leaf-with-circle layout (circle + text in a
 the rank containers below it follow the same pattern as the rect-shape container.
 
 
+## Process Step Graph (git-graph layout)
+
+A process whose steps have a [`ProcessStepGraph`](crate/ir_model/src/process/process_step_graph.rs)
+does **not** use rank containers for its steps. Instead its `wrapper_node` holds
+the process label followed by one **step row** per step (ordered by row), where
+each row places the step circle in its lane and the step label in a shared,
+left-aligned text column:
+
+```yaml
+process_wrapper_node:        # flex column
+  process_text_node: {}
+  step_row:                  # flex row, align items center -- one per step
+    lane_gutter:             # fixed width = lane_count * LANE_WIDTH
+      circle_node: {}        # margin-left places the circle in its lane
+    text_node: {}            # step label (DiagramNode ctx), aligned text column
+  # ...
+```
+
+Each step is stored as a `NodeToTaffyNodeIds::ProcessStepGraphLeaf` (the circle
+is nested inside the gutter rather than being a direct sibling of the text, so
+text-span offsets are computed differently than for `LeafWithCircle`) and is
+**not** wrapped in an envelope. Connector lines between steps are drawn afterward
+by `ProcessStepGraphEdgesBuilder`. See `process_step_graph.md` for the full
+algorithm.
+
+
 ## Edge Description Containers
 
 For each edge that has an entry in `edge_descs` and whose two divergent ancestors at the LCA

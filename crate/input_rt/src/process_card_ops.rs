@@ -7,6 +7,7 @@
 //! framework-specific signal type, making them testable without a UI runtime.
 
 use disposition_input_model::InputDiagram;
+use disposition_model_common::Set;
 
 use crate::{
     id_parse::{parse_process_id, parse_process_step_id},
@@ -113,8 +114,9 @@ impl ProcessCardOps {
             None => return,
         };
 
-        // processes: rename ProcessStepId in steps and step_thing_interactions
-        // for all processes (the step ID may appear in any process).
+        // processes: rename ProcessStepId in steps, step_thing_interactions,
+        // and process_step_dependencies for all processes (the step ID may
+        // appear in any process).
         input_diagram
             .processes
             .values_mut()
@@ -131,6 +133,38 @@ impl ProcessCardOps {
                 {
                     let _result = process_diagram
                         .step_thing_interactions
+                        .replace_index(index, step_id_new.clone());
+                }
+
+                // process_step_dependencies: rename the step key (the dependent
+                // step) as well as any occurrence of the step within the
+                // dependency sets (the prerequisites).
+                process_diagram
+                    .process_step_dependencies
+                    .values_mut()
+                    .for_each(|dep_ids| {
+                        if dep_ids.contains(&step_id_old) {
+                            // `Set` (OrderSet) does not support in-place
+                            // replacement. Rebuild the set with the rename
+                            // applied at the same position.
+                            let mut dep_ids_new = Set::with_capacity(dep_ids.len());
+                            for dep_id in dep_ids.iter() {
+                                if *dep_id == step_id_old {
+                                    dep_ids_new.insert(step_id_new.clone());
+                                } else {
+                                    dep_ids_new.insert(dep_id.clone());
+                                }
+                            }
+                            *dep_ids = dep_ids_new;
+                        }
+                    });
+
+                if let Some(index) = process_diagram
+                    .process_step_dependencies
+                    .get_index_of(&step_id_old)
+                {
+                    let _result = process_diagram
+                        .process_step_dependencies
                         .replace_index(index, step_id_new.clone());
                 }
             });
@@ -218,6 +252,63 @@ impl ProcessCardOps {
             process_diagram
                 .step_thing_interactions
                 .insert(step_id, Vec::new());
+        }
+    }
+
+    // === Step dependency helpers === //
+
+    /// Adds a new step dependency entry to a process.
+    pub fn step_dependency_add(input_diagram: &mut InputDiagram<'static>, process_id_str: &str) {
+        let process_id = match parse_process_id(process_id_str) {
+            Some(process_id) => process_id,
+            None => return,
+        };
+        let process_diagram = match input_diagram.processes.get(&process_id) {
+            Some(process_diagram) => process_diagram,
+            None => return,
+        };
+
+        // Pick the first step that doesn't already have a dependency entry,
+        // or fall back to a placeholder.
+        let step_id = process_diagram
+            .steps
+            .keys()
+            .find(|step_id| {
+                !process_diagram
+                    .process_step_dependencies
+                    .contains_key(*step_id)
+            })
+            .cloned();
+
+        let step_id = match step_id {
+            Some(step_id) => step_id,
+            None => {
+                // All steps already have entries; generate a placeholder.
+                let mut n = process_diagram.process_step_dependencies.len();
+                loop {
+                    let candidate = format!("{process_id_str}_step_{n}");
+                    if let Some(step_id) = parse_process_step_id(&candidate)
+                        && !process_diagram
+                            .process_step_dependencies
+                            .contains_key(&step_id)
+                    {
+                        if let Some(process_diagram) = input_diagram.processes.get_mut(&process_id)
+                        {
+                            process_diagram
+                                .process_step_dependencies
+                                .insert(step_id, Set::new());
+                        }
+                        return;
+                    }
+                    n += 1;
+                }
+            }
+        };
+
+        if let Some(process_diagram) = input_diagram.processes.get_mut(&process_id) {
+            process_diagram
+                .process_step_dependencies
+                .insert(step_id, Set::new());
         }
     }
 }

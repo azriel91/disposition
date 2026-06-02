@@ -15,6 +15,7 @@ use self::{
     edge_path_locus_calculator::EdgePathLocusCalculator,
     edge_spacer_coordinates_calculator::EdgeSpacerCoordinatesCalculator,
     node_id_to_svg_process_info::NodeIdToSvgProcessInfo,
+    process_step_graph_edges_builder::ProcessStepGraphEdgesBuilder,
     process_step_heights::ProcessStepsHeight,
     process_step_heights_calculator::ProcessStepHeightsCalculator,
     string_char_replacer::StringCharReplacer,
@@ -39,6 +40,7 @@ mod edge_path_locus_calculator;
 mod edge_spacer_coordinates_calculator;
 mod node_id_to_svg_process_info;
 mod ortho_protrusion_calculator;
+mod process_step_graph_edges_builder;
 mod process_step_heights;
 mod process_step_heights_calculator;
 mod string_char_replacer;
@@ -206,7 +208,7 @@ impl TaffyToSvgElementsMapper {
 
         // Build edge information and compute animation data for interaction
         // edges.
-        let svg_edge_infos = SvgEdgeInfosBuilder::build(
+        let mut svg_edge_infos = SvgEdgeInfosBuilder::build(
             ir_diagram,
             &svg_node_info_map,
             taffy_tree,
@@ -216,6 +218,16 @@ impl TaffyToSvgElementsMapper {
             &mut css,
             edge_animation_active,
         );
+
+        // Append the git-graph connectors between process steps. These bypass
+        // the thing/tag edge router entirely; their tailwind classes are already
+        // present in `tailwind_classes` (resolved from the theme's edge_defaults
+        // during IR mapping).
+        svg_edge_infos.extend(ProcessStepGraphEdgesBuilder::build(
+            ir_diagram,
+            taffy_tree,
+            node_id_to_taffy,
+        ));
 
         let edge_label_infos = SvgEdgeLabelsBuilder::build(
             taffy_tree,

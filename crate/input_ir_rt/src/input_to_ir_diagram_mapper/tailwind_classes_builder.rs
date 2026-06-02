@@ -13,7 +13,11 @@ use disposition_ir_model::{
     entity::{EntityTailwindClasses, EntityTypeId},
     node::{NodeId, NodeNames},
 };
-use disposition_model_common::{edge::EdgeGroupId, entity::EntityTypes, Id, Map, Set};
+use disposition_model_common::{
+    edge::EdgeGroupId,
+    entity::{EntityType, EntityTypes},
+    Id, Map, Set,
+};
 
 use super::{css_theme_vars::CssThemeVars, tailwind_class_state::TailwindClassState};
 
@@ -783,6 +787,57 @@ impl TailwindClassesBuilder {
             classes.push('\n');
             classes.push_str(edge_group_peer_classes);
         }
+
+        classes
+    }
+
+    /// Resolves the tailwind classes for process step connector edges.
+    ///
+    /// Process step connectors are styled like dependency edges: the theme's
+    /// base `edge_defaults` overlaid with the
+    /// `type_dependency_edge_sequence_default` edge styling. The resulting
+    /// classes are identical for every connector (they carry no per-edge
+    /// overrides), so a single resolved string is shared across all of them.
+    pub(crate) fn build_process_step_connector_classes<'id>(
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
+    ) -> String {
+        let entity_type = EntityType::DependencyEdgeSequenceDefault;
+        let mut tailwind_class_state = TailwindClassState {
+            entity_type: Some(entity_type.clone()),
+            ..Default::default()
+        };
+
+        // 1. Base EdgeDefaults (lowest priority).
+        if let Some(defaults_partials) = theme_default.base_styles.get(&IdOrDefaults::EdgeDefaults)
+        {
+            Self::apply_tailwind_from_partials(
+                defaults_partials,
+                &theme_default.style_aliases,
+                &mut tailwind_class_state,
+            );
+        }
+
+        // 2. Dependency-edge entity-type EdgeDefaults.
+        let type_id = EntityTypeId::from(entity_type.into_id());
+        if let Some(type_partials) = theme_types_styles
+            .get(&type_id)
+            .and_then(|type_styles| type_styles.get(&IdOrDefaults::EdgeDefaults))
+        {
+            Self::apply_tailwind_from_partials(
+                type_partials,
+                &theme_default.style_aliases,
+                &mut tailwind_class_state,
+            );
+        }
+
+        let mut classes = String::new();
+        tailwind_class_state.write_classes(
+            &mut classes,
+            css_theme_vars,
+            theme_default.dark_mode_config.shade,
+        );
 
         classes
     }

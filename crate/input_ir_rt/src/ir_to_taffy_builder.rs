@@ -22,7 +22,7 @@ use self::{
     taffy_build_ctx::TaffyBuildCtx,
     taffy_build_state::TaffyBuildState,
     taffy_container_builder::TaffyContainerBuilder,
-    taffy_diagram_node_builder::TaffyDiagramNodeBuilder,
+    taffy_diagram_node_builder::{FirstLevelNodesBuilt, TaffyDiagramNodeBuilder},
     taffy_node_build_context::NodeMeasureContext,
     text_measure::MONOSPACE_CHAR_WIDTH_RATIO,
 };
@@ -131,6 +131,9 @@ impl IrToTaffyBuilder<'_> {
             node_face_edges,
             node_shapes,
             process_step_entities: _,
+            process_step_edges: _,
+            process_step_ranks,
+            process_step_graphs,
             render_options,
             css: _,
         } = ir_diagram;
@@ -163,6 +166,8 @@ impl IrToTaffyBuilder<'_> {
             edge_descs,
             node_shapes,
             node_ranks_nested,
+            process_step_ranks,
+            process_step_graphs,
             node_nesting_infos,
             node_face_edges,
             edge_groups,
@@ -172,11 +177,10 @@ impl IrToTaffyBuilder<'_> {
             node_md_texts: &node_md_texts,
         };
 
-        let (
-            node_rank_to_nodes_by_entity_type,
-            nested_edge_spacer_taffy_nodes,
-            nested_edge_description_taffy_nodes,
-        ) = {
+        let FirstLevelNodesBuilt {
+            entity_type_to_rank_nodes: node_rank_to_nodes_by_entity_type,
+            nested_edge_taffy_nodes: first_level_nested_edge_taffy_nodes,
+        } = {
             let mut state = TaffyBuildState {
                 taffy_tree: &mut taffy_tree,
                 node_id_to_taffy: &mut node_id_to_taffy,
@@ -207,7 +211,7 @@ impl IrToTaffyBuilder<'_> {
         // be routed through these spacer positions to avoid overlapping
         // other nodes.
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
-        edge_spacer_taffy_nodes.extend(nested_edge_spacer_taffy_nodes);
+        edge_spacer_taffy_nodes.extend(first_level_nested_edge_taffy_nodes.edge_spacer_taffy_nodes);
         edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
             ctx,
             &mut taffy_tree,
@@ -238,7 +242,8 @@ impl IrToTaffyBuilder<'_> {
         // for text measurement.
         let mut edge_description_taffy_nodes: Map<EdgeId<'static>, EdgeDescriptionTaffyNodes> =
             Map::new();
-        edge_description_taffy_nodes.extend(nested_edge_description_taffy_nodes);
+        edge_description_taffy_nodes
+            .extend(first_level_nested_edge_taffy_nodes.edge_description_taffy_nodes);
 
         let thing_rank_container_style = TaffyContainerBuilder::taffy_container_style(
             node_layouts,

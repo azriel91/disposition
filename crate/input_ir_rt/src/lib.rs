@@ -12,8 +12,9 @@ pub use crate::{
     input_diagram_merger::InputDiagramMerger,
     input_diagram_theme_sources::InputDiagramThemeSources,
     input_to_ir_diagram_mapper::InputToIrDiagramMapper, ir_to_taffy_builder::IrToTaffyBuilder,
-    node_ranks_calculator::NodeRanksCalculator, string_xml_escaper::StringXmlEscaper,
-    svg_elements_to_svg_mapper::SvgElementsToSvgMapper,
+    node_ranks_calculator::NodeRanksCalculator,
+    process_step_graph_calculator::ProcessStepGraphCalculator,
+    string_xml_escaper::StringXmlEscaper, svg_elements_to_svg_mapper::SvgElementsToSvgMapper,
     taffy_to_svg_elements_mapper::TaffyToSvgElementsMapper, theme_value_source::ThemeValueSource,
 };
 
@@ -31,6 +32,7 @@ mod input_to_ir_diagram_mapper;
 mod ir_to_taffy_builder;
 mod md_text;
 mod node_ranks_calculator;
+mod process_step_graph_calculator;
 mod string_xml_escaper;
 mod svg_elements_to_svg_mapper;
 mod taffy_node_absolute_coordinates_calculator;

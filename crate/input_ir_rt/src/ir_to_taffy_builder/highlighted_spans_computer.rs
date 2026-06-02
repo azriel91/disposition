@@ -73,6 +73,11 @@ impl HighlightedSpansComputer {
                         label_wrapper_node_id: _,
                         circle_node_id: _,
                         text_node_id,
+                    }
+                    | NodeToTaffyNodeIds::ProcessStepGraphLeaf {
+                        wrapper_node_id,
+                        circle_node_id: _,
+                        text_node_id,
                     } => {
                         let Ok(wrapper_node_layout) = taffy_tree.layout(wrapper_node_id) else {
                             return;
@@ -114,6 +119,13 @@ impl HighlightedSpansComputer {
                             text_node_layout.location.x - circle_node_layout.location.x
                         })
                         .unwrap_or_default(),
+                    // The circle is nested inside the fixed-width lane gutter, so
+                    // its `location.x` is in the gutter's coordinate space and is
+                    // not comparable to the text's. The text node is a direct
+                    // child of the wrapper, so its `location.x` already is the
+                    // offset from the node origin (and is identical across steps,
+                    // keeping labels aligned in one column).
+                    NodeToTaffyNodeIds::ProcessStepGraphLeaf { .. } => text_node_layout.location.x,
                 };
 
                 let entity_id = &diagram_node_ctx.entity_id;

@@ -41,6 +41,31 @@ Rust SVG diagram generation library with a dioxus web frontend.
 8. See `<@doc/src/edge_spacers.md>` for how edge spacer taffy nodes are inserted to help route edges around diagram nodes -- covers same-level cross-rank spacers and cross-container spacers, including the `EdgeSpacerBuildDecider` decision logic and insertion-index accounting.
 9. See `<@doc/src/edge_description_containers_plan.md>` for the step-by-step plan to render edge descriptions as container nodes interleaved between rank containers.
 10. See `<@doc/src/md_node_content_plan.md>` for the step-by-step plan to render node and edge description text as syntax-highlighted markdown with inline images.
+11. See `<@doc/src/process_step_graph.md>` for the git-graph layout of process steps -- covers `ProcessStepGraphCalculator` lane packing, the lane/text-column taffy grid, and the `ProcessStepGraphEdgesBuilder` connector router.
+
+
+## Diagnosing Diagram Generation
+
+To diagnose / check the values generated at each stage of the diagram generation
+pipeline, run the `disposition_cli` and output the desired intermediate data to
+stdout:
+
+```bash
+cargo run -q -p disposition_cli -- --structure-only --data $intermediate_data --stdout $input_diagram_yaml_file 2>&1
+```
+
+* `$intermediate_data` is one of `ir-diagram`, `taffy-tree`, `svg-elements`, or
+  `svg`. The pipeline only computes up to the requested stage.
+* `--structure-only` omits styles / colors so the structural values are easier
+  to read; drop it to see styled values.
+* `--stdout` writes the selected data straight to stdout instead of files, and
+  `2>&1` merges any mapping issues (written to stderr) into the output.
+* `$input_diagram_yaml_file` is the input diagram, e.g.
+  `workspace_tests/src/input_diagram/0018_images_animated.yaml`.
+
+Omit `--data` / `--stdout` and pass an output directory to instead write all
+stages (`ir_diagram.yaml`, `taffy_tree.txt`, `svg_elements.yaml`, `diagram.svg`)
+to files.
 
 
 ## Tests

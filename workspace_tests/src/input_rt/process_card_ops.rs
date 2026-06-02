@@ -240,6 +240,64 @@ fn step_rename_renames_in_step_thing_interactions() {
 }
 
 #[test]
+fn step_rename_renames_in_process_step_dependencies_key_and_deps() {
+    let mut input_diagram = diagram_with_process_and_steps(
+        "proc_0",
+        &[
+            ("proc_0_step_old", "Old"),
+            ("proc_0_step_a", "A"),
+            ("proc_0_step_b", "B"),
+        ],
+    );
+    let process_id = parse_process_id("proc_0").unwrap();
+    let step_id_old = parse_process_step_id("proc_0_step_old").unwrap();
+    let step_id_a = parse_process_step_id("proc_0_step_a").unwrap();
+    let step_id_b = parse_process_step_id("proc_0_step_b").unwrap();
+    {
+        let process_diagram = input_diagram.processes.get_mut(&process_id).unwrap();
+        // The renamed step is a dependency key: `step_old` depends on `step_a`.
+        process_diagram.process_step_dependencies.insert(
+            step_id_old.clone(),
+            [step_id_a.clone()].into_iter().collect(),
+        );
+        // The renamed step is a dependency value: `step_b` depends on
+        // `step_old`.
+        process_diagram.process_step_dependencies.insert(
+            step_id_b.clone(),
+            [step_id_old.clone()].into_iter().collect(),
+        );
+    }
+
+    ProcessCardOps::step_rename(
+        &mut input_diagram,
+        "proc_0",
+        "proc_0_step_old",
+        "proc_0_step_new",
+    );
+
+    let process_diagram = input_diagram.processes.get(&process_id).unwrap();
+    let step_id_new = parse_process_step_id("proc_0_step_new").unwrap();
+
+    // The key was renamed, preserving its dependency set.
+    assert!(!process_diagram
+        .process_step_dependencies
+        .contains_key(&step_id_old));
+    let new_key_deps = process_diagram
+        .process_step_dependencies
+        .get(&step_id_new)
+        .unwrap();
+    assert!(new_key_deps.contains(&step_id_a));
+
+    // The dependency value was renamed within `step_b`'s set.
+    let step_b_deps = process_diagram
+        .process_step_dependencies
+        .get(&step_id_b)
+        .unwrap();
+    assert!(!step_b_deps.contains(&step_id_old));
+    assert!(step_b_deps.contains(&step_id_new));
+}
+
+#[test]
 fn step_rename_noop_when_same_id() {
     let mut input_diagram = diagram_with_process_and_steps("proc_0", &[("proc_0_step_0", "Label")]);
 

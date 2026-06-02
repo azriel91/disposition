@@ -11,6 +11,7 @@ pub use crate::{
     entity_page_ops::EntityPageOps, entity_types_page_ops::EntityTypesPageOps,
     flat_entry::FlatEntry, map_target::MapTarget, on_change_target::OnChangeTarget,
     process_card_ops::ProcessCardOps, processes_page_ops::ProcessesPageOps,
+    step_dependency_card_ops::StepDependencyCardOps,
     step_interaction_card_ops::StepInteractionCardOps,
     style_aliases_section_ops::StyleAliasesSectionOps, tags_page_ops::TagsPageOps,
     thing_layout_ops::ThingLayoutOps, things_page_ops::ThingsPageOps,
@@ -28,6 +29,7 @@ mod map_target;
 mod on_change_target;
 mod process_card_ops;
 mod processes_page_ops;
+mod step_dependency_card_ops;
 mod step_interaction_card_ops;
 mod style_aliases_section_ops;
 mod tags_page_ops;

@@ -2,17 +2,21 @@ use disposition::{
     input_ir_model::IrDiagramAndIssues,
     input_model::InputDiagram,
     ir_model::{
+        edge::Edge,
         entity::EntityType,
         layout::{FlexDirection, LeafLayout, NodeLayout},
         node::NodeId,
+        process::{ProcessStepLane, ProcessStepRank},
         IrDiagram,
     },
     model_common::{edge::EdgeGroupId, id, Id, ProcessRenderCollapse},
 };
-use disposition_input_ir_rt::InputToIrDiagramMapper;
+use disposition_input_ir_rt::{InputDiagramMerger, InputToIrDiagramMapper};
 use pretty_assertions::assert_eq;
 
-use crate::input_ir_rt::{EXAMPLE_INPUT_MERGED, EXAMPLE_IR};
+use crate::input_ir_rt::{
+    EXAMPLE_INPUT_MERGED, EXAMPLE_IR, INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE,
+};
 
 #[test]
 fn test_input_to_ir_mapping() {
@@ -334,6 +338,129 @@ fn test_self_loop_edge() {
     assert_eq!(id!("t_localhost"), *edges[0].from);
     assert_eq!(id!("t_localhost"), *edges[0].to);
     assert!(edges[0].is_self_loop());
+}
+
+#[test]
+fn test_process_step_edges_from_dependencies() {
+    // Process step dependencies should be expanded into directed edges from
+    // each prerequisite step to the step that depends on it.
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    // proc_app_dev: build depends on clone -> edge clone -> build
+    // proc_app_release: a 5-step chain.
+    assert_eq!(5, diagram.process_step_edges.len());
+
+    let clone_to_build = Edge::new(
+        NodeId::from(id!("proc_app_dev_step_repository_clone")),
+        NodeId::from(id!("proc_app_dev_step_project_build")),
+    );
+    assert!(diagram.process_step_edges.contains(&clone_to_build));
+
+    let tag_to_build = Edge::new(
+        NodeId::from(id!("proc_app_release_step_tag_and_push")),
+        NodeId::from(id!("proc_app_release_step_gh_actions_build")),
+    );
+    assert!(diagram.process_step_edges.contains(&tag_to_build));
+}
+
+#[test]
+fn test_process_step_ranks_from_dependencies() {
+    // Steps that depend on other steps receive higher ranks; steps without
+    // dependencies default to rank 0.
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT_MERGED).unwrap();
+    let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
+    let diagram = ir_and_issues.diagram;
+
+    let rank = |step: &str| {
+        *diagram
+            .process_step_ranks
+            .get(&NodeId::from(Id::try_from(step.to_string()).unwrap()))
+            .unwrap()
+    };
+
+    // proc_app_dev chain.
+    assert_eq!(
+        ProcessStepRank::new(0),
+        rank("proc_app_dev_step_repository_clone")
+    );
+    assert_eq!(
+        ProcessStepRank::new(1),
+        rank("proc_app_dev_step_project_build")
+    );
+
+    // proc_app_release chain (5 steps -> ranks 0..=4).
+    assert_eq!(
+        ProcessStepRank::new(0),
+        rank("proc_app_release_step_crate_version_update")
+    );
+    assert_eq!(
+        ProcessStepRank::new(1),
+        rank("proc_app_release_step_pull_request_open")
+    );
+    assert_eq!(
+        ProcessStepRank::new(2),
+        rank("proc_app_release_step_tag_and_push")
+    );
+    assert_eq!(
+        ProcessStepRank::new(3),
+        rank("proc_app_release_step_gh_actions_build")
+    );
+    assert_eq!(
+        ProcessStepRank::new(4),
+        rank("proc_app_release_step_gh_actions_publish")
+    );
+
+    // Single-step process with no dependencies defaults to rank 0.
+    assert_eq!(
+        ProcessStepRank::new(0),
+        rank("proc_i12e_region_tier_app_deploy_step_ecs_cluster_update")
+    );
+}
+
+#[test]
+fn test_process_step_graph_lane_assignment_for_branch_merge() {
+    // A forks into B and C, which merge into D. B's connector to D bypasses
+    // C's row, so C is pushed to lane 1 while A, B, D stay in lane 0.
+    let overlay =
+        serde_saphyr::from_str::<InputDiagram>(INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE)
+            .unwrap();
+    let input_diagram = InputDiagramMerger::merge(InputDiagram::base(), &overlay);
+    let diagram = InputToIrDiagramMapper::map(&input_diagram).diagram;
+
+    let process_id = NodeId::from(id!("proc_build"));
+    let graph = diagram
+        .process_step_graphs
+        .get(&process_id)
+        .expect("Expected a process step graph for proc_build.");
+
+    assert_eq!(2, graph.lane_count);
+
+    let lane = |step: &str| {
+        graph
+            .step_placements
+            .get(&NodeId::from(Id::try_from(step.to_string()).unwrap()))
+            .unwrap_or_else(|| panic!("Expected placement for {step}."))
+            .lane
+    };
+
+    assert_eq!(ProcessStepLane::new(0), lane("proc_build_step_a"));
+    assert_eq!(ProcessStepLane::new(0), lane("proc_build_step_b"));
+    assert_eq!(ProcessStepLane::new(1), lane("proc_build_step_c"));
+    assert_eq!(ProcessStepLane::new(0), lane("proc_build_step_d"));
+
+    // Four connectors: A->B, A->C, B->D, C->D.
+    assert_eq!(4, graph.edges.len());
+    // The bypassing connector B->D travels in lane 0.
+    let b_to_d = graph
+        .edges
+        .iter()
+        .find(|edge| {
+            edge.from.as_str() == "proc_build_step_b" && edge.to.as_str() == "proc_build_step_d"
+        })
+        .expect("Expected a B->D connector.");
+    assert_eq!(ProcessStepLane::new(0), b_to_d.lane);
 }
 
 #[test]

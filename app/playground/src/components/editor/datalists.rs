@@ -25,6 +25,17 @@ pub mod list_ids {
     pub const PROCESS_IDS: &str = "process_ids";
     /// All `ProcessStepId`s from every process's `steps`.
     pub const PROCESS_STEP_IDS: &str = "process_step_ids";
+
+    /// Returns the datalist element ID scoped to a single process's steps.
+    ///
+    /// Use this for `<input list="...">` fields that should only suggest steps
+    /// belonging to the given process, e.g. step dependency inputs.
+    ///
+    /// Valid values: `process_step_ids_for("proc_app_dev")` ->
+    /// `"process_step_ids_proc_app_dev"`.
+    pub fn process_step_ids_for(process_id: &str) -> String {
+        format!("process_step_ids_{process_id}")
+    }
     /// Union of thing, edge-group, tag, process, and process-step IDs.
     pub const ENTITY_IDS: &str = "entity_ids";
     /// Union of base theme and user-defined `EntityTypeId` values.
@@ -78,6 +89,21 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
         .values()
         .flat_map(|proc| proc.steps.keys())
         .map(|id| id.as_str().to_owned())
+        .collect();
+
+    // Per-process step IDs, so that step dependency inputs can suggest only the
+    // steps belonging to the same process.
+    let process_step_ids_by_process: Vec<(String, Vec<String>)> = diagram
+        .processes
+        .iter()
+        .map(|(process_id, process_diagram)| {
+            let step_ids: Vec<String> = process_diagram
+                .steps
+                .keys()
+                .map(|id| id.as_str().to_owned())
+                .collect();
+            (process_id.as_str().to_owned(), step_ids)
+        })
         .collect();
 
     // Entity IDs = union of all the above.
@@ -202,6 +228,17 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
             id: list_ids::PROCESS_STEP_IDS,
             for id in process_step_ids.iter() {
                 option { value: "{id}" }
+            }
+        }
+
+        // === process_step_ids scoped per process === //
+        for (process_id , step_ids) in process_step_ids_by_process.iter() {
+            datalist {
+                key: "{process_id}",
+                id: list_ids::process_step_ids_for(process_id),
+                for id in step_ids.iter() {
+                    option { value: "{id}" }
+                }
             }
         }
 

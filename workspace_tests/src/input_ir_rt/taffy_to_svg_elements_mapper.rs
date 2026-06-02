@@ -22,7 +22,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0011_CONTAINED_EDGE_WITH_DESCRIPTION,
     INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC,
     INPUT_DIAGRAM_0013_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC_2,
-    INPUT_DIAGRAM_0017_EDGE_INNER_TO_INNER,
+    INPUT_DIAGRAM_0017_EDGE_INNER_TO_INNER, INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -1090,6 +1090,177 @@ fn test_thing_node_cycle_edges_not_routed_around_process_node() {
                     process_left_x,
                 );
             }
+        }
+    }
+}
+
+/// Process steps without explicit `process_step_dependencies` are laid out in
+/// declaration order along the process's flex direction (assumed linear
+/// dependencies).
+///
+/// The `proc_test` process declares steps `a`, `b`, `c` with no
+/// `process_step_dependencies`, so they are assumed to depend linearly in
+/// declaration order, giving ranks 0, 1, 2. The process container lays steps
+/// out in a column, so the step `y` coordinates must increase `a < b < c`.
+#[test]
+fn test_process_steps_ordered_by_rank_when_dependencies_absent() {
+    for svg_elements in build_svg_elements_from_process_step_nodes_cyclic_edge() {
+        let step_y = |step: &str| {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|node_info| node_info.node_id.as_str() == step)
+                .unwrap_or_else(|| panic!("Expected node {step} to exist."))
+                .y
+        };
+
+        let y_a = step_y("proc_test_step_a");
+        let y_b = step_y("proc_test_step_b");
+        let y_c = step_y("proc_test_step_c");
+
+        assert!(
+            y_a < y_b && y_b < y_c,
+            "Expected process steps ordered by rank along the column \
+             (a < b < c), got a={y_a:.2}, b={y_b:.2}, c={y_c:.2}"
+        );
+    }
+}
+
+/// Builds `SvgElements` from the process-step branch/merge fixture.
+fn build_svg_elements_from_process_step_branch_merge() -> impl Iterator<Item = SvgElements<'static>>
+{
+    build_svg_elements_for_diagram(INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE)
+}
+
+/// In the branch/merge process, the bypassed step C is shifted to a higher
+/// lane (further right) than the lane-0 steps, and a git-style connector is
+/// drawn for each of the four process step dependencies.
+#[test]
+fn test_process_step_graph_bypass_shifts_circle_right_and_draws_connectors() {
+    for svg_elements in build_svg_elements_from_process_step_branch_merge() {
+        // Absolute circle centre x for a step (node.x + circle.cx).
+        let circle_cx = |step: &str| {
+            let node_info = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|node_info| node_info.node_id.as_str() == step)
+                .unwrap_or_else(|| panic!("Expected node {step} to exist."));
+            let circle = node_info
+                .circle
+                .as_ref()
+                .unwrap_or_else(|| panic!("Expected {step} to have a circle."));
+            node_info.x + circle.cx
+        };
+
+        let cx_a = circle_cx("proc_build_step_a");
+        let cx_b = circle_cx("proc_build_step_b");
+        let cx_c = circle_cx("proc_build_step_c");
+        let cx_d = circle_cx("proc_build_step_d");
+
+        // Lane-0 steps share the same lane x; C (lane 1) is shifted right.
+        assert!(
+            (cx_a - cx_b).abs() < 0.5 && (cx_a - cx_d).abs() < 0.5,
+            "Lane-0 steps A, B, D should share an x lane, got a={cx_a:.2}, b={cx_b:.2}, d={cx_d:.2}"
+        );
+        assert!(
+            cx_c > cx_a + 1.0,
+            "Bypassed step C should be shifted right of lane 0, got a={cx_a:.2}, c={cx_c:.2}"
+        );
+
+        // One connector per process step dependency.
+        let connector_count = svg_elements
+            .svg_edge_infos
+            .iter()
+            .filter(|edge_info| edge_info.edge_id.as_str().starts_with("edge_ps_"))
+            .count();
+        assert_eq!(
+            4, connector_count,
+            "Expected 4 process step connectors (A->B, A->C, B->D, C->D)"
+        );
+    }
+}
+
+/// Process step labels are left-aligned in a single column regardless of each
+/// step's lane.
+///
+/// The bypassed step C sits in lane 1, but its label must start at the same
+/// absolute x as the lane-0 steps' labels (the circle is offset, not the text).
+#[test]
+fn test_process_step_graph_labels_aligned_across_lanes() {
+    for svg_elements in build_svg_elements_from_process_step_branch_merge() {
+        // Absolute x where a step's label text begins (node.x + first span x).
+        let label_x = |step: &str| {
+            let node_info = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|node_info| node_info.node_id.as_str() == step)
+                .unwrap_or_else(|| panic!("Expected node {step} to exist."));
+            let span = node_info
+                .text_spans
+                .first()
+                .unwrap_or_else(|| panic!("Expected {step} to have a label span."));
+            node_info.x + span.x
+        };
+
+        let label_x_a = label_x("proc_build_step_a");
+        for step in [
+            "proc_build_step_b",
+            "proc_build_step_c",
+            "proc_build_step_d",
+        ] {
+            assert!(
+                (label_x(step) - label_x_a).abs() < 0.5,
+                "Label for {step} should be aligned with A's label, \
+                 got {} vs {label_x_a}",
+                label_x(step)
+            );
+        }
+    }
+}
+
+/// Process step connectors carry an arrowhead, a locus path, and theme-derived
+/// tailwind classes (resolved from the theme's edge_defaults), like dependency
+/// edges.
+#[test]
+fn test_process_step_graph_connectors_have_arrow_locus_and_classes() {
+    for svg_elements in build_svg_elements_from_process_step_branch_merge() {
+        let connectors: Vec<_> = svg_elements
+            .svg_edge_infos
+            .iter()
+            .filter(|edge_info| edge_info.edge_id.as_str().starts_with("edge_ps_"))
+            .collect();
+        assert_eq!(4, connectors.len(), "Expected 4 process step connectors");
+
+        for connector in &connectors {
+            assert!(
+                connector.arrow_head_path_d.starts_with('M')
+                    && connector.arrow_head_path_d.contains('Z'),
+                "Connector {:?} should have a closed arrowhead, got: {}",
+                connector.edge_id,
+                connector.arrow_head_path_d
+            );
+            assert!(
+                !connector.locus_path_d.is_empty(),
+                "Connector {:?} should have a locus path",
+                connector.edge_id
+            );
+
+            // The connector is styled from the theme's edge_defaults, so it has
+            // a stroke (the line) resolved into its tailwind classes.
+            let classes = svg_elements
+                .tailwind_classes
+                .get(connector.edge_id.as_ref())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Connector {:?} should have tailwind classes",
+                        connector.edge_id
+                    )
+                });
+            assert!(
+                classes.contains("stroke-"),
+                "Connector {:?} classes should include a stroke, got: {classes}",
+                connector.edge_id
+            );
         }
     }
 }
