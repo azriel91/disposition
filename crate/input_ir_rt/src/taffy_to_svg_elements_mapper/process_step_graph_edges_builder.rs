@@ -2,7 +2,7 @@ use disposition_ir_model::{node::NodeId, IrDiagram};
 use disposition_model_common::edge::EdgeGroupId;
 use disposition_svg_model::{OrthoProtrusionParams, SvgEdgeInfo};
 use disposition_taffy_model::{taffy::TaffyTree, NodeIdToTaffyNodeIds, TaffyNodeCtx, LANE_WIDTH};
-use kurbo::{BezPath, Point};
+use kurbo::{BezPath, Circle, Point};
 
 use super::{ArrowHeadBuilder, EdgePathLocusCalculator};
 use crate::{AbsoluteCoordinates, TaffyNodeAbsoluteCoordinatesCalculator};
@@ -20,9 +20,9 @@ use crate::{AbsoluteCoordinates, TaffyNodeAbsoluteCoordinatesCalculator};
 pub(super) struct ProcessStepGraphEdgesBuilder;
 
 /// Small straight stub before a connector bends, in pixels.
-const BEND_GAP: f32 = 6.0;
+const BEND_GAP: f64 = 6.0;
 /// Corner rounding radius for connector bends, in pixels.
-const ARC_RADIUS: f32 = 4.0;
+const ARC_RADIUS: f64 = 4.0;
 
 impl ProcessStepGraphEdgesBuilder {
     /// Builds the connector edge infos for every process step graph.
@@ -41,29 +41,24 @@ impl ProcessStepGraphEdgesBuilder {
                     .map(|placement| placement.lane.value())
                     .unwrap_or(0);
 
-                let Some((from_x, from_y, from_radius)) =
-                    Self::circle_center(taffy_tree, node_id_to_taffy, &edge.from)
+                let Some(from_circle) =
+                    Self::circle_resolve(taffy_tree, node_id_to_taffy, &edge.from)
                 else {
                     continue;
                 };
-                let Some((to_x, to_y, to_radius)) =
-                    Self::circle_center(taffy_tree, node_id_to_taffy, &edge.to)
+                let Some(to_circle) = Self::circle_resolve(taffy_tree, node_id_to_taffy, &edge.to)
                 else {
                     continue;
                 };
 
                 // Travel lane x, relative to the from-circle's lane.
-                let lane_delta = edge.lane.value() as f32 - from_lane as f32;
-                let lane_x = from_x + lane_delta * LANE_WIDTH;
+                let lane_delta = f64::from(edge.lane.value()) - f64::from(from_lane);
+                let lane_x = from_circle.center.x + lane_delta * f64::from(LANE_WIDTH);
 
                 // The path is built with its `MoveTo` at the `to` end (the
                 // arrowhead/locus builders expect the to-node end first, since
                 // edge paths are conventionally built in reverse).
-                let path = Self::connector_path(
-                    (from_x, from_y, from_radius),
-                    (to_x, to_y, to_radius),
-                    lane_x,
-                );
+                let path = Self::connector_path(from_circle, to_circle, lane_x);
                 let arrow_head_path = ArrowHeadBuilder::build_static_arrow_head(&path);
                 let locus_path = EdgePathLocusCalculator::calculate(&path, &arrow_head_path);
 
@@ -87,12 +82,13 @@ impl ProcessStepGraphEdgesBuilder {
         svg_edge_infos
     }
 
-    /// Resolves a step circle's absolute centre and radius from its taffy node.
-    fn circle_center<'id>(
+    /// Resolves a step's [`Circle`] (absolute centre and radius) from its taffy
+    /// node.
+    fn circle_resolve<'id>(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         node_id_to_taffy: &NodeIdToTaffyNodeIds<'id>,
         node_id: &NodeId<'id>,
-    ) -> Option<(f32, f32, f32)> {
+    ) -> Option<Circle> {
         let taffy_node_ids = node_id_to_taffy.get(node_id)?;
         let circle_taffy_node_id = taffy_node_ids.circle_taffy_node_id()?;
         let layout = taffy_tree.layout(circle_taffy_node_id).ok()?;
@@ -101,8 +97,9 @@ impl ProcessStepGraphEdgesBuilder {
             circle_taffy_node_id,
             layout,
         );
-        let radius = layout.size.width / 2.0;
-        Some((x + radius, y + radius, radius))
+        let radius = f64::from(layout.size.width) / 2.0;
+        let center = Point::new(f64::from(x) + radius, f64::from(y) + radius);
+        Some(Circle::new(center, radius))
     }
 
     /// Builds the connector [`BezPath`] for a single connector, with its
@@ -113,43 +110,41 @@ impl ProcessStepGraphEdgesBuilder {
     /// travel lane in between. Back connectors (cycles, `to` at or above
     /// `from`) bulge out to the right to avoid overlapping the steps
     /// between them.
-    fn connector_path(from: (f32, f32, f32), to: (f32, f32, f32), lane_x: f32) -> BezPath {
-        let (from_x, from_y, from_radius) = from;
-        let (to_x, to_y, to_radius) = to;
-
+    fn connector_path(from: Circle, to: Circle, lane_x: f64) -> BezPath {
         // Forward-order waypoints (from-end first); reversed before building.
-        let waypoints = if to_y >= from_y {
-            let start = (from_x, from_y + from_radius);
-            let end = (to_x, to_y - to_radius);
+        let waypoints = if to.center.y >= from.center.y {
+            let start = Point::new(from.center.x, from.center.y + from.radius);
+            let end = Point::new(to.center.x, to.center.y - to.radius);
 
-            let straight = (from_x - lane_x).abs() < 0.5 && (to_x - lane_x).abs() < 0.5;
+            let straight =
+                (from.center.x - lane_x).abs() < 0.5 && (to.center.x - lane_x).abs() < 0.5;
             if straight {
                 vec![start, end]
             } else {
-                let bend_y_1 = (start.1 + BEND_GAP).min(end.1);
-                let bend_y_2 = (end.1 - BEND_GAP).max(start.1);
+                let bend_y_1 = (start.y + BEND_GAP).min(end.y);
+                let bend_y_2 = (end.y - BEND_GAP).max(start.y);
                 vec![
                     start,
-                    (from_x, bend_y_1),
-                    (lane_x, bend_y_1),
-                    (lane_x, bend_y_2),
-                    (to_x, bend_y_2),
+                    Point::new(from.center.x, bend_y_1),
+                    Point::new(lane_x, bend_y_1),
+                    Point::new(lane_x, bend_y_2),
+                    Point::new(to.center.x, bend_y_2),
                     end,
                 ]
             }
         } else {
             // Back connector (best-effort): bulge to the right of both circles.
-            let bulge_x = from_x.max(to_x) + LANE_WIDTH;
-            let start = (from_x, from_y - from_radius);
-            let end = (to_x, to_y + to_radius);
-            let bend_y_1 = start.1 - BEND_GAP;
-            let bend_y_2 = end.1 + BEND_GAP;
+            let bulge_x = from.center.x.max(to.center.x) + f64::from(LANE_WIDTH);
+            let start = Point::new(from.center.x, from.center.y - from.radius);
+            let end = Point::new(to.center.x, to.center.y + to.radius);
+            let bend_y_1 = start.y - BEND_GAP;
+            let bend_y_2 = end.y + BEND_GAP;
             vec![
                 start,
-                (from_x, bend_y_1),
-                (bulge_x, bend_y_1),
-                (bulge_x, bend_y_2),
-                (to_x, bend_y_2),
+                Point::new(from.center.x, bend_y_1),
+                Point::new(bulge_x, bend_y_1),
+                Point::new(bulge_x, bend_y_2),
+                Point::new(to.center.x, bend_y_2),
                 end,
             ]
         };
@@ -166,16 +161,15 @@ impl ProcessStepGraphEdgesBuilder {
     /// Consecutive duplicate points are collapsed, so collapsed bends (e.g.
     /// when the travel lane equals an endpoint's lane) do not produce
     /// zero-length segments.
-    fn ortho_bez_path(points: &[(f32, f32)]) -> BezPath {
+    fn ortho_bez_path(points: &[Point]) -> BezPath {
         // Collapse consecutive duplicate points.
-        let mut points_collapsed: Vec<(f64, f64)> = Vec::with_capacity(points.len());
-        for &(x, y) in points {
-            let point_candidate = (x as f64, y as f64);
+        let mut points_collapsed: Vec<Point> = Vec::with_capacity(points.len());
+        for &point_candidate in points {
             if points_collapsed
                 .last()
                 .map(|point_last_kept| {
-                    (point_last_kept.0 - point_candidate.0).abs() < 0.01
-                        && (point_last_kept.1 - point_candidate.1).abs() < 0.01
+                    (point_last_kept.x - point_candidate.x).abs() < 0.01
+                        && (point_last_kept.y - point_candidate.y).abs() < 0.01
                 })
                 .unwrap_or(false)
             {
@@ -189,7 +183,7 @@ impl ProcessStepGraphEdgesBuilder {
             return path;
         }
 
-        path.move_to(Point::new(points_collapsed[0].0, points_collapsed[0].1));
+        path.move_to(points_collapsed[0]);
         for index in 1..points_collapsed.len() - 1 {
             let point_previous = points_collapsed[index - 1];
             let point_corner = points_collapsed[index];
@@ -200,31 +194,23 @@ impl ProcessStepGraphEdgesBuilder {
             let arc_start = Self::point_towards(point_corner, point_previous);
             let arc_end = Self::point_towards(point_corner, point_next);
 
-            path.line_to(Point::new(arc_start.0, arc_start.1));
-            path.quad_to(
-                Point::new(point_corner.0, point_corner.1),
-                Point::new(arc_end.0, arc_end.1),
-            );
+            path.line_to(arc_start);
+            path.quad_to(point_corner, arc_end);
         }
-        let point_last = points_collapsed[points_collapsed.len() - 1];
-        path.line_to(Point::new(point_last.0, point_last.1));
+        path.line_to(points_collapsed[points_collapsed.len() - 1]);
 
         path
     }
 
     /// Returns a point `ARC_RADIUS` (capped at half the segment) from `corner`
     /// toward `neighbour`.
-    fn point_towards(corner: (f64, f64), neighbour: (f64, f64)) -> (f64, f64) {
-        let delta_x = neighbour.0 - corner.0;
-        let delta_y = neighbour.1 - corner.1;
-        let distance = (delta_x * delta_x + delta_y * delta_y).sqrt();
+    fn point_towards(corner: Point, neighbour: Point) -> Point {
+        let direction = neighbour - corner;
+        let distance = direction.hypot();
         if distance < f64::EPSILON {
             return corner;
         }
-        let inset_distance = (ARC_RADIUS as f64).min(distance / 2.0);
-        (
-            corner.0 + delta_x / distance * inset_distance,
-            corner.1 + delta_y / distance * inset_distance,
-        )
+        let inset_distance = ARC_RADIUS.min(distance / 2.0);
+        corner + direction * (inset_distance / distance)
     }
 }

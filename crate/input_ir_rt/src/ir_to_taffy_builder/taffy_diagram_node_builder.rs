@@ -4,7 +4,7 @@ use disposition_ir_model::{
     edge::EdgeId,
     entity::EntityType,
     node::{NodeHierarchy, NodeId, NodeRank, NodeShape},
-    process::{ProcessStepGraph, ProcessStepLane},
+    process::{ProcessStepGraph, ProcessStepLane, ProcessStepPlacement},
 };
 use disposition_model_common::{Id, Map};
 use disposition_taffy_model::{
@@ -28,6 +28,18 @@ use crate::md_text::md_blocks_parser::MdBlocksParser;
 /// Builds taffy nodes for diagram nodes, handling both leaf nodes (no children)
 /// and container nodes (with child hierarchies), grouping children by rank.
 pub(crate) struct TaffyDiagramNodeBuilder;
+
+/// A process step paired with its [`ProcessStepPlacement`].
+///
+/// Collected from a [`ProcessStepGraph`] so that step rows can be ordered by
+/// their main-axis `row` before their taffy nodes are built, while keeping each
+/// step's `lane` available without a second lookup.
+struct StepPlacementEntry<'graph> {
+    /// The process step node ID.
+    step_node_id: &'graph NodeId<'static>,
+    /// The step's row and lane within the git-graph layout.
+    placement: &'graph ProcessStepPlacement,
+}
 
 impl TaffyDiagramNodeBuilder {
     /// Builds taffy nodes for all first-level nodes in the diagram, grouped by
@@ -659,22 +671,25 @@ impl TaffyDiagramNodeBuilder {
         let lane_count = process_step_graph.lane_count;
 
         // Steps ordered by row (main-axis position).
-        let mut steps: Vec<(&NodeId<'static>, u32)> = process_step_graph
+        let mut step_entries: Vec<StepPlacementEntry<'_>> = process_step_graph
             .step_placements
             .iter()
-            .map(|(step_node_id, placement)| (step_node_id, placement.row))
+            .map(|(step_node_id, placement)| StepPlacementEntry {
+                step_node_id,
+                placement,
+            })
             .collect();
-        steps.sort_by_key(|(_step_node_id, row)| *row);
+        step_entries.sort_by_key(|step_entry| step_entry.placement.row);
 
         let mut wrapper_children = vec![process_text_node_id];
-        for (step_node_id, _row) in &steps {
-            let lane = process_step_graph
-                .step_placements
-                .get(*step_node_id)
-                .map(|placement| placement.lane)
-                .unwrap_or_default();
-            let step_wrapper_node_id =
-                Self::process_step_graph_leaf_build(ctx, state, step_node_id, lane, lane_count);
+        for step_entry in &step_entries {
+            let step_wrapper_node_id = Self::process_step_graph_leaf_build(
+                ctx,
+                state,
+                step_entry.step_node_id,
+                step_entry.placement.lane,
+                lane_count,
+            );
             wrapper_children.push(step_wrapper_node_id);
         }
 
