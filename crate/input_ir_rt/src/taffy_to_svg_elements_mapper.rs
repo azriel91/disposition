@@ -220,12 +220,13 @@ impl TaffyToSvgElementsMapper {
         );
 
         // Append the git-graph connectors between process steps. These bypass
-        // the thing/tag edge router entirely.
+        // the thing/tag edge router entirely; their tailwind classes are already
+        // present in `tailwind_classes` (resolved from the theme's edge_defaults
+        // during IR mapping).
         svg_edge_infos.extend(ProcessStepGraphEdgesBuilder::build(
             ir_diagram,
             taffy_tree,
             node_id_to_taffy,
-            &mut tailwind_classes,
         ));
 
         let edge_label_infos = SvgEdgeLabelsBuilder::build(

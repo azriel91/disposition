@@ -156,8 +156,8 @@ impl InputToIrDiagramMapper {
             processes,
             process_render_expanded,
         );
-        let tailwind_classes = tailwind_classes_build_result.tailwind_classes;
-        let css_theme_vars = tailwind_classes_build_result.css_theme_vars;
+        let mut tailwind_classes = tailwind_classes_build_result.tailwind_classes;
+        let mut css_theme_vars = tailwind_classes_build_result.css_theme_vars;
 
         // 14. Build ProcessStepEntities from step_thing_interactions
         let process_step_entities = Self::build_process_step_entities(processes);
@@ -174,6 +174,24 @@ impl InputToIrDiagramMapper {
             &process_step_ranks,
             &process_step_edges,
         );
+
+        // 14d. Style process step connectors like dependency edges, sharing one
+        //      resolved `edge_defaults` class string across all of them.
+        if !process_step_graphs.is_empty() {
+            let connector_classes = TailwindClassesBuilder::build_process_step_connector_classes(
+                theme_default,
+                theme_types_styles,
+                &mut css_theme_vars,
+            );
+            for process_step_graph in process_step_graphs.values() {
+                for process_step_graph_edge in &process_step_graph.edges {
+                    tailwind_classes.insert(
+                        process_step_graph_edge.edge_id().into_inner(),
+                        connector_classes.clone(),
+                    );
+                }
+            }
+        }
 
         // 15. Compute NodeNestingInfos from node_hierarchy
         let node_nesting_infos = NodeNestingInfosBuilder::build(&node_hierarchy);

@@ -93,6 +93,15 @@ connector it emits an `SvgEdgeInfo` with an orthogonal, arc-rounded `path_d`:
 - back connectors (cycles) bulge one lane to the right to avoid overlapping the
   steps between their endpoints.
 
-Connectors have a single neutral stroke (no per-lane colour, no arrowhead, no
-spacers or protrusions). Their edge IDs are prefixed `psgraph_`. Per-lane
-colouring is a possible future enhancement.
+The connector path is built as a `kurbo::BezPath` with its `MoveTo` at the `to`
+end (the convention the shared `ArrowHeadBuilder` / `EdgePathLocusCalculator`
+expect), so each connector also carries a positioned arrowhead at the `to` step
+and a locus path for the focus indicator -- just like dependency edges. No
+spacers or protrusions are used.
+
+Connector tailwind classes are resolved during IR mapping (not in the router):
+`TailwindClassesBuilder::build_process_step_connector_classes` styles connectors
+like dependency edges -- the theme's base `edge_defaults` overlaid with
+`type_dependency_edge_sequence_default` -- and the resulting string is stored in
+`IrDiagram::tailwind_classes` keyed by `ProcessStepGraphEdge::edge_id` (prefixed
+`psgraph_`). Per-lane colouring is a possible future enhancement.

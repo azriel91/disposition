@@ -1,3 +1,4 @@
+use disposition_model_common::{edge::EdgeId, Id};
 use serde::{Deserialize, Serialize};
 
 use crate::{node::NodeId, process::ProcessStepLane};
@@ -34,6 +35,33 @@ impl<'id> ProcessStepGraphEdge<'id> {
     /// Creates a new `ProcessStepGraphEdge`.
     pub fn new(from: NodeId<'id>, to: NodeId<'id>, lane: ProcessStepLane) -> Self {
         Self { from, to, lane }
+    }
+
+    /// Returns the stable connector edge ID for this edge.
+    ///
+    /// The ID is `psgraph_{from}__{to}`, used to look up the connector's
+    /// tailwind classes and to identify its rendered SVG element.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use disposition_ir_model::{
+    ///     node::NodeId,
+    ///     process::{ProcessStepGraphEdge, ProcessStepLane},
+    /// };
+    /// use disposition_model_common::{id, Id};
+    ///
+    /// let edge = ProcessStepGraphEdge::new(
+    ///     NodeId::from(id!("step_a")),
+    ///     NodeId::from(id!("step_b")),
+    ///     ProcessStepLane::new(0),
+    /// );
+    ///
+    /// assert_eq!(edge.edge_id().as_str(), "psgraph_step_a__step_b");
+    /// ```
+    pub fn edge_id(&self) -> EdgeId<'static> {
+        let id_string = format!("psgraph_{}__{}", self.from.as_str(), self.to.as_str());
+        EdgeId::from(Id::try_from(id_string).expect("process step connector edge id is valid"))
     }
 
     /// Converts this `ProcessStepGraphEdge` into one with a `'static` lifetime.

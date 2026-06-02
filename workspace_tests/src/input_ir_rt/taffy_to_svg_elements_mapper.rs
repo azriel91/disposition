@@ -366,11 +366,6 @@ fn test_svg_edge_infos_edge_group_id_preserved() -> Result<(), TaffyError> {
 fn test_svg_edge_infos_arrow_head_path_d_non_empty() -> Result<(), TaffyError> {
     for svg_elements in build_svg_elements_from_example_ir() {
         for edge_info in &svg_elements.svg_edge_infos {
-            // Process step graph connectors (`psgraph_*`) are git-style lines
-            // with no arrowhead, so they are excluded from this assertion.
-            if edge_info.edge_id.as_str().starts_with("psgraph_") {
-                continue;
-            }
             assert!(
                 !edge_info.arrow_head_path_d.is_empty(),
                 "arrow_head_path_d should not be empty for edge {:?}",
@@ -1218,6 +1213,50 @@ fn test_process_step_graph_labels_aligned_across_lanes() {
                 "Label for {step} should be aligned with A's label, \
                  got {} vs {label_x_a}",
                 label_x(step)
+            );
+        }
+    }
+}
+
+/// Process step connectors carry an arrowhead, a locus path, and theme-derived
+/// tailwind classes (resolved from the theme's edge_defaults), like dependency
+/// edges.
+#[test]
+fn test_process_step_graph_connectors_have_arrow_locus_and_classes() {
+    for svg_elements in build_svg_elements_from_process_step_branch_merge() {
+        let connectors: Vec<_> = svg_elements
+            .svg_edge_infos
+            .iter()
+            .filter(|edge_info| edge_info.edge_id.as_str().starts_with("psgraph_"))
+            .collect();
+        assert_eq!(4, connectors.len(), "Expected 4 process step connectors");
+
+        for connector in &connectors {
+            assert!(
+                connector.arrow_head_path_d.starts_with('M')
+                    && connector.arrow_head_path_d.contains('Z'),
+                "Connector {:?} should have a closed arrowhead, got: {}",
+                connector.edge_id,
+                connector.arrow_head_path_d
+            );
+            assert!(
+                !connector.locus_path_d.is_empty(),
+                "Connector {:?} should have a locus path",
+                connector.edge_id
+            );
+
+            // The connector is styled from the theme's edge_defaults, so it has
+            // a stroke (the line) resolved into its tailwind classes.
+            let classes = svg_elements
+                .tailwind_classes
+                .get(connector.edge_id.as_ref())
+                .unwrap_or_else(|| {
+                    panic!("Connector {:?} should have tailwind classes", connector.edge_id)
+                });
+            assert!(
+                classes.contains("stroke-"),
+                "Connector {:?} classes should include a stroke, got: {classes}",
+                connector.edge_id
             );
         }
     }
