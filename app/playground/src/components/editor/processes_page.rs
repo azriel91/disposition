@@ -12,9 +12,11 @@
 //! The heavy lifting is delegated to submodules:
 //!
 //! - [`process_card`]: collapsible card for a single process.
+//! - [`step_dependency_card`]: card for a step's dependency list.
 //! - [`step_interaction_card`]: card for a step's thing-interaction list.
 
 pub(crate) mod process_card;
+pub(crate) mod step_dependency_card;
 pub(crate) mod step_interaction_card;
 
 use dioxus::{
@@ -39,6 +41,7 @@ pub(crate) struct ProcessEntry {
     pub(crate) name: String,
     pub(crate) desc: String,
     pub(crate) steps: Vec<(String, String)>,
+    pub(crate) step_dependencies: Vec<(String, Vec<String>)>,
     pub(crate) step_interactions: Vec<(String, Vec<String>)>,
 }
 
@@ -112,6 +115,18 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 .map(|(step_id, label)| (step_id.as_str().to_owned(), label.clone()))
                 .collect();
 
+            let step_dependencies: Vec<(String, Vec<String>)> = process_diagram
+                .process_step_dependencies
+                .iter()
+                .map(|(step_id, dep_step_ids)| {
+                    let dep_ids: Vec<String> = dep_step_ids
+                        .iter()
+                        .map(|dep_step_id| dep_step_id.as_str().to_owned())
+                        .collect();
+                    (step_id.as_str().to_owned(), dep_ids)
+                })
+                .collect();
+
             let step_interactions: Vec<(String, Vec<String>)> = process_diagram
                 .step_thing_interactions
                 .iter()
@@ -129,6 +144,7 @@ pub fn ProcessesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 name: process_diagram.name.clone().unwrap_or_default(),
                 desc: process_diagram.desc.clone().unwrap_or_default(),
                 steps,
+                step_dependencies,
                 step_interactions,
             }
         })

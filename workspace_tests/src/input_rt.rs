@@ -5,6 +5,7 @@ mod entity_page_ops;
 mod flat_entry;
 mod process_card_ops;
 mod processes_page_ops;
+mod step_dependency_card_ops;
 mod step_interaction_card_ops;
 mod style_aliases_section_ops;
 mod tags_page_ops;

@@ -21,6 +21,7 @@
 mod process_card_field_desc;
 mod process_card_field_id;
 mod process_card_field_name;
+mod process_card_field_step_dependencies;
 mod process_card_field_step_interactions;
 mod process_card_field_steps;
 mod process_card_field_steps_row;
@@ -42,6 +43,7 @@ use crate::components::editor::{
 use self::{
     process_card_field_desc::ProcessCardFieldDesc, process_card_field_id::ProcessCardFieldId,
     process_card_field_name::ProcessCardFieldName,
+    process_card_field_step_dependencies::ProcessCardFieldStepDependencies,
     process_card_field_step_interactions::ProcessCardFieldStepInteractions,
     process_card_field_steps::ProcessCardFieldSteps,
     process_card_field_steps_row::ProcessCardFieldStepsRow,
@@ -195,6 +197,13 @@ pub(crate) fn ProcessCard(
                     input_diagram,
                     process_id: process_id.clone(),
                     steps: entry.steps.clone(),
+                }
+
+                // === Step Dependencies === //
+                ProcessCardFieldStepDependencies {
+                    input_diagram,
+                    process_id: process_id.clone(),
+                    step_dependencies: entry.step_dependencies.clone(),
                 }
 
                 // === Step Thing Interactions === //
