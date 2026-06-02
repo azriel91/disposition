@@ -9,12 +9,14 @@
 * Include `ThemeAttr::Extra` classes in `Node` and `Edge` rendering. ([#35][#35])
 * Use `<g transform="translate(x, y)">` to position markdown images for more intuitive transform origin coordinates. ([#35][#35])
 * Add `ProcessRenderCollapse` render option to control whether processes are collapsed by default. ([#36][#36])
+* Render process step edges using git-like layout. ([#37][#37])
 
 [#32]: https://github.com/azriel91/disposition/pull/32
 [#33]: https://github.com/azriel91/disposition/pull/33
 [#34]: https://github.com/azriel91/disposition/pull/34
 [#35]: https://github.com/azriel91/disposition/pull/35
 [#36]: https://github.com/azriel91/disposition/pull/36
+[#37]: https://github.com/azriel91/disposition/pull/37
 
 
 ## 0.2.0 (2026-05-22)
