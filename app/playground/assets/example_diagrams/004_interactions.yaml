@@ -1,0 +1,61 @@
+---
+# Interactions
+#
+# `thing_interactions` describe runtime communication between things, as
+# opposed to `thing_dependencies` (static relationships). They share the same
+# structure: an ID prefixed with `edge_ix_`, a `kind`, and a list of `things`.
+#
+# Interactions are *invisible* by default -- they are meant to be revealed one
+# at a time as the steps of a process are focused (see the "Processes &
+# Interactions" example). To see them on their own, this example overrides the
+# interaction type styles to make them always visible.
+things:
+  t_browser: "Browser"
+  t_gateway: "API Gateway"
+  t_auth: "Auth Service"
+  t_db: "Database"
+
+thing_hierarchy:
+  t_browser: {}
+  t_gateway: {}
+  t_auth: {}
+  t_db: {}
+
+thing_interactions:
+  edge_ix_browser_gateway:
+    kind: sequence
+    things:
+      - t_browser
+      - t_gateway
+  edge_ix_gateway_auth:
+    kind: symmetric
+    things:
+      - t_gateway
+      - t_auth
+  edge_ix_auth_db:
+    kind: symmetric
+    things:
+      - t_auth
+      - t_db
+
+edge_descs:
+  edge_ix_browser_gateway: "request"
+  edge_ix_gateway_auth: "verify"
+  edge_ix_auth_db: "lookup"
+
+# Interactions default to `invisible`; make them visible here so they render
+# without focusing a process step. Each `type_*` override fully replaces that
+# type's style, so the colour and stroke are restated alongside `visibility`.
+theme_types_styles:
+  type_interaction_edge_sequence_default:
+    edge_defaults:
+      style_aliases_applied: [shade_medium]
+      shape_color: "violet"
+      stroke_width: "2"
+      visibility: "visible"
+  type_interaction_edge_symmetric_default:
+    edge_defaults:
+      style_aliases_applied: [shade_medium]
+      shape_color: "violet"
+      stroke_width: "2"
+      visibility: "visible"

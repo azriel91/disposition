@@ -1,0 +1,35 @@
+---
+# Tooltips
+#
+# `entity_tooltips` attach extra detail that appears when you hover an entity
+# in the viewer. They are keyed by entity ID -- a thing, an edge instance
+# (`{group}__{index}`), or a process step -- and accept markdown, so they are
+# handy for commands, notes, or links that would clutter the diagram if always
+# shown.
+things:
+  t_lb: "Load Balancer"
+  t_app: "App Server"
+  t_db: "Database"
+
+thing_hierarchy:
+  t_lb: {}
+  t_app: {}
+  t_db: {}
+
+thing_dependencies:
+  edge_dep_lb_app:
+    kind: sequence
+    things: [t_lb, t_app]
+  edge_dep_app_db:
+    kind: sequence
+    things: [t_app, t_db]
+
+entity_tooltips:
+  t_lb: "Round-robin across healthy app servers."
+  t_app: |-
+    Stateless. Scales horizontally:
+
+    `kubectl scale deploy/app --replicas=4`
+  t_db: "Primary PostgreSQL instance. Hover an edge or node to see its tooltip."
+  # Tooltips can target an edge instance too.
+  edge_dep_app_db__0: "Connection pool, max 20."

@@ -1,0 +1,47 @@
+---
+# Processes
+#
+# A process is a sequence of steps, laid out like a git graph.
+#
+# * `steps` maps a step ID to its label.
+# * `process_step_dependencies` orders the steps: each step lists the steps
+#   it depends on (its prerequisites) and is placed after them. Forking and
+#   merging produce parallel lanes -- here "Create release branch" forks into
+#   "Build binaries" and "Build docs", which merge back into "Tag and publish".
+#
+# `desc` accepts markdown and is shown when the process is focused.
+processes:
+  proc_release:
+    name: "Release"
+    desc: |-
+      Cut a release once the build and the docs are ready.
+    steps:
+      proc_release_step_branch: "Create release branch"
+      proc_release_step_build: "Build binaries"
+      proc_release_step_docs: "Build docs"
+      proc_release_step_tag: "Tag and publish"
+    process_step_dependencies:
+      proc_release_step_build:
+        - proc_release_step_branch
+      proc_release_step_docs:
+        - proc_release_step_branch
+      proc_release_step_tag:
+        - proc_release_step_build
+        - proc_release_step_docs
+
+# Soften the built-in process palette (a saturated blue) to pastels. Each
+# `type_*` override fully replaces that type's style, so the shape, stroke,
+# and circle-size aliases are restated here.
+theme_types_styles:
+  type_process_default:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      stroke_style: "solid"
+      shape_color: "indigo"
+      stroke_width: "2"
+  type_process_step_default:
+    node_defaults:
+      style_aliases_applied: [circle_md, rounded_sm, shade_light]
+      stroke_style: "solid"
+      shape_color: "sky"
+      stroke_width: "2"

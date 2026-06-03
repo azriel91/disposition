@@ -1,0 +1,207 @@
+---
+# Cloud Architecture
+#
+# A capstone that brings everything together: deep nesting, layout overrides,
+# dependencies, interactions, a process with step interactions, tags, types,
+# and a pastel theme.
+#
+# Node IDs follow the parent-prefix convention, e.g. `t_vpc_private` is a
+# child of `t_vpc`, and `t_vpc_private_app_1` a child of `t_vpc_private`.
+things:
+  t_users: "Users"
+  t_dns: "DNS (Route 53)"
+  t_cloud: "Cloud Platform"
+  t_vpc: "VPC 10.0.0.0/16"
+  t_vpc_public: "Public Subnet"
+  t_vpc_public_igw: "Internet Gateway"
+  t_vpc_public_alb: "Load Balancer"
+  t_vpc_private: "Private Subnet"
+  t_vpc_private_app_1: "App Server 1"
+  t_vpc_private_app_2: "App Server 2"
+  t_vpc_data: "Data Subnet"
+  t_vpc_data_rds_primary: "RDS Primary"
+  t_vpc_data_rds_replica: "RDS Replica"
+  t_vpc_data_cache: "Redis Cache"
+
+thing_hierarchy:
+  t_users: {}
+  t_dns: {}
+  t_cloud:
+    t_vpc:
+      t_vpc_public:
+        t_vpc_public_igw: {}
+        t_vpc_public_alb: {}
+      t_vpc_private:
+        t_vpc_private_app_1: {}
+        t_vpc_private_app_2: {}
+      t_vpc_data:
+        t_vpc_data_rds_primary: {}
+        t_vpc_data_rds_replica: {}
+        t_vpc_data_cache: {}
+
+# Stack the subnets vertically, and lay each subnet's children in a row.
+thing_layouts:
+  t_cloud: "column"
+  t_vpc: "column"
+  t_vpc_public: "row"
+  t_vpc_private: "row"
+  t_vpc_data: "row"
+
+thing_dependencies:
+  edge_dep_alb_app_1:
+    kind: sequence
+    things: [t_vpc_public_alb, t_vpc_private_app_1]
+  edge_dep_alb_app_2:
+    kind: sequence
+    things: [t_vpc_public_alb, t_vpc_private_app_2]
+  edge_dep_app_1_rds:
+    kind: sequence
+    things: [t_vpc_private_app_1, t_vpc_data_rds_primary]
+  edge_dep_app_2_rds:
+    kind: sequence
+    things: [t_vpc_private_app_2, t_vpc_data_rds_primary]
+  edge_dep_app_1_cache:
+    kind: sequence
+    things: [t_vpc_private_app_1, t_vpc_data_cache]
+  edge_dep_rds_replica:
+    kind: symmetric
+    things: [t_vpc_data_rds_primary, t_vpc_data_rds_replica]
+
+thing_interactions:
+  edge_ix_user_dns:
+    kind: symmetric
+    things: [t_users, t_dns]
+  edge_ix_dns_alb:
+    kind: sequence
+    things: [t_dns, t_vpc_public_alb]
+  edge_ix_alb_app:
+    kind: sequence
+    things: [t_vpc_public_alb, t_vpc_private_app_1]
+  edge_ix_app_cache:
+    kind: symmetric
+    things: [t_vpc_private_app_1, t_vpc_data_cache]
+
+processes:
+  proc_request:
+    name: "User Request Flow"
+    desc: |-
+      How an inbound request travels through the stack.
+    steps:
+      proc_request_step_dns: "Resolve DNS"
+      proc_request_step_balance: "Balance load"
+      proc_request_step_process: "Process request"
+      proc_request_step_cache: "Read cache"
+    process_step_dependencies:
+      proc_request_step_balance:
+        - proc_request_step_dns
+      proc_request_step_process:
+        - proc_request_step_balance
+      proc_request_step_cache:
+        - proc_request_step_process
+    step_thing_interactions:
+      proc_request_step_dns: [edge_ix_user_dns]
+      proc_request_step_balance: [edge_ix_dns_alb]
+      proc_request_step_process: [edge_ix_alb_app]
+      proc_request_step_cache: [edge_ix_app_cache]
+
+thing_descs:
+  t_vpc_public_alb: "Distributes traffic across app servers"
+  t_vpc_data_rds_primary: "PostgreSQL primary database"
+  t_vpc_data_cache: "In-memory session and query cache"
+
+tags:
+  tag_networking: "Networking"
+  tag_compute: "Compute"
+  tag_data: "Data Tier"
+
+tag_things:
+  tag_networking:
+    - t_dns
+    - t_vpc_public_igw
+    - t_vpc_public_alb
+  tag_compute:
+    - t_vpc_private_app_1
+    - t_vpc_private_app_2
+  tag_data:
+    - t_vpc_data_rds_primary
+    - t_vpc_data_rds_replica
+    - t_vpc_data_cache
+
+entity_types:
+  t_cloud: [type_cloud]
+  t_vpc: [type_network]
+  t_vpc_public: [type_subnet]
+  t_vpc_private: [type_subnet]
+  t_vpc_data: [type_subnet]
+  t_vpc_public_igw: [type_gateway]
+  t_vpc_public_alb: [type_balancer]
+  t_vpc_private_app_1: [type_server]
+  t_vpc_private_app_2: [type_server]
+  t_vpc_data_rds_primary: [type_database]
+  t_vpc_data_rds_replica: [type_database]
+  t_vpc_data_cache: [type_database]
+
+theme_default:
+  base_styles:
+    t_users:
+      style_aliases_applied: [shade_light]
+      shape_color: "emerald"
+    t_dns:
+      style_aliases_applied: [shade_light]
+      shape_color: "amber"
+
+theme_types_styles:
+  type_cloud:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      stroke_style: "dotted"
+      shape_color: "slate"
+      stroke_width: "2"
+  type_network:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      stroke_style: "dashed"
+      shape_color: "indigo"
+      stroke_width: "2"
+  type_subnet:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      stroke_style: "dashed"
+      shape_color: "sky"
+      stroke_width: "2"
+  type_gateway:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      stroke_style: "solid"
+      shape_color: "amber"
+      stroke_width: "2"
+  type_balancer:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      stroke_style: "solid"
+      shape_color: "violet"
+      stroke_width: "2"
+  type_server:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      stroke_style: "solid"
+      shape_color: "emerald"
+      stroke_width: "2"
+  type_database:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      stroke_style: "solid"
+      shape_color: "rose"
+      stroke_width: "2"
+  type_process_default:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      stroke_style: "solid"
+      shape_color: "indigo"
+      stroke_width: "2"
+  type_process_step_default:
+    node_defaults:
+      style_aliases_applied: [circle_md, rounded_sm, shade_light]
+      stroke_style: "solid"
+      shape_color: "sky"
+      stroke_width: "2"

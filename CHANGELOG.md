@@ -10,7 +10,8 @@
 * Use `<g transform="translate(x, y)">` to position markdown images for more intuitive transform origin coordinates. ([#35][#35])
 * Add `ProcessRenderCollapse` render option to control whether processes are collapsed by default. ([#36][#36])
 * Render process step edges using git-like layout. ([#37][#37])
-* Serve playground example diagrams as static assets fetched at runtime instead of embedding them in the wasm binary.
+* Serve playground example diagrams as static assets fetched at runtime instead of embedding them in the wasm binary. ([#38][#38])
+* Refresh and expand the playground example diagrams to introduce features incrementally -- including edge labels and descriptions, markdown, and inline `data:` URL images. ([#38][#38])
 
 [#32]: https://github.com/azriel91/disposition/pull/32
 [#33]: https://github.com/azriel91/disposition/pull/33
@@ -18,6 +19,7 @@
 [#35]: https://github.com/azriel91/disposition/pull/35
 [#36]: https://github.com/azriel91/disposition/pull/36
 [#37]: https://github.com/azriel91/disposition/pull/37
+[#38]: https://github.com/azriel91/disposition/pull/38
 
 
 ## 0.2.0 (2026-05-22)

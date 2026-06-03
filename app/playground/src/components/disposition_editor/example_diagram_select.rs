@@ -5,7 +5,9 @@
 //! deserialized, and written into the [`InputDiagram`] signal.
 
 use dioxus::{
-    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, spawn, Element, Props},
+    prelude::{
+        component, dioxus_core, dioxus_elements, dioxus_signals, rsx, spawn, Element, Props,
+    },
     signals::{Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;

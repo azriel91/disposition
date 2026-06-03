@@ -1,10 +1,17 @@
 ---
-# Simple nodes -- the most basic diagram with just a few things.
+# Simple Nodes
+#
+# The most basic diagram: a handful of "things", each with a display label.
+#
+# * `things` maps a thing ID (prefixed with `t_`) to the text shown on it.
+# * `thing_hierarchy` lists which things to draw. A thing must appear here
+#   to be rendered; an empty map `{}` means "no children".
 things:
-  t_alice: "Alice"
-  t_bob: "Bob"
-  t_charlie: "Charlie"
+  t_apple: "Apple"
+  t_banana: "Banana"
+  t_cherry: "Cherry"
+
 thing_hierarchy:
-  t_alice: {}
-  t_bob: {}
-  t_charlie: {}
+  t_apple: {}
+  t_banana: {}
+  t_cherry: {}

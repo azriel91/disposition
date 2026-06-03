@@ -1,30 +1,36 @@
 ---
-# Nested nodes -- demonstrates thing_hierarchy for grouping.
-
+# Nested Nodes
+#
+# `thing_hierarchy` nests things inside one another to show containment.
+#
+# By convention, a nested thing's ID extends its parent's ID with an extra
+# segment: `t_aws_ecr` is a child of `t_aws`, and `t_aws_ecr_repo_app` is a
+# child of `t_aws_ecr`. This keeps IDs self-describing.
+#
+# `thing_layouts` overrides the flex direction of a container. By default the
+# direction alternates by depth (column, then row, ...). Valid values:
+# `row`, `row_reverse`, `column`, `column_reverse`.
 things:
-  t_cloud: "Cloud Platform"
-  t_cloud_compute: "Compute"
-  t_cloud_compute_vm1: "VM 1"
-  t_cloud_compute_vm2: "VM 2"
-  t_cloud_storage: "Storage"
-  t_cloud_storage_bucket: "Object Bucket"
-  t_cloud_storage_disk: "Block Disk"
+  t_aws: "AWS"
+  t_aws_ecr: "ECR"
+  t_aws_ecr_repo_app: "app image"
+  t_aws_ecr_repo_web: "web image"
+  t_aws_ecs: "ECS"
+  t_aws_ecs_service_app: "app service"
+  t_aws_ecs_service_web: "web service"
 
 thing_hierarchy:
-  t_cloud:
-    t_cloud_compute:
-      t_cloud_compute_vm1: {}
-      t_cloud_compute_vm2: {}
-    t_cloud_storage:
-      t_cloud_storage_bucket: {}
-      t_cloud_storage_disk: {}
+  t_aws:
+    t_aws_ecr:
+      t_aws_ecr_repo_app: {}
+      t_aws_ecr_repo_web: {}
+    t_aws_ecs:
+      t_aws_ecs_service_app: {}
+      t_aws_ecs_service_web: {}
 
-# Override the default flex direction for container things.
-#
-# By default, direction alternates by depth (column at even, row at odd).
-# Here we force the top-level cloud container to lay out its children
-# in a row, so Compute and Storage sit side by side.
+# Lay the two services (ECR and ECS) side by side, and stack each one's
+# children vertically.
 thing_layouts:
-  t_cloud: "row"
-  t_cloud_compute: "column"
-  t_cloud_storage: "column"
+  t_aws: "row"
+  t_aws_ecr: "column"
+  t_aws_ecs: "column"

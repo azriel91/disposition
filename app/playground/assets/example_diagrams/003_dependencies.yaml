@@ -1,54 +1,64 @@
 ---
-# Nodes with dependencies.
+# Dependencies
 #
-# Shows how to use `thing_dependencies` to define static
-# relationships between things using different edge kinds.
-
+# `thing_dependencies` draws static "depends on" relationships. Each edge
+# group has an ID (prefixed with `edge_dep_`), a `kind`, and a list of
+# `things`. The arrow points from the first thing to the last, so list the
+# prerequisite first and the dependent second.
+#
+# Edge `kind`s:
+#
+# * `sequence`:  a one-way arrow from prerequisite to dependent.
+# * `symmetric`: a two-way relationship with no direction.
+# * `cyclic`:    a relationship that loops back (e.g. a thing on itself).
+#
+# `edge_descs` renders a label next to an edge.
 things:
-  t_app: "Application"
-  t_framework: "Framework"
-  t_database: "Database"
-  t_cache: "Cache"
   t_config: "Config"
+  t_db: "Database"
+  t_cache: "Cache"
+  t_api: "API Server"
+  t_app: "Application"
 
 thing_hierarchy:
-  t_app: {}
-  t_framework: {}
-  t_database: {}
-  t_cache: {}
   t_config: {}
+  t_db: {}
+  t_cache: {}
+  t_api: {}
+  t_app: {}
 
 thing_dependencies:
-  # Sequential: app depends on framework.
-  edge_dep_app_framework:
+  # `sequence`: the app depends on the API server.
+  edge_dep_api_app:
     kind: sequence
     things:
-      - t_framework
+      - t_api
       - t_app
-
-  # Sequential chain: app -> database.
-  edge_dep_app_database:
+  # `sequence`: the API server depends on the database.
+  edge_dep_db_api:
     kind: sequence
     things:
-      - t_database
-      - t_app
-
-  # Symmetric: cache and database synchronize.
-  edge_dep_cache_database:
+      - t_db
+      - t_api
+  # `sequence`: the API server depends on its config.
+  edge_dep_config_api:
+    kind: sequence
+    things:
+      - t_config
+      - t_api
+  # `symmetric`: the cache and database stay in sync (no direction).
+  edge_dep_cache_db:
     kind: symmetric
     things:
       - t_cache
-      - t_database
-
-  # Cyclic: config feeds back into itself.
-  edge_dep_config_self:
+      - t_db
+  # `cyclic`: the config reloads itself.
+  edge_dep_config_config:
     kind: cyclic
     things:
       - t_config
 
-  # Sequential: framework depends on config.
-  edge_dep_framework_config:
-    kind: sequence
-    things:
-      - t_config
-      - t_framework
+edge_descs:
+  edge_dep_db_api: "reads / writes"
+  edge_dep_cache_db: "in sync"
+  edge_dep_config_config: "hot reload"
