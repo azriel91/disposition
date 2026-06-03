@@ -1,11 +1,11 @@
 //! Dropdown selector for loading example diagrams into the editor.
 //!
 //! Renders a `<select>` element listing all [`ExampleDiagram`] variants. When
-//! the user picks an example, the YAML is deserialized and written into the
-//! [`InputDiagram`] signal.
+//! the user picks an example, its YAML is fetched from the static asset URL,
+//! deserialized, and written into the [`InputDiagram`] signal.
 
 use dioxus::{
-    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
+    prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, spawn, Element, Props},
     signals::{Signal, WritableExt},
 };
 use disposition::input_model::InputDiagram;
@@ -46,10 +46,16 @@ pub fn ExampleDiagramSelect(input_diagram: Signal<InputDiagram<'static>>) -> Ele
                 let value = evt.value();
                 if let Ok(index) = value.parse::<usize>()
                     && let Some(example) = ExampleDiagram::from_index(index) {
-                        let yaml = example.yaml();
-                        if let Ok(diagram) = serde_saphyr::from_str::<InputDiagram<'static>>(yaml) {
-                            input_diagram.set(diagram);
-                        }
+                        // The YAML is served as a static asset, so fetch it
+                        // before deserializing it into the diagram signal.
+                        spawn(async move {
+                            if let Ok(yaml) = example.yaml_fetch().await
+                                && let Ok(diagram) =
+                                    serde_saphyr::from_str::<InputDiagram<'static>>(&yaml)
+                            {
+                                input_diagram.set(diagram);
+                            }
+                        });
                     }
             },
 

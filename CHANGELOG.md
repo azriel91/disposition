@@ -10,6 +10,7 @@
 * Use `<g transform="translate(x, y)">` to position markdown images for more intuitive transform origin coordinates. ([#35][#35])
 * Add `ProcessRenderCollapse` render option to control whether processes are collapsed by default. ([#36][#36])
 * Render process step edges using git-like layout. ([#37][#37])
+* Serve playground example diagrams as static assets fetched at runtime instead of embedding them in the wasm binary.
 
 [#32]: https://github.com/azriel91/disposition/pull/32
 [#33]: https://github.com/azriel91/disposition/pull/33
