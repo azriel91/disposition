@@ -1,0 +1,64 @@
+---
+# Dependencies
+#
+# `thing_dependencies` draws static "depends on" relationships. Each edge
+# group has an ID (prefixed with `edge_dep_`), a `kind`, and a list of
+# `things`. The arrow points from the first thing to the last, so list the
+# prerequisite first and the dependent second.
+#
+# Edge `kind`s:
+#
+# * `sequence`:  a one-way arrow from prerequisite to dependent.
+# * `symmetric`: a two-way relationship with no direction.
+# * `cyclic`:    a relationship that loops back (e.g. a thing on itself).
+#
+# `edge_descs` renders a label next to an edge.
+things:
+  t_config: "Config"
+  t_db: "Database"
+  t_cache: "Cache"
+  t_api: "API Server"
+  t_app: "Application"
+
+thing_hierarchy:
+  t_config: {}
+  t_db: {}
+  t_cache: {}
+  t_api: {}
+  t_app: {}
+
+thing_dependencies:
+  # `sequence`: the app depends on the API server.
+  edge_dep_api_app:
+    kind: sequence
+    things:
+      - t_api
+      - t_app
+  # `sequence`: the API server depends on the database.
+  edge_dep_db_api:
+    kind: sequence
+    things:
+      - t_db
+      - t_api
+  # `sequence`: the API server depends on its config.
+  edge_dep_config_api:
+    kind: sequence
+    things:
+      - t_config
+      - t_api
+  # `symmetric`: the cache and database stay in sync (no direction).
+  edge_dep_cache_db:
+    kind: symmetric
+    things:
+      - t_cache
+      - t_db
+  # `cyclic`: the config reloads itself.
+  edge_dep_config_config:
+    kind: cyclic
+    things:
+      - t_config
+
+edge_descs:
+  edge_dep_db_api: "reads / writes"
+  edge_dep_cache_db: "in sync"
+  edge_dep_config_config: "hot reload"

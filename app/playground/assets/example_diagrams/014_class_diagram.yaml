@@ -1,9 +1,12 @@
 ---
-# Class Diagram -- object-oriented design
+# Class Diagram
 #
-# Models classes, their attributes, and inheritance/composition
-# relationships in a typical OOP system.
-
+# A worked example combining several features: nested things for class
+# members, dependencies for inheritance / composition, types for styling, and
+# descriptions and tags for context.
+#
+# Each class is a container `thing`, and its fields are nested children
+# (`t_animal_name` is a child of `t_animal`).
 things:
   t_animal: "Animal"
   t_animal_name: "name: String"
@@ -29,21 +32,21 @@ thing_hierarchy:
     t_owner_pets: {}
 
 thing_dependencies:
-  edge_dep_dog_extends_animal:
+  edge_dep_dog_animal:
     kind: sequence
     things:
+      - t_animal
       - t_dog
-      - t_animal
-  edge_dep_cat_extends_animal:
+  edge_dep_cat_animal:
     kind: sequence
     things:
+      - t_animal
       - t_cat
-      - t_animal
-  edge_dep_owner_has_animals:
+  edge_dep_owner_animal:
     kind: sequence
     things:
-      - t_owner
       - t_animal
+      - t_owner
 
 thing_descs:
   t_animal: "Abstract base class"
@@ -52,9 +55,9 @@ thing_descs:
   t_owner: "Composition root"
 
 edge_descs:
-  edge_dep_dog_extends_animal: "inherits"
-  edge_dep_cat_extends_animal: "inherits"
-  edge_dep_owner_has_animals: "has many"
+  edge_dep_dog_animal: "inherits"
+  edge_dep_cat_animal: "inherits"
+  edge_dep_owner_animal: "has many"
 
 entity_types:
   t_animal: [type_abstract_class]
@@ -78,8 +81,13 @@ tag_things:
 theme_types_styles:
   type_abstract_class:
     node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
       stroke_style: "dashed"
       shape_color: "violet"
+      stroke_width: "2"
   type_concrete_class:
     node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      stroke_style: "solid"
       shape_color: "sky"
+      stroke_width: "2"

@@ -2026,6 +2026,7 @@ dependencies = [
  "disposition_input_rt",
  "enum-iterator",
  "getrandom 0.4.2",
+ "gloo-net",
  "gloo-timers 0.4.0",
  "serde",
  "serde-saphyr",

@@ -1,0 +1,42 @@
+---
+# Inline Images
+#
+# Markdown image syntax embeds pictures inside a description:
+#
+#     ![alt text {WxH}](url)
+#
+# The `{WxH}` suffix in the alt text sets the rendered width and height (the
+# size is otherwise read from a PNG, or falls back to 100x100). The URL can be
+# a normal link or a `data:` URL. Small inline SVGs work well as `data:` URLs,
+# so the diagram stays self-contained with no external requests.
+things:
+  t_browser: "Browser"
+  t_server: "Server"
+  t_db: "Database"
+
+thing_hierarchy:
+  t_browser: {}
+  t_server: {}
+  t_db: {}
+
+thing_descs:
+  t_browser: |-
+    ![browser {48x48}](data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCIgdmlld0JveD0iMCAwIDQ4IDQ4Ij48cmVjdCB4PSI0IiB5PSI4IiB3aWR0aD0iNDAiIGhlaWdodD0iMzIiIHJ4PSIzIiBmaWxsPSIjZTBmMmZlIiBzdHJva2U9IiMwMjg0YzciIHN0cm9rZS13aWR0aD0iMiIvPjxwYXRoIGQ9Ik00IDE2IEg0NCIgc3Ryb2tlPSIjMDI4NGM3IiBzdHJva2Utd2lkdGg9IjIiLz48Y2lyY2xlIGN4PSI5IiBjeT0iMTIiIHI9IjEuNSIgZmlsbD0iIzAyODRjNyIvPjxjaXJjbGUgY3g9IjE0IiBjeT0iMTIiIHI9IjEuNSIgZmlsbD0iIzAyODRjNyIvPjwvc3ZnPg==)
+
+    The **client** UI.
+  t_server: |-
+    ![server {48x48}](data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCIgdmlld0JveD0iMCAwIDQ4IDQ4Ij48cmVjdCB4PSI4IiB5PSI2IiB3aWR0aD0iMzIiIGhlaWdodD0iMTQiIHJ4PSIyIiBmaWxsPSIjZGNmY2U3IiBzdHJva2U9IiMxNmEzNGEiIHN0cm9rZS13aWR0aD0iMiIvPjxyZWN0IHg9IjgiIHk9IjI2IiB3aWR0aD0iMzIiIGhlaWdodD0iMTQiIHJ4PSIyIiBmaWxsPSIjZGNmY2U3IiBzdHJva2U9IiMxNmEzNGEiIHN0cm9rZS13aWR0aD0iMiIvPjxjaXJjbGUgY3g9IjEzIiBjeT0iMTMiIHI9IjEuNiIgZmlsbD0iIzE2YTM0YSIvPjxjaXJjbGUgY3g9IjEzIiBjeT0iMzMiIHI9IjEuNiIgZmlsbD0iIzE2YTM0YSIvPjwvc3ZnPg==)
+
+    Handles requests.
+  t_db: |-
+    ![database {48x48}](data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCIgdmlld0JveD0iMCAwIDQ4IDQ4Ij48ZWxsaXBzZSBjeD0iMjQiIGN5PSIxMSIgcng9IjE2IiByeT0iNiIgZmlsbD0iI2VkZTlmZSIgc3Ryb2tlPSIjN2MzYWVkIiBzdHJva2Utd2lkdGg9IjIiLz48cGF0aCBkPSJNOCAxMSBWMzcgYTE2IDYgMCAwIDAgMzIgMCBWMTEiIGZpbGw9IiNlZGU5ZmUiIHN0cm9rZT0iIzdjM2FlZCIgc3Ryb2tlLXdpZHRoPSIyIi8+PHBhdGggZD0iTTggMjQgYTE2IDYgMCAwIDAgMzIgMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjN2MzYWVkIiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4=)
+
+    Stores **state**.
+
+thing_dependencies:
+  edge_dep_browser_server:
+    kind: sequence
+    things: [t_browser, t_server]
+  edge_dep_server_db:
+    kind: sequence
+    things: [t_server, t_db]

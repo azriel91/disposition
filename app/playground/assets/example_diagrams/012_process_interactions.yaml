@@ -1,0 +1,71 @@
+---
+# Processes & Interactions
+#
+# This is where interactions earn their keep. A process step can reference one
+# or more `thing_interactions` via `step_thing_interactions`. When that step
+# is focused in the viewer, its interactions light up on the things diagram --
+# so the process reads as a story over the architecture.
+things:
+  t_browser: "Browser"
+  t_gateway: "API Gateway"
+  t_auth: "Auth Service"
+  t_db: "Database"
+
+thing_hierarchy:
+  t_browser: {}
+  t_gateway: {}
+  t_auth: {}
+  t_db: {}
+
+thing_interactions:
+  edge_ix_browser_gateway:
+    kind: sequence
+    things: [t_browser, t_gateway]
+  edge_ix_gateway_auth:
+    kind: symmetric
+    things: [t_gateway, t_auth]
+  edge_ix_auth_db:
+    kind: symmetric
+    things: [t_auth, t_db]
+  edge_ix_gateway_browser:
+    kind: sequence
+    things: [t_gateway, t_browser]
+
+processes:
+  proc_login:
+    name: "User Login"
+    desc: |-
+      Authentication flow when a user signs in.
+    steps:
+      proc_login_step_submit: "Submit credentials"
+      proc_login_step_verify: "Verify token"
+      proc_login_step_lookup: "Look up user"
+      proc_login_step_session: "Return session"
+    process_step_dependencies:
+      proc_login_step_verify:
+        - proc_login_step_submit
+      proc_login_step_lookup:
+        - proc_login_step_verify
+      proc_login_step_session:
+        - proc_login_step_lookup
+    # Map each step to the interaction(s) it exercises.
+    step_thing_interactions:
+      proc_login_step_submit: [edge_ix_browser_gateway]
+      proc_login_step_verify: [edge_ix_gateway_auth]
+      proc_login_step_lookup: [edge_ix_auth_db]
+      proc_login_step_session: [edge_ix_gateway_browser]
+
+# Pastel process palette (see the "Processes" example for details).
+theme_types_styles:
+  type_process_default:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      stroke_style: "solid"
+      shape_color: "indigo"
+      stroke_width: "2"
+  type_process_step_default:
+    node_defaults:
+      style_aliases_applied: [circle_md, rounded_sm, shade_light]
+      stroke_style: "solid"
+      shape_color: "sky"
+      stroke_width: "2"

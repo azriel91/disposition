@@ -1,35 +1,56 @@
-//! Embedded example diagrams for the playground.
+//! Example diagrams for the playground, served as static assets.
 //!
 //! Each example is a YAML-serialized
-//! [`InputDiagram`](disposition::input_model::InputDiagram) included at compile
-//! time via `include_str!`. The [`ExampleDiagram`] enum enumerates the
-//! available examples and provides accessors for their display labels and YAML
-//! content.
+//! [`InputDiagram`](disposition::input_model::InputDiagram) bundled as a static
+//! asset via the [`asset!`] macro rather than embedded in the binary. The
+//! [`ExampleDiagram`] enum enumerates the available examples and provides
+//! accessors for their display labels and asset URLs, plus
+//! [`ExampleDiagram::yaml_fetch`] to load the YAML over HTTP at runtime.
+//!
+//! Serving the diagrams as static files keeps them out of the wasm binary and
+//! lets the GitHub Pages deployment (a static file server) serve them directly.
+
+use dioxus::prelude::{asset, manganis, Asset};
+
+pub use self::example_diagram_fetch_error::ExampleDiagramFetchError;
+
+mod example_diagram_fetch_error;
 
 /// An example input diagram that can be loaded into the editor.
+///
+/// The variants are ordered to introduce features incrementally, from a flat
+/// set of nodes through to a capstone that combines everything.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExampleDiagram {
-    /// Simple flat nodes with no hierarchy or edges.
+    /// Flat nodes with labels -- `things` and `thing_hierarchy`.
     SimpleNodes,
-    /// Nested nodes demonstrating `thing_hierarchy`.
+    /// Nesting and layout overrides -- `thing_hierarchy` and `thing_layouts`.
     NestedNodes,
-    /// Nodes with dependency edges of different kinds.
+    /// Static relationships -- `thing_dependencies` and edge kinds.
     Dependencies,
-    /// Interactions between things wired into sequenced processes.
-    InteractionsAndProcesses,
-    /// Tags for grouping and highlighting things by concern.
+    /// Runtime communication -- `thing_interactions`.
+    Interactions,
+    /// Text on edges -- `edge_descs` and `edge_labels`.
+    EdgeLabels,
+    /// Markdown in descriptions -- headings, emphasis, code, and links.
+    Markdown,
+    /// Inline images in descriptions via `data:` URLs.
+    Images,
+    /// Hover detail -- `entity_tooltips`.
+    Tooltips,
+    /// Colours and strokes -- `entity_types` and theme styles.
+    Styling,
+    /// Grouping and highlighting things by concern -- `tags`.
     Tags,
-    /// Entity types and theme styles for visual customization.
-    Themed,
-    /// A process definition with no things at all.
-    ProcessOnly,
-    /// Object-oriented class diagram with inheritance and composition.
+    /// Sequenced steps with branching -- `processes`.
+    Processes,
+    /// Steps that drive interactions -- `step_thing_interactions`.
+    ProcessInteractions,
+    /// Layout direction and edge curvature -- `render_options`.
+    RankDirections,
+    /// Applied example: object-oriented class diagram.
     ClassDiagram,
-    /// Software package dependency graph.
-    PackageDependencies,
-    /// CI/CD deployment pipeline with interactions and process steps.
-    DeploymentProcess,
-    /// Multi-tier cloud network architecture.
+    /// Capstone: a multi-tier cloud architecture combining every feature.
     CloudArchitecture,
 }
 
@@ -39,13 +60,17 @@ impl ExampleDiagram {
         ExampleDiagram::SimpleNodes,
         ExampleDiagram::NestedNodes,
         ExampleDiagram::Dependencies,
-        ExampleDiagram::InteractionsAndProcesses,
+        ExampleDiagram::Interactions,
+        ExampleDiagram::EdgeLabels,
+        ExampleDiagram::Markdown,
+        ExampleDiagram::Images,
+        ExampleDiagram::Tooltips,
+        ExampleDiagram::Styling,
         ExampleDiagram::Tags,
-        ExampleDiagram::Themed,
-        ExampleDiagram::ProcessOnly,
+        ExampleDiagram::Processes,
+        ExampleDiagram::ProcessInteractions,
+        ExampleDiagram::RankDirections,
         ExampleDiagram::ClassDiagram,
-        ExampleDiagram::PackageDependencies,
-        ExampleDiagram::DeploymentProcess,
         ExampleDiagram::CloudArchitecture,
     ];
 
@@ -55,54 +80,109 @@ impl ExampleDiagram {
             Self::SimpleNodes => "Simple Nodes",
             Self::NestedNodes => "Nested Nodes",
             Self::Dependencies => "Dependencies",
-            Self::InteractionsAndProcesses => "Interactions & Processes",
+            Self::Interactions => "Interactions",
+            Self::EdgeLabels => "Edge Labels & Descriptions",
+            Self::Markdown => "Markdown Descriptions",
+            Self::Images => "Inline Images",
+            Self::Tooltips => "Tooltips",
+            Self::Styling => "Styling",
             Self::Tags => "Tags",
-            Self::Themed => "Themed",
-            Self::ProcessOnly => "Process Only (no things)",
+            Self::Processes => "Processes",
+            Self::ProcessInteractions => "Processes & Interactions",
+            Self::RankDirections => "Rank Directions",
             Self::ClassDiagram => "Class Diagram",
-            Self::PackageDependencies => "Package Dependencies",
-            Self::DeploymentProcess => "Deployment Process",
             Self::CloudArchitecture => "Cloud Architecture",
         }
     }
 
-    /// The raw YAML source for this example, embedded at compile time.
-    pub fn yaml(self) -> &'static str {
+    /// The static asset for this example's YAML source.
+    ///
+    /// The returned [`Asset`] resolves to a hashed, base-path-aware URL, e.g.
+    /// `/disposition/assets/001_simple_nodes-abc123.yaml`, that is served as a
+    /// static file. Use [`Self::url`] to obtain that URL as a string.
+    pub fn asset(self) -> Asset {
         match self {
-            Self::SimpleNodes => {
-                include_str!("example_diagrams/001_simple_nodes.yaml")
+            Self::SimpleNodes => asset!("/assets/example_diagrams/001_simple_nodes.yaml"),
+            Self::NestedNodes => asset!("/assets/example_diagrams/002_nested_nodes.yaml"),
+            Self::Dependencies => asset!("/assets/example_diagrams/003_dependencies.yaml"),
+            Self::Interactions => asset!("/assets/example_diagrams/004_interactions.yaml"),
+            Self::EdgeLabels => asset!("/assets/example_diagrams/005_edge_labels.yaml"),
+            Self::Markdown => asset!("/assets/example_diagrams/006_markdown.yaml"),
+            Self::Images => asset!("/assets/example_diagrams/007_images.yaml"),
+            Self::Tooltips => asset!("/assets/example_diagrams/008_tooltips.yaml"),
+            Self::Styling => asset!("/assets/example_diagrams/009_styling.yaml"),
+            Self::Tags => asset!("/assets/example_diagrams/010_tags.yaml"),
+            Self::Processes => asset!("/assets/example_diagrams/011_processes.yaml"),
+            Self::ProcessInteractions => {
+                asset!("/assets/example_diagrams/012_process_interactions.yaml")
             }
-            Self::NestedNodes => {
-                include_str!("example_diagrams/002_nested_nodes.yaml")
+            Self::RankDirections => {
+                asset!("/assets/example_diagrams/013_rank_directions.yaml")
             }
-            Self::Dependencies => {
-                include_str!("example_diagrams/003_dependencies.yaml")
-            }
-            Self::InteractionsAndProcesses => {
-                include_str!("example_diagrams/004_interactions_and_processes.yaml")
-            }
-            Self::Tags => {
-                include_str!("example_diagrams/005_tags.yaml")
-            }
-            Self::Themed => {
-                include_str!("example_diagrams/006_themed.yaml")
-            }
-            Self::ProcessOnly => {
-                include_str!("example_diagrams/007_process_only.yaml")
-            }
-            Self::ClassDiagram => {
-                include_str!("example_diagrams/008_class_diagram.yaml")
-            }
-            Self::PackageDependencies => {
-                include_str!("example_diagrams/009_package_dependencies.yaml")
-            }
-            Self::DeploymentProcess => {
-                include_str!("example_diagrams/010_deployment_process.yaml")
-            }
+            Self::ClassDiagram => asset!("/assets/example_diagrams/014_class_diagram.yaml"),
             Self::CloudArchitecture => {
-                include_str!("example_diagrams/011_cloud_architecture.yaml")
+                asset!("/assets/example_diagrams/015_cloud_architecture.yaml")
             }
         }
+    }
+
+    /// The served URL for this example's YAML source.
+    ///
+    /// e.g. `/disposition/assets/001_simple_nodes-abc123.yaml`.
+    pub fn url(self) -> String {
+        self.asset().to_string()
+    }
+
+    /// Fetches the raw YAML source for this example over HTTP.
+    ///
+    /// The YAML files are served as static assets, so the source is requested
+    /// from [`Self::url`] at runtime rather than embedded in the binary.
+    pub async fn yaml_fetch(self) -> Result<String, ExampleDiagramFetchError> {
+        let url = self.url();
+
+        #[cfg(target_family = "wasm")]
+        {
+            self.yaml_fetch_wasm(url).await
+        }
+
+        #[cfg(not(target_family = "wasm"))]
+        {
+            Err(ExampleDiagramFetchError::Unsupported {
+                example_diagram: self,
+                url,
+            })
+        }
+    }
+
+    /// Fetches the YAML source using the browser's `fetch` API.
+    #[cfg(target_family = "wasm")]
+    async fn yaml_fetch_wasm(self, url: String) -> Result<String, ExampleDiagramFetchError> {
+        use gloo_net::http::Request;
+
+        let response = Request::get(&url).send().await.map_err(|error| {
+            ExampleDiagramFetchError::RequestSend {
+                example_diagram: self,
+                url: url.clone(),
+                error: error.to_string(),
+            }
+        })?;
+
+        if !response.ok() {
+            return Err(ExampleDiagramFetchError::ResponseStatus {
+                example_diagram: self,
+                url,
+                status: response.status(),
+            });
+        }
+
+        response
+            .text()
+            .await
+            .map_err(|error| ExampleDiagramFetchError::ResponseText {
+                example_diagram: self,
+                url,
+                error: error.to_string(),
+            })
     }
 
     /// Look up an example by its zero-based index in [`Self::ALL`].

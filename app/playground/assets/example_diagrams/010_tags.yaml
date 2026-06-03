@@ -1,0 +1,62 @@
+---
+# Tags
+#
+# Tags group things by concern. When a tag is focused in the viewer, the
+# things it contains are highlighted and the rest are dimmed -- handy for
+# explaining one slice of a larger diagram at a time.
+#
+# * `tags` maps a tag ID (prefixed with `tag_`) to its display label.
+# * `tag_things` lists the things in each tag. A thing may belong to several
+#   tags (here `t_orders` is in both "Domain Services" and "Data Layer").
+things:
+  t_gateway: "API Gateway"
+  t_auth: "Auth Service"
+  t_orders: "Order Service"
+  t_payments: "Payment Service"
+  t_db: "Database"
+  t_queue: "Message Queue"
+
+thing_hierarchy:
+  t_gateway: {}
+  t_auth: {}
+  t_orders: {}
+  t_payments: {}
+  t_db: {}
+  t_queue: {}
+
+thing_dependencies:
+  edge_dep_auth_gateway:
+    kind: sequence
+    things: [t_auth, t_gateway]
+  edge_dep_orders_gateway:
+    kind: sequence
+    things: [t_orders, t_gateway]
+  edge_dep_payments_orders:
+    kind: sequence
+    things: [t_payments, t_orders]
+  edge_dep_db_orders:
+    kind: sequence
+    things: [t_db, t_orders]
+  edge_dep_queue_orders:
+    kind: sequence
+    things: [t_queue, t_orders]
+  edge_dep_db_auth:
+    kind: sequence
+    things: [t_db, t_auth]
+
+tags:
+  tag_edge: "Edge Layer"
+  tag_domain: "Domain Services"
+  tag_data: "Data Layer"
+
+tag_things:
+  tag_edge:
+    - t_gateway
+    - t_auth
+  tag_domain:
+    - t_orders
+    - t_payments
+  tag_data:
+    - t_db
+    - t_queue
+    - t_orders

@@ -1,0 +1,76 @@
+---
+# Styling
+#
+# Colours and stroke styles come from the theme. There are three common
+# levers, from most reusable to most specific:
+#
+# 1. `entity_types`:        tag each thing with one or more reusable `type`s.
+# 2. `theme_types_styles`:  define the look of each `type`.
+# 3. `theme_default.base_styles`: style an individual thing / edge by ID.
+#
+# `shape_color` is a Tailwind palette name (e.g. `sky`, `emerald`, `rose`,
+# `amber`, `violet`). Saturation is controlled by a `shade_*` style alias:
+# `shade_pale` (softest), then `shade_light`, then `shade_medium`.
+# `stroke_style` may be `solid`, `dashed`, or `dotted`.
+things:
+  t_web: "Web Frontend"
+  t_api: "API Server"
+  t_worker: "Worker"
+  t_db: "Database"
+  t_cache: "Cache"
+
+thing_hierarchy:
+  t_web: {}
+  t_api: {}
+  t_worker: {}
+  t_db: {}
+  t_cache: {}
+
+thing_dependencies:
+  edge_dep_api_web:
+    kind: sequence
+    things: [t_api, t_web]
+  edge_dep_db_api:
+    kind: sequence
+    things: [t_db, t_api]
+  edge_dep_cache_api:
+    kind: sequence
+    things: [t_cache, t_api]
+  edge_dep_db_worker:
+    kind: sequence
+    things: [t_db, t_worker]
+
+# Attach reusable types to things.
+entity_types:
+  t_web: [type_frontend]
+  t_api: [type_service]
+  t_worker: [type_service]
+  t_db: [type_datastore]
+  t_cache: [type_datastore]
+
+# Define the look of each type. Pastel shades keep the diagram easy on the eye.
+theme_types_styles:
+  type_frontend:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      shape_color: "sky"
+      stroke_width: "2"
+  type_service:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      shape_color: "emerald"
+      stroke_width: "2"
+  type_datastore:
+    node_defaults:
+      style_aliases_applied: [rounded_sm, shade_light]
+      shape_color: "violet"
+      stroke_style: "dashed"
+      stroke_width: "2"
+
+# Override a single thing by ID -- the cache keeps its dashed datastore
+# outline but is tinted amber to set it apart.
+theme_default:
+  base_styles:
+    t_cache:
+      style_aliases_applied: [shade_light]
+      shape_color: "amber"
