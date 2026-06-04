@@ -13,6 +13,7 @@
 
 pub mod completion;
 pub mod language_server;
+pub mod transport;
 
 use async_lsp::{
     server::LifecycleLayer,

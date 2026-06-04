@@ -2,25 +2,16 @@
 //! `Content-Length`-framed byte streams -- the same wiring used in the browser,
 //! minus the editor. Exercises `initialize` -> `didOpen` -> `completion`.
 
-use std::{
-    io,
-    pin::Pin,
-    task::{Context, Poll},
-};
-
-use futures::{
-    channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
-    executor::block_on,
-    io::{AsyncReadExt, BufReader},
-    AsyncBufReadExt, StreamExt,
-};
+use disposition_lsp::transport::{byte_pipe, frame, read_message, PipeReader, PipeWriter};
+use futures::{executor::block_on, io::BufReader};
 use serde_json::{json, Value};
 
 #[test]
 fn completion_over_main_loop_returns_top_level_keys() {
     // client -> server and server -> client byte pipes.
     let (client_writer, server_reader) = byte_pipe();
-    let (server_writer, mut client_reader) = client_pipe();
+    let (server_writer, client_reader) = byte_pipe();
+    let mut client_reader = BufReader::new(client_reader);
 
     let server = disposition_lsp::server_run(server_reader, server_writer);
 
@@ -106,125 +97,16 @@ fn completion_over_main_loop_returns_top_level_keys() {
 /// Writes `message` to `writer` with an LSP `Content-Length` frame.
 fn write_message(writer: &PipeWriter, message: &Value) {
     let body = serde_json::to_string(message).expect("serialize message");
-    let framed = format!("Content-Length: {}\r\n\r\n{body}", body.len());
-    writer.send(framed.into_bytes());
+    writer.send_bytes(frame(&body));
 }
 
-/// Reads framed messages from `reader` until one with `id` arrives, returning it.
+/// Reads framed messages from `reader` until one with `id` arrives.
 async fn read_response(reader: &mut BufReader<PipeReader>, id: i64) -> Value {
     loop {
-        let message = read_message(reader).await.expect("expected a message");
+        let json = read_message(reader).await.expect("expected a message");
+        let message: Value = serde_json::from_str(&json).expect("valid JSON message");
         if message["id"].as_i64() == Some(id) {
             return message;
         }
-    }
-}
-
-/// Reads a single `Content-Length`-framed JSON message from `reader`.
-async fn read_message(reader: &mut BufReader<PipeReader>) -> Option<Value> {
-    let mut content_length = None;
-    loop {
-        let mut line = Vec::new();
-        if reader.read_until(b'\n', &mut line).await.ok()? == 0 {
-            return None;
-        }
-        let header = String::from_utf8_lossy(&line);
-        let header = header.trim_end_matches(['\r', '\n']);
-        if header.is_empty() {
-            break;
-        }
-        if let Some(value) = header.strip_prefix("Content-Length:") {
-            content_length = value.trim().parse::<usize>().ok();
-        }
-    }
-
-    let mut body = vec![0u8; content_length?];
-    reader.read_exact(&mut body).await.ok()?;
-    serde_json::from_slice(&body).ok()
-}
-
-/// Returns a connected ([`PipeWriter`], [`PipeReader`]) pair.
-fn byte_pipe() -> (PipeWriter, PipeReader) {
-    let (tx, rx) = unbounded();
-    (
-        PipeWriter { tx },
-        PipeReader {
-            rx,
-            leftover: Vec::new(),
-            pos: 0,
-        },
-    )
-}
-
-/// Returns a connected ([`PipeWriter`], buffered [`PipeReader`]) pair.
-fn client_pipe() -> (PipeWriter, BufReader<PipeReader>) {
-    let (writer, reader) = byte_pipe();
-    (writer, BufReader::new(reader))
-}
-
-/// Write half of an in-memory byte pipe.
-#[derive(Clone)]
-struct PipeWriter {
-    tx: UnboundedSender<Vec<u8>>,
-}
-
-impl PipeWriter {
-    fn send(&self, bytes: Vec<u8>) -> bool {
-        self.tx.unbounded_send(bytes).is_ok()
-    }
-}
-
-impl futures::io::AsyncWrite for PipeWriter {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        if self.send(buf.to_vec()) {
-            Poll::Ready(Ok(buf.len()))
-        } else {
-            Poll::Ready(Err(io::Error::new(io::ErrorKind::BrokenPipe, "closed")))
-        }
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.tx.close_channel();
-        Poll::Ready(Ok(()))
-    }
-}
-
-/// Read half of an in-memory byte pipe.
-struct PipeReader {
-    rx: UnboundedReceiver<Vec<u8>>,
-    leftover: Vec<u8>,
-    pos: usize,
-}
-
-impl futures::io::AsyncRead for PipeReader {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        if self.pos >= self.leftover.len() {
-            match self.rx.poll_next_unpin(cx) {
-                Poll::Ready(Some(chunk)) => {
-                    self.leftover = chunk;
-                    self.pos = 0;
-                }
-                Poll::Ready(None) => return Poll::Ready(Ok(0)),
-                Poll::Pending => return Poll::Pending,
-            }
-        }
-
-        let available = &self.leftover[self.pos..];
-        let count = available.len().min(buf.len());
-        buf[..count].copy_from_slice(&available[..count]);
-        self.pos += count;
-        Poll::Ready(Ok(count))
     }
 }

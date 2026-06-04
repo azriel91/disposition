@@ -1,0 +1,19 @@
+[package]
+name = "xtask"
+description = "Development tasks for the `disposition` workspace."
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Drives `wasm-bindgen` as a library, so no globally-installed CLI is needed and
+# the version always matches the worker crate. Keep this pin equal to the
+# `wasm-bindgen` version resolved in `Cargo.lock`.
+wasm-bindgen-cli-support = "=0.2.121"

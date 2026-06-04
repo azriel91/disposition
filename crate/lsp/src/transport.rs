@@ -1,12 +1,11 @@
-//! In-memory byte pipe bridging the editor's message transport to the LSP
-//! `MainLoop`'s framed byte streams.
+//! In-memory byte-stream transport bridging a per-message LSP client to the
+//! framed byte streams an [`async_lsp::MainLoop`] reads and writes.
 //!
-//! [`async_lsp::MainLoop`] reads and writes `Content-Length`-framed bytes over
-//! [`AsyncRead`] / [`AsyncWrite`], whereas the editor's LSP client exchanges
-//! whole JSON-RPC messages. A [`byte_pipe`] connects the two: one pipe carries
-//! editor -> server bytes (written framed by the server glue, read by the
-//! `MainLoop`), the other carries server -> editor bytes (written by the
-//! `MainLoop`, drained and unframed back into messages).
+//! The `MainLoop` speaks `Content-Length`-framed bytes over [`AsyncRead`] /
+//! [`AsyncWrite`]; an editor's LSP client exchanges whole JSON-RPC messages. A
+//! [`byte_pipe`] connects the two halves, and [`frame`] / [`read_message`]
+//! translate between framed bytes and individual JSON messages. This is shared
+//! by every host -- the in-page server, the Web Worker server, and tests.
 
 use std::{
     io,
@@ -16,9 +15,17 @@ use std::{
 
 use futures::{
     channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
-    io::{AsyncRead, AsyncWrite},
+    io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt},
     StreamExt,
 };
+
+/// Sentinel message a Web Worker host posts to the main thread once its wasm has
+/// initialized and is ready to receive LSP messages.
+///
+/// The main thread queues outgoing messages until it sees this, then flushes
+/// them -- the editor's first `initialize` request is typically sent before the
+/// worker has finished loading.
+pub const WORKER_READY: &str = "__disposition_lsp_worker_ready__";
 
 /// Returns a connected ([`PipeWriter`], [`PipeReader`]) pair backed by an
 /// unbounded channel of byte chunks.
@@ -32,6 +39,42 @@ pub fn byte_pipe() -> (PipeWriter, PipeReader) {
             pos: 0,
         },
     )
+}
+
+/// Wraps a single JSON-RPC message in an LSP `Content-Length` frame.
+pub fn frame(json: &str) -> Vec<u8> {
+    format!("Content-Length: {}\r\n\r\n{json}", json.len()).into_bytes()
+}
+
+/// Reads one `Content-Length`-framed JSON message from `reader`.
+///
+/// Returns `None` at end of stream or on a malformed frame.
+pub async fn read_message<R>(reader: &mut R) -> Option<String>
+where
+    R: AsyncBufRead + Unpin,
+{
+    let mut content_length = None;
+    loop {
+        let mut line = Vec::new();
+        match reader.read_until(b'\n', &mut line).await {
+            Ok(0) => return None, // End of stream.
+            Ok(_) => {}
+            Err(_) => return None,
+        }
+
+        let header = String::from_utf8_lossy(&line);
+        let header = header.trim_end_matches(['\r', '\n']);
+        if header.is_empty() {
+            break; // End of headers.
+        }
+        if let Some(value) = header.strip_prefix("Content-Length:") {
+            content_length = value.trim().parse::<usize>().ok();
+        }
+    }
+
+    let mut body = vec![0u8; content_length?];
+    reader.read_exact(&mut body).await.ok()?;
+    Some(String::from_utf8_lossy(&body).into_owned())
 }
 
 /// Write half of an in-memory byte pipe.
@@ -51,7 +94,7 @@ impl PipeWriter {
     }
 }
 
-impl AsyncWrite for PipeWriter {
+impl futures::io::AsyncWrite for PipeWriter {
     fn poll_write(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
