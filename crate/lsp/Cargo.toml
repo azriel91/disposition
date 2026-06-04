@@ -1,0 +1,48 @@
+[package]
+name = "disposition_lsp"
+description = "Language server for editing `disposition` `InputDiagram` YAML."
+documentation = "https://docs.rs/disposition_lsp/"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+
+[lib]
+doctest = true
+test = false
+
+[lints]
+workspace = true
+
+[dependencies]
+async-lsp = { workspace = true }
+disposition_input_model = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tower-layer = { workspace = true }
+
+# Only used by the `schema_gen` binary to regenerate the committed schema.
+schemars = { workspace = true, optional = true }
+
+[features]
+default = []
+
+# Enables the `schema_gen` binary, which regenerates the committed
+# `InputDiagram` JSON schema. Pulls in `schemars` and the `schemars` feature of
+# `disposition_input_model`. Not needed at runtime -- the schema is loaded from
+# the committed JSON file.
+schema-gen = ["dep:schemars", "disposition_input_model/schemars"]
+
+# Flag so that running tests with `--all-features` still selects `ordermap` /
+# disables the `schemars` derive in the model crates (see their `test` feature).
+test = ["disposition_input_model/test"]
+
+[[bin]]
+name = "schema_gen"
+required-features = ["schema-gen"]

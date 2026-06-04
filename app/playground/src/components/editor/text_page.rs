@@ -1,36 +1,23 @@
 //! Raw YAML text editor page.
 //!
-//! Shows the full serialized YAML of the [`InputDiagram`] in a `<textarea>`.
-//! The user can edit the YAML directly; if it deserializes successfully the
-//! structured [`InputDiagram`] signal is updated immediately. If
-//! deserialization fails, the parse error is displayed and a "Revert to last
-//! good state" button lets the user roll back to the last successfully
-//! deserialized YAML.
+//! Shows the full serialized YAML of the [`InputDiagram`] in a [`CodeMirror`]
+//! editor with LSP-backed completion. The user can edit the YAML directly; if it
+//! deserializes successfully the structured [`InputDiagram`] signal is updated
+//! immediately. If deserialization fails, the parse error is displayed and a
+//! "Revert to last good state" button lets the user roll back to the last
+//! successfully deserialized YAML.
+//!
+//! [`CodeMirror`]: dioxus_codemirror::CodeMirror
 
 use dioxus::{
-    hooks::{use_memo, use_signal},
+    hooks::{use_effect, use_memo, use_signal},
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
+use dioxus_codemirror::{CodeMirror, Language, LspBridge};
 use disposition::input_model::InputDiagram;
 
-/// CSS classes for the textarea.
-const TEXTAREA_CLASS: &str = "\
-    w-full \
-    min-h-80 \
-    flex-1 \
-    rounded-lg \
-    border-2 \
-    border-gray-600 \
-    bg-gray-800 \
-    text-gray-200 \
-    p-2 \
-    font-mono \
-    text-sm \
-    text-nowrap \
-    focus:border-blue-400 \
-    focus:outline-none\
-";
+use crate::lsp_server::DispositionLspServer;
 
 /// CSS classes for the error banner.
 const ERROR_BANNER: &str = "\
@@ -61,12 +48,14 @@ const REVERT_BTN: &str = "\
 
 /// The **Text** editor page.
 ///
-/// Displays the full [`InputDiagram`] as YAML in a `<textarea>`.
+/// Displays the full [`InputDiagram`] as YAML in a [`CodeMirror`] editor, with
+/// LSP-backed key / value completion served by an in-page `disposition_lsp`
+/// language server (see [`DispositionLspServer`]).
 ///
 /// ## Data-flow
 ///
 /// ```text
-/// InputDiagram signal  --serialize-->  text_buffer signal
+/// InputDiagram signal  --serialize-->  text_buffer signal  <-->  CodeMirror
 ///       ^                                    |
 ///       |                                    | (user edits)
 ///       |                                    v
@@ -78,13 +67,14 @@ const REVERT_BTN: &str = "\
 /// deserialized. If the user's edits break parsing, they can click "Revert"
 /// to restore the text buffer to that last-good value.
 ///
-/// A `self_update` flag is used to break the cyclic propagation: when the
-/// textarea's `oninput` handler sets `input_diagram`, the flag is raised so
-/// that the `use_memo` that watches `input_diagram` knows the change
-/// originated here and skips re-serializing back into the text buffer.
+/// A `self_update` flag breaks the cyclic propagation: when the text -> diagram
+/// effect sets `input_diagram`, the flag is raised so the `use_memo` that
+/// watches `input_diagram` knows the change originated here and skips
+/// re-serializing back into the text buffer (which would reformat the user's
+/// in-progress text and move their cursor).
 #[component]
 pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
-    // The YAML text that is currently shown in the textarea.
+    // The YAML text that is currently shown in the editor.
     // Initialised from the current InputDiagram.
     let initial_yaml = {
         let d = input_diagram.read();
@@ -102,29 +92,53 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let mut parse_error: Signal<Option<String>> = use_signal(|| None);
 
     // Flag: when `true`, the most recent `input_diagram` change was caused by
-    // *this* component's `oninput` handler. The `use_memo` below checks this
-    // flag and skips re-serialization when the change originated locally,
-    // preventing the cycle:
-    //
-    //   user types -> oninput sets input_diagram
-    //              -> use_memo fires -> re-serializes -> overwrites text_buffer
-    //
-    // The flag is reset after the memo observes it.
+    // *this* component's text -> diagram effect. The `use_memo` below checks the
+    // flag and skips re-serialization when the change originated locally.
     let mut self_update: Signal<bool> = use_signal(|| false);
 
+    // === In-page language server === //
+    // Must be created unconditionally from the component body (the bridge uses
+    // `use_hook` / `use_callback` internally).
+    let lsp_server = use_signal(DispositionLspServer::new);
+    let lsp = LspBridge::lsp_bridge_from_server_async("file:///diagram.yaml", lsp_server);
+
+    // === text -> diagram === //
+    // When the editor content changes, try to deserialize it. Updating
+    // `input_diagram` only when the parsed diagram actually differs keeps
+    // memo-driven re-serializations (diagram -> text) from looping back here.
+    use_effect(move || {
+        let text = text_buffer.read().clone();
+
+        match serde_saphyr::from_str::<InputDiagram<'static>>(&text) {
+            Ok(diagram) => {
+                parse_error.set(None);
+                last_good_yaml.set(text);
+
+                if diagram != *input_diagram.peek() {
+                    // Raise the flag *before* setting input_diagram so the memo
+                    // sees it and skips re-serialization.
+                    self_update.set(true);
+                    input_diagram.set(diagram);
+                }
+            }
+            Err(e) => {
+                // Failed to parse -- show error but don't touch the diagram.
+                parse_error.set(Some(e.to_string()));
+            }
+        }
+    });
+
+    // === diagram -> text === //
     // When the InputDiagram changes from *outside* this page (e.g. another
-    // editor tab modified it, or the URL round-trips the state), we
-    // re-serialize into the text buffer -- but only when:
+    // editor tab modified it, or the URL round-trips the state), re-serialize
+    // into the text buffer -- but only when:
     //
     // 1. The change did NOT originate from this component (`self_update` is false).
-    // 2. The text buffer currently represents a valid (i.e. non-errored) state, so
-    //    we don't stomp over the user's in-progress edits that have a parse error.
+    // 2. The text buffer currently parses (no parse error), so we don't stomp
+    //    over the user's in-progress edits.
     use_memo(move || {
         let d = input_diagram.read();
 
-        // If the change came from our own oninput handler, just clear the flag
-        // and skip re-serialization -- the text_buffer already has the user's
-        // text.
         if *self_update.peek() {
             self_update.set(false);
             return;
@@ -142,7 +156,6 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
         }
     });
 
-    let current_text = text_buffer.read().clone();
     let current_error = parse_error.read().clone();
 
     rsx! {
@@ -158,34 +171,24 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 "Edit the full InputDiagram as YAML. Changes are applied live when the YAML is valid."
             }
 
-            textarea {
-                class: TEXTAREA_CLASS,
-                value: "{current_text}",
-                onchange: move |evt| {
-                    let new_text = evt.value();
-                    text_buffer.set(new_text.clone());
-
-                    // Try to deserialize.
-                    match serde_saphyr::from_str::<InputDiagram<'static>>(&new_text) {
-                        Ok(diagram) => {
-                            // Successful parse -- update the diagram signal and
-                            // record this as the last good YAML.
-                            parse_error.set(None);
-                            last_good_yaml.set(new_text);
-
-                            // Raise the flag *before* setting input_diagram so
-                            // that the use_memo sees it and skips
-                            // re-serialization.
-                            self_update.set(true);
-                            input_diagram.set(diagram);
-                        }
-                        Err(e) => {
-                            // Failed to parse -- show error but don't touch the
-                            // diagram signal.
-                            parse_error.set(Some(e.to_string()));
-                        }
-                    }
-                },
+            div {
+                class: "\
+                    flex-1 \
+                    min-h-80 \
+                    overflow-auto \
+                    rounded-lg \
+                    border-2 \
+                    border-gray-600 \
+                    bg-gray-800 \
+                    text-sm \
+                    focus-within:border-blue-400\
+                ",
+                CodeMirror {
+                    value: text_buffer,
+                    language: Language::Yaml,
+                    line_numbers: true,
+                    lsp: Some(lsp),
+                }
             }
 
             // === Error banner + revert button === //
