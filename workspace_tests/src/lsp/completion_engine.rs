@@ -109,6 +109,56 @@ fn dynamic_thing_ids_offered_in_edge_things() {
     );
 }
 
+#[test]
+fn theme_attr_keys_offered_in_css_class_partials() {
+    // `node_defaults` (and any entity key) under a `ThemeStyles` map is a
+    // `CssClassPartials`, whose keys are `ThemeAttr`s plus `style_aliases_applied`.
+    let text = "theme_types_styles:\n  type_service:\n    node_defaults:\n      ";
+    let labels = labels(text, 3, 6);
+
+    for expected in [
+        "style_aliases_applied",
+        "shape_color",
+        "stroke_style",
+        "stroke_width",
+        "fill_color",
+        "fill_shade_normal",
+        "text_shade",
+        "visibility",
+    ] {
+        assert!(
+            labels.iter().any(|label| label == expected),
+            "expected theme attribute key `{expected}` in {labels:?}"
+        );
+    }
+}
+
+#[test]
+fn theme_attr_keys_offered_in_theme_default_base_styles() {
+    // `theme_default.base_styles` is a `ThemeStyles`, so its entity values are
+    // `CssClassPartials` maps keyed by `ThemeAttr`.
+    let text = "theme_default:\n  base_styles:\n    edge_defaults:\n      ";
+    let labels = labels(text, 3, 6);
+
+    assert!(
+        labels.iter().any(|label| label == "shape_color"),
+        "expected theme attribute key `shape_color` in {labels:?}"
+    );
+}
+
+#[test]
+fn theme_attr_keys_offered_in_style_aliases() {
+    // `theme_default.style_aliases` is a `StyleAliases` map, whose values are
+    // `CssClassPartials` keyed by `ThemeAttr`.
+    let text = "theme_default:\n  style_aliases:\n    my_alias:\n      ";
+    let labels = labels(text, 3, 6);
+
+    assert!(
+        labels.iter().any(|label| label == "stroke_shade_normal"),
+        "expected theme attribute key `stroke_shade_normal` in {labels:?}"
+    );
+}
+
 fn sorted(mut labels: Vec<String>) -> Vec<String> {
     labels.sort();
     labels

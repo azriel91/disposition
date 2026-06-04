@@ -32,8 +32,13 @@ impl CompletionEngine {
     }
 
     /// Offers the known fields of `container` as map-key completions.
+    ///
+    /// In addition to the struct fields (`properties`), this offers the keys an
+    /// arbitrary-map container constrains its entries to via `propertyNames`
+    /// (e.g. the `ThemeAttr` keys of a `CssClassPartials` map -- `shape_color`,
+    /// `stroke_style`, ..).
     fn key_completions(schema: &DiagramSchema, container: &Value) -> Vec<CompletionItem> {
-        schema
+        let mut items = schema
             .property_entries(container)
             .into_iter()
             .map(|property| CompletionItem {
@@ -42,7 +47,22 @@ impl CompletionEngine {
                 detail: property.description.map(first_line),
                 ..CompletionItem::default()
             })
-            .collect()
+            .collect::<Vec<CompletionItem>>();
+
+        // Keys constrained to an enum, e.g. a `Map<ThemeAttr, _>`'s theme
+        // attribute keys.
+        if let Some(property_names) = container.get("propertyNames") {
+            items.extend(schema.enum_entries(property_names).into_iter().map(|entry| {
+                CompletionItem {
+                    label: entry.value.to_string(),
+                    kind: Some(CompletionItemKind::FIELD),
+                    detail: entry.description.map(first_line),
+                    ..CompletionItem::default()
+                }
+            }));
+        }
+
+        items
     }
 
     /// Offers enum values and/or document-defined IDs for `key`'s value.

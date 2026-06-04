@@ -105,6 +105,9 @@
       },
       "additionalProperties": {
         "type": "string"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/ThemeAttr"
       }
     },
     "DarkModeConfig": {
@@ -750,6 +753,361 @@
         },
         "uniqueItems": true
       }
+    },
+    "ThemeAttr": {
+      "description": "Themeable attributes of nodes and edges.\n\nThese keys are used by both nodes and edges.\n\n# Notes\n\n* `Extra` are classes that are copied as-is onto the relevant SVG/HTML\n  elements.\n* `ShapeColor` controls the border and fill colours for nodes, and the line\n  and arrow head colours for edges.\n* `Stroke*` keys control the border colour for nodes, and the line colour\n  for edges.\n* `Fill*` keys control the background colour for nodes, and the arrow head\n  fill colour for edges.\n* `Padding*` keys are only applicable to nodes.\n* `Margin*` keys are only applicable to nodes.\n\n# Highlight states\n\nHighlight states refer to whether a node is hovered, no interaction,\nselected, or active (pressed).\n\n# Colours\n\n[Colours] are from [Tailwind CSS]. The list of names are:\n\n* <span class=\"color-label\">key:</span> <span class=\"blk\">&nbsp;50</span>\n  <span class=\"blk\">100</span> <span class=\"blk\">200</span> <span\n  class=\"blk\">300</span> <span class=\"blk\">400</span> <span\n  class=\"blk\">500</span> <span class=\"blk\">600</span> <span\n  class=\"blk\">700</span> <span class=\"blk\">800</span> <span\n  class=\"blk\">900</span> <span class=\"blk\">950</span>\n* <span class=\"color-label\">`slate`:</span> <span class=\"colorblk\"\n  style=\"background-color: #f8fafc;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f1f5f9;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #e2e8f0;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #cbd5e1;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #94a3b8;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #64748b;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #475569;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #334155;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #1e293b;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #0f172a;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #020617;\"></span>\n* <span class=\"color-label\">`gray`:</span> <span class=\"colorblk\"\n  style=\"background-color: #f9fafb;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f3f4f6;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #e5e7eb;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #d1d5db;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #9ca3af;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #6b7280;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #4b5563;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #374151;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #1f2937;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #111827;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #030712;\"></span>\n* <span class=\"color-label\">`zinc`:</span> <span class=\"colorblk\"\n  style=\"background-color: #fafafa;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f4f4f5;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #e4e4e7;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #d4d4d8;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #a1a1aa;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #71717a;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #52525b;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #3f3f46;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #27272a;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #18181b;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #09090b;\"></span>\n* <span class=\"color-label\">`neutral`:</span> <span class=\"colorblk\"\n  style=\"background-color: #fafafa;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f5f5f5;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #e5e5e5;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #d4d4d4;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #a3a3a3;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #737373;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #525252;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #404040;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #262626;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #171717;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #0a0a0a;\"></span>\n* <span class=\"color-label\">`stone`:</span> <span class=\"colorblk\"\n  style=\"background-color: #fafaf9;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f5f5f4;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #e7e5e4;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #d6d3d1;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #a8a29e;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #78716c;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #57534e;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #44403c;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #292524;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #1c1917;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #0c0a09;\"></span>\n* <span class=\"color-label\">`red`:</span> <span class=\"colorblk\"\n  style=\"background-color: #fef2f2;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fee2e2;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fecaca;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fca5a5;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f87171;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #ef4444;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #dc2626;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #b91c1c;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #991b1b;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #7f1d1d;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #450a0a;\"></span>\n* <span class=\"color-label\">`orange`:</span> <span class=\"colorblk\"\n  style=\"background-color: #fff7ed;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #ffedd5;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fed7aa;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fdba74;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fb923c;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f97316;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #ea580c;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #c2410c;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #9a3412;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #7c2d12;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #431407;\"></span>\n* <span class=\"color-label\">`slate`:</span> <span class=\"colorblk\"\n  style=\"background-color: #fffbeb;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fef3c7;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fde68a;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fcd34d;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fbbf24;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f59e0b;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #d97706;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #b45309;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #92400e;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #78350f;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #451a03;\"></span>\n* <span class=\"color-label\">`yellow`:</span> <span class=\"colorblk\"\n  style=\"background-color: #fefce8;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fef9c3;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fef08a;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fde047;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #facc15;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #eab308;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #ca8a04;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #a16207;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #854d0e;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #713f12;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #422006;\"></span>\n* <span class=\"color-label\">`lime`:</span> <span class=\"colorblk\"\n  style=\"background-color: #f7fee7;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #ecfccb;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #d9f99d;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #bef264;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #a3e635;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #84cc16;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #65a30d;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #4d7c0f;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #3f6212;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #365314;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #1a2e05;\"></span>\n* <span class=\"color-label\">`green`:</span> <span class=\"colorblk\"\n  style=\"background-color: #f0fdf4;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #dcfce7;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #bbf7d0;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #86efac;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #4ade80;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #22c55e;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #16a34a;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #15803d;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #166534;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #14532d;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #052e16;\"></span>\n* <span class=\"color-label\">`emerald`:</span> <span class=\"colorblk\"\n  style=\"background-color: #ecfdf5;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #d1fae5;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #a7f3d0;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #6ee7b7;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #34d399;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #10b981;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #059669;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #047857;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #065f46;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #064e3b;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #022c22;\"></span>\n* <span class=\"color-label\">`teal`:</span> <span class=\"colorblk\"\n  style=\"background-color: #f0fdfa;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #ccfbf1;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #99f6e4;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #5eead4;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #2dd4bf;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #14b8a6;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #0d9488;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #0f766e;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #115e59;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #134e4a;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #042f2e;\"></span>\n* <span class=\"color-label\">`cyan`:</span> <span class=\"colorblk\"\n  style=\"background-color: #ecfeff;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #cffafe;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #a5f3fc;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #67e8f9;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #22d3ee;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #06b6d4;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #0891b2;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #0e7490;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #155e75;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #164e63;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #083344;\"></span>\n* <span class=\"color-label\">`sky`:</span> <span class=\"colorblk\"\n  style=\"background-color: #f0f9ff;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #e0f2fe;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #bae6fd;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #7dd3fc;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #38bdf8;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #0ea5e9;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #0284c7;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #0369a1;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #075985;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #0c4a6e;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #082f49;\"></span>\n* <span class=\"color-label\">`blue`:</span> <span class=\"colorblk\"\n  style=\"background-color: #eff6ff;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #dbeafe;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #bfdbfe;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #93c5fd;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #60a5fa;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #3b82f6;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #2563eb;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #1d4ed8;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #1e40af;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #1e3a8a;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #172554;\"></span>\n* <span class=\"color-label\">`indigo`:</span> <span class=\"colorblk\"\n  style=\"background-color: #eef2ff;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #e0e7ff;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #c7d2fe;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #a5b4fc;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #818cf8;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #6366f1;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #4f46e5;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #4338ca;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #3730a3;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #312e81;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #1e1b4b;\"></span>\n* <span class=\"color-label\">`violet`:</span> <span class=\"colorblk\"\n  style=\"background-color: #f5f3ff;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #ede9fe;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #ddd6fe;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #c4b5fd;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #a78bfa;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #8b5cf6;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #7c3aed;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #6d28d9;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #5b21b6;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #4c1d95;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #2e1065;\"></span>\n* <span class=\"color-label\">`purple`:</span> <span class=\"colorblk\"\n  style=\"background-color: #faf5ff;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f3e8ff;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #e9d5ff;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #d8b4fe;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #c084fc;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #a855f7;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #9333ea;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #7e22ce;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #6b21a8;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #581c87;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #3b0764;\"></span>\n* <span class=\"color-label\">`fuchsia`:</span> <span class=\"colorblk\"\n  style=\"background-color: #fdf4ff;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fae8ff;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f5d0fe;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f0abfc;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #e879f9;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #d946ef;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #c026d3;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #a21caf;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #86198f;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #701a75;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #4a044e;\"></span>\n* <span class=\"color-label\">`pink`:</span> <span class=\"colorblk\"\n  style=\"background-color: #fdf2f8;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fce7f3;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fbcfe8;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f9a8d4;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f472b6;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #ec4899;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #db2777;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #be185d;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #9d174d;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #831843;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #500724;\"></span>\n* <span class=\"color-label\">`rose`:</span> <span class=\"colorblk\"\n  style=\"background-color: #fff1f2;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #ffe4e6;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fecdd3;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fda4af;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #fb7185;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #f43f5e;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #e11d48;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #be123c;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #9f1239;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #881337;\"></span> <span class=\"colorblk\"\n  style=\"background-color: #4c0519;\"></span>\n\n<style>\n.color-label { display: inline-block; width: 80px; }\n.blk { font-family: monospace; }\n.colorblk:after { content: '   '; }\n.colorblk {\n    white-space: pre;\n    border-radius: 3px;\n    font-family: monospace;\n}\n</style>\n\n[Colours]: https://tailwindcss.com/docs/customizing-colors\n[Tailwind CSS]: https://tailwindcss.com/",
+      "oneOf": [
+        {
+          "description": "Animation to apply to the item.\n\nThis sets the [`animate-*`] class, valid values are `'none'`,\n`'spin'`, `'ping'`, `'pulse'`, `'bounce'`.\n\nArbitrary values such as `'[stroke-dashoffset-move_2s_linear_infinite]'`\ncan be used if an animation such as the following is provided in the\n`InfoGraph::css` key:\n\n```yaml\ntheme:\n  styles:\n    edge_defaults:\n      animate: '[stroke-dashoffset-move_2s_linear_infinite]'\n      shape_color: blue\n      stroke_style: dashed  # shorthand for [&>path]:[stroke-dasharray:3]\n      stroke_width: '[2px]'\n      stroke_shade_normal: '600'\n      fill_shade_normal: '500'\n\ncss: >-\n  @keyframes stroke-dashoffset-move {\n    0%   { stroke-dashoffset: 30; }\n    100% { stroke-dashoffset: 0; }\n  }\n```\n\n[`animate-*`]: https://tailwindcss.com/docs/animation",
+          "type": "string",
+          "const": "animate"
+        },
+        {
+          "description": "The [cursor style], e.g. `\"pointer\"`.\n\n[cursor style]: https://tailwindcss.com/docs/cursor",
+          "type": "string",
+          "const": "cursor"
+        },
+        {
+          "description": "Radius for a circle node shape, e.g. `\"6.0\"`.\n\nWhen present, the node will be rendered as a circle with the given\nradius instead of a rectangle.",
+          "type": "string",
+          "const": "circle_radius"
+        },
+        {
+          "description": "Extra classes to attach as is.",
+          "type": "string",
+          "const": "extra"
+        },
+        {
+          "description": "Colour for element background/arrow head for all states, e.g. `\"slate\"`.\n\nThis will be used for all highlight states if not overridden by one\nof the more specific variants.",
+          "type": "string",
+          "const": "fill_color"
+        },
+        {
+          "description": "Colour for the background when an element is not focused / hovered\nover, e.g. `\"slate\"`.",
+          "type": "string",
+          "const": "fill_color_normal"
+        },
+        {
+          "description": "Colour for the background when an element is focused, e.g. `\"slate\"`.",
+          "type": "string",
+          "const": "fill_color_focus"
+        },
+        {
+          "description": "Colour for the background when an element has the cursor hovering over\nit, e.g. `\"slate\"`.",
+          "type": "string",
+          "const": "fill_color_hover"
+        },
+        {
+          "description": "Colour for the background when an element is being clicked / pressed,\ne.g. `\"slate\"`.",
+          "type": "string",
+          "const": "fill_color_active"
+        },
+        {
+          "description": "Shade for element background/arrow head for all states, e.g. `\"600\"`.\n\nThis will be used for all highlight states if not overridden by one\nof the more specific variants.",
+          "type": "string",
+          "const": "fill_shade"
+        },
+        {
+          "description": "Shade for the background when an element is not focused /\nhovered over, e.g. `\"300\"` for nodes, `\"800\"` for edges.",
+          "type": "string",
+          "const": "fill_shade_normal"
+        },
+        {
+          "description": "Shade for the background when an element is focused, e.g.\n`\"200\"` for nodes, `\"700\"` for edges.",
+          "type": "string",
+          "const": "fill_shade_focus"
+        },
+        {
+          "description": "Shade for the background when an element has the cursor\nhovering over it, e.g. `\"100\"` for nodes, `\"600\"` for edges.",
+          "type": "string",
+          "const": "fill_shade_hover"
+        },
+        {
+          "description": "Shade for the background when an element is being clicked /\npressed, e.g. `\"200\"` for nodes, `\"700\"` for edges.",
+          "type": "string",
+          "const": "fill_shade_active"
+        },
+        {
+          "description": "Gap between items within a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "gap"
+        },
+        {
+          "description": "All padding within a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "padding"
+        },
+        {
+          "description": "Left and right padding within a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "padding_x"
+        },
+        {
+          "description": "Top and bottom padding within a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "padding_y"
+        },
+        {
+          "description": "Left padding within a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "padding_left"
+        },
+        {
+          "description": "Right padding within a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "padding_right"
+        },
+        {
+          "description": "Top padding within a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "padding_top"
+        },
+        {
+          "description": "Bottom padding within a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "padding_bottom"
+        },
+        {
+          "description": "All margins around a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "margin"
+        },
+        {
+          "description": "Left and right margins around a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "margin_x"
+        },
+        {
+          "description": "Top and bottom margins around a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "margin_y"
+        },
+        {
+          "description": "Left margin around a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "margin_left"
+        },
+        {
+          "description": "Right margin around a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "margin_right"
+        },
+        {
+          "description": "Top margin around a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "margin_top"
+        },
+        {
+          "description": "Bottom margin around a node, e.g. `\"1.5\"`.\n\nThis key has no effect on edges.",
+          "type": "string",
+          "const": "margin_bottom"
+        },
+        {
+          "description": "Opacity of a node, e.g. `\"0.5\"` in `\"opacity-0.5\"`.",
+          "type": "string",
+          "const": "opacity"
+        },
+        {
+          "description": "Outline colour for elements for all states, e.g. `\"blue\"`. Defaults to\n`\"blue\"`.",
+          "type": "string",
+          "const": "outline_color"
+        },
+        {
+          "description": "Outline colour when an element is not focused / hovered over, e.g.\n`\"blue\"`. Defaults to nothing.",
+          "type": "string",
+          "const": "outline_color_normal"
+        },
+        {
+          "description": "Outline colour when an element is focused, e.g. `\"blue\"`. Defaults to\nnothing.",
+          "type": "string",
+          "const": "outline_color_focus"
+        },
+        {
+          "description": "Outline colour when an element has the cursor hovering over it, e.g.\n`\"blue\"`. Defaults to nothing.",
+          "type": "string",
+          "const": "outline_color_hover"
+        },
+        {
+          "description": "Outline colour when an element is being clicked / pressed, e.g.\n`\"blue\"`. Defaults to nothing.",
+          "type": "string",
+          "const": "outline_color_active"
+        },
+        {
+          "description": "Shade for lines and borders for all states, e.g. `\"600\"`.\n\nThis will be used for all highlight states if not overridden by one\nof the more specific variants.",
+          "type": "string",
+          "const": "outline_shade"
+        },
+        {
+          "description": "Outline shade when an element is not focused / hovered over, e.g.\n`\"600\"` for nodes, `\"900\"` for edges. Defaults to nothing.",
+          "type": "string",
+          "const": "outline_shade_normal"
+        },
+        {
+          "description": "Outline shade when an element is focused, e.g.\n`\"500\"` for nodes, `\"800\"` for edges. Defaults to the aforementioned\nvalues.",
+          "type": "string",
+          "const": "outline_shade_focus"
+        },
+        {
+          "description": "Outline shade when an element has the cursor hovering over it, e.g.\n`\"400\"` for nodes, `\"700\"` for edges. Defaults to nothing.",
+          "type": "string",
+          "const": "outline_shade_hover"
+        },
+        {
+          "description": "Outline shade when an element is being clicked / pressed, e.g.\n`\"700\"` for nodes, `\"950\"` for edges. Defaults to nothing.",
+          "type": "string",
+          "const": "outline_shade_active"
+        },
+        {
+          "description": "Width of the border for nodes, or line for edges. Defaults to `\"2\"`.",
+          "type": "string",
+          "const": "outline_width"
+        },
+        {
+          "description": "Outline style for all states, e.g. `\"none\"`, `\"solid\"`, `\"dashed\"`,\n`\"dotted\"`.",
+          "type": "string",
+          "const": "outline_style"
+        },
+        {
+          "description": "Outline style when an element is not focused / hovered over, e.g.\n`\"none\"`, `\"solid\"`, `\"dashed\"`, `\"dotted\"`.",
+          "type": "string",
+          "const": "outline_style_normal"
+        },
+        {
+          "description": "Outline style when an element is focused, e.g. `\"none\"`, `\"solid\"`,\n`\"dashed\"`, `\"dotted\"`.",
+          "type": "string",
+          "const": "outline_style_focus"
+        },
+        {
+          "description": "Outline style when an element has the cursor hovering over it, e.g.\n`\"none\"`, `\"solid\"`, `\"dashed\"`, `\"dotted\"`.",
+          "type": "string",
+          "const": "outline_style_hover"
+        },
+        {
+          "description": "Outline style when an element is being clicked / pressed, e.g. `\"none\"`,\n`\"solid\"`, `\"dashed\"`, `\"dotted\"`.",
+          "type": "string",
+          "const": "outline_style_active"
+        },
+        {
+          "description": "Radius for the top left corner of a node. Defaults to `\"0.0\"`",
+          "type": "string",
+          "const": "radius_top_left"
+        },
+        {
+          "description": "Radius for the top right corner of a node. Defaults to `\"0.0\"`",
+          "type": "string",
+          "const": "radius_top_right"
+        },
+        {
+          "description": "Radius for the bottom left corner of a node. Defaults to `\"0.0\"`",
+          "type": "string",
+          "const": "radius_bottom_left"
+        },
+        {
+          "description": "Radius for the bottom right corner of a node. Defaults to `\"0.0\"`",
+          "type": "string",
+          "const": "radius_bottom_right"
+        },
+        {
+          "description": "Base colour for shape colourable attributes, e.g. stroke/border, fill.",
+          "type": "string",
+          "const": "shape_color"
+        },
+        {
+          "description": "Line/border colour for elements for all states, e.g. `\"slate\"`.",
+          "type": "string",
+          "const": "stroke_color"
+        },
+        {
+          "description": "Line/border colour when an element is not focused / hovered over, e.g.\n`\"slate\"`.",
+          "type": "string",
+          "const": "stroke_color_normal"
+        },
+        {
+          "description": "Line/border colour when an element is focused, e.g. `\"slate\"`.",
+          "type": "string",
+          "const": "stroke_color_focus"
+        },
+        {
+          "description": "Line/border colour when an element has the cursor hovering over it, e.g.\n`\"slate\"`.",
+          "type": "string",
+          "const": "stroke_color_hover"
+        },
+        {
+          "description": "Line/border colour when an element is being clicked / pressed, e.g.\n`\"slate\"`.",
+          "type": "string",
+          "const": "stroke_color_active"
+        },
+        {
+          "description": "Shade for lines and borders for all states, e.g. `\"600\"`.\n\nThis will be used for all highlight states if not overridden by one\nof the more specific variants.",
+          "type": "string",
+          "const": "stroke_shade"
+        },
+        {
+          "description": "Line/border shade when an element is not focused / hovered over, e.g.\n`\"600\"` for nodes, `\"900\"` for edges.",
+          "type": "string",
+          "const": "stroke_shade_normal"
+        },
+        {
+          "description": "Line/border shade when an element is focused, e.g.\n`\"500\"` for nodes, `\"800\"` for edges.",
+          "type": "string",
+          "const": "stroke_shade_focus"
+        },
+        {
+          "description": "Line/border shade when an element has the cursor hovering over it, e.g.\n`\"400\"` for nodes, `\"700\"` for edges.",
+          "type": "string",
+          "const": "stroke_shade_hover"
+        },
+        {
+          "description": "Line/border shade when an element is being clicked / pressed, e.g.\n`\"500\"` for nodes, `\"800\"` for edges.",
+          "type": "string",
+          "const": "stroke_shade_active"
+        },
+        {
+          "description": "Width of the border for nodes, or line for edges.",
+          "type": "string",
+          "const": "stroke_width"
+        },
+        {
+          "description": "Line/border style for all states, e.g. \"none\", \"solid\", \"dashed\",\n\"dotted\".",
+          "type": "string",
+          "const": "stroke_style"
+        },
+        {
+          "description": "Line/border style when an element is not focused / hovered over, e.g.\n`\"none\"`, `\"solid\"`, `\"dashed\"`, `\"dotted\"`.",
+          "type": "string",
+          "const": "stroke_style_normal"
+        },
+        {
+          "description": "Line/border style when an element is focused, e.g. \"none\", \"solid\",\n\"dashed\", \"dotted\".",
+          "type": "string",
+          "const": "stroke_style_focus"
+        },
+        {
+          "description": "Line/border style when an element has the cursor hovering over it, e.g.\n`\"none\"`, `\"solid\"`, `\"dashed\"`, `\"dotted\"`.",
+          "type": "string",
+          "const": "stroke_style_hover"
+        },
+        {
+          "description": "Line/border style when an element is being clicked / pressed, e.g.\n`\"none\"`, `\"solid\"`, `\"dashed\"`, `\"dotted\"`.",
+          "type": "string",
+          "const": "stroke_style_active"
+        },
+        {
+          "description": "Color for text within a node, e.g. `\"neutral\"` in `\"fill-neutral-500\"`.",
+          "type": "string",
+          "const": "text_color"
+        },
+        {
+          "description": "Shade for text within a node, e.g. `\"500\"` in `\"fill-neutral-500\"`.",
+          "type": "string",
+          "const": "text_shade"
+        },
+        {
+          "description": "Whether an element is visible.\n\nThis sets the [`visibility`] class, valid values are `'visible'`,\n`'invisible'`, `'collapse'`.\n\n[`visibility`]: https://tailwindcss.com/docs/visibility",
+          "type": "string",
+          "const": "visibility"
+        }
+      ]
     },
     "ThemeDefault": {
       "description": "Default theme styles when the diagram has no user interaction.\n\nContains `style_aliases` that are available to all the other `theme_*` data,\nand `base_styles` for specific entities.\n\n# Example\n\n```yaml\ntheme_default:\n  style_aliases:\n    padding_none:\n      padding: \"0.0\"\n      gap: \"0.0\"\n    padding_tight:\n      padding: \"2.0\"\n      gap: \"2.0\"\n    padding_normal:\n      padding: \"4.0\"\n      gap: \"4.0\"\n    padding_wide:\n      padding: \"6.0\"\n      gap: \"6.0\"\n    shade_light:\n      fill_shade_hover: \"200\"\n      fill_shade_normal: \"300\"\n      fill_shade_focus: \"400\"\n      fill_shade_active: \"500\"\n      stroke_shade_hover: \"300\"\n      stroke_shade_normal: \"400\"\n      stroke_shade_focus: \"500\"\n      stroke_shade_active: \"600\"\n      text_shade: \"900\"\n  base_styles:\n    node_defaults:\n      style_aliases_applied: [shade_light]\n      shape_color: \"slate\"\n      stroke_style: \"solid\"\n      stroke_width: \"1\"\n      text_color: \"neutral\"\n      visibility: \"visible\"\n    edge_defaults:\n      stroke_width: \"1\"\n      text_color: \"neutral\"\n      visibility: \"visible\"\n    t_aws:\n      shape_color: \"yellow\"\n    t_github:\n      shape_color: \"neutral\"\n  process_step_selected_styles:\n    node_defaults:\n      style_aliases_applied: [shade_pale, stroke_dashed_animated]\n    edge_defaults:\n      visibility: \"visible\"\n  dark_mode_config:\n    shade:\n      mode: invert\n    selector: root_dark_class\n```",
