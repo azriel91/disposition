@@ -25,6 +25,7 @@ fn main() {
 
         let mut schema = schemars::schema_for!(InputDiagram);
         theme_attr_inject(&mut schema);
+        style_alias_casing_fix(&mut schema);
 
         let schema_json = serde_json::to_string_pretty(&schema)
             .expect("Failed to serialize `InputDiagram` JSON schema.");
@@ -86,4 +87,79 @@ fn theme_attr_inject(schema: &mut schemars::Schema) {
         "propertyNames".to_string(),
         serde_json::json!({ "$ref": "#/$defs/ThemeAttr" }),
     );
+}
+
+/// Corrects the `StyleAlias` schema to match its actual serialization.
+///
+/// `StyleAlias` has hand-written `Serialize` / `Deserialize` impls that emit
+/// snake_case strings (e.g. `circle_xs`), but its `schemars` derive is unaware
+/// of those and instead emits the Rust variant names as PascalCase `const`s
+/// (e.g. `CircleXs`). The `Custom(Id)` variant is likewise emitted as an
+/// externally-tagged object (`{ "Custom": <Id> }`) rather than the bare string
+/// it actually deserializes from.
+///
+/// This rewrites each `oneOf` variant's `const` to snake_case, and replaces the
+/// `Custom` object with a freeform string -- keeping the descriptions the derive
+/// extracts from the doc comments.
+#[cfg(all(feature = "schema-gen", not(feature = "test")))]
+fn style_alias_casing_fix(schema: &mut schemars::Schema) {
+    let style_alias_one_of = schema
+        .as_object_mut()
+        .and_then(|root| root.get_mut("$defs"))
+        .and_then(serde_json::Value::as_object_mut)
+        .and_then(|defs| defs.get_mut("StyleAlias"))
+        .and_then(serde_json::Value::as_object_mut)
+        .and_then(|style_alias| style_alias.get_mut("oneOf"))
+        .and_then(serde_json::Value::as_array_mut)
+        .expect("Expected `StyleAlias.oneOf` array in the `InputDiagram` schema `$defs`.");
+
+    for variant in style_alias_one_of.iter_mut() {
+        let Some(variant_object) = variant.as_object_mut() else {
+            continue;
+        };
+
+        match variant_object.get("const").and_then(serde_json::Value::as_str) {
+            Some(pascal_case) => {
+                let snake_case = pascal_case_to_snake_case(pascal_case);
+                variant_object.insert("const".to_string(), serde_json::Value::String(snake_case));
+            }
+            None => {
+                // The `Custom(Id)` variant deserializes from any (non-well-known)
+                // string, not the externally-tagged object the derive emits.
+                let description = variant_object.get("description").cloned().unwrap_or_else(|| {
+                    serde_json::Value::String("Custom user-defined style alias.".to_string())
+                });
+                variant_object.clear();
+                variant_object.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("string".to_string()),
+                );
+                variant_object.insert("description".to_string(), description);
+            }
+        }
+    }
+}
+
+/// Converts a PascalCase identifier to snake_case.
+///
+/// A `_` is inserted before each uppercase letter (except the first), and before
+/// a digit that follows a letter -- so `CircleXs` becomes `circle_xs` and
+/// `Rounded2xl` becomes `rounded_2xl`, matching `StyleAlias::as_str`.
+#[cfg(all(feature = "schema-gen", not(feature = "test")))]
+fn pascal_case_to_snake_case(pascal_case: &str) -> String {
+    let mut snake_case = String::with_capacity(pascal_case.len() + 4);
+    let mut previous_is_alphabetic = false;
+
+    for (char_index, character) in pascal_case.chars().enumerate() {
+        let needs_separator = char_index > 0
+            && (character.is_ascii_uppercase()
+                || (character.is_ascii_digit() && previous_is_alphabetic));
+        if needs_separator {
+            snake_case.push('_');
+        }
+        snake_case.push(character.to_ascii_lowercase());
+        previous_is_alphabetic = character.is_ascii_alphabetic();
+    }
+
+    snake_case
 }

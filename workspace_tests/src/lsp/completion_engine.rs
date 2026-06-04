@@ -159,6 +159,36 @@ fn theme_attr_keys_offered_in_style_aliases() {
     );
 }
 
+#[test]
+fn style_alias_values_offered_in_style_aliases_applied() {
+    // `style_aliases_applied` is a `Vec<StyleAlias>`; its list values are the
+    // well-known style aliases, offered in their serialized snake_case form
+    // (not the PascalCase Rust variant names).
+    let text = "theme_types_styles:\n  type_service:\n    node_defaults:\n      \
+        style_aliases_applied:\n        - ";
+    let labels = labels(text, 4, 10);
+
+    for expected in [
+        "circle_xs",
+        "padding_normal",
+        "rounded_2xl",
+        "shade_light",
+        "stroke_dashed_animated",
+        "focus_outline",
+    ] {
+        assert!(
+            labels.iter().any(|label| label == expected),
+            "expected style alias `{expected}` in {labels:?}"
+        );
+    }
+
+    // The PascalCase Rust variant names must not leak into completions.
+    assert!(
+        !labels.iter().any(|label| label == "CircleXs"),
+        "did not expect PascalCase style alias `CircleXs` in {labels:?}"
+    );
+}
+
 fn sorted(mut labels: Vec<String>) -> Vec<String> {
     labels.sort();
     labels

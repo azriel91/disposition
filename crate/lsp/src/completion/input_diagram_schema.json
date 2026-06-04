@@ -583,145 +583,136 @@
         {
           "description": "Extra small circle (radius 2 units).",
           "type": "string",
-          "const": "CircleXs"
+          "const": "circle_xs"
         },
         {
           "description": "Small circle (radius 4 units).",
           "type": "string",
-          "const": "CircleSm"
+          "const": "circle_sm"
         },
         {
           "description": "Medium circle (radius 8 units).",
           "type": "string",
-          "const": "CircleMd"
+          "const": "circle_md"
         },
         {
           "description": "Large circle (radius 12 units).",
           "type": "string",
-          "const": "CircleLg"
+          "const": "circle_lg"
         },
         {
           "description": "Extra large circle (radius 16 units).",
           "type": "string",
-          "const": "CircleXl"
+          "const": "circle_xl"
         },
         {
           "description": "No padding.",
           "type": "string",
-          "const": "PaddingNone"
+          "const": "padding_none"
         },
         {
           "description": "Tight padding (2 units).",
           "type": "string",
-          "const": "PaddingTight"
+          "const": "padding_tight"
         },
         {
           "description": "Normal padding (4 units).",
           "type": "string",
-          "const": "PaddingNormal"
+          "const": "padding_normal"
         },
         {
           "description": "Wide padding (6 units).",
           "type": "string",
-          "const": "PaddingWide"
+          "const": "padding_wide"
         },
         {
           "description": "Extra small rounded corners (2 units).",
           "type": "string",
-          "const": "RoundedXs"
+          "const": "rounded_xs"
         },
         {
           "description": "Small rounded corners (4 units).",
           "type": "string",
-          "const": "RoundedSm"
+          "const": "rounded_sm"
         },
         {
           "description": "Medium rounded corners (6 units).",
           "type": "string",
-          "const": "RoundedMd"
+          "const": "rounded_md"
         },
         {
           "description": "Large rounded corners (8 units).",
           "type": "string",
-          "const": "RoundedLg"
+          "const": "rounded_lg"
         },
         {
           "description": "Extra large rounded corners (12 units).",
           "type": "string",
-          "const": "RoundedXl"
+          "const": "rounded_xl"
         },
         {
           "description": "2x extra large rounded corners (16 units).",
           "type": "string",
-          "const": "Rounded2xl"
+          "const": "rounded_2xl"
         },
         {
           "description": "3x extra large rounded corners (24 units).",
           "type": "string",
-          "const": "Rounded3xl"
+          "const": "rounded_3xl"
         },
         {
           "description": "4x extra large rounded corners (32 units).",
           "type": "string",
-          "const": "Rounded4xl"
+          "const": "rounded_4xl"
         },
         {
           "description": "Pale fill shade (lightest fill, no stroke shades).",
           "type": "string",
-          "const": "FillPale"
+          "const": "fill_pale"
         },
         {
           "description": "Pale shade (lightest).",
           "type": "string",
-          "const": "ShadePale"
+          "const": "shade_pale"
         },
         {
           "description": "Light shade.",
           "type": "string",
-          "const": "ShadeLight"
+          "const": "shade_light"
         },
         {
           "description": "Medium shade.",
           "type": "string",
-          "const": "ShadeMedium"
+          "const": "shade_medium"
         },
         {
           "description": "Dark shade (darkest).",
           "type": "string",
-          "const": "ShadeDark"
+          "const": "shade_dark"
         },
         {
           "description": "Dashed stroke with animation.",
           "type": "string",
-          "const": "StrokeDashedAnimated"
+          "const": "stroke_dashed_animated"
         },
         {
           "description": "Dashed stroke with animation for request direction.",
           "type": "string",
-          "const": "StrokeDashedAnimatedRequest"
+          "const": "stroke_dashed_animated_request"
         },
         {
           "description": "Dashed stroke with animation for response direction.",
           "type": "string",
-          "const": "StrokeDashedAnimatedResponse"
+          "const": "stroke_dashed_animated_response"
         },
         {
           "description": "Focus outline for nodes and edges.\n\nApplies a visible outline when the entity is focused or hovered,\nand hides it otherwise.",
           "type": "string",
-          "const": "FocusOutline"
+          "const": "focus_outline"
         },
         {
           "description": "Custom user-defined style alias.",
-          "type": "object",
-          "properties": {
-            "Custom": {
-              "$ref": "#/$defs/Id"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "Custom"
-          ]
+          "type": "string"
         }
       ]
     },
