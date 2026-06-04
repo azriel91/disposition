@@ -14,10 +14,10 @@ use dioxus::{
     prelude::{component, dioxus_core, dioxus_elements, dioxus_signals, rsx, Element, Props},
     signals::{ReadableExt, Signal, WritableExt},
 };
-use dioxus_codemirror::{CodeMirror, Language, LspBridge};
+use dioxus_codemirror::{CodeMirror, Language, LspBridge, Theme};
 use disposition::input_model::InputDiagram;
 
-use crate::lsp_server::DispositionLspServer;
+use crate::{hooks::use_dark_mode, lsp_server::DispositionLspServer};
 
 /// CSS classes for the error banner.
 const ERROR_BANNER: &str = "\
@@ -96,6 +96,11 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     // flag and skips re-serialization when the change originated locally.
     let mut self_update: Signal<bool> = use_signal(|| false);
 
+    // === Theme === //
+    // Track the shared dark-mode signal so the editor's palette follows the
+    // rest of the app.
+    let is_dark = use_dark_mode();
+
     // === In-page language server === //
     // Must be created unconditionally from the component body (the bridge uses
     // `use_hook` / `use_callback` internally).
@@ -158,6 +163,12 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 
     let current_error = parse_error.read().clone();
 
+    let theme = if *is_dark.read() {
+        Theme::Dark
+    } else {
+        Theme::Light
+    };
+
     rsx! {
         div {
             class: "flex flex-col gap-2 flex-1",
@@ -187,6 +198,7 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                     value: text_buffer,
                     language: Language::Yaml,
                     line_numbers: true,
+                    theme,
                     lsp: Some(lsp),
                 }
             }
