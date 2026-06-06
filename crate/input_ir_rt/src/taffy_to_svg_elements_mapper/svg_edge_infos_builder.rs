@@ -24,10 +24,10 @@ use crate::{
             EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeIdAndFace,
             NodeIdAndFaceToContactPointOffsets, PathBounds, PathMidpoint,
         },
-        edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
+        edge_path_builder_pass_1::EdgeFaceOffset,
         ortho_protrusion_calculator::OrthoProtrusionCalculator,
         ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
-        EdgePathLocusCalculator, EdgeSpacerCoordinatesCalculator, StringCharReplacer,
+        EdgePathLocusCalculator, SpacerCoordinatesResolver, StringCharReplacer,
         SvgNodeInfoByNodeId,
     },
     AbsoluteCoordinates, EdgeIdGenerator, TaffyNodeAbsoluteCoordinatesCalculator,
@@ -752,7 +752,7 @@ impl SvgEdgeInfosBuilder {
 
                 // Compute spacer coordinates from spacer taffy nodes if
                 // this edge has any intermediate-rank spacers.
-                let spacer_coordinates = Self::spacer_coordinates_from_spacers(
+                let spacer_coordinates = SpacerCoordinatesResolver::resolve(
                     rank_dir,
                     &pass1_info.edge_id,
                     taffy_tree,
@@ -794,97 +794,6 @@ impl SvgEdgeInfosBuilder {
                 }
             })
             .collect::<Vec<EdgePathInfo>>()
-    }
-
-    /// Computes spacer coordinates from spacer taffy nodes for an edge.
-    ///
-    /// If the edge has spacer nodes at intermediate ranks, their layout
-    /// positions are returned in rank order as `SpacerCoordinates`. Each
-    /// spacer has an entry point and an exit point that slice the spacer
-    /// in half, so the edge path is perfectly straight while passing
-    /// through the spacer area.
-    ///
-    /// Cross-container spacer nodes (inserted alongside sibling
-    /// containers for edges that cross container boundaries) are also
-    /// included. All spacer coordinates are sorted by absolute
-    /// main-axis coordinate so they appear in the correct visual order along
-    /// the edge path.
-    ///
-    /// Returns an empty `Vec` when the edge has no spacer nodes.
-    fn spacer_coordinates_from_spacers<'id>(
-        rank_dir: RankDir,
-        edge_id: &EdgeId<'id>,
-        taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
-    ) -> Vec<SpacerCoordinates> {
-        let Some(spacer_nodes) = edge_spacer_taffy_nodes.get(edge_id) else {
-            return Vec::new();
-        };
-
-        // Collect rank-based spacer coordinates.
-        let rank_spacers: Vec<(NodeRank, SpacerCoordinates)> = spacer_nodes
-            .rank_to_spacer_taffy_node_id
-            .iter()
-            .filter_map(|(rank, &taffy_node_id)| {
-                let coords = EdgeSpacerCoordinatesCalculator::calculate(
-                    rank_dir,
-                    taffy_tree,
-                    taffy_node_id,
-                )?;
-                Some((*rank, coords))
-            })
-            .collect();
-
-        // Collect cross-container spacer coordinates.
-        let cross_container_spacers: Vec<SpacerCoordinates> = spacer_nodes
-            .cross_container_spacer_taffy_node_ids
-            .iter()
-            .filter_map(|&taffy_node_id| {
-                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
-            })
-            .collect();
-
-        // Collect edge_description_container spacer coordinates.
-        let edge_desc_container_spacers: Vec<SpacerCoordinates> = spacer_nodes
-            .edge_desc_container_spacer_taffy_node_ids
-            .iter()
-            .filter_map(|&taffy_node_id| {
-                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
-            })
-            .collect();
-
-        if cross_container_spacers.is_empty() && edge_desc_container_spacers.is_empty() {
-            // Fast path: only rank-based spacers -- sort by rank as before.
-            let mut rank_spacers = rank_spacers;
-            rank_spacers.sort_by_key(|(rank, _)| *rank);
-            return rank_spacers.into_iter().map(|(_, coords)| coords).collect();
-        }
-
-        // Merge all kinds and sort by absolute coordinate along the
-        // main axis so the spacers appear in the correct visual order
-        // along the edge path.
-        let mut all_spacers: Vec<SpacerCoordinates> = rank_spacers
-            .into_iter()
-            .map(|(_, coords)| coords)
-            .chain(cross_container_spacers)
-            .chain(edge_desc_container_spacers)
-            .collect();
-
-        all_spacers.sort_by(|a, b| {
-            let a_key = match rank_dir {
-                RankDir::TopToBottom | RankDir::BottomToTop => a.entry_y,
-                RankDir::LeftToRight | RankDir::RightToLeft => a.entry_x,
-            };
-            let b_key = match rank_dir {
-                RankDir::TopToBottom | RankDir::BottomToTop => b.entry_y,
-                RankDir::LeftToRight | RankDir::RightToLeft => b.entry_x,
-            };
-            a_key
-                .partial_cmp(&b_key)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        all_spacers
     }
 
     /// Determines the `EdgeType` for an edge based on the entity types

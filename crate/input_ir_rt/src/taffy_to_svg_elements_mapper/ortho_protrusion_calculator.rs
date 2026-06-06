@@ -11,7 +11,7 @@ use disposition_ir_model::node::NodeFace;
 use crate::taffy_to_svg_elements_mapper::{
     edge_model::{NodeIdAndFace, NodeIdAndFaceToContactPointOffsets},
     edge_path_builder_pass_1::SpacerCoordinates,
-    EdgeSpacerCoordinatesCalculator, SvgNodeInfoByNodeId,
+    SpacerCoordinatesResolver, SvgNodeInfoByNodeId,
 };
 
 use super::svg_edge_infos_builder::{EdgeGroupPass1, EdgePass1Info};
@@ -201,9 +201,9 @@ impl OrthoProtrusionCalculator {
                     .pass1_infos
                     .iter()
                     .map(|pass1_info| {
-                        Self::spacer_coordinates_resolve(
+                        SpacerCoordinatesResolver::resolve(
                             rank_dir,
-                            pass1_info,
+                            &pass1_info.edge_id,
                             taffy_tree,
                             edge_spacer_taffy_nodes,
                         )
@@ -1176,83 +1176,6 @@ impl OrthoProtrusionCalculator {
             return full_dist.min(capped);
         }
         full_dist
-    }
-
-    /// Resolves spacer coordinates for an edge, reusing the same logic
-    /// as the path builder.
-    fn spacer_coordinates_resolve<'id>(
-        rank_dir: RankDir,
-        pass1_info: &EdgePass1Info<'_, 'id>,
-        taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
-    ) -> Vec<SpacerCoordinates> {
-        let Some(spacer_nodes) = edge_spacer_taffy_nodes.get(&pass1_info.edge_id) else {
-            return Vec::new();
-        };
-
-        let rank_spacers: Vec<(NodeRank, SpacerCoordinates)> = spacer_nodes
-            .rank_to_spacer_taffy_node_id
-            .iter()
-            .filter_map(|(rank, &taffy_node_id)| {
-                let coords = EdgeSpacerCoordinatesCalculator::calculate(
-                    rank_dir,
-                    taffy_tree,
-                    taffy_node_id,
-                )?;
-                Some((*rank, coords))
-            })
-            .collect();
-
-        // Collect cross-container spacer coordinates.
-        let cross_container_spacers: Vec<SpacerCoordinates> = spacer_nodes
-            .cross_container_spacer_taffy_node_ids
-            .iter()
-            .filter_map(|&taffy_node_id| {
-                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
-            })
-            .collect();
-
-        // Collect edge_description_container spacer coordinates.
-        let edge_desc_container_spacers: Vec<SpacerCoordinates> = spacer_nodes
-            .edge_desc_container_spacer_taffy_node_ids
-            .iter()
-            .filter_map(|&taffy_node_id| {
-                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
-            })
-            .collect();
-
-        if cross_container_spacers.is_empty() && edge_desc_container_spacers.is_empty() {
-            // Fast path: only rank-based spacers -- sort by rank as before.
-            let mut rank_spacers = rank_spacers;
-            rank_spacers.sort_by_key(|(rank, _)| *rank);
-            return rank_spacers.into_iter().map(|(_, coords)| coords).collect();
-        }
-
-        // Merge all kinds and sort by absolute coordinate along the
-        // main axis so the spacers appear in the correct visual order
-        // along the edge path.
-        let mut all_spacers: Vec<SpacerCoordinates> = rank_spacers
-            .into_iter()
-            .map(|(_, coords)| coords)
-            .chain(cross_container_spacers)
-            .chain(edge_desc_container_spacers)
-            .collect();
-
-        all_spacers.sort_by(|a, b| {
-            let a_key = match rank_dir {
-                RankDir::TopToBottom | RankDir::BottomToTop => a.entry_y,
-                RankDir::LeftToRight | RankDir::RightToLeft => a.entry_x,
-            };
-            let b_key = match rank_dir {
-                RankDir::TopToBottom | RankDir::BottomToTop => b.entry_y,
-                RankDir::LeftToRight | RankDir::RightToLeft => b.entry_x,
-            };
-            a_key
-                .partial_cmp(&b_key)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        all_spacers
     }
 
     /// Returns the cross-axis coordinate of a node for a given face.
