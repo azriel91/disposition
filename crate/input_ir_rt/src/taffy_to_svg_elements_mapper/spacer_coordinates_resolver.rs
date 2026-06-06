@@ -50,14 +50,20 @@ impl SpacerCoordinatesResolver {
             .rank_to_spacer_taffy_node_id
             .iter()
             .filter_map(|(rank, &taffy_node_id)| {
-                let spacer_coordinates =
-                    EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)?;
+                let spacer_coordinates = EdgeSpacerCoordinatesCalculator::calculate(
+                    rank_dir,
+                    taffy_tree,
+                    taffy_node_id,
+                )?;
                 Some((*rank, spacer_coordinates))
             })
             .collect();
 
-        let cross_container_spacers =
-            Self::spacers_calculate(rank_dir, taffy_tree, &spacer_nodes.cross_container_spacer_taffy_node_ids);
+        let cross_container_spacers = Self::spacers_calculate(
+            rank_dir,
+            taffy_tree,
+            &spacer_nodes.cross_container_spacer_taffy_node_ids,
+        );
         let edge_desc_container_spacers = Self::spacers_calculate(
             rank_dir,
             taffy_tree,
@@ -160,11 +166,7 @@ mod tests {
     fn spacers_sort_by_main_axis_uses_entry_y_for_vertical_flow() {
         // Merge rank-based, cross-container, and edge-description spacers
         // out of order; vertical flow sorts by entry_y.
-        let all_spacers = vec![
-            spacer(99.0, 30.0),
-            spacer(99.0, 10.0),
-            spacer(99.0, 20.0),
-        ];
+        let all_spacers = vec![spacer(99.0, 30.0), spacer(99.0, 10.0), spacer(99.0, 20.0)];
 
         let sorted =
             SpacerCoordinatesResolver::spacers_sort_by_main_axis(RankDir::TopToBottom, all_spacers);
@@ -175,11 +177,7 @@ mod tests {
 
     #[test]
     fn spacers_sort_by_main_axis_uses_entry_x_for_horizontal_flow() {
-        let all_spacers = vec![
-            spacer(30.0, 99.0),
-            spacer(10.0, 99.0),
-            spacer(20.0, 99.0),
-        ];
+        let all_spacers = vec![spacer(30.0, 99.0), spacer(10.0, 99.0), spacer(20.0, 99.0)];
 
         let sorted =
             SpacerCoordinatesResolver::spacers_sort_by_main_axis(RankDir::LeftToRight, all_spacers);

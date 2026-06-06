@@ -516,11 +516,8 @@ impl SvgEdgeInfosBuilder {
             .iter()
             .enumerate()
             .for_each(|(pass1_group_index, edge_group_pass1)| {
-                edge_group_pass1
-                    .pass1_infos
-                    .iter()
-                    .enumerate()
-                    .for_each(|(edge_index, pass1_info)| {
+                edge_group_pass1.pass1_infos.iter().enumerate().for_each(
+                    |(edge_index, pass1_info)| {
                         if let Some(from_face) = pass1_info.from_face {
                             let node_id_and_face = NodeIdAndFace {
                                 node_id: pass1_info.edge.from.clone(),
@@ -559,32 +556,33 @@ impl SvgEdgeInfosBuilder {
                                     is_from_endpoint: false,
                                 });
                         }
-                    });
+                    },
+                );
             });
 
         // Sort each face's entries by rank distance and target coordinate,
         // then assign slot indices.
-        face_contact_entries_by_node_face
-            .iter_mut()
-            .for_each(|(node_id_and_face, face_contact_entries)| {
+        face_contact_entries_by_node_face.iter_mut().for_each(
+            |(node_id_and_face, face_contact_entries)| {
                 Self::face_entries_sort_by_rank_and_coordinate(
                     node_id_and_face.face,
                     face_contact_entries,
                 );
 
-                face_contact_entries
-                    .iter()
-                    .enumerate()
-                    .for_each(|(slot_index, face_contact_entry)| {
+                face_contact_entries.iter().enumerate().for_each(
+                    |(slot_index, face_contact_entry)| {
                         if face_contact_entry.is_from_endpoint {
-                            all_pass1_groups[face_contact_entry.pass1_group_index].from_slot_indices
-                                [face_contact_entry.edge_index] = Some(slot_index);
+                            all_pass1_groups[face_contact_entry.pass1_group_index]
+                                .from_slot_indices[face_contact_entry.edge_index] =
+                                Some(slot_index);
                         } else {
-                            all_pass1_groups[face_contact_entry.pass1_group_index].to_slot_indices
-                                [face_contact_entry.edge_index] = Some(slot_index);
+                            all_pass1_groups[face_contact_entry.pass1_group_index]
+                                .to_slot_indices[face_contact_entry.edge_index] = Some(slot_index);
                         }
-                    });
-            });
+                    },
+                );
+            },
+        );
 
         // Reset tracker indices so `offset_calculate` hands out slots in
         // the order we request them.

@@ -351,7 +351,8 @@ impl NodeRanksCalculator {
 
         // === Rank the contracted SCC DAG (longest path), map back to nodes === //
         let scc_dag = Self::scc_dag_build(adjacency, &scc_ids, scc_count);
-        let scc_ranks = Self::scc_dag_ranks_compute(&scc_dag.adjacency, &scc_dag.in_degree, scc_count);
+        let scc_ranks =
+            Self::scc_dag_ranks_compute(&scc_dag.adjacency, &scc_dag.in_degree, scc_count);
 
         scc_ids.iter().map(|&scc_id| scc_ranks[scc_id]).collect()
     }
@@ -382,9 +383,7 @@ impl NodeRanksCalculator {
 
         let mut in_degree: Vec<usize> = vec![0; scc_count];
         scc_adjacency.iter().for_each(|neighbours| {
-            neighbours
-                .iter()
-                .for_each(|&to_scc| in_degree[to_scc] += 1);
+            neighbours.iter().for_each(|&to_scc| in_degree[to_scc] += 1);
         });
 
         SccDag {

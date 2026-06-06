@@ -434,9 +434,10 @@ impl<'tw_state> TailwindClassState<'tw_state> {
 
     /// Writes the per-state outline colour/shade classes.
     ///
-    /// When a shade is available, `write_shifted_shade_class` provides dark-mode
-    /// support. When only a colour is specified, an arbitrary CSS property class
-    /// (`[outline-color:{color}]`, or `[stroke:{color}]` for edges) is written.
+    /// When a shade is available, `write_shifted_shade_class` provides
+    /// dark-mode support. When only a colour is specified, an arbitrary CSS
+    /// property class (`[outline-color:{color}]`, or `[stroke:{color}]` for
+    /// edges) is written.
     ///
     /// When the outline style is `"none"` for a state: for edge entities
     /// `[stroke:none]` is emitted on the `.locus` prefix so the SVG stroke is
@@ -512,8 +513,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     }
 
     /// Writes the text colour class. Text uses shade inversion for dark mode,
-    /// and the `[&>text]` selector is not peer-prefixed because text colour does
-    /// not change based on peer state.
+    /// and the `[&>text]` selector is not peer-prefixed because text colour
+    /// does not change based on peer state.
     fn write_peer_classes_text(
         &self,
         classes: &mut String,

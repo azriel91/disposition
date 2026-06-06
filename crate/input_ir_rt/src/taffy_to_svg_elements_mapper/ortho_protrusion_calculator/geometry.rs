@@ -49,25 +49,43 @@ mod tests {
 
     #[test]
     fn cross_axis_coord_uses_x_for_horizontal_faces() {
-        assert_eq!(3.0, OrthoProtrusionGeometry::cross_axis_coord(3.0, 7.0, NodeFace::Top));
-        assert_eq!(3.0, OrthoProtrusionGeometry::cross_axis_coord(3.0, 7.0, NodeFace::Bottom));
+        assert_eq!(
+            3.0,
+            OrthoProtrusionGeometry::cross_axis_coord(3.0, 7.0, NodeFace::Top)
+        );
+        assert_eq!(
+            3.0,
+            OrthoProtrusionGeometry::cross_axis_coord(3.0, 7.0, NodeFace::Bottom)
+        );
     }
 
     #[test]
     fn cross_axis_coord_uses_y_for_vertical_faces() {
-        assert_eq!(7.0, OrthoProtrusionGeometry::cross_axis_coord(3.0, 7.0, NodeFace::Left));
-        assert_eq!(7.0, OrthoProtrusionGeometry::cross_axis_coord(3.0, 7.0, NodeFace::Right));
+        assert_eq!(
+            7.0,
+            OrthoProtrusionGeometry::cross_axis_coord(3.0, 7.0, NodeFace::Left)
+        );
+        assert_eq!(
+            7.0,
+            OrthoProtrusionGeometry::cross_axis_coord(3.0, 7.0, NodeFace::Right)
+        );
     }
 
     #[test]
     fn axis_distance_uses_y_for_horizontal_faces() {
         // Top/Bottom faces: rank axis is Y, so the distance is |by - ay|.
-        assert_eq!(5.0, OrthoProtrusionGeometry::axis_distance(0.0, 2.0, 10.0, 7.0, NodeFace::Top));
+        assert_eq!(
+            5.0,
+            OrthoProtrusionGeometry::axis_distance(0.0, 2.0, 10.0, 7.0, NodeFace::Top)
+        );
     }
 
     #[test]
     fn axis_distance_uses_x_for_vertical_faces() {
         // Left/Right faces: rank axis is X, so the distance is |bx - ax|.
-        assert_eq!(10.0, OrthoProtrusionGeometry::axis_distance(0.0, 2.0, 10.0, 7.0, NodeFace::Left));
+        assert_eq!(
+            10.0,
+            OrthoProtrusionGeometry::axis_distance(0.0, 2.0, 10.0, 7.0, NodeFace::Left)
+        );
     }
 }

@@ -526,8 +526,8 @@ impl TaffyDiagramNodeBuilder {
         }
     }
 
-    /// Builds the edge spacer and edge-description-container taffy nodes for the
-    /// edges at one container's nesting level.
+    /// Builds the edge spacer and edge-description-container taffy nodes for
+    /// the edges at one container's nesting level.
     ///
     /// Rank-based and cross-container spacers are inserted into
     /// `rank_to_taffy_ids`; all created spacer / description taffy nodes are

@@ -360,8 +360,11 @@ impl OrthoProtrusionCalculator {
                         node_nesting_infos,
                     );
 
-                    let cross_axis_to =
-                        OrthoProtrusionGeometry::cross_axis_coord(pass1_info.to_node_x, pass1_info.to_node_y, to_face);
+                    let cross_axis_to = OrthoProtrusionGeometry::cross_axis_coord(
+                        pass1_info.to_node_x,
+                        pass1_info.to_node_y,
+                        to_face,
+                    );
 
                     // The to endpoint enters from the gap between the
                     // to-node's rank and the adjacent rank toward the
@@ -912,9 +915,8 @@ impl OrthoProtrusionCalculator {
         // where SL = single_low.len(), SH = single_high.len(),
         //       NC = crossing_pairs.len().
 
-        // 1. Single-side low entries, then 2. crossing low entries
-        //    (from-endpoints, in crossing_pairs order): assigned the lowest
-        //    slots in sequence.
+        // 1. Single-side low entries, then 2. crossing low entries (from-endpoints, in
+        //    crossing_pairs order): assigned the lowest slots in sequence.
         single_low
             .iter()
             .chain(crossing_low_ordered.iter())
@@ -929,9 +931,12 @@ impl OrthoProtrusionCalculator {
         //    shorter ones, matching the low-side convention and preventing visual
         //    crossings near the to-nodes.
         let crossing_high_start = total_count - single_high.len() - crossing_high_ordered.len();
-        crossing_high_ordered.iter().enumerate().for_each(|(i, entry)| {
-            Self::protrusion_write(entry, slot_value(crossing_high_start + i), result);
-        });
+        crossing_high_ordered
+            .iter()
+            .enumerate()
+            .for_each(|(i, entry)| {
+                Self::protrusion_write(entry, slot_value(crossing_high_start + i), result);
+            });
 
         // 4. Single-side high entries fill the top slots.
         let single_high_start = total_count - single_high.len();
@@ -1105,11 +1110,21 @@ impl OrthoProtrusionCalculator {
         let to_info = svg_node_info_map.get(&pass1_info.edge.to);
 
         let (from_x, from_y) = from_info
-            .map(|info| OrthoProtrusionGeometry::face_center(info, pass1_info.from_face.unwrap_or(NodeFace::Bottom)))
+            .map(|info| {
+                OrthoProtrusionGeometry::face_center(
+                    info,
+                    pass1_info.from_face.unwrap_or(NodeFace::Bottom),
+                )
+            })
             .unwrap_or((pass1_info.from_node_x, pass1_info.from_node_y));
 
         let (to_x, to_y) = to_info
-            .map(|info| OrthoProtrusionGeometry::face_center(info, pass1_info.to_face.unwrap_or(NodeFace::Top)))
+            .map(|info| {
+                OrthoProtrusionGeometry::face_center(
+                    info,
+                    pass1_info.to_face.unwrap_or(NodeFace::Top),
+                )
+            })
             .unwrap_or((pass1_info.to_node_x, pass1_info.to_node_y));
 
         let full_dist = if is_from {
@@ -1130,7 +1145,13 @@ impl OrthoProtrusionCalculator {
                 OrthoProtrusionGeometry::axis_distance(to_x, to_y, from_x, from_y, face)
             } else {
                 let last_spacer = &spacer_coordinates[spacer_coordinates.len() - 1];
-                OrthoProtrusionGeometry::axis_distance(to_x, to_y, last_spacer.exit_x, last_spacer.exit_y, face)
+                OrthoProtrusionGeometry::axis_distance(
+                    to_x,
+                    to_y,
+                    last_spacer.exit_x,
+                    last_spacer.exit_y,
+                    face,
+                )
             }
         };
 
@@ -1172,8 +1193,15 @@ impl OrthoProtrusionCalculator {
                 NodeFace::Right => NodeFace::Left,
                 NodeFace::Left => NodeFace::Right,
             };
-            let (other_bx, other_by) = OrthoProtrusionGeometry::face_center(other_ancestor_info, other_opposite_face);
-            let capped = OrthoProtrusionGeometry::axis_distance(this_face_x, this_face_y, other_bx, other_by, face);
+            let (other_bx, other_by) =
+                OrthoProtrusionGeometry::face_center(other_ancestor_info, other_opposite_face);
+            let capped = OrthoProtrusionGeometry::axis_distance(
+                this_face_x,
+                this_face_y,
+                other_bx,
+                other_by,
+                face,
+            );
             return full_dist.min(capped);
         }
         full_dist
@@ -1496,8 +1524,11 @@ impl OrthoProtrusionCalculator {
             Self::face_offset_resolve(pass1_info, from_slot_index, true, face_offsets_by_node_face);
 
         // Step 10: Compute from cross-axis coordinate.
-        let cross_axis_from =
-            OrthoProtrusionGeometry::cross_axis_coord(pass1_info.from_node_x, pass1_info.from_node_y, from_face);
+        let cross_axis_from = OrthoProtrusionGeometry::cross_axis_coord(
+            pass1_info.from_node_x,
+            pass1_info.from_node_y,
+            from_face,
+        );
 
         // Step 11: Register the from-endpoint in the rank gap.
         // `protrusions_assign_cycle_edges` (Step 6) will copy from_protrusion

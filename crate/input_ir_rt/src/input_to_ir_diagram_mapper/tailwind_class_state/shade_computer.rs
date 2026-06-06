@@ -164,9 +164,18 @@ mod tests {
 
     #[test]
     fn stroke_style_to_dasharray_maps_known_styles() {
-        assert_eq!(Some("none"), ShadeComputer::stroke_style_to_dasharray("solid"));
-        assert_eq!(Some("4"), ShadeComputer::stroke_style_to_dasharray("dashed"));
-        assert_eq!(Some("2"), ShadeComputer::stroke_style_to_dasharray("dotted"));
+        assert_eq!(
+            Some("none"),
+            ShadeComputer::stroke_style_to_dasharray("solid")
+        );
+        assert_eq!(
+            Some("4"),
+            ShadeComputer::stroke_style_to_dasharray("dashed")
+        );
+        assert_eq!(
+            Some("2"),
+            ShadeComputer::stroke_style_to_dasharray("dotted")
+        );
         assert_eq!(
             Some("4 2"),
             ShadeComputer::stroke_style_to_dasharray("dasharray:4 2")
