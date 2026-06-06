@@ -38,9 +38,19 @@ impl CompletionEngine {
                 &cursor_context.sibling_keys,
                 text,
             ),
-            CompletionTarget::Value { key } => {
-                Self::value_completions(schema, container, container_ref_name, key, text)
-            }
+            CompletionTarget::Value {
+                key,
+                in_sequence,
+                needs_space,
+            } => Self::value_completions(
+                schema,
+                container,
+                container_ref_name,
+                key,
+                *in_sequence,
+                *needs_space,
+                text,
+            ),
         }
     }
 
@@ -144,11 +154,21 @@ impl CompletionEngine {
     }
 
     /// Offers enum values and/or document-defined IDs for `key`'s value.
+    ///
+    /// `in_sequence` is `true` when the cursor is already inside a sequence (a
+    /// `- ` item or `[ .. ]` flow brackets). For an array-valued field completed
+    /// at the `key:` position (`in_sequence == false`), each element value is
+    /// inserted as a flow list (e.g. `[t_a]`) so the YAML stays a valid
+    /// sequence. `needs_space` prepends a separator space when the cursor sits
+    /// immediately after `key:`.
+    #[allow(clippy::fn_params_excessive_bools)]
     fn value_completions(
         schema: &DiagramSchema,
         container: &Value,
         container_ref_name: Option<&str>,
         key: &str,
+        in_sequence: bool,
+        needs_space: bool,
         text: &str,
     ) -> Vec<CompletionItem> {
         // `CssClassPartials` values keyed by a `ThemeAttr` are partial Tailwind
@@ -157,7 +177,7 @@ impl CompletionEngine {
         // instead be the `style_aliases_applied` property, which falls through
         // to the normal schema-driven completion below.
         if container_ref_name == Some("CssClassPartials")
-            && let Some(items) = Self::theme_attr_value_completions(key)
+            && let Some(items) = Self::theme_attr_value_completions(key, needs_space)
         {
             return items;
         }
@@ -167,7 +187,14 @@ impl CompletionEngine {
         };
 
         // For an array-valued field (e.g. `things`), complete its element type.
-        let element_schema = schema.array_items(value_schema).unwrap_or(value_schema);
+        let array_items = schema.array_items(value_schema);
+        let element_schema = array_items.unwrap_or(value_schema);
+
+        // An array value typed at the `key:` position (not already in a
+        // sequence) is wrapped in flow-list brackets so the result is a valid
+        // sequence.
+        let wrap_in_list = array_items.is_some() && !in_sequence;
+        let insert_text = |label: &str| value_insert_text(label, wrap_in_list, needs_space);
 
         let mut items = Vec::new();
 
@@ -180,6 +207,7 @@ impl CompletionEngine {
                     label: entry.value.to_string(),
                     kind: Some(CompletionItemKind::ENUM_MEMBER),
                     detail: entry.description.map(first_line),
+                    insert_text: insert_text(entry.value),
                     ..CompletionItem::default()
                 }),
         );
@@ -193,6 +221,7 @@ impl CompletionEngine {
                 CompletionItem {
                     label: id.to_string(),
                     kind: Some(CompletionItemKind::VALUE),
+                    insert_text: insert_text(id),
                     ..CompletionItem::default()
                 }
             }));
@@ -208,7 +237,10 @@ impl CompletionEngine {
     /// `style_aliases_applied` property), so the caller can fall back to the
     /// schema-driven completion. A theme attribute with no enumerable values
     /// (numeric / freeform, e.g. `padding`) yields `Some(<empty>)`.
-    fn theme_attr_value_completions(key: &str) -> Option<Vec<CompletionItem>> {
+    ///
+    /// `needs_space` prepends a separator space when the cursor sits immediately
+    /// after `key:`.
+    fn theme_attr_value_completions(key: &str, needs_space: bool) -> Option<Vec<CompletionItem>> {
         let theme_attr = serde_json::from_value::<ThemeAttr>(Value::String(key.to_string())).ok()?;
 
         let items = theme_attr
@@ -217,11 +249,30 @@ impl CompletionEngine {
             .map(|value| CompletionItem {
                 label: (*value).to_string(),
                 kind: Some(CompletionItemKind::VALUE),
+                insert_text: value_insert_text(value, false, needs_space),
                 ..CompletionItem::default()
             })
             .collect();
 
         Some(items)
+    }
+}
+
+/// Builds the `insert_text` for a value completion `label`.
+///
+/// Returns `None` when the bare `label` can be inserted as-is. Otherwise the
+/// value is wrapped in flow-list brackets (`wrap_in_list`) and/or prefixed with
+/// a separator space (`needs_space`).
+fn value_insert_text(label: &str, wrap_in_list: bool, needs_space: bool) -> Option<String> {
+    if !wrap_in_list && !needs_space {
+        return None;
+    }
+
+    let space = if needs_space { " " } else { "" };
+    if wrap_in_list {
+        Some(format!("{space}[{label}]"))
+    } else {
+        Some(format!("{space}{label}"))
     }
 }
 

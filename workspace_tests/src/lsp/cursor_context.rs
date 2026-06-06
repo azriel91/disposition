@@ -27,7 +27,9 @@ fn value_after_colon_is_value_target() {
     assert_eq!(vec!["render_options".to_string()], cursor_context.path);
     assert_eq!(
         CompletionTarget::Value {
-            key: "rank_dir".to_string()
+            key: "rank_dir".to_string(),
+            in_sequence: false,
+            needs_space: false,
         },
         cursor_context.target
     );
@@ -44,7 +46,60 @@ fn list_item_is_value_of_enclosing_key() {
     );
     assert_eq!(
         CompletionTarget::Value {
-            key: "things".to_string()
+            key: "things".to_string(),
+            in_sequence: true,
+            needs_space: false,
+        },
+        cursor_context.target
+    );
+}
+
+#[test]
+fn block_sequence_at_same_indent_resolves_owning_key() {
+    // The `- ` items sit at the same indent as `things:` (a block sequence not
+    // indented under its key), so `things` must still be the owning key.
+    let text = "thing_dependencies:\n  edge_a:\n    things:\n    - ";
+    let cursor_context = CursorContext::at(text, 3, 6);
+
+    assert_eq!(
+        vec!["thing_dependencies".to_string(), "edge_a".to_string()],
+        cursor_context.path
+    );
+    assert_eq!(
+        CompletionTarget::Value {
+            key: "things".to_string(),
+            in_sequence: true,
+            needs_space: false,
+        },
+        cursor_context.target
+    );
+}
+
+#[test]
+fn caret_inside_flow_list_is_in_sequence() {
+    let text = "thing_dependencies:\n  edge_a:\n    things: [t_a, ";
+    let cursor_context = CursorContext::at(text, 2, 17);
+
+    assert_eq!(
+        CompletionTarget::Value {
+            key: "things".to_string(),
+            in_sequence: true,
+            needs_space: false,
+        },
+        cursor_context.target
+    );
+}
+
+#[test]
+fn caret_immediately_after_colon_needs_space() {
+    let text = "thing_dependencies:\n  edge_a:\n    things:";
+    let cursor_context = CursorContext::at(text, 2, 11);
+
+    assert_eq!(
+        CompletionTarget::Value {
+            key: "things".to_string(),
+            in_sequence: false,
+            needs_space: true,
         },
         cursor_context.target
     );

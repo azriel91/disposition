@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 
 use crate::completion::{
     completion_target::CompletionTarget,
-    yaml_lines::{indent, is_blank_or_comment, line_map_key},
+    yaml_lines::{indent, is_blank_or_comment, is_list_item, line_map_key},
 };
 
 /// The schema location the cursor is at: the map-key `path` from the document
@@ -53,24 +53,42 @@ impl CursorContext {
         };
 
         if let Some(colon_idx) = after_dash.find(':') {
-            // `key: <cursor>` -- completing a value.
+            // `key: <cursor>` -- completing a value. (`key: <cursor>` completes
+            // the value *of* `key`, which is not itself a list element even if
+            // the line is a `- key: ..` item.)
             let key = after_dash[..colon_idx].trim().to_string();
+            let value_part = &after_dash[colon_idx + 1..];
+            // Inside `[ .. ]` flow brackets when more `[` than `]` precede the
+            // cursor; a separator space is needed when nothing follows `key:`.
+            let in_flow_list =
+                value_part.matches('[').count() > value_part.matches(']').count();
+            let needs_space = value_part.is_empty();
             let path = Self::ancestor_chain(&lines, line_idx, current_indent);
             return CursorContext {
                 path,
-                target: CompletionTarget::Value { key },
+                target: CompletionTarget::Value {
+                    key,
+                    in_sequence: in_flow_list,
+                    needs_space,
+                },
                 sibling_keys: BTreeSet::new(),
             };
         }
 
         if is_list {
-            // `- <cursor>` -- a value within the enclosing array. The owning key
-            // is the closest ancestor; its parents form the path.
-            let chain = Self::ancestor_chain(&lines, line_idx, current_indent);
-            if let Some((key, parents)) = chain.split_last() {
+            // `- <cursor>` -- a value within the enclosing sequence. The owning
+            // key may sit at the same indent as the `- ` items (a block sequence
+            // that is not indented under its key), or shallower.
+            if let Some((path, key)) =
+                Self::list_value_target(&lines, line_idx, current_indent)
+            {
                 return CursorContext {
-                    path: parents.to_vec(),
-                    target: CompletionTarget::Value { key: key.clone() },
+                    path,
+                    target: CompletionTarget::Value {
+                        key,
+                        in_sequence: true,
+                        needs_space: false,
+                    },
                     sibling_keys: BTreeSet::new(),
                 };
             }
@@ -124,6 +142,45 @@ impl CursorContext {
         }
 
         sibling_keys
+    }
+
+    /// Resolves the `(path, key)` whose value is the sequence containing the
+    /// `- ` item at `from_line_idx`.
+    ///
+    /// The owning key is the nearest line above that is a map key at indent
+    /// `<= base_indent`, skipping sibling `- ` items at `base_indent` and any
+    /// deeper-indented content belonging to them. This handles block sequences
+    /// at the *same* indent as their key (`things:\n- a`), not just those
+    /// indented under it. Returns `None` when no owning key is found (e.g. a
+    /// top-level or nested-in-sequence list).
+    fn list_value_target(
+        lines: &[&str],
+        from_line_idx: usize,
+        base_indent: usize,
+    ) -> Option<(Vec<String>, String)> {
+        let owner_idx = lines[..from_line_idx]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(idx, line)| {
+                if is_blank_or_comment(line) {
+                    return None;
+                }
+                let line_indent = indent(line);
+                // Deeper content belongs to a sibling item; a sibling item at
+                // the same indent is part of the same sequence -- skip both.
+                if line_indent > base_indent
+                    || (line_indent == base_indent && is_list_item(line))
+                {
+                    return None;
+                }
+                Some(idx)
+            })?;
+
+        let owner_key = line_map_key(lines[owner_idx])?;
+        let owner_indent = indent(lines[owner_idx]);
+        let path = Self::ancestor_chain(lines, owner_idx, owner_indent);
+        Some((path, owner_key))
     }
 
     /// Walks upward from `from_line_idx`, collecting the map keys of containers

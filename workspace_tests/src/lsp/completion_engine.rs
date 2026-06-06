@@ -402,6 +402,76 @@ fn no_values_offered_for_numeric_theme_attr() {
     );
 }
 
+#[test]
+fn edge_group_things_value_inserts_flow_list() {
+    // At `things: <cursor>` (not a `- ` item), the array element is inserted as
+    // a flow list so the YAML stays a valid sequence.
+    let text = "things:\n  t_alpha: {}\n  t_beta: {}\n\
+        thing_dependencies:\n  edge_a:\n    things: ";
+    let items = CompletionEngine::completions(text, 5, 12);
+
+    let t_alpha = items
+        .iter()
+        .find(|item| item.label == "t_alpha")
+        .expect("expected `t_alpha` completion");
+    assert_eq!(Some("[t_alpha]"), t_alpha.insert_text.as_deref());
+}
+
+#[test]
+fn edge_group_things_list_item_inserts_bare_id() {
+    // In a `- ` list item, the element is inserted bare (no flow-list wrapper).
+    let text = "things:\n  t_alpha: {}\n  t_beta: {}\n\
+        thing_dependencies:\n  edge_a:\n    things:\n      - ";
+    let items = CompletionEngine::completions(text, 6, 8);
+
+    let t_alpha = items
+        .iter()
+        .find(|item| item.label == "t_alpha")
+        .expect("expected `t_alpha` completion");
+    assert_eq!(None, t_alpha.insert_text.as_deref());
+}
+
+#[test]
+fn edge_group_things_offered_for_same_indent_block_sequence() {
+    // The `- ` is at the same indent as `things:`; thing IDs are still offered.
+    let text = "things:\n  t_alpha: {}\n  t_beta: {}\n\
+        thing_dependencies:\n  edge_a:\n    things:\n    - ";
+    let labels = labels(text, 6, 6);
+
+    assert_eq!(
+        vec!["t_alpha".to_string(), "t_beta".to_string()],
+        sorted(labels)
+    );
+}
+
+#[test]
+fn edge_group_things_inside_flow_list_inserts_bare_id() {
+    // Caret inside `[ .. ]`; the element must not be wrapped again.
+    let text = "things:\n  t_alpha: {}\n  t_beta: {}\n\
+        thing_dependencies:\n  edge_a:\n    things: [t_alpha, ";
+    let items = CompletionEngine::completions(text, 5, 22);
+
+    let t_beta = items
+        .iter()
+        .find(|item| item.label == "t_beta")
+        .expect("expected `t_beta` completion");
+    assert_eq!(None, t_beta.insert_text.as_deref());
+}
+
+#[test]
+fn edge_group_things_after_bare_colon_inserts_space_and_list() {
+    // `things:` with no following space -- insert a separator space then list.
+    let text = "things:\n  t_alpha: {}\n\
+        thing_dependencies:\n  edge_a:\n    things:";
+    let items = CompletionEngine::completions(text, 4, 11);
+
+    let t_alpha = items
+        .iter()
+        .find(|item| item.label == "t_alpha")
+        .expect("expected `t_alpha` completion");
+    assert_eq!(Some(" [t_alpha]"), t_alpha.insert_text.as_deref());
+}
+
 fn sorted(mut labels: Vec<String>) -> Vec<String> {
     labels.sort();
     labels
