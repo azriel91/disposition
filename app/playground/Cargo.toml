@@ -16,7 +16,7 @@ license.workspace = true
 [dependencies]
 dioxus = { workspace = true, features = ["router"] }
 dioxus-clipboard = { workspace = true, features = ["wasm", "async"] }
-dioxus_codemirror = { path = "../../../dioxus_codemirror/dioxus_codemirror" }
+dioxus_codemirror = { workspace = true, features = ["lang-yaml"] }
 disposition = { workspace = true }
 disposition_input_ir_rt = { workspace = true }
 disposition_input_rt = { workspace = true }

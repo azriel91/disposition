@@ -1,10 +1,10 @@
 //! Raw YAML text editor page.
 //!
 //! Shows the full serialized YAML of the [`InputDiagram`] in a [`CodeMirror`]
-//! editor with LSP-backed completion. The user can edit the YAML directly; if it
-//! deserializes successfully the structured [`InputDiagram`] signal is updated
-//! immediately. If deserialization fails, the parse error is displayed and a
-//! "Revert to last good state" button lets the user roll back to the last
+//! editor with LSP-backed completion. The user can edit the YAML directly; if
+//! it deserializes successfully the structured [`InputDiagram`] signal is
+//! updated immediately. If deserialization fails, the parse error is displayed
+//! and a "Revert to last good state" button lets the user roll back to the last
 //! successfully deserialized YAML.
 //!
 //! [`CodeMirror`]: dioxus_codemirror::CodeMirror
@@ -139,8 +139,8 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     // into the text buffer -- but only when:
     //
     // 1. The change did NOT originate from this component (`self_update` is false).
-    // 2. The text buffer currently parses (no parse error), so we don't stomp
-    //    over the user's in-progress edits.
+    // 2. The text buffer currently parses (no parse error), so we don't stomp over
+    //    the user's in-progress edits.
     use_memo(move || {
         let d = input_diagram.read();
 
@@ -197,9 +197,19 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                 CodeMirror {
                     value: text_buffer,
                     language: Language::Yaml,
-                    line_numbers: true,
                     theme,
+
+                    allow_multiple_selections: true,
+                    bracket_matching: true,
+                    close_brackets: true,
+                    highlight_active_line: true,
+                    highlight_selection_matches: true,
+                    highlight_whitespace: true,
+                    indent_on_input: true,
+                    line_numbers: true,
+                    line_wrapping: true,
                     lsp: Some(lsp),
+                    tab_size: Some(2),
                 }
             }
 

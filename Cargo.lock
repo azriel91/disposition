@@ -1876,6 +1876,8 @@ dependencies = [
 [[package]]
 name = "dioxus_codemirror"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74c3f5ae4e30fb43f38ed533a94505a3f6e9ae06f167fbadd0efcf6b1873d2c8"
 dependencies = [
  "dioxus",
  "futures",
