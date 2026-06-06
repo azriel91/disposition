@@ -10,6 +10,7 @@
 //! with `cargo run -p xtask -- build-worker`.
 //!
 //! [`CodeMirror`]: dioxus_codemirror::CodeMirror
+//! [`async_lsp::MainLoop`]: https://docs.rs/async-lsp/latest/async_lsp/struct.MainLoop.html
 
 use std::{
     cell::{Cell, RefCell},

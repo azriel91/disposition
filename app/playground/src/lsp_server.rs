@@ -12,6 +12,9 @@
 //!
 //! Both expose a `DispositionLspServer` with the same `new()` constructor, so
 //! the editor wiring is identical either way.
+//!
+//! [`disposition_lsp_server`]: crate::lsp_server::disposition_lsp_server
+//! [`disposition_lsp_server_worker`]: crate::lsp_server::disposition_lsp_server_worker
 
 #[cfg(not(feature = "lsp-worker"))]
 pub mod disposition_lsp_server;
