@@ -13,6 +13,7 @@ mod components;
 mod editor_state;
 mod example_diagrams;
 mod hooks;
+mod lsp_server;
 mod route;
 mod undo_history;
 mod views;

@@ -16,13 +16,25 @@ license.workspace = true
 [dependencies]
 dioxus = { workspace = true, features = ["router"] }
 dioxus-clipboard = { workspace = true, features = ["wasm", "async"] }
+dioxus_codemirror = { workspace = true, features = ["lang-yaml"] }
 disposition = { workspace = true }
 disposition_input_ir_rt = { workspace = true }
 disposition_input_rt = { workspace = true }
+disposition_lsp = { workspace = true }
 enum-iterator = { workspace = true }
+futures = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde-saphyr = { workspace = true }
 urlencoding = { workspace = true }
+
+# Only used by the `lsp-worker` host to spawn / talk to the Web Worker.
+wasm-bindgen = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true, features = [
+    "MessageEvent",
+    "Worker",
+    "WorkerOptions",
+    "WorkerType",
+] }
 
 # We only support the web target, and we don't need tokio on the server.
 #
@@ -41,6 +53,10 @@ web-time = { workspace = true }
 
 [features]
 default = ["web"]
+# Run the LSP server in a dedicated Web Worker instead of in-page on the main
+# thread. Requires building the worker wasm first:
+# `cargo run -p xtask -- build-worker`.
+lsp-worker = ["dep:wasm-bindgen", "dep:web-sys"]
 # The feature that are only required for the web = ["dioxus/web"] build target should be optional and only enabled in the web = ["dioxus/web"] feature
 web = ["dioxus/web"]
 # The feature that are only required for the desktop = ["dioxus/desktop"] build target should be optional and only enabled in the desktop = ["dioxus/desktop"] feature

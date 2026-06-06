@@ -940,6 +940,11 @@
       background-color: var(--color-red-950);
     }
   }
+  .focus-within\:border-blue-400 {
+    &:focus-within {
+      border-color: var(--color-blue-400);
+    }
+  }
   .hover\:border-gray-400 {
     &:hover {
       @media (hover: hover) {

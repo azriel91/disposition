@@ -78,8 +78,9 @@ cargo binstall dioxus-cli
 Run `dx serve` in `app/playground`:
 
 ```bash
+cargo run -p xtask -- build-worker        # rebuild whenever LSP code changes
 cd app/playground
-dx serve
+dx serve --platform web --features lsp-worker
 ```
 
 

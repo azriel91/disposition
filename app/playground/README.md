@@ -56,3 +56,23 @@ To run for a different platform, use the `--platform platform` flag. E.g.
 dx serve --platform desktop
 ```
 
+### LSP language server (YAML editor)
+
+The **Text** tab's YAML editor is backed by the `disposition_lsp` language
+server (key / value completion). By default the server runs in-page on the main
+thread, and `dx serve` needs no extra steps.
+
+To run the server in a dedicated **Web Worker** instead (keeping it off the main
+thread), first build the worker wasm bundle, then serve with the `lsp-worker`
+feature:
+
+```bash
+# Builds crate/lsp_worker to wasm + wasm-bindgen into assets/lsp_worker/.
+cargo run -p xtask -- build-worker
+
+dx serve --platform web --features lsp-worker
+```
+
+Re-run `build-worker` whenever the LSP server code changes. The generated
+`assets/lsp_worker/disposition_lsp_worker*.{js,wasm}` are git-ignored.
+

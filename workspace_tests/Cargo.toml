@@ -24,5 +24,8 @@ workspace = true
 disposition = { workspace = true, features = ["test"] }
 disposition_input_ir_rt = { workspace = true }
 disposition_input_rt = { workspace = true }
+disposition_lsp = { workspace = true }
+futures = { workspace = true }
 pretty_assertions = { workspace = true }
 serde-saphyr = { workspace = true }
+serde_json = { workspace = true }

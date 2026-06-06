@@ -12,6 +12,7 @@
 * Render process step edges using git-like layout. ([#37][#37])
 * Serve playground example diagrams as static assets fetched at runtime instead of embedding them in the wasm binary. ([#38][#38])
 * Refresh and expand the playground example diagrams to introduce features incrementally -- including edge labels and descriptions, markdown, and inline `data:` URL images. ([#38][#38])
+* Add LSP server, and use CodeMirror for text editor. ([#39][#39])
 
 [#32]: https://github.com/azriel91/disposition/pull/32
 [#33]: https://github.com/azriel91/disposition/pull/33
@@ -20,6 +21,7 @@
 [#36]: https://github.com/azriel91/disposition/pull/36
 [#37]: https://github.com/azriel91/disposition/pull/37
 [#38]: https://github.com/azriel91/disposition/pull/38
+[#39]: https://github.com/azriel91/disposition/pull/39
 
 
 ## 0.2.0 (2026-05-22)
