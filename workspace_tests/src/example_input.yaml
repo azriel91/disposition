@@ -1,37 +1,4 @@
 ---
-# Things in the diagram.
-#
-# This map defines the `ThingId`s and their display names.
-thing_names: &things
-  t_aws: "☁️ Amazon Web Services"
-  t_aws_iam: "🖊️ Identity and Access Management"
-  t_aws_iam_ecs_policy: "🗒️ ECS IAM Policy"
-  t_aws_ecr: "🗄️ Elastic Container Registry"
-  t_aws_ecr_repo: "💽 web_app repo"
-  t_aws_ecr_repo_image_1: "💿 Image 1"
-  t_aws_ecr_repo_image_2: "💿 Image 2"
-  t_aws_ecs: "💻 Elastic Container Service"
-  t_aws_ecs_cluster: "🎛️ web_app cluster"
-  t_aws_ecs_cluster_task: "🖨️ web_app task version 1"
-  t_github: "🐙 GitHub"
-  t_github_user_repo: "azriel91/web_app"
-  t_localhost: "🧑‍💻 localhost"
-  t_localhost_repo: "📂 ~/work/web_app"
-  t_localhost_repo_src: "📝 src"
-  t_localhost_repo_target: "📂 target"
-  t_localhost_repo_target_file_zip: "📝 file.zip"
-  t_localhost_repo_target_dist_dir: "📁 dist"
-
-# Render a copy text button, and, when clicked, what text to place on the clipboard.
-thing_copy_text:
-  <<: *things
-  t_localhost: "localhost"
-  t_localhost_repo: "~/work/web_app"
-  t_localhost_repo_src: "~/work/web_app/src"
-  t_localhost_repo_target: "~/work/web_app/target"
-  t_localhost_repo_target_file_zip: "~/work/web_app/target/file.zip"
-  t_localhost_repo_target_dist_dir: "~/work/web_app/target/dist"
-
 # Hierarchy of `thing`s.
 #
 # The `ThingHierarchy` is a tree structure stored as a map of `ThingId` to `ThingHierarchy`. This structure is strictly unidirectional.
@@ -65,13 +32,45 @@ things:
       t_localhost_repo_target:
         t_localhost_repo_target_file_zip: {}
         t_localhost_repo_target_dist_dir: {}
+# Things in the diagram.
+#
+# This map defines the `ThingId`s and their display names.
+thing_names: &things
+  t_aws: "☁️ Amazon Web Services"
+  t_aws_iam: "🖊️ Identity and Access Management"
+  t_aws_iam_ecs_policy: "🗒️ ECS IAM Policy"
+  t_aws_ecr: "🗄️ Elastic Container Registry"
+  t_aws_ecr_repo: "💽 web_app repo"
+  t_aws_ecr_repo_image_1: "💿 Image 1"
+  t_aws_ecr_repo_image_2: "💿 Image 2"
+  t_aws_ecs: "💻 Elastic Container Service"
+  t_aws_ecs_cluster: "🎛️ web_app cluster"
+  t_aws_ecs_cluster_task: "🖨️ web_app task version 1"
+  t_github: "🐙 GitHub"
+  t_github_user_repo: "azriel91/web_app"
+  t_localhost: "🧑‍💻 localhost"
+  t_localhost_repo: "📂 ~/work/web_app"
+  t_localhost_repo_src: "📝 src"
+  t_localhost_repo_target: "📂 target"
+  t_localhost_repo_target_file_zip: "📝 file.zip"
+  t_localhost_repo_target_dist_dir: "📁 dist"
+
+# Render a copy text button, and, when clicked, what text to place on the clipboard.
+thing_copy_text:
+  <<: *things
+  t_localhost: "localhost"
+  t_localhost_repo: "~/work/web_app"
+  t_localhost_repo_src: "~/work/web_app/src"
+  t_localhost_repo_target: "~/work/web_app/target"
+  t_localhost_repo_target_file_zip: "~/work/web_app/target/file.zip"
+  t_localhost_repo_target_dist_dir: "~/work/web_app/target/dist"
 
 # How to position things on the diagram.
 #
 # Not sure if this is the right approach yet, but ideas:
 #
 # * `rank`: `thing_dependencies`' edges affect how far a `thing` is from the beginning position.
-# * `flex`: `thing_hierarchy` alternates between horizontal and vertical flex axes.
+# * `flex`: `things` alternates between horizontal and vertical flex axes.
 #
 # ```yaml
 # thing_layout:

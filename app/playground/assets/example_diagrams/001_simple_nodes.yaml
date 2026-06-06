@@ -3,15 +3,14 @@
 #
 # The most basic diagram: a handful of "things", each with a display label.
 #
-# * `things` maps a thing ID (prefixed with `t_`) to the text shown on it.
-# * `thing_hierarchy` lists which things to draw. A thing must appear here
+# * `things` maps a thing ID (prefixed with `t_` by convention) to the text shown on it.
+# * `things` lists which things to draw. A thing must appear here
 #   to be rendered; an empty map `{}` means "no children".
-thing_names:
-  t_apple: "Apple"
-  t_banana: "Banana"
-  t_cherry: "Cherry"
-
 things:
   t_apple: {}
   t_banana: {}
   t_cherry: {}
+thing_names:
+  t_apple: "Apple"
+  t_banana: "Banana"
+  t_cherry: "Cherry"

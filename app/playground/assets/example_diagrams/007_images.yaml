@@ -9,15 +9,14 @@
 # size is otherwise read from a PNG, or falls back to 100x100). The URL can be
 # a normal link or a `data:` URL. Small inline SVGs work well as `data:` URLs,
 # so the diagram stays self-contained with no external requests.
-thing_names:
-  t_browser: "Browser"
-  t_server: "Server"
-  t_db: "Database"
-
 things:
   t_browser: {}
   t_server: {}
   t_db: {}
+thing_names:
+  t_browser: "Browser"
+  t_server: "Server"
+  t_db: "Database"
 
 thing_descs:
   t_browser: |-

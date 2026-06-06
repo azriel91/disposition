@@ -1,7 +1,7 @@
-thing_names:
-  t_a: Alpha
 things:
   t_a: {}
+thing_names:
+  t_a: Alpha
 thing_dependencies:
   edge_self:
     kind: sequence

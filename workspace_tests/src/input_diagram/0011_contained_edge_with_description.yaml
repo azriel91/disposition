@@ -1,9 +1,9 @@
-thing_names:
-  t_parent: Parent
-  t_child: Child
 things:
   t_parent:
     t_child: {}
+thing_names:
+  t_parent: Parent
+  t_child: Child
 thing_dependencies:
   edge_contained:
     kind: sequence

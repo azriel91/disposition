@@ -12,19 +12,18 @@
 # `amber`, `violet`). Saturation is controlled by a `shade_*` style alias:
 # `shade_pale` (softest), then `shade_light`, then `shade_medium`.
 # `stroke_style` may be `solid`, `dashed`, or `dotted`.
-thing_names:
-  t_web: "Web Frontend"
-  t_api: "API Server"
-  t_worker: "Worker"
-  t_db: "Database"
-  t_cache: "Cache"
-
 things:
   t_web: {}
   t_api: {}
   t_worker: {}
   t_db: {}
   t_cache: {}
+thing_names:
+  t_web: "Web Frontend"
+  t_api: "API Server"
+  t_worker: "Worker"
+  t_db: "Database"
+  t_cache: "Cache"
 
 thing_dependencies:
   edge_dep_api_web:

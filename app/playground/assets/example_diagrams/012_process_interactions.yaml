@@ -5,17 +5,16 @@
 # or more `thing_interactions` via `step_thing_interactions`. When that step
 # is focused in the viewer, its interactions light up on the things diagram --
 # so the process reads as a story over the architecture.
-thing_names:
-  t_browser: "Browser"
-  t_gateway: "API Gateway"
-  t_auth: "Auth Service"
-  t_db: "Database"
-
 things:
   t_browser: {}
   t_gateway: {}
   t_auth: {}
   t_db: {}
+thing_names:
+  t_browser: "Browser"
+  t_gateway: "API Gateway"
+  t_auth: "Auth Service"
+  t_db: "Database"
 
 thing_interactions:
   edge_ix_browser_gateway:

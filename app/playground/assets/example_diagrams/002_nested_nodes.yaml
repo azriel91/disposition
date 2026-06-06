@@ -1,7 +1,7 @@
 ---
 # Nested Nodes
 #
-# `thing_hierarchy` nests things inside one another to show containment.
+# `things` nests things inside one another to show containment.
 #
 # By convention, a nested thing's ID extends its parent's ID with an extra
 # segment: `t_aws_ecr` is a child of `t_aws`, and `t_aws_ecr_repo_app` is a
@@ -10,15 +10,6 @@
 # `thing_layouts` overrides the flex direction of a container. By default the
 # direction alternates by depth (column, then row, ...). Valid values:
 # `row`, `row_reverse`, `column`, `column_reverse`.
-thing_names:
-  t_aws: "AWS"
-  t_aws_ecr: "ECR"
-  t_aws_ecr_repo_app: "app image"
-  t_aws_ecr_repo_web: "web image"
-  t_aws_ecs: "ECS"
-  t_aws_ecs_service_app: "app service"
-  t_aws_ecs_service_web: "web service"
-
 things:
   t_aws:
     t_aws_ecr:
@@ -27,6 +18,14 @@ things:
     t_aws_ecs:
       t_aws_ecs_service_app: {}
       t_aws_ecs_service_web: {}
+thing_names:
+  t_aws: "AWS"
+  t_aws_ecr: "ECR"
+  t_aws_ecr_repo_app: "app image"
+  t_aws_ecr_repo_web: "web image"
+  t_aws_ecs: "ECS"
+  t_aws_ecs_service_app: "app service"
+  t_aws_ecs_service_web: "web service"
 
 # Lay the two services (ECR and ECS) side by side, and stack each one's
 # children vertically.

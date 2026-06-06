@@ -1,15 +1,15 @@
-thing_names:
-  t_alice_outer: Alice Outer
-  t_alice: Alice
-  t_bob_outer: Bob Outer
-  t_bob: Bob
-  t_charlie: Charlie
 things:
   t_alice_outer:
     t_alice: {}
   t_bob_outer:
     t_bob: {}
   t_charlie: {}
+thing_names:
+  t_alice_outer: Alice Outer
+  t_alice: Alice
+  t_bob_outer: Bob Outer
+  t_bob: Bob
+  t_charlie: Charlie
 thing_dependencies:
   edge_dep_alice_bob_outer:
     kind: sequence

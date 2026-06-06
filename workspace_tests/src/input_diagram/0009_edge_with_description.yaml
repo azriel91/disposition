@@ -1,9 +1,9 @@
-thing_names:
-  t_a: Alpha
-  t_b: Beta
 things:
   t_a: {}
   t_b: {}
+thing_names:
+  t_a: Alpha
+  t_b: Beta
 thing_dependencies:
   edge_ab:
     kind: sequence

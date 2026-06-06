@@ -13,19 +13,18 @@
 # * `cyclic`:    a relationship that loops back (e.g. a thing on itself).
 #
 # `edge_descs` renders a label next to an edge.
-thing_names:
-  t_config: "Config"
-  t_db: "Database"
-  t_cache: "Cache"
-  t_api: "API Server"
-  t_app: "Application"
-
 things:
   t_config: {}
   t_db: {}
   t_cache: {}
   t_api: {}
   t_app: {}
+thing_names:
+  t_config: "Config"
+  t_db: "Database"
+  t_cache: "Cache"
+  t_api: "API Server"
+  t_app: "Application"
 
 thing_dependencies:
   # `sequence`: the app depends on the API server.

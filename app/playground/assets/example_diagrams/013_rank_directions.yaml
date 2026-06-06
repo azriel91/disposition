@@ -14,19 +14,18 @@
 #
 # This example lays a simple CI pipeline out left to right with curved edges.
 # Try changing `rank_dir` to `top_to_bottom` to see the difference.
-thing_names:
-  t_source: "Source"
-  t_build: "Build"
-  t_test: "Test"
-  t_package: "Package"
-  t_deploy: "Deploy"
-
 things:
   t_source: {}
   t_build: {}
   t_test: {}
   t_package: {}
   t_deploy: {}
+thing_names:
+  t_source: "Source"
+  t_build: "Build"
+  t_test: "Test"
+  t_package: "Package"
+  t_deploy: "Deploy"
 
 thing_dependencies:
   edge_dep_source_build:
