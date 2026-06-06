@@ -5,6 +5,8 @@
 //! to `_950` (darkest) and support relative navigation via
 //! [`TailwindColorShade::darker`] and [`TailwindColorShade::lighter`].
 
+use std::{fmt, str::FromStr};
+
 // === Constants === //
 
 /// All tailwind color shades ordered from lightest to darkest.
@@ -43,7 +45,7 @@ const ALL_SHADES: [TailwindColorShade; 11] = [
 /// assert_eq!(shade.as_str(), "100");
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum TailwindColorShade {
+pub enum TailwindColorShade {
     /// Shade 50 -- lightest.
     _50,
     /// Shade 100.
@@ -69,43 +71,6 @@ pub(crate) enum TailwindColorShade {
 }
 
 impl TailwindColorShade {
-    /// Parses a shade string into a `TailwindColorShade`.
-    ///
-    /// Returns `None` if the string does not match a known shade.
-    ///
-    /// # Parameters
-    ///
-    /// * `s`: the shade string, e.g. `"50"`, `"100"`, .. `"950"`.
-    ///
-    /// # Examples
-    ///
-    /// Valid inputs: `"50"`, `"100"`, `"200"`, `"300"`, `"400"`, `"500"`,
-    /// `"600"`, `"700"`, `"800"`, `"900"`, `"950"`.
-    ///
-    /// ```rust,ignore
-    /// assert_eq!(
-    ///     TailwindColorShade::from_str("500"),
-    ///     Some(TailwindColorShade::_500),
-    /// );
-    /// assert_eq!(TailwindColorShade::from_str("999"), None);
-    /// ```
-    pub(crate) fn from_str(s: &str) -> Option<TailwindColorShade> {
-        match s {
-            "50" => Some(TailwindColorShade::_50),
-            "100" => Some(TailwindColorShade::_100),
-            "200" => Some(TailwindColorShade::_200),
-            "300" => Some(TailwindColorShade::_300),
-            "400" => Some(TailwindColorShade::_400),
-            "500" => Some(TailwindColorShade::_500),
-            "600" => Some(TailwindColorShade::_600),
-            "700" => Some(TailwindColorShade::_700),
-            "800" => Some(TailwindColorShade::_800),
-            "900" => Some(TailwindColorShade::_900),
-            "950" => Some(TailwindColorShade::_950),
-            _ => None,
-        }
-    }
-
     /// Returns the string representation of this shade.
     ///
     /// # Examples
@@ -117,7 +82,7 @@ impl TailwindColorShade {
     /// assert_eq!(TailwindColorShade::_50.as_str(), "50");
     /// assert_eq!(TailwindColorShade::_950.as_str(), "950");
     /// ```
-    pub(crate) fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             TailwindColorShade::_50 => "50",
             TailwindColorShade::_100 => "100",
@@ -204,7 +169,7 @@ impl TailwindColorShade {
     /// assert_eq!(TailwindColorShade::_900.darker(5), TailwindColorShade::_950);
     /// assert_eq!(TailwindColorShade::_50.darker(0), TailwindColorShade::_50);
     /// ```
-    pub(crate) fn darker(self, levels: u8) -> TailwindColorShade {
+    pub fn darker(self, levels: u8) -> TailwindColorShade {
         let new_index = self.index().saturating_add(levels as usize);
         TailwindColorShade::from_index(new_index)
     }
@@ -226,9 +191,58 @@ impl TailwindColorShade {
     /// assert_eq!(TailwindColorShade::_100.lighter(5), TailwindColorShade::_50);
     /// assert_eq!(TailwindColorShade::_950.lighter(0), TailwindColorShade::_950);
     /// ```
-    pub(crate) fn lighter(self, levels: u8) -> TailwindColorShade {
+    pub fn lighter(self, levels: u8) -> TailwindColorShade {
         let new_index = self.index().saturating_sub(levels as usize);
         TailwindColorShade::from_index(new_index)
+    }
+}
+
+/// Error returned when a string is not a known Tailwind color shade.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TailwindColorShadeInvalid;
+
+impl fmt::Display for TailwindColorShadeInvalid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(
+            "expected a Tailwind color shade: one of `50`, `100`, .. `900`, `950`",
+        )
+    }
+}
+
+impl std::error::Error for TailwindColorShadeInvalid {}
+
+impl FromStr for TailwindColorShade {
+    type Err = TailwindColorShadeInvalid;
+
+    /// Parses a shade string into a `TailwindColorShade`.
+    ///
+    /// Returns `Err(TailwindColorShadeInvalid)` if the string does not match a
+    /// known shade.
+    ///
+    /// # Examples
+    ///
+    /// Valid inputs: `"50"`, `"100"`, `"200"`, `"300"`, `"400"`, `"500"`,
+    /// `"600"`, `"700"`, `"800"`, `"900"`, `"950"`.
+    ///
+    /// ```rust,ignore
+    /// assert_eq!("500".parse(), Ok(TailwindColorShade::_500));
+    /// assert!("999".parse::<TailwindColorShade>().is_err());
+    /// ```
+    fn from_str(s: &str) -> Result<TailwindColorShade, TailwindColorShadeInvalid> {
+        match s {
+            "50" => Ok(TailwindColorShade::_50),
+            "100" => Ok(TailwindColorShade::_100),
+            "200" => Ok(TailwindColorShade::_200),
+            "300" => Ok(TailwindColorShade::_300),
+            "400" => Ok(TailwindColorShade::_400),
+            "500" => Ok(TailwindColorShade::_500),
+            "600" => Ok(TailwindColorShade::_600),
+            "700" => Ok(TailwindColorShade::_700),
+            "800" => Ok(TailwindColorShade::_800),
+            "900" => Ok(TailwindColorShade::_900),
+            "950" => Ok(TailwindColorShade::_950),
+            _ => Err(TailwindColorShadeInvalid),
+        }
     }
 }
 
@@ -238,58 +252,25 @@ mod tests {
 
     #[test]
     fn from_str_parses_all_valid_shades() {
-        assert_eq!(
-            TailwindColorShade::from_str("50"),
-            Some(TailwindColorShade::_50)
-        );
-        assert_eq!(
-            TailwindColorShade::from_str("100"),
-            Some(TailwindColorShade::_100)
-        );
-        assert_eq!(
-            TailwindColorShade::from_str("200"),
-            Some(TailwindColorShade::_200)
-        );
-        assert_eq!(
-            TailwindColorShade::from_str("300"),
-            Some(TailwindColorShade::_300)
-        );
-        assert_eq!(
-            TailwindColorShade::from_str("400"),
-            Some(TailwindColorShade::_400)
-        );
-        assert_eq!(
-            TailwindColorShade::from_str("500"),
-            Some(TailwindColorShade::_500)
-        );
-        assert_eq!(
-            TailwindColorShade::from_str("600"),
-            Some(TailwindColorShade::_600)
-        );
-        assert_eq!(
-            TailwindColorShade::from_str("700"),
-            Some(TailwindColorShade::_700)
-        );
-        assert_eq!(
-            TailwindColorShade::from_str("800"),
-            Some(TailwindColorShade::_800)
-        );
-        assert_eq!(
-            TailwindColorShade::from_str("900"),
-            Some(TailwindColorShade::_900)
-        );
-        assert_eq!(
-            TailwindColorShade::from_str("950"),
-            Some(TailwindColorShade::_950)
-        );
+        assert_eq!("50".parse(), Ok(TailwindColorShade::_50));
+        assert_eq!("100".parse(), Ok(TailwindColorShade::_100));
+        assert_eq!("200".parse(), Ok(TailwindColorShade::_200));
+        assert_eq!("300".parse(), Ok(TailwindColorShade::_300));
+        assert_eq!("400".parse(), Ok(TailwindColorShade::_400));
+        assert_eq!("500".parse(), Ok(TailwindColorShade::_500));
+        assert_eq!("600".parse(), Ok(TailwindColorShade::_600));
+        assert_eq!("700".parse(), Ok(TailwindColorShade::_700));
+        assert_eq!("800".parse(), Ok(TailwindColorShade::_800));
+        assert_eq!("900".parse(), Ok(TailwindColorShade::_900));
+        assert_eq!("950".parse(), Ok(TailwindColorShade::_950));
     }
 
     #[test]
-    fn from_str_returns_none_for_invalid_input() {
-        assert_eq!(TailwindColorShade::from_str("0"), None);
-        assert_eq!(TailwindColorShade::from_str("999"), None);
-        assert_eq!(TailwindColorShade::from_str(""), None);
-        assert_eq!(TailwindColorShade::from_str("abc"), None);
+    fn from_str_returns_err_for_invalid_input() {
+        assert_eq!("0".parse::<TailwindColorShade>(), Err(TailwindColorShadeInvalid));
+        assert_eq!("999".parse::<TailwindColorShade>(), Err(TailwindColorShadeInvalid));
+        assert_eq!("".parse::<TailwindColorShade>(), Err(TailwindColorShadeInvalid));
+        assert_eq!("abc".parse::<TailwindColorShade>(), Err(TailwindColorShadeInvalid));
     }
 
     #[test]
@@ -303,7 +284,7 @@ mod tests {
     fn from_str_roundtrips_with_as_str() {
         for shade in ALL_SHADES {
             let shade_str = shade.as_str();
-            assert_eq!(TailwindColorShade::from_str(shade_str), Some(shade));
+            assert_eq!(shade_str.parse(), Ok(shade));
         }
     }
 

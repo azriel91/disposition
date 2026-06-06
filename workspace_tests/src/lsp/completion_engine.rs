@@ -333,6 +333,75 @@ fn already_declared_struct_fields_filtered() {
     assert_eq!(vec!["things".to_string()], labels);
 }
 
+#[test]
+fn color_values_offered_for_shape_color() {
+    let text = "theme_default:\n  base_styles:\n    node_defaults:\n      shape_color: ";
+    let labels = labels(text, 3, 19);
+
+    for expected in ["slate", "blue", "emerald", "rose"] {
+        assert!(
+            labels.iter().any(|label| label == expected),
+            "expected color value `{expected}` in {labels:?}"
+        );
+    }
+}
+
+#[test]
+fn shade_values_offered_for_fill_shade_normal() {
+    let text = "theme_types_styles:\n  type_service:\n    node_defaults:\n      fill_shade_normal: ";
+    let labels = labels(text, 3, 25);
+
+    for expected in ["50", "300", "950"] {
+        assert!(
+            labels.iter().any(|label| label == expected),
+            "expected shade value `{expected}` in {labels:?}"
+        );
+    }
+}
+
+#[test]
+fn style_values_offered_for_stroke_style() {
+    let text = "theme_default:\n  style_aliases:\n    my_alias:\n      stroke_style: ";
+    let labels = labels(text, 3, 20);
+
+    assert_eq!(
+        vec![
+            "dashed".to_string(),
+            "dotted".to_string(),
+            "none".to_string(),
+            "solid".to_string(),
+        ],
+        sorted(labels)
+    );
+}
+
+#[test]
+fn visibility_values_offered_for_visibility() {
+    let text = "theme_default:\n  base_styles:\n    edge_defaults:\n      visibility: ";
+    let labels = labels(text, 3, 18);
+
+    assert_eq!(
+        vec![
+            "collapse".to_string(),
+            "invisible".to_string(),
+            "visible".to_string(),
+        ],
+        sorted(labels)
+    );
+}
+
+#[test]
+fn no_values_offered_for_numeric_theme_attr() {
+    // `stroke_width` is freeform numeric, so no value suggestions are offered.
+    let text = "theme_default:\n  base_styles:\n    node_defaults:\n      stroke_width: ";
+    let labels = labels(text, 3, 20);
+
+    assert!(
+        labels.is_empty(),
+        "expected no suggestions for numeric `stroke_width`, got {labels:?}"
+    );
+}
+
 fn sorted(mut labels: Vec<String>) -> Vec<String> {
     labels.sort();
     labels

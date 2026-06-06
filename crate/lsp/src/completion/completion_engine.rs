@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use async_lsp::lsp_types::{CompletionItem, CompletionItemKind};
+use disposition_input_model::theme::ThemeAttr;
 use serde_json::Value;
 
 use crate::completion::{
@@ -38,7 +39,7 @@ impl CompletionEngine {
                 text,
             ),
             CompletionTarget::Value { key } => {
-                Self::value_completions(schema, container, key, text)
+                Self::value_completions(schema, container, container_ref_name, key, text)
             }
         }
     }
@@ -146,9 +147,21 @@ impl CompletionEngine {
     fn value_completions(
         schema: &DiagramSchema,
         container: &Value,
+        container_ref_name: Option<&str>,
         key: &str,
         text: &str,
     ) -> Vec<CompletionItem> {
+        // `CssClassPartials` values keyed by a `ThemeAttr` are partial Tailwind
+        // values whose vocabulary (colors, shades, styles, ..) depends on the
+        // attribute and is not expressible in the JSON schema. The `key` may
+        // instead be the `style_aliases_applied` property, which falls through
+        // to the normal schema-driven completion below.
+        if container_ref_name == Some("CssClassPartials")
+            && let Some(items) = Self::theme_attr_value_completions(key)
+        {
+            return items;
+        }
+
         let Some(value_schema) = schema.field_schema(container, key) else {
             return Vec::new();
         };
@@ -186,6 +199,29 @@ impl CompletionEngine {
         }
 
         items
+    }
+
+    /// Offers the partial Tailwind values for a `CssClassPartials` value keyed
+    /// by `key`, if `key` is a `ThemeAttr`.
+    ///
+    /// Returns `None` when `key` is not a theme attribute (e.g. the
+    /// `style_aliases_applied` property), so the caller can fall back to the
+    /// schema-driven completion. A theme attribute with no enumerable values
+    /// (numeric / freeform, e.g. `padding`) yields `Some(<empty>)`.
+    fn theme_attr_value_completions(key: &str) -> Option<Vec<CompletionItem>> {
+        let theme_attr = serde_json::from_value::<ThemeAttr>(Value::String(key.to_string())).ok()?;
+
+        let items = theme_attr
+            .value_suggestions()
+            .iter()
+            .map(|value| CompletionItem {
+                label: (*value).to_string(),
+                kind: Some(CompletionItemKind::VALUE),
+                ..CompletionItem::default()
+            })
+            .collect();
+
+        Some(items)
     }
 }
 

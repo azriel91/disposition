@@ -1,4 +1,14 @@
+use disposition_model_common::theme::{TAILWIND_COLOR_NAMES, TAILWIND_COLOR_SHADES};
 use serde::{Deserialize, Serialize};
+
+/// Stroke / outline style keywords, e.g. `stroke_style: "dashed"`.
+const LINE_STYLE_VALUES: &[&str] = &["none", "solid", "dashed", "dotted"];
+
+/// Visibility keywords, e.g. `visibility: "invisible"`.
+const VISIBILITY_VALUES: &[&str] = &["visible", "invisible", "collapse"];
+
+/// Animation keywords, e.g. `animate: "pulse"`.
+const ANIMATE_VALUES: &[&str] = &["none", "spin", "ping", "pulse", "bounce"];
 
 /// Themeable attributes of nodes and edges.
 ///
@@ -570,4 +580,98 @@ pub enum ThemeAttr {
     ///
     /// [`visibility`]: https://tailwindcss.com/docs/visibility
     Visibility,
+}
+
+impl ThemeAttr {
+    /// Returns the suggested partial values for this attribute, for editor
+    /// completion.
+    ///
+    /// Color attributes suggest Tailwind color names (e.g. `"slate"`), shade
+    /// attributes suggest shade values (e.g. `"300"`), and the keyword-valued
+    /// attributes suggest their fixed keywords. Numeric / freeform attributes
+    /// (padding, width, radius, opacity, ..) have no enumerable values, so this
+    /// returns an empty slice.
+    pub fn value_suggestions(self) -> &'static [&'static str] {
+        match self {
+            // === Colors === //
+            ThemeAttr::FillColor
+            | ThemeAttr::FillColorNormal
+            | ThemeAttr::FillColorFocus
+            | ThemeAttr::FillColorHover
+            | ThemeAttr::FillColorActive
+            | ThemeAttr::OutlineColor
+            | ThemeAttr::OutlineColorNormal
+            | ThemeAttr::OutlineColorFocus
+            | ThemeAttr::OutlineColorHover
+            | ThemeAttr::OutlineColorActive
+            | ThemeAttr::ShapeColor
+            | ThemeAttr::StrokeColor
+            | ThemeAttr::StrokeColorNormal
+            | ThemeAttr::StrokeColorFocus
+            | ThemeAttr::StrokeColorHover
+            | ThemeAttr::StrokeColorActive
+            | ThemeAttr::TextColor => TAILWIND_COLOR_NAMES,
+
+            // === Shades === //
+            ThemeAttr::FillShade
+            | ThemeAttr::FillShadeNormal
+            | ThemeAttr::FillShadeFocus
+            | ThemeAttr::FillShadeHover
+            | ThemeAttr::FillShadeActive
+            | ThemeAttr::OutlineShade
+            | ThemeAttr::OutlineShadeNormal
+            | ThemeAttr::OutlineShadeFocus
+            | ThemeAttr::OutlineShadeHover
+            | ThemeAttr::OutlineShadeActive
+            | ThemeAttr::StrokeShade
+            | ThemeAttr::StrokeShadeNormal
+            | ThemeAttr::StrokeShadeFocus
+            | ThemeAttr::StrokeShadeHover
+            | ThemeAttr::StrokeShadeActive
+            | ThemeAttr::TextShade => TAILWIND_COLOR_SHADES,
+
+            // === Line styles === //
+            ThemeAttr::OutlineStyle
+            | ThemeAttr::OutlineStyleNormal
+            | ThemeAttr::OutlineStyleFocus
+            | ThemeAttr::OutlineStyleHover
+            | ThemeAttr::OutlineStyleActive
+            | ThemeAttr::StrokeStyle
+            | ThemeAttr::StrokeStyleNormal
+            | ThemeAttr::StrokeStyleFocus
+            | ThemeAttr::StrokeStyleHover
+            | ThemeAttr::StrokeStyleActive => LINE_STYLE_VALUES,
+
+            // === Keyword attributes === //
+            ThemeAttr::Visibility => VISIBILITY_VALUES,
+            ThemeAttr::Animate => ANIMATE_VALUES,
+
+            // === Numeric / freeform (no enumerable values) === //
+            ThemeAttr::Cursor
+            | ThemeAttr::CircleRadius
+            | ThemeAttr::Extra
+            | ThemeAttr::Gap
+            | ThemeAttr::Padding
+            | ThemeAttr::PaddingX
+            | ThemeAttr::PaddingY
+            | ThemeAttr::PaddingLeft
+            | ThemeAttr::PaddingRight
+            | ThemeAttr::PaddingTop
+            | ThemeAttr::PaddingBottom
+            | ThemeAttr::Margin
+            | ThemeAttr::MarginX
+            | ThemeAttr::MarginY
+            | ThemeAttr::MarginLeft
+            | ThemeAttr::MarginRight
+            | ThemeAttr::MarginTop
+            | ThemeAttr::MarginBottom
+            | ThemeAttr::Opacity
+            | ThemeAttr::OutlineWidth
+            | ThemeAttr::RadiusTopLeft
+            | ThemeAttr::RadiusTopRight
+            | ThemeAttr::RadiusBottomLeft
+            | ThemeAttr::RadiusBottomRight
+            | ThemeAttr::StrokeWidth => &[],
+        }
+    }
 }

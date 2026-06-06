@@ -39,8 +39,8 @@ mod css_theme_vars;
 mod node_nesting_infos_builder;
 mod tailwind_class_state;
 mod tailwind_classes_builder;
-mod tailwind_color_shade;
-mod tailwind_colors;
+pub(crate) mod tailwind_color_shade;
+pub(crate) mod tailwind_colors;
 mod theme_attr_resolver;
 
 /// Maps an input diagram to an intermediate representation diagram.

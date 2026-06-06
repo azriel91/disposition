@@ -108,7 +108,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         shade_focus: Option<&str>,
         shade_active: Option<&str>,
     ) -> &'a str {
-        let Some(shade_parsed) = TailwindColorShade::from_str(shade) else {
+        let Ok(shade_parsed) = shade.parse::<TailwindColorShade>() else {
             return shade;
         };
 
@@ -142,7 +142,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         shade_focus: Option<&str>,
         shade_active: Option<&str>,
     ) -> bool {
-        let normal = shade_normal.and_then(TailwindColorShade::from_str);
+        let normal = shade_normal.and_then(|shade| shade.parse::<TailwindColorShade>().ok());
 
         match normal {
             Some(n) if n < TailwindColorShade::_500 => true,
@@ -160,7 +160,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                     .into_iter()
                     .flatten()
                 {
-                    if let Some(s) = TailwindColorShade::from_str(shade_str) {
+                    if let Ok(s) = shade_str.parse::<TailwindColorShade>() {
                         let idx = s.index();
                         if idx < mid {
                             light_count += 1;
