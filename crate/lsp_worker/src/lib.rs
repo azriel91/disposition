@@ -1,8 +1,8 @@
 //! Web Worker host for the `disposition` LSP server.
 //!
 //! Compiled to wasm and run inside a dedicated Web Worker (see the
-//! `app/playground/assets/lsp_worker/worker_entry.js` entry point), this drives a
-//! real [`async_lsp::MainLoop`] off the main thread. Messages arrive from the
+//! `app/playground/assets/lsp_worker/worker_entry.js` entry point), this drives
+//! a real [`async_lsp::MainLoop`] off the main thread. Messages arrive from the
 //! page via `postMessage`, are framed and fed into the loop, and the loop's
 //! framed output is unframed and posted back.
 //!

@@ -1,7 +1,7 @@
 //! Categories of document-defined IDs, mapped from schema `$ref` names.
 
-/// A category of ID that a value position may reference, derived from the schema
-/// type of the value (its `$ref` name).
+/// A category of ID that a value position may reference, derived from the
+/// schema type of the value (its `$ref` name).
 ///
 /// For example, an `EdgeGroup`'s `things` array has items `{ "$ref":
 /// "#/$defs/ThingId" }`, so completing one of its values should offer the

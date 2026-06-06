@@ -21,7 +21,8 @@ pub struct DynamicCompletions {
     tag_ids: BTreeSet<String>,
     /// `ProcessStepId`s declared under any process's `steps`.
     step_ids: BTreeSet<String>,
-    /// `EdgeGroupId`s declared under `thing_dependencies` / `thing_interactions`.
+    /// `EdgeGroupId`s declared under `thing_dependencies` /
+    /// `thing_interactions`.
     edge_group_ids: BTreeSet<String>,
 }
 
@@ -70,9 +71,9 @@ impl DynamicCompletions {
 
 /// Collects the map keys declared inside every `name:` block in `lines`.
 ///
-/// `top_level_only`: only match `name:` blocks at indent 0 (so a nested key that
-/// happens to share the name is ignored). `first_level_only`: collect only the
-/// block's direct children (the shallowest child indent) rather than every
+/// `top_level_only`: only match `name:` blocks at indent 0 (so a nested key
+/// that happens to share the name is ignored). `first_level_only`: collect only
+/// the block's direct children (the shallowest child indent) rather than every
 /// nested key.
 fn collect_block_keys(
     lines: &[&str],

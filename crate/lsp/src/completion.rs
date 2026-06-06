@@ -4,10 +4,10 @@
 //!
 //! 1. [`CursorContext`] -- where the cursor is (the map-key path, and whether a
 //!    key or value is being typed), resolved from line indentation.
-//! 2. [`DiagramSchema`] -- the committed `InputDiagram` JSON schema, walked along
-//!    the cursor path to find the valid keys / enum values.
-//! 3. [`DynamicCompletions`] -- IDs already defined in the document, offered when
-//!    a value position references an ID type.
+//! 2. [`DiagramSchema`] -- the committed `InputDiagram` JSON schema, walked
+//!    along the cursor path to find the valid keys / enum values.
+//! 3. [`DynamicCompletions`] -- IDs already defined in the document, offered
+//!    when a value position references an ID type.
 //!
 //! [`CompletionEngine`]: completion_engine::CompletionEngine
 //! [`CursorContext`]: cursor_context::CursorContext

@@ -15,8 +15,8 @@ use dioxus_codemirror::{LspMessage, LspPusher, LspServerAsync};
 use disposition_lsp::transport::{byte_pipe, frame, read_message, PipeReader, PipeWriter};
 use futures::io::BufReader;
 
-/// Hosts the `disposition_lsp` language server in the page and bridges it to the
-/// editor's LSP client.
+/// Hosts the `disposition_lsp` language server in the page and bridges it to
+/// the editor's LSP client.
 #[derive(Default)]
 pub struct DispositionLspServer {
     /// Write half feeding framed editor -> server messages into the `MainLoop`.

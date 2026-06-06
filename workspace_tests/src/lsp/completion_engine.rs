@@ -94,7 +94,10 @@ fn edge_group_struct_keys() {
     let text = "thing_dependencies:\n  edge_a:\n    ";
     let labels = labels(text, 2, 4);
 
-    assert_eq!(vec!["kind".to_string(), "things".to_string()], sorted(labels));
+    assert_eq!(
+        vec!["kind".to_string(), "things".to_string()],
+        sorted(labels)
+    );
 }
 
 #[test]

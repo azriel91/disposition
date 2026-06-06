@@ -58,8 +58,8 @@ fn build_worker() {
     );
 
     // 2. Generate the JS + wasm bundle the worker entry imports (ES module for
-    //    `--target web`, no TypeScript). Run via the library so the bindgen
-    //    version always matches the worker crate's `wasm-bindgen`.
+    //    `--target web`, no TypeScript). Run via the library so the bindgen version
+    //    always matches the worker crate's `wasm-bindgen`.
     Bindgen::new()
         .input_path(&worker_wasm)
         .web(true)
@@ -74,7 +74,8 @@ fn build_worker() {
     println!("Built LSP worker bundle into {}", out_dir.display());
 }
 
-/// The workspace root, derived from this crate's manifest directory (`<root>/xtask`).
+/// The workspace root, derived from this crate's manifest directory
+/// (`<root>/xtask`).
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()

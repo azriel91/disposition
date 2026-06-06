@@ -1,7 +1,7 @@
 //! Web Worker LSP server host for the `InputDiagram` YAML editor.
 //!
-//! Implements [`LspServerAsync`] by spawning a dedicated Web Worker that runs the
-//! `disposition_lsp` [`async_lsp::MainLoop`] off the main thread (see
+//! Implements [`LspServerAsync`] by spawning a dedicated Web Worker that runs
+//! the `disposition_lsp` [`async_lsp::MainLoop`] off the main thread (see
 //! `disposition_lsp_worker`). Editor messages are forwarded to the worker with
 //! `postMessage`; messages the worker posts back are pushed to the editor's LSP
 //! client.
@@ -26,8 +26,8 @@ use web_sys::{MessageEvent, Worker, WorkerOptions, WorkerType};
 /// wasm-bindgen output built by `cargo run -p xtask -- build-worker`.
 const LSP_WORKER_DIR: Asset = asset!("/assets/lsp_worker", AssetOptions::folder());
 
-/// Hosts the `disposition_lsp` language server in a Web Worker and bridges it to
-/// the editor's LSP client.
+/// Hosts the `disposition_lsp` language server in a Web Worker and bridges it
+/// to the editor's LSP client.
 #[derive(Default)]
 pub struct DispositionLspServer {
     /// The spawned worker and its message plumbing. `Some` once

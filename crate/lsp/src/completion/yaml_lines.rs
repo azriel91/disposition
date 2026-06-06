@@ -1,8 +1,8 @@
 //! Indentation-aware helpers for scanning YAML line-by-line.
 //!
 //! These power both the cursor resolver and the dynamic-ID collector, which
-//! reason about the (often mid-edit, invalid) buffer structurally rather than by
-//! parsing it.
+//! reason about the (often mid-edit, invalid) buffer structurally rather than
+//! by parsing it.
 
 /// Number of leading space characters of `line`.
 pub fn indent(line: &str) -> usize {

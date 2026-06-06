@@ -5,7 +5,8 @@ use serde_json::Value;
 
 use crate::completion::{
     completion_target::CompletionTarget, cursor_context::CursorContext,
-    diagram_schema::DiagramSchema, dynamic_completions::DynamicCompletions, id_category::IdCategory,
+    diagram_schema::DiagramSchema, dynamic_completions::DynamicCompletions,
+    id_category::IdCategory,
 };
 
 /// Produces YAML key / value completions for an `InputDiagram` buffer.
@@ -52,14 +53,17 @@ impl CompletionEngine {
         // Keys constrained to an enum, e.g. a `Map<ThemeAttr, _>`'s theme
         // attribute keys.
         if let Some(property_names) = container.get("propertyNames") {
-            items.extend(schema.enum_entries(property_names).into_iter().map(|entry| {
-                CompletionItem {
-                    label: entry.value.to_string(),
-                    kind: Some(CompletionItemKind::FIELD),
-                    detail: entry.description.map(first_line),
-                    ..CompletionItem::default()
-                }
-            }));
+            items.extend(
+                schema
+                    .enum_entries(property_names)
+                    .into_iter()
+                    .map(|entry| CompletionItem {
+                        label: entry.value.to_string(),
+                        kind: Some(CompletionItemKind::FIELD),
+                        detail: entry.description.map(first_line),
+                        ..CompletionItem::default()
+                    }),
+            );
         }
 
         items
@@ -95,8 +99,8 @@ impl CompletionEngine {
         );
 
         // Document-defined IDs, when the value references an ID type.
-        if let Some(category) = DiagramSchema::ref_name(element_schema)
-            .and_then(IdCategory::from_ref_name)
+        if let Some(category) =
+            DiagramSchema::ref_name(element_schema).and_then(IdCategory::from_ref_name)
         {
             let dynamic_completions = DynamicCompletions::from_text(text);
             items.extend(dynamic_completions.ids_for(category).into_iter().map(|id| {

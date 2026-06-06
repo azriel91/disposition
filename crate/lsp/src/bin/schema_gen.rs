@@ -14,7 +14,8 @@
 //!
 //! It must be run *without* the `test` feature, and depends only on
 //! `disposition_input_model` (not the `disposition` umbrella crate, which pulls
-//! in `disposition_input_rt` -- that crate does not compile against `IndexMap`).
+//! in `disposition_input_rt` -- that crate does not compile against
+//! `IndexMap`).
 
 fn main() {
     #[cfg(all(feature = "schema-gen", not(feature = "test")))]
@@ -99,8 +100,8 @@ fn theme_attr_inject(schema: &mut schemars::Schema) {
 /// it actually deserializes from.
 ///
 /// This rewrites each `oneOf` variant's `const` to snake_case, and replaces the
-/// `Custom` object with a freeform string -- keeping the descriptions the derive
-/// extracts from the doc comments.
+/// `Custom` object with a freeform string -- keeping the descriptions the
+/// derive extracts from the doc comments.
 #[cfg(all(feature = "schema-gen", not(feature = "test")))]
 fn style_alias_casing_fix(schema: &mut schemars::Schema) {
     let style_alias_one_of = schema
@@ -118,7 +119,10 @@ fn style_alias_casing_fix(schema: &mut schemars::Schema) {
             continue;
         };
 
-        match variant_object.get("const").and_then(serde_json::Value::as_str) {
+        match variant_object
+            .get("const")
+            .and_then(serde_json::Value::as_str)
+        {
             Some(pascal_case) => {
                 let snake_case = pascal_case_to_snake_case(pascal_case);
                 variant_object.insert("const".to_string(), serde_json::Value::String(snake_case));
@@ -126,9 +130,12 @@ fn style_alias_casing_fix(schema: &mut schemars::Schema) {
             None => {
                 // The `Custom(Id)` variant deserializes from any (non-well-known)
                 // string, not the externally-tagged object the derive emits.
-                let description = variant_object.get("description").cloned().unwrap_or_else(|| {
-                    serde_json::Value::String("Custom user-defined style alias.".to_string())
-                });
+                let description = variant_object
+                    .get("description")
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        serde_json::Value::String("Custom user-defined style alias.".to_string())
+                    });
                 variant_object.clear();
                 variant_object.insert(
                     "type".to_string(),
@@ -142,9 +149,9 @@ fn style_alias_casing_fix(schema: &mut schemars::Schema) {
 
 /// Converts a PascalCase identifier to snake_case.
 ///
-/// A `_` is inserted before each uppercase letter (except the first), and before
-/// a digit that follows a letter -- so `CircleXs` becomes `circle_xs` and
-/// `Rounded2xl` becomes `rounded_2xl`, matching `StyleAlias::as_str`.
+/// A `_` is inserted before each uppercase letter (except the first), and
+/// before a digit that follows a letter -- so `CircleXs` becomes `circle_xs`
+/// and `Rounded2xl` becomes `rounded_2xl`, matching `StyleAlias::as_str`.
 #[cfg(all(feature = "schema-gen", not(feature = "test")))]
 fn pascal_case_to_snake_case(pascal_case: &str) -> String {
     let mut snake_case = String::with_capacity(pascal_case.len() + 4);

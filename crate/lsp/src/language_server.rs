@@ -16,8 +16,8 @@ use crate::completion::CompletionEngine;
 
 /// Language server providing completion for `InputDiagram` YAML.
 ///
-/// Documents are tracked with full-text synchronization: the latest text of each
-/// open document is stored and used to compute completions on demand.
+/// Documents are tracked with full-text synchronization: the latest text of
+/// each open document is stored and used to compute completions on demand.
 pub struct DispositionLanguageServer {
     /// Socket back to the client. Held for future server-initiated messages
     /// (e.g. `textDocument/publishDiagnostics`).

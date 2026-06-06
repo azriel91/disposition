@@ -19,8 +19,8 @@ use futures::{
     StreamExt,
 };
 
-/// Sentinel message a Web Worker host posts to the main thread once its wasm has
-/// initialized and is ready to receive LSP messages.
+/// Sentinel message a Web Worker host posts to the main thread once its wasm
+/// has initialized and is ready to receive LSP messages.
 ///
 /// The main thread queues outgoing messages until it sees this, then flushes
 /// them -- the editor's first `initialize` request is typically sent before the

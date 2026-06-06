@@ -1,4 +1,6 @@
-use disposition_lsp::completion::{dynamic_completions::DynamicCompletions, id_category::IdCategory};
+use disposition_lsp::completion::{
+    dynamic_completions::DynamicCompletions, id_category::IdCategory,
+};
 
 #[test]
 fn collects_thing_ids_from_things_and_hierarchy() {
@@ -53,5 +55,8 @@ fn edge_group_first_level_keys_exclude_nested_kind_and_things() {
     let dynamic_completions = DynamicCompletions::from_text(text);
 
     // Only the edge group ID, not the nested `kind` / `things` keys.
-    assert_eq!(vec!["edge_a"], dynamic_completions.ids_for(IdCategory::EdgeGroup));
+    assert_eq!(
+        vec!["edge_a"],
+        dynamic_completions.ids_for(IdCategory::EdgeGroup)
+    );
 }

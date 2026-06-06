@@ -15,10 +15,7 @@ pub mod completion;
 pub mod language_server;
 pub mod transport;
 
-use async_lsp::{
-    server::LifecycleLayer,
-    MainLoop,
-};
+use async_lsp::{server::LifecycleLayer, MainLoop};
 use futures::io::{AsyncRead, AsyncWrite};
 use tower_layer::Layer;
 
@@ -28,18 +25,17 @@ pub use crate::language_server::DispositionLanguageServer;
 /// streams until the client disconnects.
 ///
 /// `input` / `output` carry `Content-Length`-framed LSP messages (the standard
-/// LSP wire format). The host adapts the editor's per-message transport to these
-/// streams. Returns when the client sends `exit` or a stream closes.
+/// LSP wire format). The host adapts the editor's per-message transport to
+/// these streams. Returns when the client sends `exit` or a stream closes.
 pub async fn server_run<I, O>(input: I, output: O) -> async_lsp::Result<()>
 where
     I: AsyncRead,
     O: AsyncWrite,
 {
     let (main_loop, _client) = MainLoop::new_server(|client| {
-        LifecycleLayer::default()
-            .layer(async_lsp::router::Router::from_language_server(
-                DispositionLanguageServer::new(client),
-            ))
+        LifecycleLayer::default().layer(async_lsp::router::Router::from_language_server(
+            DispositionLanguageServer::new(client),
+        ))
     });
 
     main_loop.run_buffered(input, output).await
