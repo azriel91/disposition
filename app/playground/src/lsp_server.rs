@@ -6,15 +6,15 @@
 //! feature:
 //!
 //! * **default** -- runs the loop in-page on the main thread
-//!   ([`disposition_lsp_server`]).
+//!   (`crate::lsp_server::disposition_lsp_server::DispositionLspServer`).
 //! * **`lsp-worker`** -- runs the loop in a dedicated Web Worker
-//!   ([`disposition_lsp_server_worker`]), keeping it off the main thread.
+//!   (`crate::lsp_server::disposition_lsp_server_worker::DispositionLspServer`),
+//!   keeping it off the main thread.
 //!
 //! Both expose a `DispositionLspServer` with the same `new()` constructor, so
 //! the editor wiring is identical either way.
 //!
-//! [`disposition_lsp_server`]: crate::lsp_server::disposition_lsp_server
-//! [`disposition_lsp_server_worker`]: crate::lsp_server::disposition_lsp_server_worker
+//! [`async_lsp::MainLoop`]: https://docs.rs/async-lsp/latest/async_lsp/struct.MainLoop.html
 
 #[cfg(not(feature = "lsp-worker"))]
 pub mod disposition_lsp_server;

@@ -6,6 +6,8 @@
 //! [`byte_pipe`] connects the two halves, and [`frame`] / [`read_message`]
 //! translate between framed bytes and individual JSON messages. This is shared
 //! by every host -- the in-page server, the Web Worker server, and tests.
+//!
+//! [`AsyncWrite`]: futures::io::AsyncWrite
 
 use std::{
     io,
