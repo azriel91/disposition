@@ -47,6 +47,18 @@ mod theme_attr_resolver;
 #[derive(Clone, Copy, Debug)]
 pub struct InputToIrDiagramMapper;
 
+/// Immutable theme lookup context threaded through the node-layout builders.
+///
+/// Bundles the three theme sources that every `ThemeAttrResolver` call needs,
+/// so the layout builders take a single `Copy` context instead of repeating the
+/// same trio of parameters.
+#[derive(Clone, Copy)]
+struct ThemeResolveCtx<'a, 'id> {
+    entity_types: &'a EntityTypes<'id>,
+    theme_default: &'a ThemeDefault<'id>,
+    theme_types_styles: &'a ThemeTypesStyles<'id>,
+}
+
 impl InputToIrDiagramMapper {
     /// Maps an input diagram to an intermediate representation diagram.
     pub fn map<'f, 'id>(input_diagram: &'f InputDiagram<'id>) -> IrDiagramAndIssues<'id>
@@ -124,12 +136,15 @@ impl InputToIrDiagramMapper {
             RankDir::TopToBottom => FlexDirection::Row,
             RankDir::BottomToTop => FlexDirection::RowReverse,
         };
+        let theme_resolve_ctx = ThemeResolveCtx {
+            entity_types: &ir_entity_types,
+            theme_default,
+            theme_types_styles,
+        };
         let node_layouts = Self::build_node_layouts(
             &node_hierarchy,
             flex_direction_default,
-            &ir_entity_types,
-            theme_default,
-            theme_types_styles,
+            theme_resolve_ctx,
             tags,
             processes,
             thing_layouts,
@@ -185,14 +200,15 @@ impl InputToIrDiagramMapper {
                 theme_types_styles,
                 &mut css_theme_vars,
             );
-            for process_step_graph in process_step_graphs.values() {
-                for process_step_graph_edge in &process_step_graph.edges {
+            process_step_graphs
+                .values()
+                .flat_map(|process_step_graph| &process_step_graph.edges)
+                .for_each(|process_step_graph_edge| {
                     tailwind_classes.insert(
                         process_step_graph_edge.edge_id().into_inner(),
                         connector_classes.clone(),
                     );
-                }
-            }
+                });
         }
 
         // 15. Compute NodeNestingInfos from node_hierarchy
@@ -888,9 +904,7 @@ impl InputToIrDiagramMapper {
     fn build_node_layouts<'id>(
         node_hierarchy: &NodeHierarchy<'id>,
         flex_direction_default: FlexDirection,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
+        theme_ctx: ThemeResolveCtx<'_, 'id>,
         tags: &TagNames<'id>,
         processes: &Processes<'id>,
         thing_layouts: &ThingLayouts<'id>,
@@ -903,148 +917,58 @@ impl InputToIrDiagramMapper {
         // Helper to determine if a node is a process
         let is_process = |node_id: &NodeId<'id>| processes.contains_key(node_id);
 
-        // 1. Add _root container layout
-        let root_id = NodeInbuilt::Root.id();
-        let root_layout = Self::build_container_layout(
-            &root_id,
-            thing_layouts
-                .get(&root_id)
-                .copied()
-                .unwrap_or(FlexDirection::ColumnReverse),
-            false,
-            entity_types,
-            theme_default,
-            theme_types_styles,
+        // 1-3. Inbuilt top-level containers.
+        Self::inbuilt_container_layout_insert(
+            &mut node_layouts,
+            NodeInbuilt::Root,
+            FlexDirection::ColumnReverse,
+            thing_layouts,
+            theme_ctx,
         );
-        node_layouts.insert(NodeId::from(root_id), root_layout);
-
-        // 2. Add _things_and_processes_container layout
-        let things_and_processes_id = NodeInbuilt::ThingsAndProcessesContainer.id();
-        let things_and_processes_layout = Self::build_container_layout(
-            &things_and_processes_id,
-            thing_layouts
-                .get(&things_and_processes_id)
-                .copied()
-                .unwrap_or(FlexDirection::RowReverse),
-            false,
-            entity_types,
-            theme_default,
-            theme_types_styles,
+        Self::inbuilt_container_layout_insert(
+            &mut node_layouts,
+            NodeInbuilt::ThingsAndProcessesContainer,
+            FlexDirection::RowReverse,
+            thing_layouts,
+            theme_ctx,
         );
-        node_layouts.insert(
-            NodeId::from(things_and_processes_id),
-            things_and_processes_layout,
+        Self::inbuilt_container_layout_insert(
+            &mut node_layouts,
+            NodeInbuilt::ProcessesContainer,
+            FlexDirection::Column,
+            thing_layouts,
+            theme_ctx,
         );
 
-        // 3. Add _processes_container layout
-        let processes_container_id = NodeInbuilt::ProcessesContainer.id();
-        let processes_container_layout = Self::build_container_layout(
-            &processes_container_id,
-            thing_layouts
-                .get(&processes_container_id)
-                .copied()
-                .unwrap_or(FlexDirection::Column),
-            false,
-            entity_types,
-            theme_default,
-            theme_types_styles,
-        );
-        node_layouts.insert(
-            NodeId::from(processes_container_id),
-            processes_container_layout,
+        // 4. Build layouts for all processes and their steps.
+        node_layouts.extend(Self::process_node_layouts_build(processes, theme_ctx));
+
+        // 5. Tags container.
+        Self::inbuilt_container_layout_insert(
+            &mut node_layouts,
+            NodeInbuilt::TagsContainer,
+            FlexDirection::Row,
+            thing_layouts,
+            theme_ctx,
         );
 
-        // 4. Build layouts for all processes
-        let process_layouts = processes.iter().flat_map(|(process_id, process_diagram)| {
-            let process_node_id = NodeId::from(process_id.as_ref().clone());
+        // 6. Tags are always leaves.
+        node_layouts.extend(Self::tag_node_layouts_build(tags, theme_ctx));
 
-            // Processes with steps get flex layout (column direction)
-            let process_layout = if !process_diagram.steps.is_empty() {
-                Self::build_node_flex_layout(
-                    process_node_id.clone().into_inner(),
-                    FlexDirection::Column,
-                    false,
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                )
-            } else {
-                Self::build_node_leaf_layout(
-                    process_node_id.clone().into_inner(),
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                )
-            };
-
-            // Process steps are always leaves (no children)
-            let step_layouts = process_diagram.steps.keys().map(|step_id| {
-                let step_node_id = NodeId::from(step_id.as_ref().clone());
-                let step_node_layout = Self::build_node_leaf_layout(
-                    step_id.clone().into_inner(),
-                    entity_types,
-                    theme_default,
-                    theme_types_styles,
-                );
-                (step_node_id, step_node_layout)
-            });
-
-            std::iter::once((process_node_id, process_layout)).chain(step_layouts)
-        });
-
-        node_layouts.extend(process_layouts);
-
-        // 5. Add _tags_container layout
-        let tags_container_id = NodeInbuilt::TagsContainer.id();
-        let tags_container_layout = Self::build_container_layout(
-            &tags_container_id,
-            thing_layouts
-                .get(&tags_container_id)
-                .copied()
-                .unwrap_or(FlexDirection::Row),
-            false,
-            entity_types,
-            theme_default,
-            theme_types_styles,
+        // 7. Things container.
+        Self::inbuilt_container_layout_insert(
+            &mut node_layouts,
+            NodeInbuilt::ThingsContainer,
+            flex_direction_default,
+            thing_layouts,
+            theme_ctx,
         );
-        node_layouts.insert(NodeId::from(tags_container_id), tags_container_layout);
 
-        // 6. Tags are always leaves
-        let tag_layouts = tags.keys().map(|tag_id| {
-            let tag_node_id = NodeId::from(tag_id.as_ref().clone());
-            let tag_node_layout = Self::build_node_leaf_layout(
-                tag_id.clone().into_inner(),
-                entity_types,
-                theme_default,
-                theme_types_styles,
-            );
-            (tag_node_id, tag_node_layout)
-        });
-
-        node_layouts.extend(tag_layouts);
-
-        // 7. Add _things_container layout
-        let things_container_id = NodeInbuilt::ThingsContainer.id();
-        let things_container_layout = Self::build_container_layout(
-            &things_container_id,
-            thing_layouts
-                .get(&things_container_id)
-                .copied()
-                .unwrap_or(flex_direction_default),
-            false,
-            entity_types,
-            theme_default,
-            theme_types_styles,
-        );
-        node_layouts.insert(NodeId::from(things_container_id), things_container_layout);
-
-        // 8. Build layouts for all things in hierarchy
+        // 8. Build layouts for all things in hierarchy.
         Self::build_thing_layouts(
             node_hierarchy,
             flex_direction_default,
-            entity_types,
-            theme_default,
-            theme_types_styles,
+            theme_ctx,
             &mut node_layouts,
             &is_tag,
             &is_process,
@@ -1054,15 +978,91 @@ impl InputToIrDiagramMapper {
         node_layouts
     }
 
+    /// Builds and inserts the flex layout for an inbuilt container node.
+    ///
+    /// The container's flex direction comes from `thing_layouts` if the user
+    /// specified one, otherwise `direction_default`.
+    fn inbuilt_container_layout_insert<'id>(
+        node_layouts: &mut NodeLayouts<'id>,
+        inbuilt: NodeInbuilt,
+        direction_default: FlexDirection,
+        thing_layouts: &ThingLayouts<'id>,
+        theme_ctx: ThemeResolveCtx<'_, 'id>,
+    ) {
+        let container_id = inbuilt.id();
+        let direction = thing_layouts
+            .get(&container_id)
+            .copied()
+            .unwrap_or(direction_default);
+        let layout = Self::build_container_layout(&container_id, direction, false, theme_ctx);
+        node_layouts.insert(NodeId::from(container_id), layout);
+    }
+
+    /// Builds the layouts for every process node and its step nodes.
+    ///
+    /// Processes with steps get a flex (column) layout; step nodes are always
+    /// leaves.
+    fn process_node_layouts_build<'id>(
+        processes: &Processes<'id>,
+        theme_ctx: ThemeResolveCtx<'_, 'id>,
+    ) -> Vec<(NodeId<'id>, NodeLayout)> {
+        processes
+            .iter()
+            .flat_map(|(process_id, process_diagram)| {
+                let process_node_id = NodeId::from(process_id.as_ref().clone());
+
+                // Processes with steps get flex layout (column direction)
+                let process_layout = if !process_diagram.steps.is_empty() {
+                    Self::build_node_flex_layout(
+                        process_node_id.clone().into_inner(),
+                        FlexDirection::Column,
+                        false,
+                        theme_ctx,
+                    )
+                } else {
+                    Self::build_node_leaf_layout(process_node_id.clone().into_inner(), theme_ctx)
+                };
+
+                // Process steps are always leaves (no children)
+                let step_layouts = process_diagram.steps.keys().map(move |step_id| {
+                    let step_node_id = NodeId::from(step_id.as_ref().clone());
+                    let step_node_layout =
+                        Self::build_node_leaf_layout(step_id.clone().into_inner(), theme_ctx);
+                    (step_node_id, step_node_layout)
+                });
+
+                std::iter::once((process_node_id, process_layout)).chain(step_layouts)
+            })
+            .collect()
+    }
+
+    /// Builds the leaf layouts for every tag node.
+    fn tag_node_layouts_build<'id>(
+        tags: &TagNames<'id>,
+        theme_ctx: ThemeResolveCtx<'_, 'id>,
+    ) -> Vec<(NodeId<'id>, NodeLayout)> {
+        tags.keys()
+            .map(|tag_id| {
+                let tag_node_id = NodeId::from(tag_id.as_ref().clone());
+                let tag_node_layout =
+                    Self::build_node_leaf_layout(tag_id.clone().into_inner(), theme_ctx);
+                (tag_node_id, tag_node_layout)
+            })
+            .collect()
+    }
+
     /// Build a container layout with specified direction.
     fn build_container_layout<'id>(
         container_id: &Id<'id>,
         direction: FlexDirection,
         wrap: bool,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
+        theme_ctx: ThemeResolveCtx<'_, 'id>,
     ) -> NodeLayout {
+        let ThemeResolveCtx {
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        } = theme_ctx;
         let (padding_top, padding_right, padding_bottom, padding_left) =
             ThemeAttrResolver::resolve_padding(
                 Some(container_id),
@@ -1104,10 +1104,13 @@ impl InputToIrDiagramMapper {
         id: Id<'id>,
         direction: FlexDirection,
         wrap: bool,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
+        theme_ctx: ThemeResolveCtx<'_, 'id>,
     ) -> NodeLayout {
+        let ThemeResolveCtx {
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        } = theme_ctx;
         let (padding_top, padding_right, padding_bottom, padding_left) =
             ThemeAttrResolver::resolve_padding(
                 Some(&id),
@@ -1145,12 +1148,12 @@ impl InputToIrDiagramMapper {
     }
 
     /// Build a leaf layout for a specific node.
-    fn build_node_leaf_layout<'id>(
-        id: Id<'id>,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
-    ) -> NodeLayout {
+    fn build_node_leaf_layout<'id>(id: Id<'id>, theme_ctx: ThemeResolveCtx<'_, 'id>) -> NodeLayout {
+        let ThemeResolveCtx {
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        } = theme_ctx;
         let (padding_top, padding_right, padding_bottom, padding_left) =
             ThemeAttrResolver::resolve_padding(
                 Some(&id),
@@ -1179,13 +1182,10 @@ impl InputToIrDiagramMapper {
     }
 
     /// Recursively build layouts for things in the hierarchy.
-    #[allow(clippy::too_many_arguments)] // we may reduce this during refactoring
     fn build_thing_layouts<'id, F, G>(
         hierarchy: &NodeHierarchy<'id>,
         flex_direction_default: FlexDirection,
-        entity_types: &EntityTypes<'id>,
-        theme_default: &ThemeDefault<'id>,
-        theme_types_styles: &ThemeTypesStyles<'id>,
+        theme_ctx: ThemeResolveCtx<'_, 'id>,
         node_layouts: &mut NodeLayouts<'id>,
         is_tag: &F,
         is_process: &G,
@@ -1201,12 +1201,7 @@ impl InputToIrDiagramMapper {
             .flat_map(|(node_id, children)| {
                 let layout = if children.is_empty() {
                     // Leaf node
-                    Self::build_node_leaf_layout(
-                        node_id.clone().into_inner(),
-                        entity_types,
-                        theme_default,
-                        theme_types_styles,
-                    )
+                    Self::build_node_leaf_layout(node_id.clone().into_inner(), theme_ctx)
                 } else {
                     // Container node -- use flex layout.
                     //
@@ -1223,9 +1218,7 @@ impl InputToIrDiagramMapper {
                         node_id.clone().into_inner(),
                         direction,
                         false,
-                        entity_types,
-                        theme_default,
-                        theme_types_styles,
+                        theme_ctx,
                     )
                 };
 
@@ -1250,9 +1243,7 @@ impl InputToIrDiagramMapper {
                     Self::build_thing_layouts(
                         &children,
                         flex_direction_default,
-                        entity_types,
-                        theme_default,
-                        theme_types_styles,
+                        theme_ctx,
                         node_layouts,
                         is_tag,
                         is_process,
@@ -1385,22 +1376,25 @@ impl InputToIrDiagramMapper {
         let node_count = step_node_ids.len();
 
         // Assign each step node a numeric index.
-        let mut node_to_index: Map<NodeId<'id>, usize> = Map::with_capacity(node_count);
-        for (index, node_id) in step_node_ids.iter().enumerate() {
-            node_to_index.insert(node_id.clone(), index);
-        }
+        let node_to_index: Map<NodeId<'id>, usize> = step_node_ids
+            .iter()
+            .enumerate()
+            .map(|(index, node_id)| (node_id.clone(), index))
+            .collect();
 
         // Build adjacency list and in-degrees from the process step edges.
-        let mut adjacency: Vec<Vec<usize>> = vec![Vec::new(); node_count];
-        let mut in_degree: Vec<usize> = vec![0; node_count];
-        for edge in process_step_edges.iter() {
-            if let (Some(&from_idx), Some(&to_idx)) =
-                (node_to_index.get(&edge.from), node_to_index.get(&edge.to))
-            {
-                adjacency[from_idx].push(to_idx);
-                in_degree[to_idx] += 1;
-            }
-        }
+        let (adjacency, mut in_degree) = process_step_edges.iter().fold(
+            (vec![Vec::new(); node_count], vec![0usize; node_count]),
+            |(mut adjacency, mut in_degree), edge| {
+                if let (Some(&from_idx), Some(&to_idx)) =
+                    (node_to_index.get(&edge.from), node_to_index.get(&edge.to))
+                {
+                    adjacency[from_idx].push(to_idx);
+                    in_degree[to_idx] += 1;
+                }
+                (adjacency, in_degree)
+            },
+        );
 
         // Longest-path ranks via Kahn's algorithm. Nodes that remain part of a
         // cycle are never dequeued and keep their default rank of `0`.
