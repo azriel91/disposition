@@ -15,7 +15,7 @@ use crate::completion::{
 /// IDs defined in the document, grouped by category.
 #[derive(Clone, Debug, Default)]
 pub struct DynamicCompletions {
-    /// `ThingId`s declared under `things` and `thing_hierarchy`.
+    /// `ThingId`s declared under the `things` hierarchy and `thing_names`.
     thing_ids: BTreeSet<String>,
     /// `TagId`s declared under `tags`.
     tag_ids: BTreeSet<String>,
@@ -31,8 +31,10 @@ impl DynamicCompletions {
     pub fn from_text(text: &str) -> DynamicCompletions {
         let lines = text.split('\n').collect::<Vec<&str>>();
 
-        let mut thing_ids = collect_block_keys(&lines, "things", true, true);
-        thing_ids.extend(collect_block_keys(&lines, "thing_hierarchy", true, false));
+        // `things` is the recursive hierarchy (collect all nested keys);
+        // `thing_names` and `thing_descs` are flat maps (direct children only).
+        let mut thing_ids = collect_block_keys(&lines, "things", true, false);
+        thing_ids.extend(collect_block_keys(&lines, "thing_names", true, true));
         thing_ids.extend(collect_block_keys(&lines, "thing_descs", true, true));
 
         let tag_ids = collect_block_keys(&lines, "tags", true, true);

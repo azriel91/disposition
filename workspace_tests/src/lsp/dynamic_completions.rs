@@ -3,9 +3,9 @@ use disposition_lsp::completion::{
 };
 
 #[test]
-fn collects_thing_ids_from_things_and_hierarchy() {
-    let text = "things:\n  t_a: \"A\"\n  t_b: \"B\"\n\
-        thing_hierarchy:\n  t_a:\n    t_a_child: {}\n";
+fn collects_thing_ids_from_things_hierarchy_and_names() {
+    let text = "things:\n  t_a:\n    t_a_child: {}\n\
+        thing_names:\n  t_a: \"A\"\n  t_b: \"B\"\n";
     let dynamic_completions = DynamicCompletions::from_text(text);
 
     assert_eq!(

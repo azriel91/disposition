@@ -32,7 +32,7 @@ impl ThingLayoutOps {
     /// Returns the new flat index of the moved entry, or `None` if no
     /// move was performed.
     pub fn entry_move_up(input_diagram: &mut InputDiagram<'static>, index: usize) -> Option<usize> {
-        let mut entries = hierarchy_flatten(&input_diagram.thing_hierarchy);
+        let mut entries = hierarchy_flatten(&input_diagram.things);
 
         if index == 0 || index >= entries.len() {
             return None;
@@ -65,7 +65,7 @@ impl ThingLayoutOps {
 
             entries = new_entries;
 
-            input_diagram.thing_hierarchy = hierarchy_rebuild(&entries);
+            input_diagram.things = hierarchy_rebuild(&entries);
             Some(new_index)
         } else {
             // No previous sibling: reparent one level up (become sibling of
@@ -98,7 +98,7 @@ impl ThingLayoutOps {
 
             entries = new_entries;
 
-            input_diagram.thing_hierarchy = hierarchy_rebuild(&entries);
+            input_diagram.things = hierarchy_rebuild(&entries);
             Some(new_index)
         }
     }
@@ -118,7 +118,7 @@ impl ThingLayoutOps {
         input_diagram: &mut InputDiagram<'static>,
         index: usize,
     ) -> Option<usize> {
-        let mut entries = hierarchy_flatten(&input_diagram.thing_hierarchy);
+        let mut entries = hierarchy_flatten(&input_diagram.things);
 
         if index >= entries.len() {
             return None;
@@ -152,7 +152,7 @@ impl ThingLayoutOps {
 
             entries = new_entries;
 
-            input_diagram.thing_hierarchy = hierarchy_rebuild(&entries);
+            input_diagram.things = hierarchy_rebuild(&entries);
             Some(new_index)
         } else {
             // No next sibling: reparent one level up (become sibling of
@@ -188,7 +188,7 @@ impl ThingLayoutOps {
 
             entries = new_entries;
 
-            input_diagram.thing_hierarchy = hierarchy_rebuild(&entries);
+            input_diagram.things = hierarchy_rebuild(&entries);
             Some(new_index)
         }
     }
@@ -201,7 +201,7 @@ impl ThingLayoutOps {
     /// Returns the new flat index of the entry, or `None` if no indent
     /// was performed. The flat index does not change on indent.
     pub fn entry_indent(input_diagram: &mut InputDiagram<'static>, index: usize) -> Option<usize> {
-        let mut entries = hierarchy_flatten(&input_diagram.thing_hierarchy);
+        let mut entries = hierarchy_flatten(&input_diagram.things);
 
         if index >= entries.len() {
             return None;
@@ -217,7 +217,7 @@ impl ThingLayoutOps {
             entry.depth += 1;
         }
 
-        input_diagram.thing_hierarchy = hierarchy_rebuild(&entries);
+        input_diagram.things = hierarchy_rebuild(&entries);
         Some(index)
     }
 
@@ -233,7 +233,7 @@ impl ThingLayoutOps {
     /// Returns the new flat index of the moved entry, or `None` if no
     /// outdent was performed.
     pub fn entry_outdent(input_diagram: &mut InputDiagram<'static>, index: usize) -> Option<usize> {
-        let mut entries = hierarchy_flatten(&input_diagram.thing_hierarchy);
+        let mut entries = hierarchy_flatten(&input_diagram.things);
 
         if index >= entries.len() || entries[index].depth == 0 {
             return None;
@@ -266,7 +266,7 @@ impl ThingLayoutOps {
 
         entries = new_entries;
 
-        input_diagram.thing_hierarchy = hierarchy_rebuild(&entries);
+        input_diagram.things = hierarchy_rebuild(&entries);
         Some(new_index)
     }
 
@@ -281,7 +281,7 @@ impl ThingLayoutOps {
             return;
         }
 
-        let mut entries = hierarchy_flatten(&input_diagram.thing_hierarchy);
+        let mut entries = hierarchy_flatten(&input_diagram.things);
 
         if from >= entries.len() || to >= entries.len() {
             return;
@@ -318,7 +318,7 @@ impl ThingLayoutOps {
             entries.insert(adjusted_to + i, entry);
         }
 
-        input_diagram.thing_hierarchy = hierarchy_rebuild(&entries);
+        input_diagram.things = hierarchy_rebuild(&entries);
     }
 
     /// Moves a `thing_layouts` entry from one index to another.

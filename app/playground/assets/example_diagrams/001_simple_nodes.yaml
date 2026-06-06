@@ -6,12 +6,12 @@
 # * `things` maps a thing ID (prefixed with `t_`) to the text shown on it.
 # * `thing_hierarchy` lists which things to draw. A thing must appear here
 #   to be rendered; an empty map `{}` means "no children".
-things:
+thing_names:
   t_apple: "Apple"
   t_banana: "Banana"
   t_cherry: "Cherry"
 
-thing_hierarchy:
+things:
   t_apple: {}
   t_banana: {}
   t_cherry: {}

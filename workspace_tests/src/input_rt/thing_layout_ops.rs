@@ -9,7 +9,7 @@ fn empty_diagram() -> InputDiagram<'static> {
 
 fn diagram_with_hierarchy(hierarchy_yaml: &str) -> InputDiagram<'static> {
     let mut input_diagram = empty_diagram();
-    input_diagram.thing_hierarchy = serde_saphyr::from_str(hierarchy_yaml)
+    input_diagram.things = serde_saphyr::from_str(hierarchy_yaml)
         .unwrap_or_else(|e| panic!("Expected `hierarchy_yaml` to be valid: {}", e));
 
     input_diagram
@@ -17,7 +17,7 @@ fn diagram_with_hierarchy(hierarchy_yaml: &str) -> InputDiagram<'static> {
 
 /// Returns the flat thing IDs in order, for easy assertion.
 fn flat_thing_ids(input_diagram: &InputDiagram<'static>) -> Vec<(String, usize)> {
-    hierarchy_flatten(&input_diagram.thing_hierarchy)
+    hierarchy_flatten(&input_diagram.things)
         .into_iter()
         .map(|entry| (entry.thing_id.as_str().to_owned(), entry.depth))
         .collect()

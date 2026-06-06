@@ -10,7 +10,7 @@
 # `thing_layouts` overrides the flex direction of a container. By default the
 # direction alternates by depth (column, then row, ...). Valid values:
 # `row`, `row_reverse`, `column`, `column_reverse`.
-things:
+thing_names:
   t_aws: "AWS"
   t_aws_ecr: "ECR"
   t_aws_ecr_repo_app: "app image"
@@ -19,7 +19,7 @@ things:
   t_aws_ecs_service_app: "app service"
   t_aws_ecs_service_web: "web service"
 
-thing_hierarchy:
+things:
   t_aws:
     t_aws_ecr:
       t_aws_ecr_repo_app: {}

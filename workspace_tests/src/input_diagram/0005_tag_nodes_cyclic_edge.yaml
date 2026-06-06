@@ -1,8 +1,8 @@
-things:
+thing_names:
   t_alice: Alice
   t_bob: Bob
   t_charlie: Charlie
-thing_hierarchy:
+things:
   t_alice: {}
   t_bob: {}
   t_charlie: {}

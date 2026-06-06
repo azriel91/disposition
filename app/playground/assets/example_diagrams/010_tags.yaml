@@ -8,7 +8,7 @@
 # * `tags` maps a tag ID (prefixed with `tag_`) to its display label.
 # * `tag_things` lists the things in each tag. A thing may belong to several
 #   tags (here `t_orders` is in both "Domain Services" and "Data Layer").
-things:
+thing_names:
   t_gateway: "API Gateway"
   t_auth: "Auth Service"
   t_orders: "Order Service"
@@ -16,7 +16,7 @@ things:
   t_db: "Database"
   t_queue: "Message Queue"
 
-thing_hierarchy:
+things:
   t_gateway: {}
   t_auth: {}
   t_orders: {}

@@ -22,9 +22,9 @@ mod example_diagram_fetch_error;
 /// set of nodes through to a capstone that combines everything.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExampleDiagram {
-    /// Flat nodes with labels -- `things` and `thing_hierarchy`.
+    /// Flat nodes with labels -- `things` and `thing_names`.
     SimpleNodes,
-    /// Nesting and layout overrides -- `thing_hierarchy` and `thing_layouts`.
+    /// Nesting and layout overrides -- `things` and `thing_layouts`.
     NestedNodes,
     /// Static relationships -- `thing_dependencies` and edge kinds.
     Dependencies,

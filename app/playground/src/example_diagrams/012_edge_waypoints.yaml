@@ -19,7 +19,7 @@
 # | '-----'  |
 # '----------'
 # ```
-things:
+thing_names:
   t_a0: A0
   t_a01: A01
   t_a02: A02
@@ -27,7 +27,7 @@ things:
   t_c0: C0
   t_c01: C01
 
-thing_hierarchy:
+things:
   t_a0:
     t_a01: {}
     t_a02: {}

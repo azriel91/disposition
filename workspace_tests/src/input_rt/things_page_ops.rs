@@ -23,10 +23,10 @@ fn diagram_with_things(names: &[(&str, &str)]) -> InputDiagram<'static> {
         let thing_id = parse_thing_id(thing_id_str).unwrap();
         input_diagram
             .things
-            .insert(thing_id.clone(), name.to_string());
+            .insert(thing_id.clone(), ThingHierarchy::new());
         input_diagram
-            .thing_hierarchy
-            .insert(thing_id, ThingHierarchy::new());
+            .thing_names
+            .insert(thing_id, name.to_string());
     }
     input_diagram
 }
@@ -42,8 +42,8 @@ fn thing_add_inserts_into_empty_diagram() {
     let thing_id = parse_thing_id("thing_0").unwrap();
     assert_eq!(input_diagram.things.len(), 1);
     assert!(input_diagram.things.contains_key(&thing_id));
-    // Also inserted into hierarchy.
-    assert_eq!(input_diagram.thing_hierarchy.len(), 1);
+    // Also inserted into thing_names.
+    assert_eq!(input_diagram.thing_names.len(), 1);
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn thing_name_update_changes_name() {
     ThingsPageOps::thing_name_update(&mut input_diagram, "thing_0", "New Name");
 
     let thing_id = parse_thing_id("thing_0").unwrap();
-    assert_eq!(input_diagram.things.get(&thing_id).unwrap(), "New Name");
+    assert_eq!(input_diagram.thing_names.get(&thing_id).unwrap(), "New Name");
 }
 
 #[test]
@@ -86,22 +86,22 @@ fn thing_name_update_noop_for_missing_id() {
 
     ThingsPageOps::thing_name_update(&mut input_diagram, "nonexistent", "value");
 
-    assert!(input_diagram.things.is_empty());
+    assert!(input_diagram.thing_names.is_empty());
 }
 
 // === thing_rename === //
 
 #[test]
-fn thing_rename_renames_key_in_things() {
+fn thing_rename_renames_key_in_thing_names() {
     let mut input_diagram = diagram_with_things(&[("thing_0", "Hello")]);
 
     ThingsPageOps::thing_rename(&mut input_diagram, "thing_0", "thing_renamed");
 
     let thing_id_old = parse_thing_id("thing_0").unwrap();
     let thing_id_new = parse_thing_id("thing_renamed").unwrap();
-    assert!(!input_diagram.things.contains_key(&thing_id_old));
-    assert!(input_diagram.things.contains_key(&thing_id_new));
-    assert_eq!(input_diagram.things.get(&thing_id_new).unwrap(), "Hello");
+    assert!(!input_diagram.thing_names.contains_key(&thing_id_old));
+    assert!(input_diagram.thing_names.contains_key(&thing_id_new));
+    assert_eq!(input_diagram.thing_names.get(&thing_id_new).unwrap(), "Hello");
 }
 
 #[test]
@@ -112,8 +112,8 @@ fn thing_rename_updates_hierarchy() {
 
     let thing_id_old = parse_thing_id("thing_0").unwrap();
     let thing_id_new = parse_thing_id("thing_new").unwrap();
-    assert!(!input_diagram.thing_hierarchy.contains_key(&thing_id_old));
-    assert!(input_diagram.thing_hierarchy.contains_key(&thing_id_new));
+    assert!(!input_diagram.things.contains_key(&thing_id_old));
+    assert!(input_diagram.things.contains_key(&thing_id_new));
 }
 
 #[test]
@@ -175,12 +175,10 @@ fn thing_remove_removes_thing_and_hierarchy() {
 
     let thing_id_removed = parse_thing_id("thing_0").unwrap();
     let thing_id_kept = parse_thing_id("thing_1").unwrap();
+    assert!(!input_diagram.thing_names.contains_key(&thing_id_removed));
+    assert!(input_diagram.thing_names.contains_key(&thing_id_kept));
     assert!(!input_diagram.things.contains_key(&thing_id_removed));
     assert!(input_diagram.things.contains_key(&thing_id_kept));
-    assert!(!input_diagram
-        .thing_hierarchy
-        .contains_key(&thing_id_removed));
-    assert!(input_diagram.thing_hierarchy.contains_key(&thing_id_kept));
 }
 
 #[test]
@@ -243,7 +241,11 @@ fn thing_move_reorders_things() {
 
     ThingsPageOps::thing_move(&mut input_diagram, 0, 2);
 
-    let keys: Vec<&str> = input_diagram.things.keys().map(|k| k.as_str()).collect();
+    let keys: Vec<&str> = input_diagram
+        .thing_names
+        .keys()
+        .map(|k| k.as_str())
+        .collect();
     assert_eq!(keys, vec!["thing_b", "thing_c", "thing_a"]);
 }
 
@@ -258,7 +260,10 @@ fn thing_duplicate_creates_copy_with_incremented_suffix() {
     let thing_id_dup = parse_thing_id("thing_2").unwrap();
     assert_eq!(input_diagram.things.len(), 2);
     assert!(input_diagram.things.contains_key(&thing_id_dup));
-    assert_eq!(input_diagram.things.get(&thing_id_dup).unwrap(), "Original");
+    assert_eq!(
+        input_diagram.thing_names.get(&thing_id_dup).unwrap(),
+        "Original"
+    );
 }
 
 #[test]
@@ -290,7 +295,7 @@ fn thing_duplicate_inserts_into_hierarchy() {
     ThingsPageOps::thing_duplicate(&mut input_diagram, "thing_1");
 
     let thing_id_dup = parse_thing_id("thing_2").unwrap();
-    assert!(input_diagram.thing_hierarchy.contains_key(&thing_id_dup));
+    assert!(input_diagram.things.contains_key(&thing_id_dup));
 }
 
 #[test]

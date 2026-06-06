@@ -2,7 +2,7 @@
 # Things in the diagram.
 #
 # This map defines the `ThingId`s and their display names.
-things: &things
+thing_names: &things
   t_aws: "☁️ Amazon Web Services"
   t_aws_iam: "🖊️ Identity and Access Management"
   t_aws_iam_ecs_policy: "🗒️ ECS IAM Policy"
@@ -44,7 +44,7 @@ thing_copy_text:
 # Other question, the positioning for a software dependency tree is different to the positioning
 # for deployment topology. Maybe we allow the user to specify either "rank" based layout or "flow"
 # based layout.
-thing_hierarchy:
+things:
   t_aws:
     t_aws_iam:
       t_aws_iam_ecs_policy: {}

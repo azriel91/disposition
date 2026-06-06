@@ -93,8 +93,8 @@ impl ThingsPageOps {
 
     /// Adds a new thing row with a unique placeholder ID.
     ///
-    /// Also inserts a corresponding entry into `thing_hierarchy` with an
-    /// empty hierarchy so the thing appears in the layout editor.
+    /// Inserts the thing into the `things` hierarchy (so it is rendered as a
+    /// node) and a corresponding empty-label entry into `thing_names`.
     pub fn thing_add(input_diagram: &mut InputDiagram<'static>) {
         let mut n = input_diagram.things.len();
         loop {
@@ -102,10 +102,12 @@ impl ThingsPageOps {
             if let Some(thing_id) = parse_thing_id(&candidate)
                 && !input_diagram.things.contains_key(&thing_id)
             {
-                input_diagram.things.insert(thing_id.clone(), String::new());
                 input_diagram
-                    .thing_hierarchy
-                    .insert(thing_id, ThingHierarchy::new());
+                    .things
+                    .insert(thing_id.clone(), ThingHierarchy::new());
+                input_diagram
+                    .thing_names
+                    .insert(thing_id, String::new());
                 break;
             }
             n += 1;
@@ -128,7 +130,7 @@ impl ThingsPageOps {
     /// If the candidate ID already exists, the number keeps incrementing
     /// until a unique ID is found.
     ///
-    /// For `thing_hierarchy`, the duplicate is inserted as a sibling
+    /// For `things` (the hierarchy), the duplicate is inserted as a sibling
     /// immediately after the original but with an empty child hierarchy
     /// (children can only have one parent).
     pub fn thing_duplicate(input_diagram: &mut InputDiagram<'static>, thing_id_str: &str) {
@@ -152,9 +154,9 @@ impl ThingsPageOps {
             }
         };
 
-        // things: insert duplicate in numerically sorted position among
+        // thing_names: insert duplicate in numerically sorted position among
         // siblings that share the same prefix.
-        Self::thing_duplicate_in_things(
+        Self::thing_duplicate_in_thing_names(
             input_diagram,
             &thing_id_orig,
             &thing_id_dup,
@@ -171,10 +173,10 @@ impl ThingsPageOps {
             dup_number,
         );
 
-        // thing_hierarchy: insert as sibling right after the original, with
+        // things (hierarchy): insert as sibling right after the original, with
         // an empty child hierarchy (children can only have one parent).
         Self::thing_duplicate_in_hierarchy(
-            &mut input_diagram.thing_hierarchy,
+            &mut input_diagram.things,
             &thing_id_orig,
             &thing_id_dup,
             &parts,
@@ -230,24 +232,24 @@ impl ThingsPageOps {
         Self::id_copy_insert_in_input_diagram(input_diagram, &id_orig, &id_dup, &parts, dup_number);
     }
 
-    /// Inserts a duplicate entry in the `things` map at the numerically
+    /// Inserts a duplicate entry in the `thing_names` map at the numerically
     /// sorted position among siblings that share the same prefix.
-    fn thing_duplicate_in_things(
+    fn thing_duplicate_in_thing_names(
         diagram: &mut InputDiagram<'static>,
         thing_id_orig: &ThingId<'static>,
         thing_id_dup: &ThingId<'static>,
         parts: &IdDuplicateParts,
         dup_number: u32,
     ) {
-        if let Some(orig_index) = diagram.things.get_index_of(thing_id_orig) {
+        if let Some(orig_index) = diagram.thing_names.get_index_of(thing_id_orig) {
             let name = diagram
-                .things
+                .thing_names
                 .get(thing_id_orig)
                 .cloned()
                 .unwrap_or_default();
             let insert_at = parts.sorted_insert_index(
                 diagram
-                    .things
+                    .thing_names
                     .keys()
                     .enumerate()
                     .map(|(i, k)| (i, k.as_str())),
@@ -255,7 +257,7 @@ impl ThingsPageOps {
                 dup_number,
             );
             diagram
-                .things
+                .thing_names
                 .shift_insert(insert_at, thing_id_dup.clone(), name);
         }
     }
@@ -571,7 +573,7 @@ impl ThingsPageOps {
         name: &str,
     ) {
         if let Some(thing_id) = parse_thing_id(thing_id_str)
-            && let Some(entry) = input_diagram.things.get_mut(&thing_id)
+            && let Some(entry) = input_diagram.thing_names.get_mut(&thing_id)
         {
             *entry = name.to_owned();
         }
@@ -594,10 +596,10 @@ impl ThingsPageOps {
                 .map(Id::into_static)
                 .map(ThingId::from)
         {
-            // things: rename ThingId key.
-            if let Some(thing_index) = input_diagram.things.get_index_of(&thing_id_old) {
+            // thing_names: rename ThingId key.
+            if let Some(thing_index) = input_diagram.thing_names.get_index_of(&thing_id_old) {
                 let _result = input_diagram
-                    .things
+                    .thing_names
                     .replace_index(thing_index, thing_id_new.clone());
             }
 
@@ -608,9 +610,9 @@ impl ThingsPageOps {
                     .replace_index(thing_index, thing_id_new.clone());
             }
 
-            // thing_hierarchy: recursive rename.
+            // things (hierarchy): recursive rename.
             if let Some((thing_hierarchy_with_id, thing_index)) =
-                Self::thing_rename_in_hierarchy(&mut input_diagram.thing_hierarchy, &thing_id_old)
+                Self::thing_rename_in_hierarchy(&mut input_diagram.things, &thing_id_old)
             {
                 let _result =
                     thing_hierarchy_with_id.replace_index(thing_index, thing_id_new.clone());
@@ -686,14 +688,14 @@ impl ThingsPageOps {
     /// Uses `remove` to preserve ordering of remaining entries.
     pub fn thing_remove(input_diagram: &mut InputDiagram<'static>, thing_id_str: &str) {
         if let Some(thing_id) = parse_thing_id(thing_id_str) {
-            // things: remove ThingId key.
-            input_diagram.things.remove(&thing_id);
+            // thing_names: remove ThingId key.
+            input_diagram.thing_names.remove(&thing_id);
 
             // thing_copy_text: remove ThingId key.
             input_diagram.thing_copy_text.remove(&thing_id);
 
-            // thing_hierarchy: recursive remove.
-            Self::thing_remove_from_hierarchy(&mut input_diagram.thing_hierarchy, &thing_id);
+            // things (hierarchy): recursive remove.
+            Self::thing_remove_from_hierarchy(&mut input_diagram.things, &thing_id);
 
             // thing_dependencies: remove ThingId from EdgeGroup values.
             input_diagram
@@ -809,9 +811,9 @@ impl ThingsPageOps {
             .any(|child| Self::thing_remove_from_hierarchy(child, thing_id))
     }
 
-    /// Moves a thing entry from one index to another in the `things` map.
+    /// Moves a thing entry from one index to another in the `thing_names` map.
     pub fn thing_move(input_diagram: &mut InputDiagram<'static>, from: usize, to: usize) {
-        input_diagram.things.move_index(from, to);
+        input_diagram.thing_names.move_index(from, to);
     }
 
     // === Copy text helpers === //

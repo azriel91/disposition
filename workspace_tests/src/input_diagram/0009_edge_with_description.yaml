@@ -1,7 +1,7 @@
-things:
+thing_names:
   t_a: Alpha
   t_b: Beta
-thing_hierarchy:
+things:
   t_a: {}
   t_b: {}
 thing_dependencies:

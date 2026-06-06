@@ -1,10 +1,10 @@
-things:
+thing_names:
   t_alice_outer: Alice Outer
   t_alice: Alice
   t_bob_outer: Bob Outer
   t_bob: Bob
   t_charlie: Charlie
-thing_hierarchy:
+things:
   t_alice_outer:
     t_alice: {}
   t_bob_outer:

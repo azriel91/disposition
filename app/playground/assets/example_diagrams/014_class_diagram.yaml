@@ -7,7 +7,7 @@
 #
 # Each class is a container `thing`, and its fields are nested children
 # (`t_animal_name` is a child of `t_animal`).
-things:
+thing_names:
   t_animal: "Animal"
   t_animal_name: "name: String"
   t_animal_age: "age: u32"
@@ -19,7 +19,7 @@ things:
   t_owner_name: "name: String"
   t_owner_pets: "pets: Vec<Animal>"
 
-thing_hierarchy:
+things:
   t_animal:
     t_animal_name: {}
     t_animal_age: {}

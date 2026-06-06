@@ -1,9 +1,9 @@
-things:
+thing_names:
   t_alice: Alice
   t_bob: Bob
   t_charlie: Charlie
   t_delta: Delta
-thing_hierarchy:
+things:
   t_alice: {}
   t_bob: {}
   t_charlie: {}

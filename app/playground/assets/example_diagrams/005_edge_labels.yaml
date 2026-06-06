@@ -11,12 +11,12 @@
 # is `edge_dep_client_api__0`. A `symmetric` group has two edges, `__0` and
 # `__1`. The arrow runs from the first thing in the group to the last, so
 # `from` sits at the first thing and `to` at the last.
-things:
+thing_names:
   t_client: "Client"
   t_api: "API"
   t_db: "Database"
 
-thing_hierarchy:
+things:
   t_client: {}
   t_api: {}
   t_db: {}

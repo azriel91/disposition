@@ -44,10 +44,10 @@ fn diagram_with_things_and_edge_group(
         let thing_id = parse_thing_id(thing_id_str).unwrap();
         input_diagram
             .things
-            .insert(thing_id.clone(), name.to_string());
+            .insert(thing_id.clone(), ThingHierarchy::new());
         input_diagram
-            .thing_hierarchy
-            .insert(thing_id, ThingHierarchy::new());
+            .thing_names
+            .insert(thing_id, name.to_string());
     }
     input_diagram
 }

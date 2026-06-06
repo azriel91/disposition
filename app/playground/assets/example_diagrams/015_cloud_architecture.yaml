@@ -7,7 +7,7 @@
 #
 # Node IDs follow the parent-prefix convention, e.g. `t_vpc_private` is a
 # child of `t_vpc`, and `t_vpc_private_app_1` a child of `t_vpc_private`.
-things:
+thing_names:
   t_users: "Users"
   t_dns: "DNS (Route 53)"
   t_cloud: "Cloud Platform"
@@ -23,7 +23,7 @@ things:
   t_vpc_data_rds_replica: "RDS Replica"
   t_vpc_data_cache: "Redis Cache"
 
-thing_hierarchy:
+things:
   t_users: {}
   t_dns: {}
   t_cloud:

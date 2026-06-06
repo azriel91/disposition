@@ -1,6 +1,6 @@
-things:
+thing_names:
   t_a: Alpha
-thing_hierarchy:
+things:
   t_a: {}
 thing_dependencies:
   edge_self:

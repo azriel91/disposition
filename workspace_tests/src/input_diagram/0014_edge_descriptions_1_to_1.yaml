@@ -1,7 +1,7 @@
-things:
+thing_names:
   t_alice: Alice
   t_bob: Bob
-thing_hierarchy:
+things:
   t_alice: {}
   t_bob: {}
 thing_dependencies:

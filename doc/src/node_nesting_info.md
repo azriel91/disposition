@@ -93,7 +93,7 @@ node types in a single tree:
 1. Tags (top of the map, required for CSS peer selectors to target
    processes/things/edges).
 2. Processes (each process contains its step nodes as direct children).
-3. Things (same nesting as the user's input `thing_hierarchy`).
+3. Things (same nesting as the user's input `things` hierarchy).
 
 The insertion order of the map determines the sibling indices recorded in
 `nesting_path`.

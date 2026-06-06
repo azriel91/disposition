@@ -1,6 +1,9 @@
 //! Tests for `disposition_input_rt::tags_page_ops::TagsPageOps`.
 
-use disposition::{input_model::InputDiagram, model_common::Set};
+use disposition::{
+    input_model::{thing::ThingHierarchy, InputDiagram},
+    model_common::Set,
+};
 use disposition_input_rt::{
     id_parse::{parse_tag_id, parse_thing_id},
     TagsPageOps,
@@ -345,7 +348,7 @@ fn tag_things_thing_add_adds_thing() {
     let thing_id = parse_thing_id("thing_0").unwrap();
     input_diagram
         .things
-        .insert(thing_id.clone(), "First".to_owned());
+        .insert(thing_id.clone(), ThingHierarchy::new());
     input_diagram.tag_things.insert(tag_id.clone(), Set::new());
 
     TagsPageOps::tag_things_thing_add(&mut input_diagram, "tag_0");

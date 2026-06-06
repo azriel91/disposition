@@ -10,11 +10,11 @@ use crate::node::NodeId;
 /// The `NodeHierarchy` is a tree structure stored as a map of `NodeId` to
 /// `NodeHierarchy`. This structure is strictly unidirectional (no cycles).
 ///
-/// This differs from the input schema's `thing_hierarchy` in that it includes
+/// This differs from the input schema's `things` hierarchy in that it includes
 /// all node types:
 /// * Tags (at the top level for CSS peer selector ordering)
 /// * Processes (containing their steps)
-/// * Things (same as input `thing_hierarchy`)
+/// * Things (same as the input `things` hierarchy)
 ///
 /// The order of node declaration is important -- `process` nodes must come
 /// earlier than `thing` nodes in the DOM structure for the peer/sibling CSS
@@ -36,7 +36,7 @@ use crate::node::NodeId;
 ///     proc_app_release_step_crate_version_update: {}
 ///     proc_app_release_step_pull_request_open: {}
 ///
-///   # Things (same hierarchy as input `thing_hierarchy`)
+///   # Things (same hierarchy as the input `things`)
 ///   t_aws:
 ///     t_aws_iam:
 ///       t_aws_iam_ecs_policy: {}

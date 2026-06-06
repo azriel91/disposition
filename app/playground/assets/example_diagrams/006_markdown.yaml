@@ -7,11 +7,11 @@
 # [links](https://github.com/azriel91/disposition).
 #
 # Descriptions are laid out alongside their thing, so keep them concise.
-things:
+thing_names:
   t_repo: "Repository"
   t_ci: "CI Pipeline"
 
-thing_hierarchy:
+things:
   t_repo: {}
   t_ci: {}
 

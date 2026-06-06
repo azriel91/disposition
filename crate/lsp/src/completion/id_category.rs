@@ -8,7 +8,7 @@
 /// [`IdCategory::Thing`] IDs already defined in the document.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IdCategory {
-    /// A `ThingId` -- defined under `things` / `thing_hierarchy`.
+    /// A `ThingId` -- defined under the `things` hierarchy / `thing_names`.
     Thing,
     /// A `TagId` -- defined under `tags`.
     Tag,

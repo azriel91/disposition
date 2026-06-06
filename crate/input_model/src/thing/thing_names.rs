@@ -22,7 +22,7 @@ use crate::thing::ThingId;
 /// # Example
 ///
 /// ```yaml
-/// things:
+/// thing_names:
 ///   t_aws: "☁️ Amazon Web Services"
 ///   t_aws_iam: "🖊️ Identity and Access Management"
 ///   t_aws_ecr: "🗄️ Elastic Container Registry"

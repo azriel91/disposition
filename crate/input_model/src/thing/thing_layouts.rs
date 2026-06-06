@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 /// User-specified flex-direction overrides for things.
 ///
-/// When a thing has children (i.e. it appears in `thing_hierarchy` with nested
+/// When a thing has children (i.e. it appears in `things` with nested
 /// entries), the layout engine needs to know whether to arrange those children
 /// in a row or column. By default, the direction alternates based on nesting
 /// depth (column at even depths, row at odd depths). Entries in this map

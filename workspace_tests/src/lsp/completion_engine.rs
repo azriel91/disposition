@@ -14,7 +14,7 @@ fn top_level_keys_offered_on_empty_document() {
 
     for expected in [
         "things",
-        "thing_hierarchy",
+        "thing_names",
         "thing_dependencies",
         "render_options",
         "processes",

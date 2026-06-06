@@ -1,6 +1,6 @@
-things:
+thing_names:
   t_repo: Repository
-thing_hierarchy:
+things:
   t_repo: {}
 processes:
   proc_build:

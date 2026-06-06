@@ -38,9 +38,23 @@ use crate::{
     ThemeTagThingsFocus<'id>: Deserialize<'de>\
 "))]
 pub struct InputDiagram<'id> {
-    /// Things in the diagram and their display labels.
+    /// Things in the diagram, as a recursive hierarchy / nesting tree.
+    ///
+    /// This is the single source of truth for which things exist in the
+    /// diagram: a `thing` is rendered as a node when its `ThingId` appears
+    /// here. The nesting also affects visual containment in the diagram.
+    ///
+    /// Display labels are looked up separately in `thing_names`, defaulting
+    /// to the `ThingId` when no entry exists.
+    #[serde(default, skip_serializing_if = "ThingHierarchy::is_empty")]
+    pub things: ThingHierarchy<'id>,
+
+    /// Display labels for things, keyed by `ThingId`.
+    ///
+    /// Entries are optional: a thing without an entry here uses its `ThingId`
+    /// as its display label.
     #[serde(default, skip_serializing_if = "ThingNames::is_empty")]
-    pub things: ThingNames<'id>,
+    pub thing_names: ThingNames<'id>,
 
     /// Text to copy to clipboard when a thing's copy button is clicked.
     ///
@@ -48,16 +62,9 @@ pub struct InputDiagram<'id> {
     #[serde(default, skip_serializing_if = "ThingCopyText::is_empty")]
     pub thing_copy_text: ThingCopyText<'id>,
 
-    /// Hierarchy of `thing`s as a recursive tree structure.
-    ///
-    /// This defines the nesting of things, which affects visual containment
-    /// in the diagram.
-    #[serde(default, skip_serializing_if = "ThingHierarchy::is_empty")]
-    pub thing_hierarchy: ThingHierarchy<'id>,
-
     /// User-specified flex-direction overrides for container things.
     ///
-    /// When a thing has children in `thing_hierarchy`, the layout engine
+    /// When a thing has children in `things`, the layout engine
     /// arranges them in alternating row/column directions by default. Entries
     /// here override that default for the specified thing.
     ///
@@ -199,9 +206,9 @@ impl InputDiagram<'static> {
         ));
 
         Self {
-            things: ThingNames::default(),
+            things: ThingHierarchy::default(),
+            thing_names: ThingNames::default(),
             thing_copy_text: ThingCopyText::default(),
-            thing_hierarchy: ThingHierarchy::default(),
             thing_layouts: ThingLayouts::default(),
             thing_dependencies: ThingDependencies::default(),
             thing_interactions: ThingInteractions::default(),

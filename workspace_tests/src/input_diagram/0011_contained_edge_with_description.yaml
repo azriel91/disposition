@@ -1,7 +1,7 @@
-things:
+thing_names:
   t_parent: Parent
   t_child: Child
-thing_hierarchy:
+things:
   t_parent:
     t_child: {}
 thing_dependencies:

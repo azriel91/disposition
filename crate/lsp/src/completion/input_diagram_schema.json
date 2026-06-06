@@ -68,21 +68,21 @@
       "description": "Descriptions to render next to things in the diagram.",
       "$ref": "#/$defs/ThingDescs"
     },
-    "thing_hierarchy": {
-      "description": "Hierarchy of `thing`s as a recursive tree structure.\n\nThis defines the nesting of things, which affects visual containment\nin the diagram.",
-      "$ref": "#/$defs/ThingHierarchy"
-    },
     "thing_interactions": {
       "description": "Interactions between things (communication between applications).\n\nHas the same structure as dependencies but represents runtime\ncommunication rather than static dependencies.",
       "$ref": "#/$defs/ThingInteractions"
     },
     "thing_layouts": {
-      "description": "User-specified flex-direction overrides for container things.\n\nWhen a thing has children in `thing_hierarchy`, the layout engine\narranges them in alternating row/column directions by default. Entries\nhere override that default for the specified thing.\n\nValid values: `\"row\"`, `\"row_reverse\"`, `\"column\"`, `\"column_reverse\"`.",
+      "description": "User-specified flex-direction overrides for container things.\n\nWhen a thing has children in `things`, the layout engine\narranges them in alternating row/column directions by default. Entries\nhere override that default for the specified thing.\n\nValid values: `\"row\"`, `\"row_reverse\"`, `\"column\"`, `\"column_reverse\"`.",
       "$ref": "#/$defs/ThingLayouts"
     },
-    "things": {
-      "description": "Things in the diagram and their display labels.",
+    "thing_names": {
+      "description": "Display labels for things, keyed by `ThingId`.\n\nEntries are optional: a thing without an entry here uses its `ThingId`\nas its display label.",
       "$ref": "#/$defs/ThingNames"
+    },
+    "things": {
+      "description": "Things in the diagram, as a recursive hierarchy / nesting tree.\n\nThis is the single source of truth for which things exist in the\ndiagram: a `thing` is rendered as a node when its `ThingId` appears\nhere. The nesting also affects visual containment in the diagram.\n\nDisplay labels are looked up separately in `thing_names`, defaulting\nto the `ThingId` when no entry exists.",
+      "$ref": "#/$defs/ThingHierarchy"
     }
   },
   "$defs": {
@@ -1185,7 +1185,7 @@
       }
     },
     "ThingHierarchy": {
-      "description": "Hierarchy of `thing`s as a recursive tree structure.\n\nThe `ThingHierarchy` is a tree structure stored as a map of `ThingId` to\n`ThingHierarchy`. This structure is strictly unidirectional (no cycles).\n\nThis defines the nesting of things, which affects:\n* Visual containment in the diagram\n* The order of declaration affects the position of the `thing` in a flex box\n\n# Example\n\n```yaml\nthing_hierarchy:\n  t_aws: # <-- `ThingHierarchy` (recursive)\n    t_aws_iam: # <-- `ThingHierarchy` (recursive)\n      t_aws_iam_ecs_policy: {}\n    t_aws_ecr:\n      t_aws_ecr_repo:\n        t_aws_ecr_repo_image_1: {}\n        t_aws_ecr_repo_image_2: {}\n\n  t_github:\n    t_github_user_repo: {}\n\n  t_localhost:\n    t_localhost_repo:\n      t_localhost_repo_src: {}\n      t_localhost_repo_target:\n        t_localhost_repo_target_file_zip: {}\n        t_localhost_repo_target_dist_dir: {}\n```",
+      "description": "Hierarchy of `thing`s as a recursive tree structure.\n\nThe `ThingHierarchy` is a tree structure stored as a map of `ThingId` to\n`ThingHierarchy`. This structure is strictly unidirectional (no cycles).\n\nThis defines the nesting of things, which affects:\n* Visual containment in the diagram\n* The order of declaration affects the position of the `thing` in a flex box\n\n# Example\n\n```yaml\nthings:\n  t_aws: # <-- `ThingHierarchy` (recursive)\n    t_aws_iam: # <-- `ThingHierarchy` (recursive)\n      t_aws_iam_ecs_policy: {}\n    t_aws_ecr:\n      t_aws_ecr_repo:\n        t_aws_ecr_repo_image_1: {}\n        t_aws_ecr_repo_image_2: {}\n\n  t_github:\n    t_github_user_repo: {}\n\n  t_localhost:\n    t_localhost_repo:\n      t_localhost_repo_src: {}\n      t_localhost_repo_target:\n        t_localhost_repo_target_file_zip: {}\n        t_localhost_repo_target_dist_dir: {}\n```",
       "type": "object",
       "additionalProperties": {
         "$ref": "#/$defs/ThingHierarchy"
@@ -1203,14 +1203,14 @@
       }
     },
     "ThingLayouts": {
-      "description": "User-specified flex-direction overrides for things.\n\nWhen a thing has children (i.e. it appears in `thing_hierarchy` with nested\nentries), the layout engine needs to know whether to arrange those children\nin a row or column. By default, the direction alternates based on nesting\ndepth (column at even depths, row at odd depths). Entries in this map\noverride that default for the specified thing.\n\nOnly things that act as containers (i.e. have children in the hierarchy)\nbenefit from a layout override. Leaf things are ignored.\n\n# Note\n\nThis map uses [`Id`] keys, not [`ThingId`], so that layout overrides can be\napplied to `NodeInbuilt` keys as well.\n\n[`ThingId`]: crate::thing::ThingId\n\n# Example\n\n```yaml\nthing_layouts:\n  t_cloud: \"row\"\n  t_cloud_compute: \"column\"\n  t_cloud_storage: \"column\"\n```",
+      "description": "User-specified flex-direction overrides for things.\n\nWhen a thing has children (i.e. it appears in `things` with nested\nentries), the layout engine needs to know whether to arrange those children\nin a row or column. By default, the direction alternates based on nesting\ndepth (column at even depths, row at odd depths). Entries in this map\noverride that default for the specified thing.\n\nOnly things that act as containers (i.e. have children in the hierarchy)\nbenefit from a layout override. Leaf things are ignored.\n\n# Note\n\nThis map uses [`Id`] keys, not [`ThingId`], so that layout overrides can be\napplied to `NodeInbuilt` keys as well.\n\n[`ThingId`]: crate::thing::ThingId\n\n# Example\n\n```yaml\nthing_layouts:\n  t_cloud: \"row\"\n  t_cloud_compute: \"column\"\n  t_cloud_storage: \"column\"\n```",
       "type": "object",
       "additionalProperties": {
         "$ref": "#/$defs/FlexDirection"
       }
     },
     "ThingNames": {
-      "description": "Things in the diagram and their display labels.\n\nThis map defines the `ThingId`s and their display names.\n\n`ThingId`s are recommended to be namespace-aware, i.e. for things that nest,\nthe ID of the nested `thing` should be prefixed with the ID of the parent\n`thing`.\n\nExample:\n\n* `my_repo`: Repository directory.\n* `my_repo_src`: `src` directory within the repo.\n* `my_repo_target`: `target` directory within the repo.\n\n# Example\n\n```yaml\nthings:\n  t_aws: \"☁️ Amazon Web Services\"\n  t_aws_iam: \"🖊️ Identity and Access Management\"\n  t_aws_ecr: \"🗄️ Elastic Container Registry\"\n  t_aws_ecr_repo: \"💽 web_app repo\"\n  t_github: \"🐙 GitHub\"\n  t_github_user_repo: \"azriel91/web_app\"\n  t_localhost: \"🧑‍💻 Localhost\"\n  t_localhost_repo: \"📂 ~/work/web_app\"\n```",
+      "description": "Things in the diagram and their display labels.\n\nThis map defines the `ThingId`s and their display names.\n\n`ThingId`s are recommended to be namespace-aware, i.e. for things that nest,\nthe ID of the nested `thing` should be prefixed with the ID of the parent\n`thing`.\n\nExample:\n\n* `my_repo`: Repository directory.\n* `my_repo_src`: `src` directory within the repo.\n* `my_repo_target`: `target` directory within the repo.\n\n# Example\n\n```yaml\nthing_names:\n  t_aws: \"☁️ Amazon Web Services\"\n  t_aws_iam: \"🖊️ Identity and Access Management\"\n  t_aws_ecr: \"🗄️ Elastic Container Registry\"\n  t_aws_ecr_repo: \"💽 web_app repo\"\n  t_github: \"🐙 GitHub\"\n  t_github_user_repo: \"azriel91/web_app\"\n  t_localhost: \"🧑‍💻 Localhost\"\n  t_localhost_repo: \"📂 ~/work/web_app\"\n```",
       "type": "object",
       "additionalProperties": {
         "type": "string"

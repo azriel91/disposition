@@ -1,6 +1,6 @@
 //! Thing layout editor page.
 //!
-//! Provides an interactive tree editor for the `thing_hierarchy` field of an
+//! Provides an interactive tree editor for the `things` hierarchy field of an
 //! [`InputDiagram`], as well as a layout direction editor for overriding the
 //! flex direction of container things via the `thing_layouts` field.
 //!
@@ -81,7 +81,7 @@ const ADD_BTN_DISABLED: &str = "\
 /// This page contains two sections:
 ///
 /// 1. **Thing Hierarchy** -- an interactive tree editor for the
-///    `thing_hierarchy` field, allowing drag-and-drop reorder, indent/outdent,
+///    `things` hierarchy field, allowing drag-and-drop reorder, indent/outdent,
 ///    and keyboard navigation.
 ///
 /// 2. **Thing Layout Directions** -- a list of flex-direction overrides for
@@ -101,7 +101,7 @@ pub fn ThingLayoutPage(input_diagram: Signal<InputDiagram<'static>>) -> Element 
     let focus_index: Signal<Option<usize>> = use_signal(|| None);
 
     let diagram = input_diagram.read();
-    let flat_entries = hierarchy_flatten(&diagram.thing_hierarchy);
+    let flat_entries = hierarchy_flatten(&diagram.things);
 
     let flat_len = flat_entries.len();
 
