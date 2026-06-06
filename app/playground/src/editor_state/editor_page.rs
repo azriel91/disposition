@@ -15,8 +15,10 @@ use super::{EditorPageEdges, EditorPageEntity, EditorPageTheme, EditorPageThing}
 /// system naturally represents the grouping.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Sequence)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum EditorPage {
     /// Raw YAML text editor.
+    #[default]
     Text,
     /// Things group: sub-pages for names, copy text, descriptions,
     /// tooltips.
@@ -38,11 +40,6 @@ pub enum EditorPage {
     Theme(EditorPageTheme),
 }
 
-impl Default for EditorPage {
-    fn default() -> Self {
-        Self::Text
-    }
-}
 
 impl EditorPage {
     /// Returns the top-level tabs in display order.
