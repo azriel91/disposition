@@ -46,10 +46,12 @@ impl CursorContext {
         };
 
         let trimmed = prefix.trim_start();
-        let (is_list, after_dash) = match trimmed.strip_prefix("- ") {
-            Some(rest) => (true, rest),
-            None if trimmed == "-" => (true, ""),
-            None => (false, trimmed),
+        // `list_needs_space` is set for a bare `-` with no following space, so a
+        // selected value is inserted as `- value` rather than `-value`.
+        let (is_list, list_needs_space, after_dash) = match trimmed.strip_prefix("- ") {
+            Some(rest) => (true, false, rest),
+            None if trimmed == "-" => (true, true, ""),
+            None => (false, false, trimmed),
         };
 
         if let Some(colon_idx) = after_dash.find(':') {
@@ -87,7 +89,7 @@ impl CursorContext {
                     target: CompletionTarget::Value {
                         key,
                         in_sequence: true,
-                        needs_space: false,
+                        needs_space: list_needs_space,
                     },
                     sibling_keys: BTreeSet::new(),
                 };

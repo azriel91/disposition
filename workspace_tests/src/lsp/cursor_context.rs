@@ -76,6 +76,22 @@ fn block_sequence_at_same_indent_resolves_owning_key() {
 }
 
 #[test]
+fn bare_dash_list_item_needs_space() {
+    // `-` with no following space -- a selected value needs a leading space.
+    let text = "thing_dependencies:\n  edge_a:\n    things:\n      -";
+    let cursor_context = CursorContext::at(text, 3, 7);
+
+    assert_eq!(
+        CompletionTarget::Value {
+            key: "things".to_string(),
+            in_sequence: true,
+            needs_space: true,
+        },
+        cursor_context.target
+    );
+}
+
+#[test]
 fn caret_inside_flow_list_is_in_sequence() {
     let text = "thing_dependencies:\n  edge_a:\n    things: [t_a, ";
     let cursor_context = CursorContext::at(text, 2, 17);

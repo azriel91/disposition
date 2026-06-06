@@ -445,6 +445,20 @@ fn edge_group_things_offered_for_same_indent_block_sequence() {
 }
 
 #[test]
+fn edge_group_things_after_bare_dash_inserts_leading_space() {
+    // `-` with no space -- the selected id is inserted as ` t_alpha` (-> `- t_alpha`).
+    let text = "things:\n  t_alpha: {}\n\
+        thing_dependencies:\n  edge_a:\n    things:\n      -";
+    let items = CompletionEngine::completions(text, 5, 7);
+
+    let t_alpha = items
+        .iter()
+        .find(|item| item.label == "t_alpha")
+        .expect("expected `t_alpha` completion");
+    assert_eq!(Some(" t_alpha"), t_alpha.insert_text.as_deref());
+}
+
+#[test]
 fn edge_group_things_inside_flow_list_inserts_bare_id() {
     // Caret inside `[ .. ]`; the element must not be wrapped again.
     let text = "things:\n  t_alpha: {}\n  t_beta: {}\n\
