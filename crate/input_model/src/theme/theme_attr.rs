@@ -450,7 +450,7 @@ pub enum ThemeAttr {
     ///
     /// This key has no effect on edges.
     MarginBottom,
-    /// Opacity of a node, e.g. `"0.5"` in `"opacity-0.5"`.
+    /// Opacity of a node, e.g. `"50"` in `"opacity-50"`.
     Opacity,
     /// Outline colour for elements for all states, e.g. `"blue"`. Defaults to
     /// `"blue"`.
