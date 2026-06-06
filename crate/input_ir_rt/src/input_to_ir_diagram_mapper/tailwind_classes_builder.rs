@@ -19,7 +19,9 @@ use disposition_model_common::{
     Id, Map, Set,
 };
 
-use super::{css_theme_vars::CssThemeVars, tailwind_class_state::TailwindClassState};
+use super::{
+    css_theme_vars::CssThemeVars, tailwind_class_state::TailwindClassState, ThemeResolveCtx,
+};
 
 const CLASSES_BUFFER_WRITE_FAIL: &str = "Failed to write string to buffer";
 
@@ -135,15 +137,47 @@ impl TailwindClassesBuilder {
             .collect();
 
         // Build classes for edge groups and individual edges.
-        //
-        // Edge group classes are resolved first into a `TailwindClassState`
-        // (not yet stringified). Each individual edge then clones the group
-        // state, applies any edge-specific overrides, and writes the combined
-        // classes to a single string. This prevents conflicting tailwind
-        // classes that would result from naively joining separate group and
-        // edge class strings.
+        let theme_resolve_ctx = ThemeResolveCtx {
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        };
+        let edge_classes = Self::edge_tailwind_classes_build(
+            edge_groups,
+            &edge_group_to_steps,
+            theme_resolve_ctx,
+            &mut css_theme_vars,
+        );
+
+        let tailwind_classes = node_classes.into_iter().chain(edge_classes).collect();
+
+        TailwindClassesBuildResult {
+            tailwind_classes,
+            css_theme_vars,
+        }
+    }
+
+    /// Builds the tailwind classes for every edge group and individual edge.
+    ///
+    /// Edge group classes are resolved first into a `TailwindClassState` (not
+    /// yet stringified). Each individual edge then clones the group state,
+    /// applies any edge-specific overrides, and writes the combined classes to
+    /// a single string. This prevents conflicting tailwind classes that would
+    /// result from naively joining separate group and edge class strings.
+    fn edge_tailwind_classes_build<'id>(
+        edge_groups: &EdgeGroups<'id>,
+        edge_group_to_steps: &Map<&EdgeGroupId<'id>, Vec<&ProcessStepId<'id>>>,
+        theme_ctx: ThemeResolveCtx<'_, 'id>,
+        css_theme_vars: &mut CssThemeVars,
+    ) -> Vec<(Id<'id>, String)> {
+        let ThemeResolveCtx {
+            entity_types,
+            theme_default,
+            theme_types_styles,
+        } = theme_ctx;
+
         let mut edge_classes: Vec<(Id<'id>, String)> = Vec::new();
-        for (edge_group_id, edges) in edge_groups.iter() {
+        edge_groups.iter().for_each(|(edge_group_id, edges)| {
             // Get the process steps that interact with this edge group.
             let interaction_steps = edge_group_to_steps
                 .get(edge_group_id)
@@ -157,10 +191,10 @@ impl TailwindClassesBuilder {
                     theme_default,
                     theme_types_styles,
                     &interaction_steps,
-                    &mut css_theme_vars,
+                    css_theme_vars,
                 );
 
-            for (index, _edge) in edges.iter().enumerate() {
+            edges.iter().enumerate().for_each(|(index, _edge)| {
                 let edge_id_str = format!("{edge_group_id}__{index}");
                 let edge_id = Id::try_from(edge_id_str).expect("valid ID string");
 
@@ -171,18 +205,12 @@ impl TailwindClassesBuilder {
                     entity_types,
                     theme_default,
                     theme_types_styles,
-                    &mut css_theme_vars,
+                    css_theme_vars,
                 );
                 edge_classes.push((edge_id, classes));
-            }
-        }
-
-        let tailwind_classes = node_classes.into_iter().chain(edge_classes).collect();
-
-        TailwindClassesBuildResult {
-            tailwind_classes,
-            css_theme_vars,
-        }
+            });
+        });
+        edge_classes
     }
 
     // === Interaction Maps === //
