@@ -45,9 +45,7 @@ fn diagram_with_things_and_edge_group(
         input_diagram
             .things
             .insert(thing_id.clone(), ThingHierarchy::new());
-        input_diagram
-            .thing_names
-            .insert(thing_id, name.to_string());
+        input_diagram.thing_names.insert(thing_id, name.to_string());
     }
     input_diagram
 }

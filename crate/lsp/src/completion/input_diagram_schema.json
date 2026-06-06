@@ -296,110 +296,101 @@
         {
           "description": "Inbuilt container.",
           "type": "string",
-          "const": "ContainerInbuilt"
+          "const": "container_inbuilt"
         },
         {
           "description": "Default type for things",
           "type": "string",
-          "const": "ThingDefault"
+          "const": "type_thing_default"
         },
         {
           "description": "Default type for tags",
           "type": "string",
-          "const": "TagDefault"
+          "const": "type_tag_default"
         },
         {
           "description": "Default type for processes",
           "type": "string",
-          "const": "ProcessDefault"
+          "const": "type_process_default"
         },
         {
           "description": "Default type for process_steps",
           "type": "string",
-          "const": "ProcessStepDefault"
+          "const": "type_process_step_default"
         },
         {
           "description": "Default type for dependency sequence edge groups",
           "type": "string",
-          "const": "DependencyEdgeSequenceDefault"
+          "const": "type_dependency_edge_sequence_default"
         },
         {
           "description": "Default type for dependency cyclic edge groups",
           "type": "string",
-          "const": "DependencyEdgeCyclicDefault"
+          "const": "type_dependency_edge_cyclic_default"
         },
         {
           "description": "Default type for dependency symmetric edge groups",
           "type": "string",
-          "const": "DependencyEdgeSymmetricDefault"
+          "const": "type_dependency_edge_symmetric_default"
         },
         {
           "description": "Default type for dependency sequence edges",
           "type": "string",
-          "const": "DependencyEdgeSequenceForwardDefault"
+          "const": "type_dependency_edge_sequence_forward_default"
         },
         {
           "description": "Default type for dependency cyclic edges",
           "type": "string",
-          "const": "DependencyEdgeCyclicForwardDefault"
+          "const": "type_dependency_edge_cyclic_forward_default"
         },
         {
           "description": "Default type for dependency symmetric forward edges",
           "type": "string",
-          "const": "DependencyEdgeSymmetricForwardDefault"
+          "const": "type_dependency_edge_symmetric_forward_default"
         },
         {
           "description": "Default type for dependency symmetric reverse edges",
           "type": "string",
-          "const": "DependencyEdgeSymmetricReverseDefault"
+          "const": "type_dependency_edge_symmetric_reverse_default"
         },
         {
           "description": "Default type for interaction sequence edge groups",
           "type": "string",
-          "const": "InteractionEdgeSequenceDefault"
+          "const": "type_interaction_edge_sequence_default"
         },
         {
           "description": "Default type for interaction cyclic edge groups",
           "type": "string",
-          "const": "InteractionEdgeCyclicDefault"
+          "const": "type_interaction_edge_cyclic_default"
         },
         {
           "description": "Default type for interaction symmetric edge groups",
           "type": "string",
-          "const": "InteractionEdgeSymmetricDefault"
+          "const": "type_interaction_edge_symmetric_default"
         },
         {
           "description": "Default type for interaction sequence edges",
           "type": "string",
-          "const": "InteractionEdgeSequenceForwardDefault"
+          "const": "type_interaction_edge_sequence_forward_default"
         },
         {
           "description": "Default type for interaction cyclic edges",
           "type": "string",
-          "const": "InteractionEdgeCyclicForwardDefault"
+          "const": "type_interaction_edge_cyclic_forward_default"
         },
         {
           "description": "Default type for interaction symmetric forward edges",
           "type": "string",
-          "const": "InteractionEdgeSymmetricForwardDefault"
+          "const": "type_interaction_edge_symmetric_forward_default"
         },
         {
           "description": "Default type for interaction symmetric reverse edges",
           "type": "string",
-          "const": "InteractionEdgeSymmetricReverseDefault"
+          "const": "type_interaction_edge_symmetric_reverse_default"
         },
         {
           "description": "Custom user-defined type.",
-          "type": "object",
-          "properties": {
-            "Custom": {
-              "$ref": "#/$defs/Id"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "Custom"
-          ]
+          "type": "string"
         }
       ]
     },

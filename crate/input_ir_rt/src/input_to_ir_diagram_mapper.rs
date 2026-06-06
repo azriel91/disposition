@@ -78,15 +78,15 @@ impl InputToIrDiagramMapper {
             css,
         } = input_diagram;
 
-        // 1. Build NodeNames from the things hierarchy (with thing_names
-        //    labels), tags, processes, and process steps
+        // 1. Build NodeNames from the things hierarchy (with thing_names labels), tags,
+        //    processes, and process steps
         let nodes = Self::build_node_names(things, thing_names, tags, processes);
 
         // 2. Build NodeCopyText from thing_copy_text
         let node_copy_text = Self::build_node_copy_text(thing_copy_text);
 
-        // 3. Build NodeHierarchy from tags, processes (with steps), and the
-        //    things hierarchy
+        // 3. Build NodeHierarchy from tags, processes (with steps), and the things
+        //    hierarchy
         let node_hierarchy = Self::build_node_hierarchy(tags, processes, things);
 
         // 4. Build NodeOrdering from the things hierarchy, tags, and processes

@@ -105,9 +105,7 @@ impl ThingsPageOps {
                 input_diagram
                     .things
                     .insert(thing_id.clone(), ThingHierarchy::new());
-                input_diagram
-                    .thing_names
-                    .insert(thing_id, String::new());
+                input_diagram.thing_names.insert(thing_id, String::new());
                 break;
             }
             n += 1;

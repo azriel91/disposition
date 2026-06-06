@@ -27,6 +27,7 @@ fn main() {
         let mut schema = schemars::schema_for!(InputDiagram);
         theme_attr_inject(&mut schema);
         style_alias_casing_fix(&mut schema);
+        entity_type_casing_fix(&mut schema);
 
         let schema_json = serde_json::to_string_pretty(&schema)
             .expect("Failed to serialize `InputDiagram` JSON schema.");
@@ -135,6 +136,73 @@ fn style_alias_casing_fix(schema: &mut schemars::Schema) {
                     .cloned()
                     .unwrap_or_else(|| {
                         serde_json::Value::String("Custom user-defined style alias.".to_string())
+                    });
+                variant_object.clear();
+                variant_object.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("string".to_string()),
+                );
+                variant_object.insert("description".to_string(), description);
+            }
+        }
+    }
+}
+
+/// Corrects the `EntityType` schema to match its actual serialization.
+///
+/// `EntityType` has hand-written `Serialize` / `Deserialize` impls that emit
+/// snake_case strings (e.g. `type_thing_default`), but its `schemars` derive is
+/// unaware of those and instead emits the Rust variant names as PascalCase
+/// `const`s (e.g. `ThingDefault`). The `Custom(Id)` variant is likewise emitted
+/// as an externally-tagged object (`{ "Custom": <Id> }`) rather than the bare
+/// string it actually deserializes from.
+///
+/// This rewrites each `oneOf` variant's `const` to its serialized form, and
+/// replaces the `Custom` object with a freeform string -- keeping the
+/// descriptions the derive extracts from the doc comments.
+///
+/// The serialization rule (see
+/// `disposition_model_common::entity::EntityType::as_str`): `ContainerInbuilt`
+/// serializes to `container_inbuilt`; every other built-in variant is prefixed
+/// with `type_` (e.g. `ThingDefault` -> `type_thing_default`).
+#[cfg(all(feature = "schema-gen", not(feature = "test")))]
+fn entity_type_casing_fix(schema: &mut schemars::Schema) {
+    let entity_type_one_of = schema
+        .as_object_mut()
+        .and_then(|root| root.get_mut("$defs"))
+        .and_then(serde_json::Value::as_object_mut)
+        .and_then(|defs| defs.get_mut("EntityType"))
+        .and_then(serde_json::Value::as_object_mut)
+        .and_then(|entity_type| entity_type.get_mut("oneOf"))
+        .and_then(serde_json::Value::as_array_mut)
+        .expect("Expected `EntityType.oneOf` array in the `InputDiagram` schema `$defs`.");
+
+    for variant in entity_type_one_of.iter_mut() {
+        let Some(variant_object) = variant.as_object_mut() else {
+            continue;
+        };
+
+        match variant_object
+            .get("const")
+            .and_then(serde_json::Value::as_str)
+        {
+            Some(pascal_case) => {
+                let snake_case = pascal_case_to_snake_case(pascal_case);
+                let serialized = if pascal_case == "ContainerInbuilt" {
+                    snake_case
+                } else {
+                    format!("type_{snake_case}")
+                };
+                variant_object.insert("const".to_string(), serde_json::Value::String(serialized));
+            }
+            None => {
+                // The `Custom(Id)` variant deserializes from any (non-well-known)
+                // string, not the externally-tagged object the derive emits.
+                let description = variant_object
+                    .get("description")
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        serde_json::Value::String("Custom user-defined type.".to_string())
                     });
                 variant_object.clear();
                 variant_object.insert(

@@ -47,8 +47,7 @@ impl InputDiagramMerger {
     where
         'id: 'f,
     {
-        let things =
-            Self::merge_thing_hierarchy(base_diagram.things, &overlay_diagram.things);
+        let things = Self::merge_thing_hierarchy(base_diagram.things, &overlay_diagram.things);
         let thing_names =
             Self::merge_thing_names(base_diagram.thing_names, &overlay_diagram.thing_names);
         let thing_copy_text = Self::merge_thing_copy_text(

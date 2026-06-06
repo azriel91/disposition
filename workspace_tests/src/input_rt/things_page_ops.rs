@@ -24,9 +24,7 @@ fn diagram_with_things(names: &[(&str, &str)]) -> InputDiagram<'static> {
         input_diagram
             .things
             .insert(thing_id.clone(), ThingHierarchy::new());
-        input_diagram
-            .thing_names
-            .insert(thing_id, name.to_string());
+        input_diagram.thing_names.insert(thing_id, name.to_string());
     }
     input_diagram
 }
@@ -77,7 +75,10 @@ fn thing_name_update_changes_name() {
     ThingsPageOps::thing_name_update(&mut input_diagram, "thing_0", "New Name");
 
     let thing_id = parse_thing_id("thing_0").unwrap();
-    assert_eq!(input_diagram.thing_names.get(&thing_id).unwrap(), "New Name");
+    assert_eq!(
+        input_diagram.thing_names.get(&thing_id).unwrap(),
+        "New Name"
+    );
 }
 
 #[test]
@@ -101,7 +102,10 @@ fn thing_rename_renames_key_in_thing_names() {
     let thing_id_new = parse_thing_id("thing_renamed").unwrap();
     assert!(!input_diagram.thing_names.contains_key(&thing_id_old));
     assert!(input_diagram.thing_names.contains_key(&thing_id_new));
-    assert_eq!(input_diagram.thing_names.get(&thing_id_new).unwrap(), "Hello");
+    assert_eq!(
+        input_diagram.thing_names.get(&thing_id_new).unwrap(),
+        "Hello"
+    );
 }
 
 #[test]

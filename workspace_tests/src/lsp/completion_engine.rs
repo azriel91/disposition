@@ -192,6 +192,121 @@ fn style_alias_values_offered_in_style_aliases_applied() {
     );
 }
 
+#[test]
+fn dynamic_thing_ids_offered_as_thing_names_keys() {
+    let text = "things:\n  t_alpha: {}\n  t_beta: {}\n\
+        thing_names:\n  ";
+    let labels = labels(text, 4, 2);
+
+    for expected in ["t_alpha", "t_beta"] {
+        assert!(
+            labels.iter().any(|label| label == expected),
+            "expected thing id key `{expected}` in {labels:?}"
+        );
+    }
+}
+
+#[test]
+fn edge_group_template_offered_as_thing_dependencies_key() {
+    let text = "things:\n  t_alpha: {}\n  t_beta: {}\n\
+        thing_dependencies:\n  ";
+    let labels = labels(text, 4, 2);
+
+    assert!(
+        labels
+            .iter()
+            .any(|label| label == "edge_dep__t_alpha_t_beta"),
+        "expected edge group template in {labels:?}"
+    );
+}
+
+#[test]
+fn tag_example_offered_as_tags_key() {
+    let text = "tags:\n  ";
+    let labels = labels(text, 1, 2);
+
+    assert!(
+        labels.iter().any(|label| label == "tag_example"),
+        "expected `tag_example` in {labels:?}"
+    );
+}
+
+#[test]
+fn edge_id_offered_as_edge_descs_key() {
+    let text = "thing_dependencies:\n  edge_a:\n    kind: cyclic\n\
+        edge_descs:\n  ";
+    let labels = labels(text, 4, 2);
+
+    assert!(
+        labels.iter().any(|label| label == "edge_a__0"),
+        "expected edge id `edge_a__0` in {labels:?}"
+    );
+}
+
+#[test]
+fn entity_ids_offered_as_entity_types_keys() {
+    let text = "things:\n  t_a: {}\n\
+        thing_dependencies:\n  edge_a:\n    kind: cyclic\n\
+        entity_types:\n  ";
+    let labels = labels(text, 6, 2);
+
+    for expected in ["t_a", "edge_a__0"] {
+        assert!(
+            labels.iter().any(|label| label == expected),
+            "expected entity key `{expected}` in {labels:?}"
+        );
+    }
+}
+
+#[test]
+fn style_alias_keys_offered_in_style_aliases() {
+    let text = "theme_default:\n  style_aliases:\n    ";
+    let labels = labels(text, 2, 4);
+
+    for expected in ["padding_normal", "shade_light", "style_alias_custom"] {
+        assert!(
+            labels.iter().any(|label| label == expected),
+            "expected style alias key `{expected}` in {labels:?}"
+        );
+    }
+}
+
+#[test]
+fn theme_styles_keys_offered_in_base_styles() {
+    let text = "things:\n  t_a: {}\n\
+        theme_default:\n  base_styles:\n    ";
+    let labels = labels(text, 4, 4);
+
+    for expected in ["node_defaults", "edge_defaults", "t_a"] {
+        assert!(
+            labels.iter().any(|label| label == expected),
+            "expected theme styles key `{expected}` in {labels:?}"
+        );
+    }
+}
+
+#[test]
+fn builtin_entity_types_offered_in_theme_types_styles() {
+    let text = "theme_types_styles:\n  ";
+    let labels = labels(text, 1, 2);
+
+    for expected in [
+        "type_thing_default",
+        "type_dependency_edge_sequence_default",
+    ] {
+        assert!(
+            labels.iter().any(|label| label == expected),
+            "expected built-in entity type `{expected}` in {labels:?}"
+        );
+    }
+
+    // The PascalCase Rust variant names must not leak into completions.
+    assert!(
+        !labels.iter().any(|label| label == "ThingDefault"),
+        "did not expect PascalCase entity type `ThingDefault` in {labels:?}"
+    );
+}
+
 fn sorted(mut labels: Vec<String>) -> Vec<String> {
     labels.sort();
     labels

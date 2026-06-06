@@ -6,7 +6,7 @@ use serde_json::Value;
 use crate::completion::{
     completion_target::CompletionTarget, cursor_context::CursorContext,
     diagram_schema::DiagramSchema, dynamic_completions::DynamicCompletions,
-    id_category::IdCategory,
+    id_category::IdCategory, key_category::KeyCategory,
 };
 
 /// Produces YAML key / value completions for an `InputDiagram` buffer.
@@ -22,10 +22,15 @@ impl CompletionEngine {
         let Some(container) = schema.schema_at(&cursor_context.path) else {
             return Vec::new();
         };
+        // The def name (`$ref`) of the container *before* dereferencing -- e.g.
+        // `ThingNames` -- identifies which dynamic map-key suggestions to offer.
+        let container_ref_name = DiagramSchema::ref_name(container);
         let container = schema.deref(container);
 
         match &cursor_context.target {
-            CompletionTarget::Key => Self::key_completions(schema, container),
+            CompletionTarget::Key => {
+                Self::key_completions(schema, container, container_ref_name, text)
+            }
             CompletionTarget::Value { key } => {
                 Self::value_completions(schema, container, key, text)
             }
@@ -38,7 +43,12 @@ impl CompletionEngine {
     /// arbitrary-map container constrains its entries to via `propertyNames`
     /// (e.g. the `ThemeAttr` keys of a `CssClassPartials` map -- `shape_color`,
     /// `stroke_style`, ..).
-    fn key_completions(schema: &DiagramSchema, container: &Value) -> Vec<CompletionItem> {
+    fn key_completions(
+        schema: &DiagramSchema,
+        container: &Value,
+        container_ref_name: Option<&str>,
+        text: &str,
+    ) -> Vec<CompletionItem> {
         let mut items = schema
             .property_entries(container)
             .into_iter()
@@ -60,6 +70,58 @@ impl CompletionEngine {
                     .map(|entry| CompletionItem {
                         label: entry.value.to_string(),
                         kind: Some(CompletionItemKind::FIELD),
+                        detail: entry.description.map(first_line),
+                        ..CompletionItem::default()
+                    }),
+            );
+        }
+
+        // Dynamic keys for maps whose keys are document-defined IDs, ID
+        // templates, or known literal keys (e.g. a `ThingNames` map keyed by
+        // `ThingId`).
+        if let Some(key_category) = container_ref_name.and_then(KeyCategory::from_ref_name) {
+            items.extend(Self::dynamic_key_completions(schema, key_category, text));
+        }
+
+        items
+    }
+
+    /// Offers the dynamic map-key suggestions for `key_category`.
+    ///
+    /// Combines the document-derived / templated / literal labels from
+    /// [`DynamicCompletions`] with any schema-derived built-in keys (the
+    /// `StyleAlias` / `EntityType` enum values).
+    fn dynamic_key_completions(
+        schema: &DiagramSchema,
+        key_category: KeyCategory,
+        text: &str,
+    ) -> Vec<CompletionItem> {
+        let dynamic_completions = DynamicCompletions::from_text(text);
+
+        let mut items = dynamic_completions
+            .key_suggestions(key_category)
+            .into_iter()
+            .map(|label| CompletionItem {
+                label,
+                kind: Some(CompletionItemKind::VALUE),
+                ..CompletionItem::default()
+            })
+            .collect::<Vec<CompletionItem>>();
+
+        // Built-in enum keys defined in the schema.
+        let builtin_def_name = match key_category {
+            KeyCategory::StyleAlias => Some("StyleAlias"),
+            KeyCategory::EntityType => Some("EntityType"),
+            _ => None,
+        };
+        if let Some(def) = builtin_def_name.and_then(|name| schema.def(name)) {
+            items.extend(
+                schema
+                    .enum_entries(def)
+                    .into_iter()
+                    .map(|entry| CompletionItem {
+                        label: entry.value.to_string(),
+                        kind: Some(CompletionItemKind::ENUM_MEMBER),
                         detail: entry.description.map(first_line),
                         ..CompletionItem::default()
                     }),

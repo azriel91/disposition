@@ -80,9 +80,9 @@ const ADD_BTN_DISABLED: &str = "\
 ///
 /// This page contains two sections:
 ///
-/// 1. **Thing Hierarchy** -- an interactive tree editor for the
-///    `things` hierarchy field, allowing drag-and-drop reorder, indent/outdent,
-///    and keyboard navigation.
+/// 1. **Thing Hierarchy** -- an interactive tree editor for the `things`
+///    hierarchy field, allowing drag-and-drop reorder, indent/outdent, and
+///    keyboard navigation.
 ///
 /// 2. **Thing Layout Directions** -- a list of flex-direction overrides for
 ///    container things (things with children in the hierarchy). Users can add
