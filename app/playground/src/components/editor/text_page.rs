@@ -202,6 +202,7 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                     allow_multiple_selections: true,
                     bracket_matching: true,
                     close_brackets: true,
+                    code_actions: true,
                     highlight_active_line: true,
                     highlight_selection_matches: true,
                     highlight_whitespace: true,
