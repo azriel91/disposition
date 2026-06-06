@@ -178,58 +178,62 @@ impl TaffyDiagramNodeBuilder {
         ctx: TaffyBuildCtx<'_>,
         state: &mut TaffyBuildState<'_>,
     ) -> ChildNodesByRankBuilt {
-        let mut rank_to_taffy_ids: NodeRankToTaffyNodeId = BTreeMap::new();
         let mut nested_edge_taffy_nodes = NestedEdgeTaffyNodes::new();
 
-        for (node_id, child_hierarchy) in ctx.node_hierarchy.iter() {
-            let node_id: &Id = node_id.as_ref();
-            let Some(entity_type) = ctx
-                .entity_types
-                .get(node_id)
-                .and_then(|entity_types| entity_types.first())
-            else {
-                // Skip nodes without an entity type -- probably something extra in the
-                // hierarchy without a node name.
-                continue;
-            };
+        let rank_to_taffy_ids = ctx.node_hierarchy.iter().fold(
+            BTreeMap::new(),
+            |mut rank_to_taffy_ids: NodeRankToTaffyNodeId, (node_id, child_hierarchy)| {
+                let node_id: &Id = node_id.as_ref();
+                let Some(entity_type) = ctx
+                    .entity_types
+                    .get(node_id)
+                    .and_then(|entity_types| entity_types.first())
+                else {
+                    // Skip nodes without an entity type -- probably something extra in the
+                    // hierarchy without a node name.
+                    return rank_to_taffy_ids;
+                };
 
-            let taffy_node_id = if child_hierarchy.is_empty() {
-                Self::build_node_without_child_hierarchy(ctx, state, node_id, entity_type)
-            } else {
-                let node_with_child_hierarchy_built = Self::build_node_with_child_hierarchy(
-                    ctx,
-                    state,
-                    child_hierarchy,
-                    node_id,
-                    entity_type,
-                );
-                nested_edge_taffy_nodes
-                    .extend(node_with_child_hierarchy_built.nested_edge_taffy_nodes);
-                node_with_child_hierarchy_built.envelope_node_id
-            };
+                let taffy_node_id = if child_hierarchy.is_empty() {
+                    Self::build_node_without_child_hierarchy(ctx, state, node_id, entity_type)
+                } else {
+                    let node_with_child_hierarchy_built = Self::build_node_with_child_hierarchy(
+                        ctx,
+                        state,
+                        child_hierarchy,
+                        node_id,
+                        entity_type,
+                    );
+                    nested_edge_taffy_nodes
+                        .extend(node_with_child_hierarchy_built.nested_edge_taffy_nodes);
+                    node_with_child_hierarchy_built.envelope_node_id
+                };
 
-            let ir_node_id = NodeId::from(node_id.clone());
+                let ir_node_id = NodeId::from(node_id.clone());
 
-            // Process steps are ordered by their process step rank (derived from
-            // process step dependencies), with declaration order as the
-            // tiebreaker within a rank. All other nodes use the hierarchy-aware
-            // node ranks.
-            let rank = if matches!(entity_type, EntityType::ProcessStepDefault) {
-                ctx.process_step_ranks
-                    .get(&ir_node_id)
-                    .map(|process_step_rank| NodeRank::new(process_step_rank.value()))
-                    .unwrap_or(NodeRank::new(0))
-            } else {
-                ctx.node_ranks_nested
-                    .node_rank_for(&ir_node_id, ctx.node_nesting_infos)
-                    .unwrap_or(NodeRank::new(0))
-            };
+                // Process steps are ordered by their process step rank (derived
+                // from process step dependencies), with declaration order as the
+                // tiebreaker within a rank. All other nodes use the
+                // hierarchy-aware node ranks.
+                let rank = if matches!(entity_type, EntityType::ProcessStepDefault) {
+                    ctx.process_step_ranks
+                        .get(&ir_node_id)
+                        .map(|process_step_rank| NodeRank::new(process_step_rank.value()))
+                        .unwrap_or(NodeRank::new(0))
+                } else {
+                    ctx.node_ranks_nested
+                        .node_rank_for(&ir_node_id, ctx.node_nesting_infos)
+                        .unwrap_or(NodeRank::new(0))
+                };
 
-            rank_to_taffy_ids
-                .entry(rank)
-                .or_default()
-                .push(taffy_node_id);
-        }
+                rank_to_taffy_ids
+                    .entry(rank)
+                    .or_default()
+                    .push(taffy_node_id);
+
+                rank_to_taffy_ids
+            },
+        );
 
         ChildNodesByRankBuilt {
             rank_to_taffy_ids,
@@ -264,28 +268,15 @@ impl TaffyDiagramNodeBuilder {
                     taffy_style,
                 );
 
-                state.node_id_to_taffy.insert(
-                    ir_node_id.clone(),
+                Self::node_envelope_finalize(
+                    ctx,
+                    state,
+                    &ir_node_id,
+                    taffy_text_node_id,
                     NodeToTaffyNodeIds::Leaf {
                         text_node_id: taffy_text_node_id,
                     },
-                );
-                let (envelope_node_id, new_label_leaves) = TaffyEnvelopeBuilder::build(
-                    state.taffy_tree,
-                    &ir_node_id,
-                    taffy_text_node_id,
-                    ctx.node_face_edges,
-                    ctx.rank_dir,
-                );
-                state.edge_label_leaves.extend(new_label_leaves);
-                state
-                    .node_id_to_envelope_taffy_node
-                    .insert(ir_node_id.clone(), envelope_node_id);
-                state
-                    .taffy_id_to_node
-                    .insert(taffy_text_node_id, ir_node_id);
-
-                envelope_node_id
+                )
             }
             NodeShape::Circle(node_shape_circle) => {
                 // Circle leaf:
@@ -295,22 +286,8 @@ impl TaffyDiagramNodeBuilder {
                 //   - circle_node
                 //   - text_node
                 // ```
-                let circle_radius = node_shape_circle.radius();
-                let circle_diameter = circle_radius * 2.0;
-
-                let circle_node_id = state
-                    .taffy_tree
-                    .new_leaf(Style {
-                        size: Size {
-                            width: taffy::style::Dimension::length(circle_diameter),
-                            height: taffy::style::Dimension::length(circle_diameter),
-                        },
-                        flex_shrink: 0.0,
-                        ..Default::default()
-                    })
-                    .unwrap_or_else(|e| {
-                        panic!("Expected to create circle leaf node for {node_id}. Error: {e}")
-                    });
+                let circle_node_id =
+                    Self::circle_leaf_build(state, node_id, node_shape_circle.radius());
 
                 let text_style = Style::default();
                 let taffy_text_node_id = Self::text_leaf_build(
@@ -344,28 +321,17 @@ impl TaffyDiagramNodeBuilder {
                         panic!("Expected to create label wrapper node for {node_id}. Error: {e}")
                     });
 
-                state.node_id_to_taffy.insert(
-                    ir_node_id.clone(),
+                Self::node_envelope_finalize(
+                    ctx,
+                    state,
+                    &ir_node_id,
+                    wrapper_node_id,
                     NodeToTaffyNodeIds::LeafWithCircle {
                         wrapper_node_id,
                         circle_node_id,
                         text_node_id: taffy_text_node_id,
                     },
-                );
-                let (envelope_node_id, new_label_leaves) = TaffyEnvelopeBuilder::build(
-                    state.taffy_tree,
-                    &ir_node_id,
-                    wrapper_node_id,
-                    ctx.node_face_edges,
-                    ctx.rank_dir,
-                );
-                state.edge_label_leaves.extend(new_label_leaves);
-                state
-                    .node_id_to_envelope_taffy_node
-                    .insert(ir_node_id.clone(), envelope_node_id);
-                state.taffy_id_to_node.insert(wrapper_node_id, ir_node_id);
-
-                envelope_node_id
+                )
             }
         }
     }
@@ -378,9 +344,7 @@ impl TaffyDiagramNodeBuilder {
         entity_type: &EntityType,
     ) -> NodeWithChildHierarchyBuilt {
         let ir_node_id = NodeId::from(node_id.clone());
-        let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
-        let mut edge_description_taffy_nodes: Map<EdgeId<'static>, EdgeDescriptionTaffyNodes> =
-            Map::new();
+        let mut nested_edge_taffy_nodes = NestedEdgeTaffyNodes::new();
 
         // Processes with a git-graph layout lay their step circles out in lanes
         // instead of rank containers. Connectors between steps are drawn later by
@@ -399,10 +363,7 @@ impl TaffyDiagramNodeBuilder {
             );
             return NodeWithChildHierarchyBuilt {
                 envelope_node_id,
-                nested_edge_taffy_nodes: NestedEdgeTaffyNodes {
-                    edge_spacer_taffy_nodes,
-                    edge_description_taffy_nodes,
-                },
+                nested_edge_taffy_nodes,
             };
         }
 
@@ -423,94 +384,21 @@ impl TaffyDiagramNodeBuilder {
             mut rank_to_taffy_ids,
             nested_edge_taffy_nodes: child_nested_edge_taffy_nodes,
         } = Self::build_child_nodes_by_rank(child_ctx, state);
-        edge_spacer_taffy_nodes.extend(child_nested_edge_taffy_nodes.edge_spacer_taffy_nodes);
-        edge_description_taffy_nodes
-            .extend(child_nested_edge_taffy_nodes.edge_description_taffy_nodes);
+        nested_edge_taffy_nodes.extend(child_nested_edge_taffy_nodes);
 
-        // === Insert spacer nodes for edges nested within this node === //
-        let lca_node_id = NodeId::from(node_id.clone());
-        for target_entity_type in &[
-            EntityType::ThingDefault,
-            EntityType::TagDefault,
-            EntityType::ProcessDefault,
-        ] {
-            edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
-                ctx,
-                state.taffy_tree,
-                target_entity_type,
-                &mut rank_to_taffy_ids,
-                Some(&lca_node_id),
-            ));
-        }
-
-        // === Insert spacer nodes for edges crossing this container === //
-        //
-        // When an edge has one endpoint outside this container and the
-        // other deeply nested inside, the edge path needs waypoints
-        // alongside the intermediate sibling children so it routes
-        // around them instead of drawing over them.
-        edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build_cross_container_spacers(
+        // Build the edge spacer + edge-description-container taffy nodes for the
+        // edges at this nesting level, inserting rank spacers into
+        // `rank_to_taffy_ids` and accumulating taffy nodes into
+        // `nested_edge_taffy_nodes`.
+        let position_to_container_ids = Self::child_edge_spacers_and_descriptions_build(
             ctx,
-            state.taffy_tree,
-            &mut rank_to_taffy_ids,
-            &ir_node_id,
+            state,
             child_hierarchy,
-        ));
-
-        // === Build edge_description_container nodes for described edges at this
-        // === level === //
-        let mut position_to_container_ids: BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>> =
-            BTreeMap::new();
-        for target_entity_type in &[
-            EntityType::ThingDefault,
-            EntityType::TagDefault,
-            EntityType::ProcessDefault,
-        ] {
-            let edge_description_containers_build_result = EdgeDescriptionBuilder::build(
-                ctx,
-                state.taffy_tree,
-                target_entity_type,
-                Some(&lca_node_id),
-                &child_container_style,
-            );
-            edge_description_taffy_nodes
-                .extend(edge_description_containers_build_result.edge_description_taffy_nodes);
-            for (pos, containers) in
-                edge_description_containers_build_result.position_to_container_ids
-            {
-                position_to_container_ids
-                    .entry(pos)
-                    .or_default()
-                    .extend(containers);
-            }
-        }
-
-        // === Build edge_description_container spacers === //
-        //
-        // For each edge that crosses through an edge_description_container at
-        // this nesting level, insert a spacer inside that container. Must run
-        // before position_to_container_ids is consumed by
-        // `rank_containers_interleave`.
-        for target_entity_type in &[
-            EntityType::ThingDefault,
-            EntityType::TagDefault,
-            EntityType::ProcessDefault,
-        ] {
-            for (edge_id, new_spacers) in EdgeSpacerBuilder::build_edge_desc_container_spacers(
-                ctx,
-                state.taffy_tree,
-                target_entity_type,
-                Some(&lca_node_id),
-                &position_to_container_ids,
-                &edge_description_taffy_nodes,
-            ) {
-                edge_spacer_taffy_nodes
-                    .entry(edge_id)
-                    .or_default()
-                    .edge_desc_container_spacer_taffy_node_ids
-                    .extend(new_spacers.edge_desc_container_spacer_taffy_node_ids);
-            }
-        }
+            &ir_node_id,
+            &child_container_style,
+            &mut rank_to_taffy_ids,
+            &mut nested_edge_taffy_nodes,
+        );
 
         // === Build Rank-Based Child Containers === //
         //
@@ -551,7 +439,9 @@ impl TaffyDiagramNodeBuilder {
             .get(&ir_node_id)
             .unwrap_or_else(|| panic!("There was no node shape for {ir_node_id}."));
 
-        match node_shape {
+        // Build the wrapper node (the envelope's primary child) and the
+        // `NodeToTaffyNodeIds` record describing this node's taffy sub-tree.
+        let (wrapper_node_id, node_to_taffy_node_ids) = match node_shape {
             NodeShape::Rect(_node_shape_rect) => {
                 let mut wrapper_children = vec![taffy_text_node_id];
                 wrapper_children.extend(rank_container_ids);
@@ -563,33 +453,13 @@ impl TaffyDiagramNodeBuilder {
                         panic!("Expected to create wrapper node for {node_id}. Error: {e}")
                     });
 
-                state.node_id_to_taffy.insert(
-                    ir_node_id.clone(),
+                (
+                    wrapper_node_id,
                     NodeToTaffyNodeIds::Wrapper {
                         wrapper_node_id,
                         text_node_id: taffy_text_node_id,
                     },
-                );
-                let (envelope_node_id, new_label_leaves) = TaffyEnvelopeBuilder::build(
-                    state.taffy_tree,
-                    &ir_node_id,
-                    wrapper_node_id,
-                    ctx.node_face_edges,
-                    ctx.rank_dir,
-                );
-                state.edge_label_leaves.extend(new_label_leaves);
-                state
-                    .node_id_to_envelope_taffy_node
-                    .insert(ir_node_id.clone(), envelope_node_id);
-                state.taffy_id_to_node.insert(wrapper_node_id, ir_node_id);
-
-                NodeWithChildHierarchyBuilt {
-                    envelope_node_id,
-                    nested_edge_taffy_nodes: NestedEdgeTaffyNodes {
-                        edge_spacer_taffy_nodes,
-                        edge_description_taffy_nodes,
-                    },
-                }
+                )
             }
             NodeShape::Circle(node_shape_circle) => {
                 // Circle wrapper:
@@ -602,22 +472,8 @@ impl TaffyDiagramNodeBuilder {
                 //   - child_container_0  # rank n
                 //   - child_container_1  # rank n + 1
                 // ```
-                let circle_radius = node_shape_circle.radius();
-                let circle_diameter = circle_radius * 2.0;
-
-                let circle_node_id = state
-                    .taffy_tree
-                    .new_leaf(Style {
-                        size: Size {
-                            width: taffy::style::Dimension::length(circle_diameter),
-                            height: taffy::style::Dimension::length(circle_diameter),
-                        },
-                        flex_shrink: 0.0,
-                        ..Default::default()
-                    })
-                    .unwrap_or_else(|e| {
-                        panic!("Expected to create circle leaf node for {node_id}. Error: {e}")
-                    });
+                let circle_node_id =
+                    Self::circle_leaf_build(state, node_id, node_shape_circle.radius());
 
                 let label_wrapper_style = Style {
                     display: Display::Flex,
@@ -644,37 +500,199 @@ impl TaffyDiagramNodeBuilder {
                         panic!("Expected to create wrapper node for {node_id}. Error: {e}")
                     });
 
-                state.node_id_to_taffy.insert(
-                    ir_node_id.clone(),
+                (
+                    wrapper_node_id,
                     NodeToTaffyNodeIds::WrapperCircle {
                         wrapper_node_id,
                         label_wrapper_node_id,
                         circle_node_id,
                         text_node_id: taffy_text_node_id,
                     },
-                );
-                let (envelope_node_id, new_label_leaves) = TaffyEnvelopeBuilder::build(
-                    state.taffy_tree,
-                    &ir_node_id,
-                    wrapper_node_id,
-                    ctx.node_face_edges,
-                    ctx.rank_dir,
-                );
-                state.edge_label_leaves.extend(new_label_leaves);
-                state
-                    .node_id_to_envelope_taffy_node
-                    .insert(ir_node_id.clone(), envelope_node_id);
-                state.taffy_id_to_node.insert(wrapper_node_id, ir_node_id);
-
-                NodeWithChildHierarchyBuilt {
-                    envelope_node_id,
-                    nested_edge_taffy_nodes: NestedEdgeTaffyNodes {
-                        edge_spacer_taffy_nodes,
-                        edge_description_taffy_nodes,
-                    },
-                }
+                )
             }
+        };
+
+        let envelope_node_id = Self::node_envelope_finalize(
+            ctx,
+            state,
+            &ir_node_id,
+            wrapper_node_id,
+            node_to_taffy_node_ids,
+        );
+
+        NodeWithChildHierarchyBuilt {
+            envelope_node_id,
+            nested_edge_taffy_nodes,
         }
+    }
+
+    /// Builds the edge spacer and edge-description-container taffy nodes for the
+    /// edges at one container's nesting level.
+    ///
+    /// Rank-based and cross-container spacers are inserted into
+    /// `rank_to_taffy_ids`; all created spacer / description taffy nodes are
+    /// accumulated into `nested_edge_taffy_nodes`. Returns the
+    /// edge-description containers keyed by their interleave position, to be
+    /// merged with the rank containers by `rank_containers_interleave`.
+    fn child_edge_spacers_and_descriptions_build(
+        ctx: TaffyBuildCtx<'_>,
+        state: &mut TaffyBuildState<'_>,
+        child_hierarchy: &NodeHierarchy<'static>,
+        lca_node_id: &NodeId<'static>,
+        child_container_style: &Style,
+        rank_to_taffy_ids: &mut NodeRankToTaffyNodeId,
+        nested_edge_taffy_nodes: &mut NestedEdgeTaffyNodes,
+    ) -> BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>> {
+        // Edges are grouped by the entity type of their endpoints' containers.
+        let target_entity_types = [
+            EntityType::ThingDefault,
+            EntityType::TagDefault,
+            EntityType::ProcessDefault,
+        ];
+
+        // === Insert spacer nodes for edges nested within this node === //
+        target_entity_types.iter().for_each(|target_entity_type| {
+            nested_edge_taffy_nodes
+                .edge_spacer_taffy_nodes
+                .extend(EdgeSpacerBuilder::build(
+                    ctx,
+                    state.taffy_tree,
+                    target_entity_type,
+                    rank_to_taffy_ids,
+                    Some(lca_node_id),
+                ));
+        });
+
+        // === Insert spacer nodes for edges crossing this container === //
+        //
+        // When an edge has one endpoint outside this container and the other
+        // deeply nested inside, the edge path needs waypoints alongside the
+        // intermediate sibling children so it routes around them instead of
+        // drawing over them.
+        nested_edge_taffy_nodes.edge_spacer_taffy_nodes.extend(
+            EdgeSpacerBuilder::build_cross_container_spacers(
+                ctx,
+                state.taffy_tree,
+                rank_to_taffy_ids,
+                lca_node_id,
+                child_hierarchy,
+            ),
+        );
+
+        // === Build edge_description_container nodes for described edges at this
+        // === level === //
+        let mut position_to_container_ids: BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>> =
+            BTreeMap::new();
+        target_entity_types.iter().for_each(|target_entity_type| {
+            let edge_description_containers_build_result = EdgeDescriptionBuilder::build(
+                ctx,
+                state.taffy_tree,
+                target_entity_type,
+                Some(lca_node_id),
+                child_container_style,
+            );
+            nested_edge_taffy_nodes
+                .edge_description_taffy_nodes
+                .extend(edge_description_containers_build_result.edge_description_taffy_nodes);
+            edge_description_containers_build_result
+                .position_to_container_ids
+                .into_iter()
+                .for_each(|(pos, containers)| {
+                    position_to_container_ids
+                        .entry(pos)
+                        .or_default()
+                        .extend(containers);
+                });
+        });
+
+        // === Build edge_description_container spacers === //
+        //
+        // For each edge that crosses through an edge_description_container at
+        // this nesting level, insert a spacer inside that container. Must run
+        // before position_to_container_ids is consumed by
+        // `rank_containers_interleave`.
+        target_entity_types.iter().for_each(|target_entity_type| {
+            let edge_desc_container_spacers = EdgeSpacerBuilder::build_edge_desc_container_spacers(
+                ctx,
+                state.taffy_tree,
+                target_entity_type,
+                Some(lca_node_id),
+                &position_to_container_ids,
+                &nested_edge_taffy_nodes.edge_description_taffy_nodes,
+            );
+            edge_desc_container_spacers
+                .into_iter()
+                .for_each(|(edge_id, new_spacers)| {
+                    nested_edge_taffy_nodes
+                        .edge_spacer_taffy_nodes
+                        .entry(edge_id)
+                        .or_default()
+                        .edge_desc_container_spacer_taffy_node_ids
+                        .extend(new_spacers.edge_desc_container_spacer_taffy_node_ids);
+                });
+        });
+
+        position_to_container_ids
+    }
+
+    /// Builds a fixed-size circle leaf taffy node of the given radius.
+    ///
+    /// Used for both circle-shaped leaf nodes and circle-shaped container
+    /// wrappers. `node_id` is only used for the panic message.
+    fn circle_leaf_build(
+        state: &mut TaffyBuildState<'_>,
+        node_id: &Id<'static>,
+        circle_radius: f32,
+    ) -> taffy::NodeId {
+        let circle_diameter = circle_radius * 2.0;
+        state
+            .taffy_tree
+            .new_leaf(Style {
+                size: Size {
+                    width: taffy::style::Dimension::length(circle_diameter),
+                    height: taffy::style::Dimension::length(circle_diameter),
+                },
+                flex_shrink: 0.0,
+                ..Default::default()
+            })
+            .unwrap_or_else(|e| {
+                panic!("Expected to create circle leaf node for {node_id}. Error: {e}")
+            })
+    }
+
+    /// Records a built diagram node's taffy IDs and wraps it in an envelope.
+    ///
+    /// Common tail shared by every diagram-node builder: records the
+    /// `node_to_taffy_node_ids`, builds the envelope around `primary_node_id`
+    /// (the text leaf or wrapper that the envelope sizes itself to), registers
+    /// any new edge-label leaves and the envelope / taffy-id mappings, then
+    /// returns the envelope node ID.
+    fn node_envelope_finalize(
+        ctx: TaffyBuildCtx<'_>,
+        state: &mut TaffyBuildState<'_>,
+        ir_node_id: &NodeId<'static>,
+        primary_node_id: taffy::NodeId,
+        node_to_taffy_node_ids: NodeToTaffyNodeIds,
+    ) -> taffy::NodeId {
+        state
+            .node_id_to_taffy
+            .insert(ir_node_id.clone(), node_to_taffy_node_ids);
+        let (envelope_node_id, new_label_leaves) = TaffyEnvelopeBuilder::build(
+            state.taffy_tree,
+            ir_node_id,
+            primary_node_id,
+            ctx.node_face_edges,
+            ctx.rank_dir,
+        );
+        state.edge_label_leaves.extend(new_label_leaves);
+        state
+            .node_id_to_envelope_taffy_node
+            .insert(ir_node_id.clone(), envelope_node_id);
+        state
+            .taffy_id_to_node
+            .insert(primary_node_id, ir_node_id.clone());
+
+        envelope_node_id
     }
 
     /// Builds a process node whose steps use the git-graph lane layout.
@@ -716,16 +734,15 @@ impl TaffyDiagramNodeBuilder {
         step_entries.sort_by_key(|step_entry| step_entry.placement.row);
 
         let mut wrapper_children = vec![process_text_node_id];
-        for step_entry in &step_entries {
-            let step_wrapper_node_id = Self::process_step_graph_leaf_build(
+        wrapper_children.extend(step_entries.iter().map(|step_entry| {
+            Self::process_step_graph_leaf_build(
                 ctx,
                 state,
                 step_entry.step_node_id,
                 step_entry.placement.lane,
                 lane_count,
-            );
-            wrapper_children.push(step_wrapper_node_id);
-        }
+            )
+        }));
 
         let wrapper_node_id = state
             .taffy_tree
@@ -734,29 +751,16 @@ impl TaffyDiagramNodeBuilder {
                 panic!("Expected to create process wrapper node for {node_id}. Error: {e}")
             });
 
-        state.node_id_to_taffy.insert(
-            ir_node_id.clone(),
+        Self::node_envelope_finalize(
+            ctx,
+            state,
+            ir_node_id,
+            wrapper_node_id,
             NodeToTaffyNodeIds::Wrapper {
                 wrapper_node_id,
                 text_node_id: process_text_node_id,
             },
-        );
-        let (envelope_node_id, new_label_leaves) = TaffyEnvelopeBuilder::build(
-            state.taffy_tree,
-            ir_node_id,
-            wrapper_node_id,
-            ctx.node_face_edges,
-            ctx.rank_dir,
-        );
-        state.edge_label_leaves.extend(new_label_leaves);
-        state
-            .node_id_to_envelope_taffy_node
-            .insert(ir_node_id.clone(), envelope_node_id);
-        state
-            .taffy_id_to_node
-            .insert(wrapper_node_id, ir_node_id.clone());
-
-        envelope_node_id
+        )
     }
 
     /// Builds a single process step row for the git-graph layout.
