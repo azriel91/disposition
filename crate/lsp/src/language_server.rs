@@ -4,15 +4,17 @@ use std::{collections::HashMap, ops::ControlFlow};
 
 use async_lsp::{
     lsp_types::{
-        CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
-        DidCloseTextDocumentParams, DidOpenTextDocumentParams, InitializeParams, InitializeResult,
-        ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+        CodeAction, CodeActionOrCommand, CodeActionParams, CodeActionProviderCapability,
+        CodeActionResponse, CompletionOptions, CompletionParams, CompletionResponse,
+        DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+        InitializeParams, InitializeResult, ServerCapabilities, TextDocumentSyncCapability,
+        TextDocumentSyncKind, Url, WorkspaceEdit,
     },
     ClientSocket, LanguageServer, ResponseError,
 };
 use futures::future::BoxFuture;
 
-use crate::completion::CompletionEngine;
+use crate::{code_action::CodeActionEngine, completion::CompletionEngine};
 
 /// Language server providing completion for `InputDiagram` YAML.
 ///
@@ -59,6 +61,7 @@ impl LanguageServer for DispositionLanguageServer {
                         ]),
                         ..CompletionOptions::default()
                     }),
+                    code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                     ..ServerCapabilities::default()
                 },
                 server_info: None,
@@ -80,6 +83,35 @@ impl LanguageServer for DispositionLanguageServer {
             .unwrap_or_default();
 
         Box::pin(async move { Ok(Some(CompletionResponse::Array(items))) })
+    }
+
+    fn code_action(
+        &mut self,
+        params: CodeActionParams,
+    ) -> BoxFuture<'static, Result<Option<CodeActionResponse>, Self::Error>> {
+        let uri = params.text_document.uri;
+        let line = params.range.start.line;
+
+        let actions = self
+            .documents
+            .get(&uri)
+            .map(|text| CodeActionEngine::list_conversions(text, line))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|conversion| {
+                CodeActionOrCommand::CodeAction(CodeAction {
+                    title: conversion.title,
+                    kind: Some(async_lsp::lsp_types::CodeActionKind::REFACTOR_REWRITE),
+                    edit: Some(WorkspaceEdit {
+                        changes: Some([(uri.clone(), vec![conversion.edit])].into_iter().collect()),
+                        ..WorkspaceEdit::default()
+                    }),
+                    ..CodeAction::default()
+                })
+            })
+            .collect::<CodeActionResponse>();
+
+        Box::pin(async move { Ok(Some(actions)) })
     }
 
     fn did_open(&mut self, params: DidOpenTextDocumentParams) -> Self::NotifyResult {

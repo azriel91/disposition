@@ -11,6 +11,7 @@
 //!
 //! [`InputDiagram`]: disposition_input_model::InputDiagram
 
+pub mod code_action;
 pub mod completion;
 pub mod language_server;
 pub mod transport;
