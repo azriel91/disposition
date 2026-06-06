@@ -1,5 +1,7 @@
 //! Computes completions at a cursor position from the schema + document IDs.
 
+use std::collections::BTreeSet;
+
 use async_lsp::lsp_types::{CompletionItem, CompletionItemKind};
 use serde_json::Value;
 
@@ -28,9 +30,13 @@ impl CompletionEngine {
         let container = schema.deref(container);
 
         match &cursor_context.target {
-            CompletionTarget::Key => {
-                Self::key_completions(schema, container, container_ref_name, text)
-            }
+            CompletionTarget::Key => Self::key_completions(
+                schema,
+                container,
+                container_ref_name,
+                &cursor_context.sibling_keys,
+                text,
+            ),
             CompletionTarget::Value { key } => {
                 Self::value_completions(schema, container, key, text)
             }
@@ -47,6 +53,7 @@ impl CompletionEngine {
         schema: &DiagramSchema,
         container: &Value,
         container_ref_name: Option<&str>,
+        sibling_keys: &BTreeSet<String>,
         text: &str,
     ) -> Vec<CompletionItem> {
         let mut items = schema
@@ -82,6 +89,10 @@ impl CompletionEngine {
         if let Some(key_category) = container_ref_name.and_then(KeyCategory::from_ref_name) {
             items.extend(Self::dynamic_key_completions(schema, key_category, text));
         }
+
+        // A map key can only be declared once, so drop any already present as a
+        // sibling of the cursor.
+        items.retain(|item| !sibling_keys.contains(&item.label));
 
         items
     }

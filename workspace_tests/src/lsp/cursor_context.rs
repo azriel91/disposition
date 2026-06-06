@@ -51,6 +51,32 @@ fn list_item_is_value_of_enclosing_key() {
 }
 
 #[test]
+fn sibling_keys_collected_for_key_target() {
+    let text = "thing_names:\n  t_a: \"A\"\n  t_b: \"B\"\n  ";
+    let cursor_context = CursorContext::at(text, 3, 2);
+
+    assert_eq!(CompletionTarget::Key, cursor_context.target);
+    assert_eq!(
+        vec!["t_a".to_string(), "t_b".to_string()],
+        cursor_context.sibling_keys.into_iter().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn sibling_keys_exclude_descendants_and_other_blocks() {
+    // `t_a`'s nested child and the `things` block keys must not be collected as
+    // siblings of the cursor under `thing_names`.
+    let text = "things:\n  t_x: {}\n\
+        thing_names:\n  t_a:\n    nested: \"n\"\n  ";
+    let cursor_context = CursorContext::at(text, 5, 2);
+
+    assert_eq!(
+        vec!["t_a".to_string()],
+        cursor_context.sibling_keys.into_iter().collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn deeply_nested_key_chain() {
     let text = "processes:\n  proc_a:\n    steps:\n      ";
     let cursor_context = CursorContext::at(text, 3, 6);

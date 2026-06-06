@@ -307,6 +307,32 @@ fn builtin_entity_types_offered_in_theme_types_styles() {
     );
 }
 
+#[test]
+fn already_declared_keys_filtered_from_suggestions() {
+    // `t_a` is already a `thing_names` key, so only `t_b` should remain.
+    let text = "things:\n  t_a: {}\n  t_b: {}\n\
+        thing_names:\n  t_a: \"A\"\n  ";
+    let labels = labels(text, 5, 2);
+
+    assert!(
+        labels.iter().any(|label| label == "t_b"),
+        "expected undeclared thing id `t_b` in {labels:?}"
+    );
+    assert!(
+        !labels.iter().any(|label| label == "t_a"),
+        "did not expect already-declared `t_a` in {labels:?}"
+    );
+}
+
+#[test]
+fn already_declared_struct_fields_filtered() {
+    // `kind` is already set on the edge group, so only `things` should remain.
+    let text = "thing_dependencies:\n  edge_a:\n    kind: cyclic\n    ";
+    let labels = labels(text, 3, 4);
+
+    assert_eq!(vec!["things".to_string()], labels);
+}
+
 fn sorted(mut labels: Vec<String>) -> Vec<String> {
     labels.sort();
     labels
