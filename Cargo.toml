@@ -126,6 +126,3 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(coverage_nightly)"] }
 
 [patch.crates-io]
 dioxus-clipboard = { git = "https://github.com/Himmelschmidt/dioxus-clipboard.git", branch = "feat/wasm-clipboard-support" }
-# Temporary: build against the local `dioxus_codemirror` clone (with code-action
-# support) until `0.2.0` is published to crates.io, then remove this patch.
-dioxus_codemirror = { path = "../dioxus_codemirror/dioxus_codemirror" }
