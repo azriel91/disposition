@@ -8,13 +8,17 @@ use disposition_taffy_model::{taffy::TaffyTree, EdgeIdToEdgeSpacerTaffyNodes, Ta
 
 use disposition_ir_model::node::NodeFace;
 
+use super::svg_edge_infos_builder::{EdgeGroupPass1, EdgePass1Info};
+
 use crate::taffy_to_svg_elements_mapper::{
     edge_model::{NodeIdAndFace, NodeIdAndFaceToContactPointOffsets},
     edge_path_builder_pass_1::SpacerCoordinates,
-    EdgeSpacerCoordinatesCalculator, SvgNodeInfoByNodeId,
+    SpacerCoordinatesResolver, SvgNodeInfoByNodeId,
 };
 
-use super::svg_edge_infos_builder::{EdgeGroupPass1, EdgePass1Info};
+use self::ortho_protrusion_geometry::OrthoProtrusionGeometry;
+
+mod ortho_protrusion_geometry;
 
 /// Maximum fraction of the rank gap that a protrusion may occupy.
 ///
@@ -201,9 +205,9 @@ impl OrthoProtrusionCalculator {
                     .pass1_infos
                     .iter()
                     .map(|pass1_info| {
-                        Self::spacer_coordinates_resolve(
+                        SpacerCoordinatesResolver::resolve(
                             rank_dir,
-                            pass1_info,
+                            &pass1_info.edge_id,
                             taffy_tree,
                             edge_spacer_taffy_nodes,
                         )
@@ -294,7 +298,7 @@ impl OrthoProtrusionCalculator {
                         node_nesting_infos,
                     );
 
-                    let cross_axis_from = Self::cross_axis_coord(
+                    let cross_axis_from = OrthoProtrusionGeometry::cross_axis_coord(
                         pass1_info.from_node_x,
                         pass1_info.from_node_y,
                         from_face,
@@ -356,8 +360,11 @@ impl OrthoProtrusionCalculator {
                         node_nesting_infos,
                     );
 
-                    let cross_axis_to =
-                        Self::cross_axis_coord(pass1_info.to_node_x, pass1_info.to_node_y, to_face);
+                    let cross_axis_to = OrthoProtrusionGeometry::cross_axis_coord(
+                        pass1_info.to_node_x,
+                        pass1_info.to_node_y,
+                        to_face,
+                    );
 
                     // The to endpoint enters from the gap between the
                     // to-node's rank and the adjacent rank toward the
@@ -423,7 +430,7 @@ impl OrthoProtrusionCalculator {
 
                     for spacer_idx in 0..spacer_coordinates.len() {
                         let spacer = &spacer_coordinates[spacer_idx];
-                        let spacer_cross = Self::cross_axis_coord(
+                        let spacer_cross = OrthoProtrusionGeometry::cross_axis_coord(
                             spacer.entry_x,
                             spacer.entry_y,
                             from_face_for_axis,
@@ -614,9 +621,9 @@ impl OrthoProtrusionCalculator {
         }
 
         // === Step 3: For each rank gap, assign protrusion depths === //
-        for (_gap_key, entries) in &mut rank_gap_entries {
-            Self::protrusions_assign(entries, &mut result);
-        }
+        rank_gap_entries
+            .values_mut()
+            .for_each(|entries| Self::protrusions_assign(entries, &mut result));
 
         // === Step 4: Propagate node protrusions to shared spacer sides (fallback) ===
         // //
@@ -627,10 +634,12 @@ impl OrthoProtrusionCalculator {
         // as a safety net for edges where a face was not available
         // (e.g. `from_face` or `to_face` was `None`), which prevented
         // registration of the spacer side in Step 2.
-        for group_params in &mut result {
-            for params in group_params.iter_mut() {
+        result
+            .iter_mut()
+            .flat_map(|group_params| group_params.iter_mut())
+            .for_each(|params| {
                 if params.spacer_protrusions.is_empty() {
-                    continue;
+                    return;
                 }
 
                 let first = &mut params.spacer_protrusions[0];
@@ -643,8 +652,7 @@ impl OrthoProtrusionCalculator {
                 if last.exit_protrusion < 1e-3 {
                     last.exit_protrusion = params.to_protrusion;
                 }
-            }
-        }
+            });
 
         // === Step 5: Enforce minimum protrusions to clear divergent ancestor siblings
         // === //
@@ -907,19 +915,15 @@ impl OrthoProtrusionCalculator {
         // where SL = single_low.len(), SH = single_high.len(),
         //       NC = crossing_pairs.len().
 
-        let mut slot = 0usize;
-
-        // 1. Single-side low entries.
-        for entry in &single_low {
-            Self::protrusion_write(entry, slot_value(slot), result);
-            slot += 1;
-        }
-
-        // 2. Crossing low entries (from-endpoints, in crossing_pairs order).
-        for entry in &crossing_low_ordered {
-            Self::protrusion_write(entry, slot_value(slot), result);
-            slot += 1;
-        }
+        // 1. Single-side low entries, then 2. crossing low entries (from-endpoints, in
+        //    crossing_pairs order): assigned the lowest slots in sequence.
+        single_low
+            .iter()
+            .chain(crossing_low_ordered.iter())
+            .enumerate()
+            .for_each(|(slot, entry)| {
+                Self::protrusion_write(entry, slot_value(slot), result);
+            });
 
         // 3. Crossing high entries (to-endpoints) -- assigned in FORWARD slot order.
         //    The entries are sorted by high-side index so that spatially earlier edges
@@ -927,16 +931,18 @@ impl OrthoProtrusionCalculator {
         //    shorter ones, matching the low-side convention and preventing visual
         //    crossings near the to-nodes.
         let crossing_high_start = total_count - single_high.len() - crossing_high_ordered.len();
-        for (i, entry) in crossing_high_ordered.iter().enumerate() {
-            let high_slot = crossing_high_start + i;
-            Self::protrusion_write(entry, slot_value(high_slot), result);
-        }
+        crossing_high_ordered
+            .iter()
+            .enumerate()
+            .for_each(|(i, entry)| {
+                Self::protrusion_write(entry, slot_value(crossing_high_start + i), result);
+            });
 
         // 4. Single-side high entries fill the top slots.
         let single_high_start = total_count - single_high.len();
-        for (i, entry) in single_high.iter().enumerate() {
+        single_high.iter().enumerate().for_each(|(i, entry)| {
             Self::protrusion_write(entry, slot_value(single_high_start + i), result);
-        }
+        });
     }
 
     /// Writes a protrusion value to the appropriate slot in `result`.
@@ -977,7 +983,7 @@ impl OrthoProtrusionCalculator {
         spacer_after: &SpacerCoordinates,
         face: NodeFace,
     ) -> f32 {
-        Self::axis_distance(
+        OrthoProtrusionGeometry::axis_distance(
             spacer_before.exit_x,
             spacer_before.exit_y,
             spacer_after.entry_x,
@@ -1104,19 +1110,29 @@ impl OrthoProtrusionCalculator {
         let to_info = svg_node_info_map.get(&pass1_info.edge.to);
 
         let (from_x, from_y) = from_info
-            .map(|info| Self::face_center(info, pass1_info.from_face.unwrap_or(NodeFace::Bottom)))
+            .map(|info| {
+                OrthoProtrusionGeometry::face_center(
+                    info,
+                    pass1_info.from_face.unwrap_or(NodeFace::Bottom),
+                )
+            })
             .unwrap_or((pass1_info.from_node_x, pass1_info.from_node_y));
 
         let (to_x, to_y) = to_info
-            .map(|info| Self::face_center(info, pass1_info.to_face.unwrap_or(NodeFace::Top)))
+            .map(|info| {
+                OrthoProtrusionGeometry::face_center(
+                    info,
+                    pass1_info.to_face.unwrap_or(NodeFace::Top),
+                )
+            })
             .unwrap_or((pass1_info.to_node_x, pass1_info.to_node_y));
 
         let full_dist = if is_from {
             if spacer_coordinates.is_empty() {
-                Self::axis_distance(from_x, from_y, to_x, to_y, face)
+                OrthoProtrusionGeometry::axis_distance(from_x, from_y, to_x, to_y, face)
             } else {
                 let first_spacer = &spacer_coordinates[0];
-                Self::axis_distance(
+                OrthoProtrusionGeometry::axis_distance(
                     from_x,
                     from_y,
                     first_spacer.entry_x,
@@ -1126,10 +1142,16 @@ impl OrthoProtrusionCalculator {
             }
         } else {
             if spacer_coordinates.is_empty() {
-                Self::axis_distance(to_x, to_y, from_x, from_y, face)
+                OrthoProtrusionGeometry::axis_distance(to_x, to_y, from_x, from_y, face)
             } else {
                 let last_spacer = &spacer_coordinates[spacer_coordinates.len() - 1];
-                Self::axis_distance(to_x, to_y, last_spacer.exit_x, last_spacer.exit_y, face)
+                OrthoProtrusionGeometry::axis_distance(
+                    to_x,
+                    to_y,
+                    last_spacer.exit_x,
+                    last_spacer.exit_y,
+                    face,
+                )
             }
         };
 
@@ -1171,121 +1193,18 @@ impl OrthoProtrusionCalculator {
                 NodeFace::Right => NodeFace::Left,
                 NodeFace::Left => NodeFace::Right,
             };
-            let (other_bx, other_by) = Self::face_center(other_ancestor_info, other_opposite_face);
-            let capped = Self::axis_distance(this_face_x, this_face_y, other_bx, other_by, face);
+            let (other_bx, other_by) =
+                OrthoProtrusionGeometry::face_center(other_ancestor_info, other_opposite_face);
+            let capped = OrthoProtrusionGeometry::axis_distance(
+                this_face_x,
+                this_face_y,
+                other_bx,
+                other_by,
+                face,
+            );
             return full_dist.min(capped);
         }
         full_dist
-    }
-
-    /// Resolves spacer coordinates for an edge, reusing the same logic
-    /// as the path builder.
-    fn spacer_coordinates_resolve<'id>(
-        rank_dir: RankDir,
-        pass1_info: &EdgePass1Info<'_, 'id>,
-        taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
-    ) -> Vec<SpacerCoordinates> {
-        let Some(spacer_nodes) = edge_spacer_taffy_nodes.get(&pass1_info.edge_id) else {
-            return Vec::new();
-        };
-
-        let rank_spacers: Vec<(NodeRank, SpacerCoordinates)> = spacer_nodes
-            .rank_to_spacer_taffy_node_id
-            .iter()
-            .filter_map(|(rank, &taffy_node_id)| {
-                let coords = EdgeSpacerCoordinatesCalculator::calculate(
-                    rank_dir,
-                    taffy_tree,
-                    taffy_node_id,
-                )?;
-                Some((*rank, coords))
-            })
-            .collect();
-
-        // Collect cross-container spacer coordinates.
-        let cross_container_spacers: Vec<SpacerCoordinates> = spacer_nodes
-            .cross_container_spacer_taffy_node_ids
-            .iter()
-            .filter_map(|&taffy_node_id| {
-                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
-            })
-            .collect();
-
-        // Collect edge_description_container spacer coordinates.
-        let edge_desc_container_spacers: Vec<SpacerCoordinates> = spacer_nodes
-            .edge_desc_container_spacer_taffy_node_ids
-            .iter()
-            .filter_map(|&taffy_node_id| {
-                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
-            })
-            .collect();
-
-        if cross_container_spacers.is_empty() && edge_desc_container_spacers.is_empty() {
-            // Fast path: only rank-based spacers -- sort by rank as before.
-            let mut rank_spacers = rank_spacers;
-            rank_spacers.sort_by_key(|(rank, _)| *rank);
-            return rank_spacers.into_iter().map(|(_, coords)| coords).collect();
-        }
-
-        // Merge all kinds and sort by absolute coordinate along the
-        // main axis so the spacers appear in the correct visual order
-        // along the edge path.
-        let mut all_spacers: Vec<SpacerCoordinates> = rank_spacers
-            .into_iter()
-            .map(|(_, coords)| coords)
-            .chain(cross_container_spacers)
-            .chain(edge_desc_container_spacers)
-            .collect();
-
-        all_spacers.sort_by(|a, b| {
-            let a_key = match rank_dir {
-                RankDir::TopToBottom | RankDir::BottomToTop => a.entry_y,
-                RankDir::LeftToRight | RankDir::RightToLeft => a.entry_x,
-            };
-            let b_key = match rank_dir {
-                RankDir::TopToBottom | RankDir::BottomToTop => b.entry_y,
-                RankDir::LeftToRight | RankDir::RightToLeft => b.entry_x,
-            };
-            a_key
-                .partial_cmp(&b_key)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        all_spacers
-    }
-
-    /// Returns the cross-axis coordinate of a node for a given face.
-    ///
-    /// For `Top` / `Bottom` faces the cross-axis is horizontal (X).
-    /// For `Left` / `Right` faces the cross-axis is vertical (Y).
-    fn cross_axis_coord(node_x: f32, node_y: f32, face: NodeFace) -> f32 {
-        match face {
-            NodeFace::Top | NodeFace::Bottom => node_x,
-            NodeFace::Left | NodeFace::Right => node_y,
-        }
-    }
-
-    /// Computes the absolute distance along the rank axis between two
-    /// points.
-    ///
-    /// For `Top` / `Bottom` faces the rank axis is Y. For `Left` /
-    /// `Right` faces the rank axis is X.
-    fn axis_distance(ax: f32, ay: f32, bx: f32, by: f32, face: NodeFace) -> f32 {
-        match face {
-            NodeFace::Top | NodeFace::Bottom => (by - ay).abs(),
-            NodeFace::Left | NodeFace::Right => (bx - ax).abs(),
-        }
-    }
-
-    /// Returns the face center coordinates for a node.
-    fn face_center(info: &SvgNodeInfo<'_>, face: NodeFace) -> (f32, f32) {
-        match face {
-            NodeFace::Top => (info.x + info.width / 2.0, info.y),
-            NodeFace::Bottom => (info.x + info.width / 2.0, info.y + info.height_collapsed),
-            NodeFace::Left => (info.x, info.y + info.height_collapsed / 2.0),
-            NodeFace::Right => (info.x + info.width, info.y + info.height_collapsed / 2.0),
-        }
     }
 
     /// Finalises protrusion depths for same-rank (cycle) edges.
@@ -1353,7 +1272,7 @@ impl OrthoProtrusionCalculator {
                         true,
                         face_offsets_by_node_face,
                     );
-                    let cross_axis = Self::cross_axis_coord(
+                    let cross_axis = OrthoProtrusionGeometry::cross_axis_coord(
                         pass1_info.from_node_x,
                         pass1_info.from_node_y,
                         from_face,
@@ -1605,8 +1524,11 @@ impl OrthoProtrusionCalculator {
             Self::face_offset_resolve(pass1_info, from_slot_index, true, face_offsets_by_node_face);
 
         // Step 10: Compute from cross-axis coordinate.
-        let cross_axis_from =
-            Self::cross_axis_coord(pass1_info.from_node_x, pass1_info.from_node_y, from_face);
+        let cross_axis_from = OrthoProtrusionGeometry::cross_axis_coord(
+            pass1_info.from_node_x,
+            pass1_info.from_node_y,
+            from_face,
+        );
 
         // Step 11: Register the from-endpoint in the rank gap.
         // `protrusions_assign_cycle_edges` (Step 6) will copy from_protrusion
@@ -1916,21 +1838,19 @@ impl OrthoProtrusionCalculator {
         face: NodeFace,
         svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
     ) -> Option<f32> {
-        let mut extreme: Option<f32> = None;
-        for id in sibling_ids {
+        sibling_ids.iter().fold(None, |extreme, id| {
             let Some(&info) = svg_node_info_map.get(*id) else {
-                continue;
+                return extreme;
             };
             let coord = Self::face_coord_for_endpoint(info, face);
-            extreme = Some(match extreme {
+            Some(match extreme {
                 None => coord,
                 Some(existing) => match face {
                     NodeFace::Bottom | NodeFace::Right => existing.max(coord),
                     NodeFace::Top | NodeFace::Left => existing.min(coord),
                 },
-            });
-        }
-        extreme
+            })
+        })
     }
 
     /// Returns the depth of the Lowest Common Ancestor (LCA) of two nodes.

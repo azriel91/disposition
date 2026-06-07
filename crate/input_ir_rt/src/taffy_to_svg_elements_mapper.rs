@@ -18,6 +18,7 @@ use self::{
     process_step_graph_edges_builder::ProcessStepGraphEdgesBuilder,
     process_step_heights::ProcessStepsHeight,
     process_step_heights_calculator::ProcessStepHeightsCalculator,
+    spacer_coordinates_resolver::SpacerCoordinatesResolver,
     string_char_replacer::StringCharReplacer,
     svg_edge_descriptions_builder::SvgEdgeDescriptionsBuilder,
     svg_edge_infos_builder::SvgEdgeInfosBuilder,
@@ -43,6 +44,7 @@ mod ortho_protrusion_calculator;
 mod process_step_graph_edges_builder;
 mod process_step_heights;
 mod process_step_heights_calculator;
+mod spacer_coordinates_resolver;
 mod string_char_replacer;
 mod svg_edge_descriptions_builder;
 mod svg_edge_infos_builder;

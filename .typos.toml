@@ -1,4 +1,3 @@
 [default.extend-words]
-
-# Level of detail
-"lod" = "lod"
+"lod" = "lod"                  # Level of detail
+"unparseable" = "unparseable"  # both spellings are correct.

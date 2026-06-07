@@ -24,10 +24,10 @@ use crate::{
             EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeIdAndFace,
             NodeIdAndFaceToContactPointOffsets, PathBounds, PathMidpoint,
         },
-        edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
+        edge_path_builder_pass_1::EdgeFaceOffset,
         ortho_protrusion_calculator::OrthoProtrusionCalculator,
         ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
-        EdgePathLocusCalculator, EdgeSpacerCoordinatesCalculator, StringCharReplacer,
+        EdgePathLocusCalculator, SpacerCoordinatesResolver, StringCharReplacer,
         SvgNodeInfoByNodeId,
     },
     AbsoluteCoordinates, EdgeIdGenerator, TaffyNodeAbsoluteCoordinatesCalculator,
@@ -512,68 +512,77 @@ impl SvgEdgeInfosBuilder {
         let mut face_contact_entries_by_node_face: Map<NodeIdAndFace<'id>, Vec<FaceContactEntry>> =
             Map::new();
 
-        for (pass1_group_index, edge_group_pass1) in all_pass1_groups.iter().enumerate() {
-            for (edge_index, pass1_info) in edge_group_pass1.pass1_infos.iter().enumerate() {
-                if let Some(from_face) = pass1_info.from_face {
-                    let node_id_and_face = NodeIdAndFace {
-                        node_id: pass1_info.edge.from.clone(),
-                        face: from_face,
-                    };
-                    face_contact_entries_by_node_face
-                        .entry(node_id_and_face)
-                        .or_default()
-                        .push(FaceContactEntry {
-                            path_midpoint: pass1_info.path_midpoint,
-                            path_bounds: pass1_info.path_bounds,
-                            rank_distance: pass1_info.rank_distance,
-                            to_node_x: pass1_info.to_node_x,
-                            to_node_y: pass1_info.to_node_y,
-                            pass1_group_index,
-                            edge_index,
-                            is_from_endpoint: true,
-                        });
-                }
-                if let Some(to_face) = pass1_info.to_face {
-                    let node_id_and_face = NodeIdAndFace {
-                        node_id: pass1_info.edge.to.clone(),
-                        face: to_face,
-                    };
-                    face_contact_entries_by_node_face
-                        .entry(node_id_and_face)
-                        .or_default()
-                        .push(FaceContactEntry {
-                            path_midpoint: pass1_info.path_midpoint,
-                            path_bounds: pass1_info.path_bounds,
-                            rank_distance: pass1_info.rank_distance,
-                            to_node_x: pass1_info.to_node_x,
-                            to_node_y: pass1_info.to_node_y,
-                            pass1_group_index,
-                            edge_index,
-                            is_from_endpoint: false,
-                        });
-                }
-            }
-        }
+        all_pass1_groups
+            .iter()
+            .enumerate()
+            .for_each(|(pass1_group_index, edge_group_pass1)| {
+                edge_group_pass1.pass1_infos.iter().enumerate().for_each(
+                    |(edge_index, pass1_info)| {
+                        if let Some(from_face) = pass1_info.from_face {
+                            let node_id_and_face = NodeIdAndFace {
+                                node_id: pass1_info.edge.from.clone(),
+                                face: from_face,
+                            };
+                            face_contact_entries_by_node_face
+                                .entry(node_id_and_face)
+                                .or_default()
+                                .push(FaceContactEntry {
+                                    path_midpoint: pass1_info.path_midpoint,
+                                    path_bounds: pass1_info.path_bounds,
+                                    rank_distance: pass1_info.rank_distance,
+                                    to_node_x: pass1_info.to_node_x,
+                                    to_node_y: pass1_info.to_node_y,
+                                    pass1_group_index,
+                                    edge_index,
+                                    is_from_endpoint: true,
+                                });
+                        }
+                        if let Some(to_face) = pass1_info.to_face {
+                            let node_id_and_face = NodeIdAndFace {
+                                node_id: pass1_info.edge.to.clone(),
+                                face: to_face,
+                            };
+                            face_contact_entries_by_node_face
+                                .entry(node_id_and_face)
+                                .or_default()
+                                .push(FaceContactEntry {
+                                    path_midpoint: pass1_info.path_midpoint,
+                                    path_bounds: pass1_info.path_bounds,
+                                    rank_distance: pass1_info.rank_distance,
+                                    to_node_x: pass1_info.to_node_x,
+                                    to_node_y: pass1_info.to_node_y,
+                                    pass1_group_index,
+                                    edge_index,
+                                    is_from_endpoint: false,
+                                });
+                        }
+                    },
+                );
+            });
 
         // Sort each face's entries by rank distance and target coordinate,
         // then assign slot indices.
-        for (node_id_and_face, face_contact_entries) in face_contact_entries_by_node_face.iter_mut()
-        {
-            Self::face_entries_sort_by_rank_and_coordinate(
-                node_id_and_face.face,
-                face_contact_entries,
-            );
+        face_contact_entries_by_node_face.iter_mut().for_each(
+            |(node_id_and_face, face_contact_entries)| {
+                Self::face_entries_sort_by_rank_and_coordinate(
+                    node_id_and_face.face,
+                    face_contact_entries,
+                );
 
-            for (slot_index, face_contact_entry) in face_contact_entries.iter().enumerate() {
-                if face_contact_entry.is_from_endpoint {
-                    all_pass1_groups[face_contact_entry.pass1_group_index].from_slot_indices
-                        [face_contact_entry.edge_index] = Some(slot_index);
-                } else {
-                    all_pass1_groups[face_contact_entry.pass1_group_index].to_slot_indices
-                        [face_contact_entry.edge_index] = Some(slot_index);
-                }
-            }
-        }
+                face_contact_entries.iter().enumerate().for_each(
+                    |(slot_index, face_contact_entry)| {
+                        if face_contact_entry.is_from_endpoint {
+                            all_pass1_groups[face_contact_entry.pass1_group_index]
+                                .from_slot_indices[face_contact_entry.edge_index] =
+                                Some(slot_index);
+                        } else {
+                            all_pass1_groups[face_contact_entry.pass1_group_index]
+                                .to_slot_indices[face_contact_entry.edge_index] = Some(slot_index);
+                        }
+                    },
+                );
+            },
+        );
 
         // Reset tracker indices so `offset_calculate` hands out slots in
         // the order we request them.
@@ -752,7 +761,7 @@ impl SvgEdgeInfosBuilder {
 
                 // Compute spacer coordinates from spacer taffy nodes if
                 // this edge has any intermediate-rank spacers.
-                let spacer_coordinates = Self::spacer_coordinates_from_spacers(
+                let spacer_coordinates = SpacerCoordinatesResolver::resolve(
                     rank_dir,
                     &pass1_info.edge_id,
                     taffy_tree,
@@ -794,97 +803,6 @@ impl SvgEdgeInfosBuilder {
                 }
             })
             .collect::<Vec<EdgePathInfo>>()
-    }
-
-    /// Computes spacer coordinates from spacer taffy nodes for an edge.
-    ///
-    /// If the edge has spacer nodes at intermediate ranks, their layout
-    /// positions are returned in rank order as `SpacerCoordinates`. Each
-    /// spacer has an entry point and an exit point that slice the spacer
-    /// in half, so the edge path is perfectly straight while passing
-    /// through the spacer area.
-    ///
-    /// Cross-container spacer nodes (inserted alongside sibling
-    /// containers for edges that cross container boundaries) are also
-    /// included. All spacer coordinates are sorted by absolute
-    /// main-axis coordinate so they appear in the correct visual order along
-    /// the edge path.
-    ///
-    /// Returns an empty `Vec` when the edge has no spacer nodes.
-    fn spacer_coordinates_from_spacers<'id>(
-        rank_dir: RankDir,
-        edge_id: &EdgeId<'id>,
-        taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
-    ) -> Vec<SpacerCoordinates> {
-        let Some(spacer_nodes) = edge_spacer_taffy_nodes.get(edge_id) else {
-            return Vec::new();
-        };
-
-        // Collect rank-based spacer coordinates.
-        let rank_spacers: Vec<(NodeRank, SpacerCoordinates)> = spacer_nodes
-            .rank_to_spacer_taffy_node_id
-            .iter()
-            .filter_map(|(rank, &taffy_node_id)| {
-                let coords = EdgeSpacerCoordinatesCalculator::calculate(
-                    rank_dir,
-                    taffy_tree,
-                    taffy_node_id,
-                )?;
-                Some((*rank, coords))
-            })
-            .collect();
-
-        // Collect cross-container spacer coordinates.
-        let cross_container_spacers: Vec<SpacerCoordinates> = spacer_nodes
-            .cross_container_spacer_taffy_node_ids
-            .iter()
-            .filter_map(|&taffy_node_id| {
-                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
-            })
-            .collect();
-
-        // Collect edge_description_container spacer coordinates.
-        let edge_desc_container_spacers: Vec<SpacerCoordinates> = spacer_nodes
-            .edge_desc_container_spacer_taffy_node_ids
-            .iter()
-            .filter_map(|&taffy_node_id| {
-                EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
-            })
-            .collect();
-
-        if cross_container_spacers.is_empty() && edge_desc_container_spacers.is_empty() {
-            // Fast path: only rank-based spacers -- sort by rank as before.
-            let mut rank_spacers = rank_spacers;
-            rank_spacers.sort_by_key(|(rank, _)| *rank);
-            return rank_spacers.into_iter().map(|(_, coords)| coords).collect();
-        }
-
-        // Merge all kinds and sort by absolute coordinate along the
-        // main axis so the spacers appear in the correct visual order
-        // along the edge path.
-        let mut all_spacers: Vec<SpacerCoordinates> = rank_spacers
-            .into_iter()
-            .map(|(_, coords)| coords)
-            .chain(cross_container_spacers)
-            .chain(edge_desc_container_spacers)
-            .collect();
-
-        all_spacers.sort_by(|a, b| {
-            let a_key = match rank_dir {
-                RankDir::TopToBottom | RankDir::BottomToTop => a.entry_y,
-                RankDir::LeftToRight | RankDir::RightToLeft => a.entry_x,
-            };
-            let b_key = match rank_dir {
-                RankDir::TopToBottom | RankDir::BottomToTop => b.entry_y,
-                RankDir::LeftToRight | RankDir::RightToLeft => b.entry_x,
-            };
-            a_key
-                .partial_cmp(&b_key)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        all_spacers
     }
 
     /// Determines the `EdgeType` for an edge based on the entity types
@@ -1099,23 +1017,13 @@ impl SvgEdgeInfosBuilder {
     ///
     /// Returns a `PathMidpoint` in absolute SVG coordinates.
     fn path_midpoint_compute(path: &kurbo::BezPath) -> PathMidpoint {
-        let mut sum_x: f64 = 0.0;
-        let mut sum_y: f64 = 0.0;
-        let mut point_count: usize = 0;
-
-        for element in path.elements() {
-            let point = match element {
-                kurbo::PathEl::MoveTo(p) | kurbo::PathEl::LineTo(p) => Some(p),
-                kurbo::PathEl::CurveTo(_, _, p) => Some(p),
-                kurbo::PathEl::QuadTo(_, p) => Some(p),
-                kurbo::PathEl::ClosePath => None,
-            };
-            if let Some(p) = point {
-                sum_x += p.x;
-                sum_y += p.y;
-                point_count += 1;
-            }
-        }
+        let (sum_x, sum_y, point_count) = path
+            .elements()
+            .iter()
+            .filter_map(Self::element_anchor_point)
+            .fold((0.0f64, 0.0f64, 0usize), |(sum_x, sum_y, count), point| {
+                (sum_x + point.x, sum_y + point.y, count + 1)
+            });
 
         if point_count == 0 {
             PathMidpoint::default()
@@ -1127,42 +1035,43 @@ impl SvgEdgeInfosBuilder {
         }
     }
 
+    /// Returns the anchor (end) point of a path element, or `None` for
+    /// `ClosePath` which has no anchor point of its own.
+    fn element_anchor_point(element: &kurbo::PathEl) -> Option<kurbo::Point> {
+        match element {
+            kurbo::PathEl::MoveTo(p) | kurbo::PathEl::LineTo(p) => Some(*p),
+            kurbo::PathEl::CurveTo(_, _, p) => Some(*p),
+            kurbo::PathEl::QuadTo(_, p) => Some(*p),
+            kurbo::PathEl::ClosePath => None,
+        }
+    }
+
     /// Computes the axis-aligned bounding box of a `BezPath`'s anchor
     /// points (MoveTo, LineTo, and the final point of CurveTo / QuadTo
     /// elements).
     ///
     /// Returns a `PathBounds` in absolute SVG coordinates.
     fn path_bounds_compute(path: &kurbo::BezPath) -> PathBounds {
-        let mut x_min = f64::INFINITY;
-        let mut x_max = f64::NEG_INFINITY;
-        let mut y_min = f64::INFINITY;
-        let mut y_max = f64::NEG_INFINITY;
-
-        for element in path.elements() {
-            let point = match element {
-                kurbo::PathEl::MoveTo(p) | kurbo::PathEl::LineTo(p) => Some(p),
-                kurbo::PathEl::CurveTo(_, _, p) => Some(p),
-                kurbo::PathEl::QuadTo(_, p) => Some(p),
-                kurbo::PathEl::ClosePath => None,
-            };
-            if let Some(p) = point {
-                x_min = x_min.min(p.x);
-                x_max = x_max.max(p.x);
-                y_min = y_min.min(p.y);
-                y_max = y_max.max(p.y);
-            }
-        }
-
-        if x_min.is_infinite() {
-            PathBounds::default()
-        } else {
-            PathBounds {
-                x_min,
-                x_max,
-                y_min,
-                y_max,
-            }
-        }
+        path.elements()
+            .iter()
+            .filter_map(Self::element_anchor_point)
+            .fold(None::<PathBounds>, |path_bounds, point| {
+                Some(match path_bounds {
+                    None => PathBounds {
+                        x_min: point.x,
+                        x_max: point.x,
+                        y_min: point.y,
+                        y_max: point.y,
+                    },
+                    Some(path_bounds) => PathBounds {
+                        x_min: path_bounds.x_min.min(point.x),
+                        x_max: path_bounds.x_max.max(point.x),
+                        y_min: path_bounds.y_min.min(point.y),
+                        y_max: path_bounds.y_max.max(point.y),
+                    },
+                })
+            })
+            .unwrap_or_default()
     }
 
     /// Returns the face length (in pixels) for the given node and face.
@@ -1588,4 +1497,43 @@ struct CssAnimationAppendParams<'f, 'edge, 'id> {
     edge_path_info: &'f EdgePathInfo<'edge, 'id>,
     edge_animation_active: EdgeAnimationActive,
     associated_process_steps: &'f [&'f NodeId<'id>],
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Builds an open path `(0,0) -> (10,0) -> (10,20)` with anchor points
+    /// `(0,0)`, `(10,0)`, `(10,20)`.
+    fn sample_path() -> kurbo::BezPath {
+        let mut path = kurbo::BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((10.0, 0.0));
+        path.line_to((10.0, 20.0));
+        path
+    }
+
+    #[test]
+    fn path_midpoint_is_anchor_point_average() {
+        let path_midpoint = SvgEdgeInfosBuilder::path_midpoint_compute(&sample_path());
+        // x = (0 + 10 + 10) / 3, y = (0 + 0 + 20) / 3.
+        assert!((path_midpoint.x - 20.0 / 3.0).abs() < 1e-9);
+        assert!((path_midpoint.y - 20.0 / 3.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn path_midpoint_empty_path_is_default() {
+        let path_midpoint = SvgEdgeInfosBuilder::path_midpoint_compute(&kurbo::BezPath::new());
+        assert_eq!(PathMidpoint::default().x, path_midpoint.x);
+        assert_eq!(PathMidpoint::default().y, path_midpoint.y);
+    }
+
+    #[test]
+    fn path_bounds_span_anchor_points() {
+        let path_bounds = SvgEdgeInfosBuilder::path_bounds_compute(&sample_path());
+        assert_eq!(0.0, path_bounds.x_min);
+        assert_eq!(10.0, path_bounds.x_max);
+        assert_eq!(0.0, path_bounds.y_min);
+        assert_eq!(20.0, path_bounds.y_max);
+    }
 }

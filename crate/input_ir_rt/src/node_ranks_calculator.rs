@@ -42,6 +42,19 @@ use disposition_model_common::{Id, Map};
 #[derive(Clone, Copy, Debug)]
 pub struct NodeRanksCalculator;
 
+/// The dependency graph contracted to a DAG over strongly connected component
+/// (SCC) ids.
+///
+/// Produced by [`NodeRanksCalculator::scc_dag_build`] and consumed by
+/// [`NodeRanksCalculator::scc_dag_ranks_compute`].
+struct SccDag {
+    /// `adjacency[from_scc]` lists the distinct SCC ids that depend on
+    /// `from_scc` (self-edges excluded).
+    adjacency: Vec<Vec<usize>>,
+    /// `in_degree[scc]` is the number of distinct predecessor SCCs.
+    in_degree: Vec<usize>,
+}
+
 /// Internal state used by Tarjan's iterative strongly connected components
 /// (SCC) algorithm.
 struct TarjanState {
@@ -86,20 +99,24 @@ impl NodeRanksCalculator {
         let lca_level_edges = Self::lca_level_edges_build(&dependency_edges, node_nesting_infos);
 
         // === Compute Ranks Per Level === //
-        let mut root = NodeRanks::new();
-        let mut containers: Map<NodeId<'id>, NodeRanks<'id>> = Map::new();
-
+        // Fold each container level into the `(root, containers)` accumulator:
+        // the root level (`None`) becomes `root`, every other container is
+        // inserted into the `containers` map.
         let empty_edges: Vec<(NodeId<'id>, NodeId<'id>)> = Vec::new();
-        for (container, children) in &container_to_children {
-            let edges = lca_level_edges.get(container).unwrap_or(&empty_edges);
-            let ranks = Self::ranks_compute(children, edges);
-            match container {
-                None => root = ranks,
-                Some(container_id) => {
-                    containers.insert(container_id.clone(), ranks);
+        let (root, containers) = container_to_children.iter().fold(
+            (NodeRanks::new(), Map::new()),
+            |(mut root, mut containers), (container, children)| {
+                let edges = lca_level_edges.get(container).unwrap_or(&empty_edges);
+                let ranks = Self::ranks_compute(children, edges);
+                match container {
+                    None => root = ranks,
+                    Some(container_id) => {
+                        containers.insert(container_id.clone(), ranks);
+                    }
                 }
-            }
-        }
+                (root, containers)
+            },
+        );
 
         NodeRanksNested { root, containers }
     }
@@ -113,19 +130,21 @@ impl NodeRanksCalculator {
     fn container_to_children_build<'id>(
         node_nesting_infos: &NodeNestingInfos<'id>,
     ) -> Map<Option<NodeId<'id>>, Vec<NodeId<'id>>> {
-        let mut container_to_children: Map<Option<NodeId<'id>>, Vec<NodeId<'id>>> = Map::new();
-        for (node_id, nesting_info) in node_nesting_infos.iter() {
-            let chain = &nesting_info.ancestor_chain;
-            let parent = chain
-                .len()
-                .checked_sub(2)
-                .map(|parent_idx| chain[parent_idx].clone());
-            container_to_children
-                .entry(parent)
-                .or_default()
-                .push(node_id.clone());
-        }
-        container_to_children
+        node_nesting_infos.iter().fold(
+            Map::new(),
+            |mut container_to_children, (node_id, nesting_info)| {
+                let chain = &nesting_info.ancestor_chain;
+                let parent = chain
+                    .len()
+                    .checked_sub(2)
+                    .map(|parent_idx| chain[parent_idx].clone());
+                container_to_children
+                    .entry(parent)
+                    .or_default()
+                    .push(node_id.clone());
+                container_to_children
+            },
+        )
     }
 
     /// Lifts each dependency edge to the LCA-level edge between the divergent
@@ -137,19 +156,21 @@ impl NodeRanksCalculator {
         dependency_edges: &[(NodeId<'id>, NodeId<'id>)],
         node_nesting_infos: &NodeNestingInfos<'id>,
     ) -> Map<Option<NodeId<'id>>, Vec<(NodeId<'id>, NodeId<'id>)>> {
-        let mut lca_level_edges: Map<Option<NodeId<'id>>, Vec<(NodeId<'id>, NodeId<'id>)>> =
-            Map::new();
-        for (from_id, to_id) in dependency_edges {
-            if let Some((lca_container, divergent_from, divergent_to)) =
+        dependency_edges
+            .iter()
+            .filter_map(|(from_id, to_id)| {
                 Self::lca_level_edge_compute(from_id, to_id, node_nesting_infos)
-            {
-                lca_level_edges
-                    .entry(lca_container)
-                    .or_default()
-                    .push((divergent_from, divergent_to));
-            }
-        }
-        lca_level_edges
+            })
+            .fold(
+                Map::new(),
+                |mut lca_level_edges, (lca_container, divergent_from, divergent_to)| {
+                    lca_level_edges
+                        .entry(lca_container)
+                        .or_default()
+                        .push((divergent_from, divergent_to));
+                    lca_level_edges
+                },
+            )
     }
 
     /// Computes the LCA container and divergent ancestors for a single edge.
@@ -212,32 +233,25 @@ impl NodeRanksCalculator {
         edge_groups: &EdgeGroups<'id>,
         entity_types: &EntityTypes<'id>,
     ) -> Vec<(NodeId<'id>, NodeId<'id>)> {
-        let mut dependency_edges = Vec::new();
+        edge_groups
+            .iter()
+            .filter(|(edge_group_id, _edge_group)| {
+                Self::edge_group_is_dependency(edge_group_id.as_ref(), entity_types)
+            })
+            .flat_map(|(_edge_group_id, edge_group)| edge_group.iter())
+            // Skip self-loops -- they don't affect rank.
+            .filter(|edge| edge.from != edge.to)
+            .map(|edge| (edge.from.clone(), edge.to.clone()))
+            .collect()
+    }
 
-        for (edge_group_id, edge_group) in edge_groups.iter() {
-            let edge_group_id: &Id = edge_group_id.as_ref();
-
-            // Check if this edge group is a dependency type.
-            let is_dependency = entity_types
-                .get(edge_group_id)
-                .map(|types| types.iter().any(Self::entity_type_is_dependency_edge_group))
-                .unwrap_or(false);
-
-            if !is_dependency {
-                continue;
-            }
-
-            for edge in edge_group.iter() {
-                // Skip self-loops -- they don't affect rank.
-                if edge.from == edge.to {
-                    continue;
-                }
-
-                dependency_edges.push((edge.from.clone(), edge.to.clone()));
-            }
-        }
-
-        dependency_edges
+    /// Returns whether the edge group with the given ID is a dependency edge
+    /// group (as opposed to an interaction edge group).
+    fn edge_group_is_dependency(edge_group_id: &Id, entity_types: &EntityTypes<'_>) -> bool {
+        entity_types
+            .get(edge_group_id)
+            .map(|types| types.iter().any(Self::entity_type_is_dependency_edge_group))
+            .unwrap_or(false)
     }
 
     /// Returns whether the given entity type represents a dependency edge
@@ -269,52 +283,91 @@ impl NodeRanksCalculator {
 
         if dependency_edges.is_empty() {
             // No dependency edges -- all nodes get rank 0.
-            return all_node_ids
-                .iter()
-                .map(|node_id| (node_id.clone(), NodeRank::new(0)))
-                .collect();
+            return Self::node_ranks_uniform(all_node_ids, 0);
         }
 
-        // === Assign Each Node a Numeric Index === //
-        let mut node_to_index: Map<NodeId<'id>, usize> = Map::new();
-        for (i, node_id) in all_node_ids.iter().enumerate() {
-            node_to_index.insert(node_id.clone(), i);
-        }
-        let node_count = all_node_ids.len();
+        let adjacency = Self::ranks_compute_adjacency_build(all_node_ids, dependency_edges);
+        let node_ranks = Self::ranks_compute_from_adjacency(&adjacency, all_node_ids.len());
 
-        // === Build Adjacency List === //
-        let mut adjacency: Vec<Vec<usize>> = vec![Vec::new(); node_count];
-        for (from_id, to_id) in dependency_edges {
-            if let (Some(&from_idx), Some(&to_idx)) =
-                (node_to_index.get(from_id), node_to_index.get(to_id))
-            {
-                adjacency[from_idx].push(to_idx);
-            }
-        }
+        all_node_ids
+            .iter()
+            .zip(node_ranks)
+            .map(|(node_id, rank)| (node_id.clone(), NodeRank::new(rank)))
+            .collect()
+    }
 
+    /// Returns a [`NodeRanks`] assigning the same `rank` to every node.
+    fn node_ranks_uniform<'id>(all_node_ids: &[NodeId<'id>], rank: u32) -> NodeRanks<'id> {
+        all_node_ids
+            .iter()
+            .map(|node_id| (node_id.clone(), NodeRank::new(rank)))
+            .collect()
+    }
+
+    /// Builds the node adjacency list from dependency edges, where each node is
+    /// identified by its index into `all_node_ids`.
+    ///
+    /// `adjacency[from_idx]` lists the indices of nodes that depend on the node
+    /// at `from_idx`. Edges whose endpoints are not in `all_node_ids` are
+    /// ignored.
+    fn ranks_compute_adjacency_build<'id>(
+        all_node_ids: &[NodeId<'id>],
+        dependency_edges: &[(NodeId<'id>, NodeId<'id>)],
+    ) -> Vec<Vec<usize>> {
+        let node_to_index: Map<NodeId<'id>, usize> = all_node_ids
+            .iter()
+            .enumerate()
+            .map(|(node_idx, node_id)| (node_id.clone(), node_idx))
+            .collect();
+
+        dependency_edges.iter().fold(
+            vec![Vec::new(); all_node_ids.len()],
+            |mut adjacency, (from_id, to_id)| {
+                if let (Some(&from_idx), Some(&to_idx)) =
+                    (node_to_index.get(from_id), node_to_index.get(to_id))
+                {
+                    adjacency[from_idx].push(to_idx);
+                }
+                adjacency
+            },
+        )
+    }
+
+    /// Computes each node's rank from the node adjacency list.
+    ///
+    /// Cycles are contracted into strongly connected components (SCCs); the SCC
+    /// DAG is then ranked by longest path so every node in a cycle shares the
+    /// same rank. Returns `node_ranks[node_idx]` for each node index.
+    fn ranks_compute_from_adjacency(adjacency: &[Vec<usize>], node_count: usize) -> Vec<u32> {
         // === Compute SCCs via Tarjan's Algorithm === //
-        let scc_ids = Self::tarjan_scc(&adjacency, node_count);
-
-        // scc_ids[node_index] = scc component id
-        // Nodes in the same SCC share the same scc_ids value.
-
+        // `scc_ids[node_index]` is the SCC id of that node; nodes in the same
+        // SCC share an id.
+        let scc_ids = Self::tarjan_scc(adjacency, node_count);
         let scc_count = scc_ids.iter().copied().max().map(|m| m + 1).unwrap_or(0);
 
         if scc_count == 0 {
-            return all_node_ids
-                .iter()
-                .map(|node_id| (node_id.clone(), NodeRank::new(0)))
-                .collect();
+            return vec![0; node_count];
         }
 
-        // === Build SCC DAG === //
-        // For each SCC, collect its outgoing SCC neighbours (excluding self).
-        let mut scc_adjacency: Vec<Vec<usize>> = vec![Vec::new(); scc_count];
-        let mut scc_in_degree: Vec<usize> = vec![0; scc_count];
+        // === Rank the contracted SCC DAG (longest path), map back to nodes === //
+        let scc_dag = Self::scc_dag_build(adjacency, &scc_ids, scc_count);
+        let scc_ranks =
+            Self::scc_dag_ranks_compute(&scc_dag.adjacency, &scc_dag.in_degree, scc_count);
 
-        for from_idx in 0..node_count {
+        scc_ids.iter().map(|&scc_id| scc_ranks[scc_id]).collect()
+    }
+
+    /// Contracts the node adjacency list into a DAG over SCC ids.
+    ///
+    /// For each SCC, collects its outgoing SCC neighbours (excluding self) and
+    /// the per-SCC in-degree, both used to rank the DAG topologically.
+    fn scc_dag_build(adjacency: &[Vec<usize>], scc_ids: &[usize], scc_count: usize) -> SccDag {
+        // Cross-indexed accumulation (`scc_adjacency[from_scc].push(to_scc)`),
+        // so kept as a loop for clarity.
+        let mut scc_adjacency: Vec<Vec<usize>> = vec![Vec::new(); scc_count];
+        for (from_idx, to_indices) in adjacency.iter().enumerate() {
             let from_scc = scc_ids[from_idx];
-            for &to_idx in &adjacency[from_idx] {
+            for &to_idx in to_indices {
                 let to_scc = scc_ids[to_idx];
                 if from_scc != to_scc {
                     scc_adjacency[from_scc].push(to_scc);
@@ -322,32 +375,21 @@ impl NodeRanksCalculator {
             }
         }
 
-        // Deduplicate SCC edges and compute in-degrees.
-        for neighbours in &mut scc_adjacency {
+        // Deduplicate SCC edges so each predecessor counts once.
+        scc_adjacency.iter_mut().for_each(|neighbours| {
             neighbours.sort_unstable();
             neighbours.dedup();
-        }
-        // Recompute in-degrees after dedup.
-        scc_in_degree.fill(0);
-        scc_adjacency.iter().take(scc_count).for_each(|scc_idx| {
-            scc_idx.iter().copied().for_each(|to_scc| {
-                scc_in_degree[to_scc] += 1;
-            });
         });
 
-        // === Compute Ranks on SCC DAG (Longest Path / Topological Order) === //
-        let scc_ranks = Self::scc_dag_ranks_compute(&scc_adjacency, &scc_in_degree, scc_count);
+        let mut in_degree: Vec<usize> = vec![0; scc_count];
+        scc_adjacency.iter().for_each(|neighbours| {
+            neighbours.iter().for_each(|&to_scc| in_degree[to_scc] += 1);
+        });
 
-        // === Map SCC Ranks Back to Node Ranks === //
-        all_node_ids
-            .iter()
-            .enumerate()
-            .map(|(node_idx, node_id)| {
-                let scc_id = scc_ids[node_idx];
-                let rank = scc_ranks[scc_id];
-                (node_id.clone(), NodeRank::new(rank))
-            })
-            .collect()
+        SccDag {
+            adjacency: scc_adjacency,
+            in_degree,
+        }
     }
 
     /// Tarjan's strongly connected components algorithm.
@@ -465,6 +507,9 @@ impl NodeRanksCalculator {
             .filter(|(_scc_idx, in_degree_item)| *in_degree_item == 0)
             .for_each(|(scc_idx, _in_degree_item)| queue.push_back(scc_idx));
 
+        // Kahn's algorithm: drain the queue, relaxing successor ranks and
+        // enqueuing SCCs as their in-degree reaches zero. Kept as a `while let`
+        // loop -- the queue is mutated while iterating, so it is not a fold.
         while let Some(scc_idx) = queue.pop_front() {
             for &to_scc in &scc_adjacency[scc_idx] {
                 let candidate_rank = ranks[scc_idx] + 1;
@@ -479,5 +524,49 @@ impl NodeRanksCalculator {
         }
 
         ranks
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ranks_from_adjacency_linear_chain_increments() {
+        // 0 -> 1 -> 2
+        let adjacency = vec![vec![1], vec![2], vec![]];
+        let node_ranks = NodeRanksCalculator::ranks_compute_from_adjacency(&adjacency, 3);
+        assert_eq!(vec![0, 1, 2], node_ranks);
+    }
+
+    #[test]
+    fn ranks_from_adjacency_cycle_shares_rank() {
+        // 0 -> 1 -> 2 -> 0 (single SCC)
+        let adjacency = vec![vec![1], vec![2], vec![0]];
+        let node_ranks = NodeRanksCalculator::ranks_compute_from_adjacency(&adjacency, 3);
+        assert_eq!(vec![0, 0, 0], node_ranks);
+    }
+
+    #[test]
+    fn ranks_from_adjacency_diamond_uses_longest_path() {
+        // 0 -> 1, 0 -> 2, 1 -> 3, 2 -> 3
+        let adjacency = vec![vec![1, 2], vec![3], vec![3], vec![]];
+        let node_ranks = NodeRanksCalculator::ranks_compute_from_adjacency(&adjacency, 4);
+        assert_eq!(vec![0, 1, 1, 2], node_ranks);
+    }
+
+    #[test]
+    fn ranks_from_adjacency_contracts_cycle_then_continues() {
+        // 0 <-> 1 (cycle), 1 -> 2: SCC {0,1} ranks 0, node 2 rank 1.
+        let adjacency = vec![vec![1], vec![0, 2], vec![]];
+        let node_ranks = NodeRanksCalculator::ranks_compute_from_adjacency(&adjacency, 3);
+        assert_eq!(vec![0, 0, 1], node_ranks);
+    }
+
+    #[test]
+    fn ranks_from_adjacency_no_edges_all_zero() {
+        let adjacency = vec![vec![], vec![], vec![]];
+        let node_ranks = NodeRanksCalculator::ranks_compute_from_adjacency(&adjacency, 3);
+        assert_eq!(vec![0, 0, 0], node_ranks);
     }
 }
