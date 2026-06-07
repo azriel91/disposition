@@ -8,17 +8,17 @@ use disposition_taffy_model::{taffy::TaffyTree, EdgeIdToEdgeSpacerTaffyNodes, Ta
 
 use disposition_ir_model::node::NodeFace;
 
+use super::svg_edge_infos_builder::{EdgeGroupPass1, EdgePass1Info};
+
 use crate::taffy_to_svg_elements_mapper::{
     edge_model::{NodeIdAndFace, NodeIdAndFaceToContactPointOffsets},
     edge_path_builder_pass_1::SpacerCoordinates,
     SpacerCoordinatesResolver, SvgNodeInfoByNodeId,
 };
 
-use self::geometry::OrthoProtrusionGeometry;
+use self::ortho_protrusion_geometry::OrthoProtrusionGeometry;
 
-mod geometry;
-
-use super::svg_edge_infos_builder::{EdgeGroupPass1, EdgePass1Info};
+mod ortho_protrusion_geometry;
 
 /// Maximum fraction of the rank gap that a protrusion may occupy.
 ///
