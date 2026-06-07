@@ -50,7 +50,7 @@ Add the following to `Cargo.toml`:
 
 ```toml
 [dependencies]
-disposition = "0.2.0"
+disposition = "0.3.0"
 ```
 
 In code:

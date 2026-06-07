@@ -1,6 +1,6 @@
 # Changelog
 
-## unreleased
+## 0.3.0 (2026-06-07)
 
 * Add `EdgeLabel` to allow different labels at each end of an edge. ([#32][#32])
 * Render edge descriptions in the middle of the edge path. ([#32][#32])
