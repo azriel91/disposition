@@ -8,6 +8,8 @@
 //!
 //! Build it with `cargo run -p xtask -- build-worker`, which runs
 //! `wasm-bindgen --target web` into the playground's `lsp_worker` asset folder.
+//!
+//! [`async_lsp::MainLoop`]: https://docs.rs/async-lsp/latest/async_lsp/struct.MainLoop.html
 
 use disposition_lsp::transport::{byte_pipe, frame, read_message, WORKER_READY};
 use futures::io::BufReader;
@@ -20,6 +22,8 @@ use web_sys::{DedicatedWorkerGlobalScope, MessageEvent};
 ///
 /// Wires the worker's `postMessage` transport to an [`async_lsp::MainLoop`]
 /// running on the worker's own event loop.
+///
+/// [`async_lsp::MainLoop`]: https://docs.rs/async-lsp/latest/async_lsp/struct.MainLoop.html
 #[wasm_bindgen(start)]
 pub fn worker_start() {
     let scope: DedicatedWorkerGlobalScope = js_sys::global().unchecked_into();

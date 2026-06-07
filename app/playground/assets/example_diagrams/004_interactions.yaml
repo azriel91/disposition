@@ -10,16 +10,15 @@
 # Interactions" example). To see them on their own, this example overrides the
 # interaction type styles to make them always visible.
 things:
-  t_browser: "Browser"
-  t_gateway: "API Gateway"
-  t_auth: "Auth Service"
-  t_db: "Database"
-
-thing_hierarchy:
   t_browser: {}
   t_gateway: {}
   t_auth: {}
   t_db: {}
+thing_names:
+  t_browser: "Browser"
+  t_gateway: "API Gateway"
+  t_auth: "Auth Service"
+  t_db: "Database"
 
 thing_interactions:
   edge_ix_browser_gateway:

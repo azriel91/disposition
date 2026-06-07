@@ -8,18 +8,6 @@
 # Each class is a container `thing`, and its fields are nested children
 # (`t_animal_name` is a child of `t_animal`).
 things:
-  t_animal: "Animal"
-  t_animal_name: "name: String"
-  t_animal_age: "age: u32"
-  t_dog: "Dog"
-  t_dog_breed: "breed: String"
-  t_cat: "Cat"
-  t_cat_indoor: "indoor: bool"
-  t_owner: "Owner"
-  t_owner_name: "name: String"
-  t_owner_pets: "pets: Vec<Animal>"
-
-thing_hierarchy:
   t_animal:
     t_animal_name: {}
     t_animal_age: {}
@@ -30,6 +18,17 @@ thing_hierarchy:
   t_owner:
     t_owner_name: {}
     t_owner_pets: {}
+thing_names:
+  t_animal: "Animal"
+  t_animal_name: "name: String"
+  t_animal_age: "age: u32"
+  t_dog: "Dog"
+  t_dog_breed: "breed: String"
+  t_cat: "Cat"
+  t_cat_indoor: "indoor: bool"
+  t_owner: "Owner"
+  t_owner_name: "name: String"
+  t_owner_pets: "pets: Vec<Animal>"
 
 thing_dependencies:
   edge_dep_dog_animal:

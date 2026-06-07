@@ -20,6 +20,7 @@ pub mod cursor_context;
 pub mod diagram_schema;
 pub mod dynamic_completions;
 pub mod id_category;
+pub mod key_category;
 pub mod yaml_lines;
 
 pub use self::completion_engine::CompletionEngine;

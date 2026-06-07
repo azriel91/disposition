@@ -1,7 +1,7 @@
 things:
-  t_repo: Repository
-thing_hierarchy:
   t_repo: {}
+thing_names:
+  t_repo: Repository
 processes:
   proc_build:
     name: Build

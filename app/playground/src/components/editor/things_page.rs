@@ -44,7 +44,7 @@ pub fn ThingNamesPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
 
     let diagram = input_diagram.read();
     let thing_entries: Vec<(String, String)> = diagram
-        .things
+        .thing_names
         .iter()
         .map(|(id, name)| (id.as_str().to_owned(), name.clone()))
         .collect();

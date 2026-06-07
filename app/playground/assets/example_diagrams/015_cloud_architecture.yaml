@@ -8,22 +8,6 @@
 # Node IDs follow the parent-prefix convention, e.g. `t_vpc_private` is a
 # child of `t_vpc`, and `t_vpc_private_app_1` a child of `t_vpc_private`.
 things:
-  t_users: "Users"
-  t_dns: "DNS (Route 53)"
-  t_cloud: "Cloud Platform"
-  t_vpc: "VPC 10.0.0.0/16"
-  t_vpc_public: "Public Subnet"
-  t_vpc_public_igw: "Internet Gateway"
-  t_vpc_public_alb: "Load Balancer"
-  t_vpc_private: "Private Subnet"
-  t_vpc_private_app_1: "App Server 1"
-  t_vpc_private_app_2: "App Server 2"
-  t_vpc_data: "Data Subnet"
-  t_vpc_data_rds_primary: "RDS Primary"
-  t_vpc_data_rds_replica: "RDS Replica"
-  t_vpc_data_cache: "Redis Cache"
-
-thing_hierarchy:
   t_users: {}
   t_dns: {}
   t_cloud:
@@ -38,6 +22,21 @@ thing_hierarchy:
         t_vpc_data_rds_primary: {}
         t_vpc_data_rds_replica: {}
         t_vpc_data_cache: {}
+thing_names:
+  t_users: "Users"
+  t_dns: "DNS (Route 53)"
+  t_cloud: "Cloud Platform"
+  t_vpc: "VPC 10.0.0.0/16"
+  t_vpc_public: "Public Subnet"
+  t_vpc_public_igw: "Internet Gateway"
+  t_vpc_public_alb: "Load Balancer"
+  t_vpc_private: "Private Subnet"
+  t_vpc_private_app_1: "App Server 1"
+  t_vpc_private_app_2: "App Server 2"
+  t_vpc_data: "Data Subnet"
+  t_vpc_data_rds_primary: "RDS Primary"
+  t_vpc_data_rds_replica: "RDS Replica"
+  t_vpc_data_cache: "Redis Cache"
 
 # Stack the subnets vertically, and lay each subnet's children in a row.
 thing_layouts:

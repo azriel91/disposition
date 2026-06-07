@@ -19,10 +19,10 @@ fn test_merge_example_input_over_base_produces_merged() {
 
     let merged = InputDiagramMerger::merge(base_diagram, &overlay_diagram);
 
-    // Verify overlay things are present
-    assert_eq!(overlay_diagram.things.len(), merged.things.len());
+    // Verify overlay thing_names are present
+    assert_eq!(overlay_diagram.thing_names.len(), merged.thing_names.len());
     let t_aws = id!("t_aws");
-    assert!(merged.things.contains_key(&t_aws));
+    assert!(merged.thing_names.contains_key(&t_aws));
 
     // Verify base style_aliases are present
     assert!(merged
@@ -49,11 +49,8 @@ fn test_merge_example_input_over_base_produces_merged() {
     // Verify overlay processes are present
     assert_eq!(overlay_diagram.processes.len(), merged.processes.len());
 
-    // Verify overlay thing_hierarchy is present
-    assert_eq!(
-        overlay_diagram.thing_hierarchy.len(),
-        merged.thing_hierarchy.len()
-    );
+    // Verify overlay things hierarchy is present
+    assert_eq!(overlay_diagram.things.len(), merged.things.len());
 
     // Verify base theme_tag_things_focus is present
     assert!(!merged.theme_tag_things_focus.is_empty());
@@ -81,10 +78,13 @@ fn test_merge_overlay_overrides_base() {
 
     let merged = InputDiagramMerger::merge(base_diagram, &overlay_diagram);
 
-    // Overlay things should be present
+    // Overlay thing_names should be present
     let t_aws = id!("t_aws");
-    assert!(merged.things.contains_key(&t_aws));
-    assert_eq!("☁️ Amazon Web Services", merged.things.get(&t_aws).unwrap());
+    assert!(merged.thing_names.contains_key(&t_aws));
+    assert_eq!(
+        "☁️ Amazon Web Services",
+        merged.thing_names.get(&t_aws).unwrap()
+    );
 
     // Base style_aliases should still be present (padding_normal from base)
     assert!(merged
@@ -141,12 +141,12 @@ fn test_merge_thing_hierarchy() {
 
     let merged = InputDiagramMerger::merge(base_diagram, &overlay_diagram);
 
-    // The overlay defines the entire thing_hierarchy
+    // The overlay defines the entire things hierarchy
     let t_aws = id!("t_aws");
-    assert!(merged.thing_hierarchy.contains_key(&t_aws));
+    assert!(merged.things.contains_key(&t_aws));
 
     let t_localhost = id!("t_localhost");
-    assert!(merged.thing_hierarchy.contains_key(&t_localhost));
+    assert!(merged.things.contains_key(&t_localhost));
 }
 
 /// Tests that processes are merged correctly.
@@ -202,10 +202,7 @@ fn test_merge_empty_base_with_overlay() {
     let merged = InputDiagramMerger::merge(base_diagram, &overlay_diagram);
 
     // All overlay values should be present
+    assert_eq!(overlay_diagram.thing_names.len(), merged.thing_names.len());
     assert_eq!(overlay_diagram.things.len(), merged.things.len());
-    assert_eq!(
-        overlay_diagram.thing_hierarchy.len(),
-        merged.thing_hierarchy.len()
-    );
     assert_eq!(overlay_diagram.processes.len(), merged.processes.len());
 }

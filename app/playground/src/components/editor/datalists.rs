@@ -61,7 +61,8 @@ pub fn EditorDataLists(input_diagram: Memo<InputDiagram<'static>>) -> Element {
 
     let thing_ids: Vec<String> = diagram
         .things
-        .keys()
+        .thing_ids_recursive()
+        .into_iter()
         .map(|id| id.as_str().to_owned())
         .collect();
 

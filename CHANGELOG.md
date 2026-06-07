@@ -13,6 +13,8 @@
 * Serve playground example diagrams as static assets fetched at runtime instead of embedding them in the wasm binary. ([#38][#38])
 * Refresh and expand the playground example diagrams to introduce features incrementally -- including edge labels and descriptions, markdown, and inline `data:` URL images. ([#38][#38])
 * Add LSP server, and use CodeMirror for text editor. ([#39][#39])
+* Rename `InputDiagram::things` to `InputDiagram::thing_names`, and `InputDiagram::thing_hierarchy` to `InputDiagram::things`. ([#40][#40])
+* Improve LSP suggestions for map keys and theme styles. ([#41][#41])
 
 [#32]: https://github.com/azriel91/disposition/pull/32
 [#33]: https://github.com/azriel91/disposition/pull/33
@@ -22,6 +24,8 @@
 [#37]: https://github.com/azriel91/disposition/pull/37
 [#38]: https://github.com/azriel91/disposition/pull/38
 [#39]: https://github.com/azriel91/disposition/pull/39
+[#40]: https://github.com/azriel91/disposition/pull/40
+[#41]: https://github.com/azriel91/disposition/pull/41
 
 
 ## 0.2.0 (2026-05-22)

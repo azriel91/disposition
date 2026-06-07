@@ -88,7 +88,7 @@ async-lsp = { version = "0.2.4", default-features = false, features = ["omni-tra
 base64 = "0.22.1"
 dioxus = "0.7.9"
 dioxus-clipboard = "0.3.0"
-dioxus_codemirror = "0.1.0"
+dioxus_codemirror = "0.2.0"
 emojis = "0.8.1"
 encre-css = "0.20.1"
 enum-iterator = "2.3.0"

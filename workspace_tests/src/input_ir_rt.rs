@@ -40,3 +40,4 @@ mod ir_to_taffy_builder;
 mod node_ranks_calculator;
 mod svg_elements_to_svg_mapper;
 mod taffy_to_svg_elements_mapper;
+mod tailwind_consistency;

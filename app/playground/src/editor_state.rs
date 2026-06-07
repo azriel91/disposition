@@ -202,20 +202,18 @@ input_diagram:
 
     #[test]
     fn top_level_index_returns_correct_indices() {
-        let top_level = EditorPage::top_level_pages();
+        let _top_level = EditorPage::top_level_pages();
+        // `Text` is the first top-level tab.
+        assert_eq!(EditorPage::Text.top_level_index(), Some(0));
         assert_eq!(
             EditorPage::Thing(EditorPageThing::Names).top_level_index(),
-            Some(0)
+            Some(1)
         );
         assert_eq!(
             EditorPage::Thing(EditorPageThing::CopyText).top_level_index(),
-            Some(0)
+            Some(1)
         );
-        assert_eq!(EditorPage::ThingLayout.top_level_index(), Some(1));
-        assert_eq!(
-            EditorPage::Text.top_level_index(),
-            Some(top_level.len() - 1)
-        );
+        assert_eq!(EditorPage::ThingLayout.top_level_index(), Some(2));
         assert_eq!(
             EditorPage::Theme(EditorPageTheme::BaseStyles).top_level_index(),
             EditorPage::Theme(EditorPageTheme::StyleAliases).top_level_index(),

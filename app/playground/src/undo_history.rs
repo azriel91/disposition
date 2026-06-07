@@ -185,7 +185,7 @@ mod tests {
     /// Helper: create a minimal `InputDiagram` that is distinguishable by
     /// its serialised YAML (we just check equality).
     fn make_diagram(label: &str) -> InputDiagram<'static> {
-        let yaml = format!("things:\n  {label}: {label}");
+        let yaml = format!("thing_names:\n  {label}: {label}");
         serde_saphyr::from_str(&yaml).expect("valid yaml")
     }
 

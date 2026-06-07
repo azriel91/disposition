@@ -1,11 +1,11 @@
 things:
-  t_alice: Alice
-  t_bob: Bob
-  t_charlie: Charlie
-thing_hierarchy:
   t_alice: {}
   t_bob: {}
   t_charlie: {}
+thing_names:
+  t_alice: Alice
+  t_bob: Bob
+  t_charlie: Charlie
 thing_dependencies:
   edge_dep_alice_charlie:
     kind: sequence

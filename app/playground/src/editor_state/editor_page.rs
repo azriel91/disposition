@@ -15,11 +15,15 @@ use super::{EditorPageEdges, EditorPageEntity, EditorPageTheme, EditorPageThing}
 /// system naturally represents the grouping.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Sequence)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum EditorPage {
+    /// Raw YAML text editor.
+    #[default]
+    Text,
     /// Things group: sub-pages for names, copy text, descriptions,
     /// tooltips.
     Thing(EditorPageThing),
-    /// Thing layout: interactive tree editor for `thing_hierarchy`.
+    /// Thing layout: interactive tree editor for the `things` hierarchy.
     ThingLayout,
     /// Edges group: sub-pages for dependencies, interactions, and labels.
     Edges(EditorPageEdges),
@@ -34,14 +38,6 @@ pub enum EditorPage {
     RenderOptions,
     /// Theme group: sub-pages for style aliases, base styles, etc.
     Theme(EditorPageTheme),
-    /// Raw YAML text editor.
-    Text,
-}
-
-impl Default for EditorPage {
-    fn default() -> Self {
-        Self::Thing(EditorPageThing::default())
-    }
 }
 
 impl EditorPage {
@@ -136,8 +132,8 @@ impl EditorPage {
     /// [`top_level_pages`](Self::top_level_pages) that this page belongs
     /// to.
     ///
-    /// e.g. any `Thing(_)` variant returns `Some(0)`, `ThingLayout`
-    /// returns `Some(1)`.
+    /// e.g. `Text` returns `Some(0)`, any `Thing(_)` variant returns
+    /// `Some(1)`, `ThingLayout` returns `Some(2)`.
     #[cfg(test)]
     pub fn top_level_index(&self) -> Option<usize> {
         Self::top_level_pages()

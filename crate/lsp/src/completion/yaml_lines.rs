@@ -15,6 +15,12 @@ pub fn is_blank_or_comment(line: &str) -> bool {
     trimmed.is_empty() || trimmed.starts_with('#')
 }
 
+/// Returns `true` if `line` is a block sequence item (`- item` or a bare `-`).
+pub fn is_list_item(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    trimmed == "-" || trimmed.starts_with("- ")
+}
+
 /// Returns the map key declared on `line` (`key:` or `key: value`), or `None`
 /// for blank / comment / list-item / non-key lines.
 pub fn line_map_key(line: &str) -> Option<String> {

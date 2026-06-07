@@ -1,17 +1,17 @@
 things:
-  t_alice_outer: Alice Outer
-  t_alice: Alice
-  t_alice_inner: Alice Inner
-  t_charlie_outer: Charlie Outer
-  t_charlie: Charlie
-  t_charlie_inner: Charlie Inner
-thing_hierarchy:
   t_alice_outer:
     t_alice:
       t_alice_inner: {}
   t_charlie_outer:
     t_charlie:
       t_charlie_inner: {}
+thing_names:
+  t_alice_outer: Alice Outer
+  t_alice: Alice
+  t_alice_inner: Alice Inner
+  t_charlie_outer: Charlie Outer
+  t_charlie: Charlie
+  t_charlie_inner: Charlie Inner
 thing_dependencies:
   edge_dep_alice_inner_charlie_inner:
     kind: sequence

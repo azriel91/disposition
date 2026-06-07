@@ -13,11 +13,11 @@
 /// Valid color names: `"slate"`, `"gray"`, `"red"`, `"blue"`, `"emerald"`.
 /// Valid shade keys: `"50"`, `"100"`, `"200"`, .. `"900"`, `"950"`.
 /// Valid oklch values: `"oklch(97.1% 0.013 17.38)"`.
-pub(crate) struct TailwindColor {
+pub struct TailwindColor {
     /// The Tailwind CSS color name, e.g. `"slate"`, `"red"`.
-    pub(crate) name: &'static str,
+    pub name: &'static str,
     /// Shade-to-oklch pairs, e.g. `("500", "oklch(55.4% 0.046 257.417)")`.
-    pub(crate) shades: &'static [(&'static str, &'static str)],
+    pub shades: &'static [(&'static str, &'static str)],
 }
 
 // === Data === //
@@ -27,7 +27,7 @@ pub(crate) struct TailwindColor {
 /// This includes every color that has shade variants (50–950). Colors without
 /// shade variants (`inherit`, `current`, `transparent`, `black`, `white`) are
 /// excluded.
-pub(crate) const TAILWIND_COLORS: &[TailwindColor] = &[
+pub const TAILWIND_COLORS: &[TailwindColor] = &[
     TailwindColor {
         name: "slate",
         shades: &[

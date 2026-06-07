@@ -8,12 +8,11 @@
 #
 # Descriptions are laid out alongside their thing, so keep them concise.
 things:
-  t_repo: "Repository"
-  t_ci: "CI Pipeline"
-
-thing_hierarchy:
   t_repo: {}
   t_ci: {}
+thing_names:
+  t_repo: "Repository"
+  t_ci: "CI Pipeline"
 
 thing_descs:
   t_repo: |-

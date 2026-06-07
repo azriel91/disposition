@@ -9,20 +9,19 @@
 # * `tag_things` lists the things in each tag. A thing may belong to several
 #   tags (here `t_orders` is in both "Domain Services" and "Data Layer").
 things:
-  t_gateway: "API Gateway"
-  t_auth: "Auth Service"
-  t_orders: "Order Service"
-  t_payments: "Payment Service"
-  t_db: "Database"
-  t_queue: "Message Queue"
-
-thing_hierarchy:
   t_gateway: {}
   t_auth: {}
   t_orders: {}
   t_payments: {}
   t_db: {}
   t_queue: {}
+thing_names:
+  t_gateway: "API Gateway"
+  t_auth: "Auth Service"
+  t_orders: "Order Service"
+  t_payments: "Payment Service"
+  t_db: "Database"
+  t_queue: "Message Queue"
 
 thing_dependencies:
   edge_dep_auth_gateway:

@@ -14,18 +14,17 @@
 #
 # `edge_descs` renders a label next to an edge.
 things:
-  t_config: "Config"
-  t_db: "Database"
-  t_cache: "Cache"
-  t_api: "API Server"
-  t_app: "Application"
-
-thing_hierarchy:
   t_config: {}
   t_db: {}
   t_cache: {}
   t_api: {}
   t_app: {}
+thing_names:
+  t_config: "Config"
+  t_db: "Database"
+  t_cache: "Cache"
+  t_api: "API Server"
+  t_app: "Application"
 
 thing_dependencies:
   # `sequence`: the app depends on the API server.

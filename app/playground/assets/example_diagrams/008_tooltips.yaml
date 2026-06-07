@@ -7,14 +7,13 @@
 # handy for commands, notes, or links that would clutter the diagram if always
 # shown.
 things:
-  t_lb: "Load Balancer"
-  t_app: "App Server"
-  t_db: "Database"
-
-thing_hierarchy:
   t_lb: {}
   t_app: {}
   t_db: {}
+thing_names:
+  t_lb: "Load Balancer"
+  t_app: "App Server"
+  t_db: "Database"
 
 thing_dependencies:
   edge_dep_lb_app:

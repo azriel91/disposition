@@ -17,7 +17,7 @@ use crate::thing::ThingId;
 /// # Example
 ///
 /// ```yaml
-/// thing_hierarchy:
+/// things:
 ///   t_aws: # <-- `ThingHierarchy` (recursive)
 ///     t_aws_iam: # <-- `ThingHierarchy` (recursive)
 ///       t_aws_iam_ecs_policy: {}
@@ -75,6 +75,23 @@ impl<'id> ThingHierarchy<'id> {
             .values()
             .map(|child| 1 + child.total_descendants())
             .sum()
+    }
+
+    /// Returns every `ThingId` in this hierarchy in depth-first declaration
+    /// order (parent before its children).
+    pub fn thing_ids_recursive(&self) -> Vec<&ThingId<'id>> {
+        let mut thing_ids = Vec::with_capacity(self.total_descendants());
+        self.thing_ids_recursive_collect(&mut thing_ids);
+        thing_ids
+    }
+
+    /// Appends every `ThingId` in this hierarchy to `thing_ids` in depth-first
+    /// declaration order.
+    fn thing_ids_recursive_collect<'f>(&'f self, thing_ids: &mut Vec<&'f ThingId<'id>>) {
+        self.0.iter().for_each(|(thing_id, children)| {
+            thing_ids.push(thing_id);
+            children.thing_ids_recursive_collect(thing_ids);
+        });
     }
 
     /// Returns true if the hierarchy is empty (no children).

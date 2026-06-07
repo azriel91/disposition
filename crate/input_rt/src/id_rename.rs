@@ -63,8 +63,8 @@ pub fn id_rename_in_input_diagram(
 ) {
     let InputDiagram {
         things: _,
+        thing_names: _,
         thing_copy_text: _,
-        thing_hierarchy: _,
         thing_layouts: _,
         thing_dependencies: _,
         thing_interactions: _,

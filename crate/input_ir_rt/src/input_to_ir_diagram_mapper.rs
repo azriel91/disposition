@@ -39,8 +39,8 @@ mod css_theme_vars;
 mod node_nesting_infos_builder;
 mod tailwind_class_state;
 mod tailwind_classes_builder;
-mod tailwind_color_shade;
-mod tailwind_colors;
+pub(crate) mod tailwind_color_shade;
+pub(crate) mod tailwind_colors;
 mod theme_attr_resolver;
 
 /// Maps an input diagram to an intermediate representation diagram.
@@ -57,8 +57,8 @@ impl InputToIrDiagramMapper {
 
         let InputDiagram {
             things,
+            thing_names,
             thing_copy_text,
-            thing_hierarchy,
             thing_layouts,
             thing_dependencies,
             thing_interactions,
@@ -78,17 +78,19 @@ impl InputToIrDiagramMapper {
             css,
         } = input_diagram;
 
-        // 1. Build NodeNames from things, tags, processes, and process steps
-        let nodes = Self::build_node_names(things, tags, processes);
+        // 1. Build NodeNames from the things hierarchy (with thing_names labels), tags,
+        //    processes, and process steps
+        let nodes = Self::build_node_names(things, thing_names, tags, processes);
 
         // 2. Build NodeCopyText from thing_copy_text
         let node_copy_text = Self::build_node_copy_text(thing_copy_text);
 
-        // 3. Build NodeHierarchy from tags, processes (with steps), and thing_hierarchy
-        let node_hierarchy = Self::build_node_hierarchy(tags, processes, thing_hierarchy);
+        // 3. Build NodeHierarchy from tags, processes (with steps), and the things
+        //    hierarchy
+        let node_hierarchy = Self::build_node_hierarchy(tags, processes, things);
 
-        // 4. Build NodeOrdering from things, tags, and processes
-        let node_ordering = Self::build_node_ordering(things, thing_hierarchy, tags, processes);
+        // 4. Build NodeOrdering from the things hierarchy, tags, and processes
+        let node_ordering = Self::build_node_ordering(things, tags, processes);
 
         // 5. Build EdgeGroups from thing_dependencies and thing_interactions
         let edge_groups = Self::build_edge_groups(thing_dependencies, thing_interactions);
@@ -269,16 +271,26 @@ impl InputToIrDiagramMapper {
 
     // === Node Names === //
 
-    /// Build NodeNames from things, tags, processes, and process steps.
+    /// Build NodeNames from the things hierarchy, tags, processes, and process
+    /// steps.
+    ///
+    /// A node is created for every `ThingId` in the `things` hierarchy. Its
+    /// display label is looked up in `thing_names`, defaulting to the
+    /// `ThingId` string when no entry exists.
     fn build_node_names<'id>(
-        things: &ThingNames<'id>,
+        things: &InputThingHierarchy<'id>,
+        thing_names: &ThingNames<'id>,
         tags: &TagNames<'id>,
         processes: &Processes<'id>,
     ) -> NodeNames<'id> {
-        // Add things
-        let thing_nodes = things.iter().map(|(thing_id, name)| {
+        // Add things from the hierarchy, defaulting the name to the ThingId.
+        let thing_nodes = things.thing_ids_recursive().into_iter().map(|thing_id| {
             let node_id = NodeId::from(thing_id.as_ref().clone());
-            (node_id, name.clone())
+            let name = thing_names
+                .get(thing_id.as_ref())
+                .cloned()
+                .unwrap_or_else(|| thing_id.as_str().to_string());
+            (node_id, name)
         });
 
         // Add tags
@@ -392,8 +404,7 @@ impl InputToIrDiagramMapper {
     /// 2. Processes and their steps (process first, then its steps)
     /// 3. Tags (at the end)
     fn build_node_ordering<'id>(
-        things: &ThingNames<'id>,
-        thing_hierarchy: &InputThingHierarchy<'id>,
+        things: &InputThingHierarchy<'id>,
         tags: &TagNames<'id>,
         processes: &Processes<'id>,
     ) -> NodeOrdering<'id> {
@@ -403,11 +414,7 @@ impl InputToIrDiagramMapper {
 
         // Collect things tab indices in hierarchy order (depth-first)
         let mut tab_indices = Map::<&Id<'id>, u32>::new();
-        Self::collect_thing_tab_indices_recursive(
-            thing_hierarchy,
-            &mut tab_index,
-            &mut tab_indices,
-        );
+        Self::collect_thing_tab_indices_recursive(things, &mut tab_index, &mut tab_indices);
 
         // Collect process and step tab indices
         let mut process_step_count = 0;
@@ -432,7 +439,7 @@ impl InputToIrDiagramMapper {
         // Now build the NodeOrdering map in rendering order:
         // tags, then process steps, then processes, then things
         let mut node_ordering = NodeOrdering::with_capacity(
-            tags.len() + processes.len() + process_step_count + things.len(),
+            tags.len() + processes.len() + process_step_count + things.total_descendants(),
         );
 
         // 1. Tags first (for CSS peer selector ordering)
@@ -465,7 +472,7 @@ impl InputToIrDiagramMapper {
         });
 
         // 4. Things (in hierarchy order)
-        Self::add_things_to_ordering_recursive(thing_hierarchy, &tab_indices, &mut node_ordering);
+        Self::add_things_to_ordering_recursive(things, &tab_indices, &mut node_ordering);
 
         node_ordering
     }
@@ -613,7 +620,7 @@ impl InputToIrDiagramMapper {
 
     /// Build EntityTypes with defaults for each node type.
     fn build_entity_types<'id>(
-        things: &ThingNames<'id>,
+        things: &InputThingHierarchy<'id>,
         tags: &TagNames<'id>,
         processes: &Processes<'id>,
         input_entity_types: &EntityTypes<'id>,
@@ -631,7 +638,7 @@ impl InputToIrDiagramMapper {
         };
 
         // Add things with type_thing_default + any custom type
-        let thing_entries = things.keys().map(|thing_id| {
+        let thing_entries = things.thing_ids_recursive().into_iter().map(|thing_id| {
             let id: Id = thing_id.as_ref().clone();
             let types = build_types(&id, EntityType::ThingDefault);
             (id, types)

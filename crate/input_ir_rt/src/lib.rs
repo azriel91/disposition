@@ -8,14 +8,22 @@ pub(crate) use crate::{
     taffy_node_absolute_coordinates_calculator::TaffyNodeAbsoluteCoordinatesCalculator,
 };
 pub use crate::{
-    edge_face_assigner::EdgeFaceAssigner, edge_id_generator::EdgeIdGenerator,
+    edge_face_assigner::EdgeFaceAssigner,
+    edge_id_generator::EdgeIdGenerator,
     input_diagram_merger::InputDiagramMerger,
     input_diagram_theme_sources::InputDiagramThemeSources,
-    input_to_ir_diagram_mapper::InputToIrDiagramMapper, ir_to_taffy_builder::IrToTaffyBuilder,
+    input_to_ir_diagram_mapper::{
+        tailwind_color_shade::{TailwindColorShade, TailwindColorShadeInvalid},
+        tailwind_colors::{TailwindColor, TAILWIND_COLORS},
+        InputToIrDiagramMapper,
+    },
+    ir_to_taffy_builder::IrToTaffyBuilder,
     node_ranks_calculator::NodeRanksCalculator,
     process_step_graph_calculator::ProcessStepGraphCalculator,
-    string_xml_escaper::StringXmlEscaper, svg_elements_to_svg_mapper::SvgElementsToSvgMapper,
-    taffy_to_svg_elements_mapper::TaffyToSvgElementsMapper, theme_value_source::ThemeValueSource,
+    string_xml_escaper::StringXmlEscaper,
+    svg_elements_to_svg_mapper::SvgElementsToSvgMapper,
+    taffy_to_svg_elements_mapper::TaffyToSvgElementsMapper,
+    theme_value_source::ThemeValueSource,
 };
 
 // Used by `cosmic-text` for calculating text layout, and `base64` for encoding

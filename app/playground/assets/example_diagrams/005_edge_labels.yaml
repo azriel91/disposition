@@ -12,14 +12,13 @@
 # `__1`. The arrow runs from the first thing in the group to the last, so
 # `from` sits at the first thing and `to` at the last.
 things:
-  t_client: "Client"
-  t_api: "API"
-  t_db: "Database"
-
-thing_hierarchy:
   t_client: {}
   t_api: {}
   t_db: {}
+thing_names:
+  t_client: "Client"
+  t_api: "API"
+  t_db: "Database"
 
 thing_dependencies:
   edge_dep_client_api:

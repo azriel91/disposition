@@ -10,14 +10,13 @@
 # a normal link or a `data:` URL. Small inline SVGs work well as `data:` URLs,
 # so the diagram stays self-contained with no external requests.
 things:
-  t_browser: "Browser"
-  t_server: "Server"
-  t_db: "Database"
-
-thing_hierarchy:
   t_browser: {}
   t_server: {}
   t_db: {}
+thing_names:
+  t_browser: "Browser"
+  t_server: "Server"
+  t_db: "Database"
 
 thing_descs:
   t_browser: |-

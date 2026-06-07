@@ -9,16 +9,19 @@ use std::collections::BTreeSet;
 
 use crate::completion::{
     id_category::IdCategory,
+    key_category::KeyCategory,
     yaml_lines::{indent, is_blank_or_comment, line_map_key},
 };
 
 /// IDs defined in the document, grouped by category.
 #[derive(Clone, Debug, Default)]
 pub struct DynamicCompletions {
-    /// `ThingId`s declared under `things` and `thing_hierarchy`.
+    /// `ThingId`s declared under the `things` hierarchy and `thing_names`.
     thing_ids: BTreeSet<String>,
     /// `TagId`s declared under `tags`.
     tag_ids: BTreeSet<String>,
+    /// `ProcessId`s declared under `processes`.
+    process_ids: BTreeSet<String>,
     /// `ProcessStepId`s declared under any process's `steps`.
     step_ids: BTreeSet<String>,
     /// `EdgeGroupId`s declared under `thing_dependencies` /
@@ -31,11 +34,15 @@ impl DynamicCompletions {
     pub fn from_text(text: &str) -> DynamicCompletions {
         let lines = text.split('\n').collect::<Vec<&str>>();
 
-        let mut thing_ids = collect_block_keys(&lines, "things", true, true);
-        thing_ids.extend(collect_block_keys(&lines, "thing_hierarchy", true, false));
+        // `things` is the recursive hierarchy (collect all nested keys);
+        // `thing_names` and `thing_descs` are flat maps (direct children only).
+        let mut thing_ids = collect_block_keys(&lines, "things", true, false);
+        thing_ids.extend(collect_block_keys(&lines, "thing_names", true, true));
         thing_ids.extend(collect_block_keys(&lines, "thing_descs", true, true));
 
         let tag_ids = collect_block_keys(&lines, "tags", true, true);
+
+        let process_ids = collect_block_keys(&lines, "processes", true, true);
 
         let step_ids = collect_block_keys(&lines, "steps", false, true);
 
@@ -45,6 +52,7 @@ impl DynamicCompletions {
         DynamicCompletions {
             thing_ids,
             tag_ids,
+            process_ids,
             step_ids,
             edge_group_ids,
         }
@@ -66,6 +74,73 @@ impl DynamicCompletions {
                 .map(String::as_str)
                 .collect(),
         }
+    }
+
+    /// Returns the suggested map *key* labels for `key_category`.
+    ///
+    /// These are the document-derived IDs, templated IDs, and known literal
+    /// keys. Schema-derived suggestions (the built-in `StyleAlias` /
+    /// `EntityType` keys) are *not* included here -- the completion engine adds
+    /// those from the schema, which this type does not have access to.
+    pub fn key_suggestions(&self, key_category: KeyCategory) -> Vec<String> {
+        let owned = |ids: Vec<&str>| ids.into_iter().map(str::to_string).collect::<Vec<String>>();
+
+        match key_category {
+            KeyCategory::ThingId => owned(self.ids_for(IdCategory::Thing)),
+            KeyCategory::EdgeGroupDep => vec![self.edge_group_suggestion("edge_dep")],
+            KeyCategory::EdgeGroupInteraction => vec![self.edge_group_suggestion("edge_ix")],
+            KeyCategory::TagName => vec![String::from("tag_example")],
+            KeyCategory::TagId => owned(self.ids_for(IdCategory::Tag)),
+            KeyCategory::EdgeId => self.edge_ids(),
+            KeyCategory::Entity => {
+                let mut suggestions = owned(self.ids_for(IdCategory::Thing));
+                suggestions.extend(self.process_ids.iter().cloned());
+                suggestions.extend(owned(self.ids_for(IdCategory::ProcessStep)));
+                suggestions.extend(self.edge_ids());
+                suggestions
+            }
+            KeyCategory::StyleAlias => vec![String::from("style_alias_custom")],
+            KeyCategory::ThemeStyles => {
+                let mut suggestions =
+                    vec![String::from("node_defaults"), String::from("edge_defaults")];
+                suggestions.extend(owned(self.ids_for(IdCategory::Thing)));
+                suggestions.extend(owned(self.ids_for(IdCategory::EdgeGroup)));
+                suggestions.extend(self.edge_ids());
+                suggestions
+            }
+            KeyCategory::TagFocus => {
+                let mut suggestions = vec![String::from("tag_defaults")];
+                suggestions.extend(owned(self.ids_for(IdCategory::Tag)));
+                suggestions
+            }
+            // Built-in entity types come from the schema, added by the engine.
+            KeyCategory::EntityType => Vec::new(),
+        }
+    }
+
+    /// Builds an edge group ID suggestion from the first two defined things.
+    ///
+    /// e.g. `edge_dep__t_a_t_b` when `t_a` and `t_b` are the first two
+    /// `thing_ids`, `edge_dep__t_a` when only one thing is defined, and the
+    /// bare `edge_dep_` fallback when there are no things to choose from.
+    fn edge_group_suggestion(&self, prefix: &str) -> String {
+        let mut thing_ids = self.thing_ids.iter();
+        match (thing_ids.next(), thing_ids.next()) {
+            (Some(thing_id_0), Some(thing_id_1)) => {
+                format!("{prefix}__{thing_id_0}_{thing_id_1}")
+            }
+            (Some(thing_id_0), None) => format!("{prefix}__{thing_id_0}"),
+            _ => format!("{prefix}_"),
+        }
+    }
+
+    /// Returns `<edge_group_id>__0` for each edge group defined in the
+    /// document.
+    fn edge_ids(&self) -> Vec<String> {
+        self.edge_group_ids
+            .iter()
+            .map(|edge_group_id| format!("{edge_group_id}__0"))
+            .collect()
     }
 }
 
