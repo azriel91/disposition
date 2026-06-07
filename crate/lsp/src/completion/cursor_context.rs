@@ -62,8 +62,7 @@ impl CursorContext {
             let value_part = &after_dash[colon_idx + 1..];
             // Inside `[ .. ]` flow brackets when more `[` than `]` precede the
             // cursor; a separator space is needed when nothing follows `key:`.
-            let in_flow_list =
-                value_part.matches('[').count() > value_part.matches(']').count();
+            let in_flow_list = value_part.matches('[').count() > value_part.matches(']').count();
             let needs_space = value_part.is_empty();
             let path = Self::ancestor_chain(&lines, line_idx, current_indent);
             return CursorContext {
@@ -81,9 +80,7 @@ impl CursorContext {
             // `- <cursor>` -- a value within the enclosing sequence. The owning
             // key may sit at the same indent as the `- ` items (a block sequence
             // that is not indented under its key), or shallower.
-            if let Some((path, key)) =
-                Self::list_value_target(&lines, line_idx, current_indent)
-            {
+            if let Some((path, key)) = Self::list_value_target(&lines, line_idx, current_indent) {
                 return CursorContext {
                     path,
                     target: CompletionTarget::Value {
@@ -160,24 +157,25 @@ impl CursorContext {
         from_line_idx: usize,
         base_indent: usize,
     ) -> Option<(Vec<String>, String)> {
-        let owner_idx = lines[..from_line_idx]
-            .iter()
-            .enumerate()
-            .rev()
-            .find_map(|(idx, line)| {
-                if is_blank_or_comment(line) {
-                    return None;
-                }
-                let line_indent = indent(line);
-                // Deeper content belongs to a sibling item; a sibling item at
-                // the same indent is part of the same sequence -- skip both.
-                if line_indent > base_indent
-                    || (line_indent == base_indent && is_list_item(line))
-                {
-                    return None;
-                }
-                Some(idx)
-            })?;
+        let owner_idx =
+            lines[..from_line_idx]
+                .iter()
+                .enumerate()
+                .rev()
+                .find_map(|(idx, line)| {
+                    if is_blank_or_comment(line) {
+                        return None;
+                    }
+                    let line_indent = indent(line);
+                    // Deeper content belongs to a sibling item; a sibling item at
+                    // the same indent is part of the same sequence -- skip both.
+                    if line_indent > base_indent
+                        || (line_indent == base_indent && is_list_item(line))
+                    {
+                        return None;
+                    }
+                    Some(idx)
+                })?;
 
         let owner_key = line_map_key(lines[owner_idx])?;
         let owner_indent = indent(lines[owner_idx]);

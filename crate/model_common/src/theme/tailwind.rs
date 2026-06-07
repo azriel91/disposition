@@ -3,8 +3,8 @@
 //! These are the value vocabularies for the color- and shade-valued theme
 //! attributes (e.g. `shape_color: "slate"`, `fill_shade_normal: "300"`). They
 //! live here so they can be shared between the renderer
-//! (`disposition_input_ir_rt`, which maps each name+shade to an oklch value) and
-//! the language server (`disposition_lsp`, which offers them as value
+//! (`disposition_input_ir_rt`, which maps each name+shade to an oklch value)
+//! and the language server (`disposition_lsp`, which offers them as value
 //! completions) without duplication.
 //!
 //! The renderer's oklch lookup table is the source of the actual color data; a

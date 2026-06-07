@@ -40,7 +40,6 @@ pub enum EditorPage {
     Theme(EditorPageTheme),
 }
 
-
 impl EditorPage {
     /// Returns the top-level tabs in display order.
     ///

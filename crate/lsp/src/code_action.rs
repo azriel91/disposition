@@ -21,7 +21,8 @@ mod list_conversion;
 pub struct CodeActionEngine;
 
 impl CodeActionEngine {
-    /// Returns the list conversions applicable at `line` (zero-based) in `text`.
+    /// Returns the list conversions applicable at `line` (zero-based) in
+    /// `text`.
     ///
     /// At most one applies at a time: a `key: [..]` flow value offers a
     /// conversion to a block list, while a `key:` with following `- ` items
@@ -142,18 +143,22 @@ impl CodeActionEngine {
 
         // Walk up past sibling items / their nested content to the owning key.
         let item_indent = indent(line);
-        lines[..line_idx].iter().enumerate().rev().find_map(|(idx, candidate)| {
-            if is_blank_or_comment(candidate) {
-                return None;
-            }
-            let candidate_indent = indent(candidate);
-            if candidate_indent > item_indent
-                || (candidate_indent == item_indent && is_list_item(candidate))
-            {
-                return None;
-            }
-            line_map_key(candidate).map(|_key| idx)
-        })
+        lines[..line_idx]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(idx, candidate)| {
+                if is_blank_or_comment(candidate) {
+                    return None;
+                }
+                let candidate_indent = indent(candidate);
+                if candidate_indent > item_indent
+                    || (candidate_indent == item_indent && is_list_item(candidate))
+                {
+                    return None;
+                }
+                line_map_key(candidate).map(|_key| idx)
+            })
     }
 }
 

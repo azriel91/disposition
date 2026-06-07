@@ -14,8 +14,8 @@ pub enum CompletionTarget {
         /// `false`, an array-valued field completed at the `key:` position has
         /// its element values wrapped in flow-list syntax (e.g. `[t_a]`).
         in_sequence: bool,
-        /// Whether a separator space must precede the inserted value (the cursor
-        /// is immediately after `key:` with no space yet).
+        /// Whether a separator space must precede the inserted value (the
+        /// cursor is immediately after `key:` with no space yet).
         needs_space: bool,
     },
 }

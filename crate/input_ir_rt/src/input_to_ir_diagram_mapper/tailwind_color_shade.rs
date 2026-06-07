@@ -203,9 +203,7 @@ pub struct TailwindColorShadeInvalid;
 
 impl fmt::Display for TailwindColorShadeInvalid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(
-            "expected a Tailwind color shade: one of `50`, `100`, .. `900`, `950`",
-        )
+        f.write_str("expected a Tailwind color shade: one of `50`, `100`, .. `900`, `950`")
     }
 }
 
@@ -267,10 +265,22 @@ mod tests {
 
     #[test]
     fn from_str_returns_err_for_invalid_input() {
-        assert_eq!("0".parse::<TailwindColorShade>(), Err(TailwindColorShadeInvalid));
-        assert_eq!("999".parse::<TailwindColorShade>(), Err(TailwindColorShadeInvalid));
-        assert_eq!("".parse::<TailwindColorShade>(), Err(TailwindColorShadeInvalid));
-        assert_eq!("abc".parse::<TailwindColorShade>(), Err(TailwindColorShadeInvalid));
+        assert_eq!(
+            "0".parse::<TailwindColorShade>(),
+            Err(TailwindColorShadeInvalid)
+        );
+        assert_eq!(
+            "999".parse::<TailwindColorShade>(),
+            Err(TailwindColorShadeInvalid)
+        );
+        assert_eq!(
+            "".parse::<TailwindColorShade>(),
+            Err(TailwindColorShadeInvalid)
+        );
+        assert_eq!(
+            "abc".parse::<TailwindColorShade>(),
+            Err(TailwindColorShadeInvalid)
+        );
     }
 
     #[test]

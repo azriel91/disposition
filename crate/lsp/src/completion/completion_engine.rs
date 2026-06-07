@@ -156,11 +156,11 @@ impl CompletionEngine {
     /// Offers enum values and/or document-defined IDs for `key`'s value.
     ///
     /// `in_sequence` is `true` when the cursor is already inside a sequence (a
-    /// `- ` item or `[ .. ]` flow brackets). For an array-valued field completed
-    /// at the `key:` position (`in_sequence == false`), each element value is
-    /// inserted as a flow list (e.g. `[t_a]`) so the YAML stays a valid
-    /// sequence. `needs_space` prepends a separator space when the cursor sits
-    /// immediately after `key:`.
+    /// `- ` item or `[ .. ]` flow brackets). For an array-valued field
+    /// completed at the `key:` position (`in_sequence == false`), each
+    /// element value is inserted as a flow list (e.g. `[t_a]`) so the YAML
+    /// stays a valid sequence. `needs_space` prepends a separator space
+    /// when the cursor sits immediately after `key:`.
     #[allow(clippy::fn_params_excessive_bools)]
     fn value_completions(
         schema: &DiagramSchema,
@@ -238,10 +238,11 @@ impl CompletionEngine {
     /// schema-driven completion. A theme attribute with no enumerable values
     /// (numeric / freeform, e.g. `padding`) yields `Some(<empty>)`.
     ///
-    /// `needs_space` prepends a separator space when the cursor sits immediately
-    /// after `key:`.
+    /// `needs_space` prepends a separator space when the cursor sits
+    /// immediately after `key:`.
     fn theme_attr_value_completions(key: &str, needs_space: bool) -> Option<Vec<CompletionItem>> {
-        let theme_attr = serde_json::from_value::<ThemeAttr>(Value::String(key.to_string())).ok()?;
+        let theme_attr =
+            serde_json::from_value::<ThemeAttr>(Value::String(key.to_string())).ok()?;
 
         let items = theme_attr
             .value_suggestions()

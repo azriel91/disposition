@@ -348,7 +348,8 @@ fn color_values_offered_for_shape_color() {
 
 #[test]
 fn shade_values_offered_for_fill_shade_normal() {
-    let text = "theme_types_styles:\n  type_service:\n    node_defaults:\n      fill_shade_normal: ";
+    let text =
+        "theme_types_styles:\n  type_service:\n    node_defaults:\n      fill_shade_normal: ";
     let labels = labels(text, 3, 25);
 
     for expected in ["50", "300", "950"] {
@@ -446,7 +447,8 @@ fn edge_group_things_offered_for_same_indent_block_sequence() {
 
 #[test]
 fn edge_group_things_after_bare_dash_inserts_leading_space() {
-    // `-` with no space -- the selected id is inserted as ` t_alpha` (-> `- t_alpha`).
+    // `-` with no space -- the selected id is inserted as ` t_alpha` (-> `-
+    // t_alpha`).
     let text = "things:\n  t_alpha: {}\n\
         thing_dependencies:\n  edge_a:\n    things:\n      -";
     let items = CompletionEngine::completions(text, 5, 7);
