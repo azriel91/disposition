@@ -115,9 +115,9 @@
       "type": "object",
       "properties": {
         "selector": {
-          "description": "CSS selector strategy for the dark-mode variable overrides.\n\nDefaults to `DarkModeCssSelector::RootDarkClass`.",
+          "description": "CSS selector strategy for the dark-mode variable overrides.\n\nDefaults to `DarkModeCssSelector::MediaQuery`.",
           "$ref": "#/$defs/DarkModeCssSelector",
-          "default": "root_dark_class"
+          "default": "media_query"
         },
         "shade": {
           "description": "How fill, stroke, and text shades are adjusted for dark mode.\n\nDefaults to `DarkModeShadeConfig::Invert`.",
@@ -129,7 +129,7 @@
       }
     },
     "DarkModeCssSelector": {
-      "description": "CSS selector strategy for applying dark-mode colour overrides.\n\nControls how the dark-mode CSS variable block is targeted in the\ngenerated SVG styles.\n\n# Variants\n\n* `MediaQuery`: uses `@media (prefers-color-scheme: dark) { svg { .. } }`.\n* `RootDarkClass`: uses `:root.dark svg { .. }`, which allows a surrounding\n  page to toggle dark mode via a `dark` class on `<html>`.\n\nDefaults to `DarkModeCssSelector::RootDarkClass`.\n\n# Examples\n\n```yaml\nselector: media_query\n```\n\n```yaml\nselector: root_dark_class\n```",
+      "description": "CSS selector strategy for applying dark-mode colour overrides.\n\nControls how the dark-mode CSS variable block is targeted in the\ngenerated SVG styles.\n\n# Variants\n\n* `MediaQuery`: uses `@media (prefers-color-scheme: dark) { svg { .. } }`.\n* `RootDarkClass`: uses `:root.dark svg { .. }`, which allows a surrounding\n  page to toggle dark mode via a `dark` class on `<html>`.\n\nDefaults to `DarkModeCssSelector::MediaQuery`.\n\n# Examples\n\n```yaml\nselector: media_query\n```\n\n```yaml\nselector: root_dark_class\n```",
       "oneOf": [
         {
           "description": "Uses `@media (prefers-color-scheme: dark) { svg { .. } }`.\n\nThe browser automatically switches based on the OS / browser\npreference.",
@@ -885,7 +885,7 @@
           "const": "margin_bottom"
         },
         {
-          "description": "Opacity of a node, e.g. `\"0.5\"` in `\"opacity-0.5\"`.",
+          "description": "Opacity of a node, e.g. `\"50\"` in `\"opacity-50\"`.",
           "type": "string",
           "const": "opacity"
         },
@@ -1100,10 +1100,10 @@
           "$ref": "#/$defs/ThemeStyles"
         },
         "dark_mode_config": {
-          "description": "Dark mode configuration.\n\nControls shade adjustment strategy and the CSS selector used for\ndark-mode variable overrides.\n\nDefaults to `DarkModeConfig::default()` (shade: invert, selector:\nroot_dark_class).",
+          "description": "Dark mode configuration.\n\nControls shade adjustment strategy and the CSS selector used for\ndark-mode variable overrides.\n\nDefaults to `DarkModeConfig::default()` (shade: invert, selector:\nmedia_query).",
           "$ref": "#/$defs/DarkModeConfig",
           "default": {
-            "selector": "root_dark_class",
+            "selector": "media_query",
             "shade": {
               "mode": "invert"
             }

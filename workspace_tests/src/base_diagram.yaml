@@ -168,7 +168,7 @@ theme_default:
   dark_mode_config:
     shade:
       mode: invert
-    selector: root_dark_class
+    selector: media_query
 
 # Styles applied to things / edges of a particular `type` specified in `thing_types`.
 theme_types_styles:

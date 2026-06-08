@@ -29,7 +29,7 @@ use dioxus::{
 };
 use disposition::{
     input_ir_model::IrDiagramAndIssues,
-    input_model::InputDiagram,
+    input_model::{theme::DarkModeCssSelector, InputDiagram},
     ir_model::IrDiagram,
     svg_model::SvgElements,
     taffy_model::{DimensionAndLod, TaffyNodeMappings},
@@ -570,6 +570,66 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         svg
     });
 
+    // === Display SVG pipeline (forces `RootDarkClass`) === //
+    //
+    // The intermediate data and `svg` above are generated from the user's
+    // `InputDiagram`, whose dark-mode CSS selector defaults to `MediaQuery` --
+    // the sensible default to generate / copy.
+    //
+    // For the *displayed* SVG we instead force
+    // `DarkModeCssSelector::RootDarkClass`, so the diagram's dark mode tracks
+    // the site's `dark` class toggle. This lets the user preview how the
+    // diagram looks in light / dark mode, matching the rest of the site.
+    //
+    // Only the dark-mode CSS block (in `IrDiagram::css`) differs between the
+    // two selectors; node layout is identical, so the `taffy_node_mappings`
+    // computed above are reused rather than recomputed.
+
+    let ir_diagram_display: Memo<Option<IrDiagram<'static>>> = use_memo(move || {
+        let diagram = input_diagram.read();
+        if diagram.things.is_empty()
+            && diagram.thing_dependencies.is_empty()
+            && diagram.thing_interactions.is_empty()
+            && diagram.processes.is_empty()
+        {
+            return None;
+        }
+
+        let mut input_diagram_merged = InputDiagramMerger::merge(InputDiagram::base(), &diagram);
+        input_diagram_merged.theme_default.dark_mode_config.selector =
+            DarkModeCssSelector::RootDarkClass;
+
+        let IrDiagramAndIssues { diagram, .. } = InputToIrDiagramMapper::map(&input_diagram_merged);
+        Some(diagram)
+    });
+
+    let svg_elements_display: Memo<Option<SvgElements>> = use_memo(move || {
+        let ir_diagram_display = &*ir_diagram_display.read();
+        let taffy_node_mappings = &*taffy_node_mappings.read();
+        match (ir_diagram_display, taffy_node_mappings) {
+            (Some(ir_diagram), Ok(taffy_node_mappings)) => Some(TaffyToSvgElementsMapper::map(
+                ir_diagram,
+                taffy_node_mappings,
+                EdgeAnimationActive::OnProcessStepFocus,
+            )),
+            _ => None,
+        }
+    });
+
+    let svg_display: Memo<String> = use_memo(move || {
+        // Embed the user's original `InputDiagram` (with its `MediaQuery`
+        // default) as the `<source>`, so copying / sharing yields the sensible
+        // default, while the rendered styles use `RootDarkClass`.
+        let input_diagram = input_diagram.read();
+        let svg_elements_display = &*svg_elements_display.read();
+        match svg_elements_display {
+            Some(svg_elements) => {
+                SvgElementsToSvgMapper::map_with_input(&input_diagram, svg_elements)
+            }
+            None => String::new(),
+        }
+    });
+
     // Collect all status messages.
     let status_messages: Memo<Vec<String>> = use_memo(move || {
         let mut messages = Vec::new();
@@ -709,6 +769,7 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                         content: rsx! {
                             SvgPreview {
                                 svg,
+                                svg_display,
                                 show_share_modal,
                                 svg_preview_expanded,
                             }

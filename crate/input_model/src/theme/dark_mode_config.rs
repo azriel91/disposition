@@ -37,7 +37,7 @@ pub struct DarkModeConfig {
 
     /// CSS selector strategy for the dark-mode variable overrides.
     ///
-    /// Defaults to `DarkModeCssSelector::RootDarkClass`.
+    /// Defaults to `DarkModeCssSelector::MediaQuery`.
     #[serde(default)]
     pub selector: DarkModeCssSelector,
 }
