@@ -3,8 +3,10 @@
 ## unreleased
 
 * Replace `dioxus-clipboard` with custom clipboard support. ([#42][#42])
+* Make `DarkModeCssSelector::MediaQuery` the default. ([#43][#43])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
+[#43]: https://github.com/azriel91/disposition/pull/43
 
 
 ## 0.3.0 (2026-06-07)
