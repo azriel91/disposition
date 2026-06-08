@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// * `RootDarkClass`: uses `:root.dark svg { .. }`, which allows a surrounding
 ///   page to toggle dark mode via a `dark` class on `<html>`.
 ///
-/// Defaults to `DarkModeCssSelector::RootDarkClass`.
+/// Defaults to `DarkModeCssSelector::MediaQuery`.
 ///
 /// # Examples
 ///
@@ -34,12 +34,12 @@ pub enum DarkModeCssSelector {
     ///
     /// The browser automatically switches based on the OS / browser
     /// preference.
+    #[default]
     MediaQuery,
 
     /// Uses `:root.dark svg { .. }`.
     ///
     /// Allows a surrounding website to control dark mode by toggling a
     /// `dark` class on the `<html>` element.
-    #[default]
     RootDarkClass,
 }

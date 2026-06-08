@@ -39,7 +39,12 @@ const BTN_CLASS: &str = "\
 
 #[component]
 pub fn SvgPreview(
+    /// SVG to copy / share -- uses the `MediaQuery` dark-mode selector, the
+    /// sensible default for users to copy.
     svg: Memo<String>,
+    /// SVG to visually display -- uses the `RootDarkClass` dark-mode selector
+    /// so the diagram's dark mode tracks the site's `dark` class toggle.
+    svg_display: Memo<String>,
     show_share_modal: Signal<bool>,
     svg_preview_expanded: Signal<bool>,
 ) -> Element {
@@ -95,7 +100,7 @@ pub fn SvgPreview(
                         fit-content \
                         overflow-auto\
                     ",
-                    svg,
+                    svg: svg_display,
                 }
             }
         };
@@ -127,7 +132,7 @@ pub fn SvgPreview(
                     fit-content \
                     overflow-auto\
                 ",
-                svg,
+                svg: svg_display,
             }
         }
     }

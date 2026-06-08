@@ -90,7 +90,7 @@ pub struct ThemeDefault<'id> {
     /// dark-mode variable overrides.
     ///
     /// Defaults to `DarkModeConfig::default()` (shade: invert, selector:
-    /// root_dark_class).
+    /// media_query).
     #[serde(default)]
     pub dark_mode_config: DarkModeConfig,
 }
