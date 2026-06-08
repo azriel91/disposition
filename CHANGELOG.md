@@ -1,5 +1,12 @@
 # Changelog
 
+## unreleased
+
+* Replace `dioxus-clipboard` with custom clipboard support. ([#42][#42])
+
+[#42]: https://github.com/azriel91/disposition/pull/42
+
+
 ## 0.3.0 (2026-06-07)
 
 * Add `EdgeLabel` to allow different labels at each end of an edge. ([#32][#32])
