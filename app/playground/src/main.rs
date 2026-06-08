@@ -9,6 +9,7 @@ use dioxus::{
 
 use crate::route::Route;
 
+mod clipboard;
 mod components;
 mod editor_state;
 mod example_diagrams;

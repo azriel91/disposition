@@ -8,13 +8,12 @@ use dioxus::{
     signals::{Memo, WritableExt},
 };
 
-use crate::hooks::use_timeout;
+use crate::{clipboard::Clipboard, hooks::use_timeout};
 
 /// A button that copies text to the clipboard and displays a "Copied!" message
 /// for a short duration.
 #[component]
 pub fn CopyButton(text_to_copy: Memo<String>) -> Element {
-    let mut clipboard = dioxus_clipboard::hooks::use_clipboard();
     let mut copied_signal = use_signal(|| false);
     let mut copied_text_visibility = use_signal(|| "hidden");
     let _copied_timeout = use_timeout(Duration::from_secs(1), copied_signal, move || {
@@ -44,7 +43,7 @@ pub fn CopyButton(text_to_copy: Memo<String>) -> Element {
             tabindex: "0",
             title: "Copy to clipboard",
             onclick: move |_| async move {
-                match clipboard.set(text_to_copy().clone()).await {
+                match Clipboard::clipboard_text_set(text_to_copy()).await {
                     Ok(()) => {
                         copied_text_visibility.set("visible");
                         copied_signal.set(true);

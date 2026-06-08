@@ -87,7 +87,6 @@ disposition_taffy_model = { path = "crate/taffy_model", version = "0.3.0" }
 async-lsp = { version = "0.2.4", default-features = false, features = ["omni-trait"] }
 base64 = "0.22.1"
 dioxus = "0.7.9"
-dioxus-clipboard = "0.3.0"
 dioxus_codemirror = "0.2.0"
 emojis = "0.8.1"
 encre-css = "0.20.1"
@@ -123,6 +122,3 @@ web-time = "1.1.0"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(coverage_nightly)"] }
-
-[patch.crates-io]
-dioxus-clipboard = { git = "https://github.com/Himmelschmidt/dioxus-clipboard.git", branch = "feat/wasm-clipboard-support" }

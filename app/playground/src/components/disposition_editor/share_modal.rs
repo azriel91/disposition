@@ -18,8 +18,8 @@ use dioxus::{
 };
 
 use crate::{
-    components::editor::common::DATA_INPUT_DIAGRAM_FIELD, editor_state::EditorState,
-    hooks::use_timeout,
+    clipboard::Clipboard, components::editor::common::DATA_INPUT_DIAGRAM_FIELD,
+    editor_state::EditorState, hooks::use_timeout,
 };
 
 // === CSS constants === //
@@ -180,7 +180,6 @@ pub fn ShareModal(
     });
 
     // Copy-to-clipboard feedback.
-    let mut clipboard = dioxus_clipboard::hooks::use_clipboard();
     let mut copied_signal = use_signal(|| false);
     let mut copied_label = use_signal(|| "Copy");
     let _copied_timeout = use_timeout(Duration::from_secs(2), copied_signal, move || {
@@ -316,7 +315,7 @@ pub fn ShareModal(
                         class: COPY_BTN_CLASS,
                         onclick: move |_| async move {
                             let url = full_url.read().clone();
-                            match clipboard.set(url).await {
+                            match Clipboard::clipboard_text_set(url).await {
                                 Ok(()) => {
                                     copied_label.set("Copied!");
                                     copied_signal.set(true);
