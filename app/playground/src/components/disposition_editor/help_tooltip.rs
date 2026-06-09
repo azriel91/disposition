@@ -317,7 +317,7 @@ pub fn HelpTooltip(show_help: Signal<bool>) -> Element {
 
                         div {
                             class: SHORTCUT_ROW,
-                            span { class: KBD_CLASS, "{ctrl} + K" }
+                            span { class: KBD_CLASS, "{ctrl} + Shift + S" }
                             span { "Open the share modal with a link to the current editor state." }
                         }
 

@@ -198,11 +198,11 @@ pub fn TextPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
                     value: text_buffer,
                     language: Language::Yaml,
                     theme,
-
                     allow_multiple_selections: true,
                     bracket_matching: true,
                     close_brackets: true,
                     code_actions: true,
+                    code_folding: true,
                     highlight_active_line: true,
                     highlight_selection_matches: true,
                     highlight_whitespace: true,

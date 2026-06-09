@@ -251,8 +251,8 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                 // === Ctrl / Meta shortcuts === //
                 if (!ctrl) return;
 
-                // Ctrl+K: open share modal (works even inside inputs).
-                if ((e.key === "k" || e.key === "K") && !e.shiftKey) {{
+                // Ctrl+Shift+S: open share modal (works even inside inputs).
+                if ((e.key === "s" || e.key === "S") && e.shiftKey) {{
                     e.preventDefault();
                     e.stopPropagation();
                     dioxus.send("share");
