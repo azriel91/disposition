@@ -2835,3 +2835,73 @@ fn test_self_loop_path_endpoints_follow_rank_dir() {
         }
     }
 }
+
+// === Arrow-head clearance for orthogonal to-protrusions === //
+
+/// Orthogonal `to_protrusion` must give the path a straight segment long
+/// enough to contain the arrow head (8.0 px) plus 3.0 px of clearance before
+/// the Z/S bend, where the rank gap allows.
+///
+/// The floor is capped at `MAX_GAP_FRACTION` (0.6) of the endpoint's rank
+/// gap, so it never overshoots tight gaps.
+#[test]
+fn test_to_protrusion_clears_arrow_head() {
+    // ARROW_HEAD_LENGTH (8.0) + ARROW_HEAD_CLEARANCE_PX (3.0).
+    const TO_PROTRUSION_MIN_PX: f32 = 11.0;
+    const MAX_GAP_FRACTION: f32 = 0.6;
+    const EPSILON: f32 = 0.01;
+
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION)
+    {
+        let node_info = |node_id: &str| {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"))
+        };
+        let charlie = node_info("t_charlie");
+
+        // (from node, its root-level ancestor whose bottom face bounds the
+        // visual rank gap above t_charlie)
+        for (from_node_id, from_ancestor_id) in [("t_alice", "t_alice_outer"), ("t_bob", "t_bob")] {
+            let from = node_info(from_node_id);
+            let from_ancestor = node_info(from_ancestor_id);
+
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| {
+                    e.from_node_id.as_str() == from_node_id && e.to_node_id.as_str() == "t_charlie"
+                })
+                .unwrap_or_else(|| panic!("Expected edge {from_node_id} -> t_charlie"));
+            let to_protrusion = edge_info.ortho_protrusion_params.to_protrusion;
+
+            // Precondition: the visual rank gap above t_charlie comfortably
+            // allows the floor (otherwise this test would assert the capped
+            // value instead).
+            let rank_gap_visual = charlie.y - (from_ancestor.y + from_ancestor.height_collapsed);
+            assert!(
+                rank_gap_visual * MAX_GAP_FRACTION > TO_PROTRUSION_MIN_PX,
+                "Fixture rank gap {rank_gap_visual:.2} should comfortably allow the \
+                 to-protrusion floor"
+            );
+
+            assert!(
+                to_protrusion >= TO_PROTRUSION_MIN_PX - EPSILON,
+                "edge {from_node_id} -> t_charlie to_protrusion {to_protrusion:.2} should \
+                 be at least {TO_PROTRUSION_MIN_PX} so the Z/S bend clears the arrow head"
+            );
+
+            // The floor never exceeds the gap allowance: the protrusion stays
+            // within MAX_GAP_FRACTION of the distance to the from-node face.
+            let rank_gap_to_from_face = charlie.y - (from.y + from.height_collapsed);
+            assert!(
+                to_protrusion <= rank_gap_to_from_face * MAX_GAP_FRACTION + EPSILON,
+                "edge {from_node_id} -> t_charlie to_protrusion {to_protrusion:.2} should \
+                 not exceed {MAX_GAP_FRACTION} of the rank gap {rank_gap_to_from_face:.2}"
+            );
+        }
+    }
+}

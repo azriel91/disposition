@@ -248,6 +248,10 @@ This function assigns protrusion depths to all endpoints within a single rank ga
     3. Crossing high entries (to-endpoints of crossing edges) -- get slots in forward order within their range, sorted by high-side spatial order. This ensures earlier edges on the high side also receive longer protrusions.
     4. Single-side high entries (only on `High` side) -- fill the remaining slots (shortest protrusions).
 
+33. **Arrow-head clearance floor for to-endpoints.**
+
+    Every edge has an arrow head drawn at its to-endpoint, occupying `ARROW_HEAD_LENGTH` (8.0 px) of the path's final straight segment. To keep the Z/S bend clear of the arrow head, `protrusion_write` floors every `ToEndpoint` protrusion to `TO_PROTRUSION_MIN_PX` (`ARROW_HEAD_LENGTH + ARROW_HEAD_CLEARANCE_PX = 11.0` px), capped at `entry.rank_gap_px * MAX_GAP_FRACTION` so tight gaps are never overshot. Because the floor is applied centrally in `protrusion_write`, it covers the slot distribution, the small-gap fallback, and the single-entry branch alike, and Steps 4-5 (spacer fallback, divergent-sibling adjustment) see the floored value. Cycle edges and self-loops are excluded (their from/to depths are set by `protrusions_assign_cycle_edges`, which writes directly rather than through `protrusion_write`).
+
 
 ### Helper functions
 

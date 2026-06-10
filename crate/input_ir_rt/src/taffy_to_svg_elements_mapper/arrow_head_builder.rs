@@ -1,7 +1,10 @@
 use kurbo::{BezPath, PathEl, Point};
 
 /// Length of the arrowhead from tip to base, in pixels.
-const ARROW_HEAD_LENGTH: f64 = 8.0;
+///
+/// Also consumed by `OrthoProtrusionCalculator` to keep the orthogonal Z/S
+/// bend clear of the arrow head at the to-endpoint.
+pub(super) const ARROW_HEAD_LENGTH: f64 = 8.0;
 
 /// Half-width of the arrowhead (distance from centre line to each wing tip),
 /// in pixels.

@@ -11,6 +11,7 @@ use disposition_ir_model::node::NodeFace;
 use super::svg_edge_infos_builder::{EdgeGroupPass1, EdgePass1Info};
 
 use crate::taffy_to_svg_elements_mapper::{
+    arrow_head_builder::ARROW_HEAD_LENGTH,
     edge_model::{NodeIdAndFace, NodeIdAndFaceToContactPointOffsets},
     edge_path_builder_pass_1::SpacerCoordinates,
     SpacerCoordinatesResolver, SvgNodeInfoByNodeId,
@@ -33,6 +34,27 @@ const MAX_GAP_FRACTION: f32 = 0.6;
 /// contact points differ on the cross-axis), the protrusion is at
 /// least this many pixels so the perpendicular stub is visible.
 const MIN_PROTRUSION_PX: f32 = 3.0;
+
+/// Clearance in pixels between the orthogonal Z/S bend and the base of
+/// the arrow head at the to-endpoint.
+///
+/// # Example values
+///
+/// `3.0` -- the bend starts at least 3 px before the arrow head base.
+const ARROW_HEAD_CLEARANCE_PX: f32 = 3.0;
+
+/// Minimum protrusion length in pixels for to-endpoints.
+///
+/// Every edge has an arrow head drawn at its to-endpoint, occupying
+/// `ARROW_HEAD_LENGTH` (8.0 px) of the path's final straight segment.
+/// The to-protrusion is floored to this value (capped by the gap
+/// allowance) so the Z/S bend happens at least
+/// `ARROW_HEAD_CLEARANCE_PX` before the path enters the arrow head.
+///
+/// # Example values
+///
+/// `11.0` -- 8.0 px arrow head + 3.0 px clearance.
+const TO_PROTRUSION_MIN_PX: f32 = ARROW_HEAD_LENGTH as f32 + ARROW_HEAD_CLEARANCE_PX;
 
 /// Computes orthogonal protrusion parameters globally across all edge
 /// groups.
@@ -946,6 +968,10 @@ impl OrthoProtrusionCalculator {
     }
 
     /// Writes a protrusion value to the appropriate slot in `result`.
+    ///
+    /// To-endpoint protrusions are floored to `TO_PROTRUSION_MIN_PX` (capped
+    /// by the entry's own gap allowance) so the straight segment entering the
+    /// to-node clears the arrow head before the Z/S bend.
     fn protrusion_write(
         entry: &RankGapEntry,
         protrusion: f32,
@@ -957,7 +983,9 @@ impl OrthoProtrusionCalculator {
                 params.from_protrusion = protrusion;
             }
             RankGapEndpointKind::ToEndpoint => {
-                params.to_protrusion = protrusion;
+                let to_protrusion_min =
+                    TO_PROTRUSION_MIN_PX.min(entry.rank_gap_px * MAX_GAP_FRACTION);
+                params.to_protrusion = protrusion.max(to_protrusion_min);
             }
             RankGapEndpointKind::SpacerEntry { spacer_index } => {
                 if let Some(sp) = params.spacer_protrusions.get_mut(spacer_index) {
