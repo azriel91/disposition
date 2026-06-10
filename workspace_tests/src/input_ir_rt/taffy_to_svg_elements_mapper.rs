@@ -253,6 +253,21 @@ fn test_svg_edge_infos_self_loop() -> Result<(), TaffyError> {
                     curve_count,
                     edge.edge_id
                 );
+
+                // Self-loops participate in the cycle-edge protrusion
+                // assignment: both contacts protrude by the same depth.
+                let from_protrusion = edge.ortho_protrusion_params.from_protrusion;
+                let to_protrusion = edge.ortho_protrusion_params.to_protrusion;
+                assert!(
+                    from_protrusion > 0.0,
+                    "Self-loop edge {:?} should have a positive from_protrusion, got {from_protrusion}",
+                    edge.edge_id
+                );
+                assert_eq!(
+                    from_protrusion, to_protrusion,
+                    "Self-loop edge {:?} should have equal from/to protrusions",
+                    edge.edge_id
+                );
             }
         });
 
@@ -2747,5 +2762,76 @@ fn test_rank_dir_right_to_left_siblings_render_in_declaration_order() {
              paths do not cross: t_dog ({dog_contact_y:.2}) < t_cat ({cat_contact_y:.2}) \
              < t_owner ({owner_contact_y:.2})"
         );
+    }
+}
+
+// === Self-loop rank-direction faces (0010) === //
+
+/// Parses the first point of a kurbo-generated path `d` attribute (the `M`
+/// command's coordinates).
+fn path_d_first_point(path_d: &str) -> Option<(f32, f32)> {
+    let token = path_d.split_whitespace().next()?;
+    let coords = token.trim_start_matches(|c: char| c.is_ascii_alphabetic());
+    let (x_str, y_str) = coords.split_once(',')?;
+    Some((x_str.parse().ok()?, y_str.parse().ok()?))
+}
+
+/// Self-loop paths must exit and re-enter the rank-direction face:
+/// `Bottom` for `top_to_bottom`, `Top` for `bottom_to_top`, `Right` for
+/// `left_to_right`, and `Left` for `right_to_left`.
+///
+/// The path's first point (arrow end) and last point (exit end) must both lie
+/// on the expected face line of the node.
+#[test]
+fn test_self_loop_path_endpoints_follow_rank_dir() {
+    for rank_dir in [
+        "top_to_bottom",
+        "bottom_to_top",
+        "left_to_right",
+        "right_to_left",
+    ] {
+        let input_diagram = format!(
+            "{INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION}\nrender_options:\n  rank_dir: {rank_dir}\n"
+        );
+        for svg_elements in build_svg_elements_for_diagram(&input_diagram)
+            .collect::<Vec<_>>()
+            .into_iter()
+        {
+            let t_a = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == "t_a")
+                .expect("Expected t_a in svg_node_infos");
+
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == "t_a" && e.to_node_id.as_str() == "t_a")
+                .expect("Expected self-loop edge on t_a");
+
+            let first_point = path_d_first_point(&edge_info.path_d)
+                .unwrap_or_else(|| panic!("Expected parseable path_d: {:?}", edge_info.path_d));
+            let last_point = path_d_last_point(&edge_info.path_d)
+                .unwrap_or_else(|| panic!("Expected parseable path_d: {:?}", edge_info.path_d));
+
+            // The face line coordinate both endpoints must sit on: y for
+            // Top/Bottom faces, x for Left/Right faces.
+            let (face_coord, endpoint_coords) = match rank_dir {
+                "top_to_bottom" => (t_a.y + t_a.height_collapsed, [first_point.1, last_point.1]),
+                "bottom_to_top" => (t_a.y, [first_point.1, last_point.1]),
+                "left_to_right" => (t_a.x + t_a.width, [first_point.0, last_point.0]),
+                "right_to_left" => (t_a.x, [first_point.0, last_point.0]),
+                _ => unreachable!(),
+            };
+
+            for endpoint_coord in endpoint_coords {
+                assert!(
+                    (endpoint_coord - face_coord).abs() < 0.5,
+                    "Self-loop endpoint coordinate {endpoint_coord:.2} should lie on the \
+                     {rank_dir} face line {face_coord:.2}. path_d = {:?}",
+                    edge_info.path_d,
+                );
+            }
+        }
     }
 }

@@ -187,7 +187,9 @@ regardless of whether a description exists in `edge_descs`.  The slots are
 always zero-size but are necessary for the edge path routing calculations.
 
 Self-loop edges (`from == to`) produce a single `from_label` slot on the
-`Bottom` face of the node; `to_label` is `None` since one slot is sufficient.
+rank-direction face of the node (`Bottom` for `TopToBottom`, `Top` for
+`BottomToTop`, `Right` for `LeftToRight`, `Left` for `RightToLeft`);
+`to_label` is `None` since one slot is sufficient.
 
 Contained edges (where one endpoint is an ancestor of the other in the node
 hierarchy) produce label slots on both endpoints. The faces used depend on
@@ -211,9 +213,12 @@ face the edge path exits.
 
 **Special cases:**
 
-- **Self-loops** (`from == to`): pre-layout assigns `(from_face: Bottom,
-  to_face: None)`.  Pass 2 returns a self-loop path early and never reads
-  the face, so `to_face = None` is harmless.
+- **Self-loops** (`from == to`): pre-layout assigns
+  `(from_face: <rank-dir face>, to_face: None)` -- only one label slot is
+  created.  Pass 1 duplicates the from face for both routing contacts, so the
+  offset and protrusion machinery treats the loop as two contacts on the same
+  face, and pass 2 routes it through the curvature-specific builders (an
+  orthogonal U-shape with cycle-edge protrusions, or a curved loop).
 - **Contained edges** (one endpoint is a pixel-level ancestor of the other):
   face-based contact points are bypassed (returns `(None, None)`), consistent
   with the pass-2 `is_node_contained_in` early-return.

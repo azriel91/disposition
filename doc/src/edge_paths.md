@@ -323,6 +323,34 @@ This function assigns protrusion depths to all endpoints within a single rank ga
     - the two nodes are **not** adjacent siblings (nesting-path index difference > 1).
 
 
+### Self-loop routing
+
+Self-loop edges (`from == to`) are a degenerate cycle edge: both endpoints are
+at the same rank, and both checks in the `is_cycle_edge` condition return
+`false` for identical nodes, so `is_cycle_edge` is `true`. They are routed as
+follows:
+
+- **Face selection**: both contacts sit on the **rank-direction face** -- the
+  face a forward edge would exit (`Bottom` for `TopToBottom`, `Top` for
+  `BottomToTop`, `Right` for `LeftToRight`, `Left` for `RightToLeft`),
+  resolved by `EdgePathBuilderPass1::self_loop_face` /
+  `EdgeFaceAssigner::forward_faces`. The IR-level `EdgeFaceAssignment` stores
+  only `from_face` (one label slot); pass 1 duplicates the face into both
+  `from_face` and `to_face` so the offset and protrusion machinery sees two
+  contacts on the same face.
+- **Offsets**: both contacts register with `EdgeFaceContactTracker`, so they
+  receive distinct slot offsets (or a label-aligned offset for the from
+  contact when a description label is present).
+- **Protrusions**: self-loops flow through the cycle-edge protrusion path
+  (`cycle_edge_collect_rank_gap_entries` for `Top`/`Bottom` faces with an
+  adjacent rank, otherwise Case B of `protrusions_assign_cycle_edges`), giving
+  both contacts the same depth.
+- **Path**: `EdgeCurvature::Orthogonal` produces a U-shape via the standard
+  waypoint machinery (same-face pair, equal protrusion tips bridged by the
+  same-coordinate Z/S rule). `EdgeCurvature::Curved` uses
+  `EdgePathBuilderPass1::self_loop_path_build`, a bezier loop generalised over
+  the four faces.
+
 ### Clockwise face selection (`fn cycle_edge_faces_select`)
 
 48. When `is_same_rank` is `true`, `faces_select` delegates to `cycle_edge_faces_select` in [`edge_path_builder_pass_1.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_path_builder_pass_1.rs). This function returns a pair of node faces that routes the edge **clockwise around the outside** of the involved nodes.

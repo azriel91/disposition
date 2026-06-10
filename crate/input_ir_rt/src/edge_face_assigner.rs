@@ -22,7 +22,7 @@ use crate::EdgeIdGenerator;
 ///
 /// | Case                                           | from_face                  | to_face       |
 /// |------------------------------------------------|----------------------------|---------------|
-/// | Self-loop (`from == to`)                       | `Bottom`                   | `None`        |
+/// | Self-loop (`from == to`)                       | rank-dir face              | `None`        |
 /// | Contained (from is ancestor of to)             | rank-dir face              | opposite      |
 /// | Contained (to is ancestor of from)             | opposite                   | rank-dir face |
 /// | Cycle edge adjacent siblings (same LCA rank)   | rank-dir face              | opposite      |
@@ -100,11 +100,13 @@ impl EdgeFaceAssigner {
         node_ranks_nested: &NodeRanksNested<'id>,
         rank_dir: RankDir,
     ) -> EdgeFaceAssignment {
-        // Case 1: Self-loop -- the from face is Bottom; no to face is needed
-        // since from == to, only one label slot is used.
+        // Case 1: Self-loop -- the from face is the rank-direction face a
+        // forward edge would exit; no to face is needed since from == to,
+        // only one label slot is used. The path routing duplicates the from
+        // face for both contacts.
         if edge.is_self_loop() {
             return EdgeFaceAssignment {
-                from_face: Some(NodeFace::Bottom),
+                from_face: Some(Self::forward_faces(rank_dir).0),
                 to_face: None,
             };
         }
@@ -214,7 +216,7 @@ impl EdgeFaceAssigner {
     /// `rank_dir`.
     ///
     /// For a reverse edge, swap the returned tuple.
-    fn forward_faces(rank_dir: RankDir) -> (NodeFace, NodeFace) {
+    pub(crate) fn forward_faces(rank_dir: RankDir) -> (NodeFace, NodeFace) {
         match rank_dir {
             RankDir::LeftToRight => (NodeFace::Right, NodeFace::Left),
             RankDir::RightToLeft => (NodeFace::Left, NodeFace::Right),

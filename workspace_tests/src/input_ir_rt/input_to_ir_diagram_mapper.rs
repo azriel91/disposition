@@ -2,10 +2,10 @@ use disposition::{
     input_ir_model::IrDiagramAndIssues,
     input_model::InputDiagram,
     ir_model::{
-        edge::Edge,
+        edge::{Edge, EdgeId},
         entity::EntityType,
         layout::{FlexDirection, LeafLayout, NodeLayout},
-        node::NodeId,
+        node::{NodeFace, NodeId},
         process::{ProcessStepLane, ProcessStepRank},
         IrDiagram,
     },
@@ -15,7 +15,8 @@ use disposition_input_ir_rt::{InputDiagramMerger, InputToIrDiagramMapper};
 use pretty_assertions::assert_eq;
 
 use crate::input_ir_rt::{
-    EXAMPLE_INPUT_MERGED, EXAMPLE_IR, INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE,
+    EXAMPLE_INPUT_MERGED, EXAMPLE_IR, INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION,
+    INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE,
 };
 
 #[test]
@@ -338,6 +339,45 @@ fn test_self_loop_edge() {
     assert_eq!(id!("t_localhost"), *edges[0].from);
     assert_eq!(id!("t_localhost"), *edges[0].to);
     assert!(edges[0].is_self_loop());
+}
+
+#[test]
+fn test_self_loop_face_assignment_follows_rank_dir() {
+    // Self-loop edges exit and re-enter the rank-direction face. The IR
+    // assignment stores only the from face; to_face stays None so only one
+    // label slot is created.
+    let rank_dir_to_expected_face = [
+        ("top_to_bottom", NodeFace::Bottom),
+        ("bottom_to_top", NodeFace::Top),
+        ("left_to_right", NodeFace::Right),
+        ("right_to_left", NodeFace::Left),
+    ];
+
+    for (rank_dir, expected_face) in rank_dir_to_expected_face {
+        let input_yaml = format!(
+            "{INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION}\n\
+             render_options:\n  rank_dir: {rank_dir}\n"
+        );
+        let input_diagram = serde_saphyr::from_str::<InputDiagram>(&input_yaml).unwrap();
+        let ir_and_issues = InputToIrDiagramMapper::map(&input_diagram);
+        let diagram = ir_and_issues.diagram;
+
+        let edge_id = EdgeId::from(id!("edge_self__0"));
+        let assignment = diagram
+            .edge_face_assignments
+            .get(&edge_id)
+            .unwrap_or_else(|| panic!("Expected face assignment for edge_self__0 ({rank_dir})"));
+
+        assert_eq!(
+            Some(expected_face),
+            assignment.from_face,
+            "Expected self-loop from_face {expected_face:?} for rank_dir {rank_dir}"
+        );
+        assert_eq!(
+            None, assignment.to_face,
+            "Expected self-loop to_face None for rank_dir {rank_dir}"
+        );
+    }
 }
 
 #[test]

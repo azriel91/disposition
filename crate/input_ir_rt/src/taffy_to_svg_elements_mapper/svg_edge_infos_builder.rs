@@ -30,7 +30,7 @@ use crate::{
         EdgePathLocusCalculator, SpacerCoordinatesResolver, StringCharReplacer,
         SvgNodeInfoByNodeId,
     },
-    AbsoluteCoordinates, EdgeIdGenerator, TaffyNodeAbsoluteCoordinatesCalculator,
+    AbsoluteCoordinates, EdgeFaceAssigner, EdgeIdGenerator, TaffyNodeAbsoluteCoordinatesCalculator,
 };
 
 /// Builds [`SvgEdgeInfo`]s for all edges in the diagram from edge groups and
@@ -375,6 +375,10 @@ impl SvgEdgeInfosBuilder {
             });
             let rank_distance = rank_to.value().abs_diff(rank_from.value());
             let is_same_rank = rank_from == rank_to;
+            // Self-loops are intentionally classified as cycle edges: both
+            // checks below return `false` for `from == to`, so the protrusion
+            // calculator distributes their U-shape depth alongside other
+            // same-face cycle edges.
             let is_cycle_edge = is_same_rank
                 && !Self::nodes_adjacent_siblings_are(&edge.from, &edge.to, node_nesting_infos)
                 && !Self::nodes_divergent_ancestors_adjacent_siblings_are(
@@ -401,25 +405,37 @@ impl SvgEdgeInfosBuilder {
             //
             // Fallback to post-layout `faces_select` when no pre-layout
             // assignment exists (should not occur for a well-formed diagram).
-            let (from_face, to_face) =
-                if EdgePathBuilderPass1::is_node_contained_in(from_info, to_info) {
-                    // Contained edges bypass face-based contact points.
-                    (None, None)
-                } else if let Some(assignment) = edge_face_assignments.get(&edge_id) {
-                    (assignment.from_face, assignment.to_face)
-                } else {
-                    // Fallback for edges absent from pre-layout assignments.
-                    let faces = EdgePathBuilderPass1::faces_select(
-                        rank_dir,
-                        from_info,
-                        to_info,
-                        is_cycle_edge,
-                    );
-                    match faces {
-                        Some((ff, tf)) => (Some(ff), Some(tf)),
-                        None => (None, None),
-                    }
-                };
+            let (from_face, to_face) = if edge.is_self_loop() {
+                // Self-loop: both contacts sit on the same rank-direction
+                // face. The IR assignment stores only the from face (one
+                // label slot); pass 1 duplicates it so the offset and
+                // protrusion machinery treats the loop as two contacts on
+                // the same face. Self-loops are classified as cycle edges
+                // (`is_cycle_edge` above), so the cycle-edge protrusion
+                // assignment gives both contacts the same depth.
+                //
+                // This branch must run before the contained check, which
+                // would otherwise match (a node geometrically contains
+                // itself) and clear both faces.
+                let face = edge_face_assignments
+                    .get(&edge_id)
+                    .and_then(|assignment| assignment.from_face)
+                    .unwrap_or_else(|| EdgeFaceAssigner::forward_faces(rank_dir).0);
+                (Some(face), Some(face))
+            } else if EdgePathBuilderPass1::is_node_contained_in(from_info, to_info) {
+                // Contained edges bypass face-based contact points.
+                (None, None)
+            } else if let Some(assignment) = edge_face_assignments.get(&edge_id) {
+                (assignment.from_face, assignment.to_face)
+            } else {
+                // Fallback for edges absent from pre-layout assignments.
+                let faces =
+                    EdgePathBuilderPass1::faces_select(rank_dir, from_info, to_info, is_cycle_edge);
+                match faces {
+                    Some((ff, tf)) => (Some(ff), Some(tf)),
+                    None => (None, None),
+                }
+            };
 
             // Register contacts.
             if let Some(from_face) = from_face {
