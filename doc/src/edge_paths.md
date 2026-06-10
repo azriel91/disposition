@@ -250,7 +250,7 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
 33. **Arrow-head clearance floor for to-endpoints.**
 
-    Every edge has an arrow head drawn at its to-endpoint, occupying `ARROW_HEAD_LENGTH` (8.0 px) of the path's final straight segment. To keep the Z/S bend clear of the arrow head, `protrusion_write` floors every `ToEndpoint` protrusion to `TO_PROTRUSION_MIN_PX` (`ARROW_HEAD_LENGTH + ARROW_HEAD_CLEARANCE_PX = 11.0` px), capped at `entry.rank_gap_px * MAX_GAP_FRACTION` so tight gaps are never overshot. Because the floor is applied centrally in `protrusion_write`, it covers the slot distribution, the small-gap fallback, and the single-entry branch alike, and Steps 4-5 (spacer fallback, divergent-sibling adjustment) see the floored value. Cycle edges and self-loops are excluded (their from/to depths are set by `protrusions_assign_cycle_edges`, which writes directly rather than through `protrusion_write`).
+    Every edge has an arrow head drawn at its to-endpoint, occupying `ARROW_HEAD_LENGTH` (8.0 px) of the path's final straight segment. To keep the Z/S bend clear of the arrow head, `protrusion_write` floors every `ToEndpoint` protrusion to `TO_PROTRUSION_MIN_PX` (`ARROW_HEAD_LENGTH + ARROW_HEAD_CLEARANCE_PX = 11.0` px), capped at `entry.rank_gap_px * MAX_GAP_FRACTION` so tight gaps are never overshot. Because the floor is applied centrally in `protrusion_write`, it covers the slot distribution, the small-gap fallback, and the single-entry branch alike, and Steps 4-5 (spacer fallback, divergent-sibling adjustment) see the floored value. Cycle edges and self-loops also receive the clearance: their single rank-gap entry is registered with the `ToEndpoint` kind (see [Gap-based protrusion for cycle edges](#gap-based-protrusion-for-cycle-edges-fn-cycle_edge_collect_rank_gap_entries)), and the unregistered fallback in `protrusions_assign_cycle_edges` stacks depths from `TO_PROTRUSION_MIN_PX` upward.
 
 
 ### Helper functions
@@ -372,7 +372,7 @@ follows:
 
 ### Gap-based protrusion for cycle edges (`fn cycle_edge_collect_rank_gap_entries`)
 
-50. For cycle edges with `Top` or `Bottom` faces, only the **from-endpoint** is registered in the adjacent rank gap in Step 2 of `calculate` (not the to-endpoint). This lets it compete for protrusion slots alongside non-cycle edges in the same gap. Step 6 (`fn protrusions_assign_cycle_edges`) then copies the assigned depth to the to-endpoint, producing a symmetric U-shaped arc.
+50. For cycle edges with `Top` or `Bottom` faces, a **single entry** is registered in the adjacent rank gap in Step 2 of `calculate`. This lets the edge compete for protrusion slots alongside non-cycle edges in the same gap. The entry uses the **`ToEndpoint` kind** so the arrow-head clearance floor in `protrusion_write` applies (cycle edges and self-loops also carry an arrow head at their to-endpoint); its sorting keys (face offset, cross-axis coordinate) are taken from the from side, which is equivalent because both endpoints share the same face and rank. Step 6 (`fn protrusions_assign_cycle_edges`) then copies the assigned depth to the from-endpoint, producing a symmetric U-shaped arc.
 
     - **`rank_gap_px` for cycle edges**: the pixel distance is computed directly from layout coordinates, not from the distance to the other endpoint. The **adjacent rank boundary** is found by iterating over all nodes at the adjacent rank within the same scope (`node_ranks_nested.ranks_for(parent_container)`), then taking:
       - For `Top` face: the **maximum** `y + height_collapsed` (bottom edge) of adjacent rank-R-1 nodes.
@@ -380,7 +380,7 @@ follows:
 
       Then `rank_gap_px = node.y - adjacent_boundary` (Top) or `adjacent_boundary - (node.y + node.height_collapsed)` (Bottom). If no adjacent-rank nodes exist, or the computed gap is non-positive, the endpoint is not registered (falls through to Step 6).
 
-    - **Gap side**: the from-endpoint of a cycle edge is on the `High` side for `Top` face, or `Low` side for `Bottom` face. This makes it a `single_side` entry in `protrusions_assign`, receiving a unique slot.
+    - **Gap side**: the cycle edge's entry is on the `High` side for `Top` face, or `Low` side for `Bottom` face. This makes it a `single_side` entry in `protrusions_assign`, receiving a unique slot.
 
     - **Sharing the gap with non-cycle edges**: if non-cycle edges also have endpoints in the same gap (e.g. an edge from rank R-1 to rank R contributes its to-endpoint on the `High` side of gap (R-1, R)), all entries compete together for slots. The tightest `rank_gap_px` across all entries determines the maximum protrusion via `MAX_GAP_FRACTION = 0.48`. This ensures protrusions never exceed 48% of the actual gap, leaving room for the routing segment, arrowhead, and other entries on the opposite side.
 
@@ -388,15 +388,15 @@ follows:
 
 51. After gap-based assignment (Steps 2–5), Step 6 calls `protrusions_assign_cycle_edges` which handles two cases:
 
-    **Case A -- registered cycle edges** (`from_protrusion > 0`): the from-endpoint was assigned a depth by the gap-based step. This depth is copied to `to_protrusion` (with `MIN_PROTRUSION_PX` as a floor) so both endpoints protrude equally, producing a symmetric U-shaped arc.
+    **Case A -- registered / adjusted cycle edges** (`to_protrusion > 0` or `from_protrusion > 0`): the edge was assigned a depth by the gap-based step (written to `to_protrusion`, already floored for arrow-head clearance by `protrusion_write`) and/or raised by the divergent-sibling adjustment (Step 5). Both endpoints are equalized at the larger depth (with `MIN_PROTRUSION_PX` as a floor), producing a symmetric U-shaped arc.
 
-    **Case B -- unregistered cycle edges** (`from_protrusion == 0`): edges that returned early from `cycle_edge_collect_rank_gap_entries` (boundary ranks, no adjacent rank nodes, or `Left`/`Right` faces). These are grouped by `(from_face, rank_from)` -- all edges routing in the same direction at the same rank -- then sorted by face offset then cross-axis coordinate (matching the ordering in `protrusions_assign`). Within each group of N edges, depths are assigned:
+    **Case B -- unregistered cycle edges** (both protrusions zero): edges that returned early from `cycle_edge_collect_rank_gap_entries` (boundary ranks, no adjacent rank nodes, or `Left`/`Right` faces). These are grouped by `(from_face, rank_from)` -- all edges routing in the same direction at the same rank -- then sorted by face offset then cross-axis coordinate (matching the ordering in `protrusions_assign`). Within each group of N edges, depths are stacked from the arrow-head clearance floor:
 
-    - `slot[0]` (first sorted entry) -> `N × MIN_PROTRUSION_PX` (longest, outermost arc)
-    - `slot[N-1]` (last sorted entry) -> `1 × MIN_PROTRUSION_PX` (shortest, innermost arc)
-    - Intermediate slots evenly spaced between `N × MIN` and `1 × MIN`
+    - `slot[N-1]` (last sorted entry) -> `TO_PROTRUSION_MIN_PX` (shortest, innermost arc)
+    - `slot[0]` (first sorted entry) -> `TO_PROTRUSION_MIN_PX + (N-1) × MIN_PROTRUSION_PX` (longest, outermost arc)
+    - Adjacent slots are `MIN_PROTRUSION_PX` apart
 
-    Both `from_protrusion` and `to_protrusion` are set to the same assigned depth.
+    Both `from_protrusion` and `to_protrusion` are set to the same assigned depth. Unregistered cycle edges protrude into open space (boundary ranks or `Left`/`Right` faces), so no gap cap applies.
 
 52. The stacking order -- first-sorted entry gets the longest protrusion -- mirrors the slot assignment in `protrusions_assign` for single-side entries. This matches the face-offset + cross-axis sorting used for the adjacent-rank case, so the visual layering is consistent whether or not an adjacent rank exists.
 

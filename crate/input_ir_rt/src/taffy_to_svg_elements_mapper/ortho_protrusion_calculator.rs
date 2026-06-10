@@ -1238,23 +1238,28 @@ impl OrthoProtrusionCalculator {
     /// Finalises protrusion depths for same-rank (cycle) edges.
     ///
     /// After gap-based protrusion assignment in Step 2–3, some cycle edges may
-    /// have a `from_protrusion` assigned (those whose `Top`/`Bottom` face
-    /// registered in an adjacent rank gap), while others still have zero
-    /// (boundary-rank edges, or `Left`/`Right` face edges with no rank gap).
+    /// have a `to_protrusion` assigned (those whose `Top`/`Bottom` face
+    /// registered in an adjacent rank gap, floored for arrow-head clearance
+    /// by `protrusion_write`), while others still have zero (boundary-rank
+    /// edges, or `Left`/`Right` face edges with no rank gap). The
+    /// divergent-sibling adjustment (Step 5) may also have raised either
+    /// protrusion.
     ///
     /// This step handles both:
     ///
-    /// 1. **Registered cycle edges** (`from_protrusion > 0`): copies
-    ///    `from_protrusion` to `to_protrusion` so both endpoints protrude
-    ///    equally, creating a symmetric U-shaped routing arc. Applies
-    ///    `MIN_PROTRUSION_PX` as a floor.
+    /// 1. **Registered / adjusted cycle edges** (`to_protrusion > 0` or
+    ///    `from_protrusion > 0`): equalizes both endpoints at the larger depth
+    ///    (with `MIN_PROTRUSION_PX` as a floor), creating a symmetric U-shaped
+    ///    routing arc.
     ///
-    /// 2. **Unregistered cycle edges** (`from_protrusion == 0`): groups edges
-    ///    by `(from_face, rank_from)` -- all edges routing in the same
-    ///    direction at the same rank. Within each group, sorts by face offset
-    ///    then cross-axis coordinate (same ordering as `protrusions_assign` for
-    ///    single-side entries). Assigns stacked depths:
-    ///    - N edges in group -> depths `[N * MIN, (N-1) * MIN, .., MIN]`
+    /// 2. **Unregistered cycle edges** (both protrusions zero): groups edges by
+    ///    `(from_face, rank_from)` -- all edges routing in the same direction
+    ///    at the same rank. Within each group, sorts by face offset then
+    ///    cross-axis coordinate (same ordering as `protrusions_assign` for
+    ///    single-side entries). Assigns stacked depths from the arrow-head
+    ///    clearance floor:
+    ///    - N edges in group -> depths `[TO_PROTRUSION_MIN + (N-1) * MIN, ..,
+    ///      TO_PROTRUSION_MIN + MIN, TO_PROTRUSION_MIN]`
     ///    - Sets `from_protrusion = to_protrusion = depth` for each edge.
     fn protrusions_assign_cycle_edges<'id>(
         all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
@@ -1286,10 +1291,16 @@ impl OrthoProtrusionCalculator {
 
                 let params = &mut result[group_idx][edge_idx];
 
-                if params.from_protrusion > 0.0 {
-                    // Registered in adjacent rank gap: equalize from and to, apply
-                    // MIN floor.
-                    let depth = params.from_protrusion.max(MIN_PROTRUSION_PX);
+                if params.to_protrusion > 0.0 || params.from_protrusion > 0.0 {
+                    // Registered in the adjacent rank gap (to_protrusion,
+                    // already floored for arrow-head clearance by
+                    // `protrusion_write`) and/or raised by the
+                    // divergent-sibling adjustment (Step 5): equalize from
+                    // and to at the larger depth.
+                    let depth = params
+                        .to_protrusion
+                        .max(params.from_protrusion)
+                        .max(MIN_PROTRUSION_PX);
                     params.from_protrusion = depth;
                     params.to_protrusion = depth;
                 } else {
@@ -1373,16 +1384,15 @@ impl OrthoProtrusionCalculator {
 
             let group = &unregistered[group_start..group_end];
             let n = group.len();
-            let max_prot = n as f32 * MIN_PROTRUSION_PX;
 
             for (k, entry) in group.iter().enumerate() {
-                // Slot 0 (first sorted entry) -> longest protrusion (n * MIN).
-                // Slot N-1 (last sorted entry) -> shortest protrusion (1 * MIN).
-                let depth = if n == 1 {
-                    MIN_PROTRUSION_PX
-                } else {
-                    max_prot - k as f32 * (max_prot - MIN_PROTRUSION_PX) / (n - 1) as f32
-                };
+                // Slot N-1 (last sorted entry) -> innermost arc at the
+                // arrow-head clearance floor (`TO_PROTRUSION_MIN_PX`).
+                // Slot 0 (first sorted entry) -> outermost arc, stacked
+                // `MIN_PROTRUSION_PX` apart. Unregistered cycle edges
+                // protrude into open space (boundary ranks or Left/Right
+                // faces), so no gap cap applies.
+                let depth = TO_PROTRUSION_MIN_PX + (n - 1 - k) as f32 * MIN_PROTRUSION_PX;
                 let params = &mut result[entry.group_idx][entry.edge_idx];
                 params.from_protrusion = depth;
                 params.to_protrusion = depth;
@@ -1392,12 +1402,12 @@ impl OrthoProtrusionCalculator {
         }
     }
 
-    /// Registers the cycle edge's **from-endpoint** in the adjacent rank gap
-    /// so protrusion depths are distributed proportionally to the available gap
-    /// space.
+    /// Registers the cycle edge's single U-depth entry in the adjacent rank
+    /// gap so protrusion depths are distributed proportionally to the
+    /// available gap space.
     ///
     /// For cycle edges (`rank_from == rank_to`), both endpoints are at the same
-    /// rank and use the same face. Depending on the face, the from-endpoint is
+    /// rank and use the same face. Depending on the face, the entry is
     /// registered in an adjacent gap:
     ///
     /// - `Top` face at rank R -> register in gap `(R-1, R)` on the `High` side.
@@ -1407,9 +1417,10 @@ impl OrthoProtrusionCalculator {
     /// - `Left` / `Right` faces -> return early;
     ///   `protrusions_assign_cycle_edges` (Step 6) handles the fallback.
     ///
-    /// Only the from-endpoint is registered here.
+    /// Only one entry is registered per edge, with the `ToEndpoint` kind so
+    /// the arrow-head clearance floor in `protrusion_write` applies.
     /// `protrusions_assign_cycle_edges` (Step 6) later copies
-    /// `from_protrusion` to `to_protrusion` so both endpoints protrude equally,
+    /// `to_protrusion` to `from_protrusion` so both endpoints protrude equally,
     /// producing a symmetric U-shaped arc.
     ///
     /// This allows multiple cycle edges sharing the same gap to receive
@@ -1558,16 +1569,24 @@ impl OrthoProtrusionCalculator {
             from_face,
         );
 
-        // Step 11: Register the from-endpoint in the rank gap.
-        // `protrusions_assign_cycle_edges` (Step 6) will copy from_protrusion
-        // to to_protrusion afterward to produce a symmetric U-shaped arc.
+        // Step 11: Register the edge's single U-depth entry in the rank gap.
+        //
+        // The entry is registered as a `ToEndpoint` so `protrusion_write`
+        // applies the arrow-head clearance floor (`TO_PROTRUSION_MIN_PX`,
+        // capped by this entry's gap allowance) -- cycle edges and self-loops
+        // also carry an arrow head at their to-endpoint. The sorting keys
+        // (face offset, cross-axis) are taken from the from side; both
+        // endpoints share the same face and rank, so they order the U-arcs
+        // identically. `protrusions_assign_cycle_edges` (Step 6) copies
+        // to_protrusion to from_protrusion afterward to produce a symmetric
+        // U-shaped arc.
         rank_gap_entries
             .entry(gap_key)
             .or_default()
             .push(RankGapEntry {
                 pass1_group_index: group_idx,
                 edge_index: edge_idx,
-                endpoint_kind: RankGapEndpointKind::FromEndpoint,
+                endpoint_kind: RankGapEndpointKind::ToEndpoint,
                 gap_side,
                 cross_axis_coord: cross_axis_from,
                 face_offset: from_offset,

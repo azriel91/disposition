@@ -2905,3 +2905,62 @@ fn test_to_protrusion_clears_arrow_head() {
         }
     }
 }
+
+/// Cycle edges and self-loops also carry an arrow head at their to-endpoint,
+/// so their symmetric U-depth must satisfy the arrow-head clearance floor
+/// (8.0 px arrow head + 3.0 px clearance = 11.0 px).
+#[test]
+fn test_cycle_and_self_loop_protrusions_clear_arrow_head() {
+    // ARROW_HEAD_LENGTH (8.0) + ARROW_HEAD_CLEARANCE_PX (3.0).
+    const TO_PROTRUSION_MIN_PX: f32 = 11.0;
+    const EPSILON: f32 = 0.01;
+
+    // Self-loop (0010): single node, boundary rank -- unregistered fallback.
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION)
+    {
+        let edge_info = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_a" && e.to_node_id.as_str() == "t_a")
+            .expect("Expected self-loop edge on t_a");
+        let to_protrusion = edge_info.ortho_protrusion_params.to_protrusion;
+        assert!(
+            to_protrusion >= TO_PROTRUSION_MIN_PX - EPSILON,
+            "Self-loop to_protrusion {to_protrusion:.2} should be at least \
+             {TO_PROTRUSION_MIN_PX} so the U-bend clears the arrow head"
+        );
+        assert_eq!(
+            edge_info.ortho_protrusion_params.from_protrusion, to_protrusion,
+            "Self-loop from/to protrusions should be equal (symmetric U)"
+        );
+    }
+
+    // Cycle edges (0004): t_alice <-> t_charlie are non-adjacent siblings at
+    // the same rank, routed as clockwise cycle edges.
+    for svg_elements in build_svg_elements_for_diagram(
+        crate::input_ir_rt::INPUT_DIAGRAM_0004_EDGES_SYMMETRIC_3_NODES,
+    ) {
+        for (from_node_id, to_node_id) in [("t_alice", "t_charlie"), ("t_charlie", "t_alice")] {
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| {
+                    e.from_node_id.as_str() == from_node_id && e.to_node_id.as_str() == to_node_id
+                })
+                .unwrap_or_else(|| panic!("Expected edge {from_node_id} -> {to_node_id}"));
+            let to_protrusion = edge_info.ortho_protrusion_params.to_protrusion;
+            assert!(
+                to_protrusion >= TO_PROTRUSION_MIN_PX - EPSILON,
+                "Cycle edge {from_node_id} -> {to_node_id} to_protrusion \
+                 {to_protrusion:.2} should be at least {TO_PROTRUSION_MIN_PX} so the \
+                 U-bend clears the arrow head"
+            );
+            assert_eq!(
+                edge_info.ortho_protrusion_params.from_protrusion, to_protrusion,
+                "Cycle edge {from_node_id} -> {to_node_id} from/to protrusions should \
+                 be equal (symmetric U)"
+            );
+        }
+    }
+}
