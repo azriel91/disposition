@@ -5,10 +5,14 @@
 * Replace `dioxus-clipboard` with custom clipboard support. ([#42][#42])
 * Make `DarkModeCssSelector::MediaQuery` the default. ([#43][#43])
 * Update dependency versions. ([#44][#44])
+* Make insertion order consistent with declared order when `RankDir` is `BottomToTop` / `RightToLeft`. ([#45][#45])
+* Update self-loop edges to select `NodeFace` based on `RankDir`. ([#45][#45])
+* Arrow protrusions for the `to` end of an edge take into account arrow head length. ([#45][#45])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
 [#44]: https://github.com/azriel91/disposition/pull/44
+[#45]: https://github.com/azriel91/disposition/pull/45
 
 
 ## 0.3.0 (2026-06-07)
