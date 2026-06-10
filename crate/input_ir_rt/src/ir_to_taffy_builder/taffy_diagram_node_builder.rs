@@ -414,6 +414,10 @@ impl TaffyDiagramNodeBuilder {
         //   child_container_1: {} # nodes with rank n + 1
         //   child_container_2: {} # nodes with rank n + 2
         // ```
+        TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed(
+            &child_container_style,
+            &mut rank_to_taffy_ids,
+        );
         let rank_to_container: BTreeMap<NodeRank, taffy::NodeId> = rank_to_taffy_ids
             .into_iter()
             .map(|(rank, taffy_ids)| {
@@ -682,7 +686,6 @@ impl TaffyDiagramNodeBuilder {
             ir_node_id,
             primary_node_id,
             ctx.node_face_edges,
-            ctx.rank_dir,
         );
         state.edge_label_leaves.extend(new_label_leaves);
         state

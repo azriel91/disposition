@@ -8,7 +8,7 @@ use disposition_ir_model::{
     },
     process::{ProcessStepGraphs, ProcessStepRanks},
 };
-use disposition_model_common::{edge::EdgeDescs, thing::ThingDescs, Id, Map, RankDir};
+use disposition_model_common::{edge::EdgeDescs, thing::ThingDescs, Id, Map};
 use disposition_taffy_model::DiagramLod;
 
 /// Immutable context shared across the taffy build functions.
@@ -56,8 +56,6 @@ pub(crate) struct TaffyBuildCtx<'ctx> {
     pub(crate) node_face_edges: &'ctx NodeFaceEdges<'static>,
     /// All edge groups in the diagram.
     pub(crate) edge_groups: &'ctx EdgeGroups<'static>,
-    /// Direction of edges in the diagram.
-    pub(crate) rank_dir: RankDir,
     /// Level of detail for this diagram build.
     pub(crate) lod: DiagramLod,
     /// Monospace character width in pixels.

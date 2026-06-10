@@ -23,6 +23,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC,
     INPUT_DIAGRAM_0013_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC_2,
     INPUT_DIAGRAM_0017_EDGE_INNER_TO_INNER, INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE,
+    INPUT_DIAGRAM_0019_RANK_DIR_REVERSED_SIBLINGS,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -2618,5 +2619,133 @@ fn test_adjacent_divergent_ancestor_edges_dont_route_past_charlie() {
                 bob_alice_outer_edge.path_d,
             );
         }
+    }
+}
+
+// === Reversed rank direction sibling ordering (0019) === //
+
+/// Builds `SvgElements` from the 0019 fixture, optionally substituting the
+/// `rank_dir` value (the fixture declares `bottom_to_top`).
+fn build_svg_elements_from_rank_dir_reversed_siblings(
+    rank_dir: &str,
+) -> impl Iterator<Item = SvgElements<'static>> {
+    let input_diagram =
+        INPUT_DIAGRAM_0019_RANK_DIR_REVERSED_SIBLINGS.replace("bottom_to_top", rank_dir);
+    build_svg_elements_for_diagram(&input_diagram)
+        .collect::<Vec<_>>()
+        .into_iter()
+}
+
+/// Parses the last point of a kurbo-generated path `d` attribute.
+///
+/// Kurbo concatenates path commands with their coordinates (e.g. `L80,210`
+/// rather than `L 80,210`), so the last whitespace-separated token is the
+/// final command with its endpoint.
+fn path_d_last_point(path_d: &str) -> Option<(f32, f32)> {
+    let token = path_d.split_whitespace().last()?;
+    let coords = token.trim_start_matches(|c: char| c.is_ascii_alphabetic());
+    let (x_str, y_str) = coords.split_once(',')?;
+    Some((x_str.parse().ok()?, y_str.parse().ok()?))
+}
+
+/// With `rank_dir: bottom_to_top`, rank-1 siblings must render left-to-right
+/// in declaration order (`t_dog`, `t_cat`, `t_owner`), and the from-contact
+/// points on `t_animal`'s top face must follow the same order so the edge
+/// paths do not cross.
+///
+/// Before the fix, the `RowReverse` rank container rendered the siblings
+/// right-to-left, and the negated face offsets could not fully compensate,
+/// causing edge paths to cross.
+#[test]
+fn test_rank_dir_bottom_to_top_siblings_render_in_declaration_order() {
+    for svg_elements in build_svg_elements_from_rank_dir_reversed_siblings("bottom_to_top") {
+        let node_x = |node_id: &str| -> f32 {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"))
+                .x
+        };
+        let dog_x = node_x("t_dog");
+        let cat_x = node_x("t_cat");
+        let owner_x = node_x("t_owner");
+        assert!(
+            dog_x < cat_x && cat_x < owner_x,
+            "Expected siblings to render left-to-right in declaration order: \
+             t_dog (x={dog_x:.2}) < t_cat (x={cat_x:.2}) < t_owner (x={owner_x:.2})"
+        );
+
+        // The from-contact is the final point of each path (paths are built
+        // in reverse, ending at the from-node face).
+        let from_contact_x = |to_node_id: &str| -> f32 {
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| {
+                    e.from_node_id.as_str() == "t_animal" && e.to_node_id.as_str() == to_node_id
+                })
+                .unwrap_or_else(|| panic!("Expected edge from t_animal to {to_node_id}"));
+            path_d_last_point(&edge_info.path_d)
+                .unwrap_or_else(|| panic!("Expected parseable path_d: {:?}", edge_info.path_d))
+                .0
+        };
+        let dog_contact_x = from_contact_x("t_dog");
+        let cat_contact_x = from_contact_x("t_cat");
+        let owner_contact_x = from_contact_x("t_owner");
+        assert!(
+            dog_contact_x < cat_contact_x && cat_contact_x < owner_contact_x,
+            "Expected from-contacts on t_animal's top face to follow target order so \
+             paths do not cross: t_dog ({dog_contact_x:.2}) < t_cat ({cat_contact_x:.2}) \
+             < t_owner ({owner_contact_x:.2})"
+        );
+    }
+}
+
+/// With `rank_dir: right_to_left`, rank-1 siblings must render top-to-bottom
+/// in declaration order (`t_dog`, `t_cat`, `t_owner`), and the from-contact
+/// points on `t_animal`'s left face must follow the same order so the edge
+/// paths do not cross.
+#[test]
+fn test_rank_dir_right_to_left_siblings_render_in_declaration_order() {
+    for svg_elements in build_svg_elements_from_rank_dir_reversed_siblings("right_to_left") {
+        let node_y = |node_id: &str| -> f32 {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"))
+                .y
+        };
+        let dog_y = node_y("t_dog");
+        let cat_y = node_y("t_cat");
+        let owner_y = node_y("t_owner");
+        assert!(
+            dog_y < cat_y && cat_y < owner_y,
+            "Expected siblings to render top-to-bottom in declaration order: \
+             t_dog (y={dog_y:.2}) < t_cat (y={cat_y:.2}) < t_owner (y={owner_y:.2})"
+        );
+
+        let from_contact_y = |to_node_id: &str| -> f32 {
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| {
+                    e.from_node_id.as_str() == "t_animal" && e.to_node_id.as_str() == to_node_id
+                })
+                .unwrap_or_else(|| panic!("Expected edge from t_animal to {to_node_id}"));
+            path_d_last_point(&edge_info.path_d)
+                .unwrap_or_else(|| panic!("Expected parseable path_d: {:?}", edge_info.path_d))
+                .1
+        };
+        let dog_contact_y = from_contact_y("t_dog");
+        let cat_contact_y = from_contact_y("t_cat");
+        let owner_contact_y = from_contact_y("t_owner");
+        assert!(
+            dog_contact_y < cat_contact_y && cat_contact_y < owner_contact_y,
+            "Expected from-contacts on t_animal's left face to follow target order so \
+             paths do not cross: t_dog ({dog_contact_y:.2}) < t_cat ({cat_contact_y:.2}) \
+             < t_owner ({owner_contact_y:.2})"
+        );
     }
 }

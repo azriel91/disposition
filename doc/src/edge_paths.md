@@ -116,9 +116,9 @@ When multiple edges connect to the same face of a node (e.g. three edges all exi
 - **Slot**: an ordered position within the list of contacts on a single (node, face) pair. Slot 0 is the first sorted contact, slot 1 the second, etc.
 - **Face length**: the pixel length of the face: width for `Top`/`Bottom` faces, collapsed height for `Left`/`Right` faces. Computed by `fn face_length_for_node`.
 - **Gap**: the pixel spacing between adjacent contact points. Starts at 10% of the face length (`CONTACT_GAP_RATIO = 0.10`), clamped to at least 5 px (`CONTACT_GAP_MIN_PX = 5.0`). If `contact_count * gap > face_length`, the gap is shrunk to `face_length / contact_count` so all contacts fit.
-- **Label-based offset**: when an edge has a non-zero description label node on a face (looked up from `TaffyNodeMappings::edge_label_taffy_nodes`), the contact point is routed to the entry-side edge of the label -- the side the path arrives at first. Which side depends on `rank_dir` and `face`:
-  - `Top`/`Bottom` faces (offset along x): `BottomToTop` uses the right x (`label_abs_x + label_width`); `TopToBottom`, `LeftToRight`, and `RightToLeft` use the left x (`label_abs_x`).
-  - `Left`/`Right` faces (offset along y): `RightToLeft` uses the bottom y (`label_abs_y + label_height`); `LeftToRight`, `TopToBottom`, and `BottomToTop` use the top y (`label_abs_y`).
+- **Label-based offset**: when an edge has a non-zero description label node on a face (looked up from `TaffyNodeMappings::edge_label_taffy_nodes`), the contact point is routed to the entry-side edge of the label -- the side the path arrives at first. Because sibling insertion order is reversed for reversed rank directions (see [Sibling order for reversed rank directions](#sibling-order-for-reversed-rank-directions)), the entry side is the same for all rank directions:
+  - `Top`/`Bottom` faces (offset along x): the left x (`label_abs_x`).
+  - `Left`/`Right` faces (offset along y): the top y (`label_abs_y`).
   - `offset = label_contact - face_midpoint_along_axis` where `face_midpoint_x = node_info.x + node_info.width / 2` and `face_midpoint_y = node_info.y + node_info.height_collapsed / 2`.
   - The label-based offset is used only when the label has non-zero size (`label_width > 0` for Top/Bottom, `label_height > 0` for Left/Right); otherwise the slot-based fallback is used.
 
@@ -135,13 +135,15 @@ The algorithm in `face_offsets_compute` proceeds in three phases:
     - After sorting, each entry is assigned its slot index (0-based position in the sorted order). These slot indices are written back into `from_slot_indices` / `to_slot_indices` on the pass-1 group.
 
 3. **Compute offset values.** For each contact entry, the offset is chosen as follows:
-    - **Label-based** (preferred): if the edge has a non-zero label node on this face (looked up from `edge_label_taffy_nodes` via `label_face_offset_compute`), the offset is `label_contact_on_face_axis - face_midpoint_on_face_axis`, where `label_contact` is the entry-side edge of the label (left or right x for `Top`/`Bottom` faces; top or bottom y for `Left`/`Right` faces) selected by `rank_dir`. The absolute position is computed via `taffy_node_absolute_xy_compute`.
+    - **Label-based** (preferred): if the edge has a non-zero label node on this face (looked up from `edge_label_taffy_nodes` via `label_face_offset_compute`), the offset is `label_contact_on_face_axis - face_midpoint_on_face_axis`, where `label_contact` is the entry-side edge of the label (left x for `Top`/`Bottom` faces; top y for `Left`/`Right` faces). The absolute position is computed via `taffy_node_absolute_xy_compute`.
     - **Slot-based fallback**: when the edge has no label on this face, or the label has zero size, `EdgeFaceContactTracker::offset_for_index` is used: `offset[i] = (i - (n - 1) / 2.0) * gap`. This distributes offsets symmetrically around 0 (the face midpoint). The first slot gets the most negative offset (leftward/upward), the middle slot(s) get ~0, and the last slot gets the most positive offset (rightward/downward).
 
 
-### Direction reversal for `BottomToTop` and `RightToLeft`
+### Sibling order for reversed rank directions
 
-For `TopToBottom` and `LeftToRight`, the offset sign convention (negative = left/up, positive = right/down) naturally matches the visual flow -- edges to left-side targets get negative offsets (shifting contact leftward), reducing crossover. For `BottomToTop` and `RightToLeft`, the visual flow is reversed, so the same sort order would produce offsets that *increase* crossover. To fix this, all computed offsets are **negated** when `rank_dir` is `BottomToTop` or `RightToLeft`. This is implemented in `face_offsets_compute` after `offset_calculate` returns each value.
+For `BottomToTop` and `RightToLeft`, rank containers are laid out with a reversed flex direction (`RowReverse` / `ColumnReverse`). The reversed direction is retained because the rank-stacking parent inverts it to stack ranks bottom-up / right-to-left. Left as-is, the reversed direction would also render siblings *within* a rank in reverse declaration order, which is the reverse of what a human reading the input expects and would invert the spatial assumptions of the offset sort order, causing edge paths to cross.
+
+To compensate, `TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed` (in [`taffy_container_builder.rs`](crate/input_ir_rt/src/ir_to_taffy_builder/taffy_container_builder.rs)) reverses each rank's child insertion order when the rank container style uses a reversed flex direction. It is called after edge spacers are inserted into the per-rank vectors (so spacers flip together with their neighbouring nodes), both for first-level rank containers and for nested container children. As a result, visual order matches declaration order for **all** rank directions, and no offset negation or per-direction entry-side selection is needed downstream.
 
 
 ### How offsets are applied

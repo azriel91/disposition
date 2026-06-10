@@ -33,6 +33,8 @@ pub(crate) const INPUT_DIAGRAM_0017_EDGE_INNER_TO_INNER: &str =
     include_str!("input_diagram/0017_edge_inner_to_inner.yaml");
 pub(crate) const INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE: &str =
     include_str!("input_diagram/0018_process_step_branch_merge.yaml");
+pub(crate) const INPUT_DIAGRAM_0019_RANK_DIR_REVERSED_SIBLINGS: &str =
+    include_str!("input_diagram/0019_rank_dir_reversed_siblings.yaml");
 
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

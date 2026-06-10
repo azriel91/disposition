@@ -141,7 +141,6 @@ impl SvgEdgeInfosBuilder {
         // === Global sort and offset computation === //
 
         let face_offsets_by_node_face = Self::face_offsets_compute(
-            rank_dir,
             &mut all_pass1_groups,
             svg_node_info_map,
             &mut face_contact_tracker,
@@ -488,9 +487,6 @@ impl SvgEdgeInfosBuilder {
     ///    as a tie-breaker.
     /// 3. Assigns offset slots so that short-range edges get slots nearest to
     ///    the face midpoint, and longer-range edges fan outward.
-    /// 4. For reversed directions (`BottomToTop`, `RightToLeft`), negates all
-    ///    offsets so the spatial ordering mirrors the reversed visual flow,
-    ///    reducing edge crossover.
     ///
     /// This prevents edges from crossing each other: short-range edges
     /// stay tight against the node and long-range edges arc around them.
@@ -501,7 +497,6 @@ impl SvgEdgeInfosBuilder {
     /// cutting through it.  Edges without a label (zero-size leaf) fall back
     /// to the slot-based formula.
     fn face_offsets_compute<'edge, 'id>(
-        rank_dir: RankDir,
         all_pass1_groups: &mut Vec<EdgeGroupPass1<'edge, 'id>>,
         svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
@@ -599,24 +594,19 @@ impl SvgEdgeInfosBuilder {
                 node_id_and_face.face,
                 svg_node_info_map,
             );
-            // For reversed directions (BottomToTop, RightToLeft) negate
-            // the offsets so that the spatial ordering of contact points
-            // mirrors the reversed visual flow, reducing edge crossover.
-            let negate_offsets = matches!(rank_dir, RankDir::BottomToTop | RankDir::RightToLeft);
-
             // Compute slot-based fallback offsets for all contacts first.
+            //
+            // No direction-based negation is needed: sibling nodes are
+            // inserted in reversed order for reversed rank directions (see
+            // `TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed`),
+            // so visual order matches declaration order for all directions.
             let slot_based_offsets: Vec<f32> = (0..contact_count)
                 .map(|_| {
-                    let offset = face_contact_tracker.offset_calculate(
+                    face_contact_tracker.offset_calculate(
                         &node_id_and_face.node_id,
                         node_id_and_face.face,
                         face_length,
-                    );
-                    if negate_offsets {
-                        -offset
-                    } else {
-                        offset
-                    }
+                    )
                 })
                 .collect();
 
@@ -630,7 +620,6 @@ impl SvgEdgeInfosBuilder {
                         [entry.edge_index]
                         .edge_id;
                     Self::label_face_offset_compute(
-                        rank_dir,
                         node_id_and_face.face,
                         edge_id,
                         entry.is_from_endpoint,
@@ -1113,7 +1102,6 @@ impl SvgEdgeInfosBuilder {
     /// offset in that case.
     #[allow(clippy::too_many_arguments)]
     fn label_face_offset_compute<'id>(
-        rank_dir: RankDir,
         face: NodeFace,
         edge_id: &EdgeId<'id>,
         is_from_endpoint: bool,
@@ -1143,13 +1131,8 @@ impl SvgEdgeInfosBuilder {
                         taffy_node_id,
                         layout,
                     );
-                // Route to the entry-side edge of the label along x.
-                let label_contact_x = match rank_dir {
-                    RankDir::BottomToTop => label_abs_x + label_width,
-                    RankDir::TopToBottom | RankDir::LeftToRight | RankDir::RightToLeft => {
-                        label_abs_x
-                    }
-                };
+                // Route to the entry-side (left x) edge of the label.
+                let label_contact_x = label_abs_x;
                 let face_midpoint_x = node_info.x + node_info.width / 2.0;
                 Some(label_contact_x - face_midpoint_x)
             }
@@ -1163,13 +1146,8 @@ impl SvgEdgeInfosBuilder {
                         taffy_node_id,
                         layout,
                     );
-                // Route to the entry-side edge of the label along y.
-                let label_contact_y = match rank_dir {
-                    RankDir::RightToLeft => label_abs_y + label_height,
-                    RankDir::LeftToRight | RankDir::TopToBottom | RankDir::BottomToTop => {
-                        label_abs_y
-                    }
-                };
+                // Route to the entry-side (top y) edge of the label.
+                let label_contact_y = label_abs_y;
                 let face_midpoint_y = node_info.y + node_info.height_collapsed / 2.0;
                 Some(label_contact_y - face_midpoint_y)
             }
