@@ -10,7 +10,6 @@ use disposition_taffy_model::{
     taffy::{self, AlignSelf, Style, TaffyTree},
     DiagramLod, EdgeDescriptionCtx, EdgeDescriptionTaffyNodes, TaffyNodeCtx,
 };
-use taffy::prelude::TaffyZero;
 
 use crate::EdgeIdGenerator;
 
@@ -133,9 +132,9 @@ impl EdgeDescriptionBuilder {
                 // becomes horizontal space between the description text and its
                 // routing spacer, pushing the edge path far from the text.
                 //
-                // Use zero width instead so the path sits just beside the text.
+                // Use half a character width instead so the path sits just beside the text.
                 let mut container_style = rank_container_style.clone();
-                container_style.gap.width = taffy::LengthPercentage::ZERO;
+                container_style.gap.width = taffy::LengthPercentage::length(ctx.char_width / 2.0);
 
                 let container_taffy_node_id = taffy_tree
                     .new_with_children(container_style, &leaf_node_ids)

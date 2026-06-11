@@ -17,7 +17,7 @@ use taffy::{LengthPercentage, LengthPercentageAuto, Rect};
 
 use super::{
     taffy_build_ctx::TaffyBuildCtx,
-    text_measure::{compute_text_dimensions, line_width_measure},
+    text_measure::{compute_text_dimensions, md_token_width_measure},
 };
 
 /// Layout information for a wrapper node and its text node.
@@ -149,7 +149,7 @@ impl NodeMeasureContext<'_> {
         }) {
             let effective_char_width = char_width;
             let effective_line_height = TEXT_LINE_HEIGHT;
-            let width = line_width_measure(&md_token_ctx.text, effective_char_width);
+            let width = md_token_width_measure(&md_token_ctx.text, effective_char_width);
             return Size {
                 width,
                 height: effective_line_height,

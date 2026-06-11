@@ -233,7 +233,11 @@ impl MdSpansComputer {
                         let run_start_x = item.abs_x;
                         let run_abs_y = item.abs_y;
                         let mut run_texts = vec![token_ctx.text.clone()];
-                        let mut run_width = item.layout_width;
+                        // Track the right edge of the last token so the span
+                        // width spans the full visual extent, including the
+                        // inter-token gaps (the rendered word spaces). Summing
+                        // token widths alone would omit those gaps.
+                        let mut run_end_x = item.abs_x + item.layout_width;
                         j += 1;
 
                         // Collect consecutive tokens on the same line with the same style.
@@ -242,12 +246,14 @@ impl MdSpansComputer {
                                 && next_ctx.md_style == run_style
                             {
                                 run_texts.push(next_ctx.text.clone());
-                                run_width += line_items[j].layout_width;
+                                run_end_x = line_items[j].abs_x + line_items[j].layout_width;
                                 j += 1;
                                 continue;
                             }
                             break;
                         }
+
+                        let run_width = run_end_x - run_start_x;
 
                         let tailwind_classes = run_style.to_tailwind_classes();
 
