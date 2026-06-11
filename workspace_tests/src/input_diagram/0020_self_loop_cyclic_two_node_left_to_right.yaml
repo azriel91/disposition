@@ -1,0 +1,18 @@
+things:
+  t_alice: {}
+  t_charlie: {}
+thing_names:
+  t_alice: Alice
+  t_charlie: Charlie
+thing_dependencies:
+  edge_dep_config_api:
+    kind: sequence
+    things:
+      - t_alice
+      - t_charlie
+  edge_dep_config_config:
+    kind: cyclic
+    things:
+      - t_alice
+render_options:
+  rank_dir: left_to_right

@@ -24,6 +24,8 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0013_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC_2,
     INPUT_DIAGRAM_0017_EDGE_INNER_TO_INNER, INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE,
     INPUT_DIAGRAM_0019_RANK_DIR_REVERSED_SIBLINGS,
+    INPUT_DIAGRAM_0020_SELF_LOOP_CYCLIC_TWO_NODE_LEFT_TO_RIGHT,
+    INPUT_DIAGRAM_0021_SELF_LOOP_EDGE_LEFT_TO_RIGHT_WITH_EDGE_DESC,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -2960,6 +2962,74 @@ fn test_cycle_and_self_loop_protrusions_clear_arrow_head() {
                 edge_info.ortho_protrusion_params.from_protrusion, to_protrusion,
                 "Cycle edge {from_node_id} -> {to_node_id} from/to protrusions should \
                  be equal (symmetric U)"
+            );
+        }
+    }
+}
+
+/// Self-loop from/to contact points on the same face must be separated by at
+/// least the face contact gap (`CONTACT_GAP_MIN_PX` = 12.0 px), so the from
+/// segment clears the arrow head (4.0 px half-width) drawn at the to contact.
+///
+/// The from contact is label-aligned (the edge label leaf always has a
+/// non-zero padded size), while the to contact falls back to the slot-based
+/// offset; without enforcement the two can land arbitrarily close together.
+#[test]
+fn test_self_loop_contacts_honour_face_contact_gap() {
+    const CONTACT_GAP_MIN_PX: f32 = 12.0;
+    const EPSILON: f32 = 0.01;
+
+    for (fixture_name, input_diagram, node_id) in [
+        (
+            "0020_self_loop_cyclic_two_node_left_to_right",
+            INPUT_DIAGRAM_0020_SELF_LOOP_CYCLIC_TWO_NODE_LEFT_TO_RIGHT,
+            "t_alice",
+        ),
+        (
+            "0021_self_loop_edge_left_to_right_with_edge_desc",
+            INPUT_DIAGRAM_0021_SELF_LOOP_EDGE_LEFT_TO_RIGHT_WITH_EDGE_DESC,
+            "t_a",
+        ),
+    ] {
+        for svg_elements in build_svg_elements_for_diagram(input_diagram) {
+            let node_info = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"));
+
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == node_id && e.to_node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected self-loop edge on {node_id}"));
+
+            // Paths are built in reverse: first point = to contact (arrow
+            // end), last point = from contact.
+            let to_contact = path_d_first_point(&edge_info.path_d)
+                .unwrap_or_else(|| panic!("Expected parseable path_d: {:?}", edge_info.path_d));
+            let from_contact = path_d_last_point(&edge_info.path_d)
+                .unwrap_or_else(|| panic!("Expected parseable path_d: {:?}", edge_info.path_d));
+
+            // Both contacts sit on the right face (rank_dir: left_to_right).
+            let right_face_x = node_info.x + node_info.width;
+            for (contact_name, contact_x) in [("to", to_contact.0), ("from", from_contact.0)] {
+                assert!(
+                    (contact_x - right_face_x).abs() < 0.5,
+                    "{fixture_name}: self-loop {contact_name} contact x {contact_x:.2} \
+                     should lie on the right face line {right_face_x:.2}"
+                );
+            }
+
+            let contact_separation = (to_contact.1 - from_contact.1).abs();
+            assert!(
+                contact_separation >= CONTACT_GAP_MIN_PX - EPSILON,
+                "{fixture_name}: self-loop from/to contacts should be at least \
+                 {CONTACT_GAP_MIN_PX} px apart so the from segment clears the arrow \
+                 head, but were {contact_separation:.2} px apart \
+                 (from y = {:.2}, to y = {:.2})",
+                from_contact.1,
+                to_contact.1,
             );
         }
     }

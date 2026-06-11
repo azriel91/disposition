@@ -1,0 +1,15 @@
+things:
+  t_a: {}
+thing_names:
+  t_a: Alpha
+thing_dependencies:
+  edge_self:
+    kind: sequence
+    things:
+      - t_a
+      - t_a
+edge_labels:
+  edge_self__0:
+    from: Self-loop description
+render_options:
+  rank_dir: left_to_right

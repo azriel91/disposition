@@ -628,7 +628,7 @@ impl SvgEdgeInfosBuilder {
 
             // Substitute label-based offsets where the edge has a
             // non-zero description label on this face.
-            let offsets: Vec<f32> = face_contact_entries
+            let mut offsets: Vec<f32> = face_contact_entries
                 .iter()
                 .zip(slot_based_offsets)
                 .map(|(entry, slot_offset)| {
@@ -647,6 +647,17 @@ impl SvgEdgeInfosBuilder {
                     .unwrap_or(slot_offset)
                 })
                 .collect();
+
+            // Self-loop from/to contacts may come from different sources
+            // (label-aligned from vs slot-based to); enforce the face contact
+            // gap between them so the from segment clears the arrow head at
+            // the to contact.
+            Self::face_offsets_self_loop_separation_enforce(
+                face_contact_entries,
+                face_length,
+                &mut offsets,
+            );
+
             face_offsets_by_node_face.insert(
                 node_id_and_face.clone(),
                 EdgeContactPointOffsets::new(offsets),
@@ -654,6 +665,79 @@ impl SvgEdgeInfosBuilder {
         }
 
         face_offsets_by_node_face
+    }
+
+    /// Enforces a minimum separation between the from and to contact offsets
+    /// of self-loop edges on a single (node, face).
+    ///
+    /// The from contact of a self-loop is label-aligned (the edge label leaf
+    /// always has a non-zero padded size, e.g. 4 px from
+    /// `EDGE_LABEL_PADDING_PX`), while the to contact has no label leaf
+    /// (`to_face` is `None` in the IR assignment) and falls back to the
+    /// slot-based offset. The two values come from unrelated coordinate
+    /// systems, so without this adjustment they can land arbitrarily close
+    /// together -- e.g. 3 px apart -- placing the from segment inside the
+    /// arrow head drawn at the to contact.
+    ///
+    /// When the separation is below the face's contact gap (see
+    /// `EdgeFaceContactTracker::gap_calculate`), the to offset is moved to
+    /// `from_offset + gap` or `from_offset - gap`, preferring the candidate
+    /// that stays within the face and is furthest from the other contacts on
+    /// the face.
+    fn face_offsets_self_loop_separation_enforce(
+        face_contact_entries: &[FaceContactEntry],
+        face_length: f32,
+        offsets: &mut [f32],
+    ) {
+        let contact_gap =
+            EdgeFaceContactTracker::gap_calculate(face_contact_entries.len(), face_length);
+        let half_face_length = face_length / 2.0;
+
+        for from_index in 0..face_contact_entries.len() {
+            let from_entry = &face_contact_entries[from_index];
+            if !from_entry.is_from_endpoint {
+                continue;
+            }
+            // Both endpoints of an edge appear on the same (node, face) only
+            // for self-loops.
+            let Some(to_index) = face_contact_entries.iter().position(|entry| {
+                !entry.is_from_endpoint
+                    && entry.pass1_group_index == from_entry.pass1_group_index
+                    && entry.edge_index == from_entry.edge_index
+            }) else {
+                continue;
+            };
+
+            let from_offset = offsets[from_index];
+            let to_offset = offsets[to_index];
+            if (to_offset - from_offset).abs() >= contact_gap {
+                continue;
+            }
+
+            // Pick the side of the from contact that stays within the face
+            // and has the most clearance from the other contacts.
+            let candidate_score = |candidate: f32| -> (bool, f32) {
+                let within_face = candidate.abs() <= half_face_length;
+                let other_contact_clearance = offsets
+                    .iter()
+                    .enumerate()
+                    .filter(|(offset_index, _)| {
+                        *offset_index != from_index && *offset_index != to_index
+                    })
+                    .map(|(_, other_offset)| (candidate - other_offset).abs())
+                    .fold(f32::INFINITY, f32::min);
+                (within_face, other_contact_clearance)
+            };
+
+            let candidate_after = from_offset + contact_gap;
+            let candidate_before = from_offset - contact_gap;
+            offsets[to_index] =
+                if candidate_score(candidate_after) >= candidate_score(candidate_before) {
+                    candidate_after
+                } else {
+                    candidate_before
+                };
+        }
     }
 
     /// Sorts the entries for a single (node, face) by rank distance
