@@ -21,12 +21,18 @@ use self::ortho_protrusion_geometry::OrthoProtrusionGeometry;
 
 mod ortho_protrusion_geometry;
 
-/// Maximum fraction of the rank gap that a protrusion may occupy.
+/// Maximum fraction of the rank gap available for protrusions.
+///
+/// Within a rank gap, the from-side and to-side protrusion fans share this
+/// single band (split proportionally to each side's endpoint count), so the
+/// deepest from-tip plus the deepest to-tip never exceed `MAX_GAP_FRACTION *
+/// gap`. The remaining `(1 - MAX_GAP_FRACTION) * gap` is left as the central
+/// routing channel.
 ///
 /// # Example values
 ///
-/// `0.6` -- each side (from and to) may use up to 60% of the gap.
-const MAX_GAP_FRACTION: f32 = 0.6;
+/// `0.8` -- from and to protrusions together use up to 80% of the gap.
+const MAX_GAP_FRACTION: f32 = 0.8;
 
 /// Minimum protrusion length in pixels.
 ///
@@ -724,19 +730,21 @@ impl OrthoProtrusionCalculator {
     /// # Algorithm
     ///
     /// 1. Find the minimum `rank_gap_px` across all entries (the tightest
-    ///    constraint).
-    /// 2. Compute the maximum allowed protrusion = `min_gap_px *
-    ///    MAX_GAP_FRACTION`.
-    /// 3. Partition entries into `Low` side and `High` side groups.
-    /// 4. Identify "crossing edges" -- edges that have entries on both sides of
-    ///    the gap.
-    /// 5. Assign protrusion depths from a pool of evenly-spaced slots. Each
-    ///    side's crossing entries are sorted independently by that side's
-    ///    spatial ordering (face offset then cross-axis coordinate), so that
-    ///    edges sorted earlier on each side receive longer protrusions,
-    ///    reducing visual cross-over near both the from-nodes and to-nodes.
-    /// 6. Assign remaining single-side entries from the unused protrusion
-    ///    slots.
+    ///    constraint), and the total band `available = min_gap_px *
+    ///    MAX_GAP_FRACTION` shared by both sides of the gap.
+    /// 2. Partition entries into `Low` side and `High` side groups, sorted by
+    ///    each side's spatial ordering (face offset then cross-axis
+    ///    coordinate).
+    /// 3. Split `available` between the two sides **proportionally to each
+    ///    side's endpoint count**, reserving a per-side depth floor so the
+    ///    arrow head at any `ToEndpoint` is cleared. Because the two sides grow
+    ///    from opposite gap boundaries toward each other, `low_band + high_band
+    ///    <= available` guarantees the deepest from-tip and deepest to-tip
+    ///    never overlap, leaving `(1 - MAX_GAP_FRACTION) * gap` as the routing
+    ///    channel.
+    /// 4. Within each side's band, assign distinct depths deepest-first in
+    ///    spatial order, so edges whose contact points are further apart
+    ///    receive longer protrusions, reducing visual cross-over.
     fn protrusions_assign(
         rank_gap_entries: &mut [RankGapEntry],
         result: &mut [Vec<OrthoProtrusionParams>],
@@ -745,16 +753,17 @@ impl OrthoProtrusionCalculator {
             return;
         }
 
-        // Find the tightest rank gap constraint.
+        // Find the tightest rank gap constraint and the total band shared by
+        // both sides.
         let min_gap_px = rank_gap_entries
             .iter()
             .map(|rank_gap_entry| rank_gap_entry.rank_gap_px)
             .reduce(f32::min)
             .unwrap_or(0.0);
 
-        let max_protrusion = min_gap_px * MAX_GAP_FRACTION;
+        let available = min_gap_px * MAX_GAP_FRACTION;
 
-        if max_protrusion < MIN_PROTRUSION_PX {
+        if available < MIN_PROTRUSION_PX {
             // Gap is too small for meaningful protrusions; assign
             // minimum protrusions to all.
             for rank_gap_entry in rank_gap_entries.iter() {
@@ -764,13 +773,6 @@ impl OrthoProtrusionCalculator {
                     result,
                 );
             }
-            return;
-        }
-
-        let total_count = rank_gap_entries.len();
-        if total_count == 1 {
-            let protrusion = (max_protrusion * 0.5).max(MIN_PROTRUSION_PX);
-            Self::protrusion_write(&rank_gap_entries[0], protrusion, result);
             return;
         }
 
@@ -840,39 +842,15 @@ impl OrthoProtrusionCalculator {
 
         // === Assign protrusion depths === //
         //
-        // Strategy: distribute all entries across a shared pool of
-        // `total_count` distinct protrusion slots.
-        //
-        // Single-side entries (only on low or only on high) do not
-        // contribute to routing midpoints in this gap, so they just
-        // need unique slots.
-        //
-        // We use `total_count` evenly-spaced slots in
-        // [MIN_PROTRUSION_PX, max_protrusion]:
-        //   slot[k] = MAX - k * growable / (total_count - 1)
-        //
-        // Slot 0 gets the longest protrusion, last slot gets the
-        // shortest. Earlier edges (sorted first) receive longer
-        // protrusions for visual clarity (less cross-over).
-        //
-        // Crossing low and crossing high entries are sorted
-        // independently by each side's own spatial ordering (face
-        // offset then cross-axis coordinate). Both sides assign
-        // slots in forward order so that earlier entries on each
-        // side receive longer protrusions. This prevents the
-        // high-side protrusion ordering from being dictated by the
-        // low-side sort, which would cause later edges on the high
-        // side to receive incorrectly long protrusions.
-        //
-        // The assignment proceeds as follows:
-        //
-        // 1. Single-side low entries get the first slots (0, 1, ...) -- longest
-        //    protrusions.
-        // 2. Crossing low entries (from-endpoints) get the next slots.
-        // 3. Crossing high entries (to-endpoints) get slots in forward order within
-        //    their own range, sorted by high-side index. Earlier entries on the high
-        //    side receive longer protrusions, matching the low-side convention.
-        // 4. Single-side high entries fill the remaining slots -- shortest protrusions.
+        // Each side of the gap gets its own band, carved out of the shared
+        // `available` budget in proportion to its endpoint count. Within a
+        // side, entries are assigned distinct depths deepest-first in spatial
+        // order. Single-side entries take the deepest depths, crossing entries
+        // the shallower ones (preserving the previous convention where
+        // single-side edges protrude further than crossing edges on the same
+        // side), and each side's crossing entries are ordered by that side's
+        // own spatial sort so earlier entries on each side receive longer
+        // protrusions.
 
         // Separate low_entries into single-side and crossing, preserving
         // their sorted order.
@@ -917,53 +895,91 @@ impl OrthoProtrusionCalculator {
             .map(|&hi| high_entries[hi])
             .collect();
 
-        let protrusion_growable_space = max_protrusion - MIN_PROTRUSION_PX;
-        let denominator = (total_count - 1).max(1) as f32;
+        // === Per-side ordered lists (deepest-first) === //
+        //
+        // Low side: single_low (deepest) then crossing_low.
+        // High side: crossing_high (deeper) then single_high (shallowest),
+        // mirroring the previous shared-pool ordering where crossing high
+        // entries occupied deeper slots than single-side high entries.
+        let low_ordered: Vec<&RankGapEntry> = single_low
+            .iter()
+            .copied()
+            .chain(crossing_low_ordered.iter().copied())
+            .collect();
+        let high_ordered: Vec<&RankGapEntry> = crossing_high_ordered
+            .iter()
+            .copied()
+            .chain(single_high.iter().copied())
+            .collect();
 
-        let slot_value = |slot: usize| -> f32 {
-            // Slot 0 gets the longest protrusion, last slot gets the
-            // shortest. Earlier edges (sorted first) receive longer
-            // protrusions for visual clarity (less cross-over).
-            let proportion = 1.0 - (slot as f32 / denominator);
-            MIN_PROTRUSION_PX + proportion * protrusion_growable_space
+        let n_low = low_ordered.len();
+        let n_high = high_ordered.len();
+
+        // === Per-side floors === //
+        //
+        // A side that holds any `ToEndpoint` reserves the arrow-head clearance
+        // floor (`TO_PROTRUSION_MIN_PX`) as its shallowest depth, so the
+        // straight segment entering the to-node clears the arrow head before
+        // the Z/S bend. From / spacer-only sides keep `MIN_PROTRUSION_PX`. A
+        // backward edge reverses from/to sides, so the actual endpoint kinds
+        // are inspected rather than the side name. Empty sides reserve nothing.
+        let side_floor = |entries: &[&RankGapEntry]| -> f32 {
+            if entries.is_empty() {
+                0.0
+            } else if entries
+                .iter()
+                .any(|e| matches!(e.endpoint_kind, RankGapEndpointKind::ToEndpoint))
+            {
+                TO_PROTRUSION_MIN_PX
+            } else {
+                MIN_PROTRUSION_PX
+            }
+        };
+        let low_floor = side_floor(&low_ordered);
+        let high_floor = side_floor(&high_ordered);
+
+        // === Split the band proportionally to each side's count === //
+        //
+        // The growable slack (above the two floors) is divided in proportion to
+        // the endpoint counts, so per-protrusion spacing is even regardless of
+        // a from/to count imbalance. By construction `low_band + high_band <=
+        // available`, so the deepest tips on the two sides never cross.
+        let slack = available - low_floor - high_floor;
+        if slack < 0.0 {
+            // Gap is too tight to honour both sides' floors with separation;
+            // fall back to minimal protrusions (to-endpoints are floored in
+            // `protrusion_write`).
+            for rank_gap_entry in rank_gap_entries.iter() {
+                Self::protrusion_write(
+                    rank_gap_entry,
+                    MIN_PROTRUSION_PX.min(min_gap_px * 0.5),
+                    result,
+                );
+            }
+            return;
+        }
+
+        let n_total = (n_low + n_high) as f32;
+        let low_band = low_floor + slack * (n_low as f32) / n_total;
+        let high_band = high_floor + slack * (n_high as f32) / n_total;
+
+        // `side_depth` distributes `n` distinct depths within `[floor, band]`,
+        // deepest first (index 0 -> `band`, index n-1 -> `floor`). A lone entry
+        // sits at the midpoint of its band so an isolated stub is not drawn at
+        // the full band depth.
+        let side_depth = |i: usize, n: usize, band: f32, floor: f32| -> f32 {
+            if n <= 1 {
+                (band + floor) * 0.5
+            } else {
+                band - (i as f32) * (band - floor) / ((n - 1) as f32)
+            }
         };
 
-        // Slot assignment:
-        //   [0 .. SL)                        -> single-side low
-        //   [SL .. SL + NC)                  -> crossing low (from-endpoints)
-        //   [total - SH - NC .. total - SH)  -> crossing high (to-endpoints, forward)
-        //   [total - SH .. total)            -> single-side high
-        //
-        // where SL = single_low.len(), SH = single_high.len(),
-        //       NC = crossing_pairs.len().
-
-        // 1. Single-side low entries, then 2. crossing low entries (from-endpoints, in
-        //    crossing_pairs order): assigned the lowest slots in sequence.
-        single_low
-            .iter()
-            .chain(crossing_low_ordered.iter())
-            .enumerate()
-            .for_each(|(slot, entry)| {
-                Self::protrusion_write(entry, slot_value(slot), result);
-            });
-
-        // 3. Crossing high entries (to-endpoints) -- assigned in FORWARD slot order.
-        //    The entries are sorted by high-side index so that spatially earlier edges
-        //    (sorted first on the high side) get longer protrusions and later edges get
-        //    shorter ones, matching the low-side convention and preventing visual
-        //    crossings near the to-nodes.
-        let crossing_high_start = total_count - single_high.len() - crossing_high_ordered.len();
-        crossing_high_ordered
-            .iter()
-            .enumerate()
-            .for_each(|(i, entry)| {
-                Self::protrusion_write(entry, slot_value(crossing_high_start + i), result);
-            });
-
-        // 4. Single-side high entries fill the top slots.
-        let single_high_start = total_count - single_high.len();
-        single_high.iter().enumerate().for_each(|(i, entry)| {
-            Self::protrusion_write(entry, slot_value(single_high_start + i), result);
+        low_ordered.iter().enumerate().for_each(|(i, entry)| {
+            Self::protrusion_write(entry, side_depth(i, n_low, low_band, low_floor), result);
+        });
+        high_ordered.iter().enumerate().for_each(|(i, entry)| {
+            Self::protrusion_write(entry, side_depth(i, n_high, high_band, high_floor), result);
         });
     }
 

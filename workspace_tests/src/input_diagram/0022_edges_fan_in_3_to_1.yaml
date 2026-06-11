@@ -1,0 +1,26 @@
+things:
+  t_alice: {}
+  t_bob: {}
+  t_charlie: {}
+  t_delta: {}
+thing_names:
+  t_alice: Alice
+  t_bob: Bob
+  t_charlie: Charlie
+  t_delta: Delta
+thing_dependencies:
+  edge_dep_alice_delta:
+    kind: sequence
+    things:
+      - t_alice
+      - t_delta
+  edge_dep_bob_delta:
+    kind: sequence
+    things:
+      - t_bob
+      - t_delta
+  edge_dep_charlie_delta:
+    kind: sequence
+    things:
+      - t_charlie
+      - t_delta

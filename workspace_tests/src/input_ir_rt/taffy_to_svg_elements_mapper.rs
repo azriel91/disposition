@@ -26,6 +26,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0019_RANK_DIR_REVERSED_SIBLINGS,
     INPUT_DIAGRAM_0020_SELF_LOOP_CYCLIC_TWO_NODE_LEFT_TO_RIGHT,
     INPUT_DIAGRAM_0021_SELF_LOOP_EDGE_LEFT_TO_RIGHT_WITH_EDGE_DESC,
+    INPUT_DIAGRAM_0022_EDGES_FAN_IN_3_TO_1,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -2850,7 +2851,7 @@ fn test_self_loop_path_endpoints_follow_rank_dir() {
 fn test_to_protrusion_clears_arrow_head() {
     // ARROW_HEAD_LENGTH (8.0) + ARROW_HEAD_CLEARANCE_PX (3.0).
     const TO_PROTRUSION_MIN_PX: f32 = 11.0;
-    const MAX_GAP_FRACTION: f32 = 0.6;
+    const MAX_GAP_FRACTION: f32 = 0.8;
     const EPSILON: f32 = 0.01;
 
     for svg_elements in
@@ -2905,6 +2906,85 @@ fn test_to_protrusion_clears_arrow_head() {
                  not exceed {MAX_GAP_FRACTION} of the rank gap {rank_gap_to_from_face:.2}"
             );
         }
+    }
+}
+
+/// Within a single rank gap, the from-side and to-side protrusion fans share
+/// the `MAX_GAP_FRACTION * gap` band, split proportionally by side count, with
+/// a per-side arrow-head floor. Because the two fans grow from opposite gap
+/// boundaries toward each other, the deepest from-protrusion plus the deepest
+/// to-protrusion must fit within `MAX_GAP_FRACTION * gap`, so their tips never
+/// cross.
+///
+/// Verified on a fan-in: three rank-0 nodes (`t_alice`, `t_bob`, `t_charlie`)
+/// all connecting to one rank-1 node (`t_delta`).
+#[test]
+fn test_fan_in_protrusions_do_not_cross_within_gap() {
+    const MAX_GAP_FRACTION: f32 = 0.8;
+    // ARROW_HEAD_LENGTH (8.0) + ARROW_HEAD_CLEARANCE_PX (3.0).
+    const TO_PROTRUSION_MIN_PX: f32 = 11.0;
+    const EPSILON: f32 = 0.1;
+
+    for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0022_EDGES_FAN_IN_3_TO_1) {
+        let node_info = |node_id: &str| {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"))
+        };
+        let delta = node_info("t_delta");
+
+        // The three rank-0 from-nodes share the gap below them; the visual gap
+        // spans from the lowest rank-0 bottom face down to t_delta's top face.
+        let from_ids = ["t_alice", "t_bob", "t_charlie"];
+        let rank0_bottom_max = from_ids
+            .iter()
+            .map(|id| {
+                let node = node_info(id);
+                node.y + node.height_collapsed
+            })
+            .fold(f32::MIN, f32::max);
+        let visual_gap = delta.y - rank0_bottom_max;
+        assert!(
+            visual_gap > 0.0,
+            "Expected a positive visual gap between rank 0 and t_delta, got {visual_gap:.2}"
+        );
+
+        // Deepest protrusion on each side of the gap.
+        let mut deepest_from = 0.0f32;
+        let mut deepest_to = 0.0f32;
+        for edge_info in &svg_elements.svg_edge_infos {
+            if !from_ids.contains(&edge_info.from_node_id.as_str())
+                || edge_info.to_node_id.as_str() != "t_delta"
+            {
+                continue;
+            }
+            let params = &edge_info.ortho_protrusion_params;
+            deepest_from = deepest_from.max(params.from_protrusion);
+            deepest_to = deepest_to.max(params.to_protrusion);
+
+            // Every to-endpoint clears the arrow head.
+            assert!(
+                params.to_protrusion >= TO_PROTRUSION_MIN_PX - EPSILON,
+                "edge {} -> t_delta to_protrusion {:.2} should clear the arrow head \
+                 (>= {TO_PROTRUSION_MIN_PX})",
+                edge_info.from_node_id.as_str(),
+                params.to_protrusion,
+            );
+        }
+
+        // The two fans grow from opposite gap boundaries toward each other, so
+        // their deepest tips together must fit within MAX_GAP_FRACTION of the
+        // gap and never cross.
+        assert!(
+            deepest_from + deepest_to <= visual_gap * MAX_GAP_FRACTION + EPSILON,
+            "deepest from-protrusion {deepest_from:.2} + deepest to-protrusion \
+             {deepest_to:.2} = {:.2} should fit within {MAX_GAP_FRACTION} of the rank \
+             gap {visual_gap:.2} (= {:.2}) so the protrusion tips do not cross",
+            deepest_from + deepest_to,
+            visual_gap * MAX_GAP_FRACTION,
+        );
     }
 }
 

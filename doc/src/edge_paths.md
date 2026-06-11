@@ -220,11 +220,11 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
 27. **Find the tightest constraint.**
 
-    The minimum `rank_gap_px` across all entries in the gap determines the available space. The maximum allowed protrusion is `min_gap_px * MAX_GAP_FRACTION` (where `MAX_GAP_FRACTION = 0.48`, leaving at least 4% of the gap for the horizontal/vertical routing segment between the two sides).
+    The minimum `rank_gap_px` across all entries in the gap determines the available space. The total protrusion band shared by **both** sides of the gap is `available = min_gap_px * MAX_GAP_FRACTION` (where `MAX_GAP_FRACTION = 0.8`). The from-side and to-side fans grow from opposite gap boundaries toward each other, so capping their **combined** depth at `available` leaves `(1 - MAX_GAP_FRACTION) * gap` (20%) as the central routing segment and guarantees the deepest from-tip and deepest to-tip never cross.
 
 28. **Small gap fallback.**
 
-    If the maximum protrusion is less than `MIN_PROTRUSION_PX` (3.0 px), all entries receive a minimal protrusion of `min(MIN_PROTRUSION_PX, min_gap_px * 0.5)`. If there is exactly one entry, it receives `max(max_protrusion * 0.5, MIN_PROTRUSION_PX)`.
+    If `available` is less than `MIN_PROTRUSION_PX` (3.0 px), or the two sides' floors (see Step 31) cannot both fit within `available`, all entries receive a minimal protrusion of `min(MIN_PROTRUSION_PX, min_gap_px * 0.5)` (to-endpoints are still floored in `protrusion_write`).
 
 29. **Partition by gap side and sort.**
 
@@ -234,29 +234,26 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
     Edges that appear on both sides of the gap are identified. Their protrusion depths on each side are assigned independently based on that side's spatial ordering, so the high-side ordering is not dictated by the low-side sort.
 
-31. **Distribute protrusion slots.**
+31. **Split the band proportionally and assign per-side depths.**
 
-    All `N` entries share a pool of `N` evenly-spaced protrusion depths in `[MIN_PROTRUSION_PX, max_protrusion]`:
-    - `slot[k] = max_protrusion - k * (max_protrusion - MIN_PROTRUSION_PX) / (N - 1)`
-    - Slot 0 gets the longest protrusion; slot N-1 gets the shortest.
+    Each side is ordered deepest-first as `single-side entries ++ crossing entries` (low side: `single_low ++ crossing_low`; high side: `crossing_high ++ single_high`), preserving the previous convention where single-side edges protrude further than crossing edges on the same side.
 
-32. **Slot assignment order.**
+    Each side reserves a **floor**: a side containing any `ToEndpoint` uses `TO_PROTRUSION_MIN_PX` (11.0 px, the arrow-head clearance) as its shallowest depth; from / spacer-only sides use `MIN_PROTRUSION_PX` (3.0 px). A backward edge reverses the from/to sides, so the actual endpoint kinds are inspected rather than the side name.
 
-    Slots are assigned in four groups:
+    The growable slack above the two floors (`slack = available - low_floor - high_floor`) is split **proportionally to each side's endpoint count**, so per-protrusion spacing stays even even when the from/to counts are imbalanced:
+    - `low_band  = low_floor  + slack * n_low  / (n_low + n_high)`
+    - `high_band = high_floor + slack * n_high / (n_low + n_high)`
 
-    1. Single-side low entries (only on `Low` side) -- get the first slots (longest protrusions).
-    2. Crossing low entries (from-endpoints of crossing edges) -- get the next slots, in low-side spatial order.
-    3. Crossing high entries (to-endpoints of crossing edges) -- get slots in forward order within their range, sorted by high-side spatial order. This ensures earlier edges on the high side also receive longer protrusions.
-    4. Single-side high entries (only on `High` side) -- fill the remaining slots (shortest protrusions).
+    By construction `low_band + high_band <= available`. Within each side's `[floor, band]` range, the `n` entries receive distinct deepest-first depths `band - i * (band - floor) / (n - 1)` (index 0 = `band`, the deepest); a lone entry sits at the midpoint of its band.
 
-33. **Arrow-head clearance floor for to-endpoints.**
+32. **Arrow-head clearance floor for to-endpoints.**
 
-    Every edge has an arrow head drawn at its to-endpoint, occupying `ARROW_HEAD_LENGTH` (8.0 px) of the path's final straight segment. To keep the Z/S bend clear of the arrow head, `protrusion_write` floors every `ToEndpoint` protrusion to `TO_PROTRUSION_MIN_PX` (`ARROW_HEAD_LENGTH + ARROW_HEAD_CLEARANCE_PX = 11.0` px), capped at `entry.rank_gap_px * MAX_GAP_FRACTION` so tight gaps are never overshot. Because the floor is applied centrally in `protrusion_write`, it covers the slot distribution, the small-gap fallback, and the single-entry branch alike, and Steps 4-5 (spacer fallback, divergent-sibling adjustment) see the floored value. Cycle edges and self-loops also receive the clearance: their single rank-gap entry is registered with the `ToEndpoint` kind (see [Gap-based protrusion for cycle edges](#gap-based-protrusion-for-cycle-edges-fn-cycle_edge_collect_rank_gap_entries)), and the unregistered fallback in `protrusions_assign_cycle_edges` stacks depths from `TO_PROTRUSION_MIN_PX` upward.
+    Every edge has an arrow head drawn at its to-endpoint, occupying `ARROW_HEAD_LENGTH` (8.0 px) of the path's final straight segment. To keep the Z/S bend clear of the arrow head, `protrusion_write` floors every `ToEndpoint` protrusion to `TO_PROTRUSION_MIN_PX` (`ARROW_HEAD_LENGTH + ARROW_HEAD_CLEARANCE_PX = 11.0` px), capped at `entry.rank_gap_px * MAX_GAP_FRACTION` so tight gaps are never overshot. The per-side floor in Step 31 already reserves this clearance on any to-side, so `protrusion_write` is consistent with the band allocation. Because the floor is applied centrally in `protrusion_write`, it covers the per-side distribution and the small-gap fallback alike, and Steps 4-5 (spacer fallback, divergent-sibling adjustment) see the floored value. Cycle edges and self-loops also receive the clearance: their single rank-gap entry is registered with the `ToEndpoint` kind (see [Gap-based protrusion for cycle edges](#gap-based-protrusion-for-cycle-edges-fn-cycle_edge_collect_rank_gap_entries)), and the unregistered fallback in `protrusions_assign_cycle_edges` stacks depths from `TO_PROTRUSION_MIN_PX` upward.
 
 
 ### Helper functions
 
-33. **`rank_gap_px`**: computes the pixel distance in the rank direction for one non-cycle endpoint. For the from-endpoint, this is the distance from the from-node's face center to the first spacer entry (or to-node if no spacers). For the to-endpoint, it is the distance from the to-node's face center to the last spacer exit (or from-node if no spacers). The result is then **capped at the boundary of the other node's divergent ancestor**: for a Bottom-face protrusion the cap is the distance from the from-node's face to the Top face of the to-node's divergent ancestor (i.e. the near boundary of the destination container). This prevents the slot-assigned `max_protrusion` from exceeding the actual inter-rank gap when nodes are deeply nested, which would otherwise cause both protrusion tips to land at the same coordinate and suppress the Z/S bend. Cycle edge endpoints use a different computation in `cycle_edge_collect_rank_gap_entries` (see below).
+33. **`rank_gap_px`**: computes the pixel distance in the rank direction for one non-cycle endpoint. For the from-endpoint, this is the distance from the from-node's face center to the first spacer entry (or to-node if no spacers). For the to-endpoint, it is the distance from the to-node's face center to the last spacer exit (or from-node if no spacers). The result is then **capped at the boundary of the other node's divergent ancestor**: for a Bottom-face protrusion the cap is the distance from the from-node's face to the Top face of the to-node's divergent ancestor (i.e. the near boundary of the destination container). This prevents the per-side band from exceeding the actual inter-rank gap when nodes are deeply nested, which would otherwise cause both protrusion tips to land at the same coordinate and suppress the Z/S bend. Cycle edge endpoints use a different computation in `cycle_edge_collect_rank_gap_entries` (see below).
 34. **`spacer_gap_px`**: computes the pixel distance between two consecutive spacers along the rank axis (from the exit of one spacer to the entry of the next).
 35. **`spacer_gap_key`**: computes the `RankGapKey` for the gap between two consecutive spacers by interpolating ranks between the from-node and to-node.
 36. **`face_offset_resolve`**: resolves the face offset (slot offset) for a single endpoint from `face_offsets_by_node_face`. Spacer endpoints have a face offset of `0.0`.
@@ -274,9 +271,9 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
 ### Protrusion-tip crossing guard (`fn from_protrusion_capped`)
 
-43. For edges between deeply-nested nodes the slot-assigned `from_protrusion` can exceed the available gap between the two outer containers. When the divergent-sibling adjustment (Step 5) simultaneously raises `to_protrusion` to clear the destination container hierarchy, the sum `from_protrusion + to_protrusion` can exceed the full node-to-node gap. This places the from-tip *past* the to-tip in the routing direction -- the tips cross -- so any Z/S segment drawn between them would re-enter the destination container.
+43. For edges between deeply-nested nodes the band-assigned `from_protrusion` can exceed the available gap between the two outer containers. When the divergent-sibling adjustment (Step 5) simultaneously raises `to_protrusion` to clear the destination container hierarchy, the sum `from_protrusion + to_protrusion` can exceed the full node-to-node gap. This places the from-tip *past* the to-tip in the routing direction -- the tips cross -- so any Z/S segment drawn between them would re-enter the destination container.
 
-    Note: the `rank_gap_px` cap (see item 33) prevents this situation from arising in most cases by limiting the slot-assigned protrusion to the actual inter-rank gap. The `from_protrusion_capped` guard is a secondary safety net for remaining edge cases (e.g. very small rank gaps, or edges where the cap does not fully constrain the protrusion).
+    Note: within a single rank gap the per-side proportional split (Step 31) already guarantees `from_protrusion + to_protrusion <= MAX_GAP_FRACTION * gap`, and the `rank_gap_px` cap (see item 33) limits each side's band to the actual inter-rank gap. The `from_protrusion_capped` guard is a rarely-hit secondary safety net for remaining edge cases (e.g. very small rank gaps, the divergent-sibling adjustment raising `to_protrusion` after band assignment, or edges where the cap does not fully constrain the protrusion).
 
     The fix is applied in `build_ortho_edge_path` via a helper `fn from_protrusion_capped`. For aligned opposite-face pairs (Bottom-Top, Top-Bottom, Left-Right, Right-Left), it computes `gap = |end_axis - start_axis|` and, when `from_protrusion + to_protrusion > gap`, caps the from-protrusion to `(gap - to_protrusion).max(0.0)`. For other face-pair combinations (cycle edges, L-shaped routing) it returns the from-protrusion unchanged.
 
@@ -383,7 +380,7 @@ follows:
 
     - **Gap side**: the cycle edge's entry is on the `High` side for `Top` face, or `Low` side for `Bottom` face. This makes it a `single_side` entry in `protrusions_assign`, receiving a unique slot.
 
-    - **Sharing the gap with non-cycle edges**: if non-cycle edges also have endpoints in the same gap (e.g. an edge from rank R-1 to rank R contributes its to-endpoint on the `High` side of gap (R-1, R)), all entries compete together for slots. The tightest `rank_gap_px` across all entries determines the maximum protrusion via `MAX_GAP_FRACTION = 0.48`. This ensures protrusions never exceed 48% of the actual gap, leaving room for the routing segment, arrowhead, and other entries on the opposite side.
+    - **Sharing the gap with non-cycle edges**: if non-cycle edges also have endpoints in the same gap (e.g. an edge from rank R-1 to rank R contributes its to-endpoint on the `High` side of gap (R-1, R)), all entries compete together for the gap's protrusion band. The tightest `rank_gap_px` across all entries sizes the band via `MAX_GAP_FRACTION = 0.8`, which is then split proportionally between the two sides (see [Protrusion depth assignment](#protrusion-depth-assignment-fn-protrusions_assign)). This ensures the from-side and to-side fans together never exceed 80% of the actual gap, leaving room for the routing segment and arrowhead.
 
 ### Cycle edge protrusion finalisation (`fn protrusions_assign_cycle_edges`)
 

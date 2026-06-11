@@ -39,6 +39,8 @@ pub(crate) const INPUT_DIAGRAM_0020_SELF_LOOP_CYCLIC_TWO_NODE_LEFT_TO_RIGHT: &st
     include_str!("input_diagram/0020_self_loop_cyclic_two_node_left_to_right.yaml");
 pub(crate) const INPUT_DIAGRAM_0021_SELF_LOOP_EDGE_LEFT_TO_RIGHT_WITH_EDGE_DESC: &str =
     include_str!("input_diagram/0021_self_loop_edge_left_to_right_with_edge_desc.yaml");
+pub(crate) const INPUT_DIAGRAM_0022_EDGES_FAN_IN_3_TO_1: &str =
+    include_str!("input_diagram/0022_edges_fan_in_3_to_1.yaml");
 
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;
