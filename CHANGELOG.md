@@ -9,6 +9,7 @@
 * Update self-loop edges to select `NodeFace` based on `RankDir`. ([#45][#45])
 * Arrow protrusions for the `to` end of an edge take into account arrow head length. ([#45][#45])
 * Distribute the orthogonal edge protrusion gap between the `from` and `to` ends proportionally to each side's edge count, instead of reserving the full gap fraction per side. ([#45][#45])
+* Reduce extra gap between edge description and its edge path. ([#45][#45])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
