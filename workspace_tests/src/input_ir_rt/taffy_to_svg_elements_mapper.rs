@@ -23,6 +23,10 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC,
     INPUT_DIAGRAM_0013_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC_2,
     INPUT_DIAGRAM_0017_EDGE_INNER_TO_INNER, INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE,
+    INPUT_DIAGRAM_0019_RANK_DIR_REVERSED_SIBLINGS,
+    INPUT_DIAGRAM_0020_SELF_LOOP_CYCLIC_TWO_NODE_LEFT_TO_RIGHT,
+    INPUT_DIAGRAM_0021_SELF_LOOP_EDGE_LEFT_TO_RIGHT_WITH_EDGE_DESC,
+    INPUT_DIAGRAM_0022_EDGES_FAN_IN_3_TO_1,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -250,6 +254,21 @@ fn test_svg_edge_infos_self_loop() -> Result<(), TaffyError> {
                     curve_count >= 2,
                     "Self-loop edge should have at least 2 curve commands, got {} for edge {:?}",
                     curve_count,
+                    edge.edge_id
+                );
+
+                // Self-loops participate in the cycle-edge protrusion
+                // assignment: both contacts protrude by the same depth.
+                let from_protrusion = edge.ortho_protrusion_params.from_protrusion;
+                let to_protrusion = edge.ortho_protrusion_params.to_protrusion;
+                assert!(
+                    from_protrusion > 0.0,
+                    "Self-loop edge {:?} should have a positive from_protrusion, got {from_protrusion}",
+                    edge.edge_id
+                );
+                assert_eq!(
+                    from_protrusion, to_protrusion,
+                    "Self-loop edge {:?} should have equal from/to protrusions",
                     edge.edge_id
                 );
             }
@@ -2616,6 +2635,481 @@ fn test_adjacent_divergent_ancestor_edges_dont_route_past_charlie() {
                      t_bob_outer's right edge {bob_outer_right:.2}. The path is routing past \
                      t_charlie. path_d = {:?}",
                 bob_alice_outer_edge.path_d,
+            );
+        }
+    }
+}
+
+// === Reversed rank direction sibling ordering (0019) === //
+
+/// Builds `SvgElements` from the 0019 fixture, optionally substituting the
+/// `rank_dir` value (the fixture declares `bottom_to_top`).
+fn build_svg_elements_from_rank_dir_reversed_siblings(
+    rank_dir: &str,
+) -> impl Iterator<Item = SvgElements<'static>> {
+    let input_diagram =
+        INPUT_DIAGRAM_0019_RANK_DIR_REVERSED_SIBLINGS.replace("bottom_to_top", rank_dir);
+    build_svg_elements_for_diagram(&input_diagram)
+        .collect::<Vec<_>>()
+        .into_iter()
+}
+
+/// Parses the last point of a kurbo-generated path `d` attribute.
+///
+/// Kurbo concatenates path commands with their coordinates (e.g. `L80,210`
+/// rather than `L 80,210`), so the last whitespace-separated token is the
+/// final command with its endpoint.
+fn path_d_last_point(path_d: &str) -> Option<(f32, f32)> {
+    let token = path_d.split_whitespace().last()?;
+    let coords = token.trim_start_matches(|c: char| c.is_ascii_alphabetic());
+    let (x_str, y_str) = coords.split_once(',')?;
+    Some((x_str.parse().ok()?, y_str.parse().ok()?))
+}
+
+/// With `rank_dir: bottom_to_top`, rank-1 siblings must render left-to-right
+/// in declaration order (`t_dog`, `t_cat`, `t_owner`), and the from-contact
+/// points on `t_animal`'s top face must follow the same order so the edge
+/// paths do not cross.
+///
+/// Before the fix, the `RowReverse` rank container rendered the siblings
+/// right-to-left, and the negated face offsets could not fully compensate,
+/// causing edge paths to cross.
+#[test]
+fn test_rank_dir_bottom_to_top_siblings_render_in_declaration_order() {
+    for svg_elements in build_svg_elements_from_rank_dir_reversed_siblings("bottom_to_top") {
+        let node_x = |node_id: &str| -> f32 {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"))
+                .x
+        };
+        let dog_x = node_x("t_dog");
+        let cat_x = node_x("t_cat");
+        let owner_x = node_x("t_owner");
+        assert!(
+            dog_x < cat_x && cat_x < owner_x,
+            "Expected siblings to render left-to-right in declaration order: \
+             t_dog (x={dog_x:.2}) < t_cat (x={cat_x:.2}) < t_owner (x={owner_x:.2})"
+        );
+
+        // The from-contact is the final point of each path (paths are built
+        // in reverse, ending at the from-node face).
+        let from_contact_x = |to_node_id: &str| -> f32 {
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| {
+                    e.from_node_id.as_str() == "t_animal" && e.to_node_id.as_str() == to_node_id
+                })
+                .unwrap_or_else(|| panic!("Expected edge from t_animal to {to_node_id}"));
+            path_d_last_point(&edge_info.path_d)
+                .unwrap_or_else(|| panic!("Expected parseable path_d: {:?}", edge_info.path_d))
+                .0
+        };
+        let dog_contact_x = from_contact_x("t_dog");
+        let cat_contact_x = from_contact_x("t_cat");
+        let owner_contact_x = from_contact_x("t_owner");
+        assert!(
+            dog_contact_x < cat_contact_x && cat_contact_x < owner_contact_x,
+            "Expected from-contacts on t_animal's top face to follow target order so \
+             paths do not cross: t_dog ({dog_contact_x:.2}) < t_cat ({cat_contact_x:.2}) \
+             < t_owner ({owner_contact_x:.2})"
+        );
+    }
+}
+
+/// With `rank_dir: right_to_left`, rank-1 siblings must render top-to-bottom
+/// in declaration order (`t_dog`, `t_cat`, `t_owner`), and the from-contact
+/// points on `t_animal`'s left face must follow the same order so the edge
+/// paths do not cross.
+#[test]
+fn test_rank_dir_right_to_left_siblings_render_in_declaration_order() {
+    for svg_elements in build_svg_elements_from_rank_dir_reversed_siblings("right_to_left") {
+        let node_y = |node_id: &str| -> f32 {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"))
+                .y
+        };
+        let dog_y = node_y("t_dog");
+        let cat_y = node_y("t_cat");
+        let owner_y = node_y("t_owner");
+        assert!(
+            dog_y < cat_y && cat_y < owner_y,
+            "Expected siblings to render top-to-bottom in declaration order: \
+             t_dog (y={dog_y:.2}) < t_cat (y={cat_y:.2}) < t_owner (y={owner_y:.2})"
+        );
+
+        let from_contact_y = |to_node_id: &str| -> f32 {
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| {
+                    e.from_node_id.as_str() == "t_animal" && e.to_node_id.as_str() == to_node_id
+                })
+                .unwrap_or_else(|| panic!("Expected edge from t_animal to {to_node_id}"));
+            path_d_last_point(&edge_info.path_d)
+                .unwrap_or_else(|| panic!("Expected parseable path_d: {:?}", edge_info.path_d))
+                .1
+        };
+        let dog_contact_y = from_contact_y("t_dog");
+        let cat_contact_y = from_contact_y("t_cat");
+        let owner_contact_y = from_contact_y("t_owner");
+        assert!(
+            dog_contact_y < cat_contact_y && cat_contact_y < owner_contact_y,
+            "Expected from-contacts on t_animal's left face to follow target order so \
+             paths do not cross: t_dog ({dog_contact_y:.2}) < t_cat ({cat_contact_y:.2}) \
+             < t_owner ({owner_contact_y:.2})"
+        );
+    }
+}
+
+// === Self-loop rank-direction faces (0010) === //
+
+/// Parses the first point of a kurbo-generated path `d` attribute (the `M`
+/// command's coordinates).
+fn path_d_first_point(path_d: &str) -> Option<(f32, f32)> {
+    let token = path_d.split_whitespace().next()?;
+    let coords = token.trim_start_matches(|c: char| c.is_ascii_alphabetic());
+    let (x_str, y_str) = coords.split_once(',')?;
+    Some((x_str.parse().ok()?, y_str.parse().ok()?))
+}
+
+/// Self-loop paths must exit and re-enter the rank-direction face:
+/// `Bottom` for `top_to_bottom`, `Top` for `bottom_to_top`, `Right` for
+/// `left_to_right`, and `Left` for `right_to_left`.
+///
+/// The path's first point (arrow end) and last point (exit end) must both lie
+/// on the expected face line of the node.
+#[test]
+fn test_self_loop_path_endpoints_follow_rank_dir() {
+    for rank_dir in [
+        "top_to_bottom",
+        "bottom_to_top",
+        "left_to_right",
+        "right_to_left",
+    ] {
+        let input_diagram = format!(
+            "{INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION}\nrender_options:\n  rank_dir: {rank_dir}\n"
+        );
+        for svg_elements in build_svg_elements_for_diagram(&input_diagram)
+            .collect::<Vec<_>>()
+            .into_iter()
+        {
+            let t_a = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == "t_a")
+                .expect("Expected t_a in svg_node_infos");
+
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == "t_a" && e.to_node_id.as_str() == "t_a")
+                .expect("Expected self-loop edge on t_a");
+
+            let first_point = path_d_first_point(&edge_info.path_d)
+                .unwrap_or_else(|| panic!("Expected parseable path_d: {:?}", edge_info.path_d));
+            let last_point = path_d_last_point(&edge_info.path_d)
+                .unwrap_or_else(|| panic!("Expected parseable path_d: {:?}", edge_info.path_d));
+
+            // The face line coordinate both endpoints must sit on: y for
+            // Top/Bottom faces, x for Left/Right faces.
+            let (face_coord, endpoint_coords) = match rank_dir {
+                "top_to_bottom" => (t_a.y + t_a.height_collapsed, [first_point.1, last_point.1]),
+                "bottom_to_top" => (t_a.y, [first_point.1, last_point.1]),
+                "left_to_right" => (t_a.x + t_a.width, [first_point.0, last_point.0]),
+                "right_to_left" => (t_a.x, [first_point.0, last_point.0]),
+                _ => unreachable!(),
+            };
+
+            for endpoint_coord in endpoint_coords {
+                assert!(
+                    (endpoint_coord - face_coord).abs() < 0.5,
+                    "Self-loop endpoint coordinate {endpoint_coord:.2} should lie on the \
+                     {rank_dir} face line {face_coord:.2}. path_d = {:?}",
+                    edge_info.path_d,
+                );
+            }
+        }
+    }
+}
+
+// === Arrow-head clearance for orthogonal to-protrusions === //
+
+/// Orthogonal `to_protrusion` must give the path a straight segment long
+/// enough to contain the arrow head (8.0 px) plus 3.0 px of clearance before
+/// the Z/S bend, where the rank gap allows.
+///
+/// The floor is capped at `MAX_GAP_FRACTION` (0.6) of the endpoint's rank
+/// gap, so it never overshoots tight gaps.
+#[test]
+fn test_to_protrusion_clears_arrow_head() {
+    // ARROW_HEAD_LENGTH (8.0) + ARROW_HEAD_CLEARANCE_PX (3.0).
+    const TO_PROTRUSION_MIN_PX: f32 = 11.0;
+    const MAX_GAP_FRACTION: f32 = 0.8;
+    const EPSILON: f32 = 0.01;
+
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION)
+    {
+        let node_info = |node_id: &str| {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"))
+        };
+        let charlie = node_info("t_charlie");
+
+        // (from node, its root-level ancestor whose bottom face bounds the
+        // visual rank gap above t_charlie)
+        for (from_node_id, from_ancestor_id) in [("t_alice", "t_alice_outer"), ("t_bob", "t_bob")] {
+            let from = node_info(from_node_id);
+            let from_ancestor = node_info(from_ancestor_id);
+
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| {
+                    e.from_node_id.as_str() == from_node_id && e.to_node_id.as_str() == "t_charlie"
+                })
+                .unwrap_or_else(|| panic!("Expected edge {from_node_id} -> t_charlie"));
+            let to_protrusion = edge_info.ortho_protrusion_params.to_protrusion;
+
+            // Precondition: the visual rank gap above t_charlie comfortably
+            // allows the floor (otherwise this test would assert the capped
+            // value instead).
+            let rank_gap_visual = charlie.y - (from_ancestor.y + from_ancestor.height_collapsed);
+            assert!(
+                rank_gap_visual * MAX_GAP_FRACTION > TO_PROTRUSION_MIN_PX,
+                "Fixture rank gap {rank_gap_visual:.2} should comfortably allow the \
+                 to-protrusion floor"
+            );
+
+            assert!(
+                to_protrusion >= TO_PROTRUSION_MIN_PX - EPSILON,
+                "edge {from_node_id} -> t_charlie to_protrusion {to_protrusion:.2} should \
+                 be at least {TO_PROTRUSION_MIN_PX} so the Z/S bend clears the arrow head"
+            );
+
+            // The floor never exceeds the gap allowance: the protrusion stays
+            // within MAX_GAP_FRACTION of the distance to the from-node face.
+            let rank_gap_to_from_face = charlie.y - (from.y + from.height_collapsed);
+            assert!(
+                to_protrusion <= rank_gap_to_from_face * MAX_GAP_FRACTION + EPSILON,
+                "edge {from_node_id} -> t_charlie to_protrusion {to_protrusion:.2} should \
+                 not exceed {MAX_GAP_FRACTION} of the rank gap {rank_gap_to_from_face:.2}"
+            );
+        }
+    }
+}
+
+/// Within a single rank gap, the from-side and to-side protrusion fans share
+/// the `MAX_GAP_FRACTION * gap` band, split proportionally by side count, with
+/// a per-side arrow-head floor. Because the two fans grow from opposite gap
+/// boundaries toward each other, the deepest from-protrusion plus the deepest
+/// to-protrusion must fit within `MAX_GAP_FRACTION * gap`, so their tips never
+/// cross.
+///
+/// Verified on a fan-in: three rank-0 nodes (`t_alice`, `t_bob`, `t_charlie`)
+/// all connecting to one rank-1 node (`t_delta`).
+#[test]
+fn test_fan_in_protrusions_do_not_cross_within_gap() {
+    const MAX_GAP_FRACTION: f32 = 0.8;
+    // ARROW_HEAD_LENGTH (8.0) + ARROW_HEAD_CLEARANCE_PX (3.0).
+    const TO_PROTRUSION_MIN_PX: f32 = 11.0;
+    const EPSILON: f32 = 0.1;
+
+    for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0022_EDGES_FAN_IN_3_TO_1) {
+        let node_info = |node_id: &str| {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"))
+        };
+        let delta = node_info("t_delta");
+
+        // The three rank-0 from-nodes share the gap below them; the visual gap
+        // spans from the lowest rank-0 bottom face down to t_delta's top face.
+        let from_ids = ["t_alice", "t_bob", "t_charlie"];
+        let rank0_bottom_max = from_ids
+            .iter()
+            .map(|id| {
+                let node = node_info(id);
+                node.y + node.height_collapsed
+            })
+            .fold(f32::MIN, f32::max);
+        let visual_gap = delta.y - rank0_bottom_max;
+        assert!(
+            visual_gap > 0.0,
+            "Expected a positive visual gap between rank 0 and t_delta, got {visual_gap:.2}"
+        );
+
+        // Deepest protrusion on each side of the gap.
+        let mut deepest_from = 0.0f32;
+        let mut deepest_to = 0.0f32;
+        for edge_info in &svg_elements.svg_edge_infos {
+            if !from_ids.contains(&edge_info.from_node_id.as_str())
+                || edge_info.to_node_id.as_str() != "t_delta"
+            {
+                continue;
+            }
+            let params = &edge_info.ortho_protrusion_params;
+            deepest_from = deepest_from.max(params.from_protrusion);
+            deepest_to = deepest_to.max(params.to_protrusion);
+
+            // Every to-endpoint clears the arrow head.
+            assert!(
+                params.to_protrusion >= TO_PROTRUSION_MIN_PX - EPSILON,
+                "edge {} -> t_delta to_protrusion {:.2} should clear the arrow head \
+                 (>= {TO_PROTRUSION_MIN_PX})",
+                edge_info.from_node_id.as_str(),
+                params.to_protrusion,
+            );
+        }
+
+        // The two fans grow from opposite gap boundaries toward each other, so
+        // their deepest tips together must fit within MAX_GAP_FRACTION of the
+        // gap and never cross.
+        assert!(
+            deepest_from + deepest_to <= visual_gap * MAX_GAP_FRACTION + EPSILON,
+            "deepest from-protrusion {deepest_from:.2} + deepest to-protrusion \
+             {deepest_to:.2} = {:.2} should fit within {MAX_GAP_FRACTION} of the rank \
+             gap {visual_gap:.2} (= {:.2}) so the protrusion tips do not cross",
+            deepest_from + deepest_to,
+            visual_gap * MAX_GAP_FRACTION,
+        );
+    }
+}
+
+/// Cycle edges and self-loops also carry an arrow head at their to-endpoint,
+/// so their symmetric U-depth must satisfy the arrow-head clearance floor
+/// (8.0 px arrow head + 3.0 px clearance = 11.0 px).
+#[test]
+fn test_cycle_and_self_loop_protrusions_clear_arrow_head() {
+    // ARROW_HEAD_LENGTH (8.0) + ARROW_HEAD_CLEARANCE_PX (3.0).
+    const TO_PROTRUSION_MIN_PX: f32 = 11.0;
+    const EPSILON: f32 = 0.01;
+
+    // Self-loop (0010): single node, boundary rank -- unregistered fallback.
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION)
+    {
+        let edge_info = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_a" && e.to_node_id.as_str() == "t_a")
+            .expect("Expected self-loop edge on t_a");
+        let to_protrusion = edge_info.ortho_protrusion_params.to_protrusion;
+        assert!(
+            to_protrusion >= TO_PROTRUSION_MIN_PX - EPSILON,
+            "Self-loop to_protrusion {to_protrusion:.2} should be at least \
+             {TO_PROTRUSION_MIN_PX} so the U-bend clears the arrow head"
+        );
+        assert_eq!(
+            edge_info.ortho_protrusion_params.from_protrusion, to_protrusion,
+            "Self-loop from/to protrusions should be equal (symmetric U)"
+        );
+    }
+
+    // Cycle edges (0004): t_alice <-> t_charlie are non-adjacent siblings at
+    // the same rank, routed as clockwise cycle edges.
+    for svg_elements in build_svg_elements_for_diagram(
+        crate::input_ir_rt::INPUT_DIAGRAM_0004_EDGES_SYMMETRIC_3_NODES,
+    ) {
+        for (from_node_id, to_node_id) in [("t_alice", "t_charlie"), ("t_charlie", "t_alice")] {
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| {
+                    e.from_node_id.as_str() == from_node_id && e.to_node_id.as_str() == to_node_id
+                })
+                .unwrap_or_else(|| panic!("Expected edge {from_node_id} -> {to_node_id}"));
+            let to_protrusion = edge_info.ortho_protrusion_params.to_protrusion;
+            assert!(
+                to_protrusion >= TO_PROTRUSION_MIN_PX - EPSILON,
+                "Cycle edge {from_node_id} -> {to_node_id} to_protrusion \
+                 {to_protrusion:.2} should be at least {TO_PROTRUSION_MIN_PX} so the \
+                 U-bend clears the arrow head"
+            );
+            assert_eq!(
+                edge_info.ortho_protrusion_params.from_protrusion, to_protrusion,
+                "Cycle edge {from_node_id} -> {to_node_id} from/to protrusions should \
+                 be equal (symmetric U)"
+            );
+        }
+    }
+}
+
+/// Self-loop from/to contact points on the same face must be separated by at
+/// least the face contact gap (`CONTACT_GAP_MIN_PX` = 12.0 px), so the from
+/// segment clears the arrow head (4.0 px half-width) drawn at the to contact.
+///
+/// The from contact is label-aligned (the edge label leaf always has a
+/// non-zero padded size), while the to contact falls back to the slot-based
+/// offset; without enforcement the two can land arbitrarily close together.
+#[test]
+fn test_self_loop_contacts_honour_face_contact_gap() {
+    const CONTACT_GAP_MIN_PX: f32 = 12.0;
+    const EPSILON: f32 = 0.01;
+
+    for (fixture_name, input_diagram, node_id) in [
+        (
+            "0020_self_loop_cyclic_two_node_left_to_right",
+            INPUT_DIAGRAM_0020_SELF_LOOP_CYCLIC_TWO_NODE_LEFT_TO_RIGHT,
+            "t_alice",
+        ),
+        (
+            "0021_self_loop_edge_left_to_right_with_edge_desc",
+            INPUT_DIAGRAM_0021_SELF_LOOP_EDGE_LEFT_TO_RIGHT_WITH_EDGE_DESC,
+            "t_a",
+        ),
+    ] {
+        for svg_elements in build_svg_elements_for_diagram(input_diagram) {
+            let node_info = svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"));
+
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == node_id && e.to_node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected self-loop edge on {node_id}"));
+
+            // Paths are built in reverse: first point = to contact (arrow
+            // end), last point = from contact.
+            let to_contact = path_d_first_point(&edge_info.path_d)
+                .unwrap_or_else(|| panic!("Expected parseable path_d: {:?}", edge_info.path_d));
+            let from_contact = path_d_last_point(&edge_info.path_d)
+                .unwrap_or_else(|| panic!("Expected parseable path_d: {:?}", edge_info.path_d));
+
+            // Both contacts sit on the right face (rank_dir: left_to_right).
+            let right_face_x = node_info.x + node_info.width;
+            for (contact_name, contact_x) in [("to", to_contact.0), ("from", from_contact.0)] {
+                assert!(
+                    (contact_x - right_face_x).abs() < 0.5,
+                    "{fixture_name}: self-loop {contact_name} contact x {contact_x:.2} \
+                     should lie on the right face line {right_face_x:.2}"
+                );
+            }
+
+            let contact_separation = (to_contact.1 - from_contact.1).abs();
+            assert!(
+                contact_separation >= CONTACT_GAP_MIN_PX - EPSILON,
+                "{fixture_name}: self-loop from/to contacts should be at least \
+                 {CONTACT_GAP_MIN_PX} px apart so the from segment clears the arrow \
+                 head, but were {contact_separation:.2} px apart \
+                 (from y = {:.2}, to y = {:.2})",
+                from_contact.1,
+                to_contact.1,
             );
         }
     }

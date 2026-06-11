@@ -115,10 +115,10 @@ When multiple edges connect to the same face of a node (e.g. three edges all exi
 - **Face contact**: a single edge endpoint touching a specific face of a specific node. Each edge contributes up to two contacts: one for its from-node face and one for its to-node face.
 - **Slot**: an ordered position within the list of contacts on a single (node, face) pair. Slot 0 is the first sorted contact, slot 1 the second, etc.
 - **Face length**: the pixel length of the face: width for `Top`/`Bottom` faces, collapsed height for `Left`/`Right` faces. Computed by `fn face_length_for_node`.
-- **Gap**: the pixel spacing between adjacent contact points. Starts at 10% of the face length (`CONTACT_GAP_RATIO = 0.10`), clamped to at least 5 px (`CONTACT_GAP_MIN_PX = 5.0`). If `contact_count * gap > face_length`, the gap is shrunk to `face_length / contact_count` so all contacts fit.
-- **Label-based offset**: when an edge has a non-zero description label node on a face (looked up from `TaffyNodeMappings::edge_label_taffy_nodes`), the contact point is routed to the entry-side edge of the label -- the side the path arrives at first. Which side depends on `rank_dir` and `face`:
-  - `Top`/`Bottom` faces (offset along x): `BottomToTop` uses the right x (`label_abs_x + label_width`); `TopToBottom`, `LeftToRight`, and `RightToLeft` use the left x (`label_abs_x`).
-  - `Left`/`Right` faces (offset along y): `RightToLeft` uses the bottom y (`label_abs_y + label_height`); `LeftToRight`, `TopToBottom`, and `BottomToTop` use the top y (`label_abs_y`).
+- **Gap**: the pixel spacing between adjacent contact points. Starts at 10% of the face length (`CONTACT_GAP_RATIO = 0.10`), clamped to at least 12 px (`CONTACT_GAP_MIN_PX = 12.0`, sized to clear the arrow head's 4 px half-width on both sides with margin). If `contact_count * gap > face_length`, the gap is shrunk to `face_length / contact_count` so all contacts fit.
+- **Label-based offset**: when an edge has a non-zero description label node on a face (looked up from `TaffyNodeMappings::edge_label_taffy_nodes`), the contact point is routed to the entry-side edge of the label -- the side the path arrives at first. Because sibling insertion order is reversed for reversed rank directions (see [Sibling order for reversed rank directions](#sibling-order-for-reversed-rank-directions)), the entry side is the same for all rank directions:
+  - `Top`/`Bottom` faces (offset along x): the left x (`label_abs_x`).
+  - `Left`/`Right` faces (offset along y): the top y (`label_abs_y`).
   - `offset = label_contact - face_midpoint_along_axis` where `face_midpoint_x = node_info.x + node_info.width / 2` and `face_midpoint_y = node_info.y + node_info.height_collapsed / 2`.
   - The label-based offset is used only when the label has non-zero size (`label_width > 0` for Top/Bottom, `label_height > 0` for Left/Right); otherwise the slot-based fallback is used.
 
@@ -135,13 +135,16 @@ The algorithm in `face_offsets_compute` proceeds in three phases:
     - After sorting, each entry is assigned its slot index (0-based position in the sorted order). These slot indices are written back into `from_slot_indices` / `to_slot_indices` on the pass-1 group.
 
 3. **Compute offset values.** For each contact entry, the offset is chosen as follows:
-    - **Label-based** (preferred): if the edge has a non-zero label node on this face (looked up from `edge_label_taffy_nodes` via `label_face_offset_compute`), the offset is `label_contact_on_face_axis - face_midpoint_on_face_axis`, where `label_contact` is the entry-side edge of the label (left or right x for `Top`/`Bottom` faces; top or bottom y for `Left`/`Right` faces) selected by `rank_dir`. The absolute position is computed via `taffy_node_absolute_xy_compute`.
+    - **Label-based** (preferred): if the edge has a non-zero label node on this face (looked up from `edge_label_taffy_nodes` via `label_face_offset_compute`), the offset is `label_contact_on_face_axis - face_midpoint_on_face_axis`, where `label_contact` is the entry-side edge of the label (left x for `Top`/`Bottom` faces; top y for `Left`/`Right` faces). The absolute position is computed via `taffy_node_absolute_xy_compute`.
     - **Slot-based fallback**: when the edge has no label on this face, or the label has zero size, `EdgeFaceContactTracker::offset_for_index` is used: `offset[i] = (i - (n - 1) / 2.0) * gap`. This distributes offsets symmetrically around 0 (the face midpoint). The first slot gets the most negative offset (leftward/upward), the middle slot(s) get ~0, and the last slot gets the most positive offset (rightward/downward).
+    - **Self-loop separation enforcement** (`fn face_offsets_self_loop_separation_enforce`): a self-loop's from and to contacts share one (node, face), but come from different sources -- the from contact is label-aligned (the edge label leaf always has a non-zero padded size, e.g. 4 px from `EDGE_LABEL_PADDING_PX`, so the zero-size fallback never triggers), while the to contact has no label leaf (`to_face` is `None` in the IR assignment) and uses the slot-based fallback. The two coordinate systems are unrelated, so the contacts can land arbitrarily close together (e.g. 3 px apart), placing the from segment inside the arrow head drawn at the to contact. When the separation is below the face's contact gap, the to offset is moved to `from_offset +/- gap`, preferring the candidate that stays within the face and has the most clearance from the other contacts on the face.
 
 
-### Direction reversal for `BottomToTop` and `RightToLeft`
+### Sibling order for reversed rank directions
 
-For `TopToBottom` and `LeftToRight`, the offset sign convention (negative = left/up, positive = right/down) naturally matches the visual flow -- edges to left-side targets get negative offsets (shifting contact leftward), reducing crossover. For `BottomToTop` and `RightToLeft`, the visual flow is reversed, so the same sort order would produce offsets that *increase* crossover. To fix this, all computed offsets are **negated** when `rank_dir` is `BottomToTop` or `RightToLeft`. This is implemented in `face_offsets_compute` after `offset_calculate` returns each value.
+For `BottomToTop` and `RightToLeft`, rank containers are laid out with a reversed flex direction (`RowReverse` / `ColumnReverse`). The reversed direction is retained because the rank-stacking parent inverts it to stack ranks bottom-up / right-to-left. Left as-is, the reversed direction would also render siblings *within* a rank in reverse declaration order, which is the reverse of what a human reading the input expects and would invert the spatial assumptions of the offset sort order, causing edge paths to cross.
+
+To compensate, `TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed` (in [`taffy_container_builder.rs`](crate/input_ir_rt/src/ir_to_taffy_builder/taffy_container_builder.rs)) reverses each rank's child insertion order when the rank container style uses a reversed flex direction. It is called after edge spacers are inserted into the per-rank vectors (so spacers flip together with their neighbouring nodes), both for first-level rank containers and for nested container children. As a result, visual order matches declaration order for **all** rank directions, and no offset negation or per-direction entry-side selection is needed downstream.
 
 
 ### How offsets are applied
@@ -217,11 +220,11 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
 27. **Find the tightest constraint.**
 
-    The minimum `rank_gap_px` across all entries in the gap determines the available space. The maximum allowed protrusion is `min_gap_px * MAX_GAP_FRACTION` (where `MAX_GAP_FRACTION = 0.48`, leaving at least 4% of the gap for the horizontal/vertical routing segment between the two sides).
+    The minimum `rank_gap_px` across all entries in the gap determines the available space. The total protrusion band shared by **both** sides of the gap is `available = min_gap_px * MAX_GAP_FRACTION` (where `MAX_GAP_FRACTION = 0.8`). The from-side and to-side fans grow from opposite gap boundaries toward each other, so capping their **combined** depth at `available` leaves `(1 - MAX_GAP_FRACTION) * gap` (20%) as the central routing segment and guarantees the deepest from-tip and deepest to-tip never cross.
 
 28. **Small gap fallback.**
 
-    If the maximum protrusion is less than `MIN_PROTRUSION_PX` (3.0 px), all entries receive a minimal protrusion of `min(MIN_PROTRUSION_PX, min_gap_px * 0.5)`. If there is exactly one entry, it receives `max(max_protrusion * 0.5, MIN_PROTRUSION_PX)`.
+    If `available` is less than `MIN_PROTRUSION_PX` (3.0 px), or the two sides' floors (see Step 31) cannot both fit within `available`, all entries receive a minimal protrusion of `min(MIN_PROTRUSION_PX, min_gap_px * 0.5)` (to-endpoints are still floored in `protrusion_write`).
 
 29. **Partition by gap side and sort.**
 
@@ -231,25 +234,26 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
     Edges that appear on both sides of the gap are identified. Their protrusion depths on each side are assigned independently based on that side's spatial ordering, so the high-side ordering is not dictated by the low-side sort.
 
-31. **Distribute protrusion slots.**
+31. **Split the band proportionally and assign per-side depths.**
 
-    All `N` entries share a pool of `N` evenly-spaced protrusion depths in `[MIN_PROTRUSION_PX, max_protrusion]`:
-    - `slot[k] = max_protrusion - k * (max_protrusion - MIN_PROTRUSION_PX) / (N - 1)`
-    - Slot 0 gets the longest protrusion; slot N-1 gets the shortest.
+    Each side is ordered deepest-first as `single-side entries ++ crossing entries` (low side: `single_low ++ crossing_low`; high side: `crossing_high ++ single_high`), preserving the previous convention where single-side edges protrude further than crossing edges on the same side.
 
-32. **Slot assignment order.**
+    Each side reserves a **floor**: a side containing any `ToEndpoint` uses `TO_PROTRUSION_MIN_PX` (11.0 px, the arrow-head clearance) as its shallowest depth; from / spacer-only sides use `MIN_PROTRUSION_PX` (3.0 px). A backward edge reverses the from/to sides, so the actual endpoint kinds are inspected rather than the side name.
 
-    Slots are assigned in four groups:
+    The growable slack above the two floors (`slack = available - low_floor - high_floor`) is split **proportionally to each side's endpoint count**, so per-protrusion spacing stays even even when the from/to counts are imbalanced:
+    - `low_band  = low_floor  + slack * n_low  / (n_low + n_high)`
+    - `high_band = high_floor + slack * n_high / (n_low + n_high)`
 
-    1. Single-side low entries (only on `Low` side) -- get the first slots (longest protrusions).
-    2. Crossing low entries (from-endpoints of crossing edges) -- get the next slots, in low-side spatial order.
-    3. Crossing high entries (to-endpoints of crossing edges) -- get slots in forward order within their range, sorted by high-side spatial order. This ensures earlier edges on the high side also receive longer protrusions.
-    4. Single-side high entries (only on `High` side) -- fill the remaining slots (shortest protrusions).
+    By construction `low_band + high_band <= available`. Within each side's `[floor, band]` range, the `n` entries receive distinct deepest-first depths `band - i * (band - floor) / (n - 1)` (index 0 = `band`, the deepest); a lone entry sits at the midpoint of its band.
+
+32. **Arrow-head clearance floor for to-endpoints.**
+
+    Every edge has an arrow head drawn at its to-endpoint, occupying `ARROW_HEAD_LENGTH` (8.0 px) of the path's final straight segment. To keep the Z/S bend clear of the arrow head, `protrusion_write` floors every `ToEndpoint` protrusion to `TO_PROTRUSION_MIN_PX` (`ARROW_HEAD_LENGTH + ARROW_HEAD_CLEARANCE_PX = 11.0` px), capped at `entry.rank_gap_px * MAX_GAP_FRACTION` so tight gaps are never overshot. The per-side floor in Step 31 already reserves this clearance on any to-side, so `protrusion_write` is consistent with the band allocation. Because the floor is applied centrally in `protrusion_write`, it covers the per-side distribution and the small-gap fallback alike, and Steps 4-5 (spacer fallback, divergent-sibling adjustment) see the floored value. Cycle edges and self-loops also receive the clearance: their single rank-gap entry is registered with the `ToEndpoint` kind (see [Gap-based protrusion for cycle edges](#gap-based-protrusion-for-cycle-edges-fn-cycle_edge_collect_rank_gap_entries)), and the unregistered fallback in `protrusions_assign_cycle_edges` stacks depths from `TO_PROTRUSION_MIN_PX` upward.
 
 
 ### Helper functions
 
-33. **`rank_gap_px`**: computes the pixel distance in the rank direction for one non-cycle endpoint. For the from-endpoint, this is the distance from the from-node's face center to the first spacer entry (or to-node if no spacers). For the to-endpoint, it is the distance from the to-node's face center to the last spacer exit (or from-node if no spacers). The result is then **capped at the boundary of the other node's divergent ancestor**: for a Bottom-face protrusion the cap is the distance from the from-node's face to the Top face of the to-node's divergent ancestor (i.e. the near boundary of the destination container). This prevents the slot-assigned `max_protrusion` from exceeding the actual inter-rank gap when nodes are deeply nested, which would otherwise cause both protrusion tips to land at the same coordinate and suppress the Z/S bend. Cycle edge endpoints use a different computation in `cycle_edge_collect_rank_gap_entries` (see below).
+33. **`rank_gap_px`**: computes the pixel distance in the rank direction for one non-cycle endpoint. For the from-endpoint, this is the distance from the from-node's face center to the first spacer entry (or to-node if no spacers). For the to-endpoint, it is the distance from the to-node's face center to the last spacer exit (or from-node if no spacers). The result is then **capped at the boundary of the other node's divergent ancestor**: for a Bottom-face protrusion the cap is the distance from the from-node's face to the Top face of the to-node's divergent ancestor (i.e. the near boundary of the destination container). This prevents the per-side band from exceeding the actual inter-rank gap when nodes are deeply nested, which would otherwise cause both protrusion tips to land at the same coordinate and suppress the Z/S bend. Cycle edge endpoints use a different computation in `cycle_edge_collect_rank_gap_entries` (see below).
 34. **`spacer_gap_px`**: computes the pixel distance between two consecutive spacers along the rank axis (from the exit of one spacer to the entry of the next).
 35. **`spacer_gap_key`**: computes the `RankGapKey` for the gap between two consecutive spacers by interpolating ranks between the from-node and to-node.
 36. **`face_offset_resolve`**: resolves the face offset (slot offset) for a single endpoint from `face_offsets_by_node_face`. Spacer endpoints have a face offset of `0.0`.
@@ -267,9 +271,9 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
 ### Protrusion-tip crossing guard (`fn from_protrusion_capped`)
 
-43. For edges between deeply-nested nodes the slot-assigned `from_protrusion` can exceed the available gap between the two outer containers. When the divergent-sibling adjustment (Step 5) simultaneously raises `to_protrusion` to clear the destination container hierarchy, the sum `from_protrusion + to_protrusion` can exceed the full node-to-node gap. This places the from-tip *past* the to-tip in the routing direction -- the tips cross -- so any Z/S segment drawn between them would re-enter the destination container.
+43. For edges between deeply-nested nodes the band-assigned `from_protrusion` can exceed the available gap between the two outer containers. When the divergent-sibling adjustment (Step 5) simultaneously raises `to_protrusion` to clear the destination container hierarchy, the sum `from_protrusion + to_protrusion` can exceed the full node-to-node gap. This places the from-tip *past* the to-tip in the routing direction -- the tips cross -- so any Z/S segment drawn between them would re-enter the destination container.
 
-    Note: the `rank_gap_px` cap (see item 33) prevents this situation from arising in most cases by limiting the slot-assigned protrusion to the actual inter-rank gap. The `from_protrusion_capped` guard is a secondary safety net for remaining edge cases (e.g. very small rank gaps, or edges where the cap does not fully constrain the protrusion).
+    Note: within a single rank gap the per-side proportional split (Step 31) already guarantees `from_protrusion + to_protrusion <= MAX_GAP_FRACTION * gap`, and the `rank_gap_px` cap (see item 33) limits each side's band to the actual inter-rank gap. The `from_protrusion_capped` guard is a rarely-hit secondary safety net for remaining edge cases (e.g. very small rank gaps, the divergent-sibling adjustment raising `to_protrusion` after band assignment, or edges where the cap does not fully constrain the protrusion).
 
     The fix is applied in `build_ortho_edge_path` via a helper `fn from_protrusion_capped`. For aligned opposite-face pairs (Bottom-Top, Top-Bottom, Left-Right, Right-Left), it computes `gap = |end_axis - start_axis|` and, when `from_protrusion + to_protrusion > gap`, caps the from-protrusion to `(gap - to_protrusion).max(0.0)`. For other face-pair combinations (cycle edges, L-shaped routing) it returns the from-protrusion unchanged.
 
@@ -321,6 +325,34 @@ This function assigns protrusion depths to all endpoints within a single rank ga
     - the two nodes are **not** adjacent siblings (nesting-path index difference > 1).
 
 
+### Self-loop routing
+
+Self-loop edges (`from == to`) are a degenerate cycle edge: both endpoints are
+at the same rank, and both checks in the `is_cycle_edge` condition return
+`false` for identical nodes, so `is_cycle_edge` is `true`. They are routed as
+follows:
+
+- **Face selection**: both contacts sit on the **rank-direction face** -- the
+  face a forward edge would exit (`Bottom` for `TopToBottom`, `Top` for
+  `BottomToTop`, `Right` for `LeftToRight`, `Left` for `RightToLeft`),
+  resolved by `EdgePathBuilderPass1::self_loop_face` /
+  `EdgeFaceAssigner::forward_faces`. The IR-level `EdgeFaceAssignment` stores
+  only `from_face` (one label slot); pass 1 duplicates the face into both
+  `from_face` and `to_face` so the offset and protrusion machinery sees two
+  contacts on the same face.
+- **Offsets**: both contacts register with `EdgeFaceContactTracker`, so they
+  receive distinct slot offsets (or a label-aligned offset for the from
+  contact when a description label is present).
+- **Protrusions**: self-loops flow through the cycle-edge protrusion path
+  (`cycle_edge_collect_rank_gap_entries` for `Top`/`Bottom` faces with an
+  adjacent rank, otherwise Case B of `protrusions_assign_cycle_edges`), giving
+  both contacts the same depth.
+- **Path**: `EdgeCurvature::Orthogonal` produces a U-shape via the standard
+  waypoint machinery (same-face pair, equal protrusion tips bridged by the
+  same-coordinate Z/S rule). `EdgeCurvature::Curved` uses
+  `EdgePathBuilderPass1::self_loop_path_build`, a bezier loop generalised over
+  the four faces.
+
 ### Clockwise face selection (`fn cycle_edge_faces_select`)
 
 48. When `is_same_rank` is `true`, `faces_select` delegates to `cycle_edge_faces_select` in [`edge_path_builder_pass_1.rs`](crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_path_builder_pass_1.rs). This function returns a pair of node faces that routes the edge **clockwise around the outside** of the involved nodes.
@@ -338,7 +370,7 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
 ### Gap-based protrusion for cycle edges (`fn cycle_edge_collect_rank_gap_entries`)
 
-50. For cycle edges with `Top` or `Bottom` faces, only the **from-endpoint** is registered in the adjacent rank gap in Step 2 of `calculate` (not the to-endpoint). This lets it compete for protrusion slots alongside non-cycle edges in the same gap. Step 6 (`fn protrusions_assign_cycle_edges`) then copies the assigned depth to the to-endpoint, producing a symmetric U-shaped arc.
+50. For cycle edges with `Top` or `Bottom` faces, a **single entry** is registered in the adjacent rank gap in Step 2 of `calculate`. This lets the edge compete for protrusion slots alongside non-cycle edges in the same gap. The entry uses the **`ToEndpoint` kind** so the arrow-head clearance floor in `protrusion_write` applies (cycle edges and self-loops also carry an arrow head at their to-endpoint); its sorting keys (face offset, cross-axis coordinate) are taken from the from side, which is equivalent because both endpoints share the same face and rank. Step 6 (`fn protrusions_assign_cycle_edges`) then copies the assigned depth to the from-endpoint, producing a symmetric U-shaped arc.
 
     - **`rank_gap_px` for cycle edges**: the pixel distance is computed directly from layout coordinates, not from the distance to the other endpoint. The **adjacent rank boundary** is found by iterating over all nodes at the adjacent rank within the same scope (`node_ranks_nested.ranks_for(parent_container)`), then taking:
       - For `Top` face: the **maximum** `y + height_collapsed` (bottom edge) of adjacent rank-R-1 nodes.
@@ -346,23 +378,23 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
       Then `rank_gap_px = node.y - adjacent_boundary` (Top) or `adjacent_boundary - (node.y + node.height_collapsed)` (Bottom). If no adjacent-rank nodes exist, or the computed gap is non-positive, the endpoint is not registered (falls through to Step 6).
 
-    - **Gap side**: the from-endpoint of a cycle edge is on the `High` side for `Top` face, or `Low` side for `Bottom` face. This makes it a `single_side` entry in `protrusions_assign`, receiving a unique slot.
+    - **Gap side**: the cycle edge's entry is on the `High` side for `Top` face, or `Low` side for `Bottom` face. This makes it a `single_side` entry in `protrusions_assign`, receiving a unique slot.
 
-    - **Sharing the gap with non-cycle edges**: if non-cycle edges also have endpoints in the same gap (e.g. an edge from rank R-1 to rank R contributes its to-endpoint on the `High` side of gap (R-1, R)), all entries compete together for slots. The tightest `rank_gap_px` across all entries determines the maximum protrusion via `MAX_GAP_FRACTION = 0.48`. This ensures protrusions never exceed 48% of the actual gap, leaving room for the routing segment, arrowhead, and other entries on the opposite side.
+    - **Sharing the gap with non-cycle edges**: if non-cycle edges also have endpoints in the same gap (e.g. an edge from rank R-1 to rank R contributes its to-endpoint on the `High` side of gap (R-1, R)), all entries compete together for the gap's protrusion band. The tightest `rank_gap_px` across all entries sizes the band via `MAX_GAP_FRACTION = 0.8`, which is then split proportionally between the two sides (see [Protrusion depth assignment](#protrusion-depth-assignment-fn-protrusions_assign)). This ensures the from-side and to-side fans together never exceed 80% of the actual gap, leaving room for the routing segment and arrowhead.
 
 ### Cycle edge protrusion finalisation (`fn protrusions_assign_cycle_edges`)
 
 51. After gap-based assignment (Steps 2–5), Step 6 calls `protrusions_assign_cycle_edges` which handles two cases:
 
-    **Case A -- registered cycle edges** (`from_protrusion > 0`): the from-endpoint was assigned a depth by the gap-based step. This depth is copied to `to_protrusion` (with `MIN_PROTRUSION_PX` as a floor) so both endpoints protrude equally, producing a symmetric U-shaped arc.
+    **Case A -- registered / adjusted cycle edges** (`to_protrusion > 0` or `from_protrusion > 0`): the edge was assigned a depth by the gap-based step (written to `to_protrusion`, already floored for arrow-head clearance by `protrusion_write`) and/or raised by the divergent-sibling adjustment (Step 5). Both endpoints are equalized at the larger depth (with `MIN_PROTRUSION_PX` as a floor), producing a symmetric U-shaped arc.
 
-    **Case B -- unregistered cycle edges** (`from_protrusion == 0`): edges that returned early from `cycle_edge_collect_rank_gap_entries` (boundary ranks, no adjacent rank nodes, or `Left`/`Right` faces). These are grouped by `(from_face, rank_from)` -- all edges routing in the same direction at the same rank -- then sorted by face offset then cross-axis coordinate (matching the ordering in `protrusions_assign`). Within each group of N edges, depths are assigned:
+    **Case B -- unregistered cycle edges** (both protrusions zero): edges that returned early from `cycle_edge_collect_rank_gap_entries` (boundary ranks, no adjacent rank nodes, or `Left`/`Right` faces). These are grouped by `(from_face, rank_from)` -- all edges routing in the same direction at the same rank -- then sorted by face offset then cross-axis coordinate (matching the ordering in `protrusions_assign`). Within each group of N edges, depths are stacked from the arrow-head clearance floor:
 
-    - `slot[0]` (first sorted entry) -> `N × MIN_PROTRUSION_PX` (longest, outermost arc)
-    - `slot[N-1]` (last sorted entry) -> `1 × MIN_PROTRUSION_PX` (shortest, innermost arc)
-    - Intermediate slots evenly spaced between `N × MIN` and `1 × MIN`
+    - `slot[N-1]` (last sorted entry) -> `TO_PROTRUSION_MIN_PX` (shortest, innermost arc)
+    - `slot[0]` (first sorted entry) -> `TO_PROTRUSION_MIN_PX + (N-1) × MIN_PROTRUSION_PX` (longest, outermost arc)
+    - Adjacent slots are `MIN_PROTRUSION_PX` apart
 
-    Both `from_protrusion` and `to_protrusion` are set to the same assigned depth.
+    Both `from_protrusion` and `to_protrusion` are set to the same assigned depth. Unregistered cycle edges protrude into open space (boundary ranks or `Left`/`Right` faces), so no gap cap applies.
 
 52. The stacking order -- first-sorted entry gets the longest protrusion -- mirrors the slot assignment in `protrusions_assign` for single-side entries. This matches the face-offset + cross-axis sorting used for the adjacent-rank case, so the visual layering is consistent whether or not an adjacent rank exists.
 

@@ -62,19 +62,22 @@ pub(crate) fn compute_text_dimensions(
     (line_width_max, line_count)
 }
 
+/// Returns the number of character columns occupied by the given line,
+/// counting emoji graphemes as wider than regular characters.
+pub(crate) fn line_char_column_count(line: &str) -> f32 {
+    line.graphemes(true)
+        .map(|grapheme| match emojis::get(grapheme).is_some() {
+            true => EMOJI_CHAR_WIDTH,
+            false => 1.0f32,
+        })
+        .sum::<f32>()
+}
+
 /// Returns the width in pixels to display the given line of text.
 pub(crate) fn line_width_measure(line: &str, char_width: f32) -> f32 {
     if line.is_empty() {
         return 0.0;
     }
-
-    let mut line_char_column_count = line
-        .graphemes(true)
-        .map(|grapheme| match emojis::get(grapheme).is_some() {
-            true => EMOJI_CHAR_WIDTH,
-            false => 1.0f32,
-        })
-        .sum::<f32>();
 
     // Add one character width
     //
@@ -83,9 +86,22 @@ pub(crate) fn line_width_measure(line: &str, char_width: f32) -> f32 {
     //
     // Note that we shift the x coordinates of each line of text by `0.5 *
     // char_width` in `highlighted_spans_compute`.
-    line_char_column_count += 1.0;
+    (line_char_column_count(line) + 1.0) * char_width
+}
 
-    line_char_column_count * char_width
+/// Returns the tight glyph width in pixels for an inline markdown token.
+///
+/// Unlike [`line_width_measure`], this does NOT add the extra half-character
+/// padding at each end. Inline `MdToken` leaves are laid out side by side with
+/// a single inter-token gap providing the word spacing, so adding per-token
+/// edge padding would double the space between words and push the content (and
+/// the edge path routed beside it) wider than the rendered text.
+pub(crate) fn md_token_width_measure(token: &str, char_width: f32) -> f32 {
+    if token.is_empty() {
+        return 0.0;
+    }
+
+    line_char_column_count(token) * char_width
 }
 
 /// Wrap text for display, returning owned strings for each line.

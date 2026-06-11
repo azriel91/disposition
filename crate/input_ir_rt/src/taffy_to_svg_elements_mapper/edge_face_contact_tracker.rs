@@ -27,7 +27,7 @@ use super::edge_model::NodeIdAndFace;
 ///
 /// * Start with 10% of the face length (width for Top/Bottom, height for
 ///   Left/Right).
-/// * Clamp to a minimum of 5 px.
+/// * Clamp to a minimum of `CONTACT_GAP_MIN_PX`.
 /// * If `n * gap > face_length`, shrink to `face_length / n` so that all
 ///   contact points fit within the face.
 #[derive(Clone, Debug)]
@@ -41,7 +41,9 @@ pub(super) struct EdgeFaceContactTracker<'id> {
 
 /// Minimum gap in pixels between adjacent edge contact points on the
 /// same node face.
-const CONTACT_GAP_MIN_PX: f32 = 5.0;
+///
+/// May need to be twice as big as `ArrowHeadBuilder::ARROW_HEAD_HALF_WIDTH`.
+const CONTACT_GAP_MIN_PX: f32 = 12.0;
 
 /// Gap as a fraction of the face length (10%).
 const CONTACT_GAP_RATIO: f32 = 0.10;
@@ -119,9 +121,9 @@ impl<'id> EdgeFaceContactTracker<'id> {
 
     /// Computes the gap between adjacent contact points.
     ///
-    /// * 10% of `face_length`, clamped to at least 5 px.
+    /// * 10% of `face_length`, clamped to at least `CONTACT_GAP_MIN_PX`.
     /// * Shrunk if all contacts would exceed the face length.
-    fn gap_calculate(contact_count: usize, face_length: f32) -> f32 {
+    pub(super) fn gap_calculate(contact_count: usize, face_length: f32) -> f32 {
         let gap = (face_length * CONTACT_GAP_RATIO).max(CONTACT_GAP_MIN_PX);
 
         if contact_count as f32 * gap > face_length {
@@ -174,9 +176,10 @@ mod tests {
 
     #[test]
     fn gap_clamped_to_minimum() {
-        // face_length = 20, 10% = 2.0, should clamp to 5.0
-        let gap = EdgeFaceContactTracker::gap_calculate(2, 20.0);
-        assert!((gap - 5.0).abs() < f32::EPSILON);
+        // face_length = 40, 10% = 4.0, should clamp to CONTACT_GAP_MIN_PX
+        // (12.0); 2 * 12 = 24 <= 40 so no shrink applies.
+        let gap = EdgeFaceContactTracker::gap_calculate(2, 40.0);
+        assert!((gap - CONTACT_GAP_MIN_PX).abs() < f32::EPSILON);
     }
 
     #[test]

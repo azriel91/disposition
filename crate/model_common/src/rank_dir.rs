@@ -33,6 +33,26 @@ impl RankDir {
     pub fn is_default(&self) -> bool {
         matches!(self, RankDir::TopToBottom)
     }
+
+    /// Returns `true` if the rank direction flows against the natural
+    /// top-left-origin coordinate axes.
+    ///
+    /// Reversed directions are `RightToLeft` and `BottomToTop`; these are laid
+    /// out with reversed flex directions (`RowReverse` / `ColumnReverse`).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use disposition_model_common::RankDir;
+    ///
+    /// assert!(RankDir::BottomToTop.is_reversed());
+    /// assert!(RankDir::RightToLeft.is_reversed());
+    /// assert!(!RankDir::TopToBottom.is_reversed());
+    /// assert!(!RankDir::LeftToRight.is_reversed());
+    /// ```
+    pub fn is_reversed(&self) -> bool {
+        matches!(self, RankDir::RightToLeft | RankDir::BottomToTop)
+    }
 }
 
 impl FromStr for RankDir {

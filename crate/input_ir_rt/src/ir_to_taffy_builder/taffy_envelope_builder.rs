@@ -2,7 +2,6 @@ use disposition_ir_model::{
     edge::EdgeId,
     node::{NodeFace, NodeFaceEdges, NodeId},
 };
-use disposition_model_common::RankDir;
 use disposition_taffy_model::{
     taffy::{
         self,
@@ -61,68 +60,43 @@ impl TaffyEnvelopeBuilder {
     ///   wrap.
     /// * `node_face_edges`: The per-node face-to-edge-IDs mapping from
     ///   `IrDiagram`.
-    /// * `rank_dir`: Direction of edges, used to choose which side of each
-    ///   label leaf gets padding.
     pub(crate) fn build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         node_id: &NodeId<'static>,
         diagram_node_wrapper_node: taffy::NodeId,
         node_face_edges: &NodeFaceEdges<'static>,
-        rank_dir: RankDir,
     ) -> (taffy::NodeId, Vec<EdgeLabelLeafBuilt>) {
         let mut edge_label_leaves = Vec::new();
 
         let pad = LengthPercentage::length(EDGE_LABEL_PADDING_PX);
         let zero = LengthPercentage::length(0.0);
 
-        // For Top/Bottom faces the edge contacts the left x edge (all rank
-        // directions except BottomToTop) or the right x edge (BottomToTop).
+        // For Top/Bottom faces the edge contacts the left x edge of the label
+        // for all rank directions (sibling order matches declaration order,
+        // see `TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed`).
         // Padding goes on the opposite side to avoid overlapping adjacent labels.
-        let label_leaf_style_top_bottom = {
-            let padding = match rank_dir {
-                RankDir::BottomToTop => Rect {
-                    left: pad,
-                    right: zero,
-                    top: zero,
-                    bottom: zero,
-                },
-                RankDir::TopToBottom | RankDir::LeftToRight | RankDir::RightToLeft => Rect {
-                    left: zero,
-                    right: pad,
-                    top: zero,
-                    bottom: zero,
-                },
-            };
-            Style {
-                flex_shrink: 0.0,
-                padding,
-                ..Default::default()
-            }
+        let label_leaf_style_top_bottom = Style {
+            flex_shrink: 0.0,
+            padding: Rect {
+                left: zero,
+                right: pad,
+                top: zero,
+                bottom: zero,
+            },
+            ..Default::default()
         };
 
-        // For Left/Right faces the edge contacts the top y edge (all rank
-        // directions except RightToLeft) or the bottom y edge (RightToLeft).
-        // Padding goes on the opposite side.
-        let label_leaf_style_left_right = {
-            let padding = match rank_dir {
-                RankDir::RightToLeft => Rect {
-                    left: zero,
-                    right: zero,
-                    top: pad,
-                    bottom: zero,
-                },
-                RankDir::LeftToRight | RankDir::TopToBottom | RankDir::BottomToTop => Rect {
-                    left: zero,
-                    right: zero,
-                    top: zero,
-                    bottom: pad,
-                },
-            };
-            Style {
-                flex_shrink: 0.0,
-                padding,
-                ..Default::default()
-            }
+        // For Left/Right faces the edge contacts the top y edge of the label
+        // for all rank directions. Padding goes on the opposite side.
+        let label_leaf_style_left_right = Style {
+            flex_shrink: 0.0,
+            padding: Rect {
+                left: zero,
+                right: zero,
+                top: zero,
+                bottom: pad,
+            },
+            ..Default::default()
         };
 
         let top_leaf_ids = Self::build_face_leaves(

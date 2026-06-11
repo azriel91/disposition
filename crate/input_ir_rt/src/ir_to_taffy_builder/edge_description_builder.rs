@@ -127,8 +127,17 @@ impl EdgeDescriptionBuilder {
                     .map(|node| node.description_taffy_node_id)
                     .collect();
 
+                // The rank container style carries the rank gap (the vertical
+                // spacing between rank rows). In this Row container that gap
+                // becomes horizontal space between the description text and its
+                // routing spacer, pushing the edge path far from the text.
+                //
+                // Use half a character width instead so the path sits just beside the text.
+                let mut container_style = rank_container_style.clone();
+                container_style.gap.width = taffy::LengthPercentage::length(ctx.char_width / 2.0);
+
                 let container_taffy_node_id = taffy_tree
-                    .new_with_children(rank_container_style.clone(), &leaf_node_ids)
+                    .new_with_children(container_style, &leaf_node_ids)
                     .expect("Expected to create edge_description_container node.");
 
                 for EdgeIdAndTaffyDescriptionNode {

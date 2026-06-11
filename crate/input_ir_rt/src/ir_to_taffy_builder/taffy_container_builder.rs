@@ -173,10 +173,15 @@ impl TaffyContainerBuilder {
     /// containers in interleaved order.
     pub(crate) fn rank_containers_for_first_level_nodes_build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
-        rank_to_taffy_ids: NodeRankToTaffyNodeId,
+        mut rank_to_taffy_ids: NodeRankToTaffyNodeId,
         rank_container_style: Style,
         position_to_container_ids: BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
     ) -> Vec<taffy::NodeId> {
+        Self::rank_taffy_ids_reverse_if_direction_reversed(
+            &rank_container_style,
+            &mut rank_to_taffy_ids,
+        );
+
         // Creates a new taffy node for each rank to be placed in the container.
         //
         // i.e.
@@ -203,6 +208,40 @@ impl TaffyContainerBuilder {
             .collect();
 
         Self::rank_containers_interleave(rank_to_container, position_to_container_ids)
+    }
+
+    /// Reverses each rank's child node order when the rank container uses a
+    /// reversed flex direction (`RowReverse` / `ColumnReverse`).
+    ///
+    /// For `RankDir::BottomToTop` / `RankDir::RightToLeft`, rank containers
+    /// are laid out with a reversed flex direction. The reversed direction is
+    /// retained because the rank-stacking parent inverts it (see
+    /// `container_style_invert_and_stretch`) to stack ranks bottom-up /
+    /// right-to-left. Without compensation, the reversed direction would also
+    /// render siblings within a rank in reverse declaration order, which:
+    ///
+    /// * is the reverse of what a human reading the input expects, and
+    /// * breaks sibling-index-based heuristics (cycle edge face selection,
+    ///   spacer insertion indices) that assume a smaller sibling index means an
+    ///   earlier visual position.
+    ///
+    /// Reversing the insertion order here cancels out the reversed flex
+    /// direction along the sibling axis, so visual order matches declaration
+    /// order for all rank directions. This must run **after** edge spacers
+    /// are inserted into `rank_to_taffy_ids` so spacers flip together with
+    /// their neighbouring nodes.
+    pub(crate) fn rank_taffy_ids_reverse_if_direction_reversed(
+        rank_container_style: &Style,
+        rank_to_taffy_ids: &mut NodeRankToTaffyNodeId,
+    ) {
+        if matches!(
+            rank_container_style.flex_direction,
+            FlexDirection::RowReverse | FlexDirection::ColumnReverse
+        ) {
+            rank_to_taffy_ids
+                .values_mut()
+                .for_each(|taffy_ids| taffy_ids.reverse());
+        }
     }
 
     /// Interleaves rank containers with `edge_description_container` nodes.

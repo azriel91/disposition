@@ -134,11 +134,9 @@ impl IrToTaffyBuilder<'_> {
             process_step_edges: _,
             process_step_ranks,
             process_step_graphs,
-            render_options,
+            render_options: _,
             css: _,
         } = ir_diagram;
-
-        let rank_dir = render_options.rank_dir;
 
         let DimensionAndLod { dimension, lod } = dimension_and_lod;
 
@@ -171,7 +169,6 @@ impl IrToTaffyBuilder<'_> {
             node_nesting_infos,
             node_face_edges,
             edge_groups,
-            rank_dir,
             lod: *lod,
             char_width,
             node_md_texts: &node_md_texts,

@@ -8,8 +8,7 @@ use crate::taffy_to_svg_elements_mapper::{
     edge_model::EdgeType,
     edge_path_builder_pass_1::{
         EdgeFaceOffset, EdgePathBuilderPass1, NodeEdgeGeometry, SpacerCoordinates,
-        BIDIRECTIONAL_OFFSET_RATIO, CURVE_CONTROL_RATIO, SELF_LOOP_X_EXTENSION_RATIO,
-        SELF_LOOP_X_OFFSET_RATIO, SELF_LOOP_Y_EXTENSION_RATIO,
+        BIDIRECTIONAL_OFFSET_RATIO, CURVE_CONTROL_RATIO,
     },
 };
 
@@ -50,8 +49,10 @@ pub(in crate::taffy_to_svg_elements_mapper) enum FaceOrDirection {
 /// `EdgePathBuilderPass2Curve` or `EdgePathBuilderPass2Ortho` based on
 /// the provided `EdgeCurvature`.
 ///
-/// Self-loops and contained-edge special cases are handled directly
-/// (they ignore spacers and curvature mode).
+/// Self-loops route through the curvature-specific builders using the
+/// rank-direction face for both contacts (a U-shape for `Orthogonal`, a
+/// curved loop for `Curved`). Contained-edge special cases are handled
+/// directly (they ignore spacers and curvature mode).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct EdgePathBuilderPass2;
 
@@ -65,8 +66,9 @@ impl EdgePathBuilderPass2 {
     /// Otherwise the path routes through spacers with curved or
     /// orthogonal inter-spacer segments.
     ///
-    /// Self-loops and contained-edge special cases always use curved
-    /// paths regardless of `edge_curvature`.
+    /// Contained-edge special cases always use curved paths regardless
+    /// of `edge_curvature`. Self-loops follow `edge_curvature`: an
+    /// orthogonal U-shape with protrusions, or a curved loop.
     ///
     /// # Parameters
     ///
@@ -93,20 +95,15 @@ impl EdgePathBuilderPass2 {
         ortho_protrusion: &OrthoProtrusionParams,
         face_override: Option<(NodeFace, NodeFace)>,
     ) -> BezPath {
-        // Handle self-loop case (curvature mode and spacers ignored).
-        if from_info.node_id == to_info.node_id {
-            return EdgePathBuilderPass1::build_self_loop_path(
-                from_info,
-                edge_type,
-                SELF_LOOP_X_OFFSET_RATIO,
-                SELF_LOOP_Y_EXTENSION_RATIO,
-                SELF_LOOP_X_EXTENSION_RATIO,
-            );
-        }
+        // Self-loops route through the curvature-specific builders below,
+        // using the duplicated pass-1 face for both contacts. The
+        // contained-edge check must be skipped for them because a node
+        // geometrically contains itself.
+        let is_self_loop = from_info.node_id == to_info.node_id;
 
         // Check if from is contained inside to (curvature mode and
         // spacers ignored).
-        if EdgePathBuilderPass1::is_node_contained_in(from_info, to_info) {
+        if !is_self_loop && EdgePathBuilderPass1::is_node_contained_in(from_info, to_info) {
             return EdgePathBuilderPass1::build_contained_edge_path(
                 from_info,
                 to_info,
@@ -119,9 +116,15 @@ impl EdgePathBuilderPass2 {
         let to_geom = EdgePathBuilderPass1::node_edge_geometry(to_info);
 
         // Determine which faces to use based on relative positions, or use
-        // the pre-computed override from pass 1 (e.g. for cycle edges).
+        // the pre-computed override from pass 1 (e.g. for cycle edges and
+        // self-loops, where both contacts share the rank-direction face).
         let (from_face, to_face) = face_override.unwrap_or_else(|| {
-            EdgePathBuilderPass1::select_edge_faces(rank_dir, from_info, to_info)
+            if is_self_loop {
+                let face = EdgePathBuilderPass1::self_loop_face(rank_dir);
+                (face, face)
+            } else {
+                EdgePathBuilderPass1::select_edge_faces(rank_dir, from_info, to_info)
+            }
         });
 
         // Get base connection points.
@@ -193,7 +196,15 @@ impl EdgePathBuilderPass2 {
 
         match edge_curvature {
             EdgeCurvature::Curved => {
-                if spacers.is_empty() {
+                if is_self_loop {
+                    EdgePathBuilderPass1::self_loop_path_build(
+                        from_info,
+                        from_face,
+                        edge_type,
+                        face_offset.from_offset,
+                        face_offset.to_offset,
+                    )
+                } else if spacers.is_empty() {
                     EdgePathBuilderPass1::build_curved_edge_path(
                         start_x,
                         start_y,

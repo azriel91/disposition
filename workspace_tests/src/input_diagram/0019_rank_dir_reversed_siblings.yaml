@@ -1,0 +1,35 @@
+---
+# Reversed rank direction sibling ordering.
+#
+# One rank-0 node (`t_animal`) with three rank-1 dependents declared in the
+# order `t_dog`, `t_cat`, `t_owner`. With `rank_dir: bottom_to_top` the rank
+# containers use a reversed flex direction; the sibling insertion order is
+# reversed to compensate, so the visual order of `t_dog` / `t_cat` / `t_owner`
+# must match their declaration order (left to right).
+#
+# Tests may substitute `bottom_to_top` with `right_to_left` to assert the
+# vertical sibling ordering for the horizontally-reversed direction.
+things:
+  t_animal: {}
+  t_dog: {}
+  t_cat: {}
+  t_owner: {}
+thing_names:
+  t_animal: "Animal"
+  t_dog: "Dog"
+  t_cat: "Cat"
+  t_owner: "Owner"
+
+thing_dependencies:
+  edge_dep_dog_animal:
+    kind: sequence
+    things: [t_animal, t_dog]
+  edge_dep_cat_animal:
+    kind: sequence
+    things: [t_animal, t_cat]
+  edge_dep_owner_animal:
+    kind: sequence
+    things: [t_animal, t_owner]
+
+render_options:
+  rank_dir: bottom_to_top

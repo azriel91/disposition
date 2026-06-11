@@ -30,7 +30,7 @@ use crate::{
         EdgePathLocusCalculator, SpacerCoordinatesResolver, StringCharReplacer,
         SvgNodeInfoByNodeId,
     },
-    AbsoluteCoordinates, EdgeIdGenerator, TaffyNodeAbsoluteCoordinatesCalculator,
+    AbsoluteCoordinates, EdgeFaceAssigner, EdgeIdGenerator, TaffyNodeAbsoluteCoordinatesCalculator,
 };
 
 /// Builds [`SvgEdgeInfo`]s for all edges in the diagram from edge groups and
@@ -141,7 +141,6 @@ impl SvgEdgeInfosBuilder {
         // === Global sort and offset computation === //
 
         let face_offsets_by_node_face = Self::face_offsets_compute(
-            rank_dir,
             &mut all_pass1_groups,
             svg_node_info_map,
             &mut face_contact_tracker,
@@ -376,6 +375,10 @@ impl SvgEdgeInfosBuilder {
             });
             let rank_distance = rank_to.value().abs_diff(rank_from.value());
             let is_same_rank = rank_from == rank_to;
+            // Self-loops are intentionally classified as cycle edges: both
+            // checks below return `false` for `from == to`, so the protrusion
+            // calculator distributes their U-shape depth alongside other
+            // same-face cycle edges.
             let is_cycle_edge = is_same_rank
                 && !Self::nodes_adjacent_siblings_are(&edge.from, &edge.to, node_nesting_infos)
                 && !Self::nodes_divergent_ancestors_adjacent_siblings_are(
@@ -402,25 +405,37 @@ impl SvgEdgeInfosBuilder {
             //
             // Fallback to post-layout `faces_select` when no pre-layout
             // assignment exists (should not occur for a well-formed diagram).
-            let (from_face, to_face) =
-                if EdgePathBuilderPass1::is_node_contained_in(from_info, to_info) {
-                    // Contained edges bypass face-based contact points.
-                    (None, None)
-                } else if let Some(assignment) = edge_face_assignments.get(&edge_id) {
-                    (assignment.from_face, assignment.to_face)
-                } else {
-                    // Fallback for edges absent from pre-layout assignments.
-                    let faces = EdgePathBuilderPass1::faces_select(
-                        rank_dir,
-                        from_info,
-                        to_info,
-                        is_cycle_edge,
-                    );
-                    match faces {
-                        Some((ff, tf)) => (Some(ff), Some(tf)),
-                        None => (None, None),
-                    }
-                };
+            let (from_face, to_face) = if edge.is_self_loop() {
+                // Self-loop: both contacts sit on the same rank-direction
+                // face. The IR assignment stores only the from face (one
+                // label slot); pass 1 duplicates it so the offset and
+                // protrusion machinery treats the loop as two contacts on
+                // the same face. Self-loops are classified as cycle edges
+                // (`is_cycle_edge` above), so the cycle-edge protrusion
+                // assignment gives both contacts the same depth.
+                //
+                // This branch must run before the contained check, which
+                // would otherwise match (a node geometrically contains
+                // itself) and clear both faces.
+                let face = edge_face_assignments
+                    .get(&edge_id)
+                    .and_then(|assignment| assignment.from_face)
+                    .unwrap_or_else(|| EdgeFaceAssigner::forward_faces(rank_dir).0);
+                (Some(face), Some(face))
+            } else if EdgePathBuilderPass1::is_node_contained_in(from_info, to_info) {
+                // Contained edges bypass face-based contact points.
+                (None, None)
+            } else if let Some(assignment) = edge_face_assignments.get(&edge_id) {
+                (assignment.from_face, assignment.to_face)
+            } else {
+                // Fallback for edges absent from pre-layout assignments.
+                let faces =
+                    EdgePathBuilderPass1::faces_select(rank_dir, from_info, to_info, is_cycle_edge);
+                match faces {
+                    Some((ff, tf)) => (Some(ff), Some(tf)),
+                    None => (None, None),
+                }
+            };
 
             // Register contacts.
             if let Some(from_face) = from_face {
@@ -488,9 +503,6 @@ impl SvgEdgeInfosBuilder {
     ///    as a tie-breaker.
     /// 3. Assigns offset slots so that short-range edges get slots nearest to
     ///    the face midpoint, and longer-range edges fan outward.
-    /// 4. For reversed directions (`BottomToTop`, `RightToLeft`), negates all
-    ///    offsets so the spatial ordering mirrors the reversed visual flow,
-    ///    reducing edge crossover.
     ///
     /// This prevents edges from crossing each other: short-range edges
     /// stay tight against the node and long-range edges arc around them.
@@ -501,7 +513,6 @@ impl SvgEdgeInfosBuilder {
     /// cutting through it.  Edges without a label (zero-size leaf) fall back
     /// to the slot-based formula.
     fn face_offsets_compute<'edge, 'id>(
-        rank_dir: RankDir,
         all_pass1_groups: &mut Vec<EdgeGroupPass1<'edge, 'id>>,
         svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
@@ -599,30 +610,25 @@ impl SvgEdgeInfosBuilder {
                 node_id_and_face.face,
                 svg_node_info_map,
             );
-            // For reversed directions (BottomToTop, RightToLeft) negate
-            // the offsets so that the spatial ordering of contact points
-            // mirrors the reversed visual flow, reducing edge crossover.
-            let negate_offsets = matches!(rank_dir, RankDir::BottomToTop | RankDir::RightToLeft);
-
             // Compute slot-based fallback offsets for all contacts first.
+            //
+            // No direction-based negation is needed: sibling nodes are
+            // inserted in reversed order for reversed rank directions (see
+            // `TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed`),
+            // so visual order matches declaration order for all directions.
             let slot_based_offsets: Vec<f32> = (0..contact_count)
                 .map(|_| {
-                    let offset = face_contact_tracker.offset_calculate(
+                    face_contact_tracker.offset_calculate(
                         &node_id_and_face.node_id,
                         node_id_and_face.face,
                         face_length,
-                    );
-                    if negate_offsets {
-                        -offset
-                    } else {
-                        offset
-                    }
+                    )
                 })
                 .collect();
 
             // Substitute label-based offsets where the edge has a
             // non-zero description label on this face.
-            let offsets: Vec<f32> = face_contact_entries
+            let mut offsets: Vec<f32> = face_contact_entries
                 .iter()
                 .zip(slot_based_offsets)
                 .map(|(entry, slot_offset)| {
@@ -630,7 +636,6 @@ impl SvgEdgeInfosBuilder {
                         [entry.edge_index]
                         .edge_id;
                     Self::label_face_offset_compute(
-                        rank_dir,
                         node_id_and_face.face,
                         edge_id,
                         entry.is_from_endpoint,
@@ -642,6 +647,17 @@ impl SvgEdgeInfosBuilder {
                     .unwrap_or(slot_offset)
                 })
                 .collect();
+
+            // Self-loop from/to contacts may come from different sources
+            // (label-aligned from vs slot-based to); enforce the face contact
+            // gap between them so the from segment clears the arrow head at
+            // the to contact.
+            Self::face_offsets_self_loop_separation_enforce(
+                face_contact_entries,
+                face_length,
+                &mut offsets,
+            );
+
             face_offsets_by_node_face.insert(
                 node_id_and_face.clone(),
                 EdgeContactPointOffsets::new(offsets),
@@ -649,6 +665,79 @@ impl SvgEdgeInfosBuilder {
         }
 
         face_offsets_by_node_face
+    }
+
+    /// Enforces a minimum separation between the from and to contact offsets
+    /// of self-loop edges on a single (node, face).
+    ///
+    /// The from contact of a self-loop is label-aligned (the edge label leaf
+    /// always has a non-zero padded size, e.g. 4 px from
+    /// `EDGE_LABEL_PADDING_PX`), while the to contact has no label leaf
+    /// (`to_face` is `None` in the IR assignment) and falls back to the
+    /// slot-based offset. The two values come from unrelated coordinate
+    /// systems, so without this adjustment they can land arbitrarily close
+    /// together -- e.g. 3 px apart -- placing the from segment inside the
+    /// arrow head drawn at the to contact.
+    ///
+    /// When the separation is below the face's contact gap (see
+    /// `EdgeFaceContactTracker::gap_calculate`), the to offset is moved to
+    /// `from_offset + gap` or `from_offset - gap`, preferring the candidate
+    /// that stays within the face and is furthest from the other contacts on
+    /// the face.
+    fn face_offsets_self_loop_separation_enforce(
+        face_contact_entries: &[FaceContactEntry],
+        face_length: f32,
+        offsets: &mut [f32],
+    ) {
+        let contact_gap =
+            EdgeFaceContactTracker::gap_calculate(face_contact_entries.len(), face_length);
+        let half_face_length = face_length / 2.0;
+
+        for from_index in 0..face_contact_entries.len() {
+            let from_entry = &face_contact_entries[from_index];
+            if !from_entry.is_from_endpoint {
+                continue;
+            }
+            // Both endpoints of an edge appear on the same (node, face) only
+            // for self-loops.
+            let Some(to_index) = face_contact_entries.iter().position(|entry| {
+                !entry.is_from_endpoint
+                    && entry.pass1_group_index == from_entry.pass1_group_index
+                    && entry.edge_index == from_entry.edge_index
+            }) else {
+                continue;
+            };
+
+            let from_offset = offsets[from_index];
+            let to_offset = offsets[to_index];
+            if (to_offset - from_offset).abs() >= contact_gap {
+                continue;
+            }
+
+            // Pick the side of the from contact that stays within the face
+            // and has the most clearance from the other contacts.
+            let candidate_score = |candidate: f32| -> (bool, f32) {
+                let within_face = candidate.abs() <= half_face_length;
+                let other_contact_clearance = offsets
+                    .iter()
+                    .enumerate()
+                    .filter(|(offset_index, _)| {
+                        *offset_index != from_index && *offset_index != to_index
+                    })
+                    .map(|(_, other_offset)| (candidate - other_offset).abs())
+                    .fold(f32::INFINITY, f32::min);
+                (within_face, other_contact_clearance)
+            };
+
+            let candidate_after = from_offset + contact_gap;
+            let candidate_before = from_offset - contact_gap;
+            offsets[to_index] =
+                if candidate_score(candidate_after) >= candidate_score(candidate_before) {
+                    candidate_after
+                } else {
+                    candidate_before
+                };
+        }
     }
 
     /// Sorts the entries for a single (node, face) by rank distance
@@ -1113,7 +1202,6 @@ impl SvgEdgeInfosBuilder {
     /// offset in that case.
     #[allow(clippy::too_many_arguments)]
     fn label_face_offset_compute<'id>(
-        rank_dir: RankDir,
         face: NodeFace,
         edge_id: &EdgeId<'id>,
         is_from_endpoint: bool,
@@ -1143,13 +1231,8 @@ impl SvgEdgeInfosBuilder {
                         taffy_node_id,
                         layout,
                     );
-                // Route to the entry-side edge of the label along x.
-                let label_contact_x = match rank_dir {
-                    RankDir::BottomToTop => label_abs_x + label_width,
-                    RankDir::TopToBottom | RankDir::LeftToRight | RankDir::RightToLeft => {
-                        label_abs_x
-                    }
-                };
+                // Route to the entry-side (left x) edge of the label.
+                let label_contact_x = label_abs_x;
                 let face_midpoint_x = node_info.x + node_info.width / 2.0;
                 Some(label_contact_x - face_midpoint_x)
             }
@@ -1163,13 +1246,8 @@ impl SvgEdgeInfosBuilder {
                         taffy_node_id,
                         layout,
                     );
-                // Route to the entry-side edge of the label along y.
-                let label_contact_y = match rank_dir {
-                    RankDir::RightToLeft => label_abs_y + label_height,
-                    RankDir::LeftToRight | RankDir::TopToBottom | RankDir::BottomToTop => {
-                        label_abs_y
-                    }
-                };
+                // Route to the entry-side (top y) edge of the label.
+                let label_contact_y = label_abs_y;
                 let face_midpoint_y = node_info.y + node_info.height_collapsed / 2.0;
                 Some(label_contact_y - face_midpoint_y)
             }

@@ -22,7 +22,7 @@ use crate::EdgeIdGenerator;
 ///
 /// | Case                                           | from_face                  | to_face       |
 /// |------------------------------------------------|----------------------------|---------------|
-/// | Self-loop (`from == to`)                       | `Bottom`                   | `None`        |
+/// | Self-loop (`from == to`)                       | rank-dir face              | `None`        |
 /// | Contained (from is ancestor of to)             | rank-dir face              | opposite      |
 /// | Contained (to is ancestor of from)             | opposite                   | rank-dir face |
 /// | Cycle edge adjacent siblings (same LCA rank)   | rank-dir face              | opposite      |
@@ -100,11 +100,13 @@ impl EdgeFaceAssigner {
         node_ranks_nested: &NodeRanksNested<'id>,
         rank_dir: RankDir,
     ) -> EdgeFaceAssignment {
-        // Case 1: Self-loop -- the from face is Bottom; no to face is needed
-        // since from == to, only one label slot is used.
+        // Case 1: Self-loop -- the from face is the rank-direction face a
+        // forward edge would exit; no to face is needed since from == to,
+        // only one label slot is used. The path routing duplicates the from
+        // face for both contacts.
         if edge.is_self_loop() {
             return EdgeFaceAssignment {
-                from_face: Some(NodeFace::Bottom),
+                from_face: Some(Self::forward_faces(rank_dir).0),
                 to_face: None,
             };
         }
@@ -214,7 +216,7 @@ impl EdgeFaceAssigner {
     /// `rank_dir`.
     ///
     /// For a reverse edge, swap the returned tuple.
-    fn forward_faces(rank_dir: RankDir) -> (NodeFace, NodeFace) {
+    pub(crate) fn forward_faces(rank_dir: RankDir) -> (NodeFace, NodeFace) {
         match rank_dir {
             RankDir::LeftToRight => (NodeFace::Right, NodeFace::Left),
             RankDir::RightToLeft => (NodeFace::Left, NodeFace::Right),
@@ -227,7 +229,11 @@ impl EdgeFaceAssigner {
     ///
     /// Uses sibling indices at the LCA level as a proxy for relative position
     /// along the non-rank axis, matching the geometry used by
-    /// `EdgePathBuilderPass1::cycle_edge_faces_select`:
+    /// `EdgePathBuilderPass1::cycle_edge_faces_select`. Sibling order matches
+    /// visual order for every `RankDir` (reversed directions reverse the
+    /// taffy insertion order to compensate for their reversed flex direction,
+    /// see `TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed`),
+    /// so only the rank axis matters:
     ///
     /// - `LeftToRight` / `RightToLeft`: siblings are stacked vertically; a
     ///   smaller sibling index means the node is higher on screen, so the edge
@@ -250,40 +256,40 @@ impl EdgeFaceAssigner {
         let sibling_index_abs_diff = sibling_index_from.abs_diff(sibling_index_to);
         match (rank_dir, sibling_index_from_cmp_to, sibling_index_abs_diff) {
             // 3a: adjacent siblings don't use clockwise edges
-            (RankDir::LeftToRight, Ordering::Less, 1) => (NodeFace::Bottom, NodeFace::Top),
-            (RankDir::LeftToRight, Ordering::Equal | Ordering::Greater, 1) => {
-                (NodeFace::Top, NodeFace::Bottom)
-            }
-            (RankDir::RightToLeft, Ordering::Less, 1) => (NodeFace::Top, NodeFace::Bottom),
-            (RankDir::RightToLeft, Ordering::Equal | Ordering::Greater, 1) => {
+            (RankDir::LeftToRight | RankDir::RightToLeft, Ordering::Less, 1) => {
                 (NodeFace::Bottom, NodeFace::Top)
             }
-            (RankDir::TopToBottom, Ordering::Less, 1) => (NodeFace::Right, NodeFace::Left),
-            (RankDir::TopToBottom, Ordering::Equal | Ordering::Greater, 1) => {
-                (NodeFace::Left, NodeFace::Right)
-            }
-            (RankDir::BottomToTop, Ordering::Less, 1) => (NodeFace::Left, NodeFace::Right),
-            (RankDir::BottomToTop, Ordering::Equal | Ordering::Greater, 1) => {
+            (
+                RankDir::LeftToRight | RankDir::RightToLeft,
+                Ordering::Equal | Ordering::Greater,
+                1,
+            ) => (NodeFace::Top, NodeFace::Bottom),
+            (RankDir::TopToBottom | RankDir::BottomToTop, Ordering::Less, 1) => {
                 (NodeFace::Right, NodeFace::Left)
             }
+            (
+                RankDir::TopToBottom | RankDir::BottomToTop,
+                Ordering::Equal | Ordering::Greater,
+                1,
+            ) => (NodeFace::Left, NodeFace::Right),
 
             // 3b: non-adjacent siblings use clockwise edges
-            (RankDir::LeftToRight, Ordering::Less, _) => (NodeFace::Right, NodeFace::Right),
-            (RankDir::LeftToRight, Ordering::Equal | Ordering::Greater, _) => {
-                (NodeFace::Left, NodeFace::Left)
-            }
-            (RankDir::RightToLeft, Ordering::Less, _) => (NodeFace::Left, NodeFace::Left),
-            (RankDir::RightToLeft, Ordering::Equal | Ordering::Greater, _) => {
+            (RankDir::LeftToRight | RankDir::RightToLeft, Ordering::Less, _) => {
                 (NodeFace::Right, NodeFace::Right)
             }
-            (RankDir::TopToBottom, Ordering::Less, _) => (NodeFace::Top, NodeFace::Top),
-            (RankDir::TopToBottom, Ordering::Equal | Ordering::Greater, _) => {
-                (NodeFace::Bottom, NodeFace::Bottom)
-            }
-            (RankDir::BottomToTop, Ordering::Less, _) => (NodeFace::Bottom, NodeFace::Bottom),
-            (RankDir::BottomToTop, Ordering::Equal | Ordering::Greater, _) => {
+            (
+                RankDir::LeftToRight | RankDir::RightToLeft,
+                Ordering::Equal | Ordering::Greater,
+                _,
+            ) => (NodeFace::Left, NodeFace::Left),
+            (RankDir::TopToBottom | RankDir::BottomToTop, Ordering::Less, _) => {
                 (NodeFace::Top, NodeFace::Top)
             }
+            (
+                RankDir::TopToBottom | RankDir::BottomToTop,
+                Ordering::Equal | Ordering::Greater,
+                _,
+            ) => (NodeFace::Bottom, NodeFace::Bottom),
         }
     }
 

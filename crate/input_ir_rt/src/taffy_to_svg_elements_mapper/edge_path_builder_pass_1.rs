@@ -5,6 +5,8 @@ use kurbo::{BezPath, Point};
 
 use disposition_ir_model::node::NodeFace;
 
+use crate::EdgeFaceAssigner;
+
 use super::edge_model::EdgeType;
 
 /// Per-endpoint face offset in pixels, applied perpendicular to the
@@ -140,12 +142,14 @@ impl EdgePathBuilderPass1 {
     ) -> BezPath {
         // Handle self-loop case
         if from_info.node_id == to_info.node_id {
-            return Self::build_self_loop_path(
+            let face = Self::self_loop_face(rank_dir);
+            let default_offset = Self::self_loop_default_offset(from_info, face);
+            return Self::self_loop_path_build(
                 from_info,
+                face,
                 edge_type,
-                SELF_LOOP_X_OFFSET_RATIO,
-                SELF_LOOP_Y_EXTENSION_RATIO,
-                SELF_LOOP_X_EXTENSION_RATIO,
+                default_offset,
+                -default_offset,
             );
         }
 
@@ -234,7 +238,8 @@ impl EdgePathBuilderPass1 {
     /// Returns the (from_face, to_face) that would be selected for an
     /// edge between two nodes, without building the full path.
     ///
-    /// For self-loops both faces are `NodeFace::Bottom`.
+    /// For self-loops both faces are the rank-direction face (see
+    /// [`Self::self_loop_face`]).
     /// For contained edges both faces are `None` (no face-based offset
     /// applies).
     /// For cycle edges (`is_cycle_edge = true`), clockwise routing faces are
@@ -246,8 +251,9 @@ impl EdgePathBuilderPass1 {
         is_cycle_edge: bool,
     ) -> Option<(NodeFace, NodeFace)> {
         if from_info.node_id == to_info.node_id {
-            // Self-loop: both endpoints touch the bottom face.
-            return Some((NodeFace::Bottom, NodeFace::Bottom));
+            // Self-loop: both endpoints touch the same rank-direction face.
+            let face = Self::self_loop_face(rank_dir);
+            return Some((face, face));
         }
         if Self::is_node_contained_in(from_info, to_info) {
             // Contained edges bypass face-based contact points.
@@ -364,40 +370,93 @@ impl EdgePathBuilderPass1 {
         }
     }
 
-    /// Builds a self-loop path that goes from the bottom of a node, extends
-    /// down, curves left, and returns to the bottom of the same node.
-    pub(super) fn build_self_loop_path(
+    /// Returns the face a self-loop edge exits and re-enters for the given
+    /// rank direction.
+    ///
+    /// Matches the `from_face` of `EdgeFaceAssigner::forward_faces`:
+    ///
+    /// | `RankDir`     | face     |
+    /// |---------------|----------|
+    /// | `TopToBottom` | `Bottom` |
+    /// | `BottomToTop` | `Top`    |
+    /// | `LeftToRight` | `Right`  |
+    /// | `RightToLeft` | `Left`   |
+    pub(super) fn self_loop_face(rank_dir: RankDir) -> NodeFace {
+        EdgeFaceAssigner::forward_faces(rank_dir).0
+    }
+
+    /// Returns the default contact offset (along the face, from the face
+    /// midpoint) for a self-loop on the given face.
+    ///
+    /// Used for the pass-1 zero-offset path; pass 2 substitutes the computed
+    /// face contact offsets.
+    pub(super) fn self_loop_default_offset(node_info: &SvgNodeInfo, face: NodeFace) -> f32 {
+        let along_dim = match face {
+            NodeFace::Top | NodeFace::Bottom => node_info.width,
+            NodeFace::Left | NodeFace::Right => node_info.height_collapsed,
+        };
+        along_dim * SELF_LOOP_X_OFFSET_RATIO
+    }
+
+    /// Builds a curved self-loop path on the given node face.
+    ///
+    /// The loop exits the face at `from_offset` (along the face, relative to
+    /// the face midpoint), extends outward along the face's outward normal,
+    /// curves across, and re-enters the face at `to_offset`.
+    ///
+    /// # Parameters
+    ///
+    /// * `face`: face the loop exits and re-enters, e.g. `NodeFace::Bottom` for
+    ///   `RankDir::TopToBottom`.
+    /// * `from_offset` / `to_offset`: signed pixel offsets along the face from
+    ///   the face midpoint, e.g. `12.0` / `-12.0`.
+    pub(super) fn self_loop_path_build(
         node_info: &SvgNodeInfo,
+        face: NodeFace,
         edge_type: EdgeType,
-        x_offset_ratio: f32,
-        y_extension_ratio: f32,
-        x_extension_ratio: f32,
+        from_offset: f32,
+        to_offset: f32,
     ) -> BezPath {
-        let start_x = node_info.x + node_info.width * (0.5 + x_offset_ratio);
-        let start_y = node_info.y + node_info.height_collapsed;
-        let end_x = node_info.x + node_info.width * (0.5 - x_offset_ratio);
-        let end_y = start_y;
+        let (face_center_x, face_center_y) = Self::get_face_center(node_info, face);
+        // Unit outward normal of the face.
+        let (outward_dx, outward_dy) = Self::get_control_point_offset(face, 1.0);
 
-        let extension_y = TEXT_LINE_HEIGHT.max(node_info.height_collapsed * y_extension_ratio);
-        let extension_x = node_info.width * x_extension_ratio;
+        // Dimension along the face (loop spread) and perpendicular to it
+        // (loop depth).
+        let (along_dim, perp_dim) = match face {
+            NodeFace::Top | NodeFace::Bottom => (node_info.width, node_info.height_collapsed),
+            NodeFace::Left | NodeFace::Right => (node_info.height_collapsed, node_info.width),
+        };
+        let extension_perp = TEXT_LINE_HEIGHT.max(perp_dim * SELF_LOOP_Y_EXTENSION_RATIO);
+        let extension_along = along_dim * SELF_LOOP_X_EXTENSION_RATIO;
 
-        let start = Point::new(start_x as f64, start_y as f64);
+        // Composes a point at `along_offset` along the face (relative to the
+        // face midpoint) and `perp_offset` outward from the face.
+        let point_at = |along_offset: f32, perp_offset: f32| -> Point {
+            let mut x = face_center_x;
+            let mut y = face_center_y;
+            Self::face_offset_apply(&mut x, &mut y, face, along_offset);
+            Point::new(
+                (x + outward_dx * perp_offset) as f64,
+                (y + outward_dy * perp_offset) as f64,
+            )
+        };
 
-        // Control points for the self-loop curve
-        let ctrl1 = Point::new(
-            (start_x + extension_x * 0.5) as f64,
-            (start_y + extension_y) as f64,
+        // Bow the control points outward past the contact offsets, on the
+        // side each contact sits on.
+        let along_sign = if from_offset >= to_offset { 1.0 } else { -1.0 };
+
+        let start = point_at(from_offset, 0.0);
+        let ctrl1 = point_at(
+            from_offset + extension_along * 0.5 * along_sign,
+            extension_perp,
         );
-        let mid = Point::new(
-            (node_info.x + node_info.width * 0.5) as f64,
-            (start_y + extension_y) as f64,
+        let mid = point_at((from_offset + to_offset) * 0.5, extension_perp);
+        let ctrl3 = point_at(
+            to_offset - extension_along * 0.5 * along_sign,
+            extension_perp,
         );
-
-        let ctrl3 = Point::new(
-            (end_x - extension_x * 0.5) as f64,
-            (start_y + extension_y) as f64,
-        );
-        let end = Point::new(end_x as f64, end_y as f64);
+        let end = point_at(to_offset, 0.0);
 
         // Paths have to be built in reverse to get them to render in the correct
         // direction in the SVG.
