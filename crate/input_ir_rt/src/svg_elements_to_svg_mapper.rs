@@ -12,6 +12,13 @@ use disposition_taffy_model::{TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
 
 use crate::NOTO_SANS_MONO_TTF;
 
+/// Pixels to shift the inline-code background box down from the text top so its
+/// bottom edge sits below the baseline and covers glyph descenders (g, p, y).
+const CODE_BG_DESCENT_OFFSET: f32 = 3.0;
+
+/// Corner radius (pixels) of the inline-code background box.
+const CODE_BG_CORNER_RADIUS: f32 = 3.0;
+
 /// CSS variables to ensure CSS works correctly with `encre-css`.
 ///
 /// These are copied from `DEFAULT_PREFLIGHT` in [`encre-css/src/preflight.rs`].
@@ -220,10 +227,18 @@ impl SvgElementsToSvgMapper {
         )
         .unwrap();
 
-        // Add code-span background style
+        // Add code-span background style.
+        //
+        // The fill adapts to the surrounding page theme: a light grey on light
+        // backgrounds and a dark grey under `prefers-color-scheme: dark`. The
+        // `--md-code-bg` variable can still be overridden by the embedding page.
+        // Rounded corners are drawn via the `<path>` geometry (an SVG `<rect>`
+        // does not honor `rx` set through a CSS rule), so no `rx` here.
         writeln!(
             &mut styles_buffer,
-            ".md-code-bg {{ fill: var(--md-code-bg, #e8e8e8); rx: 2; }}"
+            ":root {{ --md-code-bg: #e8e8e8; }} \
+             @media (prefers-color-scheme: dark) {{ :root {{ --md-code-bg: #3a3a3a; }} }} \
+             .md-code-bg {{ fill: var(--md-code-bg); }}"
         )
         .unwrap();
 
@@ -451,21 +466,22 @@ impl SvgElementsToSvgMapper {
             let text_y = svg_text_span.y;
             let text_content = &svg_text_span.text;
 
-            // Emit a background rect before code spans.
+            // Emit a rounded background path before code spans.
+            //
+            // `text_y` is the text baseline, so the box top is
+            // `text_y - height` and it is shifted down by `CODE_BG_DESCENT_OFFSET`
+            // so its bottom clears the baseline and covers glyph descenders.
             if svg_text_span
                 .md_style
                 .as_ref()
                 .is_some_and(|svg_md_style| svg_md_style.code)
             {
-                let rect_y = text_y - svg_text_span.height;
                 let rect_w = svg_text_span.width;
                 let rect_h = svg_text_span.height;
-                write!(
-                    content_buffer,
-                    "<rect x=\"{text_x}\" y=\"{rect_y}\" width=\"{rect_w}\" \
-                        height=\"{rect_h}\" class=\"md-code-bg\" />",
-                )
-                .unwrap();
+                let rect_y = text_y - rect_h + CODE_BG_DESCENT_OFFSET;
+                let path_d =
+                    Self::code_bg_path_d(text_x, rect_y, rect_w, rect_h, CODE_BG_CORNER_RADIUS);
+                write!(content_buffer, "<path d=\"{path_d}\" class=\"md-code-bg\" />").unwrap();
             }
 
             // Wrap in <a> element if this is a link
@@ -527,6 +543,46 @@ impl SvgElementsToSvgMapper {
             )
             .unwrap();
         });
+    }
+
+    /// Builds an SVG `<path>` `d` attribute for a rounded rectangle at absolute
+    /// coordinates `(x, y)` with the given `width`, `height`, and corner
+    /// `radius`, used for the inline-code background.
+    ///
+    /// The path proceeds clockwise from just after the top-left corner, drawing
+    /// each corner with an elliptical arc. The radius is clamped so it never
+    /// exceeds half the width or height. Example: a `75x17` box at `(96, 109)`
+    /// with radius `3` yields a `d` starting `M 99 109 H 168 A 3 3 0 0 1 171 112`.
+    fn code_bg_path_d(x: f32, y: f32, width: f32, height: f32, radius: f32) -> String {
+        let r = radius.clamp(0.0, (width / 2.0).min(height / 2.0));
+        let x_r = x + r;
+        let x_w = x + width;
+        let y_r = y + r;
+        let y_h = y + height;
+
+        let mut d = String::with_capacity(160);
+
+        // Top edge, starting after the top-left corner.
+        write!(d, "M {x_r} {y}").unwrap();
+        write!(d, " H {}", x_w - r).unwrap();
+        // Top-right corner.
+        write!(d, " A {r} {r} 0 0 1 {x_w} {y_r}").unwrap();
+        // Right edge.
+        write!(d, " V {}", y_h - r).unwrap();
+        // Bottom-right corner.
+        write!(d, " A {r} {r} 0 0 1 {} {y_h}", x_w - r).unwrap();
+        // Bottom edge.
+        write!(d, " H {x_r}").unwrap();
+        // Bottom-left corner.
+        write!(d, " A {r} {r} 0 0 1 {x} {}", y_h - r).unwrap();
+        // Left edge.
+        write!(d, " V {y_r}").unwrap();
+        // Top-left corner.
+        write!(d, " A {r} {r} 0 0 1 {x_r} {y}").unwrap();
+
+        d.push_str(" Z");
+
+        d
     }
 
     /// Writes edges to the SVG content buffer.

@@ -11,29 +11,44 @@ things:
   t_repo: {}
   t_ci: {}
 thing_names:
-  t_repo: "Repository"
-  t_ci: "CI Pipeline"
-
+  t_repo: Repository
+  t_ci: CI Pipeline
+thing_dependencies:
+  edge_dep_repo_ci:
+    kind: sequence
+    things:
+      - t_repo
+      - t_ci
 thing_descs:
   t_repo: |-
     ### Source
+
     The **main** branch is protected.
 
     Clone with `git clone`, see the
     [README](https://github.com/azriel91/disposition).
+
+    Unordered List:
+
+    * unordered item 1
+    * unordered item 2
+        - unordered nested item 2.1
+
+    Ordered list:
+
+    1. item 1
+    2. item 2
+
+        1. nested ordered item 2.1
+        2. nested ordered item 2.2
+
   t_ci: |-
     ### Pipeline
+
     Runs on every *push*:
 
     * lint and `cargo fmt`
     * test
     * ~~manual deploy~~ automated deploy
-
-thing_dependencies:
-  edge_dep_repo_ci:
-    kind: sequence
-    things: [t_repo, t_ci]
-
-# Markdown works in edge descriptions too.
 edge_descs:
-  edge_dep_repo_ci__0: "on **push**"
+  edge_dep_repo_ci__0: on **push**

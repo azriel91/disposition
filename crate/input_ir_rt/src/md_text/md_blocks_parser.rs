@@ -7,6 +7,13 @@ pub(crate) struct MdBlock {
     pub(crate) heading_level: Option<MdHeadingLevel>,
     /// Ordered inline tokens within this block.
     pub(crate) tokens: Vec<MdTokenItem>,
+    /// `None` for non-list blocks (paragraph / heading); `Some(depth)` for a
+    /// list item, where `depth` is the 0-based nesting level (top-level list
+    /// items are `Some(0)`, items in a once-nested list are `Some(1)`, etc.).
+    ///
+    /// Used by `MdNodeBuilder` to indent nested items and to stack list items
+    /// tightly (no blank line between siblings).
+    pub(crate) list_depth: Option<u8>,
 }
 
 /// An inline token within a block.
@@ -49,9 +56,9 @@ struct StyleStack {
     link_dest: Option<String>,
 }
 
+/// State for one level of list nesting. The parser keeps a stack of these so
+/// that nested lists restore the parent list's numbering when they end.
 enum ListState {
-    /// Not currently in a list.
-    None,
     /// Inside an ordered list, tracking the current item number.
     Ordered { current_number: u64 },
     /// Inside an unordered list.
@@ -74,12 +81,14 @@ impl MdBlocksParser {
         };
         let mut image_state: Option<ImageState> = None;
         let mut heading_prefix_pending: Option<String> = None;
-        let mut list_state = ListState::None;
+        // Stack of active list nesting levels. Empty when not inside a list.
+        let mut list_stack: Vec<ListState> = Vec::new();
         let mut list_item_prefix_pending: Option<String> = None;
 
         for event in parser {
             match event {
                 Event::Start(Tag::Heading { level, .. }) => {
+                    Self::block_flush(&mut current_block, &mut blocks);
                     let heading_level = Self::heading_level_from(level);
                     // Prepare the heading prefix (e.g., "# " for H1, "## " for H2)
                     let prefix_count = match level {
@@ -94,57 +103,62 @@ impl MdBlocksParser {
                     current_block = Some(MdBlock {
                         heading_level: Some(heading_level),
                         tokens: vec![],
+                        list_depth: Self::list_depth_current(&list_stack),
                     });
                 }
                 Event::End(TagEnd::Heading(_)) => {
-                    if let Some(block) = current_block.take() {
-                        blocks.push(block);
-                    }
+                    Self::block_flush(&mut current_block, &mut blocks);
                 }
                 Event::Start(Tag::Paragraph) => {
+                    Self::block_flush(&mut current_block, &mut blocks);
                     current_block = Some(MdBlock {
                         heading_level: None,
                         tokens: vec![],
+                        list_depth: Self::list_depth_current(&list_stack),
                     });
                 }
                 Event::End(TagEnd::Paragraph) => {
-                    if let Some(block) = current_block.take() {
-                        blocks.push(block);
-                    }
+                    Self::block_flush(&mut current_block, &mut blocks);
                 }
                 Event::Start(Tag::List(first_item_number)) => {
-                    list_state = if let Some(start_number) = first_item_number {
+                    // Flush the parent list item's text (if any) before descending
+                    // into the nested list, otherwise it would be clobbered when
+                    // the first nested item creates its own block.
+                    Self::block_flush(&mut current_block, &mut blocks);
+                    let list_state = if let Some(start_number) = first_item_number {
                         ListState::Ordered {
                             current_number: start_number,
                         }
                     } else {
                         ListState::Unordered
                     };
+                    list_stack.push(list_state);
                 }
                 Event::End(TagEnd::List(_)) => {
-                    list_state = ListState::None;
+                    list_stack.pop();
                 }
                 Event::Start(Tag::Item) => {
-                    // Prepare the list item prefix based on current list state
-                    let prefix = match &mut list_state {
-                        ListState::Ordered { current_number } => {
+                    Self::block_flush(&mut current_block, &mut blocks);
+                    let list_depth = Self::list_depth_current(&list_stack);
+                    // Prepare the list item prefix based on the innermost list.
+                    let prefix = match list_stack.last_mut() {
+                        Some(ListState::Ordered { current_number }) => {
                             let prefix = format!("{}. ", current_number);
                             *current_number += 1;
                             prefix
                         }
-                        ListState::Unordered => "- ".to_string(),
-                        ListState::None => String::new(),
+                        Some(ListState::Unordered) => "- ".to_string(),
+                        None => String::new(),
                     };
                     list_item_prefix_pending = Some(prefix);
                     current_block = Some(MdBlock {
                         heading_level: None,
                         tokens: vec![],
+                        list_depth,
                     });
                 }
                 Event::End(TagEnd::Item) => {
-                    if let Some(block) = current_block.take() {
-                        blocks.push(block);
-                    }
+                    Self::block_flush(&mut current_block, &mut blocks);
                 }
                 Event::Start(Tag::Strong) => {
                     style_stack.bold_depth += 1;
@@ -282,6 +296,30 @@ impl MdBlocksParser {
         blocks
     }
 
+    /// Pushes `current_block` into `blocks` when it holds at least one token,
+    /// then clears it.
+    ///
+    /// Empty blocks are dropped rather than pushed. This matters for "loose"
+    /// markdown lists, where `Start(Tag::Item)` creates a block but the item
+    /// text arrives inside a nested `Paragraph`; the empty item block is
+    /// flushed (and discarded) when that paragraph starts.
+    fn block_flush(current_block: &mut Option<MdBlock>, blocks: &mut Vec<MdBlock>) {
+        if let Some(block) = current_block.take()
+            && !block.tokens.is_empty()
+        {
+            blocks.push(block);
+        }
+    }
+
+    /// Returns the 0-based nesting depth of the innermost active list, or
+    /// `None` when not currently inside a list.
+    fn list_depth_current(list_stack: &[ListState]) -> Option<u8> {
+        list_stack
+            .len()
+            .checked_sub(1)
+            .map(|depth| depth.min(u8::MAX as usize) as u8)
+    }
+
     fn heading_level_from(level: pulldown_cmark::HeadingLevel) -> MdHeadingLevel {
         match level {
             pulldown_cmark::HeadingLevel::H1 => MdHeadingLevel::H1,
@@ -322,5 +360,95 @@ impl MdBlocksParser {
             }
         }
         (alt.to_string(), None, None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MdBlock, MdBlocksParser, MdTokenItem};
+
+    /// Joins a block's `Word` tokens with single spaces (ignoring images and
+    /// line breaks) so list-item text can be compared in tests.
+    fn block_text(md_block: &MdBlock) -> String {
+        md_block
+            .tokens
+            .iter()
+            .filter_map(|token| match token {
+                MdTokenItem::Word { text, .. } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    #[test]
+    fn nested_unordered_list_keeps_parent_item_and_nesting_depth() {
+        let markdown = "\
+* unordered item 1
+* unordered item 2
+    - unordered nested item 2.1
+";
+        let blocks = MdBlocksParser::parse(markdown);
+
+        let summaries = blocks
+            .iter()
+            .map(|block| (block_text(block), block.list_depth))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            summaries,
+            vec![
+                ("- unordered item 1".to_string(), Some(0)),
+                // The parent item is no longer clobbered by the nested list.
+                ("- unordered item 2".to_string(), Some(0)),
+                // The nested item keeps its deeper nesting depth.
+                ("- unordered nested item 2.1".to_string(), Some(1)),
+            ]
+        );
+    }
+
+    #[test]
+    fn nested_ordered_list_restores_parent_numbering_and_depth() {
+        // The blank line before the nested list makes this a "loose" list, so
+        // item text arrives inside nested paragraphs.
+        let markdown = "\
+1. item 1
+2. item 2
+
+    1. nested ordered item 2.1
+    2. nested ordered item 2.2
+";
+        let blocks = MdBlocksParser::parse(markdown);
+
+        let summaries = blocks
+            .iter()
+            .map(|block| (block_text(block), block.list_depth))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            summaries,
+            vec![
+                ("1. item 1".to_string(), Some(0)),
+                ("2. item 2".to_string(), Some(0)),
+                ("1. nested ordered item 2.1".to_string(), Some(1)),
+                ("2. nested ordered item 2.2".to_string(), Some(1)),
+            ]
+        );
+    }
+
+    #[test]
+    fn paragraphs_and_headings_have_no_list_depth() {
+        let markdown = "\
+### Source
+
+The main branch is protected.
+";
+        let blocks = MdBlocksParser::parse(markdown);
+
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(block_text(&blocks[0]), "### Source");
+        assert_eq!(blocks[0].list_depth, None);
+        assert_eq!(block_text(&blocks[1]), "The main branch is protected.");
+        assert_eq!(blocks[1].list_depth, None);
     }
 }
