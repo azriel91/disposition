@@ -1,7 +1,7 @@
 use disposition_ir_model::edge::EdgeId;
 use serde::{Deserialize, Serialize};
 
-use crate::SvgTextSpan;
+use crate::{SvgImageSpan, SvgTextSpan};
 
 /// Information to render SVG elements for an edge label.
 ///
@@ -49,6 +49,7 @@ pub struct SvgEdgeLabelInfo<'id> {
 ///     width: 80.0,
 ///     height: 18.0,
 ///     text_spans: vec![SvgTextSpan { x: 124.0, y: 61.0, text: "hello".into() }],
+///     image_spans: vec![],
 /// }
 /// ```
 #[cfg_attr(
@@ -65,8 +66,14 @@ pub struct SvgEdgeLabelEndpointInfo {
     pub width: f32,
     /// Height of the label slot.
     pub height: f32,
-    /// Text spans to render.
+    /// Text spans to render, with markdown styling.
+    ///
+    /// Coordinates are absolute (not relative to the slot). Each span may
+    /// carry an `md_style` and Tailwind classes when the label text contains
+    /// markdown formatting.
+    pub text_spans: Vec<SvgTextSpan>,
+    /// Inline image spans for label text containing markdown images.
     ///
     /// Coordinates are absolute (not relative to the slot).
-    pub text_spans: Vec<SvgTextSpan>,
+    pub image_spans: Vec<SvgImageSpan>,
 }

@@ -29,28 +29,41 @@ impl EdgeLabelBuilder {
 
         let mut edge_label_taffy_nodes: Map<EdgeId<'static>, EdgeLabelTaffyNodeIds> = Map::new();
         for built in edge_label_leaves {
-            let Some((from_node_id, to_node_id)) = edge_id_to_node_ids.get(&built.edge_id) else {
+            let EdgeLabelLeafBuilt {
+                edge_id,
+                node_id,
+                face: _,
+                taffy_node_id,
+                md_node_taffy_ids,
+            } = built;
+
+            let Some((from_node_id, to_node_id)) = edge_id_to_node_ids.get(&edge_id) else {
                 continue;
             };
 
             // Only create an entry when there is a face assignment to populate.
-            let Some(assignment) = edge_face_assignments.get(&built.edge_id) else {
+            let Some(assignment) = edge_face_assignments.get(&edge_id) else {
                 continue;
             };
 
-            let entry =
-                edge_label_taffy_nodes
-                    .entry(built.edge_id)
-                    .or_insert(EdgeLabelTaffyNodeIds {
-                        from_label_taffy_node_id: None,
-                        to_label_taffy_node_id: None,
-                    });
+            let is_from_slot = &node_id == from_node_id && assignment.from_face.is_some();
+            let is_to_slot = &node_id == to_node_id && assignment.to_face.is_some();
 
-            if &built.node_id == from_node_id && assignment.from_face.is_some() {
-                entry.from_label_taffy_node_id = Some(built.taffy_node_id);
-            }
-            if &built.node_id == to_node_id && assignment.to_face.is_some() {
-                entry.to_label_taffy_node_id = Some(built.taffy_node_id);
+            let entry = edge_label_taffy_nodes
+                .entry(edge_id)
+                .or_insert(EdgeLabelTaffyNodeIds {
+                    from_label_taffy_node_id: None,
+                    to_label_taffy_node_id: None,
+                    from_label_md_node_taffy_ids: None,
+                    to_label_md_node_taffy_ids: None,
+                });
+
+            if is_from_slot {
+                entry.from_label_taffy_node_id = Some(taffy_node_id);
+                entry.from_label_md_node_taffy_ids = md_node_taffy_ids;
+            } else if is_to_slot {
+                entry.to_label_taffy_node_id = Some(taffy_node_id);
+                entry.to_label_md_node_taffy_ids = md_node_taffy_ids;
             }
         }
 

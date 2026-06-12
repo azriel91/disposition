@@ -1,8 +1,8 @@
-use disposition_ir_model::node::NodeId;
-use disposition_model_common::Map;
+use disposition_ir_model::{edge::EdgeId, node::NodeId};
+use disposition_model_common::{Id, Map};
 use disposition_taffy_model::{
-    taffy::TaffyTree, EntityHighlightedSpan, EntityHighlightedSpans, MdImageSpan, MdNodeTaffyIds,
-    NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    taffy::TaffyTree, EdgeLabelTaffyNodeIds, EntityHighlightedSpan, EntityHighlightedSpans,
+    MdImageSpan, MdNodeTaffyIds, NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 
 use crate::{AbsoluteCoordinates, TaffyNodeAbsoluteCoordinatesCalculator};
@@ -150,6 +150,119 @@ impl MdSpansComputer {
             edge_description_highlighted_spans,
             edge_description_image_spans,
         )
+    }
+
+    /// Computes highlighted text spans and image spans for all edge label
+    /// slots that used the markdown content path.
+    ///
+    /// Runs after taffy layout is complete. For each `from` / `to` label slot
+    /// with `md_node_taffy_ids.is_some()`, the taffy tree is walked to collect
+    /// token and image leaf positions, grouped into visual lines and merged
+    /// into [`EntityHighlightedSpan`] and [`MdImageSpan`] values.
+    ///
+    /// Span coordinates are **slot-relative** (relative to the label slot
+    /// node's top-left corner), matching the convention used by
+    /// `HighlightedSpansComputer` for the legacy edge label path, so the SVG
+    /// builder offsets them by the slot's absolute position.
+    ///
+    /// Returns two maps:
+    /// - Text spans keyed by `{edge_id}__from_label` / `{edge_id}__to_label`
+    ///   (an [`Id`]), to be merged into `entity_highlighted_spans`.
+    /// - Image spans keyed by the same label key (as a [`NodeId`]), to be
+    ///   merged into `entity_image_spans`.
+    pub(crate) fn compute_edge_labels(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        edge_label_taffy_nodes: &Map<EdgeId<'static>, EdgeLabelTaffyNodeIds>,
+        char_width: f32,
+    ) -> (
+        EntityHighlightedSpans<'static>,
+        Map<NodeId<'static>, Vec<MdImageSpan>>,
+    ) {
+        let mut entity_highlighted_spans =
+            EntityHighlightedSpans::with_capacity(edge_label_taffy_nodes.len() * 2);
+        let mut entity_image_spans: Map<NodeId<'static>, Vec<MdImageSpan>> = Map::new();
+
+        for (edge_id, edge_label_taffy_node_ids) in edge_label_taffy_nodes {
+            // `from` label slot.
+            if let (Some(slot_node_id), Some(md_node_taffy_ids)) = (
+                edge_label_taffy_node_ids.from_label_taffy_node_id,
+                edge_label_taffy_node_ids
+                    .from_label_md_node_taffy_ids
+                    .as_ref(),
+            ) {
+                Self::edge_label_slot_spans_insert(
+                    taffy_tree,
+                    slot_node_id,
+                    md_node_taffy_ids,
+                    char_width,
+                    &format!("{edge_id}__from_label"),
+                    &mut entity_highlighted_spans,
+                    &mut entity_image_spans,
+                );
+            }
+
+            // `to` label slot.
+            if let (Some(slot_node_id), Some(md_node_taffy_ids)) = (
+                edge_label_taffy_node_ids.to_label_taffy_node_id,
+                edge_label_taffy_node_ids
+                    .to_label_md_node_taffy_ids
+                    .as_ref(),
+            ) {
+                Self::edge_label_slot_spans_insert(
+                    taffy_tree,
+                    slot_node_id,
+                    md_node_taffy_ids,
+                    char_width,
+                    &format!("{edge_id}__to_label"),
+                    &mut entity_highlighted_spans,
+                    &mut entity_image_spans,
+                );
+            }
+        }
+
+        (entity_highlighted_spans, entity_image_spans)
+    }
+
+    /// Computes and inserts the markdown spans for a single edge label slot.
+    ///
+    /// `label_key` is the `{edge_id}__from_label` / `{edge_id}__to_label`
+    /// string under which the text and image spans are stored.
+    #[allow(clippy::too_many_arguments)]
+    fn edge_label_slot_spans_insert(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        slot_node_id: taffy::NodeId,
+        md_node_taffy_ids: &MdNodeTaffyIds,
+        char_width: f32,
+        label_key: &str,
+        entity_highlighted_spans: &mut EntityHighlightedSpans<'static>,
+        entity_image_spans: &mut Map<NodeId<'static>, Vec<MdImageSpan>>,
+    ) {
+        // Span coordinates are relative to the slot node, so the SVG builder
+        // can offset them by the slot's absolute position.
+        let slot_abs_xy = taffy_tree
+            .layout(slot_node_id)
+            .ok()
+            .map(|layout| {
+                TaffyNodeAbsoluteCoordinatesCalculator::calculate(taffy_tree, slot_node_id, layout)
+            })
+            .unwrap_or_default();
+
+        let (highlighted_spans, image_spans) =
+            Self::compute_node(taffy_tree, md_node_taffy_ids, slot_abs_xy, char_width);
+
+        if !highlighted_spans.is_empty() {
+            let key = Id::try_from(label_key.to_string()).expect(
+                "`edge_id` is a valid `Id`, so appending `__{from,to}_label` is also valid",
+            );
+            entity_highlighted_spans.insert(key, highlighted_spans);
+        }
+
+        if !image_spans.is_empty() {
+            let key: NodeId<'static> = Id::try_from(label_key.to_string())
+                .expect("`edge_id` is a valid `Id`, so appending `__{from,to}_label` is also valid")
+                .into();
+            entity_image_spans.insert(key, image_spans);
+        }
     }
 
     fn compute_node(

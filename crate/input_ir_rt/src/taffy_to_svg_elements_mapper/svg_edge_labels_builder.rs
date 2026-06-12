@@ -1,7 +1,10 @@
+use disposition_ir_model::node::NodeId;
 use disposition_model_common::Id;
-use disposition_svg_model::{SvgEdgeLabelEndpointInfo, SvgEdgeLabelInfo, SvgTextSpan};
+use disposition_svg_model::{
+    SvgEdgeLabelEndpointInfo, SvgEdgeLabelInfo, SvgImageSpan, SvgTextSpan,
+};
 use disposition_taffy_model::{
-    EdgeIdToEdgeLabelTaffyNodeIds, EntityHighlightedSpans, TaffyNodeCtx,
+    EdgeIdToEdgeLabelTaffyNodeIds, EntityHighlightedSpans, NodeIdToImageSpans, TaffyNodeCtx,
 };
 use taffy::TaffyTree;
 
@@ -10,8 +13,10 @@ use crate::{
     TaffyNodeAbsoluteCoordinatesCalculator,
 };
 
+use super::svg_node_info_builder::svg_md_style_from;
+
 /// Builds [`SvgEdgeLabelInfo`] values from the edge label taffy nodes and
-/// their computed highlighted spans.
+/// their computed markdown spans.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SvgEdgeLabelsBuilder;
 
@@ -22,6 +27,7 @@ impl SvgEdgeLabelsBuilder {
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_label_taffy_nodes: &EdgeIdToEdgeLabelTaffyNodeIds<'id>,
         entity_highlighted_spans: &EntityHighlightedSpans<'id>,
+        entity_image_spans: &NodeIdToImageSpans<'id>,
     ) -> Vec<SvgEdgeLabelInfo<'id>> {
         edge_label_taffy_nodes
             .iter()
@@ -34,21 +40,30 @@ impl SvgEdgeLabelsBuilder {
                 let to_label_key = Id::try_from(format!("{edge_id}__to_label"))
                     .expect("`edge_id` is a valid `Id`, so appending `__to_label` is also valid");
 
-                let from_spans = entity_highlighted_spans.get(&from_label_key);
-                let to_spans = entity_highlighted_spans.get(&to_label_key);
-
                 let from_label =
                     edge_label_taffy_node_ids
                         .from_label_taffy_node_id
                         .and_then(|taffy_node_id| {
-                            Self::endpoint_info_build(taffy_tree, taffy_node_id, from_spans)
+                            Self::endpoint_info_build(
+                                taffy_tree,
+                                taffy_node_id,
+                                &from_label_key,
+                                entity_highlighted_spans,
+                                entity_image_spans,
+                            )
                         });
 
                 let to_label =
                     edge_label_taffy_node_ids
                         .to_label_taffy_node_id
                         .and_then(|taffy_node_id| {
-                            Self::endpoint_info_build(taffy_tree, taffy_node_id, to_spans)
+                            Self::endpoint_info_build(
+                                taffy_tree,
+                                taffy_node_id,
+                                &to_label_key,
+                                entity_highlighted_spans,
+                                entity_image_spans,
+                            )
                         });
 
                 SvgEdgeLabelInfo {
@@ -62,11 +77,18 @@ impl SvgEdgeLabelsBuilder {
 
     /// Builds a [`SvgEdgeLabelEndpointInfo`] for a single label taffy node.
     ///
+    /// The slot's text and image spans (computed via
+    /// `MdSpansComputer::compute_edge_labels`) are looked up by `label_key`,
+    /// and their slot-relative coordinates are offset by the slot's absolute
+    /// position. Markdown styling (`md_style` / Tailwind classes) is preserved.
+    ///
     /// Returns `None` if the layout cannot be read.
-    fn endpoint_info_build(
+    fn endpoint_info_build<'id>(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         taffy_node_id: taffy::NodeId,
-        spans: Option<&Vec<disposition_taffy_model::EntityHighlightedSpan>>,
+        label_key: &Id<'id>,
+        entity_highlighted_spans: &EntityHighlightedSpans<'id>,
+        entity_image_spans: &NodeIdToImageSpans<'id>,
     ) -> Option<SvgEdgeLabelEndpointInfo> {
         let layout = taffy_tree.layout(taffy_node_id).ok()?;
         let AbsoluteCoordinates { x, y } =
@@ -74,16 +96,37 @@ impl SvgEdgeLabelsBuilder {
         let width = layout.size.width;
         let height = layout.size.height;
 
-        let text_spans: Vec<SvgTextSpan> = spans
+        let text_spans: Vec<SvgTextSpan> = entity_highlighted_spans
+            .get(label_key)
             .map(|span_list| {
                 span_list
                     .iter()
-                    .map(|span| {
-                        SvgTextSpan::new(
-                            x + span.x,
-                            y + span.y,
-                            StringXmlEscaper::escape(&span.text),
-                        )
+                    .map(|span| SvgTextSpan {
+                        x: x + span.x,
+                        y: y + span.y,
+                        width: span.width,
+                        height: span.height,
+                        text: StringXmlEscaper::escape(&span.text),
+                        md_style: span.md_style.as_ref().map(svg_md_style_from),
+                        tailwind_classes: span.tailwind_classes.clone(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let image_key: NodeId<'id> = label_key.clone().into();
+        let image_spans: Vec<SvgImageSpan> = entity_image_spans
+            .get(&image_key)
+            .map(|img_spans| {
+                img_spans
+                    .iter()
+                    .map(|span| SvgImageSpan {
+                        x: x + span.x,
+                        y: y + span.y,
+                        width: span.width,
+                        height: span.height,
+                        src: span.src.clone(),
+                        alt: span.alt.clone(),
                     })
                     .collect()
             })
@@ -95,6 +138,7 @@ impl SvgEdgeLabelsBuilder {
             width,
             height,
             text_spans,
+            image_spans,
         })
     }
 }

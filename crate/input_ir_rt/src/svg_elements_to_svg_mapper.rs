@@ -261,9 +261,9 @@ impl SvgElementsToSvgMapper {
             .map(|classes| Self::escape_ids_in_brackets(classes))
             .collect();
         // Markdown span classes -- the inline-code background fill plus every
-        // node and edge-description text-span class. These may contain
-        // arbitrary `fill-[var(...)]` values, so escape them the same way as
-        // entity classes before handing them to `encre_css`.
+        // node, edge-description, and edge-label text-span class. These may
+        // contain arbitrary `fill-[var(...)]` values, so escape them the same
+        // way as entity classes before handing them to `encre_css`.
         let escaped_md_span_classes: Vec<String> = {
             let code_bg_class = MD_CODE_BG_COLOR.fill_class();
             std::iter::once(code_bg_class.as_str())
@@ -283,6 +283,23 @@ impl SvgElementsToSvgMapper {
                         .iter()
                         .flat_map(|edge_desc_info| {
                             edge_desc_info
+                                .text_spans
+                                .iter()
+                                .flat_map(|text_span| text_span.tailwind_classes.iter())
+                        })
+                        .map(|class| class.as_str()),
+                )
+                .chain(
+                    edge_label_infos
+                        .iter()
+                        .flat_map(|edge_label_info| {
+                            edge_label_info
+                                .from_label
+                                .iter()
+                                .chain(edge_label_info.to_label.iter())
+                        })
+                        .flat_map(|endpoint_info| {
+                            endpoint_info
                                 .text_spans
                                 .iter()
                                 .flat_map(|text_span| text_span.tailwind_classes.iter())
@@ -714,12 +731,14 @@ impl SvgElementsToSvgMapper {
     /// Writes edge labels to the SVG content buffer.
     ///
     /// For each [`SvgEdgeLabelInfo`], emits a `<g>` element for the `from`
-    /// label and a `<g>` element for the `to` label (when their `text_spans`
-    /// are non-empty). Each `<g>` carries the edge's Tailwind CSS classes so
-    /// that the label inherits the edge's colour and visibility behaviour.
+    /// label and a `<g>` element for the `to` label (when their text or image
+    /// spans are non-empty). Each `<g>` carries the edge's Tailwind CSS classes
+    /// so that the label inherits the edge's colour and visibility behaviour.
     ///
-    /// The text coordinates in the label's [`SvgTextSpan`]s are absolute (not
-    /// relative to the enclosing `<g>`).
+    /// Label text is rendered with markdown styling (bold, italic, inline
+    /// code, links) and inline images via [`Self::render_text_and_images`],
+    /// matching node and edge description rendering. The span coordinates are
+    /// absolute (not relative to the enclosing `<g>`).
     ///
     /// ```svg
     /// <g id="{edge_id}__from_label" {class_attr}>
@@ -745,48 +764,30 @@ impl SvgElementsToSvgMapper {
             };
 
             if let Some(from_label) = &svg_edge_label_info.from_label
-                && !from_label.text_spans.is_empty()
+                && (!from_label.text_spans.is_empty() || !from_label.image_spans.is_empty())
             {
                 write!(
                     content_buffer,
                     "<g id=\"{edge_id}__from_label\"{class_attr}>"
                 )
                 .unwrap();
-                from_label.text_spans.iter().for_each(|svg_text_span| {
-                    let text_x = svg_text_span.x;
-                    let text_y = svg_text_span.y;
-                    let text_content = &svg_text_span.text;
-                    write!(
-                        content_buffer,
-                        "<text \
-                                x=\"{text_x}\" \
-                                y=\"{text_y}\" \
-                                stroke-width=\"0\" \
-                            >{text_content}</text>"
-                    )
-                    .unwrap();
-                });
+                Self::render_text_and_images(
+                    content_buffer,
+                    &from_label.text_spans,
+                    &from_label.image_spans,
+                );
                 content_buffer.push_str("</g>");
             }
 
             if let Some(to_label) = &svg_edge_label_info.to_label
-                && !to_label.text_spans.is_empty()
+                && (!to_label.text_spans.is_empty() || !to_label.image_spans.is_empty())
             {
                 write!(content_buffer, "<g id=\"{edge_id}__to_label\"{class_attr}>").unwrap();
-                to_label.text_spans.iter().for_each(|svg_text_span| {
-                    let text_x = svg_text_span.x;
-                    let text_y = svg_text_span.y;
-                    let text_content = &svg_text_span.text;
-                    write!(
-                        content_buffer,
-                        "<text \
-                                x=\"{text_x}\" \
-                                y=\"{text_y}\" \
-                                stroke-width=\"0\" \
-                            >{text_content}</text>"
-                    )
-                    .unwrap();
-                });
+                Self::render_text_and_images(
+                    content_buffer,
+                    &to_label.text_spans,
+                    &to_label.image_spans,
+                );
                 content_buffer.push_str("</g>");
             }
         });

@@ -15,6 +15,7 @@
 * Markdown: Fix unintentional wrapping of last character. ([#46][#46])
 * Markdown: Improve inline code background position and rounded corner. ([#46][#46])
 * Markdown: Style inline code background and link text via Tailwind classes backed by light / dark theme variables, improving link contrast in dark mode. ([#46][#46])
+* Markdown: Render edge labels as markdown, so they support inline styling (bold, italic, inline code, links) and images like node and edge descriptions. ([#46][#46])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43

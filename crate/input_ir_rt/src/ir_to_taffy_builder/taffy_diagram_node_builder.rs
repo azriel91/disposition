@@ -686,6 +686,7 @@ impl TaffyDiagramNodeBuilder {
             ir_node_id,
             primary_node_id,
             ctx.node_face_edges,
+            ctx,
         );
         state.edge_label_leaves.extend(new_label_leaves);
         state

@@ -65,3 +65,11 @@ thing_descs:
     * ~~manual deploy~~ automated deploy
 edge_descs:
   edge_dep_repo_ci__0: on **push**
+
+edge_labels:
+  edge_dep_repo_ci__0:
+    from: |-
+      * **repo:** `azriel91/disposition`
+      * **branch:** `main`
+    to: |-
+      github: <https://github.com/azriel91/disposition>

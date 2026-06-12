@@ -1,12 +1,9 @@
-use disposition_ir_model::{
-    edge::{EdgeId, EdgeLabels},
-    node::NodeId,
-};
-use disposition_model_common::{edge::EdgeDescs, Id, Map};
+use disposition_ir_model::{edge::EdgeId, node::NodeId};
+use disposition_model_common::{edge::EdgeDescs, Map};
 use disposition_taffy_model::{
     taffy::{self, TaffyTree},
-    DiagramLod, EdgeDescriptionTaffyNodes, EdgeLabelTaffyNodeIds, EntityHighlightedSpan,
-    EntityHighlightedSpans, NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    DiagramLod, EdgeDescriptionTaffyNodes, EntityHighlightedSpan, EntityHighlightedSpans,
+    NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 
 use super::{
@@ -14,32 +11,29 @@ use super::{
     text_measure::{line_width_measure, wrap_text_monospace},
 };
 
-/// Computes highlighted text spans for diagram nodes, edge label slots, and
-/// edge description containers after taffy layout is complete.
+/// Computes highlighted text spans for diagram nodes and edge description
+/// containers after taffy layout is complete.
 pub(crate) struct HighlightedSpansComputer;
 
 impl HighlightedSpansComputer {
-    /// Computes highlighted text spans for all entity nodes and edge label
-    /// slots after taffy layout is complete.
+    /// Computes highlighted text spans for all entity nodes after taffy layout
+    /// is complete.
     ///
     /// Runs once per layout pass instead of inside `measure()`, which may be
     /// called multiple times per node during layout computation.
     ///
-    /// Nodes and edge label slots are sized by layout; this pass reads the
-    /// computed widths to determine line-wrapping and span positions.
+    /// Nodes are sized by layout; this pass reads the computed widths to
+    /// determine line-wrapping and span positions. Edge label spans are
+    /// computed separately by `MdSpansComputer::compute_edge_labels`.
     pub(crate) fn compute(
         ctx: TaffyBuildCtx<'_>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
-        edge_label_taffy_nodes: &Map<EdgeId<'static>, EdgeLabelTaffyNodeIds>,
-        edge_labels: &EdgeLabels<'static>,
     ) -> EntityHighlightedSpans<'static> {
         let char_width = ctx.char_width;
-        let lod = ctx.lod;
 
-        let mut entity_highlighted_spans = EntityHighlightedSpans::with_capacity(
-            node_id_to_taffy.len() + edge_label_taffy_nodes.len(),
-        );
+        let mut entity_highlighted_spans =
+            EntityHighlightedSpans::with_capacity(node_id_to_taffy.len());
 
         let line_height = TEXT_LINE_HEIGHT;
 
@@ -184,66 +178,10 @@ impl HighlightedSpansComputer {
                 entity_highlighted_spans.insert(node_id.as_ref().clone(), highlighted_spans);
             });
 
-        // === Edge label spans === //
-        //
-        // For DiagramLod::Normal, compute highlighted spans for edge label
-        // slots. The from_label slot uses `edge_label.from` as its text and
-        // the to_label slot uses `edge_label.to`, allowing each endpoint to
-        // show different text. Spans are stored under
-        // `{edge_id}__from_label` and `{edge_id}__to_label` keys.
-        if matches!(lod, DiagramLod::Normal) {
-            edge_label_taffy_nodes
-                .iter()
-                .for_each(|(edge_id, edge_label_taffy_node_ids)| {
-                    let Some(edge_label) = edge_labels.get(edge_id) else {
-                        return;
-                    };
-
-                    // Compute and store highlighted spans for the from_label slot.
-                    if let Some(from_taffy_node_id) =
-                        edge_label_taffy_node_ids.from_label_taffy_node_id
-                    {
-                        let from_text = edge_label.from.as_str();
-                        if let Some(from_spans) = Self::compute_edge_label_slot(
-                            taffy_tree,
-                            from_taffy_node_id,
-                            from_text,
-                            char_width,
-                            line_height,
-                        ) {
-                            let from_label_key =
-                                Id::try_from(format!("{edge_id}__from_label"))
-                                    .expect("`edge_id` is a valid `Id`, so appending `__from_label` is also valid");
-                            entity_highlighted_spans.insert(from_label_key, from_spans);
-                        }
-                    }
-
-                    // Compute and store highlighted spans for the to_label slot.
-                    if let Some(to_taffy_node_id) =
-                        edge_label_taffy_node_ids.to_label_taffy_node_id
-                    {
-                        let to_text = edge_label.to.as_str();
-                        if let Some(to_spans) = Self::compute_edge_label_slot(
-                            taffy_tree,
-                            to_taffy_node_id,
-                            to_text,
-                            char_width,
-                            line_height,
-                        ) {
-                            let to_label_key =
-                                Id::try_from(format!("{edge_id}__to_label"))
-                                    .expect("`edge_id` is a valid `Id`, so appending `__to_label` is also valid");
-                            entity_highlighted_spans.insert(to_label_key, to_spans);
-                        }
-                    }
-                });
-        }
-
         entity_highlighted_spans
     }
 
-    /// Computes highlighted spans for a single edge label slot or edge
-    /// description leaf node.
+    /// Computes highlighted spans for a single edge description leaf node.
     ///
     /// Returns `None` if `text` is empty or the taffy layout cannot be read.
     fn compute_edge_label_slot(
