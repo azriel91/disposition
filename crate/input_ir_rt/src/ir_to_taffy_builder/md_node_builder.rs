@@ -79,10 +79,10 @@ impl MdNodeBuilder {
     ///
     /// Only consecutive list items at the *same* nesting depth stack tightly
     /// (no blank line). Every other adjacency gets a single `TEXT_LINE_HEIGHT`
-    /// blank line: between non-list blocks, between a list and a non-list block,
-    /// when entering a deeper nesting level, and when leaving one (a dedent to a
-    /// shallower item always gets exactly one blank line, never one per level
-    /// popped).
+    /// blank line: between non-list blocks, between a list and a non-list
+    /// block, when entering a deeper nesting level, and when leaving one (a
+    /// dedent to a shallower item always gets exactly one blank line, never
+    /// one per level popped).
     fn block_margin_top(prev_block: Option<&MdBlock>, md_block: &MdBlock) -> f32 {
         let Some(prev_block) = prev_block else {
             return 0.0;

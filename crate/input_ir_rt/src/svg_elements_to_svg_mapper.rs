@@ -481,7 +481,11 @@ impl SvgElementsToSvgMapper {
                 let rect_y = text_y - rect_h + CODE_BG_DESCENT_OFFSET;
                 let path_d =
                     Self::code_bg_path_d(text_x, rect_y, rect_w, rect_h, CODE_BG_CORNER_RADIUS);
-                write!(content_buffer, "<path d=\"{path_d}\" class=\"md-code-bg\" />").unwrap();
+                write!(
+                    content_buffer,
+                    "<path d=\"{path_d}\" class=\"md-code-bg\" />"
+                )
+                .unwrap();
             }
 
             // Wrap in <a> element if this is a link
@@ -561,7 +565,8 @@ impl SvgElementsToSvgMapper {
     /// The path proceeds clockwise from just after the top-left corner, drawing
     /// each corner with an elliptical arc. The radius is clamped so it never
     /// exceeds half the width or height. Example: a `75x17` box at `(96, 109)`
-    /// with radius `3` yields a `d` starting `M 99 109 H 168 A 3 3 0 0 1 171 112`.
+    /// with radius `3` yields a `d` starting `M 99 109 H 168 A 3 3 0 0 1 171
+    /// 112`.
     fn code_bg_path_d(x: f32, y: f32, width: f32, height: f32, radius: f32) -> String {
         let r = radius.clamp(0.0, (width / 2.0).min(height / 2.0));
         let x_r = x + r;

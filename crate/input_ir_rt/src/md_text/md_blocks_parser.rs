@@ -14,8 +14,9 @@ pub(crate) struct MdBlock {
     /// List-item metadata when this block is a list item, otherwise `None`
     /// (paragraphs / headings).
     ///
-    /// Used by `MdNodeBuilder` to indent nested items (via [`MdListItem::depth`])
-    /// and to stack list items tightly (no blank line between siblings).
+    /// Used by `MdNodeBuilder` to indent nested items (via
+    /// [`MdListItem::depth`]) and to stack list items tightly (no blank
+    /// line between siblings).
     pub(crate) list_item: Option<MdListItem>,
 }
 
@@ -393,7 +394,8 @@ impl MdBlocksParser {
             .unwrap_or('-')
     }
 
-    /// Inserts a plain-styled marker token at the front of each list-item block.
+    /// Inserts a plain-styled marker token at the front of each list-item
+    /// block.
     ///
     /// Markers are computed after the whole document is parsed so that ordered
     /// markers can be right-aligned: within each list (grouped by `list_id`),
@@ -411,12 +413,15 @@ impl MdBlocksParser {
         let marker_cores: Vec<Option<String>> = blocks
             .iter()
             .map(|block| {
-                block.list_item.as_ref().map(|list_item| match &list_item.marker {
-                    MdListMarker::Ordered { number } => {
-                        Self::ordered_marker_format(*number, list_item.depth)
-                    }
-                    MdListMarker::Unordered { bullet } => bullet.to_string(),
-                })
+                block
+                    .list_item
+                    .as_ref()
+                    .map(|list_item| match &list_item.marker {
+                        MdListMarker::Ordered { number } => {
+                            Self::ordered_marker_format(*number, list_item.depth)
+                        }
+                        MdListMarker::Unordered { bullet } => bullet.to_string(),
+                    })
             })
             .collect();
 
