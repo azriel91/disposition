@@ -504,11 +504,20 @@ impl SvgElementsToSvgMapper {
                 String::new()
             };
 
+            // Preserve whitespace for markdown spans so the leading spaces that
+            // right-align ordered list markers (e.g. `"   i."`) are rendered
+            // instead of collapsed. Legacy (non-markdown) spans keep the default.
+            let space_attr = if svg_text_span.md_style.is_some() {
+                " xml:space=\"preserve\""
+            } else {
+                ""
+            };
+
             // zero stroke-width because we want the tailwind classes from `<g>` to
             // apply to the `<path>`, but not to the `<text>`
             write!(
                 content_buffer,
-                "<text x=\"{text_x}\" y=\"{text_y}\" stroke-width=\"0\"{class_attr}>\
+                "<text x=\"{text_x}\" y=\"{text_y}\" stroke-width=\"0\"{space_attr}{class_attr}>\
                     {text_content}</text>",
             )
             .unwrap();

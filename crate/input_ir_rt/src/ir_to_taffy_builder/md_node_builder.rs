@@ -83,9 +83,11 @@ impl MdNodeBuilder {
     /// level (a parent item followed by its first nested item), which keeps a
     /// blank line to separate the sublist.
     fn block_margin_top(prev_block: Option<&MdBlock>, md_block: &MdBlock) -> f32 {
+        let prev_depth = prev_block.and_then(|prev_block| Self::block_list_depth(prev_block));
+        let curr_depth = Self::block_list_depth(md_block);
         match prev_block {
             None => 0.0,
-            Some(prev_block) => match (prev_block.list_depth, md_block.list_depth) {
+            Some(_) => match (prev_depth, curr_depth) {
                 (Some(prev_depth), Some(curr_depth)) => {
                     if curr_depth > prev_depth {
                         TEXT_LINE_HEIGHT
@@ -101,11 +103,15 @@ impl MdNodeBuilder {
     /// Returns the left margin (indentation) for `md_block`, indenting nested
     /// list items by 4 character widths per nesting level.
     fn block_margin_left(md_block: &MdBlock, char_width: f32) -> f32 {
-        md_block
-            .list_depth
-            .map_or(0.0, |list_depth| {
-                (char_width * 4.0).round() * f32::from(list_depth)
-            })
+        Self::block_list_depth(md_block).map_or(0.0, |list_depth| {
+            (char_width * 4.0).round() * f32::from(list_depth)
+        })
+    }
+
+    /// Returns the list-nesting depth of `md_block`, or `None` for non-list
+    /// blocks (paragraphs / headings).
+    fn block_list_depth(md_block: &MdBlock) -> Option<u8> {
+        md_block.list_item.as_ref().map(|list_item| list_item.depth)
     }
 
     /// Builds the `block_col_node` for one `MdBlock`.
