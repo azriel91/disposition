@@ -24,6 +24,7 @@ use disposition_ir_model::{
     IrDiagram,
 };
 use disposition_model_common::{edge::EdgeGroupId, theme::Css, Id, Map, RankDir, Set};
+use disposition_taffy_model::{MD_CODE_BG_COLOR, MD_LINK_COLOR};
 
 use crate::{
     edge_face_assigner::EdgeFaceAssigner, node_ranks_calculator::NodeRanksCalculator,
@@ -209,6 +210,27 @@ impl InputToIrDiagramMapper {
                         connector_classes.clone(),
                     );
                 });
+        }
+
+        // 14e. Register the markdown span colours (inline-code background and
+        //      link text) with `css_theme_vars`, so they emit `--tw-...` CSS
+        //      variables that flip per the configured `DarkModeCssSelector`
+        //      (matching how node/edge colours are themed). Markdown styled
+        //      spans only appear for node/edge descriptions, so this is gated
+        //      on the diagram having any descriptions. The colour parts come
+        //      from `disposition_taffy_model` so the registered variable name
+        //      matches the `fill-[var(--tw-...)]` classes the spans reference.
+        if !thing_descs.is_empty() || !edge_descs.is_empty() {
+            css_theme_vars.register(
+                MD_CODE_BG_COLOR.color,
+                MD_CODE_BG_COLOR.shade_light,
+                MD_CODE_BG_COLOR.shade_dark,
+            );
+            css_theme_vars.register(
+                MD_LINK_COLOR.color,
+                MD_LINK_COLOR.shade_light,
+                MD_LINK_COLOR.shade_dark,
+            );
         }
 
         // 15. Compute NodeNestingInfos from node_hierarchy

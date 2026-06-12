@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::MdHeadingLevel;
+use crate::{MdHeadingLevel, MD_LINK_COLOR};
 
 /// Inline markdown formatting active when a token is emitted.
 ///
@@ -71,6 +71,10 @@ impl MdStyle {
         }
         if self.link_dest.is_some() {
             classes.push("underline".to_string());
+            // Link text colour, with a light/dark pair so URLs stay legible in
+            // both modes. References a CSS theme variable registered with
+            // `CssThemeVars`; see `MD_LINK_COLOR`.
+            classes.push(MD_LINK_COLOR.fill_class());
         }
 
         classes
