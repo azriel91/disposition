@@ -77,26 +77,22 @@ impl MdNodeBuilder {
 
     /// Returns the top margin (blank-line spacing) to place above `md_block`.
     ///
-    /// Non-list blocks (paragraphs, headings) keep a full `TEXT_LINE_HEIGHT`
-    /// blank line between them and their neighbours. Consecutive list items
-    /// stack tightly (no blank line), except when entering a deeper nesting
-    /// level (a parent item followed by its first nested item), which keeps a
-    /// blank line to separate the sublist.
+    /// Only consecutive list items at the *same* nesting depth stack tightly
+    /// (no blank line). Every other adjacency gets a single `TEXT_LINE_HEIGHT`
+    /// blank line: between non-list blocks, between a list and a non-list block,
+    /// when entering a deeper nesting level, and when leaving one (a dedent to a
+    /// shallower item always gets exactly one blank line, never one per level
+    /// popped).
     fn block_margin_top(prev_block: Option<&MdBlock>, md_block: &MdBlock) -> f32 {
-        let prev_depth = prev_block.and_then(|prev_block| Self::block_list_depth(prev_block));
-        let curr_depth = Self::block_list_depth(md_block);
-        match prev_block {
-            None => 0.0,
-            Some(_) => match (prev_depth, curr_depth) {
-                (Some(prev_depth), Some(curr_depth)) => {
-                    if curr_depth > prev_depth {
-                        TEXT_LINE_HEIGHT
-                    } else {
-                        0.0
-                    }
-                }
-                _ => TEXT_LINE_HEIGHT,
-            },
+        let Some(prev_block) = prev_block else {
+            return 0.0;
+        };
+        match (
+            Self::block_list_depth(prev_block),
+            Self::block_list_depth(md_block),
+        ) {
+            (Some(prev_depth), Some(curr_depth)) if prev_depth == curr_depth => 0.0,
+            _ => TEXT_LINE_HEIGHT,
         }
     }
 
