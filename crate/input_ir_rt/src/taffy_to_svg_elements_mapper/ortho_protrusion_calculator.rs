@@ -62,6 +62,20 @@ const ARROW_HEAD_CLEARANCE_PX: f32 = 3.0;
 /// `11.0` -- 8.0 px arrow head + 3.0 px clearance.
 const TO_PROTRUSION_MIN_PX: f32 = ARROW_HEAD_LENGTH as f32 + ARROW_HEAD_CLEARANCE_PX;
 
+/// Extra clearance in pixels added beyond an edge label's depth when flooring
+/// a protrusion so the perpendicular stub clears the label.
+///
+/// The edge path contacts the inner node face directly, but an edge label
+/// occupies the near part of the rank gap (between the inner node face and the
+/// envelope edge). The protrusion is floored to the label's depth plus this
+/// clearance so the orthogonal bend happens just past the label rather than
+/// inside it.
+///
+/// # Example values
+///
+/// `3.0` -- the bend starts at least 3 px beyond the label's outer edge.
+const LABEL_CLEARANCE_PX: f32 = 3.0;
+
 /// Computes orthogonal protrusion parameters globally across all edge
 /// groups.
 ///
@@ -722,7 +736,102 @@ impl OrthoProtrusionCalculator {
             &mut result,
         );
 
+        // === Step 7: Clear edge label depth === //
+        //
+        // The edge path contacts the inner node face directly, but an edge
+        // label occupies the near part of the rank gap (between the inner node
+        // face and the envelope edge). Floor each endpoint's protrusion to the
+        // label's depth so the perpendicular stub reaches just past the label
+        // before the orthogonal bend, preventing the path and its bends from
+        // routing through the label. Endpoints without a label on their face
+        // have zero label depth and are unaffected.
+        Self::protrusions_clear_label_depth(
+            all_pass1_groups,
+            &all_spacer_coordinates,
+            svg_node_info_map,
+            node_nesting_infos,
+            &mut result,
+        );
+
         result
+    }
+
+    /// Floors each edge endpoint's protrusion so the perpendicular stub clears
+    /// any edge label sitting on that endpoint's face.
+    ///
+    /// The label depth is the distance between the inner node face and the
+    /// envelope face on the protrusion axis (see [`Self::label_depth`]). The
+    /// floor is capped at the endpoint's rank gap allowance so the stub never
+    /// overshoots into the opposite node.
+    fn protrusions_clear_label_depth<'id>(
+        all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+        all_spacer_coordinates: &[Vec<Vec<SpacerCoordinates>>],
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
+                let spacer_coordinates = &all_spacer_coordinates[group_idx][edge_idx];
+
+                if let Some(from_face) = pass1_info.from_face
+                    && let Some(&from_info) = svg_node_info_map.get(&pass1_info.edge.from)
+                {
+                    let depth = Self::label_depth(from_info, from_face);
+                    if depth > 0.0 {
+                        let gap = Self::rank_gap_px(
+                            pass1_info,
+                            from_face,
+                            true,
+                            svg_node_info_map,
+                            spacer_coordinates,
+                            node_nesting_infos,
+                        );
+                        let floor = (depth + LABEL_CLEARANCE_PX).min(gap * MAX_GAP_FRACTION);
+                        let params = &mut result[group_idx][edge_idx];
+                        params.from_protrusion = params.from_protrusion.max(floor);
+                    }
+                }
+
+                if let Some(to_face) = pass1_info.to_face
+                    && let Some(&to_info) = svg_node_info_map.get(&pass1_info.edge.to)
+                {
+                    let depth = Self::label_depth(to_info, to_face);
+                    if depth > 0.0 {
+                        let gap = Self::rank_gap_px(
+                            pass1_info,
+                            to_face,
+                            false,
+                            svg_node_info_map,
+                            spacer_coordinates,
+                            node_nesting_infos,
+                        );
+                        let floor = (depth + LABEL_CLEARANCE_PX).min(gap * MAX_GAP_FRACTION);
+                        let params = &mut result[group_idx][edge_idx];
+                        params.to_protrusion = params.to_protrusion.max(floor);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Returns the depth of an edge label on a node's face, i.e. the distance
+    /// between the inner node face and the envelope face along the
+    /// face-perpendicular axis.
+    ///
+    /// Returns `0.0` when the node has no label wrapper on that face (the
+    /// envelope face coincides with the inner node face).
+    fn label_depth(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+        let depth = match face {
+            NodeFace::Bottom => {
+                (info.envelope_y + info.envelope_height_collapsed)
+                    - (info.y + info.height_collapsed)
+            }
+            NodeFace::Top => info.y - info.envelope_y,
+            NodeFace::Right => (info.envelope_x + info.envelope_width) - (info.x + info.width),
+            NodeFace::Left => info.x - info.envelope_x,
+        };
+        depth.max(0.0)
     }
 
     /// Assigns protrusion depths to all endpoints in a single rank gap.

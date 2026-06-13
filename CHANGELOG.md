@@ -16,6 +16,8 @@
 * Markdown: Improve inline code background position and rounded corner. ([#46][#46])
 * Markdown: Style inline code background and link text via Tailwind classes backed by light / dark theme variables, improving link contrast in dark mode. ([#46][#46])
 * Markdown: Render edge labels as markdown, so they support inline styling (bold, italic, inline code, links) and images like node and edge descriptions. ([#46][#46])
+* Measure edge label container sizes when routing edges, so edge paths and arrow heads clear edge labels (while still contacting the node faces directly) instead of overlapping them. ([#46][#46])
+* Give edge labels on a node's top face a one-line clearance so their text no longer overlaps the node below. ([#46][#46])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43

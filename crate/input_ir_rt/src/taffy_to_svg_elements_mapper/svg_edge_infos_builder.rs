@@ -19,6 +19,7 @@ use disposition_model_common::edge::EdgeGroupId;
 
 use crate::{
     taffy_to_svg_elements_mapper::{
+        arrow_head_builder::ARROW_HEAD_HALF_WIDTH,
         edge_face_contact_tracker::EdgeFaceContactTracker,
         edge_model::{
             EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeIdAndFace,
@@ -1231,8 +1232,13 @@ impl SvgEdgeInfosBuilder {
                         taffy_node_id,
                         layout,
                     );
-                // Route to the entry-side (left x) edge of the label.
-                let label_contact_x = label_abs_x;
+                // Route just outside the entry-side (left x) edge of the
+                // label, nudged out by the arrow head half-width so the arrow
+                // head sits in the node's side padding beside the label rather
+                // than overlapping its content. The label is always inset from
+                // the node edge by more than this, so the contact stays on the
+                // node face.
+                let label_contact_x = label_abs_x - ARROW_HEAD_HALF_WIDTH as f32;
                 let face_midpoint_x = node_info.x + node_info.width / 2.0;
                 Some(label_contact_x - face_midpoint_x)
             }
@@ -1246,8 +1252,11 @@ impl SvgEdgeInfosBuilder {
                         taffy_node_id,
                         layout,
                     );
-                // Route to the entry-side (top y) edge of the label.
-                let label_contact_y = label_abs_y;
+                // Route just outside the entry-side (top y) edge of the label,
+                // nudged out by the arrow head half-width so the arrow head
+                // sits in the node's side padding beside the label rather than
+                // overlapping its content.
+                let label_contact_y = label_abs_y - ARROW_HEAD_HALF_WIDTH as f32;
                 let face_midpoint_y = node_info.y + node_info.height_collapsed / 2.0;
                 Some(label_contact_y - face_midpoint_y)
             }

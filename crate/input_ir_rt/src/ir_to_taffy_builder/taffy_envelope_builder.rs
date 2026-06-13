@@ -8,9 +8,9 @@ use disposition_taffy_model::{
         style_helpers::{auto, line},
         Display, FlexDirection, JustifyContent, Rect, Style, TaffyTree,
     },
-    DiagramLod, EdgeLabelCtx, MdNodeTaffyIds, TaffyNodeCtx,
+    DiagramLod, EdgeLabelCtx, MdNodeTaffyIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
-use taffy::LengthPercentage;
+use taffy::{LengthPercentage, LengthPercentageAuto};
 
 use crate::md_text::md_blocks_parser::MdBlocksParser;
 
@@ -146,6 +146,18 @@ impl TaffyEnvelopeBuilder {
         );
 
         // edge_wrapper_top: row 1, col 2 (top-middle cell of the 3x3 grid)
+        //
+        // When this face carries any labels, add a one-line bottom margin so
+        // the label lifts off the node below it. A Top-face label sits directly
+        // above the node, and its text baseline is at the line-box bottom (so
+        // glyph descenders would otherwise spill into the node). The margin is
+        // gated on the wrapper having labels so label-less nodes (0-height top
+        // wrapper) gain no spurious vertical space.
+        let edge_wrapper_top_margin_bottom = if top_leaf_ids.is_empty() {
+            LengthPercentageAuto::length(0.0)
+        } else {
+            LengthPercentageAuto::length(TEXT_LINE_HEIGHT)
+        };
         let edge_wrapper_top = taffy_tree
             .new_with_children(
                 Style {
@@ -159,6 +171,12 @@ impl TaffyEnvelopeBuilder {
                         right: NODE_SIDE_PADDING_PX,
                         top: zero,
                         bottom: zero,
+                    },
+                    margin: Rect {
+                        left: LengthPercentageAuto::length(0.0),
+                        right: LengthPercentageAuto::length(0.0),
+                        top: LengthPercentageAuto::length(0.0),
+                        bottom: edge_wrapper_top_margin_bottom,
                     },
                     ..Default::default()
                 },
