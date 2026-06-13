@@ -26,8 +26,8 @@ impl ArrowHeadBuilder {
     /// Returns a positioned arrowhead path string for a **dependency** edge.
     ///
     /// The arrowhead is a closed V whose tip sits at the `to` node end of the
-    /// edge (the first point of the SVG path, since edge paths are built in
-    /// reverse order).
+    /// edge (the last point of the SVG path, since edge paths run from the
+    /// `from` node to the `to` node).
     pub(super) fn build_static_arrow_head(edge_path: &BezPath) -> BezPath {
         let (tip, direction) = Self::tip_and_direction(edge_path);
 
@@ -85,50 +85,78 @@ impl ArrowHeadBuilder {
     /// Extracts the tip position and approach direction at the `to` node end of
     /// an edge path.
     ///
-    /// The tip is the first point of the path (`MoveTo`).  The direction points
-    /// *toward* the `to` node (i.e. opposite to the path's tangent at its
-    /// start), which is the direction the arrowhead should face.
+    /// The tip is the last point of the path (the final segment's endpoint).
+    /// The direction is the path's incoming tangent at that point, which points
+    /// *toward* the `to` node -- the direction the arrowhead should face.
     fn tip_and_direction(edge_path: &BezPath) -> (Point, Point) {
         let elements = edge_path.elements();
 
-        let tip = match elements.first() {
-            Some(PathEl::MoveTo(p)) => *p,
-            _ => return (Point::ORIGIN, Point::new(1.0, 0.0)),
-        };
+        // The point preceding the final segment, used as the tangent origin
+        // when the last segment is a straight line.
+        let prev_anchor = elements
+            .len()
+            .checked_sub(2)
+            .and_then(|index| elements.get(index))
+            .and_then(Self::element_anchor_point);
 
-        // Tangent at the start of the first segment after the MoveTo.
-        // For a cubic `M P0 C P1 P2 P3`, tangent at P0 = P1 − P0.
-        // If P1 == P0 (degenerate), fall back to P2 − P0, then P3 − P0.
-        let tangent = match elements.get(1) {
+        // Tip is the endpoint of the final segment; the incoming tangent is the
+        // vector from the last control point (or preceding anchor) to the tip.
+        // For a cubic `... C P1 P2 P3`, tangent at P3 = P3 − P2. If P2 == P3
+        // (degenerate), fall back to P3 − P1, then P3 − prev_anchor.
+        let (tip, tangent) = match elements.last() {
             Some(PathEl::CurveTo(p1, p2, p3)) => {
-                let t = Point::new(p1.x - tip.x, p1.y - tip.y);
-                if t.x.abs() > 1e-9 || t.y.abs() > 1e-9 {
+                let tip = *p3;
+                let t = Point::new(tip.x - p2.x, tip.y - p2.y);
+                let tangent = if t.x.abs() > 1e-9 || t.y.abs() > 1e-9 {
                     t
                 } else {
-                    let t2 = Point::new(p2.x - tip.x, p2.y - tip.y);
+                    let t2 = Point::new(tip.x - p1.x, tip.y - p1.y);
                     if t2.x.abs() > 1e-9 || t2.y.abs() > 1e-9 {
                         t2
                     } else {
-                        Point::new(p3.x - tip.x, p3.y - tip.y)
+                        prev_anchor
+                            .map(|prev| Point::new(tip.x - prev.x, tip.y - prev.y))
+                            .unwrap_or(Point::new(1.0, 0.0))
                     }
-                }
+                };
+                (tip, tangent)
             }
-            Some(PathEl::LineTo(p)) => Point::new(p.x - tip.x, p.y - tip.y),
+            Some(PathEl::LineTo(p)) => {
+                let tip = *p;
+                let tangent = prev_anchor
+                    .map(|prev| Point::new(tip.x - prev.x, tip.y - prev.y))
+                    .unwrap_or(Point::new(1.0, 0.0));
+                (tip, tangent)
+            }
             Some(PathEl::QuadTo(p1, p2)) => {
-                let t = Point::new(p1.x - tip.x, p1.y - tip.y);
-                if t.x.abs() > 1e-9 || t.y.abs() > 1e-9 {
+                let tip = *p2;
+                let t = Point::new(tip.x - p1.x, tip.y - p1.y);
+                let tangent = if t.x.abs() > 1e-9 || t.y.abs() > 1e-9 {
                     t
                 } else {
-                    Point::new(p2.x - tip.x, p2.y - tip.y)
-                }
+                    prev_anchor
+                        .map(|prev| Point::new(tip.x - prev.x, tip.y - prev.y))
+                        .unwrap_or(Point::new(1.0, 0.0))
+                };
+                (tip, tangent)
             }
-            _ => Point::new(1.0, 0.0),
+            Some(PathEl::MoveTo(p)) => return (*p, Point::new(1.0, 0.0)),
+            _ => return (Point::ORIGIN, Point::new(1.0, 0.0)),
         };
 
-        // The arrowhead should point *toward* the to-node, which is opposite
-        // to the path's outgoing tangent at the start.
-        let direction = Point::new(-tangent.x, -tangent.y);
+        // The incoming tangent already points *toward* the to-node, which is
+        // the direction the arrowhead should face.
+        (tip, tangent)
+    }
 
-        (tip, direction)
+    /// Returns the anchor (end) point of a path element, or `None` for
+    /// `ClosePath` which has no anchor point of its own.
+    fn element_anchor_point(element: &PathEl) -> Option<Point> {
+        match element {
+            PathEl::MoveTo(p) | PathEl::LineTo(p) => Some(*p),
+            PathEl::CurveTo(_, _, p) => Some(*p),
+            PathEl::QuadTo(_, p) => Some(*p),
+            PathEl::ClosePath => None,
+        }
     }
 }

@@ -43,15 +43,13 @@ impl EdgePathBuilderPass2Ortho {
     /// `EdgePathBuilderPass2Curve::build_spacer_edge_path`
     /// but uses right-angle segments instead of bezier curves:
     ///
-    /// 1. An orthogonal segment from `end` (to-face) to the last spacer's exit.
-    /// 2. A straight line through each spacer (exit to entry, in reversed
-    ///    order).
+    /// 1. An orthogonal segment from `start` (from-face) to the first spacer's
+    ///    entry.
+    /// 2. A straight line through each spacer (entry to exit).
     /// 3. Orthogonal segments between adjacent spacers.
-    /// 4. An orthogonal segment from the first spacer's entry to `start`
-    ///    (from-face).
+    /// 4. An orthogonal segment from the last spacer's exit to `end` (to-face).
     ///
-    /// The path is built in reverse order (from `end` to `start`) for
-    /// correct SVG rendering direction.
+    /// The path runs from the `from` node to the `to` node.
     ///
     /// Spacer protrusions extend the path past each spacer boundary so
     /// that the routing legs clear node faces. Every direction change
@@ -77,9 +75,9 @@ impl EdgePathBuilderPass2Ortho {
         // === Collect waypoints === //
         //
         // Build an ordered list of waypoints that the path must visit,
-        // each annotated with a direction. The path is constructed in
-        // reverse (end -> start) for SVG rendering, so waypoints are
-        // collected in that order.
+        // each annotated with a direction. The path runs from `start`
+        // (from-node) to `end` (to-node), so waypoints are collected in
+        // that order.
         //
         // A waypoint is a coordinate + direction. Between consecutive
         // waypoints, a multi-leg orthogonal segment with rounded
@@ -87,93 +85,14 @@ impl EdgePathBuilderPass2Ortho {
 
         let mut waypoints: Vec<Waypoint> = Vec::new();
 
-        // --- To-node contact point and protrusion --- //
-        let to_dir = Self::face_outward_direction(to_face);
+        // --- From-node contact point and protrusion --- //
+        let from_dir = Self::face_outward_direction(from_face);
 
         waypoints.push(Waypoint {
-            x: end_x,
-            y: end_y,
-            dir: to_dir,
+            x: start_x,
+            y: start_y,
+            dir: from_dir,
         });
-
-        if protrusion.to_protrusion > 1e-3 {
-            let (eff_end_x, eff_end_y) =
-                Self::protrusion_offset(end_x, end_y, to_face, protrusion.to_protrusion);
-            waypoints.push(Waypoint {
-                x: eff_end_x,
-                y: eff_end_y,
-                dir: to_dir,
-            });
-        }
-
-        // --- Spacer waypoints (in reverse order) --- //
-        let spacer_count = spacers.len();
-        for (rev_index, spacer) in spacers.iter().rev().enumerate() {
-            let (sdx, sdy) = Self::spacer_passthrough_direction(spacer);
-
-            // Original (forward) index of this spacer.
-            let fwd_index = spacer_count - 1 - rev_index;
-
-            let spacer_prot = protrusion
-                .spacer_protrusions
-                .get(fwd_index)
-                .copied()
-                .unwrap_or_default();
-
-            // Spacer exit side (with protrusion extending past exit).
-            //
-            // The protrusion extends the path past the spacer exit in
-            // the passthrough direction, so that the routing leg that
-            // connects to this spacer does not run along a node face.
-            let exit_prot_x = spacer.exit_x + sdx * spacer_prot.exit_protrusion;
-            let exit_prot_y = spacer.exit_y + sdy * spacer_prot.exit_protrusion;
-
-            waypoints.push(Waypoint {
-                x: exit_prot_x,
-                y: exit_prot_y,
-                // Direction entering this waypoint from the previous
-                // segment (reversed passthrough, since we're building
-                // the path in reverse).
-                dir: (-sdx, -sdy),
-            });
-
-            // Spacer exit (actual coordinate).
-            waypoints.push(Waypoint {
-                x: spacer.exit_x,
-                y: spacer.exit_y,
-                dir: (-sdx, -sdy),
-            });
-
-            // Spacer entry (actual coordinate) -- straight through.
-            waypoints.push(Waypoint {
-                x: spacer.entry_x,
-                y: spacer.entry_y,
-                dir: (-sdx, -sdy),
-            });
-
-            // Spacer entry side (with protrusion extending past entry).
-            //
-            // Only add the entry-side protrusion if this is NOT the
-            // last spacer in the reversed iteration. If it IS the last
-            // (i.e. the first spacer in original order), the from-node
-            // protrusion handles the extension on that side.
-            //
-            // Also, between consecutive spacers in the same rank gap,
-            // both the exit protrusion of the next spacer and the entry
-            // protrusion of this spacer serve to keep the routing leg
-            // clear of node faces.
-            let entry_prot_x = spacer.entry_x - sdx * spacer_prot.entry_protrusion;
-            let entry_prot_y = spacer.entry_y - sdy * spacer_prot.entry_protrusion;
-
-            waypoints.push(Waypoint {
-                x: entry_prot_x,
-                y: entry_prot_y,
-                dir: (-sdx, -sdy),
-            });
-        }
-
-        // --- From-node protrusion and contact point --- //
-        let from_dir = Self::face_outward_direction(from_face);
 
         if protrusion.from_protrusion > 1e-3 {
             let (eff_start_x, eff_start_y) =
@@ -185,10 +104,78 @@ impl EdgePathBuilderPass2Ortho {
             });
         }
 
+        // --- Spacer waypoints (in forward order) --- //
+        for (fwd_index, spacer) in spacers.iter().enumerate() {
+            let (sdx, sdy) = Self::spacer_passthrough_direction(spacer);
+
+            let spacer_prot = protrusion
+                .spacer_protrusions
+                .get(fwd_index)
+                .copied()
+                .unwrap_or_default();
+
+            // Spacer entry side (with protrusion extending past entry).
+            //
+            // The protrusion extends the path past the spacer entry
+            // against the passthrough direction, so that the routing leg
+            // that connects to this spacer does not run along a node
+            // face.
+            //
+            // Between consecutive spacers in the same rank gap, both the
+            // entry protrusion of this spacer and the exit protrusion of
+            // the previous spacer serve to keep the routing leg clear of
+            // node faces.
+            let entry_prot_x = spacer.entry_x - sdx * spacer_prot.entry_protrusion;
+            let entry_prot_y = spacer.entry_y - sdy * spacer_prot.entry_protrusion;
+
+            waypoints.push(Waypoint {
+                x: entry_prot_x,
+                y: entry_prot_y,
+                dir: (sdx, sdy),
+            });
+
+            // Spacer entry (actual coordinate).
+            waypoints.push(Waypoint {
+                x: spacer.entry_x,
+                y: spacer.entry_y,
+                dir: (sdx, sdy),
+            });
+
+            // Spacer exit (actual coordinate) -- straight through.
+            waypoints.push(Waypoint {
+                x: spacer.exit_x,
+                y: spacer.exit_y,
+                dir: (sdx, sdy),
+            });
+
+            // Spacer exit side (with protrusion extending past exit).
+            let exit_prot_x = spacer.exit_x + sdx * spacer_prot.exit_protrusion;
+            let exit_prot_y = spacer.exit_y + sdy * spacer_prot.exit_protrusion;
+
+            waypoints.push(Waypoint {
+                x: exit_prot_x,
+                y: exit_prot_y,
+                dir: (sdx, sdy),
+            });
+        }
+
+        // --- To-node protrusion and contact point --- //
+        let to_dir = Self::face_outward_direction(to_face);
+
+        if protrusion.to_protrusion > 1e-3 {
+            let (eff_end_x, eff_end_y) =
+                Self::protrusion_offset(end_x, end_y, to_face, protrusion.to_protrusion);
+            waypoints.push(Waypoint {
+                x: eff_end_x,
+                y: eff_end_y,
+                dir: to_dir,
+            });
+        }
+
         waypoints.push(Waypoint {
-            x: start_x,
-            y: start_y,
-            dir: from_dir,
+            x: end_x,
+            y: end_y,
+            dir: to_dir,
         });
 
         // === Build path from waypoints === //
@@ -220,23 +207,12 @@ impl EdgePathBuilderPass2Ortho {
         let to_dir = Self::face_outward_direction(to_face);
         let from_dir = Self::face_outward_direction(from_face);
 
-        // --- To-node contact point --- //
+        // --- From-node contact point --- //
         waypoints.push(Waypoint {
-            x: end_x,
-            y: end_y,
-            dir: to_dir,
+            x: start_x,
+            y: start_y,
+            dir: from_dir,
         });
-
-        // --- To-node protrusion tip --- //
-        if protrusion.to_protrusion > 1e-3 {
-            let (eff_end_x, eff_end_y) =
-                Self::protrusion_offset(end_x, end_y, to_face, protrusion.to_protrusion);
-            waypoints.push(Waypoint {
-                x: eff_end_x,
-                y: eff_end_y,
-                dir: to_dir,
-            });
-        }
 
         // --- From-node protrusion tip --- //
         //
@@ -265,11 +241,22 @@ impl EdgePathBuilderPass2Ortho {
             });
         }
 
-        // --- From-node contact point --- //
+        // --- To-node protrusion tip --- //
+        if protrusion.to_protrusion > 1e-3 {
+            let (eff_end_x, eff_end_y) =
+                Self::protrusion_offset(end_x, end_y, to_face, protrusion.to_protrusion);
+            waypoints.push(Waypoint {
+                x: eff_end_x,
+                y: eff_end_y,
+                dir: to_dir,
+            });
+        }
+
+        // --- To-node contact point --- //
         waypoints.push(Waypoint {
-            x: start_x,
-            y: start_y,
-            dir: from_dir,
+            x: end_x,
+            y: end_y,
+            dir: to_dir,
         });
 
         Self::path_from_waypoints(&waypoints)
