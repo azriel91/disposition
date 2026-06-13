@@ -8,11 +8,7 @@ pub(super) const ARROW_HEAD_LENGTH: f64 = 8.0;
 
 /// Half-width of the arrowhead (distance from centre line to each wing tip),
 /// in pixels.
-///
-/// Also consumed by `SvgEdgeInfosBuilder` to nudge a labelled edge's contact
-/// point toward the label's near edge, so the arrow head sits in the node's
-/// side padding beside the label rather than overlapping it.
-pub(super) const ARROW_HEAD_HALF_WIDTH: f64 = 4.0;
+const ARROW_HEAD_HALF_WIDTH: f64 = 4.0;
 
 /// Builds SVG path strings for arrowheads on edges.
 ///

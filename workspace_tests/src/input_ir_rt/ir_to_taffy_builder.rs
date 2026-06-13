@@ -89,18 +89,17 @@ fn assert_taffy_measurements(
         .expect("Failed to get `taffy` root node layout");
     // Coarse sanity check that the root is sized close to the target canvas.
     //
-    // The example diagram's edge labels render as markdown, which shifts the
-    // natural content size in both directions relative to the target canvas:
-    // inline-code labels (`` `git pull` `` / `` `git push` ``) strip their
-    // backticks and so are a few characters narrower, while labels on a node's
-    // top face gain a one-line clearance so their text does not overlap the
-    // node, making the content taller. The bounds are therefore symmetric --
-    // the content may sit a little under or over the canvas dimension.
+    // The example diagram's edge labels (`` `git pull` `` / `` `git push` ``)
+    // render as markdown, so the inline-code backticks are stripped and the
+    // text is shown as code spans. This makes the labels a few characters
+    // narrower than the literal text, reducing the natural content width on the
+    // large canvas (which is content-sized rather than capped), so the
+    // tolerance allows for that.
     let distance_tolerance = 60.0f32;
 
     let root_width = root_layout.size.width;
     let root_width_expected_min = diagram_width - distance_tolerance;
-    let root_width_expected_max = diagram_width + distance_tolerance;
+    let root_width_expected_max = diagram_width;
     assert!(
         root_width > root_width_expected_min
             && root_width <= root_width_expected_max,
@@ -109,7 +108,7 @@ fn assert_taffy_measurements(
 
     let root_height = root_layout.size.height;
     let root_height_expected_min = diagram_height - distance_tolerance;
-    let root_height_expected_max = diagram_height + distance_tolerance;
+    let root_height_expected_max = diagram_height;
     assert!(
         root_height > root_height_expected_min
             && root_height <= root_height_expected_max,
