@@ -462,10 +462,10 @@ impl EdgePathBuilderPass1 {
         // arrow head (placed at the path's final point) sits at the contact
         // appropriate for the edge type:
         //
-        // * `Unpaired` / `PairRequest`: arrow at the `to` contact (`end`), so
-        //   the path is built `start -> end`.
-        // * `PairResponse`: arrow at the `from` contact (`start`), so the path
-        //   is built `end -> start`.
+        // * `Unpaired` / `PairRequest`: arrow at the `to` contact (`end`), so the path
+        //   is built `start -> end`.
+        // * `PairResponse`: arrow at the `from` contact (`start`), so the path is built
+        //   `end -> start`.
         let mut path = BezPath::new();
         match edge_type {
             EdgeType::Unpaired | EdgeType::PairRequest => {

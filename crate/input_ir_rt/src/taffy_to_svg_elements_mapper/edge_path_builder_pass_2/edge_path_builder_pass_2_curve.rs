@@ -20,10 +20,11 @@ impl EdgePathBuilderPass2Curve {
     ///
     /// The path structure is:
     ///
-    /// 1. A curved segment from `start` (from-face) to the first spacer's entry.
+    /// 1. A curved segment from `start` (from-face) to the first spacer's
+    ///    entry.
     /// 2. A straight line through each spacer (entry to exit).
-    /// 3. Curved segments between adjacent spacers (connecting one spacer's exit
-    ///    to the next spacer's entry).
+    /// 3. Curved segments between adjacent spacers (connecting one spacer's
+    ///    exit to the next spacer's entry).
     /// 4. A curved segment from the last spacer's exit to `end` (to-face).
     ///
     /// The path runs from the `from` node to the `to` node, consistent with

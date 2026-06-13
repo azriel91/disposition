@@ -102,9 +102,9 @@ impl ProcessStepGraphEdgesBuilder {
         Some(Circle::new(center, radius))
     }
 
-    /// Builds the connector [`BezPath`] for a single connector, running from the
-    /// `from` step's circle to the `to` step's circle so the arrowhead lands at
-    /// the `to` end.
+    /// Builds the connector [`BezPath`] for a single connector, running from
+    /// the `from` step's circle to the `to` step's circle so the arrowhead
+    /// lands at the `to` end.
     ///
     /// Forward connectors (the `to` step below the `from` step) connect the
     /// bottom of the `from` circle to the top of the `to` circle, running down
