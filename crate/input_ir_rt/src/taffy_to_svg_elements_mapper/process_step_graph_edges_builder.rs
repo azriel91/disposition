@@ -55,9 +55,9 @@ impl ProcessStepGraphEdgesBuilder {
                 let lane_delta = f64::from(edge.lane.value()) - f64::from(from_lane);
                 let lane_x = from_circle.center.x + lane_delta * f64::from(LANE_WIDTH);
 
-                // The path is built with its `MoveTo` at the `to` end (the
-                // arrowhead/locus builders expect the to-node end first, since
-                // edge paths are conventionally built in reverse).
+                // The path runs from the `from` step to the `to` step, so the
+                // arrowhead/locus builders (which place the arrow at the path's
+                // final point) land it at the `to` step.
                 let path = Self::connector_path(from_circle, to_circle, lane_x);
                 let arrow_head_path = ArrowHeadBuilder::build_static_arrow_head(&path);
                 let locus_path = EdgePathLocusCalculator::calculate(&path, &arrow_head_path);
@@ -102,16 +102,17 @@ impl ProcessStepGraphEdgesBuilder {
         Some(Circle::new(center, radius))
     }
 
-    /// Builds the connector [`BezPath`] for a single connector, with its
-    /// `MoveTo` at the `to` step's circle so the arrowhead lands there.
+    /// Builds the connector [`BezPath`] for a single connector, running from
+    /// the `from` step's circle to the `to` step's circle so the arrowhead
+    /// lands at the `to` end.
     ///
-    /// Forward connectors (the `to` step below the `from` step) connect the top
-    /// of the `to` circle to the bottom of the `from` circle, running down the
-    /// travel lane in between. Back connectors (cycles, `to` at or above
+    /// Forward connectors (the `to` step below the `from` step) connect the
+    /// bottom of the `from` circle to the top of the `to` circle, running down
+    /// the travel lane in between. Back connectors (cycles, `to` at or above
     /// `from`) bulge out to the right to avoid overlapping the steps
     /// between them.
     fn connector_path(from: Circle, to: Circle, lane_x: f64) -> BezPath {
-        // Forward-order waypoints (from-end first); reversed before building.
+        // Waypoints run from the `from` end to the `to` end.
         let waypoints = if to.center.y >= from.center.y {
             let start = Point::new(from.center.x, from.center.y + from.radius);
             let end = Point::new(to.center.x, to.center.y - to.radius);
@@ -149,10 +150,7 @@ impl ProcessStepGraphEdgesBuilder {
             ]
         };
 
-        // Reverse so the path starts at the `to` end.
-        let mut waypoints_reversed = waypoints;
-        waypoints_reversed.reverse();
-        Self::ortho_bez_path(&waypoints_reversed)
+        Self::ortho_bez_path(&waypoints)
     }
 
     /// Builds an orthogonal [`BezPath`] through `points` with arc-rounded

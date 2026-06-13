@@ -89,19 +89,28 @@ pub(crate) fn line_width_measure(line: &str, char_width: f32) -> f32 {
     (line_char_column_count(line) + 1.0) * char_width
 }
 
-/// Returns the tight glyph width in pixels for an inline markdown token.
+/// Returns the tight glyph width in pixels for an inline markdown token,
+/// rounded up to a whole pixel.
 ///
 /// Unlike [`line_width_measure`], this does NOT add the extra half-character
 /// padding at each end. Inline `MdToken` leaves are laid out side by side with
 /// a single inter-token gap providing the word spacing, so adding per-token
 /// edge padding would double the space between words and push the content (and
 /// the edge path routed beside it) wider than the rendered text.
+///
+/// The width is rounded up with `ceil` so that it is a whole pixel. Combined
+/// with the integer inter-token gap (`char_width.round()` in
+/// `MdNodeBuilder::build_block_line_row`), every term in taffy's flex-wrap
+/// line-length comparison is an exact integer. Without this, a row's
+/// max-content width can be fractional (e.g. `150.4`), taffy rounds the
+/// resolved container width down (to `150`), and on the final layout pass the
+/// trailing token wraps onto a new line even though it visually fits.
 pub(crate) fn md_token_width_measure(token: &str, char_width: f32) -> f32 {
     if token.is_empty() {
         return 0.0;
     }
 
-    line_char_column_count(token) * char_width
+    (line_char_column_count(token) * char_width).ceil()
 }
 
 /// Wrap text for display, returning owned strings for each line.

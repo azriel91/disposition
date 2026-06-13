@@ -458,19 +458,25 @@ impl EdgePathBuilderPass1 {
         );
         let end = point_at(to_offset, 0.0);
 
-        // Paths have to be built in reverse to get them to render in the correct
-        // direction in the SVG.
+        // The path runs from the `from` contact to the `to` contact, so the
+        // arrow head (placed at the path's final point) sits at the contact
+        // appropriate for the edge type:
+        //
+        // * `Unpaired` / `PairRequest`: arrow at the `to` contact (`end`), so the path
+        //   is built `start -> end`.
+        // * `PairResponse`: arrow at the `from` contact (`start`), so the path is built
+        //   `end -> start`.
         let mut path = BezPath::new();
         match edge_type {
             EdgeType::Unpaired | EdgeType::PairRequest => {
-                path.move_to(end);
-                path.curve_to(end, ctrl3, mid);
-                path.curve_to(mid, ctrl1, start);
-            }
-            EdgeType::PairResponse => {
                 path.move_to(start);
                 path.curve_to(start, ctrl1, mid);
                 path.curve_to(mid, ctrl3, end);
+            }
+            EdgeType::PairResponse => {
+                path.move_to(end);
+                path.curve_to(end, ctrl3, mid);
+                path.curve_to(mid, ctrl1, start);
             }
         }
 
@@ -499,12 +505,11 @@ impl EdgePathBuilderPass1 {
         let ctrl2 = Point::new((end_x - ctrl_distance) as f64, end_y as f64);
         let end = Point::new(end_x as f64, end_y as f64);
 
-        // Paths have to be built in reverse to get them to render in the correct
-        // direction in the SVG.
+        // The path runs from the `from` node to the `to` node.
         let mut path = BezPath::new();
         let start = Point::new(start_x as f64, start_y as f64);
-        path.move_to(end);
-        path.curve_to(ctrl2, ctrl1, start);
+        path.move_to(start);
+        path.curve_to(ctrl1, ctrl2, end);
 
         path
     }
@@ -665,11 +670,10 @@ impl EdgePathBuilderPass1 {
         let ctrl2 = Point::new((end_x + ctrl2_x) as f64, (end_y + ctrl2_y) as f64);
         let end = Point::new(end_x as f64, end_y as f64);
 
-        // Paths have to be built in reverse to get them to render in the correct
-        // direction in the SVG.
+        // The path runs from the `from` node to the `to` node.
         let mut path = BezPath::new();
-        path.move_to(end);
-        path.curve_to(ctrl2, ctrl1, start);
+        path.move_to(start);
+        path.curve_to(ctrl1, ctrl2, end);
 
         path
     }

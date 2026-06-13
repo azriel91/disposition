@@ -885,44 +885,41 @@ fn test_nested_node_edge_bob_charlie_routing_clears_alice_outer() {
 ///
 /// Returns a `Vec<(f32, f32)>` of `(x, y)` pairs.
 fn parse_path_endpoints(path_d: &str) -> Vec<(f32, f32)> {
+    // kurbo concatenates each command letter with its first coordinate
+    // (e.g. `M86,176`, `C86,209 84,211 82,211`), so strip a leading command
+    // letter before parsing. Records the endpoint vertex of each command --
+    // `MoveTo` / `LineTo` targets and the final point of `CurveTo` / `QuadTo`
+    // segments -- skipping bezier control points.
     let mut result = Vec::new();
-    // Iterate over whitespace-separated tokens.
     let tokens: Vec<&str> = path_d.split_whitespace().collect();
     let mut i = 0;
     while i < tokens.len() {
         let token = tokens[i];
-        match token {
-            "M" | "L" => {
-                if let Some(coords) = tokens.get(i + 1) {
-                    if let Some((x, y)) = parse_coord_pair(coords) {
-                        result.push((x, y));
-                    }
-                    i += 2;
-                    continue;
+        match token.chars().next() {
+            Some('M') | Some('L') => {
+                if let Some(coords) = parse_coord_pair(&token[1..]) {
+                    result.push(coords);
                 }
+                i += 1;
             }
-            "C" => {
-                // Curve: ctrl1 ctrl2 endpoint -- record all three pairs.
-                for offset in 1..=3 {
-                    if let Some(coords) = tokens.get(i + offset) {
-                        if let Some((x, y)) = parse_coord_pair(coords) {
-                            result.push((x, y));
-                        }
-                    }
+            Some('C') => {
+                // Curve: ctrl1 ctrl2 endpoint -- record only the endpoint.
+                if let Some(coords) = tokens.get(i + 2).and_then(|t| parse_coord_pair(t)) {
+                    result.push(coords);
                 }
-                i += 4;
-                continue;
+                i += 3;
+            }
+            Some('Q') => {
+                // Quadratic: ctrl endpoint -- record only the endpoint.
+                if let Some(coords) = tokens.get(i + 1).and_then(|t| parse_coord_pair(t)) {
+                    result.push(coords);
+                }
+                i += 2;
             }
             _ => {
-                // Single token may be a coordinate pair if it contains a comma.
-                if token.contains(',') {
-                    if let Some((x, y)) = parse_coord_pair(token) {
-                        result.push((x, y));
-                    }
-                }
+                i += 1;
             }
         }
-        i += 1;
     }
     result
 }
@@ -1078,9 +1075,16 @@ fn test_thing_node_cycle_edges_not_routed_around_process_node() {
         let process_left_x = proc_node.x;
 
         for edge in &svg_elements.svg_edge_infos {
+            // Skip process-step connectors (`edge_ps_*`): these route inside
+            // the process node by design, and their step endpoints have
+            // `process_id` None in `SvgNodeInfo` so the thing-node check below
+            // would not otherwise exclude them.
+            if edge.edge_id.as_str().starts_with("edge_ps_") {
+                continue;
+            }
+
             // Only check edges where both endpoints are thing nodes
-            // (process_id is None for thing/tag nodes; Some for process nodes
-            // and process step nodes).
+            // (process_id is None for thing/tag nodes; Some for process nodes).
             let from_node = svg_elements
                 .svg_node_infos
                 .iter()
@@ -1584,11 +1588,11 @@ fn test_edge_from_toplevel_to_nested_rank_0_node_uses_normal_face_routing() {
             .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_charlie_1")
             .expect("Expected edge from t_bob to t_charlie_1");
 
-        // The path is built from to-node to from-node in the SVG direction.
+        // The path is built from from-node to to-node in the SVG direction.
         // For a Bottom (t_bob) -> Top (t_charlie_1) edge the first SVG `M`
-        // command should have y near t_charlie_1's top face (charlie_1.y)
-        // and the final `L` command should be near t_bob's bottom face
-        // (bob.y + bob.height_collapsed).
+        // command should have y near t_bob's bottom face
+        // (bob.y + bob.height_collapsed) and the final `L` command should be
+        // near t_charlie_1's top face (charlie_1.y).
         //
         // Note: kurbo generates concatenated path commands (e.g. `M80,210`
         // rather than `M 80,210`), so we parse the first/last tokens directly
@@ -1612,10 +1616,10 @@ fn test_edge_from_toplevel_to_nested_rank_0_node_uses_normal_face_routing() {
             .first()
             .and_then(|t| parse_suffixed(t, 'M'))
             .expect("Path should start with M command (e.g. M80,210)");
-        let expected_first_y = charlie_1.y; // Top face of t_charlie_1
+        let expected_first_y = bob.y + bob.height_collapsed; // Bottom face of t_bob
         assert!(
             (first_y - expected_first_y).abs() <= tolerance,
-            "First path point y={first_y:.2} should be near t_charlie_1 top face \
+            "First path point y={first_y:.2} should be near t_bob bottom face \
              y={expected_first_y:.2} (tolerance {tolerance:.0} px). \
              Got cycle-edge routing instead of Bottom->Top routing. \
              path_d = {:?}, ortho_protrusion_params = {:?}",
@@ -1627,10 +1631,10 @@ fn test_edge_from_toplevel_to_nested_rank_0_node_uses_normal_face_routing() {
             .last()
             .and_then(|t| parse_suffixed(t, 'L').or_else(|| parse_suffixed(t, 'M')))
             .expect("Path should end with an L or M command");
-        let expected_last_y = bob.y + bob.height_collapsed; // Bottom face of t_bob
+        let expected_last_y = charlie_1.y; // Top face of t_charlie_1
         assert!(
             (last_y - expected_last_y).abs() <= tolerance,
-            "Last path point y={last_y:.2} should be near t_bob bottom face \
+            "Last path point y={last_y:.2} should be near t_charlie_1 top face \
              y={expected_last_y:.2} (tolerance {tolerance:.0} px). \
              path_d = {:?}",
             bob_charlie_1_edge.path_d,
@@ -1678,21 +1682,18 @@ fn test_edge_from_nested_routing_stays_within_gap() {
 
         let charlie_outer_top_y = charlie_outer.y;
 
-        // The path is built in SVG order from the to-node (charlie_1, at the
-        // bottom) to the from-node (alice, at the top). All coordinates
-        // between the first (charlie_1 contact y) and the last (alice contact
+        // The path is built in SVG order from the from-node (alice, at the
+        // top) to the to-node (charlie_1, at the bottom). All coordinates
+        // between the first (alice contact y) and the last (charlie_1 contact
         // y) are the routing segment.
         let all_coords = parse_path_endpoints(&alice_charlie_1_edge.path_d);
 
-        // The from-protrusion tip is the second-to-last coordinate (just
-        // before the alice contact point). Its y is the upper bound of the
-        // routing gap -- no intermediate point should overshoot above it.
-        let from_protrusion_tip_y = all_coords
-            .get(all_coords.len().wrapping_sub(2))
-            .map(|&(_, y)| y)
-            .unwrap_or(0.0);
+        // The from-protrusion tip is the second coordinate (just after the
+        // alice contact point). Its y is the upper bound of the routing gap --
+        // no later point should overshoot above it.
+        let from_protrusion_tip_y = all_coords.get(1).map(|&(_, y)| y).unwrap_or(0.0);
 
-        // Skip the first (charlie_1 contact) and last (alice contact).
+        // Skip the first (alice contact) and last (charlie_1 contact).
         let intermediate_coords = all_coords
             .iter()
             .skip(1)
@@ -1940,11 +1941,11 @@ fn test_nested_x2_node_edge_routing_stays_above_charlie_outer() {
 
         let charlie_outer_top_y = charlie_outer.y;
 
-        // The path is built in SVG order from the to-node (t_charlie_inner,
-        // at the bottom) to the from-node (t_alice_inner, at the top). The
-        // first coordinate is t_charlie_inner's contact point (inside
-        // t_charlie_outer) and the last is t_alice_inner's contact point
-        // (above all containers).
+        // The path is built in SVG order from the from-node (t_alice_inner,
+        // at the top) to the to-node (t_charlie_inner, at the bottom). The
+        // first coordinate is t_alice_inner's contact point (above all
+        // containers) and the last is t_charlie_inner's contact point (inside
+        // t_charlie_outer).
         //
         // All *intermediate* coordinates represent the routing segment
         // connecting the two protrusion tips. None of them should fall below
@@ -1998,30 +1999,25 @@ fn test_nested_x2_node_edge_routing_no_upward_detour() {
             })
             .expect("Expected edge from t_alice_inner to t_charlie_inner");
 
-        // The path is built in SVG order: to-node first, from-node last.
-        // The second-to-last coordinate is the from-protrusion tip -- the
-        // topmost (smallest y) point the routing is expected to reach.
+        // The path is built in SVG order: from-node first, to-node last.
+        // The second coordinate is the from-protrusion tip -- the highest
+        // (smallest y) point the routing reaches before descending toward
+        // the to-node.
         //
         // After the `rank_gap_px` cap fix, the routing now correctly enters
         // the inter-rank gap between the containers. The fix ensures that
-        // no intermediate coordinate overshoots above (has a smaller y
-        // than) the from-protrusion tip, which would indicate a V-spike
-        // where the Z/S bend looped backward in the visual arrow direction.
+        // no later coordinate rises back above (has a smaller y than) the
+        // from-protrusion tip, which would indicate a V-spike where the Z/S
+        // bend looped backward in the visual arrow direction.
         let all_coords = parse_path_endpoints(&alice_inner_charlie_inner_edge.path_d);
-        let from_protrusion_tip_y = all_coords
-            .get(all_coords.len().wrapping_sub(2))
-            .map(|&(_, y)| y)
-            .unwrap_or(0.0);
+        let from_protrusion_tip_y = all_coords.get(1).map(|&(_, y)| y).unwrap_or(0.0);
 
-        let intermediate_coords = all_coords
-            .iter()
-            .skip(1)
-            .take(all_coords.len().saturating_sub(2));
+        let intermediate_coords = all_coords.iter().skip(2);
 
         for &(x, y) in intermediate_coords {
             assert!(
                 y >= from_protrusion_tip_y - 0.5,
-                "Intermediate routing coordinate ({x:.3}, {y:.3}) is above \
+                "Routing coordinate ({x:.3}, {y:.3}) is above \
                  the from-protrusion tip (y={from_protrusion_tip_y:.3}). \
                  The Z/S bend was placed outside the routing gap, causing a \
                  backward loop in the visual arrow direction. \
@@ -2071,26 +2067,25 @@ fn test_0017_edge_inner_to_inner_routing_in_inter_rank_gap() {
         let charlie_outer_top_y = charlie_outer.y;
         let all_coords = parse_path_endpoints(&alice_charlie_edge.path_d);
 
-        // The second-to-last coordinate is the from-protrusion tip.
-        // It must be above t_charlie_outer's top (smaller y) -- i.e. inside
-        // the inter-rank gap -- not at the boundary.
-        let from_protrusion_tip_y = all_coords
-            .get(all_coords.len().wrapping_sub(2))
-            .map(|&(_, y)| y)
-            .unwrap_or(charlie_outer_top_y);
+        // The path runs from-node (t_alice, top) to to-node (t_charlie,
+        // bottom). The second coordinate is the from-protrusion tip (top of
+        // the routing gap), which must sit above t_charlie_outer's top (smaller
+        // y) -- i.e. inside the inter-rank gap -- not at the boundary. Before
+        // the rank_gap_px fix both tips landed at charlie_outer.y, suppressing
+        // the Z/S bend.
+        let from_protrusion_tip_y = all_coords.get(1).map(|&(_, y)| y).unwrap_or(0.0);
 
         assert!(
             from_protrusion_tip_y < charlie_outer_top_y - 0.5,
             "from_protrusion_tip_y ({from_protrusion_tip_y:.3}) should be above \
              t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}), i.e. in \
-             the inter-rank gap. Before the rank_gap_px fix both tips landed at \
-             charlie_outer.y, suppressing the Z/S bend. \
+             the inter-rank gap. \
              path_d = {:?}",
             alice_charlie_edge.path_d,
         );
 
         // All intermediate routing coordinates must stay above t_charlie_outer
-        // (no dip into the container) and not overshoot above the
+        // (no dip into the container) and not rise back above the
         // from-protrusion tip (no backward loop).
         let intermediate_coords = all_coords
             .iter()
@@ -2108,7 +2103,7 @@ fn test_0017_edge_inner_to_inner_routing_in_inter_rank_gap() {
             );
             assert!(
                 y >= from_protrusion_tip_y - 0.5,
-                "Intermediate routing coordinate ({x:.3}, {y:.3}) is above the \
+                "Routing coordinate ({x:.3}, {y:.3}) is above the \
                  from-protrusion tip (y={from_protrusion_tip_y:.3}): the Z/S bend \
                  looped backward past the routing gap. \
                  path_d = {:?}",
@@ -2156,30 +2151,30 @@ fn test_edge_from_toplevel_to_nested_rank_0_node_uses_normal_routing_complex_dia
 
         let tolerance = 20.0_f32;
 
-        // Path starts at to-node (t_charlie_1 top face).
+        // Path starts at from-node (t_bob bottom face).
         let (_, first_y) = path_tokens
             .first()
             .and_then(|t| parse_suffixed(t, 'M'))
             .expect("Path should start with M command (e.g. M80,210)");
-        let expected_first_y = charlie_1.y;
+        let expected_first_y = bob.y + bob.height_collapsed;
         assert!(
             (first_y - expected_first_y).abs() <= tolerance,
-            "First path point y={first_y:.2} should be near t_charlie_1 top face \
+            "First path point y={first_y:.2} should be near t_bob bottom face \
              y={expected_first_y:.2} (tolerance {tolerance:.0} px). \
              Cycle-edge routing produces a different starting y. \
              path_d = {:?}",
             bob_charlie_1_edge.path_d,
         );
 
-        // Path ends at from-node (t_bob bottom face).
+        // Path ends at to-node (t_charlie_1 top face).
         let (_, last_y) = path_tokens
             .last()
             .and_then(|t| parse_suffixed(t, 'L').or_else(|| parse_suffixed(t, 'M')))
             .expect("Path should end with an L or M command");
-        let expected_last_y = bob.y + bob.height_collapsed;
+        let expected_last_y = charlie_1.y;
         assert!(
             (last_y - expected_last_y).abs() <= tolerance,
-            "Last path point y={last_y:.2} should be near t_bob bottom face \
+            "Last path point y={last_y:.2} should be near t_charlie_1 top face \
              y={expected_last_y:.2} (tolerance {tolerance:.0} px). \
              path_d = {:?}",
             bob_charlie_1_edge.path_d,

@@ -1315,14 +1315,14 @@ impl SvgEdgeInfosBuilder {
 
         // Build arrowhead tailwind classes.
         //
-        // For some reason the CSS path needs the *forward* edge path, even though the
-        // SVG path is reversed.
+        // The edge path already runs from the `from` node to the `to` node, so
+        // it can be used directly as the CSS `offset-path` the arrowhead
+        // animates along.
         //
         // The arrowhead element needs:
         //   1. `[offset-path:path('...')]` -- the forward edge path
         //   2. `animate-[{arrow_animation_name}_{duration}s_linear_infinite]`
-        let forward_path = edge_path_info.path.reverse_subpaths();
-        let mut forward_path_svg = forward_path.to_svg();
+        let mut forward_path_svg = edge_path_info.path.to_svg();
         // Escape underscores for use inside the tailwind arbitrary value
         // (encre-css transforms these to spaces in the actual CSS value).
         StringCharReplacer::replace_inplace(&mut forward_path_svg, ' ', '_');

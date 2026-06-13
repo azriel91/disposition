@@ -93,11 +93,12 @@ connector it emits an `SvgEdgeInfo` with an orthogonal, arc-rounded `path_d`:
 - back connectors (cycles) bulge one lane to the right to avoid overlapping the
   steps between their endpoints.
 
-The connector path is built as a `kurbo::BezPath` with its `MoveTo` at the `to`
-end (the convention the shared `ArrowHeadBuilder` / `EdgePathLocusCalculator`
-expect), so each connector also carries a positioned arrowhead at the `to` step
-and a locus path for the focus indicator -- just like dependency edges. No
-spacers or protrusions are used.
+The connector path is built as a `kurbo::BezPath` running from the `from` step to
+the `to` step (the convention the shared `ArrowHeadBuilder` /
+`EdgePathLocusCalculator` expect, placing the arrow at the path's final point),
+so each connector also carries a positioned arrowhead at the `to` step and a
+locus path for the focus indicator -- just like dependency edges. No spacers or
+protrusions are used.
 
 Connector tailwind classes are resolved during IR mapping (not in the router):
 `TailwindClassesBuilder::build_process_step_connector_classes` styles connectors

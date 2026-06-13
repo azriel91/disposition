@@ -1,8 +1,8 @@
-use disposition_ir_model::node::NodeId;
-use disposition_model_common::Map;
+use disposition_ir_model::{edge::EdgeId, node::NodeId};
+use disposition_model_common::{Id, Map};
 use disposition_taffy_model::{
-    taffy::TaffyTree, EntityHighlightedSpan, EntityHighlightedSpans, MdImageSpan, MdNodeTaffyIds,
-    NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    taffy::TaffyTree, EdgeLabelTaffyNodeIds, EntityHighlightedSpan, EntityHighlightedSpans,
+    MdImageSpan, MdNodeTaffyIds, NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 
 use crate::{AbsoluteCoordinates, TaffyNodeAbsoluteCoordinatesCalculator};
@@ -26,15 +26,14 @@ impl MdSpansComputer {
     /// absolute position, so coordinates inside the `<g>` must not include that
     /// translation a second time.
     ///
-    /// The `char_width` parameter is accepted for API consistency with the
-    /// surrounding span-computation functions; token widths are read from the
-    /// already-completed taffy layout rather than re-computed from
-    /// `char_width`.
+    /// Token widths and positions are read from the already-completed taffy
+    /// layout. `char_width` is used only as the threshold for deciding whether
+    /// the gap between two merged same-style tokens represents a word space.
     pub(crate) fn compute(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
         md_node_taffy_ids: &Map<NodeId<'static>, MdNodeTaffyIds>,
-        _char_width: f32,
+        char_width: f32,
     ) -> (
         EntityHighlightedSpans<'static>,
         Map<NodeId<'static>, Vec<MdImageSpan>>,
@@ -62,8 +61,12 @@ impl MdSpansComputer {
                 })
                 .unwrap_or_default();
 
-            let (highlighted_spans, image_spans) =
-                Self::compute_node(taffy_tree, md_node_taffy_ids_entry, wrapper_abs_xy);
+            let (highlighted_spans, image_spans) = Self::compute_node(
+                taffy_tree,
+                md_node_taffy_ids_entry,
+                wrapper_abs_xy,
+                char_width,
+            );
 
             if !highlighted_spans.is_empty() {
                 entity_highlighted_spans.insert(node_id.as_ref().clone(), highlighted_spans);
@@ -100,7 +103,7 @@ impl MdSpansComputer {
             disposition_ir_model::edge::EdgeId<'static>,
             disposition_taffy_model::EdgeDescriptionTaffyNodes,
         >,
-        _char_width: f32,
+        char_width: f32,
     ) -> (
         Map<disposition_ir_model::edge::EdgeId<'static>, Vec<EntityHighlightedSpan>>,
         Map<disposition_ir_model::edge::EdgeId<'static>, Vec<MdImageSpan>>,
@@ -127,8 +130,12 @@ impl MdSpansComputer {
                 })
                 .unwrap_or_default();
 
-            let (highlighted_spans, image_spans) =
-                Self::compute_node(taffy_tree, md_node_taffy_ids, description_abs_xy);
+            let (highlighted_spans, image_spans) = Self::compute_node(
+                taffy_tree,
+                md_node_taffy_ids,
+                description_abs_xy,
+                char_width,
+            );
 
             if !highlighted_spans.is_empty() {
                 edge_description_highlighted_spans.insert(edge_id.clone(), highlighted_spans);
@@ -145,10 +152,124 @@ impl MdSpansComputer {
         )
     }
 
+    /// Computes highlighted text spans and image spans for all edge label
+    /// slots that used the markdown content path.
+    ///
+    /// Runs after taffy layout is complete. For each `from` / `to` label slot
+    /// with `md_node_taffy_ids.is_some()`, the taffy tree is walked to collect
+    /// token and image leaf positions, grouped into visual lines and merged
+    /// into [`EntityHighlightedSpan`] and [`MdImageSpan`] values.
+    ///
+    /// Span coordinates are **slot-relative** (relative to the label slot
+    /// node's top-left corner), matching the convention used by
+    /// `HighlightedSpansComputer` for the legacy edge label path, so the SVG
+    /// builder offsets them by the slot's absolute position.
+    ///
+    /// Returns two maps:
+    /// - Text spans keyed by `{edge_id}__from_label` / `{edge_id}__to_label`
+    ///   (an [`Id`]), to be merged into `entity_highlighted_spans`.
+    /// - Image spans keyed by the same label key (as a [`NodeId`]), to be
+    ///   merged into `entity_image_spans`.
+    pub(crate) fn compute_edge_labels(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        edge_label_taffy_nodes: &Map<EdgeId<'static>, EdgeLabelTaffyNodeIds>,
+        char_width: f32,
+    ) -> (
+        EntityHighlightedSpans<'static>,
+        Map<NodeId<'static>, Vec<MdImageSpan>>,
+    ) {
+        let mut entity_highlighted_spans =
+            EntityHighlightedSpans::with_capacity(edge_label_taffy_nodes.len() * 2);
+        let mut entity_image_spans: Map<NodeId<'static>, Vec<MdImageSpan>> = Map::new();
+
+        for (edge_id, edge_label_taffy_node_ids) in edge_label_taffy_nodes {
+            // `from` label slot.
+            if let (Some(slot_node_id), Some(md_node_taffy_ids)) = (
+                edge_label_taffy_node_ids.from_label_taffy_node_id,
+                edge_label_taffy_node_ids
+                    .from_label_md_node_taffy_ids
+                    .as_ref(),
+            ) {
+                Self::edge_label_slot_spans_insert(
+                    taffy_tree,
+                    slot_node_id,
+                    md_node_taffy_ids,
+                    char_width,
+                    &format!("{edge_id}__from_label"),
+                    &mut entity_highlighted_spans,
+                    &mut entity_image_spans,
+                );
+            }
+
+            // `to` label slot.
+            if let (Some(slot_node_id), Some(md_node_taffy_ids)) = (
+                edge_label_taffy_node_ids.to_label_taffy_node_id,
+                edge_label_taffy_node_ids
+                    .to_label_md_node_taffy_ids
+                    .as_ref(),
+            ) {
+                Self::edge_label_slot_spans_insert(
+                    taffy_tree,
+                    slot_node_id,
+                    md_node_taffy_ids,
+                    char_width,
+                    &format!("{edge_id}__to_label"),
+                    &mut entity_highlighted_spans,
+                    &mut entity_image_spans,
+                );
+            }
+        }
+
+        (entity_highlighted_spans, entity_image_spans)
+    }
+
+    /// Computes and inserts the markdown spans for a single edge label slot.
+    ///
+    /// `label_key` is the `{edge_id}__from_label` / `{edge_id}__to_label`
+    /// string under which the text and image spans are stored.
+    #[allow(clippy::too_many_arguments)]
+    fn edge_label_slot_spans_insert(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        slot_node_id: taffy::NodeId,
+        md_node_taffy_ids: &MdNodeTaffyIds,
+        char_width: f32,
+        label_key: &str,
+        entity_highlighted_spans: &mut EntityHighlightedSpans<'static>,
+        entity_image_spans: &mut Map<NodeId<'static>, Vec<MdImageSpan>>,
+    ) {
+        // Span coordinates are relative to the slot node, so the SVG builder
+        // can offset them by the slot's absolute position.
+        let slot_abs_xy = taffy_tree
+            .layout(slot_node_id)
+            .ok()
+            .map(|layout| {
+                TaffyNodeAbsoluteCoordinatesCalculator::calculate(taffy_tree, slot_node_id, layout)
+            })
+            .unwrap_or_default();
+
+        let (highlighted_spans, image_spans) =
+            Self::compute_node(taffy_tree, md_node_taffy_ids, slot_abs_xy, char_width);
+
+        if !highlighted_spans.is_empty() {
+            let key = Id::try_from(label_key.to_string()).expect(
+                "`edge_id` is a valid `Id`, so appending `__{from,to}_label` is also valid",
+            );
+            entity_highlighted_spans.insert(key, highlighted_spans);
+        }
+
+        if !image_spans.is_empty() {
+            let key: NodeId<'static> = Id::try_from(label_key.to_string())
+                .expect("`edge_id` is a valid `Id`, so appending `__{from,to}_label` is also valid")
+                .into();
+            entity_image_spans.insert(key, image_spans);
+        }
+    }
+
     fn compute_node(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         md_node_taffy_ids: &MdNodeTaffyIds,
         wrapper_abs_xy: AbsoluteCoordinates,
+        char_width: f32,
     ) -> (Vec<EntityHighlightedSpan>, Vec<MdImageSpan>) {
         let mut all_highlighted_spans = Vec::new();
         let mut all_image_spans = Vec::new();
@@ -194,6 +315,7 @@ impl MdSpansComputer {
 
             Self::compute_node_block_spans(
                 &pending,
+                char_width,
                 &mut all_highlighted_spans,
                 &mut all_image_spans,
             );
@@ -207,6 +329,7 @@ impl MdSpansComputer {
     /// values and converting `MdImage` entries into `MdImageSpan` values.
     fn compute_node_block_spans(
         pending: &[TokenPosition],
+        char_width: f32,
         highlighted_spans: &mut Vec<EntityHighlightedSpan>,
         image_spans: &mut Vec<MdImageSpan>,
     ) {
@@ -232,7 +355,7 @@ impl MdSpansComputer {
                         let run_style = token_ctx.md_style.clone();
                         let run_start_x = item.abs_x;
                         let run_abs_y = item.abs_y;
-                        let mut run_texts = vec![token_ctx.text.clone()];
+                        let mut run_text = token_ctx.text.clone();
                         // Track the right edge of the last token so the span
                         // width spans the full visual extent, including the
                         // inter-token gaps (the rendered word spaces). Summing
@@ -245,7 +368,14 @@ impl MdSpansComputer {
                             if let TaffyNodeCtx::MdToken(next_ctx) = &line_items[j].ctx
                                 && next_ctx.md_style == run_style
                             {
-                                run_texts.push(next_ctx.text.clone());
+                                // Insert a space only when the layout gap to the
+                                // next token is a word gap. Glued tokens within a
+                                // word abut (gap ~0), so they are concatenated.
+                                let gap = line_items[j].abs_x - run_end_x;
+                                if gap > char_width * 0.5 {
+                                    run_text.push(' ');
+                                }
+                                run_text.push_str(&next_ctx.text);
                                 run_end_x = line_items[j].abs_x + line_items[j].layout_width;
                                 j += 1;
                                 continue;
@@ -262,7 +392,7 @@ impl MdSpansComputer {
                             y: run_abs_y + TEXT_LINE_HEIGHT,
                             width: run_width,
                             height: TEXT_LINE_HEIGHT,
-                            text: run_texts.join(" "),
+                            text: run_text,
                             md_style: Some(run_style),
                             tailwind_classes,
                         });

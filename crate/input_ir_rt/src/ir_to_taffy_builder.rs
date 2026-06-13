@@ -156,6 +156,11 @@ impl IrToTaffyBuilder<'_> {
         // the same text.
         let node_md_texts = TaffyBuildCtx::node_md_texts_compute(nodes, thing_descs, *lod);
 
+        // Precompute the edge ID -> endpoint node IDs lookup once. It is used
+        // both when building edge label markdown sub-trees during envelope
+        // construction and when sizing edge label slots during layout.
+        let edge_id_to_endpoint_node_ids = EdgeLabelBuilder::edge_id_to_node_ids_build(edge_groups);
+
         let ctx = TaffyBuildCtx {
             node_layouts,
             node_hierarchy,
@@ -169,6 +174,8 @@ impl IrToTaffyBuilder<'_> {
             node_nesting_infos,
             node_face_edges,
             edge_groups,
+            edge_labels,
+            edge_id_to_endpoint_node_ids: &edge_id_to_endpoint_node_ids,
             lod: *lod,
             char_width,
             node_md_texts: &node_md_texts,
@@ -365,9 +372,6 @@ impl IrToTaffyBuilder<'_> {
             panic!("`root` node not present in `node_inbuilt_to_taffy`.");
         };
 
-        // Pre-compute edge endpoint node IDs for edge label slot sizing.
-        let edge_id_to_endpoint_node_ids = EdgeLabelBuilder::edge_id_to_node_ids_build(edge_groups);
-
         // Compute layout (size measurement only, no syntax highlighting)
         let mut node_measure_context = NodeMeasureContext {
             ctx,
@@ -401,14 +405,10 @@ impl IrToTaffyBuilder<'_> {
         // Compute highlighted spans *after* layout is complete.
         //
         // This is done once per node instead of multiple times during layout
-        // measurement
-        let entity_highlighted_spans = HighlightedSpansComputer::compute(
-            ctx,
-            &taffy_tree,
-            &node_id_to_taffy,
-            &edge_label_taffy_nodes,
-            edge_labels,
-        );
+        // measurement. Edge label spans are computed separately below via the
+        // markdown path.
+        let entity_highlighted_spans =
+            HighlightedSpansComputer::compute(ctx, &taffy_tree, &node_id_to_taffy);
 
         let edge_description_highlighted_spans =
             HighlightedSpansComputer::compute_edge_desc_containers(
@@ -426,7 +426,7 @@ impl IrToTaffyBuilder<'_> {
         // (their `text_node_id` holds a `TaffyNodeCtx::MdToken` /
         // `TaffyNodeCtx::MdImage` rather than a `TaffyNodeCtx::DiagramNode`),
         // so their spans must be computed separately here and merged in.
-        let (md_entity_spans, entity_image_spans) = MdSpansComputer::compute(
+        let (md_entity_spans, mut entity_image_spans) = MdSpansComputer::compute(
             &taffy_tree,
             &node_id_to_taffy,
             &md_node_taffy_ids,
@@ -436,6 +436,21 @@ impl IrToTaffyBuilder<'_> {
         let mut entity_highlighted_spans = entity_highlighted_spans;
         for (node_id, spans) in md_entity_spans.into_inner() {
             entity_highlighted_spans.insert(node_id, spans);
+        }
+
+        // Compute highlighted text spans and image spans for edge labels that
+        // used the markdown path (`DiagramLod::Normal` with non-empty label
+        // text). The text spans are keyed by `{edge_id}__from_label` /
+        // `{edge_id}__to_label` and merged into `entity_highlighted_spans`;
+        // the image spans are keyed by the same label key and merged into
+        // `entity_image_spans`.
+        let (md_edge_label_spans, md_edge_label_image_spans) =
+            MdSpansComputer::compute_edge_labels(&taffy_tree, &edge_label_taffy_nodes, char_width);
+        for (label_key, spans) in md_edge_label_spans.into_inner() {
+            entity_highlighted_spans.insert(label_key, spans);
+        }
+        for (label_key, image_spans) in md_edge_label_image_spans {
+            entity_image_spans.insert(label_key, image_spans);
         }
 
         // Compute highlighted text spans and image spans for edge descriptions

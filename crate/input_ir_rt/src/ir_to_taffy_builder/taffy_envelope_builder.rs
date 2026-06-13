@@ -8,11 +8,16 @@ use disposition_taffy_model::{
         style_helpers::{auto, line},
         Display, FlexDirection, JustifyContent, Rect, Style, TaffyTree,
     },
-    EdgeLabelCtx, TaffyNodeCtx,
+    DiagramLod, EdgeLabelCtx, MdNodeTaffyIds, TaffyNodeCtx,
 };
 use taffy::LengthPercentage;
 
-use super::taffy_node_build_context::EdgeLabelLeafBuilt;
+use crate::md_text::md_blocks_parser::MdBlocksParser;
+
+use super::{
+    md_node_builder::MdNodeBuilder, taffy_build_ctx::TaffyBuildCtx,
+    taffy_node_build_context::EdgeLabelLeafBuilt,
+};
 
 // === Constants === //
 
@@ -60,11 +65,15 @@ impl TaffyEnvelopeBuilder {
     ///   wrap.
     /// * `node_face_edges`: The per-node face-to-edge-IDs mapping from
     ///   `IrDiagram`.
+    /// * `ctx`: Build context providing the edge label text, endpoint lookup,
+    ///   level of detail, and character width needed to build markdown content
+    ///   sub-trees for the label slots.
     pub(crate) fn build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         node_id: &NodeId<'static>,
         diagram_node_wrapper_node: taffy::NodeId,
         node_face_edges: &NodeFaceEdges<'static>,
+        ctx: TaffyBuildCtx<'_>,
     ) -> (taffy::NodeId, Vec<EdgeLabelLeafBuilt>) {
         let mut edge_label_leaves = Vec::new();
 
@@ -106,6 +115,7 @@ impl TaffyEnvelopeBuilder {
             node_face_edges.edges_for(node_id, NodeFace::Top),
             &label_leaf_style_top_bottom,
             &mut edge_label_leaves,
+            ctx,
         );
         let bottom_leaf_ids = Self::build_face_leaves(
             taffy_tree,
@@ -114,6 +124,7 @@ impl TaffyEnvelopeBuilder {
             node_face_edges.edges_for(node_id, NodeFace::Bottom),
             &label_leaf_style_top_bottom,
             &mut edge_label_leaves,
+            ctx,
         );
         let left_leaf_ids = Self::build_face_leaves(
             taffy_tree,
@@ -122,6 +133,7 @@ impl TaffyEnvelopeBuilder {
             node_face_edges.edges_for(node_id, NodeFace::Left),
             &label_leaf_style_left_right,
             &mut edge_label_leaves,
+            ctx,
         );
         let right_leaf_ids = Self::build_face_leaves(
             taffy_tree,
@@ -130,6 +142,7 @@ impl TaffyEnvelopeBuilder {
             node_face_edges.edges_for(node_id, NodeFace::Right),
             &label_leaf_style_left_right,
             &mut edge_label_leaves,
+            ctx,
         );
 
         // edge_wrapper_top: row 1, col 2 (top-middle cell of the 3x3 grid)
@@ -279,11 +292,19 @@ impl TaffyEnvelopeBuilder {
         (envelope_node, edge_label_leaves)
     }
 
-    /// Builds the edge label leaf nodes for one face of an envelope node.
+    /// Builds the edge label slot nodes for one face of an envelope node.
     ///
-    /// For each edge ID in `edge_ids`, a leaf node is created with
-    /// [`TaffyNodeCtx::EdgeLabel`] context and appended to `label_leaves`.
-    /// Returns the `taffy::NodeId`s of all created leaves in order.
+    /// For each edge ID in `edge_ids` a slot node is created and appended to
+    /// `label_leaves`. Returns the `taffy::NodeId`s of all created slots in
+    /// order.
+    ///
+    /// At [`DiagramLod::Normal`] with non-empty label text the slot wraps a
+    /// markdown content sub-tree (built via [`MdNodeBuilder`]), styled like a
+    /// list of [`TaffyNodeCtx::MdToken`] / [`TaffyNodeCtx::MdImage`] leaves, so
+    /// the label is rendered with the same markdown styling as node and edge
+    /// descriptions. Otherwise the slot is a single placeholder leaf carrying
+    /// [`TaffyNodeCtx::EdgeLabel`] context (legacy / [`DiagramLod::Simple`]
+    /// path).
     ///
     /// # Parameters
     ///
@@ -291,8 +312,10 @@ impl TaffyEnvelopeBuilder {
     /// * `node_id`: The diagram node ID that owns this face.
     /// * `face`: Which face of the node these labels are on.
     /// * `edge_ids`: The edge IDs that attach to `face` on `node_id`.
-    /// * `label_leaf_style`: The taffy `Style` applied to every label leaf.
-    /// * `label_leaves`: Output accumulator for the built leaves.
+    /// * `label_leaf_style`: The taffy `Style` applied to every label slot.
+    /// * `label_leaves`: Output accumulator for the built slots.
+    /// * `ctx`: Build context providing the label text, endpoint lookup, level
+    ///   of detail, and character width.
     fn build_face_leaves(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         node_id: &NodeId<'static>,
@@ -300,11 +323,91 @@ impl TaffyEnvelopeBuilder {
         edge_ids: &[EdgeId<'static>],
         label_leaf_style: &Style,
         label_leaves: &mut Vec<EdgeLabelLeafBuilt>,
+        ctx: TaffyBuildCtx<'_>,
     ) -> Vec<taffy::NodeId> {
         edge_ids
             .iter()
             .map(|edge_id| {
-                let taffy_node_id = taffy_tree
+                let (taffy_node_id, md_node_taffy_ids) = Self::label_slot_build(
+                    taffy_tree,
+                    node_id,
+                    face,
+                    edge_id,
+                    label_leaf_style,
+                    ctx,
+                );
+                label_leaves.push(EdgeLabelLeafBuilt {
+                    edge_id: edge_id.clone(),
+                    node_id: node_id.clone(),
+                    face,
+                    taffy_node_id,
+                    md_node_taffy_ids,
+                });
+                taffy_node_id
+            })
+            .collect()
+    }
+
+    /// Builds the slot node for a single edge label, returning the slot node ID
+    /// and (at [`DiagramLod::Normal`] with non-empty text) its markdown
+    /// sub-tree IDs.
+    ///
+    /// The label text is the edge's `from` text when `node_id` is the edge's
+    /// `from` endpoint, otherwise its `to` text.
+    fn label_slot_build(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        node_id: &NodeId<'static>,
+        face: NodeFace,
+        edge_id: &EdgeId<'static>,
+        label_leaf_style: &Style,
+        ctx: TaffyBuildCtx<'_>,
+    ) -> (taffy::NodeId, Option<MdNodeTaffyIds>) {
+        // Resolve the label text for this slot, building a markdown sub-tree
+        // only at `DiagramLod::Normal` when the text is non-empty.
+        let label_text = if matches!(ctx.lod, DiagramLod::Normal) {
+            ctx.edge_labels.get(edge_id).and_then(|edge_label| {
+                let is_from_endpoint = ctx
+                    .edge_id_to_endpoint_node_ids
+                    .get(edge_id)
+                    .map(|(from_node_id, _to_node_id)| from_node_id == node_id)
+                    .unwrap_or(false);
+                let text = if is_from_endpoint {
+                    edge_label.from.as_str()
+                } else {
+                    edge_label.to.as_str()
+                };
+                (!text.is_empty()).then_some(text)
+            })
+        } else {
+            None
+        };
+
+        match label_text {
+            Some(label_text) => {
+                // Markdown path: the slot wraps a markdown content node so the
+                // label is rendered with inline styling (bold, italic, code,
+                // links, images). The slot keeps `label_leaf_style` (padding /
+                // flex-shrink) so spacing matches the legacy leaf.
+                let md_blocks = MdBlocksParser::parse(label_text);
+                let md_node_taffy_ids =
+                    MdNodeBuilder::build(taffy_tree, &md_blocks, ctx.char_width);
+                let slot_taffy_node_id = taffy_tree
+                    .new_with_children(
+                        label_leaf_style.clone(),
+                        &[md_node_taffy_ids.content_node_id],
+                    )
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "Expected to create edge label slot for edge {edge_id} on \
+                             face {face:?} of node {node_id}. Error: {e}"
+                        )
+                    });
+                (slot_taffy_node_id, Some(md_node_taffy_ids))
+            }
+            None => {
+                // Legacy / `DiagramLod::Simple` path: a single placeholder leaf
+                // sized from the label text during layout measurement.
+                let slot_taffy_node_id = taffy_tree
                     .new_leaf_with_context(
                         label_leaf_style.clone(),
                         TaffyNodeCtx::EdgeLabel(EdgeLabelCtx {
@@ -319,14 +422,8 @@ impl TaffyEnvelopeBuilder {
                              face {face:?} of node {node_id}. Error: {e}"
                         )
                     });
-                label_leaves.push(EdgeLabelLeafBuilt {
-                    edge_id: edge_id.clone(),
-                    node_id: node_id.clone(),
-                    face,
-                    taffy_node_id,
-                });
-                taffy_node_id
-            })
-            .collect()
+                (slot_taffy_node_id, None)
+            }
+        }
     }
 }
