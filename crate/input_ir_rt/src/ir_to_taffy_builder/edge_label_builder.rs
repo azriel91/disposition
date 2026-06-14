@@ -21,21 +21,21 @@ impl EdgeLabelBuilder {
     /// Self-loop edges (where `from == to`) use only a `from_label` slot;
     /// their `to_face` is `None`, so the `to_label` slot is never populated.
     pub(crate) fn build(
-        edge_label_leaves: Vec<EdgeLabelLeafBuilt>,
+        edge_label_leaf_builts: Vec<EdgeLabelLeafBuilt>,
         edge_face_assignments: &EdgeFaceAssignments<'static>,
         edge_groups: &EdgeGroups<'static>,
     ) -> Map<EdgeId<'static>, EdgeLabelTaffyNodeIds> {
         let edge_id_to_node_ids = Self::edge_id_to_node_ids_build(edge_groups);
 
         let mut edge_label_taffy_nodes: Map<EdgeId<'static>, EdgeLabelTaffyNodeIds> = Map::new();
-        for built in edge_label_leaves {
+        for edge_label_leaf_built in edge_label_leaf_builts {
             let EdgeLabelLeafBuilt {
                 edge_id,
                 node_id,
                 face: _,
                 taffy_node_id,
                 md_node_taffy_ids,
-            } = built;
+            } = edge_label_leaf_built;
 
             let Some((from_node_id, to_node_id)) = edge_id_to_node_ids.get(&edge_id) else {
                 continue;

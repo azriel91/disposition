@@ -30,7 +30,7 @@ pub(crate) struct TaffyBuildState<'ctx> {
     ///
     /// After all nodes are built, merged into `edge_label_taffy_nodes` in
     /// `TaffyNodeMappings`.
-    pub(crate) edge_label_leaves: &'ctx mut Vec<EdgeLabelLeafBuilt>,
+    pub(crate) edge_label_leaf_builts: &'ctx mut Vec<EdgeLabelLeafBuilt>,
     /// Accumulator for md node taffy IDs built across all diagram nodes.
     pub(crate) md_node_taffy_ids: &'ctx mut Map<NodeId<'static>, MdNodeTaffyIds>,
 }

@@ -144,7 +144,7 @@ impl IrToTaffyBuilder<'_> {
         let mut node_id_to_taffy = Map::new();
         let mut taffy_id_to_node = Map::new();
         let mut node_id_to_envelope_taffy_node: Map<NodeId<'static>, taffy::NodeId> = Map::new();
-        let mut edge_label_leaves = Vec::new();
+        let mut edge_label_leaf_builts = Vec::new();
 
         // Precompute monospace character width
         let char_width = TEXT_FONT_SIZE * MONOSPACE_CHAR_WIDTH_RATIO;
@@ -190,7 +190,7 @@ impl IrToTaffyBuilder<'_> {
                 node_id_to_taffy: &mut node_id_to_taffy,
                 taffy_id_to_node: &mut taffy_id_to_node,
                 node_id_to_envelope_taffy_node: &mut node_id_to_envelope_taffy_node,
-                edge_label_leaves: &mut edge_label_leaves,
+                edge_label_leaf_builts: &mut edge_label_leaf_builts,
                 md_node_taffy_ids: &mut md_node_taffy_ids,
             };
             TaffyDiagramNodeBuilder::build_first_level_nodes(ctx, &mut state, processes_included)
@@ -400,7 +400,7 @@ impl IrToTaffyBuilder<'_> {
         // Merge collected edge label leaf nodes into the edge label taffy node
         // map now that all envelope nodes have been built.
         let edge_label_taffy_nodes =
-            EdgeLabelBuilder::build(edge_label_leaves, edge_face_assignments, edge_groups);
+            EdgeLabelBuilder::build(edge_label_leaf_builts, edge_face_assignments, edge_groups);
 
         // Compute highlighted spans *after* layout is complete.
         //
