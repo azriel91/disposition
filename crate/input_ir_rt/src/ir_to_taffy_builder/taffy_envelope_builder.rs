@@ -15,7 +15,8 @@ use taffy::LengthPercentage;
 use crate::md_text::md_blocks_parser::MdBlocksParser;
 
 use super::{
-    md_node_builder::MdNodeBuilder, taffy_build_ctx::TaffyBuildCtx,
+    md_node_builder::{MdNodeBuilder, MD_CONTENT_NODE_PADDING},
+    taffy_build_ctx::TaffyBuildCtx,
     taffy_node_build_context::EdgeLabelLeafBuilt,
 };
 
@@ -78,7 +79,7 @@ impl TaffyEnvelopeBuilder {
         let mut edge_label_leaves = Vec::new();
 
         let pad = LengthPercentage::length(EDGE_LABEL_PADDING_PX);
-        let zero = LengthPercentage::length(0.0);
+        let md_content_node_padding = LengthPercentage::length(MD_CONTENT_NODE_PADDING);
 
         // For Top/Bottom faces the edge contacts the left x edge of the label
         // for all rank directions (sibling order matches declaration order,
@@ -87,10 +88,10 @@ impl TaffyEnvelopeBuilder {
         let label_leaf_style_top_bottom = Style {
             flex_shrink: 0.0,
             padding: Rect {
-                left: zero,
+                left: md_content_node_padding,
                 right: pad,
-                top: zero,
-                bottom: zero,
+                top: md_content_node_padding,
+                bottom: md_content_node_padding,
             },
             ..Default::default()
         };
@@ -100,9 +101,9 @@ impl TaffyEnvelopeBuilder {
         let label_leaf_style_left_right = Style {
             flex_shrink: 0.0,
             padding: Rect {
-                left: zero,
-                right: zero,
-                top: zero,
+                left: md_content_node_padding,
+                right: md_content_node_padding,
+                top: md_content_node_padding,
                 bottom: pad,
             },
             ..Default::default()
@@ -157,8 +158,8 @@ impl TaffyEnvelopeBuilder {
                     padding: Rect {
                         left: NODE_SIDE_PADDING_PX,
                         right: NODE_SIDE_PADDING_PX,
-                        top: zero,
-                        bottom: zero,
+                        top: md_content_node_padding,
+                        bottom: md_content_node_padding,
                     },
                     ..Default::default()
                 },
@@ -178,8 +179,8 @@ impl TaffyEnvelopeBuilder {
                     grid_column: line(1),
                     justify_content: Some(JustifyContent::SpaceEvenly),
                     padding: Rect {
-                        left: zero,
-                        right: zero,
+                        left: md_content_node_padding,
+                        right: md_content_node_padding,
                         top: NODE_SIDE_PADDING_PX,
                         bottom: NODE_SIDE_PADDING_PX,
                     },
@@ -228,8 +229,8 @@ impl TaffyEnvelopeBuilder {
                     grid_column: line(3),
                     justify_content: Some(JustifyContent::SpaceEvenly),
                     padding: Rect {
-                        left: zero,
-                        right: zero,
+                        left: md_content_node_padding,
+                        right: md_content_node_padding,
                         top: NODE_SIDE_PADDING_PX,
                         bottom: NODE_SIDE_PADDING_PX,
                     },
@@ -253,8 +254,8 @@ impl TaffyEnvelopeBuilder {
                     padding: Rect {
                         left: NODE_SIDE_PADDING_PX,
                         right: NODE_SIDE_PADDING_PX,
-                        top: zero,
-                        bottom: zero,
+                        top: md_content_node_padding,
+                        bottom: md_content_node_padding,
                     },
                     ..Default::default()
                 },

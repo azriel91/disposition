@@ -17,7 +17,7 @@ use crate::{
 pub(crate) struct MdNodeBuilder;
 
 /// Padding around the whole markdown content node.
-const MD_CONTENT_NODE_PADDING: f32 = 3.0;
+pub(crate) const MD_CONTENT_NODE_PADDING: f32 = 3.0;
 
 impl MdNodeBuilder {
     /// Builds a flex-column `md_content_node` containing one flex-column
