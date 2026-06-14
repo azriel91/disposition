@@ -16,6 +16,9 @@ use crate::{
 
 pub(crate) struct MdNodeBuilder;
 
+/// Padding around the whole markdown content node.
+const MD_CONTENT_NODE_PADDING: f32 = 3.0;
+
 impl MdNodeBuilder {
     /// Builds a flex-column `md_content_node` containing one flex-column
     /// `block_col_node` per `MdBlock`, each holding one flex-row-wrap
@@ -61,6 +64,12 @@ impl MdNodeBuilder {
             gap: Size {
                 width: LengthPercentage::length(0.0),
                 height: LengthPercentage::length(0.0),
+            },
+            padding: Rect {
+                left: LengthPercentage::length(MD_CONTENT_NODE_PADDING),
+                right: LengthPercentage::length(MD_CONTENT_NODE_PADDING),
+                top: LengthPercentage::length(MD_CONTENT_NODE_PADDING),
+                bottom: LengthPercentage::length(MD_CONTENT_NODE_PADDING),
             },
             ..Default::default()
         };
