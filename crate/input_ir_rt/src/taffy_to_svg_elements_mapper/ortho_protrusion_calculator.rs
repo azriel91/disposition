@@ -1842,7 +1842,13 @@ impl OrthoProtrusionCalculator {
         let Some(&node_info_from) = svg_node_info_map.get(node_id_from) else {
             return 0.0;
         };
-        let node_face_coord = Self::face_coord_for_endpoint(node_info_from, face);
+        // The protrusion length is applied from the node's inner (geometric)
+        // face, not its envelope face, so measure `node_face_coord` from node
+        // bounds. The sibling extents below stay on envelope bounds (and the
+        // node itself is part of that sibling set), so the protrusion still
+        // clears each node's full label area -- including the markdown content
+        // padding -- before the Z/S bend.
+        let node_face_coord = Self::face_coord_for_node(node_info_from, face);
 
         // 7. Find extreme sibling coordinate in the protrusion direction.
         let Some(sibling_extreme) =
@@ -1883,6 +1889,28 @@ impl OrthoProtrusionCalculator {
             NodeFace::Top => info.envelope_y,
             NodeFace::Right => info.envelope_x + info.envelope_width,
             NodeFace::Left => info.envelope_x,
+        }
+    }
+
+    /// Returns the coordinate of a node's inner (non-envelope) face along the
+    /// protrusion axis -- the actual point from which the edge stub protrudes.
+    ///
+    /// Unlike [`face_coord_for_endpoint`](Self::face_coord_for_endpoint), this
+    /// excludes the envelope's edge-label wrapper slots, because the
+    /// `from_protrusion` / `to_protrusion` length is applied from the node's
+    /// geometric face (see `OrthoProtrusionGeometry::face_center` and the edge
+    /// path builder), not from the envelope boundary.
+    ///
+    /// For `Bottom` face: the bottom edge y-coordinate of the node.
+    /// For `Top` face: the top edge y-coordinate of the node.
+    /// For `Right` face: the right edge x-coordinate of the node.
+    /// For `Left` face: the left edge x-coordinate of the node.
+    fn face_coord_for_node(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+        match face {
+            NodeFace::Bottom => info.y + info.height_collapsed,
+            NodeFace::Top => info.y,
+            NodeFace::Right => info.x + info.width,
+            NodeFace::Left => info.x,
         }
     }
 
