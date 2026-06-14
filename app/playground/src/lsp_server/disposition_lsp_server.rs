@@ -9,6 +9,7 @@
 //! feature) keeps the loop off the main thread instead.
 //!
 //! [`CodeMirror`]: dioxus_codemirror::CodeMirror
+//! [`async_lsp::MainLoop`]: https://docs.rs/async-lsp/latest/async_lsp/struct.MainLoop.html
 
 use dioxus::prelude::spawn;
 use dioxus_codemirror::{LspMessage, LspPusher, LspServerAsync};
