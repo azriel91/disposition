@@ -1387,6 +1387,7 @@ impl SvgEdgeInfosBuilder {
 
     /// Appends CSS classes for the arrowhead animation to the diagram's
     /// tailwind classes.
+    #[allow(clippy::too_many_arguments)]
     fn css_animation_append_arrowhead_classes<'id>(
         tailwind_classes: &mut EntityTailwindClasses<'id>,
         edge_path_info: &EdgePathInfo<'_, 'id>,

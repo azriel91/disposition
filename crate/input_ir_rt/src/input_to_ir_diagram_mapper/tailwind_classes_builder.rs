@@ -229,9 +229,10 @@ impl TailwindClassesBuilder {
     ///
     /// In [`TailwindFocusMode::Interactive`] mode the classes are written with
     /// the given `peer_prefix` so the focus styling is toggled at render time
-    /// via CSS `:focus-within`. In [`TailwindFocusMode::Baked`] mode the classes
-    /// are written without any prefix (so they apply unconditionally) when this
-    /// focus is the active one, and skipped otherwise.
+    /// via CSS `:focus-within`. In [`TailwindFocusMode::Baked`] mode the
+    /// classes are written without any prefix (so they apply
+    /// unconditionally) when this focus is the active one, and skipped
+    /// otherwise.
     fn focus_state_write(
         classes: &mut String,
         focus_state: &TailwindClassState<'_>,
@@ -258,8 +259,8 @@ impl TailwindClassesBuilder {
         }
     }
 
-    /// Returns whether the focus mode bakes the given process step as the active
-    /// focus.
+    /// Returns whether the focus mode bakes the given process step as the
+    /// active focus.
     fn focus_active_is_step<'id>(
         focus_mode: TailwindFocusMode<'_, 'id>,
         process_step_id: &Id<'id>,
@@ -462,6 +463,7 @@ impl TailwindClassesBuilder {
     }
 
     /// Build tailwind classes for a process step node.
+    #[allow(clippy::too_many_arguments)]
     fn build_process_step_tailwind_classes<'id>(
         process_step_id: &Id<'id>,
         parent_process_id_and_diagram: Option<(&ProcessId<'id>, &ProcessDiagram<'id>)>,
