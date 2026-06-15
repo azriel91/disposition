@@ -87,6 +87,7 @@ impl SvgNodeInfoBuilder {
                 y,
                 width,
                 height_collapsed,
+                height_expanded,
             );
         // When processes are rendered expanded, the node already uses its
         // expanded height, so no focus-driven expand classes are needed.
@@ -252,6 +253,7 @@ impl SvgNodeInfoBuilder {
     ///
     /// Returns `(envelope_x, envelope_y, envelope_width,
     /// envelope_height_collapsed)`.
+    #[allow(clippy::too_many_arguments)]
     fn node_envelope_bounds<'id>(
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         node_id: &NodeId<'id>,
@@ -260,6 +262,7 @@ impl SvgNodeInfoBuilder {
         fallback_y: f32,
         fallback_width: f32,
         fallback_height_collapsed: f32,
+        fallback_height_expanded: f32,
     ) -> (f32, f32, f32, f32) {
         let Some(&envelope_taffy_node_id) = node_id_to_envelope_taffy_node.get(node_id) else {
             return (
@@ -288,10 +291,15 @@ impl SvgNodeInfoBuilder {
             envelope_layout,
         );
         let envelope_width = envelope_layout.size.width;
-        let envelope_height_collapsed = envelope_layout
-            .size
-            .height
-            .min(envelope_layout.content_size.height);
+        // The envelope's laid-out height is always the *expanded* height (it
+        // wraps the node wrapper, whose taffy height includes any process
+        // steps), plus the top / bottom edge label wrapper rows. To obtain the
+        // collapsed envelope height, subtract only the process-step expansion
+        // delta -- never the label rows. Clamping to `content_size.height`
+        // (the inner grid track) would incorrectly drop the label wrapper
+        // rows, causing edges and arrow heads to overlap the labels.
+        let collapse_delta = (fallback_height_expanded - fallback_height_collapsed).max(0.0);
+        let envelope_height_collapsed = (envelope_layout.size.height - collapse_delta).max(0.0);
 
         (
             envelope_x,

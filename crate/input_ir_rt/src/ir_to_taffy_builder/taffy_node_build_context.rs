@@ -11,7 +11,7 @@ use disposition_taffy_model::{
         self, style::FlexDirection, AlignContent, AlignItems, AvailableSpace, Display, FlexWrap,
         Size, Style,
     },
-    DiagramLod, TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    DiagramLod, MdNodeTaffyIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 use taffy::{LengthPercentage, LengthPercentageAuto, Rect};
 
@@ -259,6 +259,18 @@ pub(crate) struct EdgeLabelLeafBuilt {
     // Seems sensible to hold which `NodeFace` the label leaf is on, even if it is not read now.
     #[allow(unused)]
     pub(crate) face: NodeFace,
-    /// The taffy node ID of the label leaf.
+    /// The taffy node ID of the label slot.
+    ///
+    /// At [`DiagramLod::Normal`] this is the slot container that wraps the
+    /// markdown content node; at [`DiagramLod::Simple`] it is the placeholder
+    /// leaf.
+    ///
+    /// [`DiagramLod::Normal`]: disposition_taffy_model::DiagramLod::Normal
+    /// [`DiagramLod::Simple`]: disposition_taffy_model::DiagramLod::Simple
     pub(crate) taffy_node_id: taffy::NodeId,
+    /// Markdown sub-tree IDs for this label slot, when built via the markdown
+    /// content path ([`DiagramLod::Normal`] with non-empty label text).
+    ///
+    /// [`DiagramLod::Normal`]: disposition_taffy_model::DiagramLod::Normal
+    pub(crate) md_node_taffy_ids: Option<MdNodeTaffyIds>,
 }

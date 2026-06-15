@@ -20,16 +20,14 @@ impl EdgePathBuilderPass2Curve {
     ///
     /// The path structure is:
     ///
-    /// 1. A curved segment from `end` (to-face) to the last spacer's exit.
-    /// 2. A straight line through each spacer (exit to entry, in reversed
-    ///    order).
+    /// 1. A curved segment from `start` (from-face) to the first spacer's
+    ///    entry.
+    /// 2. A straight line through each spacer (entry to exit).
     /// 3. Curved segments between adjacent spacers (connecting one spacer's
-    ///    entry to the next spacer's exit).
-    /// 4. A curved segment from the first spacer's entry to `start`
-    ///    (from-face).
+    ///    exit to the next spacer's entry).
+    /// 4. A curved segment from the last spacer's exit to `end` (to-face).
     ///
-    /// The path is built in reverse order (from `end` to `start`) for
-    /// correct SVG rendering direction, consistent with
+    /// The path runs from the `from` node to the `to` node, consistent with
     /// `build_curved_edge_path`.
     ///
     /// # Example values
@@ -52,82 +50,74 @@ impl EdgePathBuilderPass2Curve {
 
         // === Build the ordered list of curve/line segments === //
         //
-        // The path is built in reverse (end -> start) for SVG rendering.
-        // In reversed order the spacers are traversed last-to-first, and
-        // within each spacer we go from exit to entry.
+        // The path runs forward (start -> end). The spacers are traversed
+        // first-to-last, and within each spacer we go from entry to exit.
         //
-        // Segment sequence (reversed):
-        //   end -> last_spacer.exit  (curve)
-        //   last_spacer.exit -> last_spacer.entry  (line)
-        //   last_spacer.entry -> second_last_spacer.exit  (curve)
+        // Segment sequence:
+        //   start -> first_spacer.entry  (curve)
+        //   first_spacer.entry -> first_spacer.exit  (line)
+        //   first_spacer.exit -> second_spacer.entry  (curve)
         //   ...
-        //   first_spacer.exit -> first_spacer.entry  (line)
-        //   first_spacer.entry -> start  (curve)
+        //   last_spacer.entry -> last_spacer.exit  (line)
+        //   last_spacer.exit -> end  (curve)
 
         let mut path = BezPath::new();
-        path.move_to(Point::new(end_x as f64, end_y as f64));
+        path.move_to(Point::new(start_x as f64, start_y as f64));
 
-        let spacer_count = spacers.len();
-
-        // Iterate spacers in reverse (last spacer first in the reversed
-        // path).
-        for (rev_index, spacer) in spacers.iter().rev().enumerate() {
-            // === Curve into spacer exit === //
+        for (index, spacer) in spacers.iter().enumerate() {
+            // === Curve into spacer entry === //
             let curve_start_x;
             let curve_start_y;
             let curve_start_face_or_dir: FaceOrDirection;
-            if rev_index == 0 {
-                // First curve: from `end` (to-face).
-                curve_start_x = end_x;
-                curve_start_y = end_y;
-                curve_start_face_or_dir = FaceOrDirection::Face(to_face);
+            if index == 0 {
+                // First curve: from `start` (from-face).
+                curve_start_x = start_x;
+                curve_start_y = start_y;
+                curve_start_face_or_dir = FaceOrDirection::Face(from_face);
             } else {
-                // Curve from previous spacer's entry point.
-                // The reversed path leaves the entry point going
-                // opposite to the spacer's passthrough direction
-                // (passthrough is entry -> exit; we leave entry going
-                // away from exit).
-                let prev_spacer = &spacers[spacer_count - rev_index];
-                curve_start_x = prev_spacer.entry_x;
-                curve_start_y = prev_spacer.entry_y;
+                // Curve from previous spacer's exit point. The path leaves
+                // the exit point going in the previous spacer's passthrough
+                // direction (entry -> exit), continuing the straight line.
+                let prev_spacer = &spacers[index - 1];
+                curve_start_x = prev_spacer.exit_x;
+                curve_start_y = prev_spacer.exit_y;
                 let (pdx, pdy) = Self::spacer_passthrough_direction(prev_spacer);
-                curve_start_face_or_dir = FaceOrDirection::Direction((-pdx, -pdy));
+                curve_start_face_or_dir = FaceOrDirection::Direction((pdx, pdy));
             }
 
-            // The curve arrives at spacer.exit. In the reversed path the
-            // straight line through the spacer goes exit -> entry, which
-            // is the reverse of the passthrough direction. The curve
-            // should arrive at exit aligned with that reversed direction
-            // so the transition into the straight line is smooth.
+            // The curve arrives at spacer.entry. The straight line through the
+            // spacer goes entry -> exit (the passthrough direction). The curve
+            // should arrive at entry aligned with that direction so the
+            // transition into the straight line is smooth.
             let (sdx, sdy) = Self::spacer_passthrough_direction(spacer);
             Self::curve_segment_append(
                 &mut path,
                 curve_start_x,
                 curve_start_y,
-                spacer.exit_x,
-                spacer.exit_y,
+                spacer.entry_x,
+                spacer.entry_y,
                 curve_start_face_or_dir,
-                FaceOrDirection::Direction((-sdx, -sdy)),
+                FaceOrDirection::Direction((sdx, sdy)),
                 curve_ratio,
             );
 
-            // === Straight line through spacer (exit -> entry) === //
-            path.line_to(Point::new(spacer.entry_x as f64, spacer.entry_y as f64));
+            // === Straight line through spacer (entry -> exit) === //
+            path.line_to(Point::new(spacer.exit_x as f64, spacer.exit_y as f64));
         }
 
-        // === Final curve from first spacer's entry to start === //
-        // The reversed path leaves the entry point going opposite to
-        // the spacer's passthrough direction.
-        let first_spacer = &spacers[0];
-        let (fdx, fdy) = Self::spacer_passthrough_direction(first_spacer);
+        // === Final curve from last spacer's exit to end === //
+        // The path leaves the exit point going in the spacer's passthrough
+        // direction.
+        let last_spacer = &spacers[spacers.len() - 1];
+        let (ldx, ldy) = Self::spacer_passthrough_direction(last_spacer);
         Self::curve_segment_append(
             &mut path,
-            first_spacer.entry_x,
-            first_spacer.entry_y,
-            start_x,
-            start_y,
-            FaceOrDirection::Direction((-fdx, -fdy)),
-            FaceOrDirection::Face(from_face),
+            last_spacer.exit_x,
+            last_spacer.exit_y,
+            end_x,
+            end_y,
+            FaceOrDirection::Direction((ldx, ldy)),
+            FaceOrDirection::Face(to_face),
             curve_ratio,
         );
 

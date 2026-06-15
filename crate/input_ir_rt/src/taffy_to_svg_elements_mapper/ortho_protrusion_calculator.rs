@@ -124,7 +124,25 @@ struct RankGapEntry {
     /// Pixel distance in the rank direction for this endpoint's rank
     /// gap (from the node contact point or spacer boundary to the
     /// nearest adjacent spacer or node).
+    ///
+    /// For node endpoints whose edge crosses spacers, this is the
+    /// *post-envelope* routing channel: the distance from the node's
+    /// envelope face (the outer edge of its edge-label wrapper) to the
+    /// adjacent spacer. The band distributes protrusion depths within
+    /// this channel; the fixed `envelope_clearance` is added on top when
+    /// the protrusion is written (see [`Self::protrusion_write`]).
     rank_gap_px: f32,
+    /// Fixed clearance (in pixels) added to the band-distributed
+    /// protrusion before it is written, so the protrusion length spans
+    /// the node's own edge-label wrapper from the inner node face.
+    ///
+    /// This is the depth of the endpoint node's own edge-label slot on
+    /// its protruding face (the gap between the inner node face and the
+    /// envelope face). It is `0.0` for spacer entries / exits (spacers
+    /// have no edge labels) and for node endpoints whose edge has no
+    /// spacers (their own-label clearance is supplied by the
+    /// divergent-sibling adjustment instead).
+    envelope_clearance: f32,
 }
 
 /// Which physical boundary of a rank gap an entry protrudes from.
@@ -326,6 +344,23 @@ impl OrthoProtrusionCalculator {
                         node_nesting_infos,
                     );
 
+                    // When the edge crosses spacers, the band channel is
+                    // measured beyond the from-node's envelope; the fixed
+                    // wrapper width is added back at write time so the
+                    // protrusion still spans the from-node's own edge label.
+                    // Without spacers, the divergent-sibling adjustment supplies
+                    // the own-label clearance, so the band stays in the full
+                    // inner-face gap and no clearance is added here.
+                    let from_envelope_clearance = if spacer_coordinates.is_empty() {
+                        0.0
+                    } else {
+                        Self::envelope_clearance_for(
+                            &pass1_info.edge.from,
+                            from_face,
+                            svg_node_info_map,
+                        )
+                    };
+
                     let cross_axis_from = OrthoProtrusionGeometry::cross_axis_coord(
                         pass1_info.from_node_x,
                         pass1_info.from_node_y,
@@ -367,6 +402,7 @@ impl OrthoProtrusionCalculator {
                             cross_axis_coord: cross_axis_from,
                             face_offset: from_offset,
                             rank_gap_px: from_rank_gap_px,
+                            envelope_clearance: from_envelope_clearance,
                         });
                 }
 
@@ -387,6 +423,18 @@ impl OrthoProtrusionCalculator {
                         spacer_coordinates,
                         node_nesting_infos,
                     );
+
+                    // Symmetric to the from endpoint: the wrapper width is added
+                    // back at write time for spacer-crossing edges.
+                    let to_envelope_clearance = if spacer_coordinates.is_empty() {
+                        0.0
+                    } else {
+                        Self::envelope_clearance_for(
+                            &pass1_info.edge.to,
+                            to_face,
+                            svg_node_info_map,
+                        )
+                    };
 
                     let cross_axis_to = OrthoProtrusionGeometry::cross_axis_coord(
                         pass1_info.to_node_x,
@@ -429,6 +477,7 @@ impl OrthoProtrusionCalculator {
                             cross_axis_coord: cross_axis_to,
                             face_offset: to_offset,
                             rank_gap_px: to_rank_gap_px,
+                            envelope_clearance: to_envelope_clearance,
                         });
                 }
 
@@ -503,6 +552,7 @@ impl OrthoProtrusionCalculator {
                                     cross_axis_coord: spacer_cross,
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
+                                    envelope_clearance: 0.0,
                                 });
                         } else if let Some(from_face) = pass1_info.from_face {
                             // First spacer (index 0): entry shares the
@@ -552,6 +602,7 @@ impl OrthoProtrusionCalculator {
                                     cross_axis_coord: spacer_cross,
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
+                                    envelope_clearance: 0.0,
                                 });
                         }
 
@@ -592,6 +643,7 @@ impl OrthoProtrusionCalculator {
                                     cross_axis_coord: spacer_cross,
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
+                                    envelope_clearance: 0.0,
                                 });
                         } else if let Some(to_face) = pass1_info.to_face {
                             // Last spacer: exit shares the same gap as
@@ -641,6 +693,7 @@ impl OrthoProtrusionCalculator {
                                     cross_axis_coord: spacer_cross,
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
+                                    envelope_clearance: 0.0,
                                 });
                         }
                     }
@@ -794,8 +847,8 @@ impl OrthoProtrusionCalculator {
             if offset_cmp != std::cmp::Ordering::Equal {
                 return offset_cmp;
             }
-            a.cross_axis_coord
-                .partial_cmp(&b.cross_axis_coord)
+            b.cross_axis_coord
+                .partial_cmp(&a.cross_axis_coord)
                 .unwrap_or(std::cmp::Ordering::Equal)
         };
 
@@ -985,6 +1038,14 @@ impl OrthoProtrusionCalculator {
 
     /// Writes a protrusion value to the appropriate slot in `result`.
     ///
+    /// For node endpoints the fixed `entry.envelope_clearance` (the node's own
+    /// edge-label wrapper width) is added to the band-distributed `protrusion`,
+    /// so the total protrusion spans the node's own label from the inner node
+    /// face and then continues for the band depth within the post-envelope
+    /// routing channel. This makes node and spacer protrusions compose
+    /// additively in the same channel -- the band invariant then guarantees a
+    /// node tip never overshoots the adjacent spacer tip.
+    ///
     /// To-endpoint protrusions are floored to `TO_PROTRUSION_MIN_PX` (capped
     /// by the entry's own gap allowance) so the straight segment entering the
     /// to-node clears the arrow head before the Z/S bend.
@@ -996,12 +1057,16 @@ impl OrthoProtrusionCalculator {
         let params = &mut result[entry.pass1_group_index][entry.edge_index];
         match entry.endpoint_kind {
             RankGapEndpointKind::FromEndpoint => {
-                params.from_protrusion = protrusion;
+                params.from_protrusion = protrusion + entry.envelope_clearance;
             }
             RankGapEndpointKind::ToEndpoint => {
-                let to_protrusion_min =
-                    TO_PROTRUSION_MIN_PX.min(entry.rank_gap_px * MAX_GAP_FRACTION);
-                params.to_protrusion = protrusion.max(to_protrusion_min);
+                // The arrow-head floor applies to the full straight segment
+                // entering the node, so it is measured against the whole
+                // inner-face gap (`rank_gap_px + envelope_clearance`).
+                let to_protrusion_min = TO_PROTRUSION_MIN_PX
+                    .min((entry.rank_gap_px + entry.envelope_clearance) * MAX_GAP_FRACTION);
+                params.to_protrusion =
+                    (protrusion + entry.envelope_clearance).max(to_protrusion_min);
             }
             RankGapEndpointKind::SpacerEntry { spacer_index } => {
                 if let Some(sp) = params.spacer_protrusions.get_mut(spacer_index) {
@@ -1220,7 +1285,7 @@ impl OrthoProtrusionCalculator {
             (&pass1_info.edge.to, &pass1_info.edge.from)
         };
         let lca_depth = Self::lca_depth(this_node_id, other_node_id, node_nesting_infos);
-        if let Some(other_div_ancestor_id) =
+        let dist = if let Some(other_div_ancestor_id) =
             Self::divergent_ancestor_id(other_node_id, lca_depth, node_nesting_infos)
             && let Some(&other_ancestor_info) = svg_node_info_map.get(other_div_ancestor_id)
         {
@@ -1246,9 +1311,40 @@ impl OrthoProtrusionCalculator {
                 other_by,
                 face,
             );
-            return full_dist.min(capped);
+            full_dist.min(capped)
+        } else {
+            full_dist
+        };
+
+        // For spacer-crossing edges, the band distributes protrusion depths in
+        // the *post-envelope* routing channel: subtract this node's own
+        // edge-label wrapper width so the channel starts at the envelope face
+        // (the fixed wrapper width is re-added in `protrusion_write`). Without
+        // spacers the band stays in the full inner-face gap (the divergent-
+        // sibling adjustment provides the own-label clearance instead).
+        if spacer_coordinates.is_empty() {
+            dist
+        } else {
+            let own_clearance = Self::envelope_clearance_for(this_node_id, face, svg_node_info_map);
+            (dist - own_clearance).max(0.0)
         }
-        full_dist
+    }
+
+    /// Returns the own edge-label wrapper width (envelope clearance) on `face`
+    /// for the node identified by `node_id`, or `0.0` when its layout is not
+    /// available.
+    ///
+    /// This is the depth of the node's own edge-label slot on that face -- the
+    /// distance from the inner node face to the envelope face.
+    fn envelope_clearance_for<'id>(
+        node_id: &NodeId<'id>,
+        face: NodeFace,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+    ) -> f32 {
+        svg_node_info_map
+            .get(node_id)
+            .map(|&info| Self::own_envelope_clearance(info, face))
+            .unwrap_or(0.0)
     }
 
     /// Finalises protrusion depths for same-rank (cycle) edges.
@@ -1607,6 +1703,9 @@ impl OrthoProtrusionCalculator {
                 cross_axis_coord: cross_axis_from,
                 face_offset: from_offset,
                 rank_gap_px: from_rank_gap_px,
+                // Cycle edges register in an open adjacent gap (no spacers),
+                // so the own-label clearance is supplied elsewhere.
+                envelope_clearance: 0.0,
             });
     }
 
@@ -1708,6 +1807,23 @@ impl OrthoProtrusionCalculator {
                 }
             }
         }
+    }
+
+    /// Returns the depth of a node's own edge-label slot on `face` -- the
+    /// distance from the node's inner face to its envelope face along the
+    /// protrusion axis.
+    ///
+    /// An endpoint protrusion must be at least this long so the Z/S bend
+    /// clears the node's own edge label (including the markdown content
+    /// padding) rather than overlapping it.
+    fn own_envelope_clearance(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+        let face_sign: f32 = match face {
+            NodeFace::Bottom | NodeFace::Right => 1.0,
+            NodeFace::Top | NodeFace::Left => -1.0,
+        };
+        (face_sign
+            * (Self::face_coord_for_endpoint(info, face) - Self::face_coord_for_node(info, face)))
+        .max(0.0)
     }
 
     /// Computes the minimum protrusion needed for `node_id`'s endpoint to
@@ -1842,7 +1958,13 @@ impl OrthoProtrusionCalculator {
         let Some(&node_info_from) = svg_node_info_map.get(node_id_from) else {
             return 0.0;
         };
-        let node_face_coord = Self::face_coord_for_endpoint(node_info_from, face);
+        // The protrusion length is applied from the node's inner (geometric)
+        // face, not its envelope face, so measure `node_face_coord` from node
+        // bounds. The sibling extents below stay on envelope bounds (and the
+        // node itself is part of that sibling set), so the protrusion still
+        // clears each node's full label area -- including the markdown content
+        // padding -- before the Z/S bend.
+        let node_face_coord = Self::face_coord_for_node(node_info_from, face);
 
         // 7. Find extreme sibling coordinate in the protrusion direction.
         let Some(sibling_extreme) =
@@ -1883,6 +2005,28 @@ impl OrthoProtrusionCalculator {
             NodeFace::Top => info.envelope_y,
             NodeFace::Right => info.envelope_x + info.envelope_width,
             NodeFace::Left => info.envelope_x,
+        }
+    }
+
+    /// Returns the coordinate of a node's inner (non-envelope) face along the
+    /// protrusion axis -- the actual point from which the edge stub protrudes.
+    ///
+    /// Unlike [`face_coord_for_endpoint`](Self::face_coord_for_endpoint), this
+    /// excludes the envelope's edge-label wrapper slots, because the
+    /// `from_protrusion` / `to_protrusion` length is applied from the node's
+    /// geometric face (see `OrthoProtrusionGeometry::face_center` and the edge
+    /// path builder), not from the envelope boundary.
+    ///
+    /// For `Bottom` face: the bottom edge y-coordinate of the node.
+    /// For `Top` face: the top edge y-coordinate of the node.
+    /// For `Right` face: the right edge x-coordinate of the node.
+    /// For `Left` face: the left edge x-coordinate of the node.
+    fn face_coord_for_node(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+        match face {
+            NodeFace::Bottom => info.y + info.height_collapsed,
+            NodeFace::Top => info.y,
+            NodeFace::Right => info.x + info.width,
+            NodeFace::Left => info.x,
         }
     }
 

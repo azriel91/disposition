@@ -1,5 +1,5 @@
 use disposition_ir_model::{
-    edge::EdgeGroups,
+    edge::{EdgeGroups, EdgeId, EdgeLabels},
     entity::EntityTypes,
     layout::NodeLayouts,
     node::{
@@ -56,6 +56,18 @@ pub(crate) struct TaffyBuildCtx<'ctx> {
     pub(crate) node_face_edges: &'ctx NodeFaceEdges<'static>,
     /// All edge groups in the diagram.
     pub(crate) edge_groups: &'ctx EdgeGroups<'static>,
+    /// Text labels for each edge endpoint.
+    ///
+    /// Used to build markdown content sub-trees for edge label slots during
+    /// envelope construction.
+    pub(crate) edge_labels: &'ctx EdgeLabels<'static>,
+    /// Pre-computed lookup from edge ID to its `from` and `to` endpoint node
+    /// IDs.
+    ///
+    /// Used to determine which endpoint text (`from` or `to`) applies to each
+    /// edge label slot when building the slot's markdown sub-tree.
+    pub(crate) edge_id_to_endpoint_node_ids:
+        &'ctx Map<EdgeId<'static>, (NodeId<'static>, NodeId<'static>)>,
     /// Level of detail for this diagram build.
     pub(crate) lod: DiagramLod,
     /// Monospace character width in pixels.

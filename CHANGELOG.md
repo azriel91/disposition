@@ -10,11 +10,18 @@
 * Arrow protrusions for the `to` end of an edge take into account arrow head length. ([#45][#45])
 * Distribute the orthogonal edge protrusion gap between the `from` and `to` ends proportionally to each side's edge count, instead of reserving the full gap fraction per side. ([#45][#45])
 * Reduce extra gap between edge description and its edge path. ([#45][#45])
+* Markdown: Support nested lists, alpha / roman numeral ordered lists. ([#46][#46])
+* Markdown: Single line spacing around lists. ([#46][#46])
+* Markdown: Fix unintentional wrapping of last character. ([#46][#46])
+* Markdown: Improve inline code background position and rounded corner. ([#46][#46])
+* Markdown: Style inline code background and link text via Tailwind classes backed by light / dark theme variables, improving link contrast in dark mode. ([#46][#46])
+* Markdown: Render edge labels as markdown, so they support inline styling (bold, italic, inline code, links) and images like node and edge descriptions. ([#46][#46])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
 [#44]: https://github.com/azriel91/disposition/pull/44
 [#45]: https://github.com/azriel91/disposition/pull/45
+[#46]: https://github.com/azriel91/disposition/pull/46
 
 
 ## 0.3.0 (2026-06-07)
