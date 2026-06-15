@@ -847,8 +847,8 @@ impl OrthoProtrusionCalculator {
             if offset_cmp != std::cmp::Ordering::Equal {
                 return offset_cmp;
             }
-            a.cross_axis_coord
-                .partial_cmp(&b.cross_axis_coord)
+            b.cross_axis_coord
+                .partial_cmp(&a.cross_axis_coord)
                 .unwrap_or(std::cmp::Ordering::Equal)
         };
 
