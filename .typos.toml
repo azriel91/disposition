@@ -1,3 +1,4 @@
 [default.extend-words]
-"lod" = "lod"                  # Level of detail
+"builts"      = "builts"       # allow pluralization of "edge_label_leaf_builts"
+"lod"         = "lod"          # Level of detail
 "unparseable" = "unparseable"  # both spellings are correct.
