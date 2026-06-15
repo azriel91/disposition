@@ -1,0 +1,27 @@
+[package]
+name = "disposition_output_model"
+description = "`disposition` diagram generation output data types."
+documentation = "https://docs.rs/disposition_output_model/"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+
+[lib]
+doctest = true
+test = false
+
+[lints]
+workspace = true
+
+[dependencies]
+disposition_input_ir_model = { workspace = true }
+disposition_input_model = { workspace = true }
+disposition_ir_model = { workspace = true }
+disposition_svg_model = { workspace = true }
+disposition_taffy_model = { workspace = true }

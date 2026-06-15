@@ -5,11 +5,10 @@ use disposition::{
     input_model::InputDiagram,
     ir_model::entity::EntityTailwindClasses,
     model_common::theme::Css,
-    taffy_model::{DimensionAndLod, IrToTaffyError, TaffyTreeFmt},
+    taffy_model::TaffyTreeFmt,
 };
 use disposition_input_ir_rt::{
-    EdgeAnimationActive, InputDiagramMerger, InputToIrDiagramMapper, IrToTaffyBuilder,
-    SvgElementsToSvgMapper, TaffyToSvgElementsMapper,
+    DiagramGenerateError, DiagramGenerator, EdgeAnimationActive, SvgElementsToSvgMapper,
 };
 use thiserror::Error;
 
@@ -74,10 +73,8 @@ enum CliError {
     YamlDeserialize(#[from] serde_saphyr::Error),
     #[error("yaml serialize: {0}")]
     YamlSerialize(#[from] serde_saphyr::ser::Error),
-    #[error("taffy: {0}")]
-    Taffy(#[from] IrToTaffyError),
-    #[error("no taffy node mappings generated")]
-    NoTaffyMappings,
+    #[error("generate: {0}")]
+    Generate(#[from] DiagramGenerateError),
     #[error("no output specified: provide an output directory or `--stdout`")]
     NoOutput,
 }
@@ -110,7 +107,6 @@ async fn run() -> Result<(), CliError> {
     } else {
         data
     };
-    let stage_max = data_selected.unwrap_or(Data::Svg);
     let data_is_selected =
         |data: Data| data_selected.is_none_or(|data_selected| data_selected == data);
 
@@ -122,61 +118,44 @@ async fn run() -> Result<(), CliError> {
     }
     let output = output.as_deref();
 
-    let input_diagram_merged = InputDiagramMerger::merge(InputDiagram::base(), &input_diagram);
-    let ir_diagram_and_issues = InputToIrDiagramMapper::map(&input_diagram_merged);
+    let diagram_generated =
+        DiagramGenerator::generate(&input_diagram, EdgeAnimationActive::OnProcessStepFocus)?;
 
-    if !ir_diagram_and_issues.issues.is_empty() {
+    if !diagram_generated.ir_diagram_issues.is_empty() {
         eprintln!("Issues mapping input to IR diagram:");
-        for issue in &ir_diagram_and_issues.issues {
+        for issue in &diagram_generated.ir_diagram_issues {
             eprintln!("  {issue}");
         }
     }
 
     // === IR diagram === //
-    let ir_diagram = if structure_only {
-        let mut ir_diagram = ir_diagram_and_issues.diagram;
-        ir_diagram.tailwind_classes = EntityTailwindClasses::default();
-        ir_diagram.css = Css::default();
-        ir_diagram
-    } else {
-        ir_diagram_and_issues.diagram
-    };
-
     if data_is_selected(Data::IrDiagram) {
         let mut ir_yaml = String::new();
-        serde_saphyr::to_fmt_writer(&mut ir_yaml, &ir_diagram)?;
+        if structure_only {
+            // `tailwind_classes` / `css` are styling only and do not affect
+            // layout, so stripping them keeps the structural values readable.
+            let mut ir_diagram = diagram_generated.ir_diagram.clone();
+            ir_diagram.tailwind_classes = EntityTailwindClasses::default();
+            ir_diagram.css = Css::default();
+            serde_saphyr::to_fmt_writer(&mut ir_yaml, &ir_diagram)?;
+        } else {
+            serde_saphyr::to_fmt_writer(&mut ir_yaml, &diagram_generated.ir_diagram)?;
+        }
         data_emit(output, stdout, "ir_diagram.yaml", &ir_yaml).await?;
-    }
-    if stage_max == Data::IrDiagram {
-        return Ok(());
     }
 
     // === Taffy tree === //
-    let taffy_node_mappings = IrToTaffyBuilder::builder()
-        .with_ir_diagram(&ir_diagram)
-        .with_dimension_and_lods(vec![DimensionAndLod::default_no_limit()])
-        .build()
-        .build()?
-        .next()
-        .ok_or(CliError::NoTaffyMappings)?;
-
     if data_is_selected(Data::TaffyTree) {
         let mut taffy_tree = String::new();
-        TaffyTreeFmt::fmt(&mut taffy_tree, &taffy_node_mappings);
+        TaffyTreeFmt::fmt(&mut taffy_tree, &diagram_generated.taffy_node_mappings);
         data_emit(output, stdout, "taffy_tree.txt", &taffy_tree).await?;
-    }
-    if stage_max == Data::TaffyTree {
-        return Ok(());
     }
 
     // === SVG elements === //
-    let mut svg_elements = TaffyToSvgElementsMapper::map(
-        &ir_diagram,
-        &taffy_node_mappings,
-        EdgeAnimationActive::OnProcessStepFocus,
-    );
-
-    if structure_only {
+    // Under `--structure-only` a stripped copy is also used to re-derive the
+    // SVG, so the final SVG matches the structure-only SVG elements.
+    let svg_elements_structure_only = if structure_only {
+        let mut svg_elements = diagram_generated.svg_elements.clone();
         svg_elements.css = Css::default();
         svg_elements.tailwind_classes = EntityTailwindClasses::default();
         svg_elements
@@ -185,20 +164,30 @@ async fn run() -> Result<(), CliError> {
             .for_each(|svg_edge_info| {
                 svg_edge_info.locus_path_d = String::new();
             });
-    }
+        Some(svg_elements)
+    } else {
+        None
+    };
 
     if data_is_selected(Data::SvgElements) {
+        let svg_elements = svg_elements_structure_only
+            .as_ref()
+            .unwrap_or(&diagram_generated.svg_elements);
         let mut svg_elements_yaml = String::new();
-        serde_saphyr::to_fmt_writer(&mut svg_elements_yaml, &svg_elements)?;
+        serde_saphyr::to_fmt_writer(&mut svg_elements_yaml, svg_elements)?;
         data_emit(output, stdout, "svg_elements.yaml", &svg_elements_yaml).await?;
-    }
-    if stage_max == Data::SvgElements {
-        return Ok(());
     }
 
     // === SVG === //
-    let svg = SvgElementsToSvgMapper::map_with_input(&input_diagram, &svg_elements);
-    data_emit(output, stdout, "diagram.svg", &svg).await?;
+    if data_is_selected(Data::Svg) {
+        let svg = match svg_elements_structure_only.as_ref() {
+            Some(svg_elements) => {
+                SvgElementsToSvgMapper::map_with_input(&input_diagram, svg_elements)
+            }
+            None => diagram_generated.svg.clone(),
+        };
+        data_emit(output, stdout, "diagram.svg", &svg).await?;
+    }
 
     Ok(())
 }

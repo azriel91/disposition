@@ -48,7 +48,6 @@ getrandom = { workspace = true, features = ["wasm_js"] }
 # Used to fetch the example diagram YAML files served as static assets.
 gloo-net = { workspace = true, features = ["http"] }
 gloo-timers = { workspace = true, features = ["futures"] }
-web-time = { workspace = true }
 
 [features]
 default = ["web"]

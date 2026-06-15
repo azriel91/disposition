@@ -31,18 +31,13 @@ use disposition::{
     input_ir_model::IrDiagramAndIssues,
     input_model::{theme::DarkModeCssSelector, InputDiagram},
     ir_model::IrDiagram,
+    output_model::DiagramGenerated,
     svg_model::SvgElements,
-    taffy_model::{DimensionAndLod, TaffyNodeMappings},
 };
 use disposition_input_ir_rt::{
-    EdgeAnimationActive, InputDiagramMerger, InputToIrDiagramMapper, IrToTaffyBuilder,
-    SvgElementsToSvgMapper, TaffyToSvgElementsMapper,
+    DiagramGenerator, EdgeAnimationActive, InputToIrDiagramMapper, SvgElementsToSvgMapper,
+    TaffyToSvgElementsMapper,
 };
-
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
-#[cfg(target_arch = "wasm32")]
-use web_time::Instant;
 
 use crate::{
     components::{
@@ -414,51 +409,37 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
 
     // === SVG generation pipeline === //
 
-    let ir_diagram: Memo<Result<(IrDiagram<'static>, Vec<String>), Vec<String>>> =
-        use_memo(move || {
-            let diagram = input_diagram.read();
-            if diagram.things.is_empty()
-                && diagram.thing_dependencies.is_empty()
-                && diagram.thing_interactions.is_empty()
-                && diagram.processes.is_empty()
-            {
-                return Err(vec![String::from("ℹ️ Add things to get started")]);
-            }
+    let diagram_generated: Memo<Result<DiagramGenerated, Vec<String>>> = use_memo(move || {
+        let diagram = input_diagram.read();
+        if diagram.things.is_empty()
+            && diagram.thing_dependencies.is_empty()
+            && diagram.thing_interactions.is_empty()
+            && diagram.processes.is_empty()
+        {
+            return Err(vec![String::from("ℹ️ Add things to get started")]);
+        }
 
-            let input_diagram_merge_start = Instant::now();
-            let input_diagram_merged = InputDiagramMerger::merge(InputDiagram::base(), &diagram);
-            let input_diagram_merge_duration_ms = Instant::now()
-                .duration_since(input_diagram_merge_start)
-                .as_millis();
-            info!("`InputDiagramMerger::merge` took {input_diagram_merge_duration_ms} ms.");
+        let diagram_generated =
+            DiagramGenerator::generate(&diagram, EdgeAnimationActive::OnProcessStepFocus)
+                .map_err(|error| vec![format!("⚠️ Error generating diagram: {error}")])?;
 
-            let input_to_ir_map_start = Instant::now();
-            let input_diagram_and_issues = InputToIrDiagramMapper::map(&input_diagram_merged);
-            let input_to_ir_map_duration_ms = Instant::now()
-                .duration_since(input_to_ir_map_start)
-                .as_millis();
-            info!("`InputToIrDiagramMapper::map` took {input_to_ir_map_duration_ms} ms.");
+        info!(
+            "`DiagramGenerator::generate` took: merge {} ms, ir {} ms, taffy {} ms, svg_elements {} ms, svg {} ms.",
+            diagram_generated.input_diagram_merged_merge_duration.as_millis(),
+            diagram_generated.ir_diagram_map_duration.as_millis(),
+            diagram_generated.taffy_node_mappings_build_duration.as_millis(),
+            diagram_generated.svg_elements_map_duration.as_millis(),
+            diagram_generated.svg_map_duration.as_millis(),
+        );
 
-            let IrDiagramAndIssues { diagram, issues } = input_diagram_and_issues;
-            let warnings = if !issues.is_empty() {
-                let mut msgs = vec![String::from(
-                    "⚠️ Issues mapping input diagram to IR diagram",
-                )];
-                msgs.extend(issues.into_iter().map(|issue| issue.to_string()));
-                msgs
-            } else {
-                vec![]
-            };
-
-            Ok((diagram, warnings))
-        });
+        Ok(diagram_generated)
+    });
 
     let ir_diagram_string: Memo<String> = use_memo(move || {
-        let ir_diagram = &*ir_diagram.read();
-        match ir_diagram {
-            Ok((diagram, _)) => {
+        match &*diagram_generated.read() {
+            Ok(diagram_generated) => {
                 let mut buffer = String::new();
-                match serde_saphyr::to_fmt_writer(&mut buffer, diagram) {
+                match serde_saphyr::to_fmt_writer(&mut buffer, &diagram_generated.ir_diagram) {
                     Ok(()) => buffer,
                     Err(error) => format!("⚠️ Error serializing IR diagram: {}", error),
                 }
@@ -467,84 +448,22 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         }
     });
 
-    let taffy_node_mappings: Memo<Result<TaffyNodeMappings<'static>, Vec<String>>> = use_memo(
-        move || {
-            let ir_diagram = &*ir_diagram.read();
-            match ir_diagram {
-                Ok((ir_diagram, _)) => {
-                    let ir_to_taffy_builder = IrToTaffyBuilder::builder()
-                        .with_ir_diagram(ir_diagram)
-                        .with_dimension_and_lods(vec![DimensionAndLod::default_no_limit()])
-                        .build();
-
-                    let taffy_node_mappings_iter_result = ir_to_taffy_builder.build();
-                    match taffy_node_mappings_iter_result {
-                        Ok(mut taffy_node_mappings_iter) => {
-                            let taffy_node_mappings_start = Instant::now();
-                            match taffy_node_mappings_iter.next() {
-                                Some(taffy_node_mappings) => {
-                                    let taffy_node_mappings_duration_ms = Instant::now()
-                                        .duration_since(taffy_node_mappings_start)
-                                        .as_millis();
-                                    info!("`taffy_node_mappings` generation took {taffy_node_mappings_duration_ms} ms.");
-                                    Ok(taffy_node_mappings)
-                                }
-                                None => {
-                                    Err(vec![String::from("⚠️ No taffy node mappings generated")])
-                                }
-                            }
-                        }
-                        Err(error) => Err(vec![
-                            String::from("⚠️ Error building taffy tree"),
-                            error.to_string(),
-                        ]),
-                    }
-                }
-                Err(_) => Err(vec![]),
-            }
-        },
-    );
-
     let taffy_node_mappings_string: Memo<String> = use_memo(move || {
-        let taffy_node_mappings = &*taffy_node_mappings.read();
-        match taffy_node_mappings {
-            Ok(taffy_node_mappings) => {
+        match &*diagram_generated.read() {
+            Ok(diagram_generated) => {
                 let mut buffer = String::new();
-                TaffyTreeFmt::fmt(&mut buffer, taffy_node_mappings);
+                TaffyTreeFmt::fmt(&mut buffer, &diagram_generated.taffy_node_mappings);
                 buffer
             }
             Err(_) => String::new(),
         }
     });
 
-    let svg_elements: Memo<Result<SvgElements, Vec<String>>> = use_memo(move || {
-        let ir_diagram = &*ir_diagram.read();
-        let taffy_node_mappings = &*taffy_node_mappings.read();
-
-        match (ir_diagram, taffy_node_mappings) {
-            (Ok((ir_diagram, _)), Ok(taffy_node_mappings)) => {
-                let svg_elements_map_start = Instant::now();
-                let svg_elements = TaffyToSvgElementsMapper::map(
-                    ir_diagram,
-                    taffy_node_mappings,
-                    EdgeAnimationActive::OnProcessStepFocus,
-                );
-                let svg_elements_map_duration_ms = Instant::now()
-                    .duration_since(svg_elements_map_start)
-                    .as_millis();
-                info!("`TaffyToSvgElementsMapper::map` took {svg_elements_map_duration_ms} ms.");
-                Ok(svg_elements)
-            }
-            _ => Err(vec![]),
-        }
-    });
-
     let svg_elements_string: Memo<String> = use_memo(move || {
-        let svg_elements = &*svg_elements.read();
-        match svg_elements {
-            Ok(svg_elements) => {
+        match &*diagram_generated.read() {
+            Ok(diagram_generated) => {
                 let mut buffer = String::new();
-                match serde_saphyr::to_fmt_writer(&mut buffer, svg_elements) {
+                match serde_saphyr::to_fmt_writer(&mut buffer, &diagram_generated.svg_elements) {
                     Ok(()) => buffer,
                     Err(error) => format!("⚠️ Error serializing SVG elements: {}", error),
                 }
@@ -553,21 +472,9 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         }
     });
 
-    let svg: Memo<String> = use_memo(move || {
-        let input_diagram = input_diagram.read();
-        let svg_elements = &*svg_elements.read();
-        let svg_generation_start = Instant::now();
-        let svg = match svg_elements {
-            Ok(svg_elements) => {
-                SvgElementsToSvgMapper::map_with_input(&input_diagram, svg_elements)
-            }
-            Err(_) => String::new(),
-        };
-        let svg_generation_duration_ms = Instant::now()
-            .duration_since(svg_generation_start)
-            .as_millis();
-        info!("`svg` generation took {svg_generation_duration_ms} ms.");
-        svg
+    let svg: Memo<String> = use_memo(move || match &*diagram_generated.read() {
+        Ok(diagram_generated) => diagram_generated.svg.clone(),
+        Err(_) => String::new(),
     });
 
     // === Display SVG pipeline (forces `RootDarkClass`) === //
@@ -586,16 +493,15 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
     // computed above are reused rather than recomputed.
 
     let ir_diagram_display: Memo<Option<IrDiagram<'static>>> = use_memo(move || {
-        let diagram = input_diagram.read();
-        if diagram.things.is_empty()
-            && diagram.thing_dependencies.is_empty()
-            && diagram.thing_interactions.is_empty()
-            && diagram.processes.is_empty()
-        {
+        let diagram_generated = diagram_generated.read();
+        let Ok(diagram_generated) = &*diagram_generated else {
             return None;
-        }
+        };
 
-        let mut input_diagram_merged = InputDiagramMerger::merge(InputDiagram::base(), &diagram);
+        // Reuse the merged input diagram from the generation pipeline, only
+        // overriding the dark-mode selector so the displayed diagram tracks the
+        // site's `dark` class toggle.
+        let mut input_diagram_merged = diagram_generated.input_diagram_merged.clone();
         input_diagram_merged.theme_default.dark_mode_config.selector =
             DarkModeCssSelector::RootDarkClass;
 
@@ -605,11 +511,11 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
 
     let svg_elements_display: Memo<Option<SvgElements>> = use_memo(move || {
         let ir_diagram_display = &*ir_diagram_display.read();
-        let taffy_node_mappings = &*taffy_node_mappings.read();
-        match (ir_diagram_display, taffy_node_mappings) {
-            (Some(ir_diagram), Ok(taffy_node_mappings)) => Some(TaffyToSvgElementsMapper::map(
+        let diagram_generated = diagram_generated.read();
+        match (ir_diagram_display, &*diagram_generated) {
+            (Some(ir_diagram), Ok(diagram_generated)) => Some(TaffyToSvgElementsMapper::map(
                 ir_diagram,
-                taffy_node_mappings,
+                &diagram_generated.taffy_node_mappings,
                 EdgeAnimationActive::OnProcessStepFocus,
             )),
             _ => None,
@@ -634,15 +540,21 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
     let status_messages: Memo<Vec<String>> = use_memo(move || {
         let mut messages = Vec::new();
 
-        match &*ir_diagram.read() {
-            Ok((_, warnings)) => messages.extend(warnings.iter().cloned()),
+        match &*diagram_generated.read() {
+            Ok(diagram_generated) => {
+                if !diagram_generated.ir_diagram_issues.is_empty() {
+                    messages.push(String::from(
+                        "⚠️ Issues mapping input diagram to IR diagram",
+                    ));
+                    messages.extend(
+                        diagram_generated
+                            .ir_diagram_issues
+                            .iter()
+                            .map(|issue| issue.to_string()),
+                    );
+                }
+            }
             Err(errors) => messages.extend(errors.iter().cloned()),
-        }
-        if let Err(errors) = &*taffy_node_mappings.read() {
-            messages.extend(errors.iter().cloned());
-        }
-        if let Err(errors) = &*svg_elements.read() {
-            messages.extend(errors.iter().cloned());
         }
         messages
     });
