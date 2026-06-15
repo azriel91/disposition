@@ -1675,6 +1675,22 @@ impl OrthoProtrusionCalculator {
                     }
                 }
 
+                // Own-envelope clearance for the from endpoint (mirrors the
+                // to-endpoint floor below). The from-node's own edge labels live
+                // in the envelope slot between the node's inner face and the
+                // envelope boundary on `from_face`; the protrusion is applied
+                // from the inner face, so it must span that slot for the Z/S
+                // bend to clear this edge's own `from` label.
+                if let Some(from_face) = pass1_info.from_face
+                    && let Some(&from_info) = svg_node_info_map.get(&pass1_info.edge.from)
+                {
+                    let own_from = Self::own_envelope_clearance(from_info, from_face);
+                    if own_from > 0.0 {
+                        let params = &mut result[group_idx][edge_idx];
+                        params.from_protrusion = params.from_protrusion.max(own_from);
+                    }
+                }
+
                 // === To endpoint === //
                 //
                 // When the edge has cross-container spacers, the spacer
