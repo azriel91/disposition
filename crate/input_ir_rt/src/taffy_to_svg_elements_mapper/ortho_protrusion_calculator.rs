@@ -1706,8 +1706,45 @@ impl OrthoProtrusionCalculator {
                         params.to_protrusion = params.to_protrusion.max(min_to);
                     }
                 }
+
+                // Own-envelope clearance (applies even with spacers).
+                //
+                // The to-node's own edge labels live in the envelope slot
+                // between the node's inner face and the envelope boundary on
+                // `to_face`. The protrusion is applied from the inner face, so
+                // it must be at least as long as that slot depth for the Z/S
+                // bend to clear this edge's own `to` label. The spacer guard
+                // above only skips the *sibling/container* routing extent; the
+                // own label sits between the node face and the nearest spacer,
+                // so this floor is safe to apply unconditionally.
+                if let Some(to_face) = pass1_info.to_face
+                    && let Some(&to_info) = svg_node_info_map.get(&pass1_info.edge.to)
+                {
+                    let own_to = Self::own_envelope_clearance(to_info, to_face);
+                    if own_to > 0.0 {
+                        let params = &mut result[group_idx][edge_idx];
+                        params.to_protrusion = params.to_protrusion.max(own_to);
+                    }
+                }
             }
         }
+    }
+
+    /// Returns the depth of a node's own edge-label slot on `face` -- the
+    /// distance from the node's inner face to its envelope face along the
+    /// protrusion axis.
+    ///
+    /// An endpoint protrusion must be at least this long so the Z/S bend
+    /// clears the node's own edge label (including the markdown content
+    /// padding) rather than overlapping it.
+    fn own_envelope_clearance(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+        let face_sign: f32 = match face {
+            NodeFace::Bottom | NodeFace::Right => 1.0,
+            NodeFace::Top | NodeFace::Left => -1.0,
+        };
+        (face_sign
+            * (Self::face_coord_for_endpoint(info, face) - Self::face_coord_for_node(info, face)))
+        .max(0.0)
     }
 
     /// Computes the minimum protrusion needed for `node_id`'s endpoint to
