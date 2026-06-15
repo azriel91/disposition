@@ -1,4 +1,5 @@
 use disposition_input_ir_model::EdgeAnimationActive;
+use disposition_input_model::DiagramFocus;
 use disposition_ir_model::{
     edge::{Edge, EdgeFaceAssignments, EdgeGroup, EdgeId},
     entity::EntityTypes,
@@ -18,6 +19,7 @@ use disposition_ir_model::entity::EntityTailwindClasses;
 use disposition_model_common::edge::EdgeGroupId;
 
 use crate::{
+    input_to_ir_diagram_mapper::tailwind_focus_mode::TailwindFocusMode,
     taffy_to_svg_elements_mapper::{
         edge_face_contact_tracker::EdgeFaceContactTracker,
         edge_model::{
@@ -66,6 +68,7 @@ impl SvgEdgeInfosBuilder {
         tailwind_classes: &mut EntityTailwindClasses<'id>,
         css: &mut Css,
         edge_animation_active: EdgeAnimationActive,
+        focus_mode: TailwindFocusMode<'_, 'id>,
     ) -> Vec<SvgEdgeInfo<'id>> {
         let IrDiagram {
             edge_groups,
@@ -246,6 +249,7 @@ impl SvgEdgeInfosBuilder {
                         edge_group_animation_duration_total_s,
                         edge_path_info: &edge_path_info,
                         edge_animation_active,
+                        focus_mode,
                         associated_process_steps,
                     };
                     Self::css_animation_append(css_animation_append_params);
@@ -1254,6 +1258,28 @@ impl SvgEdgeInfosBuilder {
         }
     }
 
+    /// Returns whether the focus mode bakes a process step that is associated
+    /// with this edge as the active focus.
+    ///
+    /// When true, the edge's animation should run unconditionally in the baked
+    /// diagram (rather than being gated on `:focus-within`).
+    fn focus_baked_step_associated<'id>(
+        focus_mode: TailwindFocusMode<'_, 'id>,
+        associated_process_steps: &[&NodeId<'id>],
+    ) -> bool {
+        matches!(
+            focus_mode,
+            TailwindFocusMode::Baked {
+                active: DiagramFocus::ProcessStep {
+                    process_step_id,
+                    ..
+                },
+            } if associated_process_steps
+                .iter()
+                .any(|node_id| node_id.as_ref() == process_step_id.as_ref())
+        )
+    }
+
     fn css_animation_append<'f, 'edge, 'id>(
         css_animation_append_params: CssAnimationAppendParams<'f, 'edge, 'id>,
     ) {
@@ -1265,6 +1291,7 @@ impl SvgEdgeInfosBuilder {
             edge_group_animation_duration_total_s,
             edge_path_info,
             edge_animation_active,
+            focus_mode,
             associated_process_steps,
         } = css_animation_append_params;
         let edge_animation = EdgeAnimationCalculator::calculate(
@@ -1294,14 +1321,26 @@ impl SvgEdgeInfosBuilder {
                         "\n[&>.edge_body]:animate-[{animation_name}_{animation_duration}s_linear_infinite]"
                     ));
                 }
-                EdgeAnimationActive::OnProcessStepFocus => {
-                    associated_process_steps.iter().for_each(|process_step_id| {
-                        classes.push_str(&format!(
-                            "\ngroup-has-[#{process_step_id}:focus-within]:\
-                                [&>.edge_body]:animate-[{animation_name}_{animation_duration}s_linear_infinite]"
-                        ));
-                    });
-                }
+                EdgeAnimationActive::OnProcessStepFocus => match focus_mode {
+                    TailwindFocusMode::Interactive => {
+                        associated_process_steps.iter().for_each(|process_step_id| {
+                            classes.push_str(&format!(
+                                "\ngroup-has-[#{process_step_id}:focus-within]:\
+                                    [&>.edge_body]:animate-[{animation_name}_{animation_duration}s_linear_infinite]"
+                            ));
+                        });
+                    }
+                    TailwindFocusMode::Baked { .. } => {
+                        // In baked mode, the focused step's interacting edges
+                        // animate unconditionally; all other edges do not
+                        // animate.
+                        if Self::focus_baked_step_associated(focus_mode, associated_process_steps) {
+                            classes.push_str(&format!(
+                                "\n[&>.edge_body]:animate-[{animation_name}_{animation_duration}s_linear_infinite]"
+                            ));
+                        }
+                    }
+                },
             }
             classes
         };
@@ -1331,6 +1370,7 @@ impl SvgEdgeInfosBuilder {
             tailwind_classes,
             edge_path_info,
             edge_animation_active,
+            focus_mode,
             associated_process_steps,
             &edge_animation.arrow_head_animation_name,
             animation_duration,
@@ -1351,6 +1391,7 @@ impl SvgEdgeInfosBuilder {
         tailwind_classes: &mut EntityTailwindClasses<'id>,
         edge_path_info: &EdgePathInfo<'_, 'id>,
         edge_animation_active: EdgeAnimationActive,
+        focus_mode: TailwindFocusMode<'_, 'id>,
         associated_process_steps: &[&NodeId<'id>],
         arrow_head_animation_name: &str,
         animation_duration: String,
@@ -1365,16 +1406,28 @@ impl SvgEdgeInfosBuilder {
                 EdgeAnimationActive::Always => classes.push_str(&format!(
                     "\nanimate-[{arrow_head_animation_name}_{animation_duration}s_linear_infinite]"
                 )),
-                EdgeAnimationActive::OnProcessStepFocus => {
-                    associated_process_steps
-                        .iter()
-                        .for_each(|process_step_id| {
+                EdgeAnimationActive::OnProcessStepFocus => match focus_mode {
+                    TailwindFocusMode::Interactive => {
+                        associated_process_steps
+                            .iter()
+                            .for_each(|process_step_id| {
+                                classes.push_str(&format!(
+                                    "\ngroup-has-[#{process_step_id}:focus-within]:\
+                                        animate-[{arrow_head_animation_name}_{animation_duration}s_linear_infinite]"
+                                ));
+                            });
+                    }
+                    TailwindFocusMode::Baked { .. } => {
+                        // In baked mode, the focused step's interacting edges
+                        // animate unconditionally; all other edges do not
+                        // animate.
+                        if Self::focus_baked_step_associated(focus_mode, associated_process_steps) {
                             classes.push_str(&format!(
-                                "\ngroup-has-[#{process_step_id}:focus-within]:\
-                                    animate-[{arrow_head_animation_name}_{animation_duration}s_linear_infinite]"
+                                "\nanimate-[{arrow_head_animation_name}_{animation_duration}s_linear_infinite]"
                             ));
-                        });
-                }
+                        }
+                    }
+                },
             }
             classes
         };
@@ -1574,6 +1627,7 @@ struct CssAnimationAppendParams<'f, 'edge, 'id> {
     edge_group_animation_duration_total_s: f64,
     edge_path_info: &'f EdgePathInfo<'edge, 'id>,
     edge_animation_active: EdgeAnimationActive,
+    focus_mode: TailwindFocusMode<'f, 'id>,
     associated_process_steps: &'f [&'f NodeId<'id>],
 }
 

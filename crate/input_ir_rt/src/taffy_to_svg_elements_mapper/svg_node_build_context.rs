@@ -6,6 +6,8 @@ use taffy::TaffyTree;
 
 use disposition_ir_model::node::NodeShape;
 
+use crate::input_to_ir_diagram_mapper::tailwind_focus_mode::TailwindFocusMode;
+
 use super::{NodeIdToSvgProcessInfo, ProcessStepsHeight};
 
 #[derive(Clone, Copy, Debug)]
@@ -49,4 +51,11 @@ pub(super) struct SvgNodeInfoBuildContext<'ctx, 'id> {
     /// When `true`, the collapsed-height logic and focus-driven expand
     /// animation classes are not emitted for process nodes.
     pub(super) process_render_expanded: bool,
+    /// How focus-dependent classes are emitted.
+    ///
+    /// In [`TailwindFocusMode::Interactive`] mode, process nodes get
+    /// `group-has-[...]` classes that expand / translate them on focus. In
+    /// [`TailwindFocusMode::Baked`] mode the expanded / translated state for the
+    /// active focus is baked in directly.
+    pub(super) focus_mode: TailwindFocusMode<'ctx, 'id>,
 }

@@ -7,6 +7,8 @@ use disposition_ir_model::{
 use disposition_svg_model::SvgElements;
 use disposition_taffy_model::TaffyNodeMappings;
 
+use crate::input_to_ir_diagram_mapper::tailwind_focus_mode::TailwindFocusMode;
+
 use self::{
     arrow_head_builder::ArrowHeadBuilder,
     edge_animation_calculator::EdgeAnimationCalculator,
@@ -67,6 +69,25 @@ impl TaffyToSvgElementsMapper {
         ir_diagram: &IrDiagram<'id>,
         taffy_node_mappings: &TaffyNodeMappings<'id>,
         edge_animation_active: EdgeAnimationActive,
+    ) -> SvgElements<'id> {
+        Self::map_with_focus(
+            ir_diagram,
+            taffy_node_mappings,
+            edge_animation_active,
+            TailwindFocusMode::Interactive,
+        )
+    }
+
+    /// Maps the IR diagram and `TaffyNodeMappings` to SVG elements, baking the
+    /// given focus state into the focus-dependent edge animation classes.
+    ///
+    /// [`Self::map`] is the public entry point, which uses
+    /// [`TailwindFocusMode::Interactive`].
+    pub(crate) fn map_with_focus<'id>(
+        ir_diagram: &IrDiagram<'id>,
+        taffy_node_mappings: &TaffyNodeMappings<'id>,
+        edge_animation_active: EdgeAnimationActive,
+        focus_mode: TailwindFocusMode<'_, 'id>,
     ) -> SvgElements<'id> {
         let TaffyNodeMappings {
             taffy_tree,
@@ -179,6 +200,7 @@ impl TaffyToSvgElementsMapper {
             svg_process_infos: &svg_process_infos,
             node_id_to_envelope_taffy_node,
             process_render_expanded,
+            focus_mode,
         };
         let (svg_node_infos, mut tailwind_classes) = ir_diagram.node_ordering.iter().fold(
             (Vec::new(), tailwind_classes),
@@ -219,6 +241,7 @@ impl TaffyToSvgElementsMapper {
             &mut tailwind_classes,
             &mut css,
             edge_animation_active,
+            focus_mode,
         );
 
         // Append the git-graph connectors between process steps. These bypass

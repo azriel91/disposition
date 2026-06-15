@@ -42,6 +42,7 @@ pub(crate) const INPUT_DIAGRAM_0021_SELF_LOOP_EDGE_LEFT_TO_RIGHT_WITH_EDGE_DESC:
 pub(crate) const INPUT_DIAGRAM_0022_EDGES_FAN_IN_3_TO_1: &str =
     include_str!("input_diagram/0022_edges_fan_in_3_to_1.yaml");
 
+mod diagram_generator;
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;
 mod ir_to_taffy_builder;

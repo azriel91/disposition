@@ -1,12 +1,16 @@
 use std::fmt::Write;
 
+use disposition_input_model::DiagramFocus;
 use disposition_ir_model::node::{NodeId, NodeShape};
 use disposition_model_common::Map;
 use disposition_svg_model::SvgProcessInfo;
 
-use crate::taffy_to_svg_elements_mapper::{
-    process_step_heights::{self, ProcessStepsHeight},
-    StringCharReplacer, SvgNodeRectPathBuilder,
+use crate::{
+    input_to_ir_diagram_mapper::tailwind_focus_mode::TailwindFocusMode,
+    taffy_to_svg_elements_mapper::{
+        process_step_heights::{self, ProcessStepsHeight},
+        StringCharReplacer, SvgNodeRectPathBuilder,
+    },
 };
 
 /// Tailwind qualifier class for the SVG element representing the wrapper taffy
@@ -40,6 +44,7 @@ impl SvgNodeTranslateClassesBuilder {
         height_to_expand_to: Option<f32>,
         node_shape: &NodeShape,
         path_d_collapsed: &str,
+        focus_mode: TailwindFocusMode<'_, 'id>,
     ) -> String {
         if let Some(ref proc_id) = *process_id
             && let Some(proc_info) = process_infos.get(proc_id)
@@ -67,6 +72,7 @@ impl SvgNodeTranslateClassesBuilder {
                 &path_d_expanded,
                 proc_info.process_index,
                 process_steps_heights,
+                focus_mode,
             )
         } else {
             Self::build_for_node(x, y, path_d_collapsed)
@@ -95,7 +101,42 @@ impl SvgNodeTranslateClassesBuilder {
     }
 
     /// Builds the translation tailwind classes for a process or process step
-    /// node.
+    /// node, dispatching on the [`TailwindFocusMode`].
+    #[allow(clippy::too_many_arguments)]
+    fn build_for_process<'id>(
+        x: f32,
+        base_y: f32,
+        path_d_collapsed: &str,
+        height_to_expand_to: Option<f32>,
+        path_d_expanded: &str,
+        process_index: usize,
+        process_steps_height: &[ProcessStepsHeight<'id>],
+        focus_mode: TailwindFocusMode<'_, 'id>,
+    ) -> String {
+        match focus_mode {
+            TailwindFocusMode::Interactive => Self::build_for_process_interactive(
+                x,
+                base_y,
+                path_d_collapsed,
+                height_to_expand_to,
+                path_d_expanded,
+                process_index,
+                process_steps_height,
+            ),
+            TailwindFocusMode::Baked { active } => Self::build_for_process_baked(
+                x,
+                base_y,
+                path_d_collapsed,
+                height_to_expand_to,
+                path_d_expanded,
+                process_index,
+                process_steps_height,
+                active,
+            ),
+        }
+    }
+
+    /// Builds the interactive translation tailwind classes for a process node.
     ///
     /// This creates:
     /// 1. A `translate-x-*` class for horizontal positioning
@@ -104,8 +145,7 @@ impl SvgNodeTranslateClassesBuilder {
     ///    previous processes are focused
     /// 4. transition-transform and duration classes for smooth animation
     /// 5. `[d:path(..)]` classes for collapsed and expanded path shapes
-    #[allow(clippy::too_many_arguments)]
-    fn build_for_process(
+    fn build_for_process_interactive(
         x: f32,
         base_y: f32,
         path_d_collapsed: &str,
@@ -195,5 +235,86 @@ impl SvgNodeTranslateClassesBuilder {
         });
 
         classes
+    }
+
+    /// Builds the baked translation tailwind classes for a process node.
+    ///
+    /// The expanded / translated state for the `active` focus is resolved
+    /// directly (no `group-has-[...]` classes): the node uses its expanded path
+    /// when it (or one of its steps) is the active focus, and its
+    /// `translate-y` accounts for any earlier process that the active focus
+    /// expands.
+    #[allow(clippy::too_many_arguments)]
+    fn build_for_process_baked<'id>(
+        x: f32,
+        base_y: f32,
+        path_d_collapsed: &str,
+        height_to_expand_to: Option<f32>,
+        path_d_expanded: &str,
+        process_index: usize,
+        process_steps_height: &[ProcessStepsHeight<'id>],
+        active: &DiagramFocus<'id>,
+    ) -> String {
+        let mut classes = String::new();
+
+        // Add translate-x for horizontal positioning.
+        writeln!(&mut classes, "translate-x-[{x}px]").unwrap();
+
+        // Use the expanded path when this process (or one of its steps) is the
+        // active focus, otherwise the collapsed path.
+        let self_focused = height_to_expand_to.is_some()
+            && Self::focus_active_targets_process(active, &process_steps_height[process_index]);
+        let path_d = if self_focused {
+            path_d_expanded
+        } else {
+            path_d_collapsed
+        };
+        let mut path_d_escaped = path_d.to_string();
+        StringCharReplacer::replace_inplace(&mut path_d_escaped, ' ', '_');
+        writeln!(
+            &mut classes,
+            "{TW_QUALIFIER_NODE_WRAPPER}:[d:path('{path_d_escaped}')]"
+        )
+        .unwrap();
+
+        // When an earlier process (or one of its steps) is the active focus,
+        // that process expands and pushes this node down by its steps' total
+        // height.
+        let y_offset_from_focused_predecessor = (0..process_index)
+            .map(|prev_idx| &process_steps_height[prev_idx])
+            .filter(|process_steps_height_prev| {
+                Self::focus_active_targets_process(active, process_steps_height_prev)
+            })
+            .map(|process_steps_height_prev| process_steps_height_prev.total_height)
+            .sum::<f32>();
+        let y = base_y + y_offset_from_focused_predecessor;
+        writeln!(&mut classes, "translate-y-[{y}px]").unwrap();
+
+        classes
+    }
+
+    /// Returns whether `active` focuses the given process directly, or via one
+    /// of its steps.
+    fn focus_active_targets_process<'id>(
+        active: &DiagramFocus<'id>,
+        process_steps_height: &ProcessStepsHeight<'id>,
+    ) -> bool {
+        let ProcessStepsHeight {
+            process_id,
+            process_step_ids,
+            ..
+        } = process_steps_height;
+        match active {
+            DiagramFocus::Process(active_process_id) => {
+                active_process_id.as_ref() == process_id.as_ref()
+            }
+            DiagramFocus::ProcessStep {
+                process_step_id: active_step_id,
+                ..
+            } => process_step_ids
+                .iter()
+                .any(|process_step_id| process_step_id.as_ref() == active_step_id.as_ref()),
+            DiagramFocus::None | DiagramFocus::Tag(_) => false,
+        }
     }
 }
