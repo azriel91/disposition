@@ -257,7 +257,8 @@ async fn taffy_tree_emit(
 /// * `file_prefix`: prefix applied to each output file name, e.g.
 ///   `Some("proc_one_step_build")`; `None` writes the bare stage names.
 /// * `stdout_header`: a header line printed to stdout once before this
-///   diagram's stage output, e.g. `Some("<!-- focus: proc_one_step_build -->")`.
+///   diagram's stage output, e.g. `Some("<!-- focus: proc_one_step_build
+///   -->")`.
 #[allow(clippy::too_many_arguments)]
 async fn diagram_stages_emit(
     diagram_generated: &DiagramGenerated,
@@ -341,7 +342,9 @@ async fn diagram_stages_emit(
     // === SVG === //
     if data_is_selected(Data::Svg) {
         let svg = match svg_elements_structure_only.as_ref() {
-            Some(svg_elements) => SvgElementsToSvgMapper::map_with_input(input_diagram, svg_elements),
+            Some(svg_elements) => {
+                SvgElementsToSvgMapper::map_with_input(input_diagram, svg_elements)
+            }
             None => diagram_generated.svg.clone(),
         };
         data_emit(output, stdout, &file_name(file_prefix, "diagram.svg"), &svg).await?;

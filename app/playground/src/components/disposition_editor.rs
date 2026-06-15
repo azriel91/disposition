@@ -435,41 +435,36 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         Ok(diagram_generated)
     });
 
-    let ir_diagram_string: Memo<String> = use_memo(move || {
-        match &*diagram_generated.read() {
-            Ok(diagram_generated) => {
-                let mut buffer = String::new();
-                match serde_saphyr::to_fmt_writer(&mut buffer, &diagram_generated.ir_diagram) {
-                    Ok(()) => buffer,
-                    Err(error) => format!("⚠️ Error serializing IR diagram: {}", error),
-                }
+    let ir_diagram_string: Memo<String> = use_memo(move || match &*diagram_generated.read() {
+        Ok(diagram_generated) => {
+            let mut buffer = String::new();
+            match serde_saphyr::to_fmt_writer(&mut buffer, &diagram_generated.ir_diagram) {
+                Ok(()) => buffer,
+                Err(error) => format!("⚠️ Error serializing IR diagram: {}", error),
             }
-            Err(_) => String::new(),
         }
+        Err(_) => String::new(),
     });
 
-    let taffy_node_mappings_string: Memo<String> = use_memo(move || {
-        match &*diagram_generated.read() {
+    let taffy_node_mappings_string: Memo<String> =
+        use_memo(move || match &*diagram_generated.read() {
             Ok(diagram_generated) => {
                 let mut buffer = String::new();
                 TaffyTreeFmt::fmt(&mut buffer, &diagram_generated.taffy_node_mappings);
                 buffer
             }
             Err(_) => String::new(),
-        }
-    });
+        });
 
-    let svg_elements_string: Memo<String> = use_memo(move || {
-        match &*diagram_generated.read() {
-            Ok(diagram_generated) => {
-                let mut buffer = String::new();
-                match serde_saphyr::to_fmt_writer(&mut buffer, &diagram_generated.svg_elements) {
-                    Ok(()) => buffer,
-                    Err(error) => format!("⚠️ Error serializing SVG elements: {}", error),
-                }
+    let svg_elements_string: Memo<String> = use_memo(move || match &*diagram_generated.read() {
+        Ok(diagram_generated) => {
+            let mut buffer = String::new();
+            match serde_saphyr::to_fmt_writer(&mut buffer, &diagram_generated.svg_elements) {
+                Ok(()) => buffer,
+                Err(error) => format!("⚠️ Error serializing SVG elements: {}", error),
             }
-            Err(_) => String::new(),
         }
+        Err(_) => String::new(),
     });
 
     let svg: Memo<String> = use_memo(move || match &*diagram_generated.read() {

@@ -3,8 +3,8 @@ use disposition_input_ir_rt::{DiagramGenerator, EdgeAnimationActive, InputDiagra
 
 use crate::input_ir_rt::EXAMPLE_INPUT;
 
-/// `PerProcessStepOrTag` generation produces one diagram per focus state, in the
-/// documented order, with no interactive focus CSS baked into the SVGs.
+/// `PerProcessStepOrTag` generation produces one diagram per focus state, in
+/// the documented order, with no interactive focus CSS baked into the SVGs.
 #[test]
 fn generate_per_process_step_or_tag_produces_one_diagram_per_focus_in_order() {
     let input_diagram = serde_saphyr::from_str::<InputDiagram>(EXAMPLE_INPUT).unwrap();

@@ -17,8 +17,8 @@ use crate::{
 /// Runs the full diagram generation pipeline.
 ///
 /// This calls each processor in order -- `InputDiagramMerger`,
-/// `InputToIrDiagramMapper`, `IrToTaffyBuilder`, `TaffyToSvgElementsMapper`, and
-/// `SvgElementsToSvgMapper` -- and collects every intermediate and final
+/// `InputToIrDiagramMapper`, `IrToTaffyBuilder`, `TaffyToSvgElementsMapper`,
+/// and `SvgElementsToSvgMapper` -- and collects every intermediate and final
 /// transformation, along with the time taken for each step, into a
 /// [`DiagramGenerated`].
 #[derive(Clone, Copy, Debug)]
@@ -120,8 +120,9 @@ impl DiagramGenerator {
     /// 3. For each tag (declaration order): the tag focused.
     ///
     /// The focus-independent pipeline steps (input merge, IR structure, and
-    /// taffy layout) are computed once and reused across every focus -- only the
-    /// tailwind classes, SVG elements, and SVG markup are recomputed per focus.
+    /// taffy layout) are computed once and reused across every focus -- only
+    /// the tailwind classes, SVG elements, and SVG markup are recomputed
+    /// per focus.
     ///
     /// # Parameters
     ///

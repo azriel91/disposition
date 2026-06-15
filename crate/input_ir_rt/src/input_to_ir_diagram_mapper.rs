@@ -256,18 +256,18 @@ impl InputToIrDiagramMapper {
         IrDiagramAndIssues { diagram, issues }
     }
 
-    /// Applies the focus-dependent tailwind classes (and the CSS theme variables
-    /// they produce) to a structural [`IrDiagram`] built by
+    /// Applies the focus-dependent tailwind classes (and the CSS theme
+    /// variables they produce) to a structural [`IrDiagram`] built by
     /// [`Self::map_structure`].
     ///
-    /// This runs the tailwind class builder for the given [`TailwindFocusMode`],
-    /// styles the process step connectors, registers the markdown span colour
-    /// theme variables, and prepends all collected CSS theme variables to the
-    /// diagram's base CSS.
+    /// This runs the tailwind class builder for the given
+    /// [`TailwindFocusMode`], styles the process step connectors, registers
+    /// the markdown span colour theme variables, and prepends all collected
+    /// CSS theme variables to the diagram's base CSS.
     ///
-    /// `ir_diagram.css` is expected to be the un-augmented base CSS (as produced
-    /// by `map_structure`); calling this more than once on the same diagram
-    /// would prepend the theme variables repeatedly.
+    /// `ir_diagram.css` is expected to be the un-augmented base CSS (as
+    /// produced by `map_structure`); calling this more than once on the
+    /// same diagram would prepend the theme variables repeatedly.
     pub(crate) fn tailwind_classes_apply<'id>(
         ir_diagram: &mut IrDiagram<'id>,
         input_diagram: &InputDiagram<'id>,

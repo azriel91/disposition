@@ -55,7 +55,7 @@ pub(super) struct SvgNodeInfoBuildContext<'ctx, 'id> {
     ///
     /// In [`TailwindFocusMode::Interactive`] mode, process nodes get
     /// `group-has-[...]` classes that expand / translate them on focus. In
-    /// [`TailwindFocusMode::Baked`] mode the expanded / translated state for the
-    /// active focus is baked in directly.
+    /// [`TailwindFocusMode::Baked`] mode the expanded / translated state for
+    /// the active focus is baked in directly.
     pub(super) focus_mode: TailwindFocusMode<'ctx, 'id>,
 }
