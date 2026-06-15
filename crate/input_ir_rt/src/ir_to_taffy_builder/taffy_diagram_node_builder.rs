@@ -587,13 +587,14 @@ impl TaffyDiagramNodeBuilder {
         // === level === //
         let mut position_to_container_ids: BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>> =
             BTreeMap::new();
+        let edge_description_container_style = child_container_style;
         target_entity_types.iter().for_each(|target_entity_type| {
             let edge_description_containers_build_result = EdgeDescriptionBuilder::build(
                 ctx,
                 state.taffy_tree,
                 target_entity_type,
                 Some(lca_node_id),
-                child_container_style,
+                edge_description_container_style,
             );
             nested_edge_taffy_nodes
                 .edge_description_taffy_nodes
