@@ -26,12 +26,18 @@ use thiserror::Error;
 /// `--stdout` to write that stage straight to stdout -- useful when debugging
 /// diagram generation without needing to write files.
 ///
+/// Every output file is prefixed with the input file's stem, e.g. for
+/// `something.yaml` the SVG is written to `something_diagram.svg`.
+///
 /// Use `--diagram-per-interaction` to generate one diagram per focus state (no
 /// focus, each process, each process step, each tag), with the focus baked in
-/// statically. Each output file is then prefixed with the focus ID (`none` for
-/// the no-focus diagram), except `taffy_tree.txt` which is shared by all. When
-/// writing to stdout, each diagram is preceded by a `<!-- focus: ID -->`
-/// comment header.
+/// statically. Each output file is then prefixed with
+/// `{input_stem}_{NN}_{focus}`, where `NN` is a zero-padded ordinal that sorts
+/// the diagrams in generation order, and `focus` is the focused entity's ID
+/// (`idle` for the no-focus diagram), e.g. `something_00_idle_diagram.svg`. The
+/// `taffy_tree.txt` is shared by all diagrams, so it is prefixed with only the
+/// input stem (no ordinal). When writing to stdout, each diagram is preceded by
+/// a `<!-- focus: ID -->` comment header.
 #[derive(Parser)]
 #[command(version, about)]
 struct Args {
@@ -123,6 +129,14 @@ async fn run() -> Result<(), CliError> {
     let data_is_selected =
         |data: Data| data_selected.is_none_or(|data_selected| data_selected == data);
 
+    // Every output file is prefixed with the input file's stem, so it is clear
+    // which input the outputs belong to. `file_stem` strips the directory and
+    // the `.yaml` / `.yml` extension, e.g. `something.yaml` -> `something`.
+    let input_stem = input
+        .file_stem()
+        .and_then(std::ffi::OsStr::to_str)
+        .unwrap_or("diagram");
+
     let contents = tokio::fs::read_to_string(&input).await?;
     let input_diagram: InputDiagram<'static> = serde_saphyr::from_str(&contents)?;
 
@@ -144,7 +158,8 @@ async fn run() -> Result<(), CliError> {
         }
 
         // The taffy layout is focus-independent, so it is shared by every
-        // diagram and emitted once, unprefixed.
+        // diagram and emitted once, prefixed with only the input stem (no
+        // ordinal).
         if data_is_selected(Data::TaffyTree)
             && let Some(diagram_focus_generated) = diagrams_focus_generated.first()
         {
@@ -152,14 +167,26 @@ async fn run() -> Result<(), CliError> {
                 &diagram_focus_generated.diagram_generated,
                 output,
                 stdout,
+                Some(input_stem),
                 Some("<!-- taffy_tree (common) -->"),
             )
             .await?;
         }
 
-        for diagram_focus_generated in &diagrams_focus_generated {
-            let file_prefix = focus_id(&diagram_focus_generated.focus);
-            let stdout_header = format!("<!-- focus: {file_prefix} -->");
+        // The ordinal is zero-padded so output files sort lexicographically in
+        // the same order the diagrams are generated. Width defaults to 2 (`00`,
+        // `01`), widening if there are more diagrams than that can index.
+        let width = diagrams_focus_generated
+            .len()
+            .saturating_sub(1)
+            .to_string()
+            .len()
+            .max(2);
+
+        for (index, diagram_focus_generated) in diagrams_focus_generated.iter().enumerate() {
+            let focus_id = focus_id(&diagram_focus_generated.focus);
+            let file_prefix = format!("{input_stem}_{index:0width$}_{focus_id}");
+            let stdout_header = format!("<!-- focus: {focus_id} -->");
             diagram_stages_emit(
                 &diagram_focus_generated.diagram_generated,
                 &input_diagram,
@@ -179,7 +206,7 @@ async fn run() -> Result<(), CliError> {
         issues_report(&diagram_generated);
 
         if data_is_selected(Data::TaffyTree) {
-            taffy_tree_emit(&diagram_generated, output, stdout, None).await?;
+            taffy_tree_emit(&diagram_generated, output, stdout, Some(input_stem), None).await?;
         }
 
         diagram_stages_emit(
@@ -189,7 +216,7 @@ async fn run() -> Result<(), CliError> {
             output,
             stdout,
             data_selected,
-            None,
+            Some(input_stem),
             None,
         )
         .await?;
@@ -210,10 +237,10 @@ fn issues_report(diagram_generated: &DiagramGenerated) {
 
 /// Returns the file-name / stdout-header prefix for a [`DiagramFocus`].
 ///
-/// Uses the focused entity's ID, or `none` for the no-focus diagram.
+/// Uses the focused entity's ID, or `idle` for the no-focus diagram.
 fn focus_id(focus: &DiagramFocus<'_>) -> String {
     match focus {
-        DiagramFocus::None => "none".to_string(),
+        DiagramFocus::None => "idle".to_string(),
         DiagramFocus::Process(process_id) => process_id.as_str().to_string(),
         DiagramFocus::ProcessStep {
             process_step_id, ..
@@ -238,6 +265,7 @@ async fn taffy_tree_emit(
     diagram_generated: &DiagramGenerated,
     output: Option<&Path>,
     stdout: bool,
+    file_prefix: Option<&str>,
     stdout_header: Option<&str>,
 ) -> Result<(), CliError> {
     let mut taffy_tree = String::new();
@@ -245,7 +273,13 @@ async fn taffy_tree_emit(
     if stdout && let Some(stdout_header) = stdout_header {
         println!("{stdout_header}");
     }
-    data_emit(output, stdout, "taffy_tree.txt", &taffy_tree).await?;
+    data_emit(
+        output,
+        stdout,
+        &file_name(file_prefix, "taffy_tree.txt"),
+        &taffy_tree,
+    )
+    .await?;
     Ok(())
 }
 
