@@ -118,8 +118,8 @@ impl SvgEdgeInfosBuilder {
         // 5. The `duration` for each edge's animation will be the `total_animation_time
         //    * (edge_length / total_length)`.
 
-        /// 0.8 seconds per 100 pixels
-        const SECONDS_PER_PIXEL: f64 = 0.8 / 100.0;
+        /// 0.3 seconds per 100 pixels
+        const SECONDS_PER_PIXEL: f64 = 0.3 / 100.0;
 
         // === Global Pass 1: collect metadata and register face contacts === //
 
@@ -914,13 +914,11 @@ impl SvgEdgeInfosBuilder {
         // `visible_segments_length`) keeps every edge moving at the same pixel
         // speed.
         let mut preceding_travel = 0.0;
-        edge_path_infos
-            .iter_mut()
-            .for_each(|edge_path_info| {
-                edge_path_info.preceding_travel = preceding_travel;
-                let trailing_gap = edge_path_info.path_length.max(visible_segments_length);
-                preceding_travel += visible_segments_length + trailing_gap;
-            });
+        edge_path_infos.iter_mut().for_each(|edge_path_info| {
+            edge_path_info.preceding_travel = preceding_travel;
+            let trailing_gap = edge_path_info.path_length.max(visible_segments_length);
+            preceding_travel += visible_segments_length + trailing_gap;
+        });
 
         edge_path_infos
     }
