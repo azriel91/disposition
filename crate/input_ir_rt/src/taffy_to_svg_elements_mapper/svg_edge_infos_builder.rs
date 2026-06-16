@@ -118,8 +118,8 @@ impl SvgEdgeInfosBuilder {
         // 5. The `duration` for each edge's animation will be the `total_animation_time
         //    * (edge_length / total_length)`.
 
-        /// 0.3 seconds per 100 pixels
-        const SECONDS_PER_PIXEL: f64 = 0.3 / 100.0;
+        /// 0.4 seconds per 100 pixels
+        const SECONDS_PER_PIXEL: f64 = 0.4 / 100.0;
 
         // === Global Pass 1: collect metadata and register face contacts === //
 
