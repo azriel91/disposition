@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use serde::{Deserialize, Serialize};
 
 /// A face/side of a rectangular diagram node.
@@ -23,4 +25,16 @@ pub enum NodeFace {
     Left,
     /// The right edge of the node rectangle.
     Right,
+}
+
+impl Display for NodeFace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NodeFace::Top => "top",
+            NodeFace::Bottom => "bottom",
+            NodeFace::Left => "left",
+            NodeFace::Right => "right",
+        }
+        .fmt(f)
+    }
 }

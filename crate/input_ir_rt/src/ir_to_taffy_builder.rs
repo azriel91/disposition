@@ -8,7 +8,7 @@ use disposition_model_common::Map;
 use disposition_taffy_model::{
     taffy::{self, AvailableSpace, Size, TaffyTree},
     DimensionAndLod, EdgeDescriptionTaffyNodes, EdgeSpacerTaffyNodes, IrToTaffyError,
-    MdNodeTaffyIds, ProcessesIncluded, TaffyNodeMappings, TEXT_FONT_SIZE,
+    MdNodeTaffyIds, ProcessesIncluded, TaffyNodeKind, TaffyNodeMappings, TEXT_FONT_SIZE,
 };
 use typed_builder::TypedBuilder;
 
@@ -144,6 +144,7 @@ impl IrToTaffyBuilder<'_> {
         let mut node_id_to_taffy = Map::new();
         let mut taffy_id_to_node = Map::new();
         let mut node_id_to_envelope_taffy_node: Map<NodeId<'static>, taffy::NodeId> = Map::new();
+        let mut taffy_id_to_kind: Map<taffy::NodeId, TaffyNodeKind<'static>> = Map::new();
         let mut edge_label_leaf_builts = Vec::new();
 
         // Precompute monospace character width
@@ -189,6 +190,7 @@ impl IrToTaffyBuilder<'_> {
                 taffy_tree: &mut taffy_tree,
                 node_id_to_taffy: &mut node_id_to_taffy,
                 taffy_id_to_node: &mut taffy_id_to_node,
+                taffy_id_to_kind: &mut taffy_id_to_kind,
                 node_id_to_envelope_taffy_node: &mut node_id_to_envelope_taffy_node,
                 edge_label_leaf_builts: &mut edge_label_leaf_builts,
                 md_node_taffy_ids: &mut md_node_taffy_ids,
@@ -342,6 +344,8 @@ impl IrToTaffyBuilder<'_> {
                 thing_rank_to_taffy_ids,
                 thing_rank_container_style,
                 thing_position_to_container_ids,
+                NodeInbuilt::ThingsContainer,
+                &mut taffy_id_to_kind,
             );
         let tag_rank_container_ids =
             TaffyContainerBuilder::rank_containers_for_first_level_nodes_build(
@@ -349,6 +353,8 @@ impl IrToTaffyBuilder<'_> {
                 tag_rank_to_taffy_ids,
                 tag_rank_container_style,
                 tag_position_to_container_ids,
+                NodeInbuilt::TagsContainer,
+                &mut taffy_id_to_kind,
             );
         let process_rank_container_ids =
             TaffyContainerBuilder::rank_containers_for_first_level_nodes_build(
@@ -356,6 +362,8 @@ impl IrToTaffyBuilder<'_> {
                 process_rank_to_taffy_ids,
                 process_rank_container_style,
                 process_position_to_container_ids,
+                NodeInbuilt::ProcessesContainer,
+                &mut taffy_id_to_kind,
             );
 
         let node_inbuilt_to_taffy = TaffyContainerBuilder::build(
@@ -477,6 +485,7 @@ impl IrToTaffyBuilder<'_> {
             node_inbuilt_to_taffy,
             node_id_to_taffy,
             taffy_id_to_node,
+            taffy_id_to_kind,
             edge_spacer_taffy_nodes,
             entity_highlighted_spans,
             edge_label_taffy_nodes,

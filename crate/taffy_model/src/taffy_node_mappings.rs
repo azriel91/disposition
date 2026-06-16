@@ -5,7 +5,7 @@ use crate::{
     EdgeIdToEdgeDescriptionTaffyNodes, EdgeIdToEdgeLabelTaffyNodeIds, EdgeIdToEdgeSpacerTaffyNodes,
     EdgeIdToHighlightedSpans, EdgeIdToImageSpans, EntityHighlightedSpans,
     NodeIdToEnvelopeTaffyNode, NodeIdToImageSpans, NodeIdToMdNodeTaffyIds, NodeIdToTaffyNodeIds,
-    NodeInbuiltToTaffyNode, TaffyNodeCtx, TaffyNodeToNodeId,
+    NodeInbuiltToTaffyNode, TaffyNodeCtx, TaffyNodeToKind, TaffyNodeToNodeId,
 };
 
 /// The taffy tree and mappings from each IR node ID to its `taffy` node ID.
@@ -20,6 +20,14 @@ pub struct TaffyNodeMappings<'id> {
     pub node_id_to_taffy: NodeIdToTaffyNodeIds<'id>,
     /// Map of each `taffy` node ID to its corresponding IR node ID.
     pub taffy_id_to_node: TaffyNodeToNodeId<'id>,
+    /// Map of each structural `taffy` node ID (envelope, rank container, rank
+    /// stacking container) to the role it plays in the tree.
+    ///
+    /// Holds only the wrapper / container nodes that have no diagram node ID in
+    /// `taffy_id_to_node` and no [`TaffyNodeCtx`]. Used to print a meaningful
+    /// label for each node in the taffy tree (e.g. `t_outer_envelope`) instead
+    /// of taffy's generic debug label.
+    pub taffy_id_to_kind: TaffyNodeToKind<'id>,
     /// Map of each edge to its spacer taffy node IDs at intermediate ranks.
     ///
     /// When an edge crosses multiple ranks, spacer nodes are inserted in
@@ -92,6 +100,7 @@ impl<'id> PartialEq for TaffyNodeMappings<'id> {
             && self.node_inbuilt_to_taffy == other.node_inbuilt_to_taffy
             && self.node_id_to_taffy == other.node_id_to_taffy
             && self.taffy_id_to_node == other.taffy_id_to_node
+            && self.taffy_id_to_kind == other.taffy_id_to_kind
             && self.edge_spacer_taffy_nodes == other.edge_spacer_taffy_nodes
             && self.entity_highlighted_spans == other.entity_highlighted_spans
             && self.edge_label_taffy_nodes == other.edge_label_taffy_nodes

@@ -2,7 +2,7 @@ use disposition_ir_model::node::NodeId;
 use disposition_model_common::Map;
 use disposition_taffy_model::{
     taffy::{self, TaffyTree},
-    MdNodeTaffyIds, NodeToTaffyNodeIds, TaffyNodeCtx,
+    MdNodeTaffyIds, NodeToTaffyNodeIds, TaffyNodeCtx, TaffyNodeKind,
 };
 
 use super::taffy_node_build_context::EdgeLabelLeafBuilt;
@@ -22,6 +22,9 @@ pub(crate) struct TaffyBuildState<'ctx> {
     pub(crate) node_id_to_taffy: &'ctx mut Map<NodeId<'static>, NodeToTaffyNodeIds>,
     /// Reverse map from a taffy node ID to its diagram node ID.
     pub(crate) taffy_id_to_node: &'ctx mut Map<taffy::NodeId, NodeId<'static>>,
+    /// Map from a structural taffy node ID (envelope, rank container, rank
+    /// stacking container) to the role it plays, for printing the taffy tree.
+    pub(crate) taffy_id_to_kind: &'ctx mut Map<taffy::NodeId, TaffyNodeKind<'static>>,
     /// Map from each diagram node ID to its envelope taffy node ID.
     ///
     /// Populated incrementally as each node's envelope is built.

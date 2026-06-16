@@ -10,7 +10,7 @@ use disposition_model_common::{Id, Map};
 use disposition_taffy_model::{
     taffy::{self, AlignItems, Display, FlexDirection, LengthPercentageAuto, Rect, Size, Style},
     DiagramLod, DiagramNodeCtx, EdgeDescriptionTaffyNodes, EdgeSpacerTaffyNodes,
-    NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeCtx, LANE_WIDTH,
+    NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeCtx, TaffyNodeKind, LANE_WIDTH,
 };
 
 use super::{
@@ -430,6 +430,13 @@ impl TaffyDiagramNodeBuilder {
                              Error: {e}"
                         )
                     });
+                state.taffy_id_to_kind.insert(
+                    container,
+                    TaffyNodeKind::RankContainer {
+                        node_id: ir_node_id.clone(),
+                        rank,
+                    },
+                );
                 (rank, container)
             })
             .collect();
@@ -437,6 +444,42 @@ impl TaffyDiagramNodeBuilder {
             rank_to_container,
             position_to_container_ids,
         );
+
+        // Stack the per-rank containers along the axis inverted from the
+        // within-rank sibling axis, so higher-ranked nodes are positioned
+        // further along the diagram's `RankDir`. The wrapper itself stays a
+        // flex column so the node label remains above its child ranks.
+        //
+        // When the rank stacking axis already matches the wrapper's column
+        // axis (the default `top_to_bottom`, where within-rank siblings flow
+        // along `Row`), the rank containers can be the wrapper's direct
+        // children -- a dedicated stacking container would only add a layout
+        // level. For every other `RankDir`, the ranks are wrapped in a stacking
+        // container so they flow along the rank axis while the label stays on
+        // top.
+        let rank_stacking_container_style =
+            TaffyContainerBuilder::rank_stacking_container_style(&child_container_style);
+        let rank_content_node_ids =
+            if rank_stacking_container_style.flex_direction == wrapper_style.flex_direction {
+                rank_container_ids
+            } else {
+                let rank_stacking_container_id = state
+                    .taffy_tree
+                    .new_with_children(rank_stacking_container_style, &rank_container_ids)
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "Expected to create rank stacking container node for {node_id}. \
+                             Error: {e}"
+                        )
+                    });
+                state.taffy_id_to_kind.insert(
+                    rank_stacking_container_id,
+                    TaffyNodeKind::RankStackingContainer {
+                        node_id: ir_node_id.clone(),
+                    },
+                );
+                vec![rank_stacking_container_id]
+            };
 
         let node_shape = ctx
             .node_shapes
@@ -448,7 +491,7 @@ impl TaffyDiagramNodeBuilder {
         let (wrapper_node_id, node_to_taffy_node_ids) = match node_shape {
             NodeShape::Rect(_node_shape_rect) => {
                 let mut wrapper_children = vec![taffy_text_node_id];
-                wrapper_children.extend(rank_container_ids);
+                wrapper_children.extend(rank_content_node_ids);
 
                 let wrapper_node_id = state
                     .taffy_tree
@@ -495,7 +538,7 @@ impl TaffyDiagramNodeBuilder {
                     });
 
                 let mut wrapper_children = vec![label_wrapper_node_id];
-                wrapper_children.extend(rank_container_ids);
+                wrapper_children.extend(rank_content_node_ids);
 
                 let wrapper_node_id = state
                     .taffy_tree
@@ -687,6 +730,7 @@ impl TaffyDiagramNodeBuilder {
             ir_node_id,
             primary_node_id,
             ctx.node_face_edges,
+            state.taffy_id_to_kind,
             ctx,
         );
         state
@@ -698,6 +742,12 @@ impl TaffyDiagramNodeBuilder {
         state
             .taffy_id_to_node
             .insert(primary_node_id, ir_node_id.clone());
+        state.taffy_id_to_kind.insert(
+            envelope_node_id,
+            TaffyNodeKind::Envelope {
+                node_id: ir_node_id.clone(),
+            },
+        );
 
         envelope_node_id
     }

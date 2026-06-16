@@ -26,7 +26,10 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0019_RANK_DIR_REVERSED_SIBLINGS,
     INPUT_DIAGRAM_0020_SELF_LOOP_CYCLIC_TWO_NODE_LEFT_TO_RIGHT,
     INPUT_DIAGRAM_0021_SELF_LOOP_EDGE_LEFT_TO_RIGHT_WITH_EDGE_DESC,
-    INPUT_DIAGRAM_0022_EDGES_FAN_IN_3_TO_1,
+    INPUT_DIAGRAM_0022_EDGES_FAN_IN_3_TO_1, INPUT_DIAGRAM_0023_NESTED_EDGES_RANK_DIR_TOP_TO_BOTTOM,
+    INPUT_DIAGRAM_0024_NESTED_EDGES_RANK_DIR_LEFT_TO_RIGHT,
+    INPUT_DIAGRAM_0025_NESTED_EDGES_RANK_DIR_RIGHT_TO_LEFT,
+    INPUT_DIAGRAM_0026_NESTED_EDGES_RANK_DIR_BOTTOM_TO_TOP,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -2759,6 +2762,86 @@ fn test_rank_dir_right_to_left_siblings_render_in_declaration_order() {
             "Expected from-contacts on t_animal's left face to follow target order so \
              paths do not cross: t_dog ({dog_contact_y:.2}) < t_cat ({cat_contact_y:.2}) \
              < t_owner ({owner_contact_y:.2})"
+        );
+    }
+}
+
+// === Nested-node rank ordering follows `RankDir` (0023-0026) === //
+
+/// Returns the `x` and `y` of a node from `svg_node_infos`.
+fn nested_rank_node_x_y(svg_elements: &SvgElements<'static>, node_id: &str) -> (f32, f32) {
+    let svg_node_info = svg_elements
+        .svg_node_infos
+        .iter()
+        .find(|svg_node_info| svg_node_info.node_id.as_str() == node_id)
+        .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"));
+    (svg_node_info.x, svg_node_info.y)
+}
+
+/// With `rank_dir: top_to_bottom`, a nested rank-1 node (`t_b0`) must render
+/// below its rank-0 dependency (`t_a0`) -- a greater `y`.
+#[test]
+fn test_nested_rank_dir_top_to_bottom_higher_rank_below() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0023_NESTED_EDGES_RANK_DIR_TOP_TO_BOTTOM)
+    {
+        let (_t_a0_x, t_a0_y) = nested_rank_node_x_y(&svg_elements, "t_a0");
+        let (_t_b0_x, t_b0_y) = nested_rank_node_x_y(&svg_elements, "t_b0");
+        assert!(
+            t_b0_y > t_a0_y,
+            "Expected nested rank-1 t_b0 (y={t_b0_y:.2}) to be below rank-0 t_a0 \
+             (y={t_a0_y:.2}) for top_to_bottom"
+        );
+    }
+}
+
+/// With `rank_dir: left_to_right`, a nested rank-1 node (`t_b0`) must render to
+/// the right of its rank-0 dependency (`t_a0`) -- a greater `x`.
+#[test]
+fn test_nested_rank_dir_left_to_right_higher_rank_right() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0024_NESTED_EDGES_RANK_DIR_LEFT_TO_RIGHT)
+    {
+        let (t_a0_x, _t_a0_y) = nested_rank_node_x_y(&svg_elements, "t_a0");
+        let (t_b0_x, _t_b0_y) = nested_rank_node_x_y(&svg_elements, "t_b0");
+        assert!(
+            t_b0_x > t_a0_x,
+            "Expected nested rank-1 t_b0 (x={t_b0_x:.2}) to be right of rank-0 t_a0 \
+             (x={t_a0_x:.2}) for left_to_right"
+        );
+    }
+}
+
+/// With `rank_dir: right_to_left`, a nested rank-1 node (`t_b0`) must render to
+/// the left of its rank-0 dependency (`t_a0`) -- a smaller `x`.
+#[test]
+fn test_nested_rank_dir_right_to_left_higher_rank_left() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0025_NESTED_EDGES_RANK_DIR_RIGHT_TO_LEFT)
+    {
+        let (t_a0_x, _t_a0_y) = nested_rank_node_x_y(&svg_elements, "t_a0");
+        let (t_b0_x, _t_b0_y) = nested_rank_node_x_y(&svg_elements, "t_b0");
+        assert!(
+            t_b0_x < t_a0_x,
+            "Expected nested rank-1 t_b0 (x={t_b0_x:.2}) to be left of rank-0 t_a0 \
+             (x={t_a0_x:.2}) for right_to_left"
+        );
+    }
+}
+
+/// With `rank_dir: bottom_to_top`, a nested rank-1 node (`t_b0`) must render
+/// above its rank-0 dependency (`t_a0`) -- a smaller `y`.
+#[test]
+fn test_nested_rank_dir_bottom_to_top_higher_rank_above() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0026_NESTED_EDGES_RANK_DIR_BOTTOM_TO_TOP)
+    {
+        let (_t_a0_x, t_a0_y) = nested_rank_node_x_y(&svg_elements, "t_a0");
+        let (_t_b0_x, t_b0_y) = nested_rank_node_x_y(&svg_elements, "t_b0");
+        assert!(
+            t_b0_y < t_a0_y,
+            "Expected nested rank-1 t_b0 (y={t_b0_y:.2}) to be above rank-0 t_a0 \
+             (y={t_a0_y:.2}) for bottom_to_top"
         );
     }
 }

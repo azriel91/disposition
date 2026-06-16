@@ -10,7 +10,7 @@ use disposition_ir_model::node::{NodeId, NodeInbuilt};
 use disposition_model_common::Map;
 use taffy::{self, PrintTree, TaffyTree, TraversePartialTree};
 
-use crate::{TaffyNodeCtx, TaffyNodeMappings};
+use crate::{TaffyNodeCtx, TaffyNodeKind, TaffyNodeMappings};
 
 /// Taffy tree formatting utilities.
 ///
@@ -31,6 +31,7 @@ impl TaffyTreeFmt {
             node_inbuilt_to_taffy,
             node_id_to_taffy: _,
             taffy_id_to_node,
+            taffy_id_to_kind,
             edge_spacer_taffy_nodes: _,
             entity_highlighted_spans: _,
             edge_label_taffy_nodes: _,
@@ -50,6 +51,7 @@ impl TaffyTreeFmt {
             buffer,
             taffy_tree,
             taffy_id_to_node,
+            taffy_id_to_kind,
             root_taffy_node_id,
             false,
             String::new(),
@@ -61,6 +63,7 @@ impl TaffyTreeFmt {
         buffer: &mut String,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         taffy_id_to_node: &Map<taffy::NodeId, NodeId>,
+        taffy_id_to_kind: &Map<taffy::NodeId, TaffyNodeKind>,
         taffy_node_id: taffy::NodeId,
         has_sibling: bool,
         lines_string: String,
@@ -83,7 +86,7 @@ impl TaffyTreeFmt {
                         TaffyNodeCtx::EdgeLabel(edge_label_ctx) => {
                             let edge_id = &edge_label_ctx.edge_id;
                             let face = edge_label_ctx.face;
-                            Cow::Owned(format!("edge_label_{edge_id}_{face:?}"))
+                            Cow::Owned(format!("edge_label_{edge_id}_{face}"))
                         }
                         TaffyNodeCtx::EdgeDescription(edge_description_ctx) => {
                             let edge_id = &edge_description_ctx.edge_id;
@@ -97,6 +100,11 @@ impl TaffyTreeFmt {
                         }
                     },
                 )
+            })
+            .or_else(|| {
+                taffy_id_to_kind
+                    .get(&taffy_node_id)
+                    .map(|taffy_node_kind| Cow::Owned(taffy_node_kind.label()))
             })
             .unwrap_or_else(|| Cow::Borrowed(taffy_tree.get_debug_label(taffy_node_id)));
         let num_children = taffy_tree.child_count(taffy_node_id);
@@ -141,6 +149,7 @@ impl TaffyTreeFmt {
                     buffer,
                     taffy_tree,
                     taffy_id_to_node,
+                    taffy_id_to_kind,
                     child,
                     has_sibling,
                     new_string.clone(),
