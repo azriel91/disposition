@@ -4,9 +4,10 @@ use disposition_input_model::{
     process::{ProcessDiagram, ProcessId, ProcessStepId, Processes},
     tag::{TagNames, TagThings},
     theme::{
-        CssClassPartials, IdOrDefaults, StyleAliases, TagIdOrDefaults, ThemeAttr, ThemeDefault,
-        ThemeTagThingsFocus, ThemeTypesStyles,
+        CssClassPartials, DarkModeShadeConfig, IdOrDefaults, StyleAliases, TagIdOrDefaults,
+        ThemeAttr, ThemeDefault, ThemeTagThingsFocus, ThemeTypesStyles,
     },
+    DiagramFocus,
 };
 use disposition_ir_model::{
     edge::EdgeGroups,
@@ -20,7 +21,8 @@ use disposition_model_common::{
 };
 
 use super::{
-    css_theme_vars::CssThemeVars, tailwind_class_state::TailwindClassState, ThemeResolveCtx,
+    css_theme_vars::CssThemeVars, tailwind_class_state::TailwindClassState,
+    tailwind_focus_mode::TailwindFocusMode, ThemeResolveCtx,
 };
 
 const CLASSES_BUFFER_WRITE_FAIL: &str = "Failed to write string to buffer";
@@ -56,6 +58,7 @@ impl TailwindClassesBuilder {
         tag_things: &TagThings<'id>,
         processes: &Processes<'id>,
         process_render_expanded: bool,
+        focus_mode: TailwindFocusMode<'_, 'id>,
     ) -> TailwindClassesBuildResult<'id> {
         let mut css_theme_vars = CssThemeVars::new(theme_default.dark_mode_config.selector);
 
@@ -88,6 +91,7 @@ impl TailwindClassesBuilder {
                         theme_default,
                         theme_types_styles,
                         &mut css_theme_vars,
+                        focus_mode,
                     )
                 } else if is_process {
                     Self::build_process_tailwind_classes(
@@ -96,6 +100,7 @@ impl TailwindClassesBuilder {
                         theme_default,
                         theme_types_styles,
                         &mut css_theme_vars,
+                        focus_mode,
                     )
                 } else if is_process_step {
                     // Find the parent process diagram
@@ -116,6 +121,7 @@ impl TailwindClassesBuilder {
                         theme_types_styles,
                         &mut css_theme_vars,
                         process_render_expanded,
+                        focus_mode,
                     )
                 } else {
                     // Regular thing node
@@ -129,6 +135,7 @@ impl TailwindClassesBuilder {
                         tag_things,
                         &thing_to_interaction_steps,
                         &mut css_theme_vars,
+                        focus_mode,
                     )
                 };
 
@@ -147,6 +154,7 @@ impl TailwindClassesBuilder {
             &edge_group_to_steps,
             theme_resolve_ctx,
             &mut css_theme_vars,
+            focus_mode,
         );
 
         let tailwind_classes = node_classes.into_iter().chain(edge_classes).collect();
@@ -169,6 +177,7 @@ impl TailwindClassesBuilder {
         edge_group_to_steps: &Map<&EdgeGroupId<'id>, Vec<&ProcessStepId<'id>>>,
         theme_ctx: ThemeResolveCtx<'_, 'id>,
         css_theme_vars: &mut CssThemeVars,
+        focus_mode: TailwindFocusMode<'_, 'id>,
     ) -> Vec<(Id<'id>, String)> {
         let ThemeResolveCtx {
             entity_types,
@@ -192,6 +201,7 @@ impl TailwindClassesBuilder {
                     theme_types_styles,
                     &interaction_steps,
                     css_theme_vars,
+                    focus_mode,
                 );
 
             edges.iter().enumerate().for_each(|(index, _edge)| {
@@ -211,6 +221,75 @@ impl TailwindClassesBuilder {
             });
         });
         edge_classes
+    }
+
+    // === Focus Mode Helpers === //
+
+    /// Writes a focus state's classes according to the focus mode.
+    ///
+    /// In [`TailwindFocusMode::Interactive`] mode the classes are written with
+    /// the given `peer_prefix` so the focus styling is toggled at render time
+    /// via CSS `:focus-within`. In [`TailwindFocusMode::Baked`] mode the
+    /// classes are written without any prefix (so they apply
+    /// unconditionally) when this focus is the active one, and skipped
+    /// otherwise.
+    fn focus_state_write(
+        classes: &mut String,
+        focus_state: &TailwindClassState<'_>,
+        peer_prefix: &str,
+        focus_is_active: bool,
+        focus_mode: TailwindFocusMode<'_, '_>,
+        css_theme_vars: &mut CssThemeVars,
+        dark_mode_shade_config: DarkModeShadeConfig,
+    ) {
+        match focus_mode {
+            TailwindFocusMode::Interactive => {
+                focus_state.write_peer_classes(
+                    classes,
+                    peer_prefix,
+                    css_theme_vars,
+                    dark_mode_shade_config,
+                );
+            }
+            TailwindFocusMode::Baked { .. } => {
+                if focus_is_active {
+                    focus_state.write_classes(classes, css_theme_vars, dark_mode_shade_config);
+                }
+            }
+        }
+    }
+
+    /// Returns whether the focus mode bakes the given process step as the
+    /// active focus.
+    fn focus_active_is_step<'id>(
+        focus_mode: TailwindFocusMode<'_, 'id>,
+        process_step_id: &Id<'id>,
+    ) -> bool {
+        matches!(
+            focus_mode,
+            TailwindFocusMode::Baked {
+                active: DiagramFocus::ProcessStep {
+                    process_step_id: active_step_id,
+                    ..
+                },
+            } if active_step_id.as_ref() == process_step_id
+        )
+    }
+
+    /// Returns whether `active` focuses the given process (directly, or via one
+    /// of its steps), so that the process's steps should be revealed.
+    fn focus_active_in_process<'id>(
+        active: &DiagramFocus<'id>,
+        parent_process_id: Option<&ProcessId<'id>>,
+    ) -> bool {
+        let Some(parent_process_id) = parent_process_id else {
+            return false;
+        };
+        match active {
+            DiagramFocus::Process(process_id) => process_id == parent_process_id,
+            DiagramFocus::ProcessStep { process_id, .. } => process_id == parent_process_id,
+            DiagramFocus::None | DiagramFocus::Tag(_) => false,
+        }
     }
 
     // === Interaction Maps === //
@@ -302,6 +381,7 @@ impl TailwindClassesBuilder {
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
+        focus_mode: TailwindFocusMode<'_, 'id>,
     ) -> String {
         let entity_type = entity_types
             .get(tag_id)
@@ -328,8 +408,12 @@ impl TailwindClassesBuilder {
             theme_default.dark_mode_config.shade,
         );
 
-        // Tags get peer/{id} class
-        writeln!(&mut classes, "peer/{tag_id}").expect(CLASSES_BUFFER_WRITE_FAIL);
+        // Tags get a `peer/{id}` class so other entities can react to the tag
+        // being focused. In baked mode there is no interactive focus, so it is
+        // omitted.
+        if matches!(focus_mode, TailwindFocusMode::Interactive) {
+            writeln!(&mut classes, "peer/{tag_id}").expect(CLASSES_BUFFER_WRITE_FAIL);
+        }
 
         classes
     }
@@ -341,6 +425,7 @@ impl TailwindClassesBuilder {
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
+        focus_mode: TailwindFocusMode<'_, 'id>,
     ) -> String {
         let entity_type = entity_types
             .get(process_id)
@@ -367,13 +452,18 @@ impl TailwindClassesBuilder {
             theme_default.dark_mode_config.shade,
         );
 
-        // Processes get `peer/{id}` class
-        writeln!(&mut classes, "peer/{process_id}").expect(CLASSES_BUFFER_WRITE_FAIL);
+        // Processes get a `peer/{id}` class so steps can react to the process
+        // being focused. In baked mode there is no interactive focus, so it is
+        // omitted.
+        if matches!(focus_mode, TailwindFocusMode::Interactive) {
+            writeln!(&mut classes, "peer/{process_id}").expect(CLASSES_BUFFER_WRITE_FAIL);
+        }
 
         classes
     }
 
     /// Build tailwind classes for a process step node.
+    #[allow(clippy::too_many_arguments)]
     fn build_process_step_tailwind_classes<'id>(
         process_step_id: &Id<'id>,
         parent_process_id_and_diagram: Option<(&ProcessId<'id>, &ProcessDiagram<'id>)>,
@@ -382,6 +472,7 @@ impl TailwindClassesBuilder {
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
         process_render_expanded: bool,
+        focus_mode: TailwindFocusMode<'_, 'id>,
     ) -> String {
         let entity_type = entity_types
             .get(process_step_id)
@@ -401,10 +492,24 @@ impl TailwindClassesBuilder {
             &mut tailwind_class_state,
         );
 
-        // When processes are rendered collapsed, their steps are hidden until
-        // the process (or one of its steps) is focused. When rendered expanded,
-        // the step keeps its resolved visibility (visible by default).
-        if !process_render_expanded {
+        // When processes are rendered collapsed, their steps are hidden by
+        // default. When rendered expanded, the step keeps its resolved
+        // visibility (visible by default).
+        //
+        // In interactive mode, hidden steps are revealed via
+        // `group-has-[...]:visible` classes when the process or a sibling step
+        // is focused. In baked mode there is no interactive focus, so visibility
+        // is decided statically: the step is visible when its process is
+        // rendered expanded, or when the active focus is its parent process or
+        // any step of that process.
+        let parent_process_id = parent_process_id_and_diagram.map(|(process_id, _)| process_id);
+        let step_visible = process_render_expanded
+            || matches!(
+                focus_mode,
+                TailwindFocusMode::Baked { active }
+                    if Self::focus_active_in_process(active, parent_process_id)
+            );
+        if !step_visible {
             tailwind_class_state
                 .attrs
                 .insert(ThemeAttr::Visibility, Cow::Borrowed("invisible"));
@@ -417,7 +522,7 @@ impl TailwindClassesBuilder {
             theme_default.dark_mode_config.shade,
         );
 
-        // Process steps get:
+        // In interactive mode, process steps get:
         //
         // * `group-has-[#{process_id}:focus-within]:visible`
         // * one of `group-has-[#{process_step_id}:focus-within]:visible` for each of
@@ -431,24 +536,29 @@ impl TailwindClassesBuilder {
         //
         // When a process step is selected, `thing`s receive styles
         // `theme_default.process_step_selected_styles` -- see
-        // `build_thing_tailwind_classes`
-        if let Some((process_id, process_diagram)) = parent_process_id_and_diagram {
-            writeln!(
-                &mut classes,
-                "group-has-[#{process_id}:focus-within]:visible"
-            )
-            .expect(CLASSES_BUFFER_WRITE_FAIL);
-
-            process_diagram.steps.keys().for_each(|process_step_id| {
+        // `build_thing_tailwind_classes`.
+        //
+        // In baked mode these have no effect (visibility is already resolved
+        // above), so they are omitted.
+        if matches!(focus_mode, TailwindFocusMode::Interactive) {
+            if let Some((process_id, process_diagram)) = parent_process_id_and_diagram {
                 writeln!(
                     &mut classes,
-                    "group-has-[#{process_step_id}:focus-within]:visible"
+                    "group-has-[#{process_id}:focus-within]:visible"
                 )
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
-            });
-        }
 
-        writeln!(&mut classes, "peer/{process_step_id}").expect(CLASSES_BUFFER_WRITE_FAIL);
+                process_diagram.steps.keys().for_each(|process_step_id| {
+                    writeln!(
+                        &mut classes,
+                        "group-has-[#{process_step_id}:focus-within]:visible"
+                    )
+                    .expect(CLASSES_BUFFER_WRITE_FAIL);
+                });
+            }
+
+            writeln!(&mut classes, "peer/{process_step_id}").expect(CLASSES_BUFFER_WRITE_FAIL);
+        }
 
         classes
     }
@@ -465,6 +575,7 @@ impl TailwindClassesBuilder {
         tag_things: &TagThings<'id>,
         thing_to_interaction_steps: &Map<&'f NodeId<'id>, Set<&'f ProcessStepId<'id>>>,
         css_theme_vars: &mut CssThemeVars,
+        focus_mode: TailwindFocusMode<'_, 'id>,
     ) -> String {
         let entity_type = entity_types
             .get(node_id.as_ref())
@@ -491,7 +602,8 @@ impl TailwindClassesBuilder {
             theme_default.dark_mode_config.shade,
         );
 
-        // Add peer classes for each tag
+        // Add tag focus styles (peer classes in interactive mode, baked classes
+        // for the active tag in baked mode).
         Self::build_thing_tailwind_classes_tags(
             &tailwind_class_state,
             &mut classes,
@@ -501,10 +613,12 @@ impl TailwindClassesBuilder {
             tags,
             tag_things,
             css_theme_vars,
+            focus_mode,
         );
 
-        // Add peer classes for process steps that interact with edges involving this
-        // thing using styles from `theme_default.process_step_selected_styles`
+        // Add process step interaction styles for process steps that interact
+        // with edges involving this thing, using styles from
+        // `theme_default.process_step_selected_styles`.
         Self::build_thing_tailwind_classes_interactions(
             &tailwind_class_state,
             &mut classes,
@@ -512,6 +626,7 @@ impl TailwindClassesBuilder {
             theme_default,
             thing_to_interaction_steps,
             css_theme_vars,
+            focus_mode,
         );
 
         classes
@@ -528,6 +643,7 @@ impl TailwindClassesBuilder {
         tags: &TagNames<'id>,
         tag_things: &TagThings<'id>,
         css_theme_vars: &mut CssThemeVars,
+        focus_mode: TailwindFocusMode<'_, 'id>,
     ) {
         tags.keys().for_each(|tag_id| {
             let is_thing_in_tag = tag_things
@@ -587,9 +703,18 @@ impl TailwindClassesBuilder {
             }
 
             let peer_prefix = format!("peer-[:focus-within]/{tag_id}:");
-            tag_focus_state.write_peer_classes(
+            let focus_is_active = matches!(
+                focus_mode,
+                TailwindFocusMode::Baked {
+                    active: DiagramFocus::Tag(active_tag_id),
+                } if active_tag_id.as_ref() == tag_id.as_ref()
+            );
+            Self::focus_state_write(
                 classes,
+                &tag_focus_state,
                 &peer_prefix,
+                focus_is_active,
+                focus_mode,
                 css_theme_vars,
                 theme_default.dark_mode_config.shade,
             );
@@ -604,6 +729,7 @@ impl TailwindClassesBuilder {
         theme_default: &ThemeDefault<'id>,
         thing_to_interaction_steps: &Map<&'f NodeId<'id>, Set<&'f ProcessStepId<'id>>>,
         css_theme_vars: &mut CssThemeVars,
+        focus_mode: TailwindFocusMode<'_, 'id>,
     ) {
         if let Some(interaction_steps) = thing_to_interaction_steps.get(node_id) {
             interaction_steps.iter().for_each(|step_id| {
@@ -649,9 +775,13 @@ impl TailwindClassesBuilder {
                 });
 
                 let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
-                step_selected_state.write_peer_classes(
+                let focus_is_active = Self::focus_active_is_step(focus_mode, step_id.as_ref());
+                Self::focus_state_write(
                     classes,
+                    &step_selected_state,
                     &peer_prefix,
+                    focus_is_active,
+                    focus_mode,
                     css_theme_vars,
                     theme_default.dark_mode_config.shade,
                 );
@@ -684,6 +814,7 @@ impl TailwindClassesBuilder {
         theme_types_styles: &'tw_state ThemeTypesStyles<'id>,
         interaction_process_step_ids: &[&ProcessStepId<'id>],
         css_theme_vars: &mut CssThemeVars,
+        focus_mode: TailwindFocusMode<'_, 'id>,
     ) -> (TailwindClassState<'tw_state>, String)
     where
         'id: 'tw_state,
@@ -736,9 +867,13 @@ impl TailwindClassesBuilder {
             });
 
             let peer_prefix = format!("peer-[:focus-within]/{step_id}:");
-            step_selected_state.write_peer_classes(
+            let focus_is_active = Self::focus_active_is_step(focus_mode, step_id.as_ref());
+            Self::focus_state_write(
                 &mut peer_classes,
+                &step_selected_state,
                 &peer_prefix,
+                focus_is_active,
+                focus_mode,
                 css_theme_vars,
                 theme_default.dark_mode_config.shade,
             );

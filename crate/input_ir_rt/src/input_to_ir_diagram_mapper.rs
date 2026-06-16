@@ -13,7 +13,7 @@ use disposition_input_model::{
 };
 use disposition_ir_model::{
     edge::{Edge, EdgeGroup, EdgeGroups},
-    entity::EntityType,
+    entity::{EntityTailwindClasses, EntityType},
     enum_iterator,
     layout::{FlexDirection, FlexLayout, LeafLayout, NodeLayout, NodeLayouts},
     node::{
@@ -33,7 +33,8 @@ use crate::{
 
 use self::{
     css_theme_vars::CssThemeVars, node_nesting_infos_builder::NodeNestingInfosBuilder,
-    tailwind_classes_builder::TailwindClassesBuilder, theme_attr_resolver::ThemeAttrResolver,
+    tailwind_classes_builder::TailwindClassesBuilder, tailwind_focus_mode::TailwindFocusMode,
+    theme_attr_resolver::ThemeAttrResolver,
 };
 
 mod css_theme_vars;
@@ -42,6 +43,7 @@ mod tailwind_class_state;
 mod tailwind_classes_builder;
 pub(crate) mod tailwind_color_shade;
 pub(crate) mod tailwind_colors;
+pub(crate) mod tailwind_focus_mode;
 mod theme_attr_resolver;
 
 /// Maps an input diagram to an intermediate representation diagram.
@@ -62,7 +64,33 @@ struct ThemeResolveCtx<'a, 'id> {
 
 impl InputToIrDiagramMapper {
     /// Maps an input diagram to an intermediate representation diagram.
+    ///
+    /// This builds the focus-independent structure via [`Self::map_structure`],
+    /// then applies the interactive (`peer` / `group-has`) tailwind classes via
+    /// [`Self::tailwind_classes_apply`].
     pub fn map<'f, 'id>(input_diagram: &'f InputDiagram<'id>) -> IrDiagramAndIssues<'id>
+    where
+        'id: 'f,
+    {
+        let mut ir_diagram_and_issues = Self::map_structure(input_diagram);
+        Self::tailwind_classes_apply(
+            &mut ir_diagram_and_issues.diagram,
+            input_diagram,
+            TailwindFocusMode::Interactive,
+        );
+        ir_diagram_and_issues
+    }
+
+    /// Builds the focus-independent intermediate representation structure.
+    ///
+    /// This produces every part of the [`IrDiagram`] except the focus-dependent
+    /// tailwind classes (and the CSS theme variables derived from them). The
+    /// returned diagram has empty `tailwind_classes` and un-augmented `css`;
+    /// call [`Self::tailwind_classes_apply`] to populate those for a given
+    /// [`TailwindFocusMode`].
+    pub(crate) fn map_structure<'f, 'id>(
+        input_diagram: &'f InputDiagram<'id>,
+    ) -> IrDiagramAndIssues<'id>
     where
         'id: 'f,
     {
@@ -78,7 +106,7 @@ impl InputToIrDiagramMapper {
             thing_descs,
             processes,
             tags,
-            tag_things,
+            tag_things: _,
             edge_descs,
             edge_labels,
             entity_tooltips,
@@ -86,7 +114,7 @@ impl InputToIrDiagramMapper {
             theme_default,
             theme_types_styles,
             theme_thing_dependencies_styles: _,
-            theme_tag_things_focus,
+            theme_tag_things_focus: _,
             render_options,
             css,
         } = input_diagram;
@@ -155,27 +183,9 @@ impl InputToIrDiagramMapper {
         let node_shapes =
             Self::build_node_shapes(&nodes, &ir_entity_types, theme_default, theme_types_styles);
 
-        // 13. Build TailwindClasses from theme
-        //
-        // Process steps are hidden (until focused) only when processes are
-        // rendered collapsed.
-        let process_render_expanded = render_options
-            .process_render_collapse
-            .process_render_expanded(processes.len());
-        let tailwind_classes_build_result = TailwindClassesBuilder::build(
-            &nodes,
-            &edge_groups,
-            &ir_entity_types,
-            theme_default,
-            theme_types_styles,
-            theme_tag_things_focus,
-            tags,
-            tag_things,
-            processes,
-            process_render_expanded,
-        );
-        let mut tailwind_classes = tailwind_classes_build_result.tailwind_classes;
-        let mut css_theme_vars = tailwind_classes_build_result.css_theme_vars;
+        // 13. Tailwind classes (and the CSS theme variables they produce) are
+        //     focus-dependent, so they are applied separately via
+        //     `tailwind_classes_apply`.
 
         // 14. Build ProcessStepEntities from step_thing_interactions
         let process_step_entities = Self::build_process_step_entities(processes);
@@ -193,46 +203,9 @@ impl InputToIrDiagramMapper {
             &process_step_edges,
         );
 
-        // 14d. Style process step connectors like dependency edges, sharing one
-        //      resolved `edge_defaults` class string across all of them.
-        if !process_step_graphs.is_empty() {
-            let connector_classes = TailwindClassesBuilder::build_process_step_connector_classes(
-                theme_default,
-                theme_types_styles,
-                &mut css_theme_vars,
-            );
-            process_step_graphs
-                .values()
-                .flat_map(|process_step_graph| &process_step_graph.edges)
-                .for_each(|process_step_graph_edge| {
-                    tailwind_classes.insert(
-                        process_step_graph_edge.edge_id().into_inner(),
-                        connector_classes.clone(),
-                    );
-                });
-        }
-
-        // 14e. Register the markdown span colours (inline-code background and
-        //      link text) with `css_theme_vars`, so they emit `--tw-...` CSS
-        //      variables that flip per the configured `DarkModeCssSelector`
-        //      (matching how node/edge colours are themed). Markdown styled
-        //      spans only appear for node/edge descriptions and edge labels,
-        //      so this is gated on the diagram having any of those. The colour
-        //      parts come from `disposition_taffy_model` so the registered
-        //      variable name matches the `fill-[var(--tw-...)]` classes the
-        //      spans reference.
-        if !thing_descs.is_empty() || !edge_descs.is_empty() || !edge_labels.is_empty() {
-            css_theme_vars.register(
-                MD_CODE_BG_COLOR.color,
-                MD_CODE_BG_COLOR.shade_light,
-                MD_CODE_BG_COLOR.shade_dark,
-            );
-            css_theme_vars.register(
-                MD_LINK_COLOR.color,
-                MD_LINK_COLOR.shade_light,
-                MD_LINK_COLOR.shade_dark,
-            );
-        }
+        // 14d. Process step connector classes (14d) and markdown span colour
+        //      theme variables (14e) are emitted as part of the focus-dependent
+        //      tailwind pass -- see `tailwind_classes_apply`.
 
         // 15. Compute NodeNestingInfos from node_hierarchy
         let node_nesting_infos = NodeNestingInfosBuilder::build(&node_hierarchy);
@@ -265,7 +238,7 @@ impl InputToIrDiagramMapper {
             edge_labels,
             entity_tooltips,
             entity_types: ir_entity_types,
-            tailwind_classes,
+            tailwind_classes: EntityTailwindClasses::default(),
             node_layouts,
             node_ranks_nested,
             node_nesting_infos,
@@ -277,10 +250,102 @@ impl InputToIrDiagramMapper {
             process_step_ranks,
             process_step_graphs,
             render_options: *render_options,
-            css: Self::css_with_theme_vars(css, &css_theme_vars),
+            css: css.clone(),
         };
 
         IrDiagramAndIssues { diagram, issues }
+    }
+
+    /// Applies the focus-dependent tailwind classes (and the CSS theme
+    /// variables they produce) to a structural [`IrDiagram`] built by
+    /// [`Self::map_structure`].
+    ///
+    /// This runs the tailwind class builder for the given
+    /// [`TailwindFocusMode`], styles the process step connectors, registers
+    /// the markdown span colour theme variables, and prepends all collected
+    /// CSS theme variables to the diagram's base CSS.
+    ///
+    /// `ir_diagram.css` is expected to be the un-augmented base CSS (as
+    /// produced by `map_structure`); calling this more than once on the
+    /// same diagram would prepend the theme variables repeatedly.
+    pub(crate) fn tailwind_classes_apply<'id>(
+        ir_diagram: &mut IrDiagram<'id>,
+        input_diagram: &InputDiagram<'id>,
+        focus_mode: TailwindFocusMode<'_, 'id>,
+    ) {
+        let theme_default = &input_diagram.theme_default;
+        let theme_types_styles = &input_diagram.theme_types_styles;
+
+        // Tailwind classes for all nodes, edge groups, and edges.
+        //
+        // Process steps are hidden (until focused) only when processes are
+        // rendered collapsed.
+        let process_render_expanded = input_diagram
+            .render_options
+            .process_render_collapse
+            .process_render_expanded(input_diagram.processes.len());
+        let tailwind_classes_build_result = TailwindClassesBuilder::build(
+            &ir_diagram.nodes,
+            &ir_diagram.edge_groups,
+            &ir_diagram.entity_types,
+            theme_default,
+            theme_types_styles,
+            &input_diagram.theme_tag_things_focus,
+            &input_diagram.tags,
+            &input_diagram.tag_things,
+            &input_diagram.processes,
+            process_render_expanded,
+            focus_mode,
+        );
+        let mut tailwind_classes = tailwind_classes_build_result.tailwind_classes;
+        let mut css_theme_vars = tailwind_classes_build_result.css_theme_vars;
+
+        // Style process step connectors like dependency edges, sharing one
+        // resolved `edge_defaults` class string across all of them.
+        if !ir_diagram.process_step_graphs.is_empty() {
+            let connector_classes = TailwindClassesBuilder::build_process_step_connector_classes(
+                theme_default,
+                theme_types_styles,
+                &mut css_theme_vars,
+            );
+            ir_diagram
+                .process_step_graphs
+                .values()
+                .flat_map(|process_step_graph| &process_step_graph.edges)
+                .for_each(|process_step_graph_edge| {
+                    tailwind_classes.insert(
+                        process_step_graph_edge.edge_id().into_inner(),
+                        connector_classes.clone(),
+                    );
+                });
+        }
+
+        // Register the markdown span colours (inline-code background and link
+        // text) with `css_theme_vars`, so they emit `--tw-...` CSS variables
+        // that flip per the configured `DarkModeCssSelector` (matching how
+        // node/edge colours are themed). Markdown styled spans only appear for
+        // node/edge descriptions and edge labels, so this is gated on the
+        // diagram having any of those. The colour parts come from
+        // `disposition_taffy_model` so the registered variable name matches the
+        // `fill-[var(--tw-...)]` classes the spans reference.
+        if !ir_diagram.thing_descs.is_empty()
+            || !ir_diagram.edge_descs.is_empty()
+            || !ir_diagram.edge_labels.is_empty()
+        {
+            css_theme_vars.register(
+                MD_CODE_BG_COLOR.color,
+                MD_CODE_BG_COLOR.shade_light,
+                MD_CODE_BG_COLOR.shade_dark,
+            );
+            css_theme_vars.register(
+                MD_LINK_COLOR.color,
+                MD_LINK_COLOR.shade_light,
+                MD_LINK_COLOR.shade_dark,
+            );
+        }
+
+        ir_diagram.css = Self::css_with_theme_vars(&ir_diagram.css, &css_theme_vars);
+        ir_diagram.tailwind_classes = tailwind_classes;
     }
 
     /// Prepend CSS theme variable definitions to the diagram's CSS.

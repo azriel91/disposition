@@ -9,5 +9,6 @@ pub use disposition_input_model as input_model;
 pub use disposition_input_rt as input_rt;
 pub use disposition_ir_model as ir_model;
 pub use disposition_model_common as model_common;
+pub use disposition_output_model as output_model;
 pub use disposition_svg_model as svg_model;
 pub use disposition_taffy_model as taffy_model;

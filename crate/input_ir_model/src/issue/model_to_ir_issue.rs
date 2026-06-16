@@ -6,5 +6,7 @@ use serde::{Deserialize, Serialize};
     all(feature = "schemars", not(feature = "test")),
     derive(schemars::JsonSchema)
 )]
-#[derive(Clone, Debug, Serialize, Deserialize, thiserror::Error, miette::Diagnostic)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Serialize, Deserialize, thiserror::Error, miette::Diagnostic,
+)]
 pub enum ModelToIrIssue {}

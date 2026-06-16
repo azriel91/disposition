@@ -27,6 +27,7 @@ disposition_ir_model = { workspace = true }
 disposition_input_model = { workspace = true }
 disposition_input_rt = { workspace = true }
 disposition_model_common = { workspace = true }
+disposition_output_model = { workspace = true }
 disposition_svg_model = { workspace = true }
 disposition_taffy_model = { workspace = true }
 emojis = { workspace = true }
@@ -35,6 +36,7 @@ kurbo = { workspace = true }
 linesweeper = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 taffy = { workspace = true }
+thiserror = { workspace = true }
 typed-builder = { workspace = true }
 serde-saphyr = { workspace = true }
 unicode-segmentation = { workspace = true }
@@ -44,3 +46,4 @@ jiff = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 jiff = { workspace = true, features = ["js"] }
+web-time = { workspace = true }

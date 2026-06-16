@@ -2,14 +2,14 @@ use std::path::{Path, PathBuf};
 
 use clap::{Parser, ValueEnum};
 use disposition::{
-    input_model::InputDiagram,
+    input_model::{DiagramFocus, InputDiagram},
     ir_model::entity::EntityTailwindClasses,
     model_common::theme::Css,
-    taffy_model::{DimensionAndLod, IrToTaffyError, TaffyTreeFmt},
+    output_model::DiagramGenerated,
+    taffy_model::TaffyTreeFmt,
 };
 use disposition_input_ir_rt::{
-    EdgeAnimationActive, InputDiagramMerger, InputToIrDiagramMapper, IrToTaffyBuilder,
-    SvgElementsToSvgMapper, TaffyToSvgElementsMapper,
+    DiagramGenerateError, DiagramGenerator, EdgeAnimationActive, SvgElementsToSvgMapper,
 };
 use thiserror::Error;
 
@@ -25,6 +25,19 @@ use thiserror::Error;
 /// Use `--data` to restrict output to a single intermediate stage, and
 /// `--stdout` to write that stage straight to stdout -- useful when debugging
 /// diagram generation without needing to write files.
+///
+/// Every output file is prefixed with the input file's stem, e.g. for
+/// `something.yaml` the SVG is written to `something_diagram.svg`.
+///
+/// Use `--diagram-per-interaction` to generate one diagram per focus state (no
+/// focus, each process, each process step, each tag), with the focus baked in
+/// statically. Each output file is then prefixed with
+/// `{input_stem}_{NN}_{focus}`, where `NN` is a zero-padded ordinal that sorts
+/// the diagrams in generation order, and `focus` is the focused entity's ID
+/// (`idle` for the no-focus diagram), e.g. `something_00_idle_diagram.svg`. The
+/// `taffy_tree.txt` is shared by all diagrams, so it is prefixed with only the
+/// input stem (no ordinal). When writing to stdout, each diagram is preceded by
+/// a `<!-- focus: ID -->` comment header.
 #[derive(Parser)]
 #[command(version, about)]
 struct Args {
@@ -48,6 +61,10 @@ struct Args {
     /// writing files.
     #[arg(long)]
     stdout: bool,
+    /// Generate one diagram per process step / tag (and per process, plus a
+    /// no-focus diagram), instead of a single interactive diagram.
+    #[arg(long)]
+    diagram_per_interaction: bool,
 }
 
 /// An intermediate diagram transformation stage that can be output.
@@ -74,10 +91,8 @@ enum CliError {
     YamlDeserialize(#[from] serde_saphyr::Error),
     #[error("yaml serialize: {0}")]
     YamlSerialize(#[from] serde_saphyr::ser::Error),
-    #[error("taffy: {0}")]
-    Taffy(#[from] IrToTaffyError),
-    #[error("no taffy node mappings generated")]
-    NoTaffyMappings,
+    #[error("generate: {0}")]
+    Generate(#[from] DiagramGenerateError),
     #[error("no output specified: provide an output directory or `--stdout`")]
     NoOutput,
 }
@@ -97,6 +112,7 @@ async fn run() -> Result<(), CliError> {
         structure_only,
         data,
         stdout,
+        diagram_per_interaction,
     } = Args::parse();
 
     if output.is_none() && !stdout {
@@ -110,9 +126,16 @@ async fn run() -> Result<(), CliError> {
     } else {
         data
     };
-    let stage_max = data_selected.unwrap_or(Data::Svg);
     let data_is_selected =
         |data: Data| data_selected.is_none_or(|data_selected| data_selected == data);
+
+    // Every output file is prefixed with the input file's stem, so it is clear
+    // which input the outputs belong to. `file_stem` strips the directory and
+    // the `.yaml` / `.yml` extension, e.g. `something.yaml` -> `something`.
+    let input_stem = input
+        .file_stem()
+        .and_then(std::ffi::OsStr::to_str)
+        .unwrap_or("diagram");
 
     let contents = tokio::fs::read_to_string(&input).await?;
     let input_diagram: InputDiagram<'static> = serde_saphyr::from_str(&contents)?;
@@ -122,61 +145,206 @@ async fn run() -> Result<(), CliError> {
     }
     let output = output.as_deref();
 
-    let input_diagram_merged = InputDiagramMerger::merge(InputDiagram::base(), &input_diagram);
-    let ir_diagram_and_issues = InputToIrDiagramMapper::map(&input_diagram_merged);
+    if diagram_per_interaction {
+        let diagrams_focus_generated = DiagramGenerator::generate_per_process_step_or_tag(
+            &input_diagram,
+            EdgeAnimationActive::OnProcessStepFocus,
+        )?;
 
-    if !ir_diagram_and_issues.issues.is_empty() {
+        // The IR mapping issues are identical across every focus, so report them
+        // once.
+        if let Some(diagram_focus_generated) = diagrams_focus_generated.first() {
+            issues_report(&diagram_focus_generated.diagram_generated);
+        }
+
+        // The taffy layout is focus-independent, so it is shared by every
+        // diagram and emitted once, prefixed with only the input stem (no
+        // ordinal).
+        if data_is_selected(Data::TaffyTree)
+            && let Some(diagram_focus_generated) = diagrams_focus_generated.first()
+        {
+            taffy_tree_emit(
+                &diagram_focus_generated.diagram_generated,
+                output,
+                stdout,
+                Some(input_stem),
+                Some("<!-- taffy_tree (common) -->"),
+            )
+            .await?;
+        }
+
+        // The ordinal is zero-padded so output files sort lexicographically in
+        // the same order the diagrams are generated. Width defaults to 2 (`00`,
+        // `01`), widening if there are more diagrams than that can index.
+        let width = diagrams_focus_generated
+            .len()
+            .saturating_sub(1)
+            .to_string()
+            .len()
+            .max(2);
+
+        for (index, diagram_focus_generated) in diagrams_focus_generated.iter().enumerate() {
+            let focus_id = focus_id(&diagram_focus_generated.focus);
+            let file_prefix = format!("{input_stem}_{index:0width$}_{focus_id}");
+            let stdout_header = format!("<!-- focus: {focus_id} -->");
+            diagram_stages_emit(
+                &diagram_focus_generated.diagram_generated,
+                &input_diagram,
+                structure_only,
+                output,
+                stdout,
+                data_selected,
+                Some(&file_prefix),
+                Some(&stdout_header),
+            )
+            .await?;
+        }
+    } else {
+        let diagram_generated =
+            DiagramGenerator::generate(&input_diagram, EdgeAnimationActive::OnProcessStepFocus)?;
+
+        issues_report(&diagram_generated);
+
+        if data_is_selected(Data::TaffyTree) {
+            taffy_tree_emit(&diagram_generated, output, stdout, Some(input_stem), None).await?;
+        }
+
+        diagram_stages_emit(
+            &diagram_generated,
+            &input_diagram,
+            structure_only,
+            output,
+            stdout,
+            data_selected,
+            Some(input_stem),
+            None,
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
+/// Reports any input-to-IR mapping issues to stderr.
+fn issues_report(diagram_generated: &DiagramGenerated) {
+    if !diagram_generated.ir_diagram_issues.is_empty() {
         eprintln!("Issues mapping input to IR diagram:");
-        for issue in &ir_diagram_and_issues.issues {
+        for issue in &diagram_generated.ir_diagram_issues {
             eprintln!("  {issue}");
         }
     }
+}
+
+/// Returns the file-name / stdout-header prefix for a [`DiagramFocus`].
+///
+/// Uses the focused entity's ID, or `idle` for the no-focus diagram.
+fn focus_id(focus: &DiagramFocus<'_>) -> String {
+    match focus {
+        DiagramFocus::None => "idle".to_string(),
+        DiagramFocus::Process(process_id) => process_id.as_str().to_string(),
+        DiagramFocus::ProcessStep {
+            process_step_id, ..
+        } => process_step_id.as_str().to_string(),
+        DiagramFocus::Tag(tag_id) => tag_id.as_str().to_string(),
+    }
+}
+
+/// Returns the output file name for a stage, applying `file_prefix` when set.
+///
+/// e.g. `("proc_one_step_build", "ir_diagram.yaml")` ->
+/// `proc_one_step_build_ir_diagram.yaml`.
+fn file_name(file_prefix: Option<&str>, base: &str) -> String {
+    match file_prefix {
+        Some(file_prefix) => format!("{file_prefix}_{base}"),
+        None => base.to_string(),
+    }
+}
+
+/// Emits the taffy layout tree, optionally preceded by a stdout header.
+async fn taffy_tree_emit(
+    diagram_generated: &DiagramGenerated,
+    output: Option<&Path>,
+    stdout: bool,
+    file_prefix: Option<&str>,
+    stdout_header: Option<&str>,
+) -> Result<(), CliError> {
+    let mut taffy_tree = String::new();
+    TaffyTreeFmt::fmt(&mut taffy_tree, &diagram_generated.taffy_node_mappings);
+    if stdout && let Some(stdout_header) = stdout_header {
+        println!("{stdout_header}");
+    }
+    data_emit(
+        output,
+        stdout,
+        &file_name(file_prefix, "taffy_tree.txt"),
+        &taffy_tree,
+    )
+    .await?;
+    Ok(())
+}
+
+/// Emits the `ir_diagram`, `svg_elements`, and `svg` stages for one diagram.
+///
+/// The taffy tree is emitted separately via [`taffy_tree_emit`], because it is
+/// identical across all per-interaction diagrams.
+///
+/// * `file_prefix`: prefix applied to each output file name, e.g.
+///   `Some("proc_one_step_build")`; `None` writes the bare stage names.
+/// * `stdout_header`: a header line printed to stdout once before this
+///   diagram's stage output, e.g. `Some("<!-- focus: proc_one_step_build
+///   -->")`.
+#[allow(clippy::too_many_arguments)]
+async fn diagram_stages_emit(
+    diagram_generated: &DiagramGenerated,
+    input_diagram: &InputDiagram<'static>,
+    structure_only: bool,
+    output: Option<&Path>,
+    stdout: bool,
+    data_selected: Option<Data>,
+    file_prefix: Option<&str>,
+    stdout_header: Option<&str>,
+) -> Result<(), CliError> {
+    let data_is_selected =
+        |data: Data| data_selected.is_none_or(|data_selected| data_selected == data);
+
+    // Print the stdout header once before this diagram's stage output, but only
+    // when at least one of its stages will actually be written to stdout.
+    if stdout
+        && let Some(stdout_header) = stdout_header
+        && (data_is_selected(Data::IrDiagram)
+            || data_is_selected(Data::SvgElements)
+            || data_is_selected(Data::Svg))
+    {
+        println!("{stdout_header}");
+    }
 
     // === IR diagram === //
-    let ir_diagram = if structure_only {
-        let mut ir_diagram = ir_diagram_and_issues.diagram;
-        ir_diagram.tailwind_classes = EntityTailwindClasses::default();
-        ir_diagram.css = Css::default();
-        ir_diagram
-    } else {
-        ir_diagram_and_issues.diagram
-    };
-
     if data_is_selected(Data::IrDiagram) {
         let mut ir_yaml = String::new();
-        serde_saphyr::to_fmt_writer(&mut ir_yaml, &ir_diagram)?;
-        data_emit(output, stdout, "ir_diagram.yaml", &ir_yaml).await?;
-    }
-    if stage_max == Data::IrDiagram {
-        return Ok(());
-    }
-
-    // === Taffy tree === //
-    let taffy_node_mappings = IrToTaffyBuilder::builder()
-        .with_ir_diagram(&ir_diagram)
-        .with_dimension_and_lods(vec![DimensionAndLod::default_no_limit()])
-        .build()
-        .build()?
-        .next()
-        .ok_or(CliError::NoTaffyMappings)?;
-
-    if data_is_selected(Data::TaffyTree) {
-        let mut taffy_tree = String::new();
-        TaffyTreeFmt::fmt(&mut taffy_tree, &taffy_node_mappings);
-        data_emit(output, stdout, "taffy_tree.txt", &taffy_tree).await?;
-    }
-    if stage_max == Data::TaffyTree {
-        return Ok(());
+        if structure_only {
+            // `tailwind_classes` / `css` are styling only and do not affect
+            // layout, so stripping them keeps the structural values readable.
+            let mut ir_diagram = diagram_generated.ir_diagram.clone();
+            ir_diagram.tailwind_classes = EntityTailwindClasses::default();
+            ir_diagram.css = Css::default();
+            serde_saphyr::to_fmt_writer(&mut ir_yaml, &ir_diagram)?;
+        } else {
+            serde_saphyr::to_fmt_writer(&mut ir_yaml, &diagram_generated.ir_diagram)?;
+        }
+        data_emit(
+            output,
+            stdout,
+            &file_name(file_prefix, "ir_diagram.yaml"),
+            &ir_yaml,
+        )
+        .await?;
     }
 
     // === SVG elements === //
-    let mut svg_elements = TaffyToSvgElementsMapper::map(
-        &ir_diagram,
-        &taffy_node_mappings,
-        EdgeAnimationActive::OnProcessStepFocus,
-    );
-
-    if structure_only {
+    // Under `--structure-only` a stripped copy is also used to re-derive the
+    // SVG, so the final SVG matches the structure-only SVG elements.
+    let svg_elements_structure_only = if structure_only {
+        let mut svg_elements = diagram_generated.svg_elements.clone();
         svg_elements.css = Css::default();
         svg_elements.tailwind_classes = EntityTailwindClasses::default();
         svg_elements
@@ -185,20 +353,36 @@ async fn run() -> Result<(), CliError> {
             .for_each(|svg_edge_info| {
                 svg_edge_info.locus_path_d = String::new();
             });
-    }
+        Some(svg_elements)
+    } else {
+        None
+    };
 
     if data_is_selected(Data::SvgElements) {
+        let svg_elements = svg_elements_structure_only
+            .as_ref()
+            .unwrap_or(&diagram_generated.svg_elements);
         let mut svg_elements_yaml = String::new();
-        serde_saphyr::to_fmt_writer(&mut svg_elements_yaml, &svg_elements)?;
-        data_emit(output, stdout, "svg_elements.yaml", &svg_elements_yaml).await?;
-    }
-    if stage_max == Data::SvgElements {
-        return Ok(());
+        serde_saphyr::to_fmt_writer(&mut svg_elements_yaml, svg_elements)?;
+        data_emit(
+            output,
+            stdout,
+            &file_name(file_prefix, "svg_elements.yaml"),
+            &svg_elements_yaml,
+        )
+        .await?;
     }
 
     // === SVG === //
-    let svg = SvgElementsToSvgMapper::map_with_input(&input_diagram, &svg_elements);
-    data_emit(output, stdout, "diagram.svg", &svg).await?;
+    if data_is_selected(Data::Svg) {
+        let svg = match svg_elements_structure_only.as_ref() {
+            Some(svg_elements) => {
+                SvgElementsToSvgMapper::map_with_input(input_diagram, svg_elements)
+            }
+            None => diagram_generated.svg.clone(),
+        };
+        data_emit(output, stdout, &file_name(file_prefix, "diagram.svg"), &svg).await?;
+    }
 
     Ok(())
 }

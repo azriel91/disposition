@@ -16,12 +16,14 @@
 * Markdown: Improve inline code background position and rounded corner. ([#46][#46])
 * Markdown: Style inline code background and link text via Tailwind classes backed by light / dark theme variables, improving link contrast in dark mode. ([#46][#46])
 * Markdown: Render edge labels as markdown, so they support inline styling (bold, italic, inline code, links) and images like node and edge descriptions. ([#46][#46])
+* Support generating a diagram per process step / tag. ([#47][#47])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
 [#44]: https://github.com/azriel91/disposition/pull/44
 [#45]: https://github.com/azriel91/disposition/pull/45
 [#46]: https://github.com/azriel91/disposition/pull/46
+[#47]: https://github.com/azriel91/disposition/pull/47
 
 
 ## 0.3.0 (2026-06-07)

@@ -42,6 +42,7 @@ impl SvgNodeInfoBuilder {
             svg_process_infos,
             node_id_to_envelope_taffy_node,
             process_render_expanded,
+            focus_mode,
         } = svg_node_info_build_context;
 
         let is_process = ir_diagram
@@ -114,6 +115,7 @@ impl SvgNodeInfoBuilder {
             height_to_expand_to,
             node_shape,
             &path_d_collapsed,
+            focus_mode,
         );
 
         if let Some(tailwind_classes) = entity_tailwind_classes
