@@ -83,22 +83,17 @@ impl EdgeAnimationCalculator {
         let start_pct = preceding_travel / edge_group_cycle_distance * 100.0;
         let end_pct = (preceding_travel + travel) / edge_group_cycle_distance * 100.0;
 
-        // The arrow head travels its `offset-distance` from 0 to
-        // `arrow_head_travel`. To move at the same pixel speed as the arrow body,
-        // its keyframe window (in cycle-distance units) must be exactly
-        // `arrow_head_travel` wide. Centre it within this edge's `travel` slot so
-        // the head stays at the tip of the visible segment -- for long edges
-        // (`arrow_head_travel == travel`) this collapses to the full slot
-        // `[start_pct, end_pct]`; for short edges it insets symmetrically.
-        let arrow_head_travel = path_length + path_length.min(visible_segments_length);
-        let arrow_head_offset_within_slot = (travel - arrow_head_travel) / 2.0;
-        let arrow_head_start_pct = (preceding_travel + arrow_head_offset_within_slot)
-            / edge_group_cycle_distance
-            * 100.0;
-        let arrow_head_end_pct = (preceding_travel + arrow_head_offset_within_slot
-            + arrow_head_travel)
-            / edge_group_cycle_distance
-            * 100.0;
+        // The arrow head tracks the comet's leading tip, which travels the full
+        // path length from the `from` node to the `to` node. The tip reaches the
+        // `to` node face after exactly `path_length` of travel along the path, so
+        // -- in the same cycle-distance units as the body keyframes -- the head
+        // stays glued to the tip by animating its `offset-distance` from 0 to
+        // `path_length` over the window `[start_pct, arrow_head_node_pct]`. It is
+        // held at the node face and faded out over the remainder of the cycle.
+        let arrow_head_end_offset = path_length;
+        let arrow_head_start_pct = start_pct;
+        let arrow_head_node_pct =
+            (preceding_travel + path_length) / edge_group_cycle_distance * 100.0;
 
         // stroke-dashoffset values. The edge path is drawn from the `from` node
         // to the `to` node, so to animate the dash in that same direction the
@@ -137,14 +132,13 @@ impl EdgeAnimationCalculator {
 
         // Build the arrowhead @keyframes rule.
         //
-        // The arrowhead should be invisible (opacity: 0) outside its active
-        // window and visible (opacity: 1) during it.  While visible it
-        // travels along the offset-path from 0% to 100%.
+        // The arrow head travels along the offset-path (the forward edge path,
+        // `from` -> `to`) at the same pixel speed as the body, staying solid
+        // (opacity: 1) until it contacts the `to` node face at
+        // `arrow_head_node_pct`, then fading out (opacity: 0) over the remainder
+        // of the cycle while held at the node.
         let mut arrow_head_keyframe_css = format!("@keyframes {arrow_head_animation_name} {{ ");
 
-        // we travel as fast as the path length plus the length the arrow that is
-        // negatively offset (same distance the keyframe window above is sized to).
-        let arrow_head_end_offset = arrow_head_travel;
         if arrow_head_start_pct > 0.0 {
             let _ = write!(
                 arrow_head_keyframe_css,
@@ -157,9 +151,9 @@ impl EdgeAnimationCalculator {
         );
         let _ = write!(
             arrow_head_keyframe_css,
-            "{arrow_head_end_pct:.1}% {{ opacity: 0.0; offset-distance: {arrow_head_end_offset:.1}px; }} "
+            "{arrow_head_node_pct:.1}% {{ opacity: 1.0; offset-distance: {arrow_head_end_offset:.1}px; }} "
         );
-        if arrow_head_end_pct < 100.0 {
+        if arrow_head_node_pct < 100.0 {
             let _ = write!(
                 arrow_head_keyframe_css,
                 "100% {{ opacity: 0.0; offset-distance: {arrow_head_end_offset:.1}px; }} "
