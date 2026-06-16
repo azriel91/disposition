@@ -1,0 +1,77 @@
+---
+# Interaction Timing
+#
+# This example demonstrates that interaction animations travel at a *constant
+# pixel speed*, regardless of how far apart the connected things are.
+#
+# A chain of `thing_dependencies` lays the things out across six ranks
+# (`n0` .. `n5`). Two `thing_interactions` are then overlaid:
+#
+# * `edge_ix_adjacent` connects `n0` -> `n1` (one rank apart -- a short edge).
+# * `edge_ix_far`      connects `n0` -> `n5` (five ranks apart -- a long edge).
+#
+# Both edges should crawl at the same speed and pause for the same duration at
+# the end of their cycle: the long edge must not sprint ahead and then stall.
+#
+# There are no processes in this diagram, so the interactions are made visible
+# and animated automatically (no `theme_types_styles` override needed).
+things:
+  n0: {}
+  n1: {}
+  n2: {}
+  n3: {}
+  n4: {}
+  n5: {}
+thing_names:
+  n0: "Rank 0"
+  n1: "Rank 1"
+  n2: "Rank 2"
+  n3: "Rank 3"
+  n4: "Rank 4"
+  n5: "Rank 5"
+
+# A linear dependency chain establishes the ranks the interactions span.
+thing_dependencies:
+  edge_dep_n0_n1:
+    kind: sequence
+    things:
+      - n0
+      - n1
+  edge_dep_n1_n2:
+    kind: sequence
+    things:
+      - n1
+      - n2
+  edge_dep_n2_n3:
+    kind: sequence
+    things:
+      - n2
+      - n3
+  edge_dep_n3_n4:
+    kind: sequence
+    things:
+      - n3
+      - n4
+  edge_dep_n4_n5:
+    kind: sequence
+    things:
+      - n4
+      - n5
+
+# Two interactions of very different length. With the constant-speed animation
+# they animate at the same pixel speed and share the same end-of-cycle pause.
+thing_interactions:
+  edge_ix_adjacent:
+    kind: sequence
+    things:
+      - n0
+      - n1
+  edge_ix_far:
+    kind: sequence
+    things:
+      - n0
+      - n5
+
+edge_descs:
+  edge_ix_adjacent: "adjacent"
+  edge_ix_far: "5 ranks"

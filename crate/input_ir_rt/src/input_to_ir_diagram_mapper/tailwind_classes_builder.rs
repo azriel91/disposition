@@ -155,6 +155,7 @@ impl TailwindClassesBuilder {
             theme_resolve_ctx,
             &mut css_theme_vars,
             focus_mode,
+            processes.is_empty(),
         );
 
         let tailwind_classes = node_classes.into_iter().chain(edge_classes).collect();
@@ -178,6 +179,7 @@ impl TailwindClassesBuilder {
         theme_ctx: ThemeResolveCtx<'_, 'id>,
         css_theme_vars: &mut CssThemeVars,
         focus_mode: TailwindFocusMode<'_, 'id>,
+        processes_is_empty: bool,
     ) -> Vec<(Id<'id>, String)> {
         let ThemeResolveCtx {
             entity_types,
@@ -202,6 +204,7 @@ impl TailwindClassesBuilder {
                     &interaction_steps,
                     css_theme_vars,
                     focus_mode,
+                    processes_is_empty,
                 );
 
             edges.iter().enumerate().for_each(|(index, _edge)| {
@@ -807,6 +810,9 @@ impl TailwindClassesBuilder {
     /// * `interaction_process_step_ids`: The process step IDs that interact
     ///   with this edge.
     /// * `css_theme_vars`: Collector for CSS variable definitions.
+    /// * `processes_is_empty`: Whether the diagram has no processes, in which
+    ///   case interaction edges are made visible by default.
+    #[allow(clippy::too_many_arguments)]
     fn build_edge_group_tailwind_class_state<'id, 'tw_state>(
         edge_group_id: &EdgeGroupId<'id>,
         entity_types: &'tw_state EntityTypes<'id>,
@@ -815,6 +821,7 @@ impl TailwindClassesBuilder {
         interaction_process_step_ids: &[&ProcessStepId<'id>],
         css_theme_vars: &mut CssThemeVars,
         focus_mode: TailwindFocusMode<'_, 'id>,
+        processes_is_empty: bool,
     ) -> (TailwindClassState<'tw_state>, String)
     where
         'id: 'tw_state,
@@ -836,6 +843,21 @@ impl TailwindClassesBuilder {
             IdOrDefaults::EdgeDefaults,
             &mut tailwind_class_state,
         );
+
+        // Interaction edges default to `invisible` because they are meant to be
+        // revealed by focusing a process step. When the diagram has no processes
+        // at all, there is nothing to reveal them, so make them visible by
+        // default (their animation is likewise forced on in
+        // `TaffyToSvgElementsMapper`). This removes the need for a manual
+        // `theme_types_styles` visibility override on process-less diagrams.
+        let is_interaction_edge = entity_types
+            .get(edge_group_id.as_ref())
+            .is_some_and(|types| types.iter().any(EntityType::is_interaction_edge));
+        if processes_is_empty && is_interaction_edge {
+            tailwind_class_state
+                .attrs
+                .insert(ThemeAttr::Visibility, Cow::Borrowed("visible"));
+        }
 
         // Build peer classes string for process step interactions.
         //

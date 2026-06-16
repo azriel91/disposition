@@ -118,8 +118,8 @@ impl SvgEdgeInfosBuilder {
         // 5. The `duration` for each edge's animation will be the `total_animation_time
         //    * (edge_length / total_length)`.
 
-        /// 0.8 seconds per 100 pixels
-        const SECONDS_PER_PIXEL: f64 = 0.8 / 100.0;
+        /// 0.4 seconds per 100 pixels
+        const SECONDS_PER_PIXEL: f64 = 0.4 / 100.0;
 
         // === Global Pass 1: collect metadata and register face contacts === //
 
@@ -208,16 +208,25 @@ impl SvgEdgeInfosBuilder {
                 ortho_protrusions,
             );
 
-            let edge_group_path_length_total = edge_path_infos
+            // Total `travel` distance animated by the whole group: each edge
+            // animates its `stroke-dashoffset` across `visible_segments_length +
+            // trailing_gap` pixels, where `trailing_gap = max(path_length,
+            // visible_segments_length)`. Summing these keeps every edge at a
+            // constant pixel speed and makes the windows tile the cycle exactly.
+            let edge_group_travel_total = edge_path_infos
                 .iter()
-                .map(|edge_path_info| edge_path_info.path_length)
+                .map(|edge_path_info| {
+                    let trailing_gap = edge_path_info.path_length.max(visible_segments_length);
+                    visible_segments_length + trailing_gap
+                })
                 .sum::<f64>();
-            let edge_group_visible_segments_length_total =
-                edge_path_infos.len() as f64 * visible_segments_length;
-            let edge_group_path_or_visible_segments_length_max =
-                edge_group_visible_segments_length_total.max(edge_group_path_length_total);
-            let edge_group_animation_duration_total_s = SECONDS_PER_PIXEL
-                * edge_group_path_or_visible_segments_length_max
+            // The end-of-cycle pause expressed in the same pixel-distance units
+            // as `travel`, so the keyframe windows leave exactly
+            // `pause_duration_secs` of dead time at the end of the cycle.
+            let edge_group_pause_distance =
+                edge_animation_params.pause_duration_secs / SECONDS_PER_PIXEL;
+            let edge_group_cycle_distance = edge_group_travel_total + edge_group_pause_distance;
+            let edge_group_animation_duration_total_s = SECONDS_PER_PIXEL * edge_group_travel_total
                 + edge_animation_params.pause_duration_secs;
 
             // Look up the process steps associated with this edge group (by its
@@ -245,7 +254,7 @@ impl SvgEdgeInfosBuilder {
                         tailwind_classes,
                         css,
                         edge_animation_params,
-                        edge_group_path_or_visible_segments_length_max,
+                        edge_group_cycle_distance,
                         edge_group_animation_duration_total_s,
                         edge_path_info: &edge_path_info,
                         edge_animation_active,
@@ -261,7 +270,7 @@ impl SvgEdgeInfosBuilder {
                     edge_type: _,
                     path,
                     path_length: _,
-                    preceding_visible_segments_lengths: _,
+                    preceding_travel: _,
                     ortho_protrusion_params,
                 } = edge_path_info;
 
@@ -460,7 +469,6 @@ impl SvgEdgeInfosBuilder {
             let from_node_y = from_info.y;
 
             pass1_infos.push(EdgePass1Info {
-                edge_index,
                 edge,
                 edge_id,
                 edge_type,
@@ -808,7 +816,7 @@ impl SvgEdgeInfosBuilder {
         visible_segments_length: f64,
         ortho_protrusions: &[OrthoProtrusionParams],
     ) -> Vec<EdgePathInfo<'edge, 'id>> {
-        pass1_infos
+        let mut edge_path_infos = pass1_infos
             .iter()
             .enumerate()
             .map(|(pass1_info_index, pass1_info)| {
@@ -890,12 +898,29 @@ impl SvgEdgeInfosBuilder {
                     edge_type: pass1_info.edge_type,
                     path,
                     path_length,
-                    preceding_visible_segments_lengths: pass1_info.edge_index as f64
-                        * visible_segments_length,
+                    // Filled in the cumulative scan below, once every edge's
+                    // `path_length` (and therefore `travel`) is known.
+                    preceding_travel: 0.0,
                     ortho_protrusion_params: ortho_protrusion.clone(),
                 }
             })
-            .collect::<Vec<EdgePathInfo>>()
+            .collect::<Vec<EdgePathInfo>>();
+
+        // Fill `preceding_travel` as the running sum of each preceding edge's
+        // `travel` distance. An edge's `travel` is the `stroke-dashoffset` span
+        // it animates across: `visible_segments_length + trailing_gap`, where
+        // `trailing_gap = max(path_length, visible_segments_length)`. Sizing the
+        // keyframe windows by `travel` (rather than the constant
+        // `visible_segments_length`) keeps every edge moving at the same pixel
+        // speed.
+        let mut preceding_travel = 0.0;
+        edge_path_infos.iter_mut().for_each(|edge_path_info| {
+            edge_path_info.preceding_travel = preceding_travel;
+            let trailing_gap = edge_path_info.path_length.max(visible_segments_length);
+            preceding_travel += visible_segments_length + trailing_gap;
+        });
+
+        edge_path_infos
     }
 
     /// Determines the `EdgeType` for an edge based on the entity types
@@ -1287,7 +1312,7 @@ impl SvgEdgeInfosBuilder {
             tailwind_classes,
             css,
             edge_animation_params,
-            edge_group_path_or_visible_segments_length_max,
+            edge_group_cycle_distance,
             edge_group_animation_duration_total_s,
             edge_path_info,
             edge_animation_active,
@@ -1297,7 +1322,7 @@ impl SvgEdgeInfosBuilder {
         let edge_animation = EdgeAnimationCalculator::calculate(
             edge_animation_params,
             edge_path_info,
-            edge_group_path_or_visible_segments_length_max,
+            edge_group_cycle_distance,
             edge_group_animation_duration_total_s,
         );
 
@@ -1507,8 +1532,6 @@ struct FaceContactEntry {
 /// with face contact offsets, including the rank distance and target
 /// node coordinates used for face-contact sorting.
 pub(super) struct EdgePass1Info<'edge, 'id> {
-    /// The edge's position within its edge group (0-based).
-    pub(super) edge_index: usize,
     /// Reference to the IR edge (source and target node IDs).
     pub(super) edge: &'edge Edge<'id>,
     /// Generated unique ID for this edge.
@@ -1624,7 +1647,9 @@ struct CssAnimationAppendParams<'f, 'edge, 'id> {
     tailwind_classes: &'f mut EntityTailwindClasses<'id>,
     css: &'f mut Css,
     edge_animation_params: EdgeAnimationParams,
-    edge_group_path_or_visible_segments_length_max: f64,
+    /// Total `travel` distance of all edges in the group plus the end-of-cycle
+    /// pause distance -- the denominator for this edge's keyframe percentages.
+    edge_group_cycle_distance: f64,
     edge_group_animation_duration_total_s: f64,
     edge_path_info: &'f EdgePathInfo<'edge, 'id>,
     edge_animation_active: EdgeAnimationActive,
