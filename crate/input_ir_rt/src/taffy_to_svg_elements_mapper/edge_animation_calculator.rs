@@ -69,7 +69,7 @@ impl EdgeAnimationCalculator {
         let arrow_head_animation_name = format!("{edge_id_with_hyphens}--arrow-head-offset");
 
         // The `stroke-dashoffset` span this edge animates across: from
-        // `start_offset` (-trailing_gap) to `end_offset` (visible_segments_length).
+        // `start_offset` (visible_segments_length) to `end_offset` (-trailing_gap).
         // Sizing the keyframe window by this `travel` -- rather than the constant
         // `visible_segments_length` -- is what keeps every edge in the group
         // moving at the same pixel speed: the window width (in cycle-distance
@@ -100,11 +100,13 @@ impl EdgeAnimationCalculator {
             / edge_group_cycle_distance
             * 100.0;
 
-        // stroke-dashoffset values:
-        // - start_offset: shifts visible segments entirely before the path
-        // - end_offset:   shifts visible segments entirely past the path
-        let start_offset = -trailing_gap;
-        let end_offset = visible_segments_length;
+        // stroke-dashoffset values. The edge path is drawn from the `from` node
+        // to the `to` node, so to animate the dash in that same direction the
+        // offset runs from `visible_segments_length` (visible segments entirely
+        // before the path start, near the `from` node) to `-trailing_gap`
+        // (visible segments entirely past the path end, near the `to` node).
+        let start_offset = visible_segments_length;
+        let end_offset = -trailing_gap;
 
         // Build the CSS @keyframes rule, omitting duplicate percentage entries
         // at 0% and 100% when they coincide with start_pct / end_pct.
@@ -223,9 +225,10 @@ impl EdgeAnimationCalculator {
 
     /// Builds the stroke-dasharray value string from visible segments.
     ///
-    /// For forward edges the segments are in decreasing order (largest first).
-    /// For reverse edges the segments are in increasing order (smallest first),
-    /// producing a visual "building up" effect for the response direction.
+    /// The edge path is drawn from the `from` node to the `to` node and the
+    /// dash animates in that same direction, so the segments are ordered
+    /// smallest first and largest last: the largest dash leads the motion at the
+    /// `to` end (the comet's head), with the smaller dashes trailing behind it.
     ///
     /// The trailing gap is appended at the end so the edge is hidden during the
     /// invisible portion of the animation cycle.
@@ -236,9 +239,9 @@ impl EdgeAnimationCalculator {
         is_reverse: bool,
     ) -> String {
         let ordered: Vec<f64> = if is_reverse {
-            segments.iter().copied().rev().collect()
-        } else {
             segments.to_vec()
+        } else {
+            segments.iter().copied().rev().collect()
         };
 
         let mut parts = Vec::with_capacity(ordered.len() * 2 + 1);
