@@ -65,9 +65,9 @@ struct ThemeResolveCtx<'a, 'id> {
 impl InputToIrDiagramMapper {
     /// Maps an input diagram to an intermediate representation diagram.
     ///
-    /// This builds the focus-independent structure via [`Self::map_structure`],
+    /// This builds the focus-independent structure via `Self::map_structure`,
     /// then applies the interactive (`peer` / `group-has`) tailwind classes via
-    /// [`Self::tailwind_classes_apply`].
+    /// `Self::tailwind_classes_apply`.
     pub fn map<'f, 'id>(input_diagram: &'f InputDiagram<'id>) -> IrDiagramAndIssues<'id>
     where
         'id: 'f,
