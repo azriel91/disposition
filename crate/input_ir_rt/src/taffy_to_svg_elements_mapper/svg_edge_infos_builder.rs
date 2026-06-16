@@ -1386,11 +1386,10 @@ impl SvgEdgeInfosBuilder {
         // The arrowhead element needs:
         //   1. `[offset-path:path('...')]` -- the forward edge path
         //   2. `animate-[{arrow_animation_name}_{duration}s_linear_infinite]`
-        let arrow_head_offset_path = edge_path_info.path.reverse_subpaths();
-        let mut arrow_head_offset_path_svg = arrow_head_offset_path.to_svg();
+        let mut forward_path_svg = edge_path_info.path.to_svg();
         // Escape underscores for use inside the tailwind arbitrary value
         // (encre-css transforms these to spaces in the actual CSS value).
-        StringCharReplacer::replace_inplace(&mut arrow_head_offset_path_svg, ' ', '_');
+        StringCharReplacer::replace_inplace(&mut forward_path_svg, ' ', '_');
 
         Self::css_animation_append_arrowhead_classes(
             tailwind_classes,
@@ -1400,7 +1399,7 @@ impl SvgEdgeInfosBuilder {
             associated_process_steps,
             &edge_animation.arrow_head_animation_name,
             animation_duration,
-            arrow_head_offset_path_svg,
+            forward_path_svg,
         );
 
         // Append CSS keyframes for both edge stroke and arrowhead.
