@@ -139,6 +139,17 @@ impl TaffyToSvgElementsMapper {
             .process_render_collapse
             .process_render_expanded(process_count);
 
+        // When the diagram has no processes, interaction edges are never
+        // revealed by focusing a process step, so animating them only
+        // `OnProcessStepFocus` would leave them static forever. Force `Always`
+        // so they animate continuously (and `TailwindClassesBuilder` makes them
+        // visible by default in the same no-process case).
+        let edge_animation_active = if process_count == 0 {
+            EdgeAnimationActive::Always
+        } else {
+            edge_animation_active
+        };
+
         // First, collect process information for y-coordinate calculations.
         //
         // Not necessary when processes are rendered expanded.

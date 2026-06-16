@@ -130,7 +130,14 @@ pub(super) struct EdgePathInfo<'edge, 'id> {
     pub(super) edge_type: EdgeType,
     pub(super) path: BezPath,
     pub(super) path_length: f64,
-    pub(super) preceding_visible_segments_lengths: f64,
+    /// Cumulative `travel` distance of all edges preceding this one in the
+    /// edge group, where each edge's `travel` is `visible_segments_length +
+    /// max(path_length, visible_segments_length)` -- the `stroke-dashoffset`
+    /// span it animates across.
+    ///
+    /// Used to position this edge's keyframe window within the group's
+    /// animation cycle so every edge animates at a constant pixel speed.
+    pub(super) preceding_travel: f64,
     /// Orthogonal protrusion parameters used when building this edge's path.
     ///
     /// Contains the computed from/to protrusion lengths and per-spacer

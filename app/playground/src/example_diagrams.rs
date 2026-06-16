@@ -52,6 +52,8 @@ pub enum ExampleDiagram {
     ClassDiagram,
     /// Capstone: a multi-tier cloud architecture combining every feature.
     CloudArchitecture,
+    /// Constant-speed interaction animation across very different edge lengths.
+    InteractionTiming,
 }
 
 impl ExampleDiagram {
@@ -72,6 +74,7 @@ impl ExampleDiagram {
         ExampleDiagram::RankDirections,
         ExampleDiagram::ClassDiagram,
         ExampleDiagram::CloudArchitecture,
+        ExampleDiagram::InteractionTiming,
     ];
 
     /// Human-readable label shown in the example selector dropdown.
@@ -92,6 +95,7 @@ impl ExampleDiagram {
             Self::RankDirections => "Rank Directions",
             Self::ClassDiagram => "Class Diagram",
             Self::CloudArchitecture => "Cloud Architecture",
+            Self::InteractionTiming => "Interaction Timing",
         }
     }
 
@@ -122,6 +126,9 @@ impl ExampleDiagram {
             Self::ClassDiagram => asset!("/assets/example_diagrams/014_class_diagram.yaml"),
             Self::CloudArchitecture => {
                 asset!("/assets/example_diagrams/015_cloud_architecture.yaml")
+            }
+            Self::InteractionTiming => {
+                asset!("/assets/example_diagrams/016_interaction_timing.yaml")
             }
         }
     }

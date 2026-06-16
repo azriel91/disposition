@@ -17,15 +17,17 @@ impl EdgeAnimationCalculator {
     ///   animation generation.
     /// * `edge_path_info`: Path information about this edge, used to compute
     ///   timing and offset values.
-    /// * `edge_group_path_or_visible_segments_length_max`: Combined length of
-    ///   the paths or visible segments in the edge group (whichever is bigger).
+    /// * `edge_group_cycle_distance`: Total `travel` distance of all edges in
+    ///   the group plus the end-of-cycle pause distance. Used as the denominator
+    ///   for this edge's keyframe percentages so every edge animates at the same
+    ///   pixel speed and the cycle ends with a constant pause.
     /// * `edge_group_animation_duration_total_s`: Duration of the animation for
     ///   the edges for the entire edge group, which includes the pause at the
     ///   end of the animation.
     pub(super) fn calculate(
         edge_animation_params: EdgeAnimationParams,
         edge_path_info: &EdgePathInfo<'_, '_>,
-        edge_group_path_or_visible_segments_length_max: f64,
+        edge_group_cycle_distance: f64,
         edge_group_animation_duration_total_s: f64,
     ) -> EdgeAnimation {
         let EdgePathInfo {
@@ -34,10 +36,11 @@ impl EdgeAnimationCalculator {
             edge_type,
             path: _,
             path_length,
-            preceding_visible_segments_lengths,
+            preceding_travel,
             ortho_protrusion_params: _,
         } = edge_path_info;
         let path_length = *path_length;
+        let preceding_travel = *preceding_travel;
 
         let is_reverse = *edge_type == EdgeType::PairResponse;
 
@@ -65,42 +68,37 @@ impl EdgeAnimationCalculator {
         let animation_name = format!("{edge_id_with_hyphens}--stroke-dashoffset");
         let arrow_head_animation_name = format!("{edge_id_with_hyphens}--arrow-head-offset");
 
-        // Keyframe percentages for this edge's slot within the cycle.
-        let start_pct = preceding_visible_segments_lengths
-            / edge_group_path_or_visible_segments_length_max
-            * 100.0;
-        let end_pct = (preceding_visible_segments_lengths + visible_segments_length)
-            / edge_group_path_or_visible_segments_length_max
-            * 100.0;
+        // The `stroke-dashoffset` span this edge animates across: from
+        // `start_offset` (-trailing_gap) to `end_offset` (visible_segments_length).
+        // Sizing the keyframe window by this `travel` -- rather than the constant
+        // `visible_segments_length` -- is what keeps every edge in the group
+        // moving at the same pixel speed: the window width (in cycle-distance
+        // units) equals the distance the dash actually travels.
+        let travel = visible_segments_length + trailing_gap;
 
-        let (arrow_head_start_pct, arrow_head_end_pct) = if path_length > visible_segments_length {
-            (start_pct, end_pct)
-        } else {
-            // When the path is shorter than the visible segments, then in order for the
-            // arrow head to be at the tip of the arrow body, the start and end percentages
-            // need to be adjusted by *half* the extra visible segments length.
-            //
-            // Both `start_pct` and `end_pct` need to be adjusted by the same amount so that
-            // the arrow head speed is the same as the arrow body speed.
-            //
-            // Originally I thought it would be one of:
-            //
-            // * `start_pct` has no adjustment, `end_pct` needed `+ path_length`.
-            // * `start_pct` had `+ visible_segments_extra_length` (not half), `end_pct`
-            //   also `+ visible_segments_extra_length`.
-            let visible_segments_extra_length_half = (visible_segments_length - path_length) / 2.0;
-            let arrow_head_start_pct = (preceding_visible_segments_lengths
-                + visible_segments_extra_length_half)
-                / edge_group_path_or_visible_segments_length_max
-                * 100.0;
-            let arrow_head_end_pct = (preceding_visible_segments_lengths
-                + visible_segments_extra_length_half
-                + path_length)
-                / edge_group_path_or_visible_segments_length_max
-                * 100.0;
+        // Keyframe percentages for this edge's slot within the cycle. The edge
+        // animates from `preceding_travel` to `preceding_travel + travel`, so it
+        // starts exactly when the previous edge finished, and the leftover up to
+        // 100% is the constant end-of-cycle pause.
+        let start_pct = preceding_travel / edge_group_cycle_distance * 100.0;
+        let end_pct = (preceding_travel + travel) / edge_group_cycle_distance * 100.0;
 
-            (arrow_head_start_pct, arrow_head_end_pct)
-        };
+        // The arrow head travels its `offset-distance` from 0 to
+        // `arrow_head_travel`. To move at the same pixel speed as the arrow body,
+        // its keyframe window (in cycle-distance units) must be exactly
+        // `arrow_head_travel` wide. Centre it within this edge's `travel` slot so
+        // the head stays at the tip of the visible segment -- for long edges
+        // (`arrow_head_travel == travel`) this collapses to the full slot
+        // `[start_pct, end_pct]`; for short edges it insets symmetrically.
+        let arrow_head_travel = path_length + path_length.min(visible_segments_length);
+        let arrow_head_offset_within_slot = (travel - arrow_head_travel) / 2.0;
+        let arrow_head_start_pct = (preceding_travel + arrow_head_offset_within_slot)
+            / edge_group_cycle_distance
+            * 100.0;
+        let arrow_head_end_pct = (preceding_travel + arrow_head_offset_within_slot
+            + arrow_head_travel)
+            / edge_group_cycle_distance
+            * 100.0;
 
         // stroke-dashoffset values:
         // - start_offset: shifts visible segments entirely before the path
@@ -143,8 +141,8 @@ impl EdgeAnimationCalculator {
         let mut arrow_head_keyframe_css = format!("@keyframes {arrow_head_animation_name} {{ ");
 
         // we travel as fast as the path length plus the length the arrow that is
-        // negatively offset.
-        let arrow_head_end_offset = path_length + path_length.min(visible_segments_length);
+        // negatively offset (same distance the keyframe window above is sized to).
+        let arrow_head_end_offset = arrow_head_travel;
         if arrow_head_start_pct > 0.0 {
             let _ = write!(
                 arrow_head_keyframe_css,
