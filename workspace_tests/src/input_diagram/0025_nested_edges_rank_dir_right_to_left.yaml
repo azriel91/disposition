@@ -1,0 +1,12 @@
+things:
+  t_outer:
+    t_a0: {}
+    t_b0: {}
+
+thing_dependencies:
+  edge_dep__t_a0_t_b0:
+    kind: sequence
+    things: [t_a0, t_b0]
+
+render_options:
+  rank_dir: right_to_left

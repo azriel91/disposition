@@ -438,6 +438,36 @@ impl TaffyDiagramNodeBuilder {
             position_to_container_ids,
         );
 
+        // Stack the per-rank containers along the axis inverted from the
+        // within-rank sibling axis, so higher-ranked nodes are positioned
+        // further along the diagram's `RankDir`. The wrapper itself stays a
+        // flex column so the node label remains above its child ranks.
+        //
+        // When the rank stacking axis already matches the wrapper's column
+        // axis (the default `top_to_bottom`, where within-rank siblings flow
+        // along `Row`), the rank containers can be the wrapper's direct
+        // children -- a dedicated stacking container would only add a layout
+        // level. For every other `RankDir`, the ranks are wrapped in a stacking
+        // container so they flow along the rank axis while the label stays on
+        // top.
+        let rank_stacking_container_style =
+            TaffyContainerBuilder::rank_stacking_container_style(&child_container_style);
+        let rank_content_node_ids =
+            if rank_stacking_container_style.flex_direction == wrapper_style.flex_direction {
+                rank_container_ids
+            } else {
+                let rank_stacking_container_id = state
+                    .taffy_tree
+                    .new_with_children(rank_stacking_container_style, &rank_container_ids)
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "Expected to create rank stacking container node for {node_id}. \
+                             Error: {e}"
+                        )
+                    });
+                vec![rank_stacking_container_id]
+            };
+
         let node_shape = ctx
             .node_shapes
             .get(&ir_node_id)
@@ -448,7 +478,7 @@ impl TaffyDiagramNodeBuilder {
         let (wrapper_node_id, node_to_taffy_node_ids) = match node_shape {
             NodeShape::Rect(_node_shape_rect) => {
                 let mut wrapper_children = vec![taffy_text_node_id];
-                wrapper_children.extend(rank_container_ids);
+                wrapper_children.extend(rank_content_node_ids);
 
                 let wrapper_node_id = state
                     .taffy_tree
@@ -495,7 +525,7 @@ impl TaffyDiagramNodeBuilder {
                     });
 
                 let mut wrapper_children = vec![label_wrapper_node_id];
-                wrapper_children.extend(rank_container_ids);
+                wrapper_children.extend(rank_content_node_ids);
 
                 let wrapper_node_id = state
                     .taffy_tree

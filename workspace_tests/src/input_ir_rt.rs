@@ -41,6 +41,14 @@ pub(crate) const INPUT_DIAGRAM_0021_SELF_LOOP_EDGE_LEFT_TO_RIGHT_WITH_EDGE_DESC:
     include_str!("input_diagram/0021_self_loop_edge_left_to_right_with_edge_desc.yaml");
 pub(crate) const INPUT_DIAGRAM_0022_EDGES_FAN_IN_3_TO_1: &str =
     include_str!("input_diagram/0022_edges_fan_in_3_to_1.yaml");
+pub(crate) const INPUT_DIAGRAM_0023_NESTED_EDGES_RANK_DIR_TOP_TO_BOTTOM: &str =
+    include_str!("input_diagram/0023_nested_edges_rank_dir_top_to_bottom.yaml");
+pub(crate) const INPUT_DIAGRAM_0024_NESTED_EDGES_RANK_DIR_LEFT_TO_RIGHT: &str =
+    include_str!("input_diagram/0024_nested_edges_rank_dir_left_to_right.yaml");
+pub(crate) const INPUT_DIAGRAM_0025_NESTED_EDGES_RANK_DIR_RIGHT_TO_LEFT: &str =
+    include_str!("input_diagram/0025_nested_edges_rank_dir_right_to_left.yaml");
+pub(crate) const INPUT_DIAGRAM_0026_NESTED_EDGES_RANK_DIR_BOTTOM_TO_TOP: &str =
+    include_str!("input_diagram/0026_nested_edges_rank_dir_bottom_to_top.yaml");
 
 mod diagram_generator;
 mod input_diagram_merger;

@@ -35,6 +35,20 @@ fn flex_direction_to_taffy(direction: ModelFlexDirection) -> FlexDirection {
     }
 }
 
+/// Returns the cross-axis flex direction for `flex_direction`.
+///
+/// `Row` / `Column` are swapped, preserving the reversed variant. This is used
+/// to stack rank containers along the axis perpendicular to the one their
+/// within-rank siblings are laid out on.
+fn flex_direction_invert(flex_direction: FlexDirection) -> FlexDirection {
+    match flex_direction {
+        FlexDirection::Row => FlexDirection::Column,
+        FlexDirection::Column => FlexDirection::Row,
+        FlexDirection::RowReverse => FlexDirection::ColumnReverse,
+        FlexDirection::ColumnReverse => FlexDirection::RowReverse,
+    }
+}
+
 // === TaffyContainerBuilder === //
 
 /// Builds the inbuilt taffy container hierarchy (Root, ThingsAndProcesses,
@@ -282,15 +296,40 @@ impl TaffyContainerBuilder {
     /// each rank container uses the `Row` layout, and the parent of the ranked
     /// containers should be `Column`.
     fn container_style_invert_and_stretch(container_style: Style) -> Style {
-        let flex_direction = match container_style.flex_direction {
-            FlexDirection::Row => FlexDirection::Column,
-            FlexDirection::Column => FlexDirection::Row,
-            FlexDirection::RowReverse => FlexDirection::ColumnReverse,
-            FlexDirection::ColumnReverse => FlexDirection::RowReverse,
-        };
         Style {
-            flex_direction,
+            flex_direction: flex_direction_invert(container_style.flex_direction),
             ..container_style
+        }
+    }
+
+    /// Returns the style for the container that stacks a nested container
+    /// node's per-rank child containers.
+    ///
+    /// The per-rank child containers lay their within-rank siblings along
+    /// `child_container_style.flex_direction`; this stacking container arranges
+    /// the rank containers themselves along the inverted axis, so higher-ranked
+    /// nodes are positioned further along the diagram's rank direction. This
+    /// mirrors how the top-level inbuilt containers invert the rank container
+    /// direction (see `container_style_invert_and_stretch`).
+    ///
+    /// Padding / border / margin are zero so the stacking container only
+    /// re-orients the rank axis without shifting the nested nodes' coordinates.
+    /// The gap is carried over from `child_container_style` to preserve the
+    /// rank-to-rank spacing previously provided by the wrapper node.
+    pub(crate) fn rank_stacking_container_style(child_container_style: &Style) -> Style {
+        Style {
+            display: Display::Flex,
+            flex_direction: flex_direction_invert(child_container_style.flex_direction),
+            flex_wrap: FlexWrap::NoWrap,
+            // Rank containers must not shrink below their content size,
+            // matching the per-rank `child_container_style`.
+            flex_shrink: 0.0,
+            align_items: Some(AlignItems::FlexStart),
+            align_content: Some(AlignContent::FlexStart),
+            justify_items: Some(JustifyItems::FlexStart),
+            justify_content: Some(JustifyContent::FlexStart),
+            gap: child_container_style.gap,
+            ..Default::default()
         }
     }
 
