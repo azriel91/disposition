@@ -88,12 +88,22 @@ impl EdgeAnimationCalculator {
         // `to` node face after exactly `path_length` of travel along the path, so
         // -- in the same cycle-distance units as the body keyframes -- the head
         // stays glued to the tip by animating its `offset-distance` from 0 to
-        // `path_length` over the window `[start_pct, arrow_head_node_pct]`. It is
-        // held at the node face and faded out over the remainder of the cycle.
+        // `path_length` over the window `[start_pct, arrow_head_node_pct]`, then
+        // is held at the node face.
+        //
+        // The head fades from opaque to transparent over the window from the tip
+        // contacting the node face (`arrow_head_node_pct`) to the trailing end of
+        // the visible segment contacting it (`arrow_head_tail_pct`, a further
+        // `visible_segments_length` of travel). This makes the head fully
+        // invisible by the time the body segment has passed the node, so it does
+        // not linger while the next edge in the group animates.
         let arrow_head_end_offset = path_length;
         let arrow_head_start_pct = start_pct;
         let arrow_head_node_pct =
             (preceding_travel + path_length) / edge_group_cycle_distance * 100.0;
+        let arrow_head_tail_pct = (preceding_travel + path_length + visible_segments_length)
+            / edge_group_cycle_distance
+            * 100.0;
 
         // stroke-dashoffset values. The edge path is drawn from the `from` node
         // to the `to` node, so to animate the dash in that same direction the
@@ -134,9 +144,10 @@ impl EdgeAnimationCalculator {
         //
         // The arrow head travels along the offset-path (the forward edge path,
         // `from` -> `to`) at the same pixel speed as the body, staying solid
-        // (opacity: 1) until it contacts the `to` node face at
-        // `arrow_head_node_pct`, then fading out (opacity: 0) over the remainder
-        // of the cycle while held at the node.
+        // (opacity: 1) until its tip contacts the `to` node face at
+        // `arrow_head_node_pct`. It then fades out (opacity: 1 -> 0) while held at
+        // the node, reaching fully transparent once the trailing end of the
+        // visible segment also reaches the node face (`arrow_head_tail_pct`).
         let mut arrow_head_keyframe_css = format!("@keyframes {arrow_head_animation_name} {{ ");
 
         if arrow_head_start_pct > 0.0 {
@@ -153,7 +164,11 @@ impl EdgeAnimationCalculator {
             arrow_head_keyframe_css,
             "{arrow_head_node_pct:.1}% {{ opacity: 1.0; offset-distance: {arrow_head_end_offset:.1}px; }} "
         );
-        if arrow_head_node_pct < 100.0 {
+        let _ = write!(
+            arrow_head_keyframe_css,
+            "{arrow_head_tail_pct:.1}% {{ opacity: 0.0; offset-distance: {arrow_head_end_offset:.1}px; }} "
+        );
+        if arrow_head_tail_pct < 100.0 {
             let _ = write!(
                 arrow_head_keyframe_css,
                 "100% {{ opacity: 0.0; offset-distance: {arrow_head_end_offset:.1}px; }} "
