@@ -71,6 +71,7 @@ fn assert_taffy_measurements(
         // TODO: make assertions for node positioning
         node_id_to_taffy: _,
         taffy_id_to_node: _,
+        taffy_id_to_kind: _,
         edge_spacer_taffy_nodes: _,
         entity_highlighted_spans: _,
         edge_label_taffy_nodes: _,

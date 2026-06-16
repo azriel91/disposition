@@ -12,7 +12,7 @@ use disposition_taffy_model::{
         AlignContent, AlignItems, Display, FlexWrap, LengthPercentage, Rect, Size, Style,
         TaffyTree,
     },
-    Dimension, TaffyNodeCtx,
+    Dimension, TaffyNodeCtx, TaffyNodeKind,
 };
 use taffy::{prelude::TaffyZero, JustifyContent, JustifyItems};
 
@@ -190,6 +190,8 @@ impl TaffyContainerBuilder {
         mut rank_to_taffy_ids: NodeRankToTaffyNodeId,
         rank_container_style: Style,
         position_to_container_ids: BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
+        node_inbuilt: NodeInbuilt,
+        taffy_id_to_kind: &mut Map<taffy::NodeId, TaffyNodeKind<'static>>,
     ) -> Vec<taffy::NodeId> {
         Self::rank_taffy_ids_reverse_if_direction_reversed(
             &rank_container_style,
@@ -217,6 +219,10 @@ impl TaffyContainerBuilder {
                              top-level nodes. Error: {e}"
                         )
                     });
+                taffy_id_to_kind.insert(
+                    container,
+                    TaffyNodeKind::FirstLevelRankContainer { node_inbuilt, rank },
+                );
                 (rank, container)
             })
             .collect();

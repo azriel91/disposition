@@ -2,13 +2,14 @@ use disposition_ir_model::{
     edge::EdgeId,
     node::{NodeFace, NodeFaceEdges, NodeId},
 };
+use disposition_model_common::Map;
 use disposition_taffy_model::{
     taffy::{
         self,
         style_helpers::{auto, line},
         Display, FlexDirection, JustifyContent, Rect, Style, TaffyTree,
     },
-    DiagramLod, EdgeLabelCtx, MdNodeTaffyIds, TaffyNodeCtx,
+    DiagramLod, EdgeLabelCtx, MdNodeTaffyIds, TaffyNodeCtx, TaffyNodeKind,
 };
 use taffy::LengthPercentage;
 
@@ -74,6 +75,7 @@ impl TaffyEnvelopeBuilder {
         node_id: &NodeId<'static>,
         diagram_node_wrapper_node: taffy::NodeId,
         node_face_edges: &NodeFaceEdges<'static>,
+        taffy_id_to_kind: &mut Map<taffy::NodeId, TaffyNodeKind<'static>>,
         ctx: TaffyBuildCtx<'_>,
     ) -> (taffy::NodeId, Vec<EdgeLabelLeafBuilt>) {
         let mut edge_label_leaves = Vec::new();
@@ -168,6 +170,13 @@ impl TaffyEnvelopeBuilder {
             .unwrap_or_else(|e| {
                 panic!("Expected to create edge_wrapper_top for {node_id}. Error: {e}")
             });
+        taffy_id_to_kind.insert(
+            edge_wrapper_top,
+            TaffyNodeKind::EnvelopeFaceWrapper {
+                node_id: node_id.clone(),
+                face: NodeFace::Top,
+            },
+        );
 
         // edge_wrapper_left: row 2, col 1 (left-middle cell of the 3x3 grid)
         let edge_wrapper_left = taffy_tree
@@ -191,6 +200,13 @@ impl TaffyEnvelopeBuilder {
             .unwrap_or_else(|e| {
                 panic!("Expected to create edge_wrapper_left for {node_id}. Error: {e}")
             });
+        taffy_id_to_kind.insert(
+            edge_wrapper_left,
+            TaffyNodeKind::EnvelopeFaceWrapper {
+                node_id: node_id.clone(),
+                face: NodeFace::Left,
+            },
+        );
 
         // Place diagram_node_wrapper_node at row 2, col 2 (center cell of the 3x3
         // grid).
@@ -241,6 +257,13 @@ impl TaffyEnvelopeBuilder {
             .unwrap_or_else(|e| {
                 panic!("Expected to create edge_wrapper_right for {node_id}. Error: {e}")
             });
+        taffy_id_to_kind.insert(
+            edge_wrapper_right,
+            TaffyNodeKind::EnvelopeFaceWrapper {
+                node_id: node_id.clone(),
+                face: NodeFace::Right,
+            },
+        );
 
         // edge_wrapper_bottom: row 3, col 2 (bottom-middle cell of the 3x3 grid)
         let edge_wrapper_bottom = taffy_tree
@@ -264,6 +287,13 @@ impl TaffyEnvelopeBuilder {
             .unwrap_or_else(|e| {
                 panic!("Expected to create edge_wrapper_bottom for {node_id}. Error: {e}")
             });
+        taffy_id_to_kind.insert(
+            edge_wrapper_bottom,
+            TaffyNodeKind::EnvelopeFaceWrapper {
+                node_id: node_id.clone(),
+                face: NodeFace::Bottom,
+            },
+        );
 
         // envelope_node: 3x3 CSS Grid -- top-middle, left, center, right,
         // bottom-middle.  The four corner cells are left empty.  Column and

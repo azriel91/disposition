@@ -10,7 +10,7 @@ use disposition_model_common::{Id, Map};
 use disposition_taffy_model::{
     taffy::{self, AlignItems, Display, FlexDirection, LengthPercentageAuto, Rect, Size, Style},
     DiagramLod, DiagramNodeCtx, EdgeDescriptionTaffyNodes, EdgeSpacerTaffyNodes,
-    NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeCtx, LANE_WIDTH,
+    NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeCtx, TaffyNodeKind, LANE_WIDTH,
 };
 
 use super::{
@@ -430,6 +430,13 @@ impl TaffyDiagramNodeBuilder {
                              Error: {e}"
                         )
                     });
+                state.taffy_id_to_kind.insert(
+                    container,
+                    TaffyNodeKind::RankContainer {
+                        node_id: ir_node_id.clone(),
+                        rank,
+                    },
+                );
                 (rank, container)
             })
             .collect();
@@ -465,6 +472,12 @@ impl TaffyDiagramNodeBuilder {
                              Error: {e}"
                         )
                     });
+                state.taffy_id_to_kind.insert(
+                    rank_stacking_container_id,
+                    TaffyNodeKind::RankStackingContainer {
+                        node_id: ir_node_id.clone(),
+                    },
+                );
                 vec![rank_stacking_container_id]
             };
 
@@ -717,6 +730,7 @@ impl TaffyDiagramNodeBuilder {
             ir_node_id,
             primary_node_id,
             ctx.node_face_edges,
+            state.taffy_id_to_kind,
             ctx,
         );
         state
@@ -728,6 +742,12 @@ impl TaffyDiagramNodeBuilder {
         state
             .taffy_id_to_node
             .insert(primary_node_id, ir_node_id.clone());
+        state.taffy_id_to_kind.insert(
+            envelope_node_id,
+            TaffyNodeKind::Envelope {
+                node_id: ir_node_id.clone(),
+            },
+        );
 
         envelope_node_id
     }

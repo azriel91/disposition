@@ -50,7 +50,9 @@ pub use crate::{
     node_to_taffy_node_ids::NodeToTaffyNodeIds,
     processes_included::ProcessesIncluded,
     taffy_node_ctx::TaffyNodeCtx,
+    taffy_node_kind::TaffyNodeKind,
     taffy_node_mappings::TaffyNodeMappings,
+    taffy_node_to_kind::TaffyNodeToKind,
     taffy_node_to_node_id::TaffyNodeToNodeId,
     taffy_tree_fmt::TaffyTreeFmt,
 };
@@ -89,6 +91,8 @@ mod node_inbuilt_to_taffy_node;
 mod node_to_taffy_node_ids;
 mod processes_included;
 mod taffy_node_ctx;
+mod taffy_node_kind;
 mod taffy_node_mappings;
+mod taffy_node_to_kind;
 mod taffy_node_to_node_id;
 mod taffy_tree_fmt;
