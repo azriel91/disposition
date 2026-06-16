@@ -18,9 +18,10 @@ impl EdgeAnimationCalculator {
     /// * `edge_path_info`: Path information about this edge, used to compute
     ///   timing and offset values.
     /// * `edge_group_cycle_distance`: Total `travel` distance of all edges in
-    ///   the group plus the end-of-cycle pause distance. Used as the denominator
-    ///   for this edge's keyframe percentages so every edge animates at the same
-    ///   pixel speed and the cycle ends with a constant pause.
+    ///   the group plus the end-of-cycle pause distance. Used as the
+    ///   denominator for this edge's keyframe percentages so every edge
+    ///   animates at the same pixel speed and the cycle ends with a constant
+    ///   pause.
     /// * `edge_group_animation_duration_total_s`: Duration of the animation for
     ///   the edges for the entire edge group, which includes the pause at the
     ///   end of the animation.
@@ -236,8 +237,9 @@ impl EdgeAnimationCalculator {
     ///
     /// The edge path is drawn from the `from` node to the `to` node and the
     /// dash animates in that same direction, so the segments are ordered
-    /// smallest first and largest last: the largest dash leads the motion at the
-    /// `to` end (the comet's head), with the smaller dashes trailing behind it.
+    /// smallest first and largest last: the largest dash leads the motion at
+    /// the `to` end (the comet's head), with the smaller dashes trailing
+    /// behind it.
     ///
     /// The trailing gap is appended at the end so the edge is hidden during the
     /// invisible portion of the animation cycle.
