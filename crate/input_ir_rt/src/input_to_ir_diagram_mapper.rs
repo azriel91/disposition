@@ -224,9 +224,9 @@ impl InputToIrDiagramMapper {
             render_options.rank_dir,
         );
 
-        // 18. Derive NodeFaceEdges from edge_face_assignments and edge_groups,
-        //     ordering each face's edges by the other endpoint's nesting path so
-        //     edge label slots minimise crossings.
+        // 18. Derive NodeFaceEdges from edge_face_assignments and edge_groups, ordering
+        //     each face's edges by the other endpoint's nesting path so edge label
+        //     slots minimise crossings.
         let node_face_edges = NodeFaceEdges::from_assignments(
             &edge_face_assignments,
             &edge_groups,
