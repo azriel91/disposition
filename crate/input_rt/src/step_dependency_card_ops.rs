@@ -11,7 +11,7 @@
 //! `ProcessDiagram`.
 
 use disposition_input_model::{process::ProcessStepId, InputDiagram};
-use disposition_model_common::Set;
+use disposition_model_common::{Set, SetOrderedRemove};
 
 use crate::id_parse::{parse_process_id, parse_process_step_id};
 
@@ -136,7 +136,7 @@ impl StepDependencyCardOps {
             && let Some(dep_ids) = process_diagram.process_step_dependencies.get_mut(&step_id)
             && idx < dep_ids.len()
         {
-            dep_ids.remove_index(idx);
+            dep_ids.remove_index_ordered(idx);
         }
     }
 

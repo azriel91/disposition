@@ -7,7 +7,7 @@
 //! framework-specific signal type, making them testable without a UI runtime.
 
 use disposition_input_model::InputDiagram;
-use disposition_model_common::edge::EdgeGroupId;
+use disposition_model_common::{edge::EdgeGroupId, MapOrderedRemove};
 
 use crate::id_parse::{parse_edge_group_id, parse_process_id, parse_process_step_id};
 
@@ -30,7 +30,9 @@ impl StepInteractionCardOps {
             None => return,
         };
         if let Some(process_diagram) = input_diagram.processes.get_mut(&process_id) {
-            process_diagram.step_thing_interactions.remove(&step_id);
+            process_diagram
+                .step_thing_interactions
+                .remove_ordered(&step_id);
         }
     }
 

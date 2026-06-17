@@ -7,7 +7,7 @@
 //! framework-specific signal type, making them testable without a UI runtime.
 
 use disposition_input_model::InputDiagram;
-use disposition_model_common::Set;
+use disposition_model_common::{MapOrderedRemove, Set};
 
 use crate::{
     id_parse::{parse_process_id, parse_process_step_id},
@@ -86,7 +86,7 @@ impl ProcessCardOps {
             None => return,
         };
         if let Some(process_diagram) = input_diagram.processes.get_mut(&process_id) {
-            process_diagram.steps.remove(&step_id);
+            process_diagram.steps.remove_ordered(&step_id);
         }
     }
 

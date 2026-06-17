@@ -7,7 +7,7 @@
 //! framework-specific signal type, making them testable without a UI runtime.
 
 use disposition_input_model::InputDiagram;
-use disposition_model_common::{entity::EntityType, Set};
+use disposition_model_common::{entity::EntityType, MapOrderedRemove, Set, SetOrderedRemove};
 
 use crate::{id_parse::parse_id, id_rename::id_rename_in_input_diagram};
 
@@ -37,7 +37,7 @@ impl EntityTypesPageOps {
     /// Removes an entity types entry by its Id string.
     pub fn entry_remove(input_diagram: &mut InputDiagram<'static>, entity_id_str: &str) {
         if let Some(id) = parse_id(entity_id_str) {
-            input_diagram.entity_types.remove(&id);
+            input_diagram.entity_types.remove_ordered(&id);
         }
     }
 
@@ -121,7 +121,7 @@ impl EntityTypesPageOps {
         if let Some(types) = input_diagram.entity_types.get_mut(&id)
             && idx < types.len()
         {
-            types.remove_index(idx);
+            types.remove_index_ordered(idx);
         }
     }
 

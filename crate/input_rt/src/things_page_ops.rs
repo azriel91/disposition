@@ -16,7 +16,7 @@ use disposition_input_model::{
     thing::{ThingHierarchy, ThingId},
     InputDiagram,
 };
-use disposition_model_common::{Id, Set};
+use disposition_model_common::{Id, MapOrderedRemove, Set, SetOrderedRemove};
 
 use crate::{id_parse::parse_thing_id, id_rename::id_rename_in_input_diagram};
 
@@ -687,10 +687,10 @@ impl ThingsPageOps {
     pub fn thing_remove(input_diagram: &mut InputDiagram<'static>, thing_id_str: &str) {
         if let Some(thing_id) = parse_thing_id(thing_id_str) {
             // thing_names: remove ThingId key.
-            input_diagram.thing_names.remove(&thing_id);
+            input_diagram.thing_names.remove_ordered(&thing_id);
 
             // thing_copy_text: remove ThingId key.
-            input_diagram.thing_copy_text.remove(&thing_id);
+            input_diagram.thing_copy_text.remove_ordered(&thing_id);
 
             // things (hierarchy): recursive remove.
             Self::thing_remove_from_hierarchy(&mut input_diagram.things, &thing_id);
@@ -714,7 +714,7 @@ impl ThingsPageOps {
             // tag_things: remove ThingId from each Set<ThingId> value.
             input_diagram.tag_things.values_mut().for_each(
                 |thing_ids: &mut Set<ThingId<'static>>| {
-                    thing_ids.remove(&thing_id);
+                    thing_ids.remove_ordered(&thing_id);
                 },
             );
 
@@ -731,26 +731,26 @@ impl ThingsPageOps {
         input_diagram: &mut InputDiagram<'static>,
         id: &Id<'static>,
     ) {
-        input_diagram.thing_descs.remove(id);
-        input_diagram.entity_tooltips.remove(id);
-        input_diagram.entity_types.remove(id);
+        input_diagram.thing_descs.remove_ordered(id);
+        input_diagram.entity_tooltips.remove_ordered(id);
+        input_diagram.entity_types.remove_ordered(id);
 
         let key = IdOrDefaults::Id(id.clone());
 
         // theme_default: remove from base_styles and
         // process_step_selected_styles.
-        input_diagram.theme_default.base_styles.remove(&key);
+        input_diagram.theme_default.base_styles.remove_ordered(&key);
         input_diagram
             .theme_default
             .process_step_selected_styles
-            .remove(&key);
+            .remove_ordered(&key);
 
         // theme_types_styles: remove from each ThemeStyles value.
         input_diagram
             .theme_types_styles
             .values_mut()
             .for_each(|theme_styles| {
-                theme_styles.remove(&key);
+                theme_styles.remove_ordered(&key);
             });
 
         // theme_thing_dependencies_styles: remove from both ThemeStyles
@@ -758,18 +758,18 @@ impl ThingsPageOps {
         input_diagram
             .theme_thing_dependencies_styles
             .things_included_styles
-            .remove(&key);
+            .remove_ordered(&key);
         input_diagram
             .theme_thing_dependencies_styles
             .things_excluded_styles
-            .remove(&key);
+            .remove_ordered(&key);
 
         // theme_tag_things_focus: remove from each ThemeStyles value.
         input_diagram
             .theme_tag_things_focus
             .values_mut()
             .for_each(|theme_styles| {
-                theme_styles.remove(&key);
+                theme_styles.remove_ordered(&key);
             });
     }
 
@@ -792,7 +792,7 @@ impl ThingsPageOps {
         thing_id: &ThingId<'static>,
     ) -> bool {
         if let Some(removal_index) = hierarchy.get_index_of(thing_id) {
-            let children = hierarchy.remove(thing_id).unwrap_or_default();
+            let children = hierarchy.remove_ordered(thing_id).unwrap_or_default();
 
             // Insert children at the position where the removed node was,
             // preserving their original order.

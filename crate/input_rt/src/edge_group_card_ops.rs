@@ -12,7 +12,7 @@ use disposition_input_model::{
     thing::ThingId,
     InputDiagram,
 };
-use disposition_model_common::edge::EdgeGroupId;
+use disposition_model_common::{edge::EdgeGroupId, MapOrderedRemove};
 
 use crate::{
     id_parse::{parse_edge_group_id, parse_thing_id},
@@ -55,10 +55,14 @@ impl EdgeGroupCardOps {
     ) {
         match target {
             MapTarget::Dependencies => {
-                input_diagram.thing_dependencies.remove(edge_group_id);
+                input_diagram
+                    .thing_dependencies
+                    .remove_ordered(edge_group_id);
             }
             MapTarget::Interactions => {
-                input_diagram.thing_interactions.remove(edge_group_id);
+                input_diagram
+                    .thing_interactions
+                    .remove_ordered(edge_group_id);
             }
         }
     }
