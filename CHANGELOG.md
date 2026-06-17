@@ -22,6 +22,8 @@
 * Add "Interaction Timing" playground example diagram. ([#48][#48])
 * Add rank stacking container to change rank container flex direction based on `RankDir`. ([#49][#49])
 * Update taffy tree fmt labels to indicate the role of each taffy node (envelope, rank container, edge wrapper, etc.). ([#49][#49])
+* Update `disposition_json_schema` to work. ([#50][#50])
+* Update docs and JSON schema to explain how styling is applied to nodes and edges. ([#50][#50])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -31,6 +33,7 @@
 [#47]: https://github.com/azriel91/disposition/pull/47
 [#48]: https://github.com/azriel91/disposition/pull/48
 [#49]: https://github.com/azriel91/disposition/pull/49
+[#50]: https://github.com/azriel91/disposition/pull/50
 
 
 ## 0.3.0 (2026-06-07)
