@@ -8,7 +8,7 @@
 //! framework-specific signal type, making them testable without a UI runtime.
 
 use disposition_input_model::InputDiagram;
-use disposition_model_common::Id;
+use disposition_model_common::{Id, MapOrderedRemove};
 
 use crate::flat_entry::{hierarchy_flatten, hierarchy_rebuild, FlatEntry};
 
@@ -329,7 +329,7 @@ impl ThingLayoutOps {
     /// Removes a `thing_layouts` entry by its ID string.
     pub fn thing_layout_remove(input_diagram: &mut InputDiagram<'static>, id_str: &str) {
         if let Ok(id) = Id::new(id_str).map(Id::into_static) {
-            input_diagram.thing_layouts.remove(&id);
+            input_diagram.thing_layouts.remove_ordered(&id);
         }
     }
 

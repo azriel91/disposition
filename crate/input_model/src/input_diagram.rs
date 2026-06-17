@@ -21,11 +21,45 @@ use crate::{
     },
 };
 
-/// The kinds of diagrams that can be generated.
+/// The root data structure for diagram input.
 ///
-/// This is the root data structure for diagram input, containing all
-/// configuration for things, their relationships, processes, tags, styling,
-/// and themes.
+/// An `InputDiagram` describes *what* to draw and *how* to style it. The fields
+/// fall into a few groups that work together:
+///
+/// ## How the pieces fit together
+///
+/// * **Things and hierarchy** -- `things` is the single source of truth for
+///   which nodes exist, as a recursive nesting tree. Labels, descriptions, and
+///   layout overrides are keyed by `ThingId` in `thing_names`, `thing_descs`,
+///   and `thing_layouts`.
+///
+/// * **Edges and edge groups** -- relationships are declared as *edge groups*
+///   in `thing_dependencies` (static "depends on") and `thing_interactions`
+///   (runtime communication). Each group has a `kind` (`sequence`, `symmetric`,
+///   `cyclic`) and a list of `things`; individual edges within a group get an
+///   ID of `<edge_group_id>__<index>`.
+///
+/// * **Entity types (shared styling)** -- `entity_types` attaches one or more
+///   reusable `type_*` ids to *any* entity, **both things and edge groups**.
+///   The look of each type is then defined once in `theme_types_styles`, so a
+///   whole category of nodes and edges can be styled together. Every entity
+///   also carries a built-in default type (e.g. `type_thing_default`) that
+///   `theme_types_styles` can target.
+///
+/// * **Tags and focus** -- `tags` names labels and `tag_things` lists the
+///   things in each tag. When a tag is focused in the viewer, the things it
+///   contains are highlighted and the rest are dimmed. The two sides are styled
+///   separately in `theme_tag_things_focus`: `node_defaults` styles the
+///   *included* things, and `node_excluded_defaults` styles the *excluded*
+///   ones. (Tags currently hold things only; edges follow their endpoint
+///   things.)
+///
+/// * **Themes** -- `theme_default` holds the base look plus reusable
+///   `style_aliases`. The type-, dependency-, and tag-focus theme maps layer on
+///   top of it. `render_options` and `css` tune rendering and inject raw CSS.
+///
+/// Most fields are styling-oriented maps keyed by `ThingId`, `TagId`,
+/// `EntityTypeId`, or `EdgeGroupId`; see each field for details and examples.
 #[cfg_attr(
     all(feature = "schemars", not(feature = "test")),
     derive(schemars::JsonSchema)
@@ -97,10 +131,22 @@ pub struct InputDiagram<'id> {
 
     /// Tags are labels that can be associated with things, so that the things
     /// can be highlighted when the tag is focused.
+    ///
+    /// Maps each `TagId` to its display label. The things in each tag are
+    /// listed separately in `tag_things`, and the focus styling is defined
+    /// in `theme_tag_things_focus`.
     #[serde(default, skip_serializing_if = "TagNames::is_empty")]
     pub tags: TagNames<'id>,
 
-    /// Things associated with each tag.
+    /// Things associated with each tag, keyed by `TagId`.
+    ///
+    /// When a tag is focused, the things listed here are highlighted (styled by
+    /// `theme_tag_things_focus`'s `node_defaults`) and the remaining things are
+    /// dimmed (styled by `node_excluded_defaults`). Edges are highlighted /
+    /// dimmed based on whether their endpoint things are in the focused tag.
+    ///
+    /// Tags currently hold *things* only -- adding edge groups to a tag
+    /// directly is not yet supported.
     #[serde(default, skip_serializing_if = "TagThings::is_empty")]
     pub tag_things: TagThings<'id>,
 
@@ -125,8 +171,13 @@ pub struct InputDiagram<'id> {
 
     /// Additional `type`s attached to entities for common styling.
     ///
-    /// Each entity can have multiple types, allowing styles to be stacked.
-    /// These types are appended to the entity's computed default type.
+    /// Keyed by entity ID, so types can be attached to *any* entity -- **both
+    /// things and edge groups** (as well as processes and process steps). Each
+    /// entity can have multiple types, allowing styles to be stacked, and these
+    /// types are appended to the entity's computed default type.
+    ///
+    /// The look of each type is defined once in `theme_types_styles`, letting a
+    /// whole category of nodes and edges be styled together.
     #[serde(default, skip_serializing_if = "EntityTypes::is_empty")]
     pub entity_types: EntityTypes<'id>,
 
@@ -135,6 +186,12 @@ pub struct InputDiagram<'id> {
     pub theme_default: ThemeDefault<'id>,
 
     /// Styles applied to things / edges of a particular `type`.
+    ///
+    /// Keyed by `EntityTypeId`. The keys are the same `type_*` ids that are
+    /// attached to entities in `entity_types`, plus the built-in default types
+    /// (e.g. `type_thing_default`, `type_dependency_edge_sequence_default`).
+    /// Because one entity may carry several types, their styles stack, with
+    /// later types overriding earlier ones.
     #[serde(default, skip_serializing_if = "ThemeTypesStyles::is_empty")]
     pub theme_types_styles: ThemeTypesStyles<'id>,
 
@@ -147,8 +204,11 @@ pub struct InputDiagram<'id> {
 
     /// Styles when a tag is focused.
     ///
-    /// The `tag_defaults` key applies styles to all tags uniformly.
-    /// Specific tag IDs can be used to override defaults for particular tags.
+    /// Keyed by `tag_defaults` (applied to all tags uniformly) or a specific
+    /// `TagId` (overrides the defaults for that tag). For each, `node_defaults`
+    /// styles the things that *are* in the focused tag (see `tag_things`), and
+    /// `node_excluded_defaults` styles the things that are *not* -- e.g.
+    /// dimming them via `opacity`.
     #[serde(default, skip_serializing_if = "ThemeTagThingsFocus::is_empty")]
     pub theme_tag_things_focus: ThemeTagThingsFocus<'id>,
 

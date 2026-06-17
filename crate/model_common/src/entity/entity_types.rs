@@ -9,6 +9,11 @@ use super::EntityType;
 /// Entity types attached to things, edges, processes, process steps and tags
 /// for common styling.
 ///
+/// This is keyed by entity ID, so the *same* type can be attached uniformly to
+/// nodes and edge groups (see the example below) -- styling a whole category of
+/// entities together. The look of each `type_*` id is defined once in
+/// `theme_types_styles` (`ThemeTypesStyles`).
+///
 /// Each entity can have multiple types, allowing styles to be stacked.
 /// The types are appended to the entity's default type (e.g.
 /// `type_thing_default` for things, `type_tag_default` for tags, etc.).

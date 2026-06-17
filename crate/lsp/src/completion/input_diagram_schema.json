@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "InputDiagram",
-  "description": "The kinds of diagrams that can be generated.\n\nThis is the root data structure for diagram input, containing all\nconfiguration for things, their relationships, processes, tags, styling,\nand themes.",
+  "description": "The root data structure for diagram input.\n\nAn `InputDiagram` describes *what* to draw and *how* to style it. The fields\nfall into a few groups that work together:\n\n## How the pieces fit together\n\n* **Things and hierarchy** -- `things` is the single source of truth for\n  which nodes exist, as a recursive nesting tree. Labels, descriptions, and\n  layout overrides are keyed by `ThingId` in `thing_names`, `thing_descs`,\n  and `thing_layouts`.\n\n* **Edges and edge groups** -- relationships are declared as *edge groups*\n  in `thing_dependencies` (static \"depends on\") and `thing_interactions`\n  (runtime communication). Each group has a `kind` (`sequence`, `symmetric`,\n  `cyclic`) and a list of `things`; individual edges within a group get an\n  ID of `<edge_group_id>__<index>`.\n\n* **Entity types (shared styling)** -- `entity_types` attaches one or more\n  reusable `type_*` ids to *any* entity, **both things and edge groups**.\n  The look of each type is then defined once in `theme_types_styles`, so a\n  whole category of nodes and edges can be styled together. Every entity also\n  carries a built-in default type (e.g. `type_thing_default`) that\n  `theme_types_styles` can target.\n\n* **Tags and focus** -- `tags` names labels and `tag_things` lists the\n  things in each tag. When a tag is focused in the viewer, the things it\n  contains are highlighted and the rest are dimmed. The two sides are styled\n  separately in `theme_tag_things_focus`: `node_defaults` styles the\n  *included* things, and `node_excluded_defaults` styles the *excluded* ones.\n  (Tags currently hold things only; edges follow their endpoint things.)\n\n* **Themes** -- `theme_default` holds the base look plus reusable\n  `style_aliases`. The type-, dependency-, and tag-focus theme maps layer on\n  top of it. `render_options` and `css` tune rendering and inject raw CSS.\n\nMost fields are styling-oriented maps keyed by `ThingId`, `TagId`,\n`EntityTypeId`, or `EdgeGroupId`; see each field for details and examples.",
   "type": "object",
   "properties": {
     "css": {
@@ -21,7 +21,7 @@
       "$ref": "#/$defs/EntityTooltips"
     },
     "entity_types": {
-      "description": "Additional `type`s attached to entities for common styling.\n\nEach entity can have multiple types, allowing styles to be stacked.\nThese types are appended to the entity's computed default type.",
+      "description": "Additional `type`s attached to entities for common styling.\n\nKeyed by entity ID, so types can be attached to *any* entity -- **both\nthings and edge groups** (as well as processes and process steps). Each\nentity can have multiple types, allowing styles to be stacked, and these\ntypes are appended to the entity's computed default type.\n\nThe look of each type is defined once in `theme_types_styles`, letting a\nwhole category of nodes and edges be styled together.",
       "$ref": "#/$defs/EntityTypes"
     },
     "processes": {
@@ -33,11 +33,11 @@
       "$ref": "#/$defs/RenderOptions"
     },
     "tag_things": {
-      "description": "Things associated with each tag.",
+      "description": "Things associated with each tag, keyed by `TagId`.\n\nWhen a tag is focused, the things listed here are highlighted (styled by\n`theme_tag_things_focus`'s `node_defaults`) and the remaining things are\ndimmed (styled by `node_excluded_defaults`). Edges are highlighted /\ndimmed based on whether their endpoint things are in the focused tag.\n\nTags currently hold *things* only -- adding edge groups to a tag directly\nis not yet supported.",
       "$ref": "#/$defs/TagThings"
     },
     "tags": {
-      "description": "Tags are labels that can be associated with things, so that the things\ncan be highlighted when the tag is focused.",
+      "description": "Tags are labels that can be associated with things, so that the things\ncan be highlighted when the tag is focused.\n\nMaps each `TagId` to its display label. The things in each tag are listed\nseparately in `tag_things`, and the focus styling is defined in\n`theme_tag_things_focus`.",
       "$ref": "#/$defs/TagNames"
     },
     "theme_default": {
@@ -45,7 +45,7 @@
       "$ref": "#/$defs/ThemeDefault"
     },
     "theme_tag_things_focus": {
-      "description": "Styles when a tag is focused.\n\nThe `tag_defaults` key applies styles to all tags uniformly.\nSpecific tag IDs can be used to override defaults for particular tags.",
+      "description": "Styles when a tag is focused.\n\nKeyed by `tag_defaults` (applied to all tags uniformly) or a specific\n`TagId` (overrides the defaults for that tag). For each, `node_defaults`\nstyles the things that *are* in the focused tag (see `tag_things`), and\n`node_excluded_defaults` styles the things that are *not* -- e.g.\ndimming them via `opacity`.",
       "$ref": "#/$defs/ThemeTagThingsFocus"
     },
     "theme_thing_dependencies_styles": {
@@ -53,7 +53,7 @@
       "$ref": "#/$defs/ThemeThingDependenciesStyles"
     },
     "theme_types_styles": {
-      "description": "Styles applied to things / edges of a particular `type`.",
+      "description": "Styles applied to things / edges of a particular `type`.\n\nKeyed by `EntityTypeId`. The keys are the same `type_*` ids that are\nattached to entities in `entity_types`, plus the built-in default types\n(e.g. `type_thing_default`, `type_dependency_edge_sequence_default`).\nBecause one entity may carry several types, their styles stack, with\nlater types overriding earlier ones.",
       "$ref": "#/$defs/ThemeTypesStyles"
     },
     "thing_copy_text": {
@@ -291,7 +291,7 @@
       }
     },
     "EntityType": {
-      "description": "Type for categorizing entities so they can all be styled consistently.\n\nEntities can have multiple types, and later types' styles override earlier\nones.\n\nThis enum contains well-known type keys, with a `Custom` variant\nfor user-defined types.\n\n# Examples\n\n```rust\nuse disposition_model_common::entity::EntityType;\n\nlet entity_type = EntityType::ThingDefault;\nassert_eq!(entity_type.as_str(), \"type_thing_default\");\n\nlet custom_alias = EntityType::Custom(\"type_server\".parse().unwrap());\nassert_eq!(custom_alias.as_str(), \"type_server\");\n```",
+      "description": "Type for categorizing entities so they can all be styled consistently.\n\nEntities can have multiple types, and later types' styles override earlier\nones.\n\nThis enum contains well-known type keys, with a `Custom` variant\nfor user-defined types.\n\nThe built-in `*_default` variants are attached to entities automatically\n(e.g. `type_thing_default` to every thing, `type_dependency_edge_*` to\ndependency edges). To restyle a whole category, add the matching key under\n`theme_types_styles`. Use `Custom(Id)` (any other `type_*` string in YAML)\nto introduce your own shared type, attach it to entities via `entity_types`,\nand style it under `theme_types_styles`.\n\n# Examples\n\n```rust\nuse disposition_model_common::entity::EntityType;\n\nlet entity_type = EntityType::ThingDefault;\nassert_eq!(entity_type.as_str(), \"type_thing_default\");\n\nlet custom_alias = EntityType::Custom(\"type_server\".parse().unwrap());\nassert_eq!(custom_alias.as_str(), \"type_server\");\n```",
       "oneOf": [
         {
           "description": "Inbuilt container.",
@@ -395,7 +395,7 @@
       ]
     },
     "EntityTypes": {
-      "description": "Entity types attached to things, edges, processes, process steps and tags\nfor common styling.\n\nEach entity can have multiple types, allowing styles to be stacked.\nThe types are appended to the entity's default type (e.g.\n`type_thing_default` for things, `type_tag_default` for tags, etc.).\n\nBuilt-in types that are automatically attached to entities unless\noverridden:\n\n* `type_thing_default`\n* `type_tag_default`\n* `type_process_default`\n* `type_process_step_default`\n\nFor edges, an edge group is generated for each dependency / interaction:\n\nEach edge group is assigned a type from the following:\n\n* `type_dependency_edge_sequence_default`\n* `type_dependency_edge_cyclic_default`\n* `type_dependency_edge_symmetric_default`\n* `type_interaction_edge_sequence_default`\n* `type_interaction_edge_cyclic_default`\n* `type_interaction_edge_symmetric_default`\n\nand each edge within each edge group is assigned a type from the following:\n\n* `type_dependency_edge_sequence_forward_default`\n* `type_dependency_edge_cyclic_forward_default`\n* `type_dependency_edge_symmetric_forward_default`\n* `type_dependency_edge_symmetric_reverse_default`\n* `type_interaction_edge_sequence_forward_default`\n* `type_interaction_edge_cyclic_forward_default`\n* `type_interaction_edge_symmetric_forward_default`\n* `type_interaction_edge_symmetric_reverse_default`\n\nThe edge ID is the edge group ID specified in `thing_dependencies` /\n`thing_interactions`, suffixed with the zero-based index of the edge like\nso:\n\n```text\nedge_id = edge_group_id + \"__\" + edge_index\n```\n\n# Example\n\n```yaml\nentity_types:\n  # things - types are appended to type_thing_default\n  t_aws:\n    - type_organisation\n  t_aws_iam:\n    - type_service\n  t_aws_ecr:\n    - type_service\n  t_aws_ecr_repo_image_1:\n    - type_docker_image\n  t_aws_ecr_repo_image_2:\n    - type_docker_image\n  t_github:\n    - type_organisation\n\n  # tags - types are appended to type_tag_default\n  tag_app_development:\n    - tag_type_default\n\n  # edges - types are appended to the edge's default type\n  edge_t_localhost__t_github_user_repo__pull__0:\n    - type_dependency_edge_cyclic_forward_default\n  edge_t_localhost__t_github_user_repo__pull__1:\n    - type_dependency_edge_cyclic_forward_default\n```",
+      "description": "Entity types attached to things, edges, processes, process steps and tags\nfor common styling.\n\nThis is keyed by entity ID, so the *same* type can be attached uniformly to\nnodes and edge groups (see the example below) -- styling a whole category of\nentities together. The look of each `type_*` id is defined once in\n`theme_types_styles` (`ThemeTypesStyles`).\n\nEach entity can have multiple types, allowing styles to be stacked.\nThe types are appended to the entity's default type (e.g.\n`type_thing_default` for things, `type_tag_default` for tags, etc.).\n\nBuilt-in types that are automatically attached to entities unless\noverridden:\n\n* `type_thing_default`\n* `type_tag_default`\n* `type_process_default`\n* `type_process_step_default`\n\nFor edges, an edge group is generated for each dependency / interaction:\n\nEach edge group is assigned a type from the following:\n\n* `type_dependency_edge_sequence_default`\n* `type_dependency_edge_cyclic_default`\n* `type_dependency_edge_symmetric_default`\n* `type_interaction_edge_sequence_default`\n* `type_interaction_edge_cyclic_default`\n* `type_interaction_edge_symmetric_default`\n\nand each edge within each edge group is assigned a type from the following:\n\n* `type_dependency_edge_sequence_forward_default`\n* `type_dependency_edge_cyclic_forward_default`\n* `type_dependency_edge_symmetric_forward_default`\n* `type_dependency_edge_symmetric_reverse_default`\n* `type_interaction_edge_sequence_forward_default`\n* `type_interaction_edge_cyclic_forward_default`\n* `type_interaction_edge_symmetric_forward_default`\n* `type_interaction_edge_symmetric_reverse_default`\n\nThe edge ID is the edge group ID specified in `thing_dependencies` /\n`thing_interactions`, suffixed with the zero-based index of the edge like\nso:\n\n```text\nedge_id = edge_group_id + \"__\" + edge_index\n```\n\n# Example\n\n```yaml\nentity_types:\n  # things - types are appended to type_thing_default\n  t_aws:\n    - type_organisation\n  t_aws_iam:\n    - type_service\n  t_aws_ecr:\n    - type_service\n  t_aws_ecr_repo_image_1:\n    - type_docker_image\n  t_aws_ecr_repo_image_2:\n    - type_docker_image\n  t_github:\n    - type_organisation\n\n  # tags - types are appended to type_tag_default\n  tag_app_development:\n    - tag_type_default\n\n  # edges - types are appended to the edge's default type\n  edge_t_localhost__t_github_user_repo__pull__0:\n    - type_dependency_edge_cyclic_forward_default\n  edge_t_localhost__t_github_user_repo__pull__1:\n    - type_dependency_edge_cyclic_forward_default\n```",
       "type": "object",
       "additionalProperties": {
         "type": "array",
@@ -719,14 +719,14 @@
       "$ref": "#/$defs/Id"
     },
     "TagNames": {
-      "description": "Tags are labels that can be associated with things, so that the things can\nbe highlighted when the tag is focused.\n\n# Example\n\n```yaml\ntags:\n  tag_app_development: \"Application Development\"\n  tag_deployment: \"Deployment\"\n  tag_infrastructure: \"Infrastructure\"\n```",
+      "description": "Tags are labels that can be associated with things, so that the things can\nbe highlighted when the tag is focused.\n\nThis maps each `TagId` to its display label. The things in each tag are\nlisted in `TagThings`, and the focus styling is defined in\n`ThemeTagThingsFocus`.\n\n# Example\n\n```yaml\ntags:\n  tag_app_development: \"Application Development\"\n  tag_deployment: \"Deployment\"\n  tag_infrastructure: \"Infrastructure\"\n```",
       "type": "object",
       "additionalProperties": {
         "type": "string"
       }
     },
     "TagThings": {
-      "description": "Things associated with each tag.\n\nThis allows selection / highlighting of things that are related to each\nother when a tag is focused.\n\nIt is structured as a map from tag ID to a list of thing IDs, because\nspecifying the `things` for each tag is more natural than specifying the\ntags associated with each thing.\n\n# Example\n\n```yaml\ntag_things:\n  tag_app_development:\n    - t_github_user_repo\n    - t_localhost\n  tag_deployment:\n    - t_aws_ecr_repo\n    - t_github_user_repo\n```",
+      "description": "Things associated with each tag.\n\nThis allows selection / highlighting of things that are related to each\nother when a tag is focused. The included things are styled by the\n`node_defaults` and the rest by the `node_excluded_defaults` under\n`ThemeTagThingsFocus`; edges follow their endpoint things.\n\nIt is structured as a map from tag ID to a list of thing IDs, because\nspecifying the `things` for each tag is more natural than specifying the\ntags associated with each thing.\n\nTags currently hold *things* only -- adding an edge group to a tag directly\nis not yet supported.\n\n# Example\n\n```yaml\ntag_things:\n  tag_app_development:\n    - t_github_user_repo\n    - t_localhost\n  tag_deployment:\n    - t_aws_ecr_repo\n    - t_github_user_repo\n```",
       "type": "object",
       "additionalProperties": {
         "type": "array",
@@ -1127,7 +1127,7 @@
       }
     },
     "ThemeTagThingsFocus": {
-      "description": "Styles when a tag is focused, applied to all tags or specific tags.\n\nWhen a tag is focused, things and edges associated with the tag are\nhighlighted. This map defines the styles applied to things based on\nthe focused tag.\n\nThe `tag_defaults` key applies styles to all tags uniformly.\nSpecific tag IDs can be used to override defaults for particular tags.\n\n# Example\n\n```yaml\ntheme_tag_things_focus:\n  tag_defaults:\n    node_defaults:\n      style_aliases_applied: [shade_pale, stroke_dashed_animated]\n    node_excluded_defaults:\n      opacity: \"0.5\"\n\n  tag_app_development:\n    node_defaults:\n      style_aliases_applied: [stroke_dashed_animated]\n    node_excluded_defaults:\n      opacity: \"0.3\"\n```",
+      "description": "Styles when a tag is focused, applied to all tags or specific tags.\n\nWhen a tag is focused, the things listed for it in `tag_things` are\nhighlighted and the rest are dimmed. This map controls both sides:\n\n* `node_defaults` styles the *included* things (those in the focused tag).\n* `node_excluded_defaults` styles the *excluded* things (those not in it) --\n  e.g. dimming them with `opacity`.\n\nEdges are highlighted / dimmed based on whether their endpoint things are in\nthe focused tag; tags currently hold things only, so adding an edge group to\na tag directly is not yet supported.\n\nThe `tag_defaults` key applies styles to all tags uniformly. Specific tag\nIDs can be used to override defaults for particular tags.\n\n# Example\n\n```yaml\ntheme_tag_things_focus:\n  tag_defaults:\n    # things in the focused tag\n    node_defaults:\n      style_aliases_applied: [shade_pale, stroke_dashed_animated]\n    # things not in the focused tag\n    node_excluded_defaults:\n      opacity: \"0.5\"\n\n  tag_app_development:\n    node_defaults:\n      style_aliases_applied: [stroke_dashed_animated]\n    node_excluded_defaults:\n      opacity: \"0.3\"\n```",
       "type": "object",
       "additionalProperties": {
         "$ref": "#/$defs/ThemeStyles"
@@ -1148,7 +1148,7 @@
       }
     },
     "ThemeTypesStyles": {
-      "description": "Styles applied to things / edges of a particular `type` specified in\n`entity_types`.\n\nThis map contains both built-in default types and custom user-defined types.\n\n## Built-in Types\n\n* `type_organisation`: Parent container for services\n* `type_service`: A deployable service\n* `type_docker_image`: Docker container image\n* `type_dependency_edge_sequence_forward_default`: Default edge style for\n  dependency sequence edges\n\n## Custom Types\n\nUsers can define their own types in `entity_types` and reference them here.\n\n# Example\n\n```yaml\ntheme_types_styles:\n  type_organisation: # <-- this is a `ThemeStyles`\n    node_defaults:\n      style_aliases_applied: [shade_pale]\n      stroke_style: \"dotted\"\n\n  type_service:\n    node_defaults:\n      stroke_style: \"dashed\"\n\n  type_docker_image:\n    node_defaults:\n      shape_color: \"sky\"\n\n  type_dependency_edge_sequence_forward_default:\n    edge_defaults:\n      style_aliases_applied: [shade_dark]\n      stroke_style: solid\n      shape_color: \"neutral\"\n      stroke_width: \"1\"\n```",
+      "description": "Styles applied to things / edges of a particular `type` (an `EntityType`).\n\nThe keys are the same `type_*` ids attached to entities in `entity_types`,\nso styling a type here applies to every node and edge group carrying that\ntype. Because an entity may carry several types, their styles stack, with\nlater types overriding earlier ones.\n\nThis map contains both built-in default types and custom user-defined types.\n\n## Built-in Types\n\nThese are attached to entities automatically and can be restyled by adding\ntheir key here (see `EntityType`):\n\n* `type_thing_default`: every thing\n* `type_tag_default`: every tag\n* `type_process_default`: every process\n* `type_process_step_default`: every process step\n* `type_dependency_edge_{sequence,cyclic,symmetric}_default`: dependency\n  edge groups\n* `type_interaction_edge_{sequence,cyclic,symmetric}_default`: interaction\n  edge groups\n* `type_{dependency,interaction}_edge_*_{forward,reverse}_default`:\n  individual edges within those groups\n\n## Custom Types\n\nUsers can define their own types in `entity_types` and reference them here.\nThe example below uses `type_organisation`, `type_service`, and\n`type_docker_image` as custom types.\n\n# Example\n\n```yaml\ntheme_types_styles:\n  type_organisation: # <-- this is a `ThemeStyles`\n    node_defaults:\n      style_aliases_applied: [shade_pale]\n      stroke_style: \"dotted\"\n\n  type_service:\n    node_defaults:\n      stroke_style: \"dashed\"\n\n  type_docker_image:\n    node_defaults:\n      shape_color: \"sky\"\n\n  type_dependency_edge_sequence_forward_default:\n    edge_defaults:\n      style_aliases_applied: [shade_dark]\n      stroke_style: solid\n      shape_color: \"neutral\"\n      stroke_width: \"1\"\n```",
       "type": "object",
       "additionalProperties": {
         "$ref": "#/$defs/ThemeStyles"

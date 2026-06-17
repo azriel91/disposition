@@ -7,20 +7,29 @@ use crate::theme::{TagIdOrDefaults, ThemeStyles};
 
 /// Styles when a tag is focused, applied to all tags or specific tags.
 ///
-/// When a tag is focused, things and edges associated with the tag are
-/// highlighted. This map defines the styles applied to things based on
-/// the focused tag.
+/// When a tag is focused, the things listed for it in `tag_things` are
+/// highlighted and the rest are dimmed. This map controls both sides:
 ///
-/// The `tag_defaults` key applies styles to all tags uniformly.
-/// Specific tag IDs can be used to override defaults for particular tags.
+/// * `node_defaults` styles the *included* things (those in the focused tag).
+/// * `node_excluded_defaults` styles the *excluded* things (those not in it) --
+///   e.g. dimming them with `opacity`.
+///
+/// Edges are highlighted / dimmed based on whether their endpoint things are in
+/// the focused tag; tags currently hold things only, so adding an edge group to
+/// a tag directly is not yet supported.
+///
+/// The `tag_defaults` key applies styles to all tags uniformly. Specific tag
+/// IDs can be used to override defaults for particular tags.
 ///
 /// # Example
 ///
 /// ```yaml
 /// theme_tag_things_focus:
 ///   tag_defaults:
+///     # things in the focused tag
 ///     node_defaults:
 ///       style_aliases_applied: [shade_pale, stroke_dashed_animated]
+///     # things not in the focused tag
 ///     node_excluded_defaults:
 ///       opacity: "0.5"
 ///

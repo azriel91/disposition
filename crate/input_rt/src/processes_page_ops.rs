@@ -7,6 +7,7 @@
 //! framework-specific signal type, making them testable without a UI runtime.
 
 use disposition_input_model::{process::ProcessDiagram, InputDiagram};
+use disposition_model_common::MapOrderedRemove;
 
 use crate::{id_parse::parse_process_id, id_rename::id_rename_in_input_diagram};
 
@@ -39,7 +40,7 @@ impl ProcessesPageOps {
     /// Removes a process from the `processes` map.
     pub fn process_remove(input_diagram: &mut InputDiagram<'static>, process_id_str: &str) {
         if let Some(process_id) = parse_process_id(process_id_str) {
-            input_diagram.processes.remove(&process_id);
+            input_diagram.processes.remove_ordered(&process_id);
         }
     }
 

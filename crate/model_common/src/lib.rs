@@ -8,10 +8,10 @@ pub use id_newtype::id;
 
 pub use crate::{
     id::{Id, IdInvalidFmt},
-    map::{Keys, Map},
+    map::{Keys, Map, MapOrderedRemove},
     rank_dir::RankDir,
     render_options::{ProcessRenderCollapse, RenderOptions},
-    set::Set,
+    set::{Set, SetOrderedRemove},
 };
 
 pub mod edge;

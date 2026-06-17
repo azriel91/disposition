@@ -8,6 +8,10 @@ use crate::tag::TagId;
 /// Tags are labels that can be associated with things, so that the things can
 /// be highlighted when the tag is focused.
 ///
+/// This maps each `TagId` to its display label. The things in each tag are
+/// listed in `TagThings`, and the focus styling is defined in
+/// `ThemeTagThingsFocus`.
+///
 /// # Example
 ///
 /// ```yaml

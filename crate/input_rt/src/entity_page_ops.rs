@@ -11,6 +11,7 @@
 //! framework-specific signal type, making them testable without a UI runtime.
 
 use disposition_input_model::InputDiagram;
+use disposition_model_common::MapOrderedRemove;
 
 use crate::{
     id_parse::{parse_id, parse_thing_id},
@@ -190,22 +191,22 @@ impl EntityPageOps {
         match target {
             OnChangeTarget::CopyText => {
                 if let Some(entity_id) = parse_thing_id(id_str) {
-                    input_diagram.thing_copy_text.remove(&entity_id);
+                    input_diagram.thing_copy_text.remove_ordered(&entity_id);
                 }
             }
             OnChangeTarget::ThingDesc => {
                 if let Some(entity_id) = parse_id(id_str) {
-                    input_diagram.thing_descs.remove(&entity_id);
+                    input_diagram.thing_descs.remove_ordered(&entity_id);
                 }
             }
             OnChangeTarget::EdgeDesc => {
                 if let Some(entity_id) = parse_id(id_str) {
-                    input_diagram.edge_descs.remove(&entity_id);
+                    input_diagram.edge_descs.remove_ordered(&entity_id);
                 }
             }
             OnChangeTarget::EntityTooltip => {
                 if let Some(entity_id) = parse_id(id_str) {
-                    input_diagram.entity_tooltips.remove(&entity_id);
+                    input_diagram.entity_tooltips.remove_ordered(&entity_id);
                 }
             }
         }

@@ -5,22 +5,36 @@ use serde::{Deserialize, Serialize};
 
 use crate::{entity::EntityTypeId, theme::ThemeStyles};
 
-/// Styles applied to things / edges of a particular `type` specified in
-/// `entity_types`.
+/// Styles applied to things / edges of a particular `type` (an `EntityType`).
+///
+/// The keys are the same `type_*` ids attached to entities in `entity_types`,
+/// so styling a type here applies to every node and edge group carrying that
+/// type. Because an entity may carry several types, their styles stack, with
+/// later types overriding earlier ones.
 ///
 /// This map contains both built-in default types and custom user-defined types.
 ///
 /// ## Built-in Types
 ///
-/// * `type_organisation`: Parent container for services
-/// * `type_service`: A deployable service
-/// * `type_docker_image`: Docker container image
-/// * `type_dependency_edge_sequence_forward_default`: Default edge style for
-///   dependency sequence edges
+/// These are attached to entities automatically and can be restyled by adding
+/// their key here (see `EntityType`):
+///
+/// * `type_thing_default`: every thing
+/// * `type_tag_default`: every tag
+/// * `type_process_default`: every process
+/// * `type_process_step_default`: every process step
+/// * `type_dependency_edge_{sequence,cyclic,symmetric}_default`: dependency
+///   edge groups
+/// * `type_interaction_edge_{sequence,cyclic,symmetric}_default`: interaction
+///   edge groups
+/// * `type_{dependency,interaction}_edge_*_{forward,reverse}_default`:
+///   individual edges within those groups
 ///
 /// ## Custom Types
 ///
 /// Users can define their own types in `entity_types` and reference them here.
+/// The example below uses `type_organisation`, `type_service`, and
+/// `type_docker_image` as custom types.
 ///
 /// # Example
 ///
