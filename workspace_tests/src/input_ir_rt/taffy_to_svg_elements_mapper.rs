@@ -2991,13 +2991,12 @@ fn test_self_loop_path_endpoints_follow_rank_dir() {
 /// enough to contain the arrow head (8.0 px) plus 3.0 px of clearance before
 /// the Z/S bend, where the rank gap allows.
 ///
-/// The floor is capped at `MAX_GAP_FRACTION` (0.6) of the endpoint's rank
+/// The floor is capped at `MAX_GAP_FRACTION` (0.9) of the endpoint's rank
 /// gap, so it never overshoots tight gaps.
 #[test]
 fn test_to_protrusion_clears_arrow_head() {
     // ARROW_HEAD_LENGTH (8.0) + ARROW_HEAD_CLEARANCE_PX (3.0).
     const TO_PROTRUSION_MIN_PX: f32 = 11.0;
-    const MAX_GAP_FRACTION: f32 = 0.8;
     const EPSILON: f32 = 0.01;
 
     for svg_elements in

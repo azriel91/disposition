@@ -226,7 +226,7 @@ This function assigns protrusion depths to all endpoints within a single rank ga
 
 27. **Find the tightest constraint.**
 
-    The minimum `rank_gap_px` across all entries in the gap determines the available space. The total protrusion band shared by **both** sides of the gap is `available = min_gap_px * MAX_GAP_FRACTION` (where `MAX_GAP_FRACTION = 0.8`). The from-side and to-side fans grow from opposite gap boundaries toward each other, so capping their **combined** depth at `available` leaves `(1 - MAX_GAP_FRACTION) * gap` (20%) as the central routing segment and guarantees the deepest from-tip and deepest to-tip never cross.
+    The minimum `rank_gap_px` across all entries in the gap determines the available space. The total protrusion band shared by **both** sides of the gap is `available = min_gap_px * MAX_GAP_FRACTION` (where `MAX_GAP_FRACTION = 0.9`). The from-side and to-side fans grow from opposite gap boundaries toward each other, so capping their **combined** depth at `available` leaves `(1 - MAX_GAP_FRACTION) * gap` (10%) as the central routing segment and guarantees the deepest from-tip and deepest to-tip never cross.
 
 28. **Small gap fallback.**
 
@@ -386,7 +386,7 @@ follows:
 
     - **Gap side**: the cycle edge's entry is on the `High` side for `Top` face, or `Low` side for `Bottom` face. This makes it a `single_side` entry in `protrusions_assign`, receiving a unique slot.
 
-    - **Sharing the gap with non-cycle edges**: if non-cycle edges also have endpoints in the same gap (e.g. an edge from rank R-1 to rank R contributes its to-endpoint on the `High` side of gap (R-1, R)), all entries compete together for the gap's protrusion band. The tightest `rank_gap_px` across all entries sizes the band via `MAX_GAP_FRACTION = 0.8`, which is then split proportionally between the two sides (see [Protrusion depth assignment](#protrusion-depth-assignment-fn-protrusions_assign)). This ensures the from-side and to-side fans together never exceed 80% of the actual gap, leaving room for the routing segment and arrowhead.
+    - **Sharing the gap with non-cycle edges**: if non-cycle edges also have endpoints in the same gap (e.g. an edge from rank R-1 to rank R contributes its to-endpoint on the `High` side of gap (R-1, R)), all entries compete together for the gap's protrusion band. The tightest `rank_gap_px` across all entries sizes the band via `MAX_GAP_FRACTION = 0.9`, which is then split proportionally between the two sides (see [Protrusion depth assignment](#protrusion-depth-assignment-fn-protrusions_assign)). This ensures the from-side and to-side fans together never exceed 90% of the actual gap, leaving room for the routing segment and arrowhead.
 
 ### Cycle edge protrusion finalisation (`fn protrusions_assign_cycle_edges`)
 

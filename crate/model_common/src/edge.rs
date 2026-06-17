@@ -26,15 +26,15 @@ mod edge_labels;
 ///
 /// # Example values
 ///
-/// `0.8` -- from and to protrusions together use up to 80% of the gap.
-pub const MAX_GAP_FRACTION: f32 = 0.8;
+/// `0.9` -- from and to protrusions together use up to 90% of the gap.
+pub const MAX_GAP_FRACTION: f32 = 0.9;
 
 /// Minimum protrusion length in pixels.
 ///
 /// When an edge is not perfectly straight (i.e. the from and to
 /// contact points differ on the cross-axis), the protrusion is at
 /// least this many pixels so the perpendicular stub is visible.
-pub const MIN_PROTRUSION_PX: f32 = 3.0;
+pub const MIN_PROTRUSION_PX: f32 = 5.0;
 
 /// Length of the arrowhead from tip to base, in pixels.
 ///
