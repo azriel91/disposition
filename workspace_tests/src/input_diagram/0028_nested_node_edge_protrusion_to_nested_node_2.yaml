@@ -1,0 +1,20 @@
+things:
+  t_a_0:
+    t_a_00: {}
+  t_b_0:
+    t_b_00: {}
+  t_c_0:
+    t_c_00: {}
+  t_d_0:
+    t_d_00: {}
+thing_dependencies:
+  edge_dep_b_c:
+    kind: sequence
+    things:
+      - t_b_00
+      - t_c_00
+  edge_dep_a_d:
+    kind: sequence
+    things:
+      - t_a_00
+      - t_d_00

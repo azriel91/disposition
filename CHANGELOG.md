@@ -24,6 +24,7 @@
 * Update taffy tree fmt labels to indicate the role of each taffy node (envelope, rank container, edge wrapper, etc.). ([#49][#49])
 * Update `disposition_json_schema` to work. ([#50][#50])
 * Update docs and JSON schema to explain how styling is applied to nodes and edges. ([#50][#50])
+* Stagger orthogonal edge protrusions for nested-to-nested edges that clear the same divergent-ancestor sibling row, so their lateral routing segments no longer overlap. ([#51][#51])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -34,6 +35,7 @@
 [#48]: https://github.com/azriel91/disposition/pull/48
 [#49]: https://github.com/azriel91/disposition/pull/49
 [#50]: https://github.com/azriel91/disposition/pull/50
+[#51]: https://github.com/azriel91/disposition/pull/51
 
 
 ## 0.3.0 (2026-06-07)

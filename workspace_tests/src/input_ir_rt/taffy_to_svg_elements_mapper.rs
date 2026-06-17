@@ -30,6 +30,8 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0024_NESTED_EDGES_RANK_DIR_LEFT_TO_RIGHT,
     INPUT_DIAGRAM_0025_NESTED_EDGES_RANK_DIR_RIGHT_TO_LEFT,
     INPUT_DIAGRAM_0026_NESTED_EDGES_RANK_DIR_BOTTOM_TO_TOP,
+    INPUT_DIAGRAM_0027_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_1,
+    INPUT_DIAGRAM_0028_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_2,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -879,6 +881,78 @@ fn test_nested_node_edge_bob_charlie_routing_clears_alice_outer() {
             alice_outer_bottom,
         );
     }
+}
+
+/// Two edges from nested nodes into other nested nodes, sharing the same rank
+/// gap, must receive **distinct** `from_protrusion` and `to_protrusion` so
+/// their lateral routing segments do not overlap.
+///
+/// Both edges clear the same divergent-ancestor sibling row, so before the
+/// row-grouped staggering their protrusions collapsed onto a single value
+/// (`from=23`, `to=73`). The fix in
+/// `OrthoProtrusionCalculator::protrusions_adjust_for_divergent_siblings`
+/// staggers endpoints clearing the same row `MIN_PROTRUSION_PX` apart.
+fn assert_nested_node_edge_protrusions_distinct(
+    input_diagram: &str,
+    edge_a: (&str, &str),
+    edge_b: (&str, &str),
+) {
+    // Minimum stagger between two protrusions clearing the same sibling row.
+    // Matches `MIN_PROTRUSION_PX` in `ortho_protrusion_calculator.rs`.
+    const MIN_PROTRUSION_PX: f32 = 3.0;
+
+    for svg_elements in build_svg_elements_for_diagram(input_diagram) {
+        let edge_find = |from: &str, to: &str| {
+            svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == from && e.to_node_id.as_str() == to)
+                .unwrap_or_else(|| panic!("Expected edge {from}->{to} in svg_edge_infos"))
+        };
+        let edge_info_a = edge_find(edge_a.0, edge_a.1);
+        let edge_info_b = edge_find(edge_b.0, edge_b.1);
+
+        let from_protrusion_a = edge_info_a.ortho_protrusion_params.from_protrusion;
+        let from_protrusion_b = edge_info_b.ortho_protrusion_params.from_protrusion;
+        let to_protrusion_a = edge_info_a.ortho_protrusion_params.to_protrusion;
+        let to_protrusion_b = edge_info_b.ortho_protrusion_params.to_protrusion;
+
+        assert!(
+            (from_protrusion_a - from_protrusion_b).abs() >= MIN_PROTRUSION_PX - 1e-3,
+            "from_protrusion for {edge_a:?} ({from_protrusion_a:.2}) and {edge_b:?} \
+             ({from_protrusion_b:.2}) must differ by >= {MIN_PROTRUSION_PX} so their lateral \
+             segments do not overlap",
+        );
+        assert!(
+            (to_protrusion_a - to_protrusion_b).abs() >= MIN_PROTRUSION_PX - 1e-3,
+            "to_protrusion for {edge_a:?} ({to_protrusion_a:.2}) and {edge_b:?} \
+             ({to_protrusion_b:.2}) must differ by >= {MIN_PROTRUSION_PX} so their lateral \
+             segments do not overlap",
+        );
+    }
+}
+
+/// `0027`: two edges into the **same** nested node (`t_c_00`) from nested nodes
+/// in different sibling containers must not share protrusion depths.
+#[test]
+fn test_nested_node_edge_protrusion_to_same_nested_node_distinct() {
+    assert_nested_node_edge_protrusions_distinct(
+        INPUT_DIAGRAM_0027_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_1,
+        ("t_b_00", "t_c_00"),
+        ("t_a_00", "t_c_00"),
+    );
+}
+
+/// `0028`: two edges into **different** nested nodes (`t_c_00` / `t_d_00`) at
+/// the same rank must not share protrusion depths -- both still clear the same
+/// divergent-ancestor sibling rows.
+#[test]
+fn test_nested_node_edge_protrusion_to_different_nested_nodes_distinct() {
+    assert_nested_node_edge_protrusions_distinct(
+        INPUT_DIAGRAM_0028_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_2,
+        ("t_b_00", "t_c_00"),
+        ("t_a_00", "t_d_00"),
+    );
 }
 
 // === Cycle edge routing tests === //
