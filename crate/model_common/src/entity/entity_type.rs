@@ -12,6 +12,13 @@ use crate::{id, Id};
 /// This enum contains well-known type keys, with a `Custom` variant
 /// for user-defined types.
 ///
+/// The built-in `*_default` variants are attached to entities automatically
+/// (e.g. `type_thing_default` to every thing, `type_dependency_edge_*` to
+/// dependency edges). To restyle a whole category, add the matching key under
+/// `theme_types_styles`. Use `Custom(Id)` (any other `type_*` string in YAML)
+/// to introduce your own shared type, attach it to entities via `entity_types`,
+/// and style it under `theme_types_styles`.
+///
 /// # Examples
 ///
 /// ```rust

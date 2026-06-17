@@ -8,11 +8,16 @@ use crate::{tag::TagId, thing::ThingId};
 /// Things associated with each tag.
 ///
 /// This allows selection / highlighting of things that are related to each
-/// other when a tag is focused.
+/// other when a tag is focused. The included things are styled by the
+/// `node_defaults` and the rest by the `node_excluded_defaults` under
+/// `ThemeTagThingsFocus`; edges follow their endpoint things.
 ///
 /// It is structured as a map from tag ID to a list of thing IDs, because
 /// specifying the `things` for each tag is more natural than specifying the
 /// tags associated with each thing.
+///
+/// Tags currently hold *things* only -- adding an edge group to a tag directly
+/// is not yet supported.
 ///
 /// # Example
 ///

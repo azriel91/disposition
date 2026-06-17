@@ -30,7 +30,10 @@ pub enum IdOrDefaults<'id> {
     /// Styles to apply to all excluded nodes.
     ///
     /// These properties control the visual appearance of nodes that are
-    /// excluded from the current focus/view in the diagram.
+    /// excluded from the current focus/view in the diagram. This only takes
+    /// effect in a focus context -- e.g. under `theme_tag_things_focus` when a
+    /// tag is focused, or when a thing is focused to show its dependencies --
+    /// styling the nodes that are *not* part of the focus.
     ///
     /// # Example
     ///
