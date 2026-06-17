@@ -1,16 +1,10 @@
+use disposition_model_common::edge::ARC_RADIUS;
 use disposition_svg_model::OrthoProtrusionParams;
 use kurbo::{BezPath, Point};
 
 use disposition_ir_model::node::NodeFace;
 
 use crate::taffy_to_svg_elements_mapper::edge_path_builder_pass_1::SpacerCoordinates;
-
-/// Arc radius in pixels for orthogonal path corners.
-///
-/// # Example values
-///
-/// `4.0` -- produces a small visible rounding at each 90-degree turn.
-const ARC_RADIUS: f32 = 4.0;
 
 /// Kappa constant for approximating a quarter-circle arc with a cubic
 /// bezier curve.

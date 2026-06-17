@@ -2,7 +2,10 @@ use disposition::{
     input_ir_model::IrDiagramAndIssues,
     input_model::InputDiagram,
     ir_model::IrDiagram,
-    model_common::{id, Id, ProcessRenderCollapse},
+    model_common::{
+        edge::{ARC_RADIUS, MAX_GAP_FRACTION, MIN_PROTRUSION_PX, TO_PROTRUSION_MIN_PX},
+        id, Id, ProcessRenderCollapse,
+    },
     svg_model::SvgElements,
     taffy_model::{taffy::TaffyError, DimensionAndLod},
 };
@@ -30,6 +33,8 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0024_NESTED_EDGES_RANK_DIR_LEFT_TO_RIGHT,
     INPUT_DIAGRAM_0025_NESTED_EDGES_RANK_DIR_RIGHT_TO_LEFT,
     INPUT_DIAGRAM_0026_NESTED_EDGES_RANK_DIR_BOTTOM_TO_TOP,
+    INPUT_DIAGRAM_0027_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_1,
+    INPUT_DIAGRAM_0028_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_2,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -833,11 +838,6 @@ fn test_nested_node_edge_protrusion_from_bob_clears_alice_outer() {
 /// bob_bottom`, we have `routing_y > alice_outer_bottom`.
 #[test]
 fn test_nested_node_edge_bob_charlie_routing_clears_alice_outer() {
-    // Arc radius used by the orthogonal path builder for rounded corners.
-    // This constant matches the `ARC_RADIUS` in
-    // `edge_path_builder_pass_2_ortho.rs`.
-    const ARC_RADIUS: f32 = 4.0;
-
     for svg_elements in
         build_svg_elements_for_diagram(INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION)
     {
@@ -879,6 +879,74 @@ fn test_nested_node_edge_bob_charlie_routing_clears_alice_outer() {
             alice_outer_bottom,
         );
     }
+}
+
+/// Two edges from nested nodes into other nested nodes, sharing the same rank
+/// gap, must receive **distinct** `from_protrusion` and `to_protrusion` so
+/// their lateral routing segments do not overlap.
+///
+/// Both edges clear the same divergent-ancestor sibling row, so before the
+/// row-grouped staggering their protrusions collapsed onto a single value
+/// (`from=23`, `to=73`). The fix in
+/// `OrthoProtrusionCalculator::protrusions_adjust_for_divergent_siblings`
+/// staggers endpoints clearing the same row `MIN_PROTRUSION_PX` apart.
+fn assert_nested_node_edge_protrusions_distinct(
+    input_diagram: &str,
+    edge_a: (&str, &str),
+    edge_b: (&str, &str),
+) {
+    for svg_elements in build_svg_elements_for_diagram(input_diagram) {
+        let edge_find = |from: &str, to: &str| {
+            svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == from && e.to_node_id.as_str() == to)
+                .unwrap_or_else(|| panic!("Expected edge {from}->{to} in svg_edge_infos"))
+        };
+        let edge_info_a = edge_find(edge_a.0, edge_a.1);
+        let edge_info_b = edge_find(edge_b.0, edge_b.1);
+
+        let from_protrusion_a = edge_info_a.ortho_protrusion_params.from_protrusion;
+        let from_protrusion_b = edge_info_b.ortho_protrusion_params.from_protrusion;
+        let to_protrusion_a = edge_info_a.ortho_protrusion_params.to_protrusion;
+        let to_protrusion_b = edge_info_b.ortho_protrusion_params.to_protrusion;
+
+        assert!(
+            (from_protrusion_a - from_protrusion_b).abs() >= MIN_PROTRUSION_PX - 1e-3,
+            "from_protrusion for {edge_a:?} ({from_protrusion_a:.2}) and {edge_b:?} \
+             ({from_protrusion_b:.2}) must differ by >= {MIN_PROTRUSION_PX} so their lateral \
+             segments do not overlap",
+        );
+        assert!(
+            (to_protrusion_a - to_protrusion_b).abs() >= MIN_PROTRUSION_PX - 1e-3,
+            "to_protrusion for {edge_a:?} ({to_protrusion_a:.2}) and {edge_b:?} \
+             ({to_protrusion_b:.2}) must differ by >= {MIN_PROTRUSION_PX} so their lateral \
+             segments do not overlap",
+        );
+    }
+}
+
+/// `0027`: two edges into the **same** nested node (`t_c_00`) from nested nodes
+/// in different sibling containers must not share protrusion depths.
+#[test]
+fn test_nested_node_edge_protrusion_to_same_nested_node_distinct() {
+    assert_nested_node_edge_protrusions_distinct(
+        INPUT_DIAGRAM_0027_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_1,
+        ("t_b_00", "t_c_00"),
+        ("t_a_00", "t_c_00"),
+    );
+}
+
+/// `0028`: two edges into **different** nested nodes (`t_c_00` / `t_d_00`) at
+/// the same rank must not share protrusion depths -- both still clear the same
+/// divergent-ancestor sibling rows.
+#[test]
+fn test_nested_node_edge_protrusion_to_different_nested_nodes_distinct() {
+    assert_nested_node_edge_protrusions_distinct(
+        INPUT_DIAGRAM_0028_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_2,
+        ("t_b_00", "t_c_00"),
+        ("t_a_00", "t_d_00"),
+    );
 }
 
 // === Cycle edge routing tests === //
@@ -2923,13 +2991,12 @@ fn test_self_loop_path_endpoints_follow_rank_dir() {
 /// enough to contain the arrow head (8.0 px) plus 3.0 px of clearance before
 /// the Z/S bend, where the rank gap allows.
 ///
-/// The floor is capped at `MAX_GAP_FRACTION` (0.6) of the endpoint's rank
+/// The floor is capped at `MAX_GAP_FRACTION` (0.9) of the endpoint's rank
 /// gap, so it never overshoots tight gaps.
 #[test]
 fn test_to_protrusion_clears_arrow_head() {
     // ARROW_HEAD_LENGTH (8.0) + ARROW_HEAD_CLEARANCE_PX (3.0).
     const TO_PROTRUSION_MIN_PX: f32 = 11.0;
-    const MAX_GAP_FRACTION: f32 = 0.8;
     const EPSILON: f32 = 0.01;
 
     for svg_elements in
@@ -2998,9 +3065,6 @@ fn test_to_protrusion_clears_arrow_head() {
 /// all connecting to one rank-1 node (`t_delta`).
 #[test]
 fn test_fan_in_protrusions_do_not_cross_within_gap() {
-    const MAX_GAP_FRACTION: f32 = 0.8;
-    // ARROW_HEAD_LENGTH (8.0) + ARROW_HEAD_CLEARANCE_PX (3.0).
-    const TO_PROTRUSION_MIN_PX: f32 = 11.0;
     const EPSILON: f32 = 0.1;
 
     for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0022_EDGES_FAN_IN_3_TO_1) {

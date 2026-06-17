@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     edge::{EdgeFaceAssignments, EdgeGroups, EdgeId},
-    node::{NodeFace, NodeId},
+    node::{NodeFace, NodeId, NodeNestingInfos},
 };
 
 /// Map from node ID and face to the edge IDs that exit or enter that face.
@@ -70,11 +70,27 @@ impl<'id> NodeFaceEdges<'id> {
     /// The edge IDs are generated in the same order and with the same format
     /// as [`EdgeFaceAssignments`] (i.e. `"{edge_group_id}__{edge_index}"`),
     /// so lookups always find the correct assignment.
+    ///
+    /// Within each face the edge IDs are then ordered by the **other**
+    /// endpoint's structural position (its [`NodeNestingInfo::nesting_path`],
+    /// whose leading component is the divergent sibling index). Ordering each
+    /// face's edges by where the opposite endpoint sits -- rather than by edge
+    /// declaration order -- lays out the edge label slots (and therefore the
+    /// edge contact points) so that paths to/from spatially adjacent nodes get
+    /// adjacent slots, minimising edge crossings.
+    ///
+    /// [`NodeNestingInfo::nesting_path`]:
+    /// crate::node::NodeNestingInfo::nesting_path
     pub fn from_assignments(
         edge_face_assignments: &EdgeFaceAssignments<'id>,
         edge_groups: &EdgeGroups<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
     ) -> Self {
         let mut inner: Map<NodeId<'id>, Map<NodeFace, Vec<EdgeId<'id>>>> = Map::new();
+
+        // Endpoints per edge ID, so each face's edge list can be ordered by the
+        // *other* endpoint relative to the face-owning node.
+        let mut edge_endpoints: Map<EdgeId<'id>, EdgeEndpoints<'id>> = Map::new();
 
         for (edge_group_id, edge_group) in edge_groups.iter() {
             for (edge_index, edge) in edge_group.iter().enumerate() {
@@ -83,6 +99,14 @@ impl<'id> NodeFaceEdges<'id> {
                 let Some(assignment) = edge_face_assignments.get(&edge_id) else {
                     continue;
                 };
+
+                edge_endpoints.insert(
+                    edge_id.clone(),
+                    EdgeEndpoints {
+                        from: edge.from.clone(),
+                        to: edge.to.clone(),
+                    },
+                );
 
                 Self::face_edge_append(
                     &mut inner,
@@ -94,7 +118,47 @@ impl<'id> NodeFaceEdges<'id> {
             }
         }
 
+        Self::face_edges_order_by_other_endpoint(&mut inner, &edge_endpoints, node_nesting_infos);
+
         NodeFaceEdges(inner)
+    }
+
+    /// Orders every face's edge list by the structural position of each edge's
+    /// *other* endpoint (the endpoint that is not the face-owning node).
+    ///
+    /// The sort key is the other endpoint's
+    /// [`nesting_path`](crate::node::NodeNestingInfo::nesting_path), compared
+    /// lexicographically, with the edge ID as a deterministic tiebreaker. A
+    /// missing nesting path sorts as empty (before all others).
+    fn face_edges_order_by_other_endpoint(
+        inner: &mut Map<NodeId<'id>, Map<NodeFace, Vec<EdgeId<'id>>>>,
+        edge_endpoints: &Map<EdgeId<'id>, EdgeEndpoints<'id>>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) {
+        const EMPTY_NESTING_PATH: &[usize] = &[];
+
+        for (node_id, face_map) in inner.iter_mut() {
+            for edge_ids in face_map.values_mut() {
+                if edge_ids.len() <= 1 {
+                    continue;
+                }
+
+                let other_nesting_path = |edge_id: &EdgeId<'id>| -> &[usize] {
+                    edge_endpoints
+                        .get(edge_id)
+                        .map(|edge_endpoints| edge_endpoints.other_than(node_id))
+                        .and_then(|other_node_id| node_nesting_infos.get(other_node_id))
+                        .map(|node_nesting_info| node_nesting_info.nesting_path.as_slice())
+                        .unwrap_or(EMPTY_NESTING_PATH)
+                };
+
+                edge_ids.sort_by(|edge_id_a, edge_id_b| {
+                    other_nesting_path(edge_id_a)
+                        .cmp(other_nesting_path(edge_id_b))
+                        .then_with(|| edge_id_a.as_str().cmp(edge_id_b.as_str()))
+                });
+            }
+        }
     }
 
     /// Converts this `NodeFaceEdges` into one with a `'static` lifetime.
@@ -144,5 +208,30 @@ impl<'id> NodeFaceEdges<'id> {
             .entry(face)
             .or_default()
             .push(edge_id);
+    }
+}
+
+/// The two endpoint node IDs of an edge.
+///
+/// Used by [`NodeFaceEdges::from_assignments`] to look up the endpoint
+/// *opposite* a face-owning node when ordering that face's edge list.
+struct EdgeEndpoints<'id> {
+    /// The edge's `from` (source) node ID.
+    from: NodeId<'id>,
+    /// The edge's `to` (target) node ID.
+    to: NodeId<'id>,
+}
+
+impl<'id> EdgeEndpoints<'id> {
+    /// Returns the endpoint that is not `node_id`.
+    ///
+    /// For a self-loop (`from == to == node_id`) the `from` endpoint is
+    /// returned, which equals `node_id`.
+    fn other_than(&self, node_id: &NodeId<'id>) -> &NodeId<'id> {
+        if &self.from == node_id {
+            &self.to
+        } else {
+            &self.from
+        }
     }
 }

@@ -2,7 +2,11 @@ use disposition_ir_model::{
     entity::EntityTypes,
     node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
 };
-use disposition_model_common::{entity::EntityType, Map, RankDir};
+use disposition_model_common::{
+    edge::{MAX_GAP_FRACTION, MIN_PROTRUSION_PX, TO_PROTRUSION_MIN_PX},
+    entity::EntityType,
+    Map, RankDir,
+};
 use disposition_svg_model::{OrthoProtrusionParams, SpacerProtrusionParams, SvgNodeInfo};
 use disposition_taffy_model::{taffy::TaffyTree, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx};
 
@@ -11,7 +15,6 @@ use disposition_ir_model::node::NodeFace;
 use super::svg_edge_infos_builder::{EdgeGroupPass1, EdgePass1Info};
 
 use crate::taffy_to_svg_elements_mapper::{
-    arrow_head_builder::ARROW_HEAD_LENGTH,
     edge_model::{NodeIdAndFace, NodeIdAndFaceToContactPointOffsets},
     edge_path_builder_pass_1::SpacerCoordinates,
     SpacerCoordinatesResolver, SvgNodeInfoByNodeId,
@@ -20,47 +23,6 @@ use crate::taffy_to_svg_elements_mapper::{
 use self::ortho_protrusion_geometry::OrthoProtrusionGeometry;
 
 mod ortho_protrusion_geometry;
-
-/// Maximum fraction of the rank gap available for protrusions.
-///
-/// Within a rank gap, the from-side and to-side protrusion fans share this
-/// single band (split proportionally to each side's endpoint count), so the
-/// deepest from-tip plus the deepest to-tip never exceed `MAX_GAP_FRACTION *
-/// gap`. The remaining `(1 - MAX_GAP_FRACTION) * gap` is left as the central
-/// routing channel.
-///
-/// # Example values
-///
-/// `0.8` -- from and to protrusions together use up to 80% of the gap.
-const MAX_GAP_FRACTION: f32 = 0.8;
-
-/// Minimum protrusion length in pixels.
-///
-/// When an edge is not perfectly straight (i.e. the from and to
-/// contact points differ on the cross-axis), the protrusion is at
-/// least this many pixels so the perpendicular stub is visible.
-const MIN_PROTRUSION_PX: f32 = 3.0;
-
-/// Clearance in pixels between the orthogonal Z/S bend and the base of
-/// the arrow head at the to-endpoint.
-///
-/// # Example values
-///
-/// `3.0` -- the bend starts at least 3 px before the arrow head base.
-const ARROW_HEAD_CLEARANCE_PX: f32 = 3.0;
-
-/// Minimum protrusion length in pixels for to-endpoints.
-///
-/// Every edge has an arrow head drawn at its to-endpoint, occupying
-/// `ARROW_HEAD_LENGTH` (8.0 px) of the path's final straight segment.
-/// The to-protrusion is floored to this value (capped by the gap
-/// allowance) so the Z/S bend happens at least
-/// `ARROW_HEAD_CLEARANCE_PX` before the path enters the arrow head.
-///
-/// # Example values
-///
-/// `11.0` -- 8.0 px arrow head + 3.0 px clearance.
-const TO_PROTRUSION_MIN_PX: f32 = ARROW_HEAD_LENGTH as f32 + ARROW_HEAD_CLEARANCE_PX;
 
 /// Computes orthogonal protrusion parameters globally across all edge
 /// groups.
@@ -201,12 +163,72 @@ struct RankGapKey {
 /// thing-node edges only consider other thing nodes when computing rank
 /// gap boundaries and sibling extents; tag-node edges only consider tag nodes;
 /// process-node edges only consider process and process step nodes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum NodeCategory {
     Thing,
     Tag,
     Process,
     Other,
+}
+
+/// Identifies a single divergent-ancestor sibling row that an endpoint's
+/// protrusion must clear.
+///
+/// Endpoints that share the same row key clear the **same** set of sibling
+/// nodes in the same direction, so their divergent-sibling clearance is
+/// (near-)identical. Without staggering they collapse to the same protrusion
+/// depth and their lateral routing segments overlap. Grouping by this key lets
+/// `protrusions_adjust_for_divergent_siblings` assign each a distinct depth.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct DivergentSiblingRowKey<'id> {
+    /// Parent container of the divergent ancestor (`None` for the root level).
+    parent_container: Option<NodeId<'id>>,
+    /// Rank of the divergent ancestor within `parent_container`.
+    div_ancestor_rank: NodeRank,
+    /// Face the endpoint protrudes from (separates from-side and to-side rows).
+    face: NodeFace,
+    /// Category of the endpoint node (thing / tag / process / other).
+    category: NodeCategory,
+}
+
+/// The divergent-sibling clearance for one endpoint, plus the sibling row it
+/// clears.
+///
+/// Returned by
+/// [`OrthoProtrusionCalculator::min_protrusion_divergent_sibling_extent`].
+struct DivergentSiblingExtent<'id> {
+    /// Minimum protrusion (from the node's inner face) needed to clear the
+    /// divergent-ancestor sibling row.
+    min_protrusion: f32,
+    /// The sibling row this endpoint clears (used to group endpoints that must
+    /// be staggered to distinct depths).
+    row_key: DivergentSiblingRowKey<'id>,
+}
+
+/// Which endpoint of an edge a divergent-sibling adjustment applies to.
+#[derive(Clone, Copy, Debug)]
+enum AdjustEndpoint {
+    From,
+    To,
+}
+
+/// A single endpoint queued for divergent-sibling staggering.
+///
+/// Collected per [`DivergentSiblingRowKey`] in
+/// `protrusions_adjust_for_divergent_siblings` so endpoints clearing the same
+/// row receive distinct, staggered protrusion depths.
+struct EndpointAdjustment {
+    /// Index into `all_pass1_groups`.
+    group_idx: usize,
+    /// Index into the group's `pass1_infos`.
+    edge_idx: usize,
+    /// Whether the `from` or `to` protrusion field is written.
+    endpoint: AdjustEndpoint,
+    /// Cross-axis coordinate of the endpoint's node, used to order the stagger
+    /// (deepest-first, descending -- matching `protrusions_assign`).
+    cross_axis_coord: f32,
+    /// The endpoint's own divergent-sibling clearance.
+    min_protrusion: f32,
 }
 
 impl OrthoProtrusionCalculator {
@@ -744,6 +766,12 @@ impl OrthoProtrusionCalculator {
         //
         // The "Divergent ancestor" of a node is the ancestor that is a direct
         // child of the LCA of the from and to nodes for this edge.
+        //
+        // Endpoints clearing the SAME divergent-ancestor sibling row are
+        // staggered to distinct depths so two nested-to-nested edges sharing a
+        // rank gap do not collapse to the same protrusion (which would overlap
+        // their lateral routing segments). See
+        // `protrusions_adjust_for_divergent_siblings`.
         //
         // Note: the TO endpoint adjustment is skipped when the edge has
         // cross-container spacers. In that case the spacer already handles
@@ -1710,12 +1738,42 @@ impl OrthoProtrusionCalculator {
     }
 
     /// Adjusts protrusion values to clear sibling nodes of the Divergent
-    /// ancestor of each edge endpoint.
+    /// ancestor of each edge endpoint, staggering endpoints that clear the
+    /// **same** sibling row so they do not collapse to one depth.
     ///
     /// For each edge, the from-endpoint's protrusion must be large enough
     /// that the routing segment is in the gap between the tallest sibling
     /// node (at the same rank as the Divergent ancestor) and the to-node.
     /// Symmetric logic applies for the to-endpoint.
+    ///
+    /// # Why staggering is needed
+    ///
+    /// Two edges between nested nodes can share the same inter-rank gap and
+    /// both clear the **same** divergent-ancestor sibling row (e.g. two edges
+    /// from different sibling containers into a third nested container). The
+    /// per-endpoint clearance is then (near-)identical for both, so a naive
+    /// per-edge `max` collapses the distinct band depths assigned in Step 3
+    /// onto one value -- their lateral routing segments then overlap.
+    ///
+    /// To avoid this, endpoints are grouped by [`DivergentSiblingRowKey`] (the
+    /// sibling row they clear). Within each group the protrusions are staggered
+    /// `MIN_PROTRUSION_PX` apart, deepest-first by cross-axis coordinate
+    /// (matching the spatial ordering in `protrusions_assign`). A group of size
+    /// one reduces to the previous `max(protrusion, min_clearance)` behaviour,
+    /// so single-edge layouts are unchanged.
+    ///
+    /// Cycle edges are excluded from the grouping and keep the independent
+    /// `max` path; they are equalised / stacked separately in Step 6
+    /// (`protrusions_assign_cycle_edges`).
+    ///
+    /// # Future alternative (not implemented)
+    ///
+    /// Staggering every endpoint that clears a row is conservative: edges whose
+    /// lateral (cross-axis) spans do not actually intersect could safely share
+    /// a depth. A tighter packing would compute each edge's lateral span
+    /// and only force differing depths for edges whose spans overlap
+    /// (interval-graph coloring), at the cost of materially more complexity
+    /// and harder cross-rank-direction determinism.
     fn protrusions_adjust_for_divergent_siblings<'id>(
         all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
         all_spacer_coordinates: &[Vec<Vec<SpacerCoordinates>>],
@@ -1725,6 +1783,10 @@ impl OrthoProtrusionCalculator {
         entity_types: &EntityTypes<'id>,
         result: &mut [Vec<OrthoProtrusionParams>],
     ) {
+        // Non-cycle endpoint adjustments, grouped by the sibling row they clear.
+        // Endpoints in the same group are staggered to distinct depths.
+        let mut row_groups: Map<DivergentSiblingRowKey<'id>, Vec<EndpointAdjustment>> = Map::new();
+
         for (group_idx, group) in all_pass1_groups.iter().enumerate() {
             for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
                 // Same-rank non-cycle edges that share the same direct parent
@@ -1758,8 +1820,8 @@ impl OrthoProtrusionCalculator {
                     }
                 }
                 // === From endpoint === //
-                if let Some(from_face) = pass1_info.from_face {
-                    let min_from = Self::min_protrusion_divergent_sibling_extent(
+                if let Some(from_face) = pass1_info.from_face
+                    && let Some(extent) = Self::min_protrusion_divergent_sibling_extent(
                         &pass1_info.edge.from,
                         &pass1_info.edge.to,
                         from_face,
@@ -1767,11 +1829,18 @@ impl OrthoProtrusionCalculator {
                         node_ranks_nested,
                         svg_node_info_map,
                         entity_types,
+                    )
+                {
+                    Self::divergent_sibling_adjustment_record(
+                        pass1_info,
+                        group_idx,
+                        edge_idx,
+                        AdjustEndpoint::From,
+                        from_face,
+                        extent,
+                        &mut row_groups,
+                        result,
                     );
-                    if min_from > 0.0 {
-                        let params = &mut result[group_idx][edge_idx];
-                        params.from_protrusion = params.from_protrusion.max(min_from);
-                    }
                 }
 
                 // === To endpoint === //
@@ -1790,8 +1859,9 @@ impl OrthoProtrusionCalculator {
                     .map(|spacers| !spacers.is_empty())
                     .unwrap_or(false);
 
-                if !edge_has_spacers && let Some(to_face) = pass1_info.to_face {
-                    let min_to = Self::min_protrusion_divergent_sibling_extent(
+                if !edge_has_spacers
+                    && let Some(to_face) = pass1_info.to_face
+                    && let Some(extent) = Self::min_protrusion_divergent_sibling_extent(
                         &pass1_info.edge.to,
                         &pass1_info.edge.from,
                         to_face,
@@ -1799,10 +1869,121 @@ impl OrthoProtrusionCalculator {
                         node_ranks_nested,
                         svg_node_info_map,
                         entity_types,
+                    )
+                {
+                    Self::divergent_sibling_adjustment_record(
+                        pass1_info,
+                        group_idx,
+                        edge_idx,
+                        AdjustEndpoint::To,
+                        to_face,
+                        extent,
+                        &mut row_groups,
+                        result,
                     );
-                    if min_to > 0.0 {
-                        let params = &mut result[group_idx][edge_idx];
-                        params.to_protrusion = params.to_protrusion.max(min_to);
+                }
+            }
+        }
+
+        // === Apply staggered depths per sibling row === //
+        Self::protrusions_adjust_stagger_row_groups(row_groups, result);
+    }
+
+    /// Records one endpoint's divergent-sibling adjustment.
+    ///
+    /// Cycle edges keep the independent `max(protrusion, min_clearance)` path
+    /// (they are equalised in Step 6); non-cycle endpoints are queued into
+    /// `row_groups` for staggering. Endpoints whose clearance is `0.0` already
+    /// extend past their sibling row and need no adjustment.
+    #[allow(clippy::too_many_arguments)]
+    fn divergent_sibling_adjustment_record<'id>(
+        pass1_info: &EdgePass1Info<'_, 'id>,
+        group_idx: usize,
+        edge_idx: usize,
+        endpoint: AdjustEndpoint,
+        face: NodeFace,
+        extent: DivergentSiblingExtent<'id>,
+        row_groups: &mut Map<DivergentSiblingRowKey<'id>, Vec<EndpointAdjustment>>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        if extent.min_protrusion <= 0.0 {
+            return;
+        }
+
+        if pass1_info.is_cycle_edge {
+            // Cycle edges keep the independent max path; they are equalised
+            // in Step 6 (`protrusions_assign_cycle_edges`).
+            let params = &mut result[group_idx][edge_idx];
+            match endpoint {
+                AdjustEndpoint::From => {
+                    params.from_protrusion = params.from_protrusion.max(extent.min_protrusion);
+                }
+                AdjustEndpoint::To => {
+                    params.to_protrusion = params.to_protrusion.max(extent.min_protrusion);
+                }
+            }
+            return;
+        }
+
+        let (node_x, node_y) = match endpoint {
+            AdjustEndpoint::From => (pass1_info.from_node_x, pass1_info.from_node_y),
+            AdjustEndpoint::To => (pass1_info.to_node_x, pass1_info.to_node_y),
+        };
+        let cross_axis_coord = OrthoProtrusionGeometry::cross_axis_coord(node_x, node_y, face);
+
+        row_groups
+            .entry(extent.row_key)
+            .or_default()
+            .push(EndpointAdjustment {
+                group_idx,
+                edge_idx,
+                endpoint,
+                cross_axis_coord,
+                min_protrusion: extent.min_protrusion,
+            });
+    }
+
+    /// Staggers the queued endpoint adjustments so endpoints clearing the same
+    /// sibling row receive distinct protrusion depths.
+    ///
+    /// Within each row group the base depth clears the tallest sibling
+    /// (`max` of the group's clearances); endpoints are then ordered
+    /// deepest-first by cross-axis coordinate (descending, matching the
+    /// `side_sort` tie-break in `protrusions_assign`) and spaced
+    /// `MIN_PROTRUSION_PX` apart. The result is `max`-ed onto the existing
+    /// protrusion so a larger Step 3 / cycle value is never reduced.
+    fn protrusions_adjust_stagger_row_groups<'id>(
+        mut row_groups: Map<DivergentSiblingRowKey<'id>, Vec<EndpointAdjustment>>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        for endpoints in row_groups.values_mut() {
+            // Base depth clears the tallest sibling in the row, so every
+            // endpoint runs parallel beyond it.
+            let base = endpoints
+                .iter()
+                .map(|endpoint| endpoint.min_protrusion)
+                .fold(0.0_f32, f32::max);
+
+            // Deepest-first by cross-axis descending; break ties by edge
+            // identity for determinism.
+            endpoints.sort_by(|a, b| {
+                b.cross_axis_coord
+                    .partial_cmp(&a.cross_axis_coord)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then(a.group_idx.cmp(&b.group_idx))
+                    .then(a.edge_idx.cmp(&b.edge_idx))
+            });
+
+            let n = endpoints.len();
+            for (i, endpoint) in endpoints.iter().enumerate() {
+                let staggered = base + (n - 1 - i) as f32 * MIN_PROTRUSION_PX;
+                let params = &mut result[endpoint.group_idx][endpoint.edge_idx];
+                match endpoint.endpoint {
+                    AdjustEndpoint::From => {
+                        params.from_protrusion = params.from_protrusion.max(staggered);
+                    }
+                    AdjustEndpoint::To => {
+                        params.to_protrusion = params.to_protrusion.max(staggered);
                     }
                 }
             }
@@ -1828,17 +2009,23 @@ impl OrthoProtrusionCalculator {
 
     /// Computes the minimum protrusion needed for `node_id`'s endpoint to
     /// clear all sibling nodes of the node's Divergent ancestor at the LCA
-    /// level.
+    /// level, along with the [`DivergentSiblingRowKey`] identifying that
+    /// sibling row.
     ///
     /// The Divergent ancestor is the ancestor of `node_id` that is a direct
     /// child of the LCA of (`node_id`, `other_node_id`).
     ///
+    /// Returns `None` when no adjustment applies (e.g. the node has no
+    /// divergent ancestor, its rank or layout is unavailable, or it has no
+    /// same-rank siblings). The returned `min_protrusion` may still be `0.0`
+    /// when the endpoint already extends past its sibling row.
+    ///
     /// # Parameters
     ///
-    /// * `node_id`: the endpoint node whose protrusion is being computed.
-    /// * `other_node_id`: the opposite endpoint of the edge (used to find the
+    /// * `node_id_from`: the endpoint node whose protrusion is being computed.
+    /// * `node_id_to`: the opposite endpoint of the edge (used to find the
     ///   LCA).
-    /// * `face`: the face at which `node_id` protrudes.
+    /// * `face`: the face at which `node_id_from` protrudes.
     fn min_protrusion_divergent_sibling_extent<'id>(
         node_id_from: &NodeId<'id>,
         node_id_to: &NodeId<'id>,
@@ -1847,16 +2034,13 @@ impl OrthoProtrusionCalculator {
         node_ranks_nested: &NodeRanksNested<'id>,
         svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         entity_types: &EntityTypes<'id>,
-    ) -> f32 {
+    ) -> Option<DivergentSiblingExtent<'id>> {
         // 1. Compute LCA depth.
         let lca_depth = Self::lca_depth(node_id_from, node_id_to, node_nesting_infos);
 
         // 2. Find divergent ancestor of node_id.
-        let Some(divergent_ancestor_id_from) =
-            Self::divergent_ancestor_id(node_id_from, lca_depth, node_nesting_infos)
-        else {
-            return 0.0;
-        };
+        let divergent_ancestor_id_from =
+            Self::divergent_ancestor_id(node_id_from, lca_depth, node_nesting_infos)?;
 
         // 3. Find parent container of divergent ancestor (None = root level).
         let divergent_ancestor_parent_id_from = node_nesting_infos
@@ -1870,13 +2054,8 @@ impl OrthoProtrusionCalculator {
             });
 
         // 4. Get rank of divergent ancestor in its parent container.
-        let Some(node_ranks) = node_ranks_nested.ranks_for(divergent_ancestor_parent_id_from)
-        else {
-            return 0.0;
-        };
-        let Some(&div_ancestor_rank) = node_ranks.get(divergent_ancestor_id_from) else {
-            return 0.0;
-        };
+        let node_ranks = node_ranks_nested.ranks_for(divergent_ancestor_parent_id_from)?;
+        let &div_ancestor_rank = node_ranks.get(divergent_ancestor_id_from)?;
 
         // 5. Collect same-rank siblings of the same node category (including the
         //    divergent ancestor). Nodes from other categories (e.g. process nodes) are
@@ -1955,9 +2134,7 @@ impl OrthoProtrusionCalculator {
 
         // 6. Get face coordinate of node_id (the coordinate of the face in the
         //    rank/protrusion direction).
-        let Some(&node_info_from) = svg_node_info_map.get(node_id_from) else {
-            return 0.0;
-        };
+        let &node_info_from = svg_node_info_map.get(node_id_from)?;
         // The protrusion length is applied from the node's inner (geometric)
         // face, not its envelope face, so measure `node_face_coord` from node
         // bounds. The sibling extents below stay on envelope bounds (and the
@@ -1967,11 +2144,8 @@ impl OrthoProtrusionCalculator {
         let node_face_coord = Self::face_coord_for_node(node_info_from, face);
 
         // 7. Find extreme sibling coordinate in the protrusion direction.
-        let Some(sibling_extreme) =
-            Self::same_rank_sibling_extreme(&same_rank_siblings, face, svg_node_info_map)
-        else {
-            return 0.0;
-        };
+        let sibling_extreme =
+            Self::same_rank_sibling_extreme(&same_rank_siblings, face, svg_node_info_map)?;
 
         // 8. Compute minimum protrusion:
         //
@@ -1985,7 +2159,20 @@ impl OrthoProtrusionCalculator {
             NodeFace::Bottom | NodeFace::Right => 1.0,
             NodeFace::Top | NodeFace::Left => -1.0,
         };
-        (face_sign * (sibling_extreme - node_face_coord)).max(0.0)
+        let min_protrusion = (face_sign * (sibling_extreme - node_face_coord)).max(0.0);
+
+        // The row key groups endpoints that clear this same sibling row so they
+        // can be staggered to distinct depths (see
+        // `protrusions_adjust_for_divergent_siblings`).
+        Some(DivergentSiblingExtent {
+            min_protrusion,
+            row_key: DivergentSiblingRowKey {
+                parent_container: divergent_ancestor_parent_id_from.cloned(),
+                div_ancestor_rank,
+                face,
+                category: node_category,
+            },
+        })
     }
 
     /// Returns the coordinate of a node's envelope face along the protrusion

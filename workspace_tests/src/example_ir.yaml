@@ -2165,12 +2165,12 @@ node_face_edges:
       - edge_ix_t_localhost__t_github_user_repo__pull__1
       - edge_ix_t_localhost__t_github_user_repo__push__0
     bottom:
+      - edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0
+      - edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0
       - edge_dep_t_github_user_repo__t_github_user_repo__within__0
       - edge_dep_t_github_user_repo__t_github_user_repo__within__1
-      - edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0
       - edge_ix_t_github_user_repo__t_github_user_repo__within__0
       - edge_ix_t_github_user_repo__t_github_user_repo__within__1
-      - edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0
   t_aws_ecr_repo:
     top:
       - edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0
