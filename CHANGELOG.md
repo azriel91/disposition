@@ -25,6 +25,7 @@
 * Update `disposition_json_schema` to work. ([#50][#50])
 * Update docs and JSON schema to explain how styling is applied to nodes and edges. ([#50][#50])
 * Stagger orthogonal edge protrusions for nested-to-nested edges that clear the same divergent-ancestor sibling row, so their lateral routing segments no longer overlap. ([#51][#51])
+* Surface `MAX_GAP_FRACTION`, `MIN_PROTRUSION_PX`, `TO_PROTRUSION_MIN_PX`, `ARC_RADIUS` constants for orthogonal edge geometry in `disposition_model_common::edge`. ([#51][#51])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43

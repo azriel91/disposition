@@ -2,7 +2,10 @@ use disposition::{
     input_ir_model::IrDiagramAndIssues,
     input_model::InputDiagram,
     ir_model::IrDiagram,
-    model_common::{id, Id, ProcessRenderCollapse},
+    model_common::{
+        edge::{ARC_RADIUS, MAX_GAP_FRACTION, MIN_PROTRUSION_PX, TO_PROTRUSION_MIN_PX},
+        id, Id, ProcessRenderCollapse,
+    },
     svg_model::SvgElements,
     taffy_model::{taffy::TaffyError, DimensionAndLod},
 };
@@ -835,11 +838,6 @@ fn test_nested_node_edge_protrusion_from_bob_clears_alice_outer() {
 /// bob_bottom`, we have `routing_y > alice_outer_bottom`.
 #[test]
 fn test_nested_node_edge_bob_charlie_routing_clears_alice_outer() {
-    // Arc radius used by the orthogonal path builder for rounded corners.
-    // This constant matches the `ARC_RADIUS` in
-    // `edge_path_builder_pass_2_ortho.rs`.
-    const ARC_RADIUS: f32 = 4.0;
-
     for svg_elements in
         build_svg_elements_for_diagram(INPUT_DIAGRAM_0001_NESTED_NODE_EDGE_PROTRUSION)
     {
@@ -897,10 +895,6 @@ fn assert_nested_node_edge_protrusions_distinct(
     edge_a: (&str, &str),
     edge_b: (&str, &str),
 ) {
-    // Minimum stagger between two protrusions clearing the same sibling row.
-    // Matches `MIN_PROTRUSION_PX` in `ortho_protrusion_calculator.rs`.
-    const MIN_PROTRUSION_PX: f32 = 3.0;
-
     for svg_elements in build_svg_elements_for_diagram(input_diagram) {
         let edge_find = |from: &str, to: &str| {
             svg_elements
@@ -3072,9 +3066,6 @@ fn test_to_protrusion_clears_arrow_head() {
 /// all connecting to one rank-1 node (`t_delta`).
 #[test]
 fn test_fan_in_protrusions_do_not_cross_within_gap() {
-    const MAX_GAP_FRACTION: f32 = 0.8;
-    // ARROW_HEAD_LENGTH (8.0) + ARROW_HEAD_CLEARANCE_PX (3.0).
-    const TO_PROTRUSION_MIN_PX: f32 = 11.0;
     const EPSILON: f32 = 0.1;
 
     for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0022_EDGES_FAN_IN_3_TO_1) {

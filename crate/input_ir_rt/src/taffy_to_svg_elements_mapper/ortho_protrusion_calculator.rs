@@ -2,7 +2,11 @@ use disposition_ir_model::{
     entity::EntityTypes,
     node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
 };
-use disposition_model_common::{entity::EntityType, Map, RankDir};
+use disposition_model_common::{
+    edge::{MAX_GAP_FRACTION, MIN_PROTRUSION_PX, TO_PROTRUSION_MIN_PX},
+    entity::EntityType,
+    Map, RankDir,
+};
 use disposition_svg_model::{OrthoProtrusionParams, SpacerProtrusionParams, SvgNodeInfo};
 use disposition_taffy_model::{taffy::TaffyTree, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx};
 
@@ -11,7 +15,6 @@ use disposition_ir_model::node::NodeFace;
 use super::svg_edge_infos_builder::{EdgeGroupPass1, EdgePass1Info};
 
 use crate::taffy_to_svg_elements_mapper::{
-    arrow_head_builder::ARROW_HEAD_LENGTH,
     edge_model::{NodeIdAndFace, NodeIdAndFaceToContactPointOffsets},
     edge_path_builder_pass_1::SpacerCoordinates,
     SpacerCoordinatesResolver, SvgNodeInfoByNodeId,
@@ -20,47 +23,6 @@ use crate::taffy_to_svg_elements_mapper::{
 use self::ortho_protrusion_geometry::OrthoProtrusionGeometry;
 
 mod ortho_protrusion_geometry;
-
-/// Maximum fraction of the rank gap available for protrusions.
-///
-/// Within a rank gap, the from-side and to-side protrusion fans share this
-/// single band (split proportionally to each side's endpoint count), so the
-/// deepest from-tip plus the deepest to-tip never exceed `MAX_GAP_FRACTION *
-/// gap`. The remaining `(1 - MAX_GAP_FRACTION) * gap` is left as the central
-/// routing channel.
-///
-/// # Example values
-///
-/// `0.8` -- from and to protrusions together use up to 80% of the gap.
-const MAX_GAP_FRACTION: f32 = 0.8;
-
-/// Minimum protrusion length in pixels.
-///
-/// When an edge is not perfectly straight (i.e. the from and to
-/// contact points differ on the cross-axis), the protrusion is at
-/// least this many pixels so the perpendicular stub is visible.
-const MIN_PROTRUSION_PX: f32 = 3.0;
-
-/// Clearance in pixels between the orthogonal Z/S bend and the base of
-/// the arrow head at the to-endpoint.
-///
-/// # Example values
-///
-/// `3.0` -- the bend starts at least 3 px before the arrow head base.
-const ARROW_HEAD_CLEARANCE_PX: f32 = 3.0;
-
-/// Minimum protrusion length in pixels for to-endpoints.
-///
-/// Every edge has an arrow head drawn at its to-endpoint, occupying
-/// `ARROW_HEAD_LENGTH` (8.0 px) of the path's final straight segment.
-/// The to-protrusion is floored to this value (capped by the gap
-/// allowance) so the Z/S bend happens at least
-/// `ARROW_HEAD_CLEARANCE_PX` before the path enters the arrow head.
-///
-/// # Example values
-///
-/// `11.0` -- 8.0 px arrow head + 3.0 px clearance.
-const TO_PROTRUSION_MIN_PX: f32 = ARROW_HEAD_LENGTH as f32 + ARROW_HEAD_CLEARANCE_PX;
 
 /// Computes orthogonal protrusion parameters globally across all edge
 /// groups.
@@ -232,7 +194,8 @@ struct DivergentSiblingRowKey<'id> {
 /// The divergent-sibling clearance for one endpoint, plus the sibling row it
 /// clears.
 ///
-/// Returned by [`OrthoProtrusionCalculator::min_protrusion_divergent_sibling_extent`].
+/// Returned by
+/// [`OrthoProtrusionCalculator::min_protrusion_divergent_sibling_extent`].
 struct DivergentSiblingExtent<'id> {
     /// Minimum protrusion (from the node's inner face) needed to clear the
     /// divergent-ancestor sibling row.
@@ -1806,11 +1769,11 @@ impl OrthoProtrusionCalculator {
     /// # Future alternative (not implemented)
     ///
     /// Staggering every endpoint that clears a row is conservative: edges whose
-    /// lateral (cross-axis) spans do not actually intersect could safely share a
-    /// depth. A tighter packing would compute each edge's lateral span and only
-    /// force differing depths for edges whose spans overlap (interval-graph
-    /// coloring), at the cost of materially more complexity and harder
-    /// cross-rank-direction determinism.
+    /// lateral (cross-axis) spans do not actually intersect could safely share
+    /// a depth. A tighter packing would compute each edge's lateral span
+    /// and only force differing depths for edges whose spans overlap
+    /// (interval-graph coloring), at the cost of materially more complexity
+    /// and harder cross-rank-direction determinism.
     fn protrusions_adjust_for_divergent_siblings<'id>(
         all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
         all_spacer_coordinates: &[Vec<Vec<SpacerCoordinates>>],
