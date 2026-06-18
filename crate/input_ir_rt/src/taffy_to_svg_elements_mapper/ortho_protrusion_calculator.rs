@@ -787,6 +787,22 @@ impl OrthoProtrusionCalculator {
             &mut result,
         );
 
+        // === Step 5.5: Separate approach channels of spacer-crossing edges
+        // === //
+        //
+        // Multiple cross-container spacer edges entering the same to-node share
+        // the narrow gap between the last spacer exit and the to-node face.
+        // Their `to` protrusions and last-spacer `exit` protrusions otherwise
+        // floor to (near-)identical values, so their vertical approach legs
+        // overlap. This step assigns each such edge a distinct leg coordinate
+        // within the gap and sets both protrusions to land on it.
+        Self::protrusions_separate_spacer_approach_channels(
+            all_pass1_groups,
+            &all_spacer_coordinates,
+            svg_node_info_map,
+            &mut result,
+        );
+
         // === Step 6: Finalise protrusion depths for cycle edges === //
         //
         // For cycle edges registered in the adjacent rank gap (Step 2), equalise
@@ -1853,6 +1869,10 @@ impl OrthoProtrusionCalculator {
                 // the protrusion all the way to the container's far
                 // boundary, causing the path to overshoot the spacer
                 // and produce a zigzag.
+                //
+                // Separation of multiple spacer-crossing edges that enter the
+                // same to-node is handled separately, in
+                // `protrusions_separate_spacer_approach_channels` (Step 5.5).
                 let edge_has_spacers = all_spacer_coordinates
                     .get(group_idx)
                     .and_then(|g| g.get(edge_idx))
@@ -1946,24 +1966,28 @@ impl OrthoProtrusionCalculator {
     /// Staggers the queued endpoint adjustments so endpoints clearing the same
     /// sibling row receive distinct protrusion depths.
     ///
-    /// Within each row group the base depth clears the tallest sibling
-    /// (`max` of the group's clearances); endpoints are then ordered
-    /// deepest-first by cross-axis coordinate (descending, matching the
-    /// `side_sort` tie-break in `protrusions_assign`) and spaced
-    /// `MIN_PROTRUSION_PX` apart. The result is `max`-ed onto the existing
-    /// protrusion so a larger Step 3 / cycle value is never reduced.
+    /// Each endpoint's base clearance is its **own** `min_protrusion`, which
+    /// already encodes reaching the shared sibling-row extreme coordinate from
+    /// that endpoint's own face. Endpoints are ordered deepest-first by
+    /// cross-axis coordinate (descending, matching the `side_sort` tie-break in
+    /// `protrusions_assign`) and spaced `MIN_PROTRUSION_PX` apart so endpoints
+    /// landing at the same extreme coordinate get distinct depths. The result
+    /// is `max`-ed onto the existing protrusion so a larger Step 3 / cycle
+    /// value is never reduced.
+    ///
+    /// The per-endpoint base (rather than a group-wide `max` of clearances) is
+    /// required because `min_protrusion` is a *relative* delta from each
+    /// endpoint's own face to a shared absolute target. Endpoints in one row
+    /// group can sit at different face coordinates (e.g. nodes nested in
+    /// containers of different widths), so `max`-ing the relative deltas and
+    /// applying the result to every endpoint over-shoots the endpoints that are
+    /// closer to the target -- driving their protrusion tips far past the
+    /// sibling row.
     fn protrusions_adjust_stagger_row_groups<'id>(
         mut row_groups: Map<DivergentSiblingRowKey<'id>, Vec<EndpointAdjustment>>,
         result: &mut [Vec<OrthoProtrusionParams>],
     ) {
         for endpoints in row_groups.values_mut() {
-            // Base depth clears the tallest sibling in the row, so every
-            // endpoint runs parallel beyond it.
-            let base = endpoints
-                .iter()
-                .map(|endpoint| endpoint.min_protrusion)
-                .fold(0.0_f32, f32::max);
-
             // Deepest-first by cross-axis descending; break ties by edge
             // identity for determinism.
             endpoints.sort_by(|a, b| {
@@ -1976,7 +2000,10 @@ impl OrthoProtrusionCalculator {
 
             let n = endpoints.len();
             for (i, endpoint) in endpoints.iter().enumerate() {
-                let staggered = base + (n - 1 - i) as f32 * MIN_PROTRUSION_PX;
+                // Each endpoint clears its own sibling-row extent, then is
+                // staggered apart so endpoints landing at the same extreme
+                // coordinate receive distinct depths.
+                let staggered = endpoint.min_protrusion + (n - 1 - i) as f32 * MIN_PROTRUSION_PX;
                 let params = &mut result[endpoint.group_idx][endpoint.edge_idx];
                 match endpoint.endpoint {
                     AdjustEndpoint::From => {
@@ -1985,6 +2012,151 @@ impl OrthoProtrusionCalculator {
                     AdjustEndpoint::To => {
                         params.to_protrusion = params.to_protrusion.max(staggered);
                     }
+                }
+            }
+        }
+    }
+
+    /// Separates the approach channels of cross-container spacer edges that
+    /// enter the same to-node.
+    ///
+    /// Multiple such edges share the narrow gap between their (co-located) last
+    /// spacer exit and the to-node face. Their `to` protrusions and
+    /// last-spacer `exit` protrusions otherwise floor to (near-)identical
+    /// depths -- because the overloaded rank gap leaves no band to separate
+    /// them -- so their vertical approach legs (which sit at the midpoint of
+    /// the spacer-exit tip and the to tip) coincide and overlap.
+    ///
+    /// This step assigns each edge in such a group a distinct leg coordinate
+    /// within the gap and sets both the `to` protrusion and the last spacer's
+    /// `exit` protrusion so their tips meet on that leg (a clean straight
+    /// vertical/horizontal approach with no Z/S wiggle). Edges are ordered by
+    /// cross-axis so the leg ordering does not cross the spacer rows. Groups of
+    /// a single edge (the common case) are left unchanged.
+    fn protrusions_separate_spacer_approach_channels<'id>(
+        all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+        all_spacer_coordinates: &[Vec<Vec<SpacerCoordinates>>],
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        /// One spacer edge sharing an approach channel into a to-node.
+        struct ChannelEntry {
+            group_idx: usize,
+            edge_idx: usize,
+            /// Index of the last spacer (whose `exit` protrusion is set).
+            spacer_index: usize,
+            /// Inner face coordinate of the to-node along the rank axis.
+            to_face_coord: f32,
+            /// Last spacer exit coordinate along the rank axis.
+            exit_coord: f32,
+            /// Minimum `to` protrusion (arrow-head clearance and own label).
+            to_min: f32,
+            /// Cross-axis coordinate (perpendicular to the rank axis) used to
+            /// order the leg assignment.
+            cross_axis_coord: f32,
+        }
+
+        /// Groups edges whose last spacer exit feeds the same to-node face at
+        /// the same exit coordinate.
+        #[derive(PartialEq, Eq, Hash)]
+        struct ChannelKey<'id> {
+            to_node_id: NodeId<'id>,
+            face: NodeFace,
+            /// Exit coordinate quantised to avoid float-key issues.
+            exit_coord_milli: i64,
+        }
+
+        let mut channels: Map<ChannelKey<'id>, Vec<ChannelEntry>> = Map::new();
+
+        for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
+                if pass1_info.is_cycle_edge {
+                    continue;
+                }
+                let Some(to_face) = pass1_info.to_face else {
+                    continue;
+                };
+                let spacers = &all_spacer_coordinates[group_idx][edge_idx];
+                let Some(last_spacer) = spacers.last() else {
+                    continue;
+                };
+                let Some(&to_info) = svg_node_info_map.get(&pass1_info.edge.to) else {
+                    continue;
+                };
+
+                let to_face_coord = Self::face_coord_for_node(to_info, to_face);
+                let (exit_coord, cross_axis_coord) = match to_face {
+                    NodeFace::Left | NodeFace::Right => (last_spacer.exit_x, last_spacer.entry_y),
+                    NodeFace::Top | NodeFace::Bottom => (last_spacer.exit_y, last_spacer.entry_x),
+                };
+                let to_min =
+                    TO_PROTRUSION_MIN_PX.max(Self::own_envelope_clearance(to_info, to_face));
+
+                channels
+                    .entry(ChannelKey {
+                        to_node_id: pass1_info.edge.to.clone(),
+                        face: to_face,
+                        exit_coord_milli: (exit_coord * 1000.0) as i64,
+                    })
+                    .or_default()
+                    .push(ChannelEntry {
+                        group_idx,
+                        edge_idx,
+                        spacer_index: spacers.len() - 1,
+                        to_face_coord,
+                        exit_coord,
+                        to_min,
+                        cross_axis_coord,
+                    });
+            }
+        }
+
+        for entries in channels.values_mut() {
+            let n = entries.len();
+            if n < 2 {
+                continue;
+            }
+
+            // The gap between the spacer exit and the to-node face along the
+            // rank axis. All entries share the same to-node and exit coordinate.
+            let available = (entries[0].to_face_coord - entries[0].exit_coord).abs();
+            let to_min = entries
+                .iter()
+                .map(|entry| entry.to_min)
+                .fold(0.0_f32, f32::max);
+            // The leg also stays at least `MIN_PROTRUSION_PX` past the spacer
+            // exit so the spacer's exit stub is never zero-length.
+            let span = available - to_min - MIN_PROTRUSION_PX;
+            if span <= 0.0 {
+                // Gap too tight to separate; leave the band-assigned values.
+                continue;
+            }
+
+            // Order by cross-axis ascending: the edge nearest one side of the
+            // channel turns up nearest the spacer exit, so its short spacer
+            // stub does not run across another edge's leg.
+            entries.sort_by(|a, b| {
+                a.cross_axis_coord
+                    .partial_cmp(&b.cross_axis_coord)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then(a.group_idx.cmp(&b.group_idx))
+                    .then(a.edge_idx.cmp(&b.edge_idx))
+            });
+
+            for (i, entry) in entries.iter().enumerate() {
+                // The smallest cross-axis edge (i = 0) turns up nearest the
+                // spacer exit (largest `to` protrusion); the largest turns up
+                // nearest the to-node (smallest `to` protrusion).
+                let frac = (n - 1 - i) as f32 / (n - 1) as f32;
+                let to_protrusion = to_min + span * frac;
+                let exit_protrusion = available - to_protrusion;
+
+                let params = &mut result[entry.group_idx][entry.edge_idx];
+                params.to_protrusion = to_protrusion;
+                if let Some(spacer_protrusion) =
+                    params.spacer_protrusions.get_mut(entry.spacer_index)
+                {
+                    spacer_protrusion.exit_protrusion = exit_protrusion;
                 }
             }
         }

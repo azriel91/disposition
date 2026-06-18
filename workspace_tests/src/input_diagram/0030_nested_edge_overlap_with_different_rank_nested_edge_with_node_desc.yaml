@@ -1,0 +1,35 @@
+things:
+  t_a_0:
+    t_a_00: {}
+  t_b_0:
+    t_b_00: {}
+  t_c_0:
+    t_c_00: {}
+    t_c_01:
+thing_descs:
+  t_a_00: |-
+    Really really long description to\
+    try and get edge `to` protrusion to be long.
+thing_dependencies:
+  edge_dep_a_00_c_00:
+    kind: sequence
+    things:
+      - t_a_00
+      - t_c_00
+  edge_dep_a_00_c_01:
+    kind: sequence
+    things:
+      - t_a_00
+      - t_c_01
+  edge_dep_c_00_c_01:
+    kind: sequence
+    things:
+      - t_c_00
+      - t_c_01
+  edge_dep_b_00_c_01:
+    kind: sequence
+    things:
+      - t_b_00
+      - t_c_01
+render_options:
+  rank_dir: left_to_right
