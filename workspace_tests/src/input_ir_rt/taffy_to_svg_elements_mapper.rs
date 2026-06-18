@@ -2003,8 +2003,8 @@ fn test_edge_to_nested_rank_0_node_protrusion_not_inflated_by_sibling_edge() {
 // === //
 
 /// Loads
-/// `0030_nested_edge_overlap_with_different_rank_nested_edge_with_node_desc.yaml`
-/// and returns one `SvgElements` per LOD.
+/// `0030_nested_edge_overlap_with_different_rank_nested_edge_with_node_desc.
+/// yaml` and returns one `SvgElements` per LOD.
 fn build_svg_elements_from_nested_edge_overlap_different_rank_with_node_desc(
 ) -> impl Iterator<Item = SvgElements<'static>> {
     build_svg_elements_for_diagram(
@@ -2027,7 +2027,8 @@ fn build_svg_elements_from_nested_edge_overlap_different_rank_with_node_desc(
 /// divergent ancestors `t_a_0` and `t_c_0`.
 #[test]
 fn test_edge_from_protrusion_not_inflated_by_wide_same_rank_sibling() {
-    for svg_elements in build_svg_elements_from_nested_edge_overlap_different_rank_with_node_desc() {
+    for svg_elements in build_svg_elements_from_nested_edge_overlap_different_rank_with_node_desc()
+    {
         let node_info = |node_id: &str| {
             svg_elements
                 .svg_node_infos
@@ -2059,6 +2060,56 @@ fn test_edge_from_protrusion_not_inflated_by_wide_same_rank_sibling() {
              inflated this edge's protrusion via row-group staggering. \
              path_d = {:?}",
             edge.path_d,
+        );
+    }
+}
+
+/// In `0030`, both `edge_dep_a_00_c_01` and `edge_dep_b_00_c_01` enter
+/// `t_c_01` (rank 1 inside `t_c_0`) via cross-container spacers that exit at
+/// the same coordinate (the spacers are stacked in the same rank container
+/// around `t_c_00`). Their `to` and last-spacer `exit` protrusions otherwise
+/// floor to (near-)identical values, so their vertical approach legs in the
+/// spacer-to-node gap overlap.
+///
+/// `protrusions_separate_spacer_approach_channels` assigns each edge a distinct
+/// leg coordinate in the gap, so the two approach legs must be clearly
+/// separated (and neither overshoots the gap between the spacer exit and the
+/// to-node).
+#[test]
+fn test_spacer_edges_into_same_node_have_separated_approach_legs() {
+    for svg_elements in build_svg_elements_from_nested_edge_overlap_different_rank_with_node_desc()
+    {
+        let edge = |from: &str, to: &str| {
+            svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == from && e.to_node_id.as_str() == to)
+                .unwrap_or_else(|| panic!("Expected edge from {from} to {to}"))
+        };
+        let edge_a = edge("t_a_00", "t_c_01");
+        let edge_b = edge("t_b_00", "t_c_01");
+
+        // Both edges route into t_c_01 via a cross-container spacer.
+        assert!(
+            !edge_a.ortho_protrusion_params.spacer_protrusions.is_empty()
+                && !edge_b.ortho_protrusion_params.spacer_protrusions.is_empty(),
+            "Expected both edges into t_c_01 to have cross-container spacers",
+        );
+
+        // rank_dir is left_to_right and both enter t_c_01's left face, so the
+        // approach leg sits at `t_c_01.x - to_protrusion`. Distinct
+        // to_protrusions => distinct legs. They must differ by a visible margin.
+        let to_protrusion_a = edge_a.ortho_protrusion_params.to_protrusion;
+        let to_protrusion_b = edge_b.ortho_protrusion_params.to_protrusion;
+        assert!(
+            (to_protrusion_a - to_protrusion_b).abs() >= 5.0,
+            "edges t_a_00 -> t_c_01 and t_b_00 -> t_c_01 should have separated \
+             approach legs, but their to_protrusions are too close \
+             (a = {to_protrusion_a:.2}, b = {to_protrusion_b:.2}). Their vertical \
+             approach legs in the t_c_00 -> t_c_01 gap overlap. \
+             path_a = {:?}, path_b = {:?}",
+            edge_a.path_d,
+            edge_b.path_d,
         );
     }
 }

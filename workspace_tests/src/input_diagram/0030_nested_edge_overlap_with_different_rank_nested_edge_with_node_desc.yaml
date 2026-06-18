@@ -8,7 +8,7 @@ things:
     t_c_01:
 thing_descs:
   t_a_00: |-
-    Reallly really long description to\
+    Really really long description to\
     try and get edge `to` protrusion to be long.
 thing_dependencies:
   edge_dep_a_00_c_00:

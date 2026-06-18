@@ -219,6 +219,12 @@ The algorithm in `OrthoProtrusionCalculator::calculate` has four steps:
 
     *Future alternative (not implemented):* staggering every endpoint that clears a row is conservative -- edges whose lateral (cross-axis) spans do not actually intersect could safely share a depth. A tighter packing would compute each edge's lateral span and only force differing depths for edges whose spans overlap (interval-graph coloring), at the cost of materially more complexity and harder cross-rank-direction determinism.
 
+27a. **Step 5.5: Separate approach channels of spacer-crossing edges (`fn protrusions_separate_spacer_approach_channels`).**
+
+    Step 5 deliberately skips the divergent-sibling adjustment for the TO endpoint of spacer-crossing edges (see above). But two such edges that enter the **same to-node** via spacers that **exit at the same coordinate** (e.g. `0030` -- two edges into a nested rank-1 node, whose cross-container spacers are stacked in the same rank container around the rank-0 sibling) share the narrow gap between the last spacer exit and the to-node face. The overloaded rank gap leaves no band to separate them in Step 3, so their `to_protrusion` and last-spacer `exit_protrusion` both floor to (near-)identical values. The vertical approach leg sits at the **midpoint** of the spacer-exit tip and the to tip, so the two legs coincide and overlap.
+
+    This step groups spacer-crossing edges by `(to-node id, to-face, last-spacer exit coordinate)` and, for each group of two or more, assigns each edge a **distinct leg coordinate** in the `[spacer exit, to-node face]` gap. Both the `to_protrusion` and the last spacer's `exit_protrusion` are set so the spacer-exit tip and the to tip **meet on that leg** -- a clean straight approach with no Z/S wiggle. Legs are distributed evenly between the gap's floors (`TO_PROTRUSION_MIN_PX` / own-label clearance on the to side, `MIN_PROTRUSION_PX` on the spacer side); edges are ordered by cross-axis so the leg ordering does not run a short spacer stub across another edge's leg. Groups of a single edge (the common case) are left unchanged, so single-edge layouts are byte-for-byte unchanged.
+
 
 ### Protrusion depth assignment (`fn protrusions_assign`)
 
