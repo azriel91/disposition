@@ -53,6 +53,8 @@ pub(crate) const INPUT_DIAGRAM_0027_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_1
     include_str!("input_diagram/0027_nested_node_edge_protrusion_to_nested_node_1.yaml");
 pub(crate) const INPUT_DIAGRAM_0028_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_2: &str =
     include_str!("input_diagram/0028_nested_node_edge_protrusion_to_nested_node_2.yaml");
+pub(crate) const INPUT_DIAGRAM_0029_NESTED_EDGE_OVERLAP_WITH_DIFFERENT_RANK_NESTED_EDGE: &str =
+    include_str!("input_diagram/0029_nested_edge_overlap_with_different_rank_nested_edge.yaml");
 
 mod diagram_generator;
 mod input_diagram_merger;
