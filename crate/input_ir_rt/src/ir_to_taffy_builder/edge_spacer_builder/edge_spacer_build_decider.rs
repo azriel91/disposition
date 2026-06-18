@@ -1,14 +1,10 @@
 use disposition_ir_model::{
     edge::Edge,
-    node::{NodeId, NodeNestingInfo, NodeNestingInfos},
+    node::{NodeId, NodeNestingInfos},
 };
 
-use crate::ir_to_taffy_builder::{
-    edge_spacer_builder::{
-        EdgeSpacerBuildDecision, EdgeSpacerBuildDecisionBuild, EdgeSpacerBuildDecisionSkip,
-        LcaDepthCalculator,
-    },
-    EdgeLcaSiblingDistance,
+use crate::ir_to_taffy_builder::edge_spacer_builder::{
+    EdgeSpacerBuildDecision, EdgeSpacerBuildDecisionBuild, EdgeSpacerBuildDecisionSkip,
 };
 
 /// Decides whether edge spacers should be built for the given edge.
@@ -46,27 +42,13 @@ impl EdgeSpacerBuildDecider {
             );
         };
 
-        // === LCA sibling distance guard === //
-        //
-        // Only insert cross-container spacers when the edge's
-        // from-node and to-node diverge at the LCA level with
-        // at least one intermediate sibling between them.
-        // A sibling distance of 1 means the two divergent
-        // ancestors are adjacent, so the edge does not cross
-        // over any other node.
-        let edge_lca_sibling_distance =
-            Self::edge_lca_sibling_distance(node_nesting_info_from, node_nesting_info_to);
-        if edge_lca_sibling_distance.distance < 2 {
-            return EdgeSpacerBuildDecision::Skip(
-                EdgeSpacerBuildDecisionSkip::NoIntermediateLcaSiblings {
-                    node_id_from: edge.from.clone(),
-                    node_id_to: edge.to.clone(),
-                    node_nesting_info_from: node_nesting_info_from.clone(),
-                    node_nesting_info_to: node_nesting_info_to.clone(),
-                    edge_lca_sibling_distance,
-                },
-            );
-        }
+        // Whether cross-container spacers are needed depends on the target's
+        // rank *inside* the container (handled by the insertion loop in
+        // `build_cross_container_spacers_for_edge`, which only routes around
+        // siblings at ranks strictly before the target). It is independent of
+        // the root-level distance between the divergent ancestors -- an edge
+        // into a deeply-ranked child still has to route around the container's
+        // lower-rank siblings even when the divergent ancestors are adjacent.
 
         // Determine if exactly one endpoint is inside this container
         // and the other is outside.
@@ -169,61 +151,5 @@ impl EdgeSpacerBuildDecider {
                 .expect("`target_child_id` was just looked up from the `ancestor_chain` at `container_depth + 1`.");
 
         EdgeSpacerBuildDecision::Build(EdgeSpacerBuildDecisionBuild { target_child_id })
-    }
-
-    /// Returns the sibling distance between the divergent ancestors of
-    /// two nodes at their lowest common ancestor (LCA) level.
-    ///
-    /// The sibling distance is the absolute difference of the sibling
-    /// indices of the two nodes' divergent ancestors -- i.e. the first
-    /// nodes in each ancestor chain where the chains differ.
-    ///
-    /// A distance of 0 means both nodes share the same divergent
-    /// ancestor (or one is an ancestor of the other).
-    /// A distance of 1 means the divergent ancestors are adjacent
-    /// siblings -- no intermediate node lies between them.
-    /// A distance of 2 or more means at least one sibling node sits
-    /// between the two divergent ancestors, so an edge connecting the
-    /// two nodes would visually cross over that intermediate sibling.
-    ///
-    /// # Examples
-    ///
-    /// Given hierarchy:
-    ///
-    /// ```text
-    /// outer:
-    ///   a: { a_child: { a_grandchild: {} } }
-    ///   b: { b_child: {} }
-    ///   c: { c_child: {} }
-    /// ```
-    ///
-    /// * `a_grandchild` and `b_child` -> LCA is `outer`, divergent ancestors
-    ///   are `a` (index 0) and `b` (index 1), distance = 1.
-    /// * `a_grandchild` and `c_child` -> LCA is `outer`, divergent ancestors
-    ///   are `a` (index 0) and `c` (index 2), distance = 2.
-    fn edge_lca_sibling_distance(
-        node_nesting_info_from: &NodeNestingInfo<'_>,
-        node_nesting_info_to: &NodeNestingInfo<'_>,
-    ) -> EdgeLcaSiblingDistance {
-        let lca_depth = LcaDepthCalculator::calculate(node_nesting_info_from, node_nesting_info_to);
-
-        // Get the sibling indices at the divergence depth for each node.
-        //
-        // i.e. get the indices of the nodes where the hierarchy first diverges.
-        let from_sibling_ancestor_index =
-            node_nesting_info_from.nesting_path.get(lca_depth).copied();
-        let to_sibling_ancestor_index = node_nesting_info_to.nesting_path.get(lca_depth).copied();
-
-        let distance = match (from_sibling_ancestor_index, to_sibling_ancestor_index) {
-            (Some(a), Some(b)) => a.abs_diff(b),
-            // One chain is a prefix of the other (one node is an
-            // ancestor of the other) -- no divergent siblings.
-            _ => 0,
-        };
-
-        EdgeLcaSiblingDistance {
-            lca_depth,
-            distance,
-        }
     }
 }

@@ -15,7 +15,6 @@ use typed_builder::TypedBuilder;
 use self::{
     edge_description_builder::{EdgeDescriptionBuildResult, EdgeDescriptionBuilder},
     edge_label_builder::EdgeLabelBuilder,
-    edge_lca_sibling_distance::EdgeLcaSiblingDistance,
     edge_spacer_builder::EdgeSpacerBuilder,
     highlighted_spans_computer::HighlightedSpansComputer,
     md_spans_computer::MdSpansComputer,
@@ -29,7 +28,6 @@ use self::{
 
 mod edge_description_builder;
 mod edge_label_builder;
-mod edge_lca_sibling_distance;
 mod edge_spacer_builder;
 mod highlighted_spans_computer;
 mod md_node_builder;

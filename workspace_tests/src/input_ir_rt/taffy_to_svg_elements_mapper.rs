@@ -35,6 +35,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0026_NESTED_EDGES_RANK_DIR_BOTTOM_TO_TOP,
     INPUT_DIAGRAM_0027_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_1,
     INPUT_DIAGRAM_0028_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_2,
+    INPUT_DIAGRAM_0029_NESTED_EDGE_OVERLAP_WITH_DIFFERENT_RANK_NESTED_EDGE,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -1913,6 +1914,86 @@ fn test_edge_to_nested_rank_1_node_has_exactly_one_cross_container_spacer() {
             alice_charlie_3_edge
                 .ortho_protrusion_params
                 .spacer_protrusions,
+        );
+    }
+}
+
+// === Edge to nested higher-rank node with adjacent divergent ancestors (0029)
+// === //
+
+/// Loads `0029_nested_edge_overlap_with_different_rank_nested_edge.yaml` and
+/// returns one `SvgElements` per LOD.
+fn build_svg_elements_from_nested_edge_overlap_different_rank(
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0029_NESTED_EDGE_OVERLAP_WITH_DIFFERENT_RANK_NESTED_EDGE,
+    )
+}
+
+/// In `0029` (`rank_dir: left_to_right`), `edge_dep_b_00_c_01` runs from
+/// `t_b_00` to `t_c_01`, which is at internal rank 1 inside `t_c_0`. Even
+/// though the divergent ancestors `t_b_0` and `t_c_0` are *adjacent* siblings
+/// at the root level, the edge must still route around the rank-0 sibling
+/// `t_c_00` inside `t_c_0`, so it needs a cross-container spacer.
+#[test]
+fn test_edge_to_nested_higher_rank_node_with_adjacent_divergent_ancestors_has_spacer() {
+    for svg_elements in build_svg_elements_from_nested_edge_overlap_different_rank() {
+        let edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_b_00" && e.to_node_id.as_str() == "t_c_01")
+            .expect("Expected edge from t_b_00 to t_c_01");
+
+        assert!(
+            !edge.ortho_protrusion_params.spacer_protrusions.is_empty(),
+            "Expected a cross-container spacer for edge t_b_00 -> t_c_01 \
+             (t_c_01 is at rank 1 inside t_c_0; the edge must route around the \
+             rank-0 sibling t_c_00 even though t_b_0 and t_c_0 are adjacent \
+             root-level siblings): spacer_protrusions = {:?}",
+            edge.ortho_protrusion_params.spacer_protrusions,
+        );
+    }
+}
+
+/// In `0029`, `edge_dep_a_00_c_00` runs from `t_a_00` to `t_c_00` (rank 0
+/// inside `t_c_0`). Its `to_protrusion` must stay within the `t_a_00` ->
+/// `t_c_00` gap.
+///
+/// Previously the sibling edge `t_b_00 -> t_c_01` (lacking a spacer) was given
+/// a container-deep `to_protrusion`, and because both to-endpoints share the
+/// same divergent-ancestor sibling row, the staggering inflated this edge's
+/// `to_protrusion` so the path overshot back past `t_a_00` -- a backward spike.
+#[test]
+fn test_edge_to_nested_rank_0_node_protrusion_not_inflated_by_sibling_edge() {
+    for svg_elements in build_svg_elements_from_nested_edge_overlap_different_rank() {
+        let node_info = |node_id: &str| {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"))
+        };
+        let t_a_00 = node_info("t_a_00");
+        let t_c_00 = node_info("t_c_00");
+
+        let edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_a_00" && e.to_node_id.as_str() == "t_c_00")
+            .expect("Expected edge from t_a_00 to t_c_00");
+
+        // rank_dir is left_to_right, so the from-to gap is along x: from the
+        // from-node's right face to the to-node's left face.
+        let node_gap = t_c_00.x - (t_a_00.x + t_a_00.width);
+        let to_protrusion = edge.ortho_protrusion_params.to_protrusion;
+        assert!(
+            to_protrusion <= node_gap + 0.5,
+            "edge t_a_00 -> t_c_00 to_protrusion ({to_protrusion:.2}) should not \
+             exceed the node-to-node gap ({node_gap:.2}). A larger value means \
+             the to-protrusion overshoots back past t_a_00 (backward spike), \
+             caused by the sibling edge to t_c_01 lacking a cross-container \
+             spacer. path_d = {:?}",
+            edge.path_d,
         );
     }
 }

@@ -308,23 +308,18 @@ Source: [`crate/input_ir_rt/src/ir_to_taffy_builder/edge_spacer_builder/edge_spa
 For each edge, `EdgeSpacerBuildDecider::decide` returns either `EdgeSpacerBuildDecision::Build`
 or `EdgeSpacerBuildDecision::Skip`. It proceeds through the following checks in order:
 
+Note: the decision rests only on containment and the target's position *inside* the container --
+**not** on the root-level distance between the two divergent ancestors. An edge into a deeply-ranked
+child must route around the container's lower-rank siblings even when its divergent ancestor is
+adjacent to the from-node's divergent ancestor. (The actual "is a spacer needed?" question is
+answered by the [Spacer Insertion](#spacer-insertion) loop, which only routes around siblings at
+ranks strictly before the target; a target at rank 0 therefore yields no spacers regardless.)
+
 **Check 1 -- Nesting info availability.**
 If `NodeNestingInfo` is missing for `edge.from` or `edge.to`, skip with
 `NestingInfoFromNotFound` / `NestingInfoToNotFound`.
 
-**Check 2 -- LCA sibling distance guard.**
-Compute the LCA sibling distance:
-
-    lca_depth                  = LcaDepthCalculator::calculate(info_from, info_to)
-    from_sibling_ancestor_index = info_from.nesting_path[lca_depth]
-    to_sibling_ancestor_index   = info_to.nesting_path[lca_depth]
-    distance = abs_diff(from_sibling_ancestor_index, to_sibling_ancestor_index)
-
-If `distance < 2`, skip with `NoIntermediateLcaSiblings`. A distance of 1 means the two divergent
-ancestors are adjacent siblings with no node between them, so the edge does not visually cross any
-intermediate node at the LCA level.
-
-**Check 3 -- Containment check.**
+**Check 2 -- Containment check.**
 Determine which endpoints are inside `container_node_id` by searching each endpoint's
 `ancestor_chain` for the container ID:
 
@@ -335,7 +330,7 @@ Skip with `ContainerNodeContainsBothFromAndToNodes` if both are inside.
 Skip with `ContainerNodeContainsNeitherFromAndToNodes` if neither is inside.
 Continue only when exactly one endpoint is inside.
 
-**Check 4 -- Find the target child.**
+**Check 3 -- Find the target child.**
 Let `info_inside` be the nesting info of the contained endpoint. Find the depth of
 `container_node_id` in `info_inside.ancestor_chain`:
 
@@ -483,11 +478,6 @@ path passes through rank 1 space without crossing `t_b`.
 Triggered by `EdgeSpacerBuilder::build_cross_container_spacers(..., container_node_id = "t_c")`:
 
 **Decider:**
-
-    lca_depth = 0  (chains ["t_a"] and ["t_c", "t_c1"] share no prefix)
-    from_sibling_ancestor_index = nesting_path_from[0] = 0
-    to_sibling_ancestor_index   = nesting_path_to[0]   = 2
-    distance = abs_diff(0, 2) = 2  -->  distance >= 2, continue
 
     container_contains_from = "t_c" in ["t_a"]          = false
     container_contains_to   = "t_c" in ["t_c", "t_c1"]  = true
