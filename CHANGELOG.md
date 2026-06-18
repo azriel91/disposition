@@ -29,6 +29,8 @@
 * Order each node face's edge label slots by the opposite endpoint's nesting path, so edge contact points are arranged to minimise crossings. ([#51][#51])
 * Increase `MIN_PROTRUSION_PX` to `5.0` and `MAX_GAP_FRACTION` to `0.9` to make staggered orthogonal edge protrusions more visually distinct. ([#51][#51])
 * Build cross-container edge spacers based on the target's rank inside the container rather than the root-level distance between divergent ancestors, so an edge into a deeply-ranked nested child routes around the container's lower-rank siblings instead of overshooting back on itself. ([#52][#52])
+* Calculate edge protrusions independently per node instead of using common protrusion for all nodes in a given rank. ([#53][#53])
+* Ensure edges that exit a nested node spacer have different exit protrusions so their paths don't overlap. ([#53][#53])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -41,6 +43,7 @@
 [#50]: https://github.com/azriel91/disposition/pull/50
 [#51]: https://github.com/azriel91/disposition/pull/51
 [#52]: https://github.com/azriel91/disposition/pull/52
+[#53]: https://github.com/azriel91/disposition/pull/53
 
 
 ## 0.3.0 (2026-06-07)
