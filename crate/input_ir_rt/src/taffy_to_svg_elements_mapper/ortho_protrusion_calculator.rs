@@ -1946,24 +1946,28 @@ impl OrthoProtrusionCalculator {
     /// Staggers the queued endpoint adjustments so endpoints clearing the same
     /// sibling row receive distinct protrusion depths.
     ///
-    /// Within each row group the base depth clears the tallest sibling
-    /// (`max` of the group's clearances); endpoints are then ordered
-    /// deepest-first by cross-axis coordinate (descending, matching the
-    /// `side_sort` tie-break in `protrusions_assign`) and spaced
-    /// `MIN_PROTRUSION_PX` apart. The result is `max`-ed onto the existing
-    /// protrusion so a larger Step 3 / cycle value is never reduced.
+    /// Each endpoint's base clearance is its **own** `min_protrusion`, which
+    /// already encodes reaching the shared sibling-row extreme coordinate from
+    /// that endpoint's own face. Endpoints are ordered deepest-first by
+    /// cross-axis coordinate (descending, matching the `side_sort` tie-break in
+    /// `protrusions_assign`) and spaced `MIN_PROTRUSION_PX` apart so endpoints
+    /// landing at the same extreme coordinate get distinct depths. The result
+    /// is `max`-ed onto the existing protrusion so a larger Step 3 / cycle value
+    /// is never reduced.
+    ///
+    /// The per-endpoint base (rather than a group-wide `max` of clearances) is
+    /// required because `min_protrusion` is a *relative* delta from each
+    /// endpoint's own face to a shared absolute target. Endpoints in one row
+    /// group can sit at different face coordinates (e.g. nodes nested in
+    /// containers of different widths), so `max`-ing the relative deltas and
+    /// applying the result to every endpoint over-shoots the endpoints that are
+    /// closer to the target -- driving their protrusion tips far past the
+    /// sibling row.
     fn protrusions_adjust_stagger_row_groups<'id>(
         mut row_groups: Map<DivergentSiblingRowKey<'id>, Vec<EndpointAdjustment>>,
         result: &mut [Vec<OrthoProtrusionParams>],
     ) {
         for endpoints in row_groups.values_mut() {
-            // Base depth clears the tallest sibling in the row, so every
-            // endpoint runs parallel beyond it.
-            let base = endpoints
-                .iter()
-                .map(|endpoint| endpoint.min_protrusion)
-                .fold(0.0_f32, f32::max);
-
             // Deepest-first by cross-axis descending; break ties by edge
             // identity for determinism.
             endpoints.sort_by(|a, b| {
@@ -1976,7 +1980,11 @@ impl OrthoProtrusionCalculator {
 
             let n = endpoints.len();
             for (i, endpoint) in endpoints.iter().enumerate() {
-                let staggered = base + (n - 1 - i) as f32 * MIN_PROTRUSION_PX;
+                // Each endpoint clears its own sibling-row extent, then is
+                // staggered apart so endpoints landing at the same extreme
+                // coordinate receive distinct depths.
+                let staggered =
+                    endpoint.min_protrusion + (n - 1 - i) as f32 * MIN_PROTRUSION_PX;
                 let params = &mut result[endpoint.group_idx][endpoint.edge_idx];
                 match endpoint.endpoint {
                     AdjustEndpoint::From => {

@@ -36,6 +36,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0027_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_1,
     INPUT_DIAGRAM_0028_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_2,
     INPUT_DIAGRAM_0029_NESTED_EDGE_OVERLAP_WITH_DIFFERENT_RANK_NESTED_EDGE,
+    INPUT_DIAGRAM_0030_NESTED_EDGE_OVERLAP_WITH_DIFFERENT_RANK_NESTED_EDGE_WITH_NODE_DESC,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -1993,6 +1994,70 @@ fn test_edge_to_nested_rank_0_node_protrusion_not_inflated_by_sibling_edge() {
              the to-protrusion overshoots back past t_a_00 (backward spike), \
              caused by the sibling edge to t_c_01 lacking a cross-container \
              spacer. path_d = {:?}",
+            edge.path_d,
+        );
+    }
+}
+
+// === Edge `from` protrusion not inflated by a wide same-rank sibling (0030)
+// === //
+
+/// Loads
+/// `0030_nested_edge_overlap_with_different_rank_nested_edge_with_node_desc.yaml`
+/// and returns one `SvgElements` per LOD.
+fn build_svg_elements_from_nested_edge_overlap_different_rank_with_node_desc(
+) -> impl Iterator<Item = SvgElements<'static>> {
+    build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0030_NESTED_EDGE_OVERLAP_WITH_DIFFERENT_RANK_NESTED_EDGE_WITH_NODE_DESC,
+    )
+}
+
+/// In `0030` (`rank_dir: left_to_right`), `t_a_00` carries a long node
+/// description, widening its container `t_a_0`. The edge `edge_dep_a_00_c_01`
+/// (from `t_a_00` to `t_c_01`) shares a divergent-ancestor sibling row with
+/// `edge_dep_b_00_c_01` (from the narrow `t_b_0`'s `t_b_00`).
+///
+/// Previously the row-group staggering used a single group-wide `max` of the
+/// per-endpoint clearances as the base. That clearance is a *relative* delta to
+/// the shared sibling-row extreme, so applying `t_b_00`'s large delta to
+/// `t_a_00` (whose face is already near the extreme) drove `t_a_00`'s
+/// `from_protrusion` far past the destination container `t_c_0`.
+///
+/// The `from` protrusion must not extend beyond the gap between this edge's
+/// divergent ancestors `t_a_0` and `t_c_0`.
+#[test]
+fn test_edge_from_protrusion_not_inflated_by_wide_same_rank_sibling() {
+    for svg_elements in build_svg_elements_from_nested_edge_overlap_different_rank_with_node_desc() {
+        let node_info = |node_id: &str| {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|n| n.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"))
+        };
+        let t_a_00 = node_info("t_a_00");
+        let t_c_0 = node_info("t_c_0");
+
+        let edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_a_00" && e.to_node_id.as_str() == "t_c_01")
+            .expect("Expected edge from t_a_00 to t_c_01");
+
+        // rank_dir is left_to_right, so the from protrusion extends rightward
+        // from t_a_00's right face. It must not reach past the near (left) face
+        // of the destination divergent ancestor t_c_0.
+        let from_face_x = t_a_00.x + t_a_00.width;
+        let divergent_ancestor_gap = t_c_0.x - from_face_x;
+        let from_protrusion = edge.ortho_protrusion_params.from_protrusion;
+        assert!(
+            from_protrusion <= divergent_ancestor_gap + 0.5,
+            "edge t_a_00 -> t_c_01 from_protrusion ({from_protrusion:.2}) should \
+             not exceed the gap between divergent ancestors t_a_0 and t_c_0 \
+             ({divergent_ancestor_gap:.2}). A larger value means the wide \
+             same-rank sibling t_a_0 (widened by t_a_00's node description) \
+             inflated this edge's protrusion via row-group staggering. \
+             path_d = {:?}",
             edge.path_d,
         );
     }
