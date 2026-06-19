@@ -13,10 +13,16 @@ mod process_render_collapse;
 /// ```rust
 /// use disposition_model_common::RenderOptions;
 ///
+/// use disposition_model_common::edge::EdgeCurvature;
+///
 /// let render_options = RenderOptions::default();
 /// assert_eq!(
 ///     render_options.dependencies_edge_curvature,
-///     Default::default()
+///     EdgeCurvature::Orthogonal
+/// );
+/// assert_eq!(
+///     render_options.interactions_edge_curvature,
+///     EdgeCurvature::DirectCurved
 /// );
 /// assert_eq!(render_options.rank_dir, Default::default());
 /// assert_eq!(render_options.process_render_collapse, Default::default());
@@ -25,7 +31,7 @@ mod process_render_collapse;
     all(feature = "schemars", not(feature = "test")),
     derive(schemars::JsonSchema)
 )]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct RenderOptions {
     /// Controls how dependency edge paths are drawn between nodes.
     ///
@@ -40,13 +46,18 @@ pub struct RenderOptions {
 
     /// Controls how interaction edge paths are drawn between nodes.
     ///
+    /// Defaults to `EdgeCurvature::DirectCurved`.
+    ///
     /// * `EdgeCurvature::Curved`: edges use smooth bezier curves.
     /// * `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.
     /// * `EdgeCurvature::DirectStraight`: edges are straight lines that bypass
     ///   edge spacers.
     /// * `EdgeCurvature::DirectCurved`: edges are curved lines that bypass edge
     ///   spacers.
-    #[serde(default, skip_serializing_if = "EdgeCurvature::is_default")]
+    #[serde(
+        default = "interactions_edge_curvature_default",
+        skip_serializing_if = "interactions_edge_curvature_is_default"
+    )]
     pub interactions_edge_curvature: EdgeCurvature,
 
     /// Direction of edges in the diagram.
@@ -75,8 +86,30 @@ impl RenderOptions {
     /// Returns `true` if all fields are at their default values.
     pub fn is_default(&self) -> bool {
         self.dependencies_edge_curvature.is_default()
-            && self.interactions_edge_curvature.is_default()
+            && interactions_edge_curvature_is_default(&self.interactions_edge_curvature)
             && self.rank_dir.is_default()
             && self.process_render_collapse.is_default()
     }
+}
+
+impl Default for RenderOptions {
+    fn default() -> Self {
+        Self {
+            dependencies_edge_curvature: EdgeCurvature::default(),
+            interactions_edge_curvature: interactions_edge_curvature_default(),
+            rank_dir: RankDir::default(),
+            process_render_collapse: ProcessRenderCollapse::default(),
+        }
+    }
+}
+
+/// Returns the default curvature for interaction edges: `DirectCurved`.
+fn interactions_edge_curvature_default() -> EdgeCurvature {
+    EdgeCurvature::DirectCurved
+}
+
+/// Returns `true` if the interaction edge curvature is the default
+/// (`DirectCurved`).
+fn interactions_edge_curvature_is_default(edge_curvature: &EdgeCurvature) -> bool {
+    *edge_curvature == EdgeCurvature::DirectCurved
 }

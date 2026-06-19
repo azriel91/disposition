@@ -34,6 +34,7 @@
 * Split `RenderOptions.edge_curvature` into `RenderOptions.dependencies_edge_curvature` and `RenderOptions.interactions_edge_curvature`, so dependency and interaction edge curvature can be configured independently. ([#54][#54])
 * Add `EdgeCurvature::DirectStraight`, which draws edges as straight lines directly between nodes, bypassing edge spacers (whose nodes collapse to zero size). ([#54][#54])
 * Add `EdgeCurvature::DirectCurved`, which draws edges as bezier curves directly between nodes, bypassing edge spacers. ([#54][#54])
+* Default `RenderOptions.interactions_edge_curvature` to `EdgeCurvature::DirectCurved`, so interaction edges are drawn as direct curves. ([#54][#54])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
