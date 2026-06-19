@@ -14,7 +14,10 @@ mod process_render_collapse;
 /// use disposition_model_common::RenderOptions;
 ///
 /// let render_options = RenderOptions::default();
-/// assert_eq!(render_options.edge_curvature, Default::default());
+/// assert_eq!(
+///     render_options.dependencies_edge_curvature,
+///     Default::default()
+/// );
 /// assert_eq!(render_options.rank_dir, Default::default());
 /// assert_eq!(render_options.process_render_collapse, Default::default());
 /// ```
@@ -24,12 +27,27 @@ mod process_render_collapse;
 )]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct RenderOptions {
-    /// Controls how edge paths are drawn between nodes.
+    /// Controls how dependency edge paths are drawn between nodes.
     ///
     /// * `EdgeCurvature::Curved`: edges use smooth bezier curves.
     /// * `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.
+    /// * `EdgeCurvature::DirectStraight`: edges are straight lines that bypass
+    ///   edge spacers.
+    /// * `EdgeCurvature::DirectCurved`: edges are curved lines that bypass edge
+    ///   spacers.
     #[serde(default, skip_serializing_if = "EdgeCurvature::is_default")]
-    pub edge_curvature: EdgeCurvature,
+    pub dependencies_edge_curvature: EdgeCurvature,
+
+    /// Controls how interaction edge paths are drawn between nodes.
+    ///
+    /// * `EdgeCurvature::Curved`: edges use smooth bezier curves.
+    /// * `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.
+    /// * `EdgeCurvature::DirectStraight`: edges are straight lines that bypass
+    ///   edge spacers.
+    /// * `EdgeCurvature::DirectCurved`: edges are curved lines that bypass edge
+    ///   spacers.
+    #[serde(default, skip_serializing_if = "EdgeCurvature::is_default")]
+    pub interactions_edge_curvature: EdgeCurvature,
 
     /// Direction of edges in the diagram.
     ///
@@ -56,7 +74,8 @@ pub struct RenderOptions {
 impl RenderOptions {
     /// Returns `true` if all fields are at their default values.
     pub fn is_default(&self) -> bool {
-        self.edge_curvature.is_default()
+        self.dependencies_edge_curvature.is_default()
+            && self.interactions_edge_curvature.is_default()
             && self.rank_dir.is_default()
             && self.process_render_collapse.is_default()
     }

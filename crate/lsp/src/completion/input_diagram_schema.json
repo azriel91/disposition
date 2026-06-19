@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "InputDiagram",
-  "description": "The root data structure for diagram input.\n\nAn `InputDiagram` describes *what* to draw and *how* to style it. The fields\nfall into a few groups that work together:\n\n## How the pieces fit together\n\n* **Things and hierarchy** -- `things` is the single source of truth for\n  which nodes exist, as a recursive nesting tree. Labels, descriptions, and\n  layout overrides are keyed by `ThingId` in `thing_names`, `thing_descs`,\n  and `thing_layouts`.\n\n* **Edges and edge groups** -- relationships are declared as *edge groups*\n  in `thing_dependencies` (static \"depends on\") and `thing_interactions`\n  (runtime communication). Each group has a `kind` (`sequence`, `symmetric`,\n  `cyclic`) and a list of `things`; individual edges within a group get an\n  ID of `<edge_group_id>__<index>`.\n\n* **Entity types (shared styling)** -- `entity_types` attaches one or more\n  reusable `type_*` ids to *any* entity, **both things and edge groups**.\n  The look of each type is then defined once in `theme_types_styles`, so a\n  whole category of nodes and edges can be styled together. Every entity also\n  carries a built-in default type (e.g. `type_thing_default`) that\n  `theme_types_styles` can target.\n\n* **Tags and focus** -- `tags` names labels and `tag_things` lists the\n  things in each tag. When a tag is focused in the viewer, the things it\n  contains are highlighted and the rest are dimmed. The two sides are styled\n  separately in `theme_tag_things_focus`: `node_defaults` styles the\n  *included* things, and `node_excluded_defaults` styles the *excluded* ones.\n  (Tags currently hold things only; edges follow their endpoint things.)\n\n* **Themes** -- `theme_default` holds the base look plus reusable\n  `style_aliases`. The type-, dependency-, and tag-focus theme maps layer on\n  top of it. `render_options` and `css` tune rendering and inject raw CSS.\n\nMost fields are styling-oriented maps keyed by `ThingId`, `TagId`,\n`EntityTypeId`, or `EdgeGroupId`; see each field for details and examples.",
+  "description": "The root data structure for diagram input.\n\nAn `InputDiagram` describes *what* to draw and *how* to style it. The fields\nfall into a few groups that work together:\n\n## How the pieces fit together\n\n* **Things and hierarchy** -- `things` is the single source of truth for\n  which nodes exist, as a recursive nesting tree. Labels, descriptions, and\n  layout overrides are keyed by `ThingId` in `thing_names`, `thing_descs`,\n  and `thing_layouts`.\n\n* **Edges and edge groups** -- relationships are declared as *edge groups*\n  in `thing_dependencies` (static \"depends on\") and `thing_interactions`\n  (runtime communication). Each group has a `kind` (`sequence`, `symmetric`,\n  `cyclic`) and a list of `things`; individual edges within a group get an\n  ID of `<edge_group_id>__<index>`.\n\n* **Entity types (shared styling)** -- `entity_types` attaches one or more\n  reusable `type_*` ids to *any* entity, **both things and edge groups**.\n  The look of each type is then defined once in `theme_types_styles`, so a\n  whole category of nodes and edges can be styled together. Every entity\n  also carries a built-in default type (e.g. `type_thing_default`) that\n  `theme_types_styles` can target.\n\n* **Tags and focus** -- `tags` names labels and `tag_things` lists the\n  things in each tag. When a tag is focused in the viewer, the things it\n  contains are highlighted and the rest are dimmed. The two sides are styled\n  separately in `theme_tag_things_focus`: `node_defaults` styles the\n  *included* things, and `node_excluded_defaults` styles the *excluded*\n  ones. (Tags currently hold things only; edges follow their endpoint\n  things.)\n\n* **Themes** -- `theme_default` holds the base look plus reusable\n  `style_aliases`. The type-, dependency-, and tag-focus theme maps layer on\n  top of it. `render_options` and `css` tune rendering and inject raw CSS.\n\nMost fields are styling-oriented maps keyed by `ThingId`, `TagId`,\n`EntityTypeId`, or `EdgeGroupId`; see each field for details and examples.",
   "type": "object",
   "properties": {
     "css": {
@@ -33,11 +33,11 @@
       "$ref": "#/$defs/RenderOptions"
     },
     "tag_things": {
-      "description": "Things associated with each tag, keyed by `TagId`.\n\nWhen a tag is focused, the things listed here are highlighted (styled by\n`theme_tag_things_focus`'s `node_defaults`) and the remaining things are\ndimmed (styled by `node_excluded_defaults`). Edges are highlighted /\ndimmed based on whether their endpoint things are in the focused tag.\n\nTags currently hold *things* only -- adding edge groups to a tag directly\nis not yet supported.",
+      "description": "Things associated with each tag, keyed by `TagId`.\n\nWhen a tag is focused, the things listed here are highlighted (styled by\n`theme_tag_things_focus`'s `node_defaults`) and the remaining things are\ndimmed (styled by `node_excluded_defaults`). Edges are highlighted /\ndimmed based on whether their endpoint things are in the focused tag.\n\nTags currently hold *things* only -- adding edge groups to a tag\ndirectly is not yet supported.",
       "$ref": "#/$defs/TagThings"
     },
     "tags": {
-      "description": "Tags are labels that can be associated with things, so that the things\ncan be highlighted when the tag is focused.\n\nMaps each `TagId` to its display label. The things in each tag are listed\nseparately in `tag_things`, and the focus styling is defined in\n`theme_tag_things_focus`.",
+      "description": "Tags are labels that can be associated with things, so that the things\ncan be highlighted when the tag is focused.\n\nMaps each `TagId` to its display label. The things in each tag are\nlisted separately in `tag_things`, and the focus styling is defined\nin `theme_tag_things_focus`.",
       "$ref": "#/$defs/TagNames"
     },
     "theme_default": {
@@ -541,11 +541,15 @@
       ]
     },
     "RenderOptions": {
-      "description": "Options that control how the diagram is rendered.\n\n# Examples\n\n```rust\nuse disposition_model_common::RenderOptions;\n\nlet render_options = RenderOptions::default();\nassert_eq!(render_options.edge_curvature, Default::default());\nassert_eq!(render_options.rank_dir, Default::default());\nassert_eq!(render_options.process_render_collapse, Default::default());\n```",
+      "description": "Options that control how the diagram is rendered.\n\n# Examples\n\n```rust\nuse disposition_model_common::RenderOptions;\n\nlet render_options = RenderOptions::default();\nassert_eq!(\n    render_options.dependencies_edge_curvature,\n    Default::default()\n);\nassert_eq!(render_options.rank_dir, Default::default());\nassert_eq!(render_options.process_render_collapse, Default::default());\n```",
       "type": "object",
       "properties": {
-        "edge_curvature": {
-          "description": "Controls how edge paths are drawn between nodes.\n\n* `EdgeCurvature::Curved`: edges use smooth bezier curves.\n* `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.",
+        "dependencies_edge_curvature": {
+          "description": "Controls how dependency edge paths are drawn between nodes.\n\n* `EdgeCurvature::Curved`: edges use smooth bezier curves.\n* `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.\n* `EdgeCurvature::DirectStraight`: edges are straight lines that bypass\n  edge spacers.\n* `EdgeCurvature::DirectCurved`: edges are curved lines that bypass edge\n  spacers.",
+          "$ref": "#/$defs/EdgeCurvature"
+        },
+        "interactions_edge_curvature": {
+          "description": "Controls how interaction edge paths are drawn between nodes.\n\n* `EdgeCurvature::Curved`: edges use smooth bezier curves.\n* `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.\n* `EdgeCurvature::DirectStraight`: edges are straight lines that bypass\n  edge spacers.\n* `EdgeCurvature::DirectCurved`: edges are curved lines that bypass edge\n  spacers.",
           "$ref": "#/$defs/EdgeCurvature"
         },
         "process_render_collapse": {

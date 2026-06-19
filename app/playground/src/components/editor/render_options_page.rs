@@ -29,14 +29,22 @@ const RADIO_LABEL_CLASS: &str = "\
 ///
 /// Allows the user to configure:
 ///
-/// * `edge_curvature`: whether edges are drawn as smooth curves or orthogonal
+/// * `dependencies_edge_curvature` / `interactions_edge_curvature`: whether
+///   dependency / interaction edges are drawn as smooth curves or orthogonal
 ///   lines.
 /// * `rank_dir`: direction that edges connect nodes.
 /// * `process_render_collapse`: whether processes are rendered collapsed or
 ///   expanded.
 #[component]
 pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
-    let edge_curvature = input_diagram.read().render_options.edge_curvature;
+    let dependencies_edge_curvature = input_diagram
+        .read()
+        .render_options
+        .dependencies_edge_curvature;
+    let interactions_edge_curvature = input_diagram
+        .read()
+        .render_options
+        .interactions_edge_curvature;
     let rank_dir = input_diagram.read().render_options.rank_dir;
     let process_render_collapse = input_diagram.read().render_options.process_render_collapse;
 
@@ -51,11 +59,11 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                  and the direction edges connect nodes."
             }
 
-            // === Edge Curvature === //
+            // === Dependencies Edge Curvature === //
             fieldset {
                 class: "flex flex-col gap-1",
 
-                legend { class: LABEL_CLASS, "Edge Curvature" }
+                legend { class: LABEL_CLASS, "Dependencies Edge Curvature" }
                 div {
                     class: RADIO_GROUP_CLASS,
 
@@ -65,11 +73,11 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                             class: RADIO_LABEL_CLASS,
                             input {
                                 r#type: "radio",
-                                name: "edge_curvature",
+                                name: "dependencies_edge_curvature",
                                 value: "curved",
-                                checked: edge_curvature == EdgeCurvature::Curved,
+                                checked: dependencies_edge_curvature == EdgeCurvature::Curved,
                                 onchange: move |_| {
-                                    input_diagram.write().render_options.edge_curvature =
+                                    input_diagram.write().render_options.dependencies_edge_curvature =
                                         EdgeCurvature::Curved;
                                 },
                             }
@@ -87,11 +95,65 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                             class: RADIO_LABEL_CLASS,
                             input {
                                 r#type: "radio",
-                                name: "edge_curvature",
+                                name: "dependencies_edge_curvature",
                                 value: "orthogonal",
-                                checked: edge_curvature == EdgeCurvature::Orthogonal,
+                                checked: dependencies_edge_curvature == EdgeCurvature::Orthogonal,
                                 onchange: move |_| {
-                                    input_diagram.write().render_options.edge_curvature =
+                                    input_diagram.write().render_options.dependencies_edge_curvature =
+                                        EdgeCurvature::Orthogonal;
+                                },
+                            }
+                            "Orthogonal"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using straight lines."
+                        }
+                    }
+                }
+            }
+
+            // === Interactions Edge Curvature === //
+            fieldset {
+                class: "flex flex-col gap-1",
+
+                legend { class: LABEL_CLASS, "Interactions Edge Curvature" }
+                div {
+                    class: RADIO_GROUP_CLASS,
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "interactions_edge_curvature",
+                                value: "curved",
+                                checked: interactions_edge_curvature == EdgeCurvature::Curved,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.interactions_edge_curvature =
+                                        EdgeCurvature::Curved;
+                                },
+                            }
+                            "Curved"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using curved lines."
+                        }
+                    }
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "interactions_edge_curvature",
+                                value: "orthogonal",
+                                checked: interactions_edge_curvature == EdgeCurvature::Orthogonal,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.interactions_edge_curvature =
                                         EdgeCurvature::Orthogonal;
                                 },
                             }

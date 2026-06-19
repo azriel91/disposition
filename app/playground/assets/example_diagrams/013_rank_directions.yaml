@@ -10,7 +10,9 @@
 # * `right_to_left`
 # * `bottom_to_top`
 #
-# `edge_curvature` may be `orthogonal` (the default) or `curved`.
+# `dependencies_edge_curvature` and `interactions_edge_curvature` may be
+# `orthogonal` (the dependencies default), `curved`, `direct_straight`, or
+# `direct_curved` (the interactions default).
 #
 # This example lays a simple CI pipeline out left to right with curved edges.
 # Try changing `rank_dir` to `top_to_bottom` to see the difference.
@@ -43,4 +45,4 @@ thing_dependencies:
 
 render_options:
   rank_dir: left_to_right
-  edge_curvature: curved
+  dependencies_edge_curvature: curved

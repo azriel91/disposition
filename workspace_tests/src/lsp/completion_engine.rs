@@ -34,7 +34,8 @@ fn nested_render_options_keys() {
 
     assert_eq!(
         vec![
-            "edge_curvature".to_string(),
+            "dependencies_edge_curvature".to_string(),
+            "interactions_edge_curvature".to_string(),
             "process_render_collapse".to_string(),
             "rank_dir".to_string(),
         ],
