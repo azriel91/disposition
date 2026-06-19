@@ -30,8 +30,8 @@ const RADIO_LABEL_CLASS: &str = "\
 /// Allows the user to configure:
 ///
 /// * `dependencies_edge_curvature` / `interactions_edge_curvature`: whether
-///   dependency / interaction edges are drawn as smooth curves or orthogonal
-///   lines.
+///   dependency / interaction edges are drawn as smooth curves, orthogonal
+///   lines, or direct (straight / curved) lines that bypass edge spacers.
 /// * `rank_dir`: direction that edges connect nodes.
 /// * `process_render_collapse`: whether processes are rendered collapsed or
 ///   expanded.
@@ -110,6 +110,52 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                             "Nodes are connected using straight lines."
                         }
                     }
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "dependencies_edge_curvature",
+                                value: "direct_straight",
+                                checked: dependencies_edge_curvature == EdgeCurvature::DirectStraight,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.dependencies_edge_curvature =
+                                        EdgeCurvature::DirectStraight;
+                                },
+                            }
+                            "Direct (Straight)"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using straight lines drawn directly \
+                             between nodes, bypassing edge spacers."
+                        }
+                    }
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "dependencies_edge_curvature",
+                                value: "direct_curved",
+                                checked: dependencies_edge_curvature == EdgeCurvature::DirectCurved,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.dependencies_edge_curvature =
+                                        EdgeCurvature::DirectCurved;
+                                },
+                            }
+                            "Direct (Curved)"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using curved lines drawn directly \
+                             between nodes, bypassing edge spacers."
+                        }
+                    }
                 }
             }
 
@@ -162,6 +208,52 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                         p {
                             class: "text-xs text-gray-500 pl-6",
                             "Nodes are connected using straight lines."
+                        }
+                    }
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "interactions_edge_curvature",
+                                value: "direct_straight",
+                                checked: interactions_edge_curvature == EdgeCurvature::DirectStraight,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.interactions_edge_curvature =
+                                        EdgeCurvature::DirectStraight;
+                                },
+                            }
+                            "Direct (Straight)"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using straight lines drawn directly \
+                             between nodes, bypassing edge spacers."
+                        }
+                    }
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "interactions_edge_curvature",
+                                value: "direct_curved",
+                                checked: interactions_edge_curvature == EdgeCurvature::DirectCurved,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.interactions_edge_curvature =
+                                        EdgeCurvature::DirectCurved;
+                                },
+                            }
+                            "Direct (Curved)"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using curved lines drawn directly \
+                             between nodes, bypassing edge spacers. This is the default."
                         }
                     }
                 }
