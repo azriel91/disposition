@@ -26,6 +26,7 @@ The second pass (`EdgePathBuilderPass2::build`) branches on the curvature:
 * `Orthogonal`: orthogonal (90-degree) lines routed through spacer waypoints, with rounded corners. This is the dependency-edge default.
 * `Curved`: smooth bezier curves routed through spacer waypoints.
 * `DirectStraight`: a straight line drawn directly from the `from` node to the `to` node, **ignoring spacer waypoints**.
+* `DirectCurved`: a smooth bezier curve drawn directly from the `from` node to the `to` node, **ignoring spacer waypoints**.
 
 The `Direct*` variants bypass edge spacers. The spacer taffy nodes are still inserted (the taffy tree structure is unchanged), but for edges whose effective curvature `is_direct()`, the spacer nodes are built with zero `min_size` so they reserve no layout space and the layout stays compact. See [Edge Spacers](edge_spacers.md) for where this is applied.
 

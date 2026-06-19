@@ -34,6 +34,12 @@ pub enum EdgeCurvature {
     /// Edge spacers for these edges collapse to zero size so they reserve no
     /// layout space.
     DirectStraight,
+    /// Edges are smooth bezier curves drawn directly from the `from` node to the
+    /// `to` node, bypassing edge spacers.
+    ///
+    /// Edge spacers for these edges collapse to zero size so they reserve no
+    /// layout space.
+    DirectCurved,
 }
 
 impl EdgeCurvature {
@@ -45,9 +51,13 @@ impl EdgeCurvature {
     /// Returns `true` if edges are drawn directly between nodes, bypassing edge
     /// spacers.
     ///
-    /// This is the case for [`EdgeCurvature::DirectStraight`].
+    /// This is the case for [`EdgeCurvature::DirectStraight`] and
+    /// [`EdgeCurvature::DirectCurved`].
     pub fn is_direct(&self) -> bool {
-        matches!(self, EdgeCurvature::DirectStraight)
+        matches!(
+            self,
+            EdgeCurvature::DirectStraight | EdgeCurvature::DirectCurved
+        )
     }
 }
 
@@ -59,6 +69,7 @@ impl FromStr for EdgeCurvature {
             "curved" => Ok(EdgeCurvature::Curved),
             "orthogonal" => Ok(EdgeCurvature::Orthogonal),
             "direct_straight" => Ok(EdgeCurvature::DirectStraight),
+            "direct_curved" => Ok(EdgeCurvature::DirectCurved),
             _ => Err(()),
         }
     }
@@ -70,6 +81,7 @@ impl Display for EdgeCurvature {
             EdgeCurvature::Curved => write!(f, "curved"),
             EdgeCurvature::Orthogonal => write!(f, "orthogonal"),
             EdgeCurvature::DirectStraight => write!(f, "direct_straight"),
+            EdgeCurvature::DirectCurved => write!(f, "direct_curved"),
         }
     }
 }

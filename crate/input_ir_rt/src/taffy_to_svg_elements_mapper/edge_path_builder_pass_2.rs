@@ -259,6 +259,27 @@ impl EdgePathBuilderPass2 {
                     EdgePathBuilderPass1::build_straight_edge_path(start_x, start_y, end_x, end_y)
                 }
             }
+            EdgeCurvature::DirectCurved => {
+                if is_self_loop {
+                    EdgePathBuilderPass1::self_loop_path_build(
+                        from_info,
+                        from_face,
+                        edge_type,
+                        face_offset.from_offset,
+                        face_offset.to_offset,
+                    )
+                } else {
+                    EdgePathBuilderPass1::build_curved_edge_path(
+                        start_x,
+                        start_y,
+                        end_x,
+                        end_y,
+                        from_face,
+                        to_face,
+                        CURVE_CONTROL_RATIO,
+                    )
+                }
+            }
         }
     }
 }
