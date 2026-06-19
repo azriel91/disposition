@@ -32,6 +32,7 @@
 * Calculate edge protrusions independently per node instead of using common protrusion for all nodes in a given rank. ([#53][#53])
 * Ensure edges that exit a nested node spacer have different exit protrusions so their paths don't overlap. ([#53][#53])
 * Split `RenderOptions.edge_curvature` into `RenderOptions.dependencies_edge_curvature` and `RenderOptions.interactions_edge_curvature`, so dependency and interaction edge curvature can be configured independently. ([#54][#54])
+* Add `EdgeCurvature::DirectStraight`, which draws edges as straight lines directly between nodes, bypassing edge spacers (whose nodes collapse to zero size). ([#54][#54])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43

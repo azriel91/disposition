@@ -244,6 +244,21 @@ impl EdgePathBuilderPass2 {
                     )
                 }
             }
+            // Direct variants draw straight from the `from` node to the `to`
+            // node, ignoring `spacers` entirely.
+            EdgeCurvature::DirectStraight => {
+                if is_self_loop {
+                    EdgePathBuilderPass1::self_loop_path_build(
+                        from_info,
+                        from_face,
+                        edge_type,
+                        face_offset.from_offset,
+                        face_offset.to_offset,
+                    )
+                } else {
+                    EdgePathBuilderPass1::build_straight_edge_path(start_x, start_y, end_x, end_y)
+                }
+            }
         }
     }
 }

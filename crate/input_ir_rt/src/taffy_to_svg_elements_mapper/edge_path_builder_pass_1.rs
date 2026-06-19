@@ -678,6 +678,30 @@ impl EdgePathBuilderPass1 {
         path
     }
 
+    /// Builds a straight-line edge path directly from the `from` node to the
+    /// `to` node.
+    ///
+    /// Used by [`EdgeCurvature::DirectStraight`], which bypasses edge spacers
+    /// entirely.
+    ///
+    /// [`EdgeCurvature::DirectStraight`]:
+    /// disposition_model_common::edge::EdgeCurvature::DirectStraight
+    pub(super) fn build_straight_edge_path(
+        start_x: f32,
+        start_y: f32,
+        end_x: f32,
+        end_y: f32,
+    ) -> BezPath {
+        let start = Point::new(start_x as f64, start_y as f64);
+        let end = Point::new(end_x as f64, end_y as f64);
+
+        let mut path = BezPath::new();
+        path.move_to(start);
+        path.line_to(end);
+
+        path
+    }
+
     /// Gets the control point offset direction based on the face.
     pub(super) fn get_control_point_offset(face: NodeFace, distance: f32) -> (f32, f32) {
         match face {

@@ -8,7 +8,7 @@ use disposition_ir_model::{
     },
     process::{ProcessStepGraphs, ProcessStepRanks},
 };
-use disposition_model_common::{edge::EdgeDescs, thing::ThingDescs, Id, Map};
+use disposition_model_common::{edge::EdgeDescs, thing::ThingDescs, Id, Map, RenderOptions};
 use disposition_taffy_model::DiagramLod;
 
 /// Immutable context shared across the taffy build functions.
@@ -68,6 +68,11 @@ pub(crate) struct TaffyBuildCtx<'ctx> {
     /// edge label slot when building the slot's markdown sub-tree.
     pub(crate) edge_id_to_endpoint_node_ids:
         &'ctx Map<EdgeId<'static>, (NodeId<'static>, NodeId<'static>)>,
+    /// Render options that control edge curvature, rank direction, etc.
+    ///
+    /// Used by the edge spacer builder to collapse spacer nodes to zero size
+    /// when an edge's curvature is a direct variant (which bypasses spacers).
+    pub(crate) render_options: &'ctx RenderOptions,
     /// Level of detail for this diagram build.
     pub(crate) lod: DiagramLod,
     /// Monospace character width in pixels.

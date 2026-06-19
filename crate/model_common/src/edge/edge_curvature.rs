@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// let curved = EdgeCurvature::Curved;
 /// let ortho = EdgeCurvature::Orthogonal;
+/// let direct_straight = EdgeCurvature::DirectStraight;
 /// ```
 #[cfg_attr(
     all(feature = "schemars", not(feature = "test")),
@@ -27,12 +28,26 @@ pub enum EdgeCurvature {
     /// vice versa) are rounded with a small arc.
     #[default]
     Orthogonal,
+    /// Edges are straight lines drawn directly from the `from` node to the `to`
+    /// node, bypassing edge spacers.
+    ///
+    /// Edge spacers for these edges collapse to zero size so they reserve no
+    /// layout space.
+    DirectStraight,
 }
 
 impl EdgeCurvature {
     /// Returns `true` if the edge curvature is the default (orthogonal).
     pub fn is_default(&self) -> bool {
         matches!(self, EdgeCurvature::Orthogonal)
+    }
+
+    /// Returns `true` if edges are drawn directly between nodes, bypassing edge
+    /// spacers.
+    ///
+    /// This is the case for [`EdgeCurvature::DirectStraight`].
+    pub fn is_direct(&self) -> bool {
+        matches!(self, EdgeCurvature::DirectStraight)
     }
 }
 
@@ -43,6 +58,7 @@ impl FromStr for EdgeCurvature {
         match s {
             "curved" => Ok(EdgeCurvature::Curved),
             "orthogonal" => Ok(EdgeCurvature::Orthogonal),
+            "direct_straight" => Ok(EdgeCurvature::DirectStraight),
             _ => Err(()),
         }
     }
@@ -53,6 +69,7 @@ impl Display for EdgeCurvature {
         match self {
             EdgeCurvature::Curved => write!(f, "curved"),
             EdgeCurvature::Orthogonal => write!(f, "orthogonal"),
+            EdgeCurvature::DirectStraight => write!(f, "direct_straight"),
         }
     }
 }
