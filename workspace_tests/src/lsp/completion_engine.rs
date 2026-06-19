@@ -60,6 +60,38 @@ fn enum_values_for_rank_dir() {
 }
 
 #[test]
+fn enum_values_for_dependencies_edge_curvature() {
+    let text = "render_options:\n  dependencies_edge_curvature: ";
+    let labels = labels(text, 1, 31);
+
+    assert_eq!(
+        vec![
+            "curved".to_string(),
+            "direct_curved".to_string(),
+            "direct_straight".to_string(),
+            "orthogonal".to_string(),
+        ],
+        sorted(labels)
+    );
+}
+
+#[test]
+fn enum_values_for_interactions_edge_curvature() {
+    let text = "render_options:\n  interactions_edge_curvature: ";
+    let labels = labels(text, 1, 31);
+
+    assert_eq!(
+        vec![
+            "curved".to_string(),
+            "direct_curved".to_string(),
+            "direct_straight".to_string(),
+            "orthogonal".to_string(),
+        ],
+        sorted(labels)
+    );
+}
+
+#[test]
 fn enum_values_for_thing_layout() {
     let text = "thing_layouts:\n  t_a: ";
     let labels = labels(text, 1, 7);

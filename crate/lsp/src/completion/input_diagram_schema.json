@@ -196,7 +196,7 @@
       ]
     },
     "EdgeCurvature": {
-      "description": "Controls how edge paths are drawn between nodes.\n\n# Examples\n\n```rust\nuse disposition_model_common::edge::EdgeCurvature;\n\nlet curved = EdgeCurvature::Curved;\nlet ortho = EdgeCurvature::Orthogonal;\n```",
+      "description": "Controls how edge paths are drawn between nodes.\n\n# Examples\n\n```rust\nuse disposition_model_common::edge::EdgeCurvature;\n\nlet curved = EdgeCurvature::Curved;\nlet ortho = EdgeCurvature::Orthogonal;\nlet direct_straight = EdgeCurvature::DirectStraight;\n```",
       "oneOf": [
         {
           "description": "Edges use smooth bezier curves between nodes and spacers.",
@@ -207,6 +207,16 @@
           "description": "Edges use orthogonal (90-degree) lines between nodes and spacers.\n\nCorners where the path changes from horizontal to vertical (or\nvice versa) are rounded with a small arc.",
           "type": "string",
           "const": "orthogonal"
+        },
+        {
+          "description": "Edges are straight lines drawn directly from the `from` node to the `to`\nnode, bypassing edge spacers.\n\nEdge spacers for these edges collapse to zero size so they reserve no\nlayout space.",
+          "type": "string",
+          "const": "direct_straight"
+        },
+        {
+          "description": "Edges are smooth bezier curves drawn directly from the `from` node to the\n`to` node, bypassing edge spacers.\n\nEdge spacers for these edges collapse to zero size so they reserve no\nlayout space.",
+          "type": "string",
+          "const": "direct_curved"
         }
       ]
     },
@@ -541,7 +551,7 @@
       ]
     },
     "RenderOptions": {
-      "description": "Options that control how the diagram is rendered.\n\n# Examples\n\n```rust\nuse disposition_model_common::RenderOptions;\n\nlet render_options = RenderOptions::default();\nassert_eq!(\n    render_options.dependencies_edge_curvature,\n    Default::default()\n);\nassert_eq!(render_options.rank_dir, Default::default());\nassert_eq!(render_options.process_render_collapse, Default::default());\n```",
+      "description": "Options that control how the diagram is rendered.\n\n# Examples\n\n```rust\nuse disposition_model_common::RenderOptions;\n\nuse disposition_model_common::edge::EdgeCurvature;\n\nlet render_options = RenderOptions::default();\nassert_eq!(\n    render_options.dependencies_edge_curvature,\n    EdgeCurvature::Orthogonal\n);\nassert_eq!(\n    render_options.interactions_edge_curvature,\n    EdgeCurvature::DirectCurved\n);\nassert_eq!(render_options.rank_dir, Default::default());\nassert_eq!(render_options.process_render_collapse, Default::default());\n```",
       "type": "object",
       "properties": {
         "dependencies_edge_curvature": {
@@ -549,7 +559,7 @@
           "$ref": "#/$defs/EdgeCurvature"
         },
         "interactions_edge_curvature": {
-          "description": "Controls how interaction edge paths are drawn between nodes.\n\n* `EdgeCurvature::Curved`: edges use smooth bezier curves.\n* `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.\n* `EdgeCurvature::DirectStraight`: edges are straight lines that bypass\n  edge spacers.\n* `EdgeCurvature::DirectCurved`: edges are curved lines that bypass edge\n  spacers.",
+          "description": "Controls how interaction edge paths are drawn between nodes.\n\nDefaults to `EdgeCurvature::DirectCurved`.\n\n* `EdgeCurvature::Curved`: edges use smooth bezier curves.\n* `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.\n* `EdgeCurvature::DirectStraight`: edges are straight lines that bypass\n  edge spacers.\n* `EdgeCurvature::DirectCurved`: edges are curved lines that bypass edge\n  spacers.",
           "$ref": "#/$defs/EdgeCurvature"
         },
         "process_render_collapse": {
