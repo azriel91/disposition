@@ -34,8 +34,8 @@ pub enum EdgeCurvature {
     /// Edge spacers for these edges collapse to zero size so they reserve no
     /// layout space.
     DirectStraight,
-    /// Edges are smooth bezier curves drawn directly from the `from` node to the
-    /// `to` node, bypassing edge spacers.
+    /// Edges are smooth bezier curves drawn directly from the `from` node to
+    /// the `to` node, bypassing edge spacers.
     ///
     /// Edge spacers for these edges collapse to zero size so they reserve no
     /// layout space.

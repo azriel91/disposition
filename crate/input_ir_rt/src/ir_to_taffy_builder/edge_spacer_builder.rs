@@ -102,9 +102,9 @@ impl EdgeSpacerBuilder {
 
     /// Returns the spacer node dimension (width / height) for an edge.
     ///
-    /// Edges drawn with a direct curvature ([`EdgeCurvature::is_direct`]) bypass
-    /// spacers, so their spacer nodes collapse to zero size and reserve no
-    /// layout space. All other edges use [`EDGE_SPACER_LENGTH`].
+    /// Edges drawn with a direct curvature ([`EdgeCurvature::is_direct`])
+    /// bypass spacers, so their spacer nodes collapse to zero size and
+    /// reserve no layout space. All other edges use [`EDGE_SPACER_LENGTH`].
     ///
     /// The curvature is selected per edge based on whether the edge is an
     /// interaction edge ([`RenderOptions::interactions_edge_curvature`]) or a
@@ -264,8 +264,7 @@ impl EdgeSpacerBuilder {
         let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
 
         // Insert spacers alongside each sibling of the target child.
-        let edge_spacer_length =
-            Self::edge_spacer_length(render_options, entity_types, &edge_id);
+        let edge_spacer_length = Self::edge_spacer_length(render_options, entity_types, &edge_id);
         let spacer_style = Style {
             min_size: Size {
                 width: taffy::Dimension::length(edge_spacer_length),
@@ -496,8 +495,7 @@ impl EdgeSpacerBuilder {
             return;
         }
 
-        let edge_spacer_length =
-            Self::edge_spacer_length(render_options, entity_types, edge_id);
+        let edge_spacer_length = Self::edge_spacer_length(render_options, entity_types, edge_id);
         let spacer_style = Style {
             min_size: Size {
                 width: taffy::Dimension::length(edge_spacer_length),
@@ -660,8 +658,7 @@ impl EdgeSpacerBuilder {
         let insertion_base_index =
             Self::insertion_base_index_compute(nesting_info_from, nesting_info_to);
 
-        let edge_spacer_length =
-            Self::edge_spacer_length(render_options, entity_types, edge_id);
+        let edge_spacer_length = Self::edge_spacer_length(render_options, entity_types, edge_id);
         let spacer_style = Style {
             min_size: Size {
                 width: taffy::Dimension::length(edge_spacer_length),
