@@ -39,6 +39,7 @@
 * Add the split dependency / interaction edge curvature controls, including the `Direct (Straight)` / `Direct (Curved)` options, to the playground render options editor. ([#54][#54])
 * Edges are routed through spacers at every intermediate ancestor based on ranks to avoid overlapping higher `from` and lower `to` rank nodes. ([#55][#55])
 * Separate edge contact points that exit the same face direction of different nodes at the same coordinate (e.g. a container and a node centered within it), so their protrusion stubs no longer overlap. ([#55][#55])
+* Nest the approach legs of edges that enter the same node face from different rank-gap buckets (a cross-container edge and a local edge into the same nested node), so their paths no longer cross. ([#55][#55])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43

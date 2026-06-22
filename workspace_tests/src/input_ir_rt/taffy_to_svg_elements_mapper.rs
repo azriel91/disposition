@@ -1014,6 +1014,38 @@ fn parse_coord_pair(s: &str) -> Option<(f32, f32)> {
     Some((x, y))
 }
 
+/// Signed area of the triangle `(a, b, c)`; sign gives the orientation.
+fn orientation(a: (f32, f32), b: (f32, f32), c: (f32, f32)) -> f32 {
+    (b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0)
+}
+
+/// Whether segments `p1-p2` and `p3-p4` cross at an interior point.
+///
+/// Uses strict orientation tests, so shared endpoints or collinear touches do
+/// not count as a crossing -- only a genuine X-shaped intersection does.
+fn segments_properly_intersect(
+    p1: (f32, f32),
+    p2: (f32, f32),
+    p3: (f32, f32),
+    p4: (f32, f32),
+) -> bool {
+    let d1 = orientation(p3, p4, p1);
+    let d2 = orientation(p3, p4, p2);
+    let d3 = orientation(p1, p2, p3);
+    let d4 = orientation(p1, p2, p4);
+    ((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0))
+        && ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0))
+}
+
+/// Whether any segment of polyline `a` properly intersects any segment of
+/// polyline `b`.
+fn polylines_cross(a: &[(f32, f32)], b: &[(f32, f32)]) -> bool {
+    a.windows(2).any(|sa| {
+        b.windows(2)
+            .any(|sb| segments_properly_intersect(sa[0], sa[1], sb[0], sb[1]))
+    })
+}
+
 // === Tag and process step node routing tests === //
 
 /// Builds `SvgElements` from the tag-nodes cyclic edge fixture.
@@ -3767,6 +3799,45 @@ fn test_0036_coincident_face_contacts_are_separated() {
              t_a_00->t_a_01 = {contact_x_a_00_a_01}, \
              t_a_01->t_c_01 = {contact_x_a_01_c_01}",
         );
+    }
+}
+
+/// `0036` (`top_to_bottom`): the local edge `t_c_00 -> t_c_01` and the
+/// cross-container edge `t_a_01 -> t_c_01` both enter `t_c_01`'s `Top` face,
+/// but from different rank-gap buckets (container ranks vs LCA ranks). Without
+/// coordinating their approach legs, the cross-container edge's deeper leg
+/// sweeps across the local edge twice. This asserts their paths no longer
+/// cross. Covered for all four rank directions (`0036`-`0039`).
+#[test]
+fn test_0036_to_0039_shared_to_face_edges_do_not_cross() {
+    let diagrams = [
+        INPUT_DIAGRAM_0036_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_TOP_TO_BOTTOM,
+        INPUT_DIAGRAM_0037_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_LEFT_TO_RIGHT,
+        INPUT_DIAGRAM_0038_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_RIGHT_TO_LEFT,
+        INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP,
+    ];
+
+    for input_diagram in diagrams {
+        for svg_elements in build_svg_elements_for_diagram(input_diagram) {
+            let path_for = |from: &str, to: &str| -> Vec<(f32, f32)> {
+                let edge = svg_elements
+                    .svg_edge_infos
+                    .iter()
+                    .find(|e| e.from_node_id.as_str() == from && e.to_node_id.as_str() == to)
+                    .unwrap_or_else(|| panic!("Expected edge from {from} to {to}"));
+                parse_path_endpoints(&edge.path_d)
+            };
+
+            let path_a_01_c_01 = path_for("t_a_01", "t_c_01");
+            let path_c_00_c_01 = path_for("t_c_00", "t_c_01");
+
+            assert!(
+                !polylines_cross(&path_a_01_c_01, &path_c_00_c_01),
+                "Edges t_a_01->t_c_01 and t_c_00->t_c_01 entering the shared \
+                 t_c_01 face should not cross.\n  t_a_01->t_c_01: {path_a_01_c_01:?}\n  \
+                 t_c_00->t_c_01: {path_c_00_c_01:?}",
+            );
+        }
     }
 }
 
