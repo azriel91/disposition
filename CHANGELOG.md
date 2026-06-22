@@ -37,6 +37,7 @@
 * Default `RenderOptions.interactions_edge_curvature` to `EdgeCurvature::DirectCurved`, so interaction edges are drawn as direct curves. ([#54][#54])
 * Update the LSP JSON schema to offer the split edge curvature render options and the `direct_straight` / `direct_curved` values. ([#54][#54])
 * Add the split dependency / interaction edge curvature controls, including the `Direct (Straight)` / `Direct (Curved)` options, to the playground render options editor. ([#54][#54])
+* Edges are routed through spacers at every intermediate ancestor based on ranks to avoid overlapping higher `from` and lower `to` rank nodes. ([#55][#55])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -51,6 +52,7 @@
 [#52]: https://github.com/azriel91/disposition/pull/52
 [#53]: https://github.com/azriel91/disposition/pull/53
 [#54]: https://github.com/azriel91/disposition/pull/54
+[#55]: https://github.com/azriel91/disposition/pull/55
 
 
 ## 0.3.0 (2026-06-07)
