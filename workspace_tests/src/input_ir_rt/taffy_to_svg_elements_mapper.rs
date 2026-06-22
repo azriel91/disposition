@@ -43,6 +43,9 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0034_NESTED_NODE_HIGH_RANK_EDGE_TO_NEXT_NODE_BOTTOM_TO_TOP,
     INPUT_DIAGRAM_0035_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_NODE_TOP_TO_BOTTOM,
     INPUT_DIAGRAM_0036_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_TOP_TO_BOTTOM,
+    INPUT_DIAGRAM_0037_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_LEFT_TO_RIGHT,
+    INPUT_DIAGRAM_0038_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_RIGHT_TO_LEFT,
+    INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -3643,16 +3646,54 @@ fn test_0035_mid_rank_from_edge_routes_around_higher_rank_sibling() {
     }
 }
 
-/// `0036` (`top_to_bottom`): `t_a_01` (rank 1 in `t_a_0`) connects to `t_c_01`
-/// (rank 1 in `t_c_0`, which is rank 2 at root). The edge must keep both its
-/// root-level LCA-gap spacer *and* the cross-container spacer beside `t_c_00`
-/// (rank 0 in `t_c_0`), so it routes around `t_c_00` on the way down to
-/// `t_c_01` rather than passing straight through it.
-#[test]
-fn test_0036_mid_rank_to_high_rank_routes_around_lower_rank_sibling() {
-    for svg_elements in build_svg_elements_for_diagram(
-        INPUT_DIAGRAM_0036_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_TOP_TO_BOTTOM,
-    ) {
+/// Asserts the path's vertices are monotonic along the main (flow) axis -- it
+/// never reverses direction. A reversal indicates the spacers were visited out
+/// of order (e.g. the cross-container spacer before the LCA-gap spacer), which
+/// produces a backward zigzag.
+fn assert_edge_path_main_axis_monotonic(path_d: &str, axis: FlowAxis) {
+    let coords = parse_path_endpoints(path_d);
+    let main = |point: (f32, f32)| match axis {
+        FlowAxis::Vertical => point.1,
+        FlowAxis::Horizontal => point.0,
+    };
+
+    // Determine overall direction from the first and last vertices, then assert
+    // every step moves in that direction (allowing a small tolerance for the
+    // arc-rounded corners that briefly overshoot).
+    let first = main(coords[0]);
+    let last = main(coords[coords.len() - 1]);
+    let increasing = last >= first;
+    let tolerance = 1.0_f32;
+
+    for window in coords.windows(2) {
+        let [a, b] = window else { continue };
+        let step = main(*b) - main(*a);
+        let backward = if increasing {
+            step < -tolerance
+        } else {
+            step > tolerance
+        };
+        assert!(
+            !backward,
+            "Edge path reverses on the main axis at {a:?} -> {b:?} (overall \
+             direction {}). The spacers were likely visited out of order, \
+             producing a backward zigzag. path_d = {path_d:?}",
+            if increasing {
+                "increasing"
+            } else {
+                "decreasing"
+            },
+        );
+    }
+}
+
+/// Asserts that a mid-rank node connects to a high-rank nested node correctly,
+/// regardless of `rank_dir`: the edge keeps both its root-level LCA-gap spacer
+/// and the cross-container spacer beside `t_c_00`, routes around `t_c_00`
+/// (rather than through it), and never reverses along the flow axis (the spacer
+/// order must follow the flow direction even for reversed `rank_dir`s).
+fn assert_mid_rank_to_high_rank_routes_cleanly(input_diagram: &str, axis: FlowAxis) {
+    for svg_elements in build_svg_elements_for_diagram(input_diagram) {
         let t_c_00 = svg_elements
             .svg_node_infos
             .iter()
@@ -3668,13 +3709,56 @@ fn test_0036_mid_rank_to_high_rank_routes_around_lower_rank_sibling() {
         assert!(
             edge.ortho_protrusion_params.spacer_protrusions.len() >= 2,
             "Expected at least two spacers for t_a_01 -> t_c_01: the root-level \
-             LCA-gap spacer and the cross-container spacer beside t_c_00. The \
-             cross-container spacer must survive map merging. \
+             LCA-gap spacer and the cross-container spacer beside t_c_00. \
              spacer_protrusions = {:?}, path_d = {:?}",
             edge.ortho_protrusion_params.spacer_protrusions,
             edge.path_d,
         );
 
         assert_edge_path_clears_node(&edge.path_d, t_c_00, "t_c_00");
+        assert_edge_path_main_axis_monotonic(&edge.path_d, axis);
     }
+}
+
+/// `0036` (`top_to_bottom`): `t_a_01` (rank 1 in `t_a_0`) connects to `t_c_01`
+/// (rank 1 in `t_c_0`, which is rank 2 at root). The edge keeps both its
+/// root-level LCA-gap spacer and the cross-container spacer beside `t_c_00`.
+#[test]
+fn test_0036_mid_rank_to_high_rank_top_to_bottom_routes_cleanly() {
+    assert_mid_rank_to_high_rank_routes_cleanly(
+        INPUT_DIAGRAM_0036_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_TOP_TO_BOTTOM,
+        FlowAxis::Vertical,
+    );
+}
+
+/// `0037` (`left_to_right`): same as `0036` with a horizontal flow.
+#[test]
+fn test_0037_mid_rank_to_high_rank_left_to_right_routes_cleanly() {
+    assert_mid_rank_to_high_rank_routes_cleanly(
+        INPUT_DIAGRAM_0037_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_LEFT_TO_RIGHT,
+        FlowAxis::Horizontal,
+    );
+}
+
+/// `0038` (`right_to_left`): a reversed horizontal flow. The spacers must be
+/// visited in flow order (LCA-gap first, then the spacer beside `t_c_00`),
+/// which requires the merged-spacer sort to be reversed for `RightToLeft` --
+/// otherwise the path zigzags backward.
+#[test]
+fn test_0038_mid_rank_to_high_rank_right_to_left_routes_cleanly() {
+    assert_mid_rank_to_high_rank_routes_cleanly(
+        INPUT_DIAGRAM_0038_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_RIGHT_TO_LEFT,
+        FlowAxis::Horizontal,
+    );
+}
+
+/// `0039` (`bottom_to_top`): a reversed vertical flow. As with `0038`, the
+/// merged-spacer sort must be reversed for `BottomToTop` so the spacers are
+/// visited in flow order rather than producing a backward zigzag.
+#[test]
+fn test_0039_mid_rank_to_high_rank_bottom_to_top_routes_cleanly() {
+    assert_mid_rank_to_high_rank_routes_cleanly(
+        INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP,
+        FlowAxis::Vertical,
+    );
 }

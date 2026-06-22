@@ -114,8 +114,16 @@ impl SpacerCoordinatesResolver {
             .collect()
     }
 
-    /// Sorts merged spacers by their absolute coordinate along the main (rank)
-    /// axis -- entry Y for vertical flow, entry X for horizontal flow.
+    /// Sorts merged spacers into the order the edge path visits them, by their
+    /// absolute coordinate along the main (rank) axis -- entry Y for vertical
+    /// flow, entry X for horizontal flow.
+    ///
+    /// The flow runs in increasing-coordinate order for `TopToBottom` /
+    /// `LeftToRight`, but in *decreasing*-coordinate order for `BottomToTop` /
+    /// `RightToLeft` (rank 0 sits at the high-coordinate end because the rank
+    /// containers use a reversed flex direction). The sort is reversed for the
+    /// latter so the spacer order matches both the visual traversal direction
+    /// and the rank order used by [`Self::rank_spacers_sort_by_rank`].
     fn spacers_sort_by_main_axis(
         rank_dir: RankDir,
         mut all_spacers: Vec<SpacerCoordinates>,
@@ -124,10 +132,16 @@ impl SpacerCoordinatesResolver {
             RankDir::TopToBottom | RankDir::BottomToTop => spacer_coordinates.entry_y,
             RankDir::LeftToRight | RankDir::RightToLeft => spacer_coordinates.entry_x,
         };
+        let reverse = matches!(rank_dir, RankDir::BottomToTop | RankDir::RightToLeft);
         all_spacers.sort_by(|a, b| {
-            main_axis_key(a)
+            let ordering = main_axis_key(a)
                 .partial_cmp(&main_axis_key(b))
-                .unwrap_or(std::cmp::Ordering::Equal)
+                .unwrap_or(std::cmp::Ordering::Equal);
+            if reverse {
+                ordering.reverse()
+            } else {
+                ordering
+            }
         });
         all_spacers
     }
@@ -184,5 +198,31 @@ mod tests {
 
         let entry_xs: Vec<f32> = sorted.iter().map(|spacer| spacer.entry_x).collect();
         assert_eq!(vec![10.0, 20.0, 30.0], entry_xs);
+    }
+
+    #[test]
+    fn spacers_sort_by_main_axis_reverses_entry_y_for_bottom_to_top_flow() {
+        // Bottom-to-top flow runs in decreasing y, so spacers are ordered by
+        // descending entry_y to match the visual traversal direction.
+        let all_spacers = vec![spacer(99.0, 10.0), spacer(99.0, 30.0), spacer(99.0, 20.0)];
+
+        let sorted =
+            SpacerCoordinatesResolver::spacers_sort_by_main_axis(RankDir::BottomToTop, all_spacers);
+
+        let entry_ys: Vec<f32> = sorted.iter().map(|spacer| spacer.entry_y).collect();
+        assert_eq!(vec![30.0, 20.0, 10.0], entry_ys);
+    }
+
+    #[test]
+    fn spacers_sort_by_main_axis_reverses_entry_x_for_right_to_left_flow() {
+        // Right-to-left flow runs in decreasing x, so spacers are ordered by
+        // descending entry_x to match the visual traversal direction.
+        let all_spacers = vec![spacer(10.0, 99.0), spacer(30.0, 99.0), spacer(20.0, 99.0)];
+
+        let sorted =
+            SpacerCoordinatesResolver::spacers_sort_by_main_axis(RankDir::RightToLeft, all_spacers);
+
+        let entry_xs: Vec<f32> = sorted.iter().map(|spacer| spacer.entry_x).collect();
+        assert_eq!(vec![30.0, 20.0, 10.0], entry_xs);
     }
 }

@@ -73,6 +73,18 @@ pub(crate) const INPUT_DIAGRAM_0036_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_
     &str = include_str!(
     "input_diagram/0036_nested_node_mid_rank_edge_to_next_high_rank_node_top_to_bottom.yaml"
 );
+pub(crate) const INPUT_DIAGRAM_0037_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_LEFT_TO_RIGHT:
+    &str = include_str!(
+    "input_diagram/0037_nested_node_mid_rank_edge_to_next_high_rank_node_left_to_right.yaml"
+);
+pub(crate) const INPUT_DIAGRAM_0038_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_RIGHT_TO_LEFT:
+    &str = include_str!(
+    "input_diagram/0038_nested_node_mid_rank_edge_to_next_high_rank_node_right_to_left.yaml"
+);
+pub(crate) const INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP:
+    &str = include_str!(
+    "input_diagram/0039_nested_node_mid_rank_edge_to_next_high_rank_node_bottom_to_top.yaml"
+);
 
 mod diagram_generator;
 mod input_diagram_merger;

@@ -1,0 +1,38 @@
+things:
+  t_a_0:
+    t_a_00: {}
+    t_a_01: {}
+  t_b_0: {}
+  t_c_0:
+    t_c_00: {}
+    t_c_01: {}
+thing_descs:
+  t_c_00: Some long description
+thing_dependencies:
+  edge_dep_a_0_b_0:
+    kind: sequence
+    things:
+      - t_a_0
+      - t_b_0
+  edge_dep_a_00_a_01:
+    kind: sequence
+    things:
+      - t_a_00
+      - t_a_01
+  edge_dep_b_0_c_0:
+    kind: sequence
+    things:
+      - t_b_0
+      - t_c_0
+  edge_dep_c_00_c_01:
+    kind: sequence
+    things:
+      - t_c_00
+      - t_c_01
+  edge_dep_a_01_c_01:
+    kind: sequence
+    things:
+      - t_a_01
+      - t_c_01
+render_options:
+  rank_dir: bottom_to_top
