@@ -34,7 +34,8 @@ fn nested_render_options_keys() {
 
     assert_eq!(
         vec![
-            "edge_curvature".to_string(),
+            "dependencies_edge_curvature".to_string(),
+            "interactions_edge_curvature".to_string(),
             "process_render_collapse".to_string(),
             "rank_dir".to_string(),
         ],
@@ -53,6 +54,38 @@ fn enum_values_for_rank_dir() {
             "left_to_right".to_string(),
             "right_to_left".to_string(),
             "top_to_bottom".to_string(),
+        ],
+        sorted(labels)
+    );
+}
+
+#[test]
+fn enum_values_for_dependencies_edge_curvature() {
+    let text = "render_options:\n  dependencies_edge_curvature: ";
+    let labels = labels(text, 1, 31);
+
+    assert_eq!(
+        vec![
+            "curved".to_string(),
+            "direct_curved".to_string(),
+            "direct_straight".to_string(),
+            "orthogonal".to_string(),
+        ],
+        sorted(labels)
+    );
+}
+
+#[test]
+fn enum_values_for_interactions_edge_curvature() {
+    let text = "render_options:\n  interactions_edge_curvature: ";
+    let labels = labels(text, 1, 31);
+
+    assert_eq!(
+        vec![
+            "curved".to_string(),
+            "direct_curved".to_string(),
+            "direct_straight".to_string(),
+            "orthogonal".to_string(),
         ],
         sorted(labels)
     );

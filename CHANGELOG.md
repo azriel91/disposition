@@ -31,6 +31,12 @@
 * Build cross-container edge spacers based on the target's rank inside the container rather than the root-level distance between divergent ancestors, so an edge into a deeply-ranked nested child routes around the container's lower-rank siblings instead of overshooting back on itself. ([#52][#52])
 * Calculate edge protrusions independently per node instead of using common protrusion for all nodes in a given rank. ([#53][#53])
 * Ensure edges that exit a nested node spacer have different exit protrusions so their paths don't overlap. ([#53][#53])
+* Split `RenderOptions.edge_curvature` into `RenderOptions.dependencies_edge_curvature` and `RenderOptions.interactions_edge_curvature`, so dependency and interaction edge curvature can be configured independently. ([#54][#54])
+* Add `EdgeCurvature::DirectStraight`, which draws edges as straight lines directly between nodes, bypassing edge spacers (whose nodes collapse to zero size). ([#54][#54])
+* Add `EdgeCurvature::DirectCurved`, which draws edges as bezier curves directly between nodes, bypassing edge spacers. ([#54][#54])
+* Default `RenderOptions.interactions_edge_curvature` to `EdgeCurvature::DirectCurved`, so interaction edges are drawn as direct curves. ([#54][#54])
+* Update the LSP JSON schema to offer the split edge curvature render options and the `direct_straight` / `direct_curved` values. ([#54][#54])
+* Add the split dependency / interaction edge curvature controls, including the `Direct (Straight)` / `Direct (Curved)` options, to the playground render options editor. ([#54][#54])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -44,6 +50,7 @@
 [#51]: https://github.com/azriel91/disposition/pull/51
 [#52]: https://github.com/azriel91/disposition/pull/52
 [#53]: https://github.com/azriel91/disposition/pull/53
+[#54]: https://github.com/azriel91/disposition/pull/54
 
 
 ## 0.3.0 (2026-06-07)

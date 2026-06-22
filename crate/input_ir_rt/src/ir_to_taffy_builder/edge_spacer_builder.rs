@@ -5,7 +5,7 @@ use disposition_ir_model::{
     entity::{EntityType, EntityTypes},
     node::{NodeHierarchy, NodeId, NodeNestingInfo, NodeNestingInfos, NodeRank, NodeRanksNested},
 };
-use disposition_model_common::{edge::EdgeGroupId, Map};
+use disposition_model_common::{edge::EdgeGroupId, Id, Map, RenderOptions};
 use disposition_taffy_model::{
     taffy::{self, Size, Style, TaffyTree},
     EdgeDescriptionTaffyNodes, EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx,
@@ -61,6 +61,7 @@ impl EdgeSpacerBuilder {
         let node_nesting_infos = ctx.node_nesting_infos;
         let node_ranks_nested = ctx.node_ranks_nested;
         let entity_types = ctx.entity_types;
+        let render_options = ctx.render_options;
 
         // === Find cross-rank edges and compute spacer placements === //
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
@@ -84,6 +85,7 @@ impl EdgeSpacerBuilder {
                         node_ranks_nested,
                         entity_types,
                         target_entity_type,
+                        render_options,
                         rank_to_taffy_ids,
                         &mut rank_spacer_counts,
                         lca_node_id,
@@ -96,6 +98,44 @@ impl EdgeSpacerBuilder {
         });
 
         edge_spacer_taffy_nodes
+    }
+
+    /// Returns the spacer node dimension (width / height) for an edge.
+    ///
+    /// Edges drawn with a direct curvature ([`EdgeCurvature::is_direct`])
+    /// bypass spacers, so their spacer nodes collapse to zero size and
+    /// reserve no layout space. All other edges use [`EDGE_SPACER_LENGTH`].
+    ///
+    /// The curvature is selected per edge based on whether the edge is an
+    /// interaction edge ([`RenderOptions::interactions_edge_curvature`]) or a
+    /// dependency edge ([`RenderOptions::dependencies_edge_curvature`]).
+    ///
+    /// [`EdgeCurvature::is_direct`]:
+    /// disposition_model_common::edge::EdgeCurvature::is_direct
+    fn edge_spacer_length(
+        render_options: &RenderOptions,
+        entity_types: &EntityTypes<'static>,
+        edge_id: &EdgeId<'static>,
+    ) -> f32 {
+        let is_interaction_edge = entity_types
+            .get(AsRef::<Id<'_>>::as_ref(edge_id))
+            .map(|edge_entity_types| {
+                edge_entity_types
+                    .iter()
+                    .any(EntityType::is_interaction_edge)
+            })
+            .unwrap_or(false);
+        let edge_curvature = if is_interaction_edge {
+            render_options.interactions_edge_curvature
+        } else {
+            render_options.dependencies_edge_curvature
+        };
+
+        if edge_curvature.is_direct() {
+            0.0
+        } else {
+            EDGE_SPACER_LENGTH
+        }
     }
 
     /// Inserts spacer taffy nodes for edges that cross container boundaries.
@@ -128,6 +168,8 @@ impl EdgeSpacerBuilder {
         let edge_groups = ctx.edge_groups;
         let node_nesting_infos = ctx.node_nesting_infos;
         let node_ranks_nested = ctx.node_ranks_nested;
+        let entity_types = ctx.entity_types;
+        let render_options = ctx.render_options;
 
         // Collect direct child IDs of this container.
         let container_node_direct_child_ids: Vec<NodeId<'static>> = container_node_hierarchy
@@ -153,6 +195,8 @@ impl EdgeSpacerBuilder {
                         edge_group_id,
                         node_nesting_infos,
                         node_ranks_nested,
+                        entity_types,
+                        render_options,
                         rank_to_taffy_ids,
                         container_node_id,
                         &container_node_direct_child_ids,
@@ -193,6 +237,8 @@ impl EdgeSpacerBuilder {
         edge_group_id: &EdgeGroupId<'static>,
         node_nesting_infos: &NodeNestingInfos<'static>,
         node_ranks_nested: &NodeRanksNested<'static>,
+        entity_types: &EntityTypes<'static>,
+        render_options: &RenderOptions,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
         container_node_id: &NodeId<'static>,
         container_node_direct_child_ids: &Vec<NodeId<'static>>,
@@ -215,17 +261,18 @@ impl EdgeSpacerBuilder {
             }
         };
 
+        let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
+
         // Insert spacers alongside each sibling of the target child.
+        let edge_spacer_length = Self::edge_spacer_length(render_options, entity_types, &edge_id);
         let spacer_style = Style {
             min_size: Size {
-                width: taffy::Dimension::length(EDGE_SPACER_LENGTH),
-                height: taffy::Dimension::length(EDGE_SPACER_LENGTH),
+                width: taffy::Dimension::length(edge_spacer_length),
+                height: taffy::Dimension::length(edge_spacer_length),
             },
             align_self: Some(AlignSelf::Stretch),
             ..Default::default()
         };
-
-        let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
 
         let mut spacer_taffy_nodes = EdgeSpacerTaffyNodes::new();
 
@@ -340,19 +387,11 @@ impl EdgeSpacerBuilder {
         let node_nesting_infos = ctx.node_nesting_infos;
         let node_ranks_nested = ctx.node_ranks_nested;
         let entity_types = ctx.entity_types;
+        let render_options = ctx.render_options;
 
         if position_to_container_ids.is_empty() {
             return Map::new();
         }
-
-        let spacer_style = Style {
-            min_size: Size {
-                width: taffy::Dimension::length(EDGE_SPACER_LENGTH),
-                height: taffy::Dimension::length(EDGE_SPACER_LENGTH),
-            },
-            align_self: Some(AlignSelf::Stretch),
-            ..Default::default()
-        };
 
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
 
@@ -370,10 +409,10 @@ impl EdgeSpacerBuilder {
                         node_ranks_nested,
                         entity_types,
                         target_entity_type,
+                        render_options,
                         lca_node_id,
                         position_to_container_ids,
                         edge_description_taffy_nodes,
-                        &spacer_style,
                         &mut edge_spacer_taffy_nodes,
                     );
                 });
@@ -393,10 +432,10 @@ impl EdgeSpacerBuilder {
         node_ranks_nested: &NodeRanksNested<'static>,
         entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
+        render_options: &RenderOptions,
         lca_node_id: Option<&NodeId<'static>>,
         position_to_container_ids: &BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
         edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
-        spacer_style: &Style,
         edge_spacer_taffy_nodes: &mut Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
     ) {
         let Some(info_from) = node_nesting_infos.get(&edge.from) else {
@@ -455,6 +494,16 @@ impl EdgeSpacerBuilder {
         if rank_low == rank_high {
             return;
         }
+
+        let edge_spacer_length = Self::edge_spacer_length(render_options, entity_types, edge_id);
+        let spacer_style = Style {
+            min_size: Size {
+                width: taffy::Dimension::length(edge_spacer_length),
+                height: taffy::Dimension::length(edge_spacer_length),
+            },
+            align_self: Some(AlignSelf::Stretch),
+            ..Default::default()
+        };
 
         // For each container position that falls within [rank_low, rank_high),
         // insert a spacer into the container (unless it is the edge's own
@@ -543,6 +592,7 @@ impl EdgeSpacerBuilder {
         node_ranks_nested: &NodeRanksNested<'static>,
         entity_types: &EntityTypes<'static>,
         target_entity_type: &EntityType,
+        render_options: &RenderOptions,
         rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
         rank_spacer_counts: &mut BTreeMap<NodeRank, Vec<usize>>,
         lca_node_id: Option<&NodeId<'static>>,
@@ -608,10 +658,11 @@ impl EdgeSpacerBuilder {
         let insertion_base_index =
             Self::insertion_base_index_compute(nesting_info_from, nesting_info_to);
 
+        let edge_spacer_length = Self::edge_spacer_length(render_options, entity_types, edge_id);
         let spacer_style = Style {
             min_size: Size {
-                width: taffy::Dimension::length(EDGE_SPACER_LENGTH),
-                height: taffy::Dimension::length(EDGE_SPACER_LENGTH),
+                width: taffy::Dimension::length(edge_spacer_length),
+                height: taffy::Dimension::length(edge_spacer_length),
             },
             align_self: Some(AlignSelf::Stretch),
             ..Default::default()

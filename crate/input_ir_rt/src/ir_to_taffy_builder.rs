@@ -132,7 +132,7 @@ impl IrToTaffyBuilder<'_> {
             process_step_edges: _,
             process_step_ranks,
             process_step_graphs,
-            render_options: _,
+            render_options,
             css: _,
         } = ir_diagram;
 
@@ -175,6 +175,7 @@ impl IrToTaffyBuilder<'_> {
             edge_groups,
             edge_labels,
             edge_id_to_endpoint_node_ids: &edge_id_to_endpoint_node_ids,
+            render_options,
             lod: *lod,
             char_width,
             node_md_texts: &node_md_texts,

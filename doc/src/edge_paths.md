@@ -17,6 +17,20 @@
 15. The second pass computes the edge paths with the offsets and protrusion, which should result in paths that are visually non-overlapping with other paths and node content, creating visual clarity.
 
 
+## Edge Curvature
+
+The shape of each edge path is controlled by [`EdgeCurvature`](crate/model_common/src/edge/edge_curvature.rs). It is configured independently for dependency edges (`RenderOptions::dependencies_edge_curvature`) and interaction edges (`RenderOptions::interactions_edge_curvature`), selected per edge group in `svg_edge_infos_builder.rs`.
+
+The second pass (`EdgePathBuilderPass2::build`) branches on the curvature:
+
+* `Orthogonal`: orthogonal (90-degree) lines routed through spacer waypoints, with rounded corners. This is the dependency-edge default.
+* `Curved`: smooth bezier curves routed through spacer waypoints.
+* `DirectStraight`: a straight line drawn directly from the `from` node to the `to` node, **ignoring spacer waypoints**.
+* `DirectCurved`: a smooth bezier curve drawn directly from the `from` node to the `to` node, **ignoring spacer waypoints**. This is the interaction-edge default.
+
+The `Direct*` variants bypass edge spacers. The spacer taffy nodes are still inserted (the taffy tree structure is unchanged), but for edges whose effective curvature `is_direct()`, the spacer nodes are built with zero `min_size` so they reserve no layout space and the layout stays compact. See [Edge Spacers](edge_spacers.md) for where this is applied.
+
+
 ## Node Rank Calculation
 
 Node ranks are stored in [`NodeRanksNested`](crate/ir_model/src/node/node_ranks_nested.rs) and computed by [`NodeRanksCalculator`](crate/input_ir_rt/src/node_ranks_calculator.rs). Ranks are hierarchy-aware: each container node has its own [`NodeRanks`](crate/ir_model/src/node/node_ranks.rs) for its direct children, computed independently from other levels.

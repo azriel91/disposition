@@ -78,7 +78,6 @@ impl SvgEdgeInfosBuilder {
             render_options,
             ..
         } = ir_diagram;
-        let edge_curvature = render_options.edge_curvature;
         let rank_dir = render_options.rank_dir;
 
         // Build a reverse map: entity (edge group) ID -> list of process step NodeIds.
@@ -193,6 +192,25 @@ impl SvgEdgeInfosBuilder {
 
             let visible_segments_length = edge_animation_params.visible_segments_length;
             let ortho_protrusions = &ortho_protrusions_all[group_index];
+
+            // Dependency and interaction edges can be drawn with independent
+            // curvatures. Edge groups are exclusively one kind, so the curvature
+            // is selected once per group from the group's edges.
+            let is_interaction_group = pass1_infos.iter().any(|pass1_info| {
+                entity_types
+                    .get(AsRef::<Id<'_>>::as_ref(&pass1_info.edge_id))
+                    .map(|edge_entity_types| {
+                        edge_entity_types
+                            .iter()
+                            .any(EntityType::is_interaction_edge)
+                    })
+                    .unwrap_or(false)
+            });
+            let edge_curvature = if is_interaction_group {
+                render_options.interactions_edge_curvature
+            } else {
+                render_options.dependencies_edge_curvature
+            };
 
             let edge_path_infos = Self::build_edge_path_infos_with_offsets(
                 edge_curvature,

@@ -10,6 +10,14 @@ Spacer nodes participate in the flex layout so that after `taffy_tree.compute_la
 runs, each spacer has a computed absolute position. The edge path builder then uses those positions
 as waypoints to route the edge around intermediate nodes.
 
+Edges drawn with a direct curvature (`EdgeCurvature::is_direct()`, i.e. the `DirectStraight` /
+`DirectCurved` variants) bypass spacers entirely. Their spacer taffy nodes are still inserted so the
+tree structure is unchanged, but `EdgeSpacerBuilder::edge_spacer_length` returns `0.0` for them
+instead of `EDGE_SPACER_LENGTH`, so they reserve no layout space. The effective curvature is selected
+per edge from `RenderOptions::dependencies_edge_curvature` /
+`RenderOptions::interactions_edge_curvature` based on whether the edge is a dependency or interaction
+edge.
+
 
 ## Background Concepts
 
