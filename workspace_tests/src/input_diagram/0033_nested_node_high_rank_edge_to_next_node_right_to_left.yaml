@@ -1,0 +1,19 @@
+things:
+  t_a_0:
+    t_a_00: {}
+    t_a_01: {}
+  t_b_0:
+    t_b_00: {}
+thing_dependencies:
+  edge_dep_a_00_a_01:
+    kind: sequence
+    things:
+      - t_a_00
+      - t_a_01
+  edge_dep_a_01_b_00:
+    kind: sequence
+    things:
+      - t_a_01
+      - t_b_00
+render_options:
+  rank_dir: right_to_left

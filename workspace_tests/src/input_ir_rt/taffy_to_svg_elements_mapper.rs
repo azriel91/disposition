@@ -37,6 +37,12 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0028_NESTED_NODE_EDGE_PROTRUSION_TO_NESTED_NODE_2,
     INPUT_DIAGRAM_0029_NESTED_EDGE_OVERLAP_WITH_DIFFERENT_RANK_NESTED_EDGE,
     INPUT_DIAGRAM_0030_NESTED_EDGE_OVERLAP_WITH_DIFFERENT_RANK_NESTED_EDGE_WITH_NODE_DESC,
+    INPUT_DIAGRAM_0031_NESTED_NODE_HIGH_RANK_EDGE_TO_NEXT_NODE_TOP_TO_BOTTOM,
+    INPUT_DIAGRAM_0032_NESTED_NODE_HIGH_RANK_EDGE_TO_NEXT_NODE_LEFT_TO_RIGHT,
+    INPUT_DIAGRAM_0033_NESTED_NODE_HIGH_RANK_EDGE_TO_NEXT_NODE_RIGHT_TO_LEFT,
+    INPUT_DIAGRAM_0034_NESTED_NODE_HIGH_RANK_EDGE_TO_NEXT_NODE_BOTTOM_TO_TOP,
+    INPUT_DIAGRAM_0035_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_NODE_TOP_TO_BOTTOM,
+    INPUT_DIAGRAM_0036_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_TOP_TO_BOTTOM,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -3451,5 +3457,224 @@ fn test_self_loop_contacts_honour_face_contact_gap() {
                 to_contact.1,
             );
         }
+    }
+}
+
+// === Edges from a nested node to a node in a sibling container (0031-0036) ===
+// //
+
+/// Flow direction of a diagram, used to pick the cross axis of an edge path.
+#[derive(Clone, Copy)]
+enum FlowAxis {
+    /// `rank_dir: top_to_bottom` / `bottom_to_top` -- cross axis is X.
+    Vertical,
+    /// `rank_dir: left_to_right` / `right_to_left` -- cross axis is Y.
+    Horizontal,
+}
+
+impl FlowAxis {
+    /// Returns the cross-axis coordinate of a path point.
+    fn cross(self, point: (f32, f32)) -> f32 {
+        match self {
+            FlowAxis::Vertical => point.0,
+            FlowAxis::Horizontal => point.1,
+        }
+    }
+}
+
+/// Returns whether the orthogonal segment `a`-`b` passes through (the interior
+/// of) the axis-aligned rectangle, allowing a small tolerance so a path running
+/// flush along a face is not counted as intersecting.
+fn segment_intersects_rect(
+    a: (f32, f32),
+    b: (f32, f32),
+    rect_x_min: f32,
+    rect_y_min: f32,
+    rect_x_max: f32,
+    rect_y_max: f32,
+) -> bool {
+    let tolerance = 0.5_f32;
+    let seg_x_min = a.0.min(b.0);
+    let seg_x_max = a.0.max(b.0);
+    let seg_y_min = a.1.min(b.1);
+    let seg_y_max = a.1.max(b.1);
+
+    seg_x_max > rect_x_min + tolerance
+        && seg_x_min < rect_x_max - tolerance
+        && seg_y_max > rect_y_min + tolerance
+        && seg_y_min < rect_y_max - tolerance
+}
+
+/// Asserts none of an edge path's orthogonal segments pass through a node's
+/// box.
+fn assert_edge_path_clears_node(
+    path_d: &str,
+    node: &disposition::svg_model::SvgNodeInfo<'_>,
+    node_label: &str,
+) {
+    let coords = parse_path_endpoints(path_d);
+    let rect_x_min = node.x;
+    let rect_y_min = node.y;
+    let rect_x_max = node.x + node.width;
+    let rect_y_max = node.y + node.height_collapsed;
+
+    for window in coords.windows(2) {
+        let [a, b] = window else { continue };
+        assert!(
+            !segment_intersects_rect(*a, *b, rect_x_min, rect_y_min, rect_x_max, rect_y_max),
+            "Edge path segment {a:?} -> {b:?} passes through {node_label} \
+             (rect x: {rect_x_min:.1}..{rect_x_max:.1}, y: {rect_y_min:.1}..{rect_y_max:.1}). \
+             path_d = {path_d:?}",
+        );
+    }
+}
+
+/// When the `from` node is the highest-ranked child of its container, an edge
+/// to a node in the next sibling container exits straight out the gap-facing
+/// face: there is no higher-ranked sibling to route around, so the edge has no
+/// spacers and does not detour on the cross axis.
+fn assert_high_rank_from_edge_routes_straight(input_diagram: &str, axis: FlowAxis) {
+    for svg_elements in build_svg_elements_for_diagram(input_diagram) {
+        let edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_a_01" && e.to_node_id.as_str() == "t_b_00")
+            .expect("Expected edge from t_a_01 to t_b_00");
+
+        assert!(
+            edge.ortho_protrusion_params.spacer_protrusions.is_empty(),
+            "Expected no spacer protrusions for t_a_01 -> t_b_00 -- t_a_01 is the \
+             highest-ranked child of t_a_0, so the edge exits straight out the \
+             gap-facing face with no sibling to route around. \
+             spacer_protrusions = {:?}, path_d = {:?}",
+            edge.ortho_protrusion_params.spacer_protrusions,
+            edge.path_d,
+        );
+
+        // No cross-axis detour: every vertex stays within a tight band of the
+        // first contact point (both endpoints are aligned on the cross axis in
+        // these fixtures).
+        let coords = parse_path_endpoints(&edge.path_d);
+        let first_cross = axis.cross(coords[0]);
+        for &point in &coords {
+            let cross = axis.cross(point);
+            assert!(
+                (cross - first_cross).abs() <= 12.0,
+                "Edge t_a_01 -> t_b_00 detours on the cross axis: vertex {point:?} \
+                 is {:.1} px from the contact line ({first_cross:.1}). The edge \
+                 should route straight out the gap-facing face. path_d = {:?}",
+                (cross - first_cross).abs(),
+                edge.path_d,
+            );
+        }
+    }
+}
+
+/// `0031` (`top_to_bottom`): `t_a_01` is rank 1 (highest) in `t_a_0`, so the
+/// edge to `t_b_00` needs no cross-container spacer.
+#[test]
+fn test_0031_high_rank_from_edge_top_to_bottom_routes_straight() {
+    assert_high_rank_from_edge_routes_straight(
+        INPUT_DIAGRAM_0031_NESTED_NODE_HIGH_RANK_EDGE_TO_NEXT_NODE_TOP_TO_BOTTOM,
+        FlowAxis::Vertical,
+    );
+}
+
+/// `0032` (`left_to_right`): same as `0031`, with a horizontal flow.
+#[test]
+fn test_0032_high_rank_from_edge_left_to_right_routes_straight() {
+    assert_high_rank_from_edge_routes_straight(
+        INPUT_DIAGRAM_0032_NESTED_NODE_HIGH_RANK_EDGE_TO_NEXT_NODE_LEFT_TO_RIGHT,
+        FlowAxis::Horizontal,
+    );
+}
+
+/// `0033` (`right_to_left`): same as `0031`, with a reversed horizontal flow.
+#[test]
+fn test_0033_high_rank_from_edge_right_to_left_routes_straight() {
+    assert_high_rank_from_edge_routes_straight(
+        INPUT_DIAGRAM_0033_NESTED_NODE_HIGH_RANK_EDGE_TO_NEXT_NODE_RIGHT_TO_LEFT,
+        FlowAxis::Horizontal,
+    );
+}
+
+/// `0034` (`bottom_to_top`): same as `0031`, with a reversed vertical flow.
+#[test]
+fn test_0034_high_rank_from_edge_bottom_to_top_routes_straight() {
+    assert_high_rank_from_edge_routes_straight(
+        INPUT_DIAGRAM_0034_NESTED_NODE_HIGH_RANK_EDGE_TO_NEXT_NODE_BOTTOM_TO_TOP,
+        FlowAxis::Vertical,
+    );
+}
+
+/// `0035` (`top_to_bottom`): `t_a_01` is rank 1 (the middle) in `t_a_0`. The
+/// edge to `t_b_00` exits toward the high-rank (bottom) face, so it must route
+/// around `t_a_02` (rank 2) via a cross-container spacer on the gap side -- not
+/// around `t_a_00` (rank 0), which is on the far side -- and the path must
+/// clear `t_a_02`.
+#[test]
+fn test_0035_mid_rank_from_edge_routes_around_higher_rank_sibling() {
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0035_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_NODE_TOP_TO_BOTTOM,
+    ) {
+        let t_a_02 = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_a_02")
+            .expect("Expected t_a_02 in svg_node_infos");
+
+        let edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_a_01" && e.to_node_id.as_str() == "t_b_00")
+            .expect("Expected edge from t_a_01 to t_b_00");
+
+        assert_eq!(
+            edge.ortho_protrusion_params.spacer_protrusions.len(),
+            1,
+            "Expected exactly one cross-container spacer (routing around t_a_02 on \
+             the gap side) for t_a_01 -> t_b_00. spacer_protrusions = {:?}, \
+             path_d = {:?}",
+            edge.ortho_protrusion_params.spacer_protrusions,
+            edge.path_d,
+        );
+
+        assert_edge_path_clears_node(&edge.path_d, t_a_02, "t_a_02");
+    }
+}
+
+/// `0036` (`top_to_bottom`): `t_a_01` (rank 1 in `t_a_0`) connects to `t_c_01`
+/// (rank 1 in `t_c_0`, which is rank 2 at root). The edge must keep both its
+/// root-level LCA-gap spacer *and* the cross-container spacer beside `t_c_00`
+/// (rank 0 in `t_c_0`), so it routes around `t_c_00` on the way down to
+/// `t_c_01` rather than passing straight through it.
+#[test]
+fn test_0036_mid_rank_to_high_rank_routes_around_lower_rank_sibling() {
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0036_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_TOP_TO_BOTTOM,
+    ) {
+        let t_c_00 = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_c_00")
+            .expect("Expected t_c_00 in svg_node_infos");
+
+        let edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.from_node_id.as_str() == "t_a_01" && e.to_node_id.as_str() == "t_c_01")
+            .expect("Expected edge from t_a_01 to t_c_01");
+
+        assert!(
+            edge.ortho_protrusion_params.spacer_protrusions.len() >= 2,
+            "Expected at least two spacers for t_a_01 -> t_c_01: the root-level \
+             LCA-gap spacer and the cross-container spacer beside t_c_00. The \
+             cross-container spacer must survive map merging. \
+             spacer_protrusions = {:?}, path_d = {:?}",
+            edge.ortho_protrusion_params.spacer_protrusions,
+            edge.path_d,
+        );
+
+        assert_edge_path_clears_node(&edge.path_d, t_c_00, "t_c_00");
     }
 }

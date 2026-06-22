@@ -64,8 +64,10 @@ impl NestedEdgeTaffyNodes {
 
     /// Merges another set of nested edge taffy nodes into this one.
     fn extend(&mut self, other: NestedEdgeTaffyNodes) {
-        self.edge_spacer_taffy_nodes
-            .extend(other.edge_spacer_taffy_nodes);
+        EdgeSpacerTaffyNodes::map_merge(
+            &mut self.edge_spacer_taffy_nodes,
+            other.edge_spacer_taffy_nodes,
+        );
         self.edge_description_taffy_nodes
             .extend(other.edge_description_taffy_nodes);
     }
@@ -599,15 +601,16 @@ impl TaffyDiagramNodeBuilder {
 
         // === Insert spacer nodes for edges nested within this node === //
         target_entity_types.iter().for_each(|target_entity_type| {
-            nested_edge_taffy_nodes
-                .edge_spacer_taffy_nodes
-                .extend(EdgeSpacerBuilder::build(
+            EdgeSpacerTaffyNodes::map_merge(
+                &mut nested_edge_taffy_nodes.edge_spacer_taffy_nodes,
+                EdgeSpacerBuilder::build(
                     ctx,
                     state.taffy_tree,
                     target_entity_type,
                     rank_to_taffy_ids,
                     Some(lca_node_id),
-                ));
+                ),
+            );
         });
 
         // === Insert spacer nodes for edges crossing this container === //
@@ -616,7 +619,8 @@ impl TaffyDiagramNodeBuilder {
         // deeply nested inside, the edge path needs waypoints alongside the
         // intermediate sibling children so it routes around them instead of
         // drawing over them.
-        nested_edge_taffy_nodes.edge_spacer_taffy_nodes.extend(
+        EdgeSpacerTaffyNodes::map_merge(
+            &mut nested_edge_taffy_nodes.edge_spacer_taffy_nodes,
             EdgeSpacerBuilder::build_cross_container_spacers(
                 ctx,
                 state.taffy_tree,

@@ -69,6 +69,45 @@ impl EdgeSpacerTaffyNodes {
             edge_desc_container_spacer_taffy_node_ids: Vec::new(),
         }
     }
+
+    /// Merges another set of spacer taffy nodes into this one, field by field.
+    ///
+    /// Unlike replacing the whole value (e.g. via `Map::extend` on a
+    /// `Map<EdgeId, EdgeSpacerTaffyNodes>`), this preserves spacers of every
+    /// kind. An edge built across multiple nesting levels accumulates a
+    /// rank-based (LCA-gap) spacer at one level and cross-container spacers at
+    /// each ancestor level, and all of them must be retained for the edge path
+    /// to route correctly.
+    pub fn merge(&mut self, other: EdgeSpacerTaffyNodes) {
+        let EdgeSpacerTaffyNodes {
+            rank_to_spacer_taffy_node_id,
+            cross_container_spacer_taffy_node_ids,
+            edge_desc_container_spacer_taffy_node_ids,
+        } = other;
+
+        self.rank_to_spacer_taffy_node_id
+            .extend(rank_to_spacer_taffy_node_id);
+        self.cross_container_spacer_taffy_node_ids
+            .extend(cross_container_spacer_taffy_node_ids);
+        self.edge_desc_container_spacer_taffy_node_ids
+            .extend(edge_desc_container_spacer_taffy_node_ids);
+    }
+
+    /// Merges `other` into `target`, combining each edge's spacers field by
+    /// field via [`EdgeSpacerTaffyNodes::merge`].
+    ///
+    /// This must be used instead of `Map::extend` whenever spacer maps from
+    /// different nesting levels or build passes are combined, because
+    /// `Map::extend` would replace the whole `EdgeSpacerTaffyNodes` for an edge
+    /// that already has an entry and drop spacers of a different kind.
+    pub fn map_merge<'id>(
+        target: &mut crate::EdgeIdToEdgeSpacerTaffyNodes<'id>,
+        other: crate::EdgeIdToEdgeSpacerTaffyNodes<'id>,
+    ) {
+        other.into_iter().for_each(|(edge_id, spacer_taffy_nodes)| {
+            target.entry(edge_id).or_default().merge(spacer_taffy_nodes);
+        });
+    }
 }
 
 impl Default for EdgeSpacerTaffyNodes {

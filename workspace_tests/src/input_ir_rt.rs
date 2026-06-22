@@ -59,6 +59,20 @@ pub(crate) const INPUT_DIAGRAM_0030_NESTED_EDGE_OVERLAP_WITH_DIFFERENT_RANK_NEST
     &str = include_str!(
     "input_diagram/0030_nested_edge_overlap_with_different_rank_nested_edge_with_node_desc.yaml"
 );
+pub(crate) const INPUT_DIAGRAM_0031_NESTED_NODE_HIGH_RANK_EDGE_TO_NEXT_NODE_TOP_TO_BOTTOM: &str =
+    include_str!("input_diagram/0031_nested_node_high_rank_edge_to_next_node_top_to_bottom.yaml");
+pub(crate) const INPUT_DIAGRAM_0032_NESTED_NODE_HIGH_RANK_EDGE_TO_NEXT_NODE_LEFT_TO_RIGHT: &str =
+    include_str!("input_diagram/0032_nested_node_high_rank_edge_to_next_node_left_to_right.yaml");
+pub(crate) const INPUT_DIAGRAM_0033_NESTED_NODE_HIGH_RANK_EDGE_TO_NEXT_NODE_RIGHT_TO_LEFT: &str =
+    include_str!("input_diagram/0033_nested_node_high_rank_edge_to_next_node_right_to_left.yaml");
+pub(crate) const INPUT_DIAGRAM_0034_NESTED_NODE_HIGH_RANK_EDGE_TO_NEXT_NODE_BOTTOM_TO_TOP: &str =
+    include_str!("input_diagram/0034_nested_node_high_rank_edge_to_next_node_bottom_to_top.yaml");
+pub(crate) const INPUT_DIAGRAM_0035_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_NODE_TOP_TO_BOTTOM: &str =
+    include_str!("input_diagram/0035_nested_node_mid_rank_edge_to_next_node_top_to_bottom.yaml");
+pub(crate) const INPUT_DIAGRAM_0036_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_TOP_TO_BOTTOM:
+    &str = include_str!(
+    "input_diagram/0036_nested_node_mid_rank_edge_to_next_high_rank_node_top_to_bottom.yaml"
+);
 
 mod diagram_generator;
 mod input_diagram_merger;

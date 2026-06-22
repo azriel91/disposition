@@ -215,29 +215,46 @@ impl IrToTaffyBuilder<'_> {
         // leaf nodes at every intermediate rank. The edge path will later
         // be routed through these spacer positions to avoid overlapping
         // other nodes.
+        // Merge field-by-field per edge: an edge may have cross-container
+        // spacers bubbled up from `first_level_nested_edge_taffy_nodes` *and* a
+        // top-level rank-based (LCA-gap) spacer built here. A plain
+        // `Map::extend` would drop one set; `EdgeSpacerTaffyNodes::map_merge`
+        // keeps both.
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
-        edge_spacer_taffy_nodes.extend(first_level_nested_edge_taffy_nodes.edge_spacer_taffy_nodes);
-        edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
-            ctx,
-            &mut taffy_tree,
-            &EntityType::ThingDefault,
-            &mut thing_rank_to_taffy_ids,
-            None,
-        ));
-        edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
-            ctx,
-            &mut taffy_tree,
-            &EntityType::TagDefault,
-            &mut tag_rank_to_taffy_ids,
-            None,
-        ));
-        edge_spacer_taffy_nodes.extend(EdgeSpacerBuilder::build(
-            ctx,
-            &mut taffy_tree,
-            &EntityType::ProcessDefault,
-            &mut process_rank_to_taffy_ids,
-            None,
-        ));
+        EdgeSpacerTaffyNodes::map_merge(
+            &mut edge_spacer_taffy_nodes,
+            first_level_nested_edge_taffy_nodes.edge_spacer_taffy_nodes,
+        );
+        EdgeSpacerTaffyNodes::map_merge(
+            &mut edge_spacer_taffy_nodes,
+            EdgeSpacerBuilder::build(
+                ctx,
+                &mut taffy_tree,
+                &EntityType::ThingDefault,
+                &mut thing_rank_to_taffy_ids,
+                None,
+            ),
+        );
+        EdgeSpacerTaffyNodes::map_merge(
+            &mut edge_spacer_taffy_nodes,
+            EdgeSpacerBuilder::build(
+                ctx,
+                &mut taffy_tree,
+                &EntityType::TagDefault,
+                &mut tag_rank_to_taffy_ids,
+                None,
+            ),
+        );
+        EdgeSpacerTaffyNodes::map_merge(
+            &mut edge_spacer_taffy_nodes,
+            EdgeSpacerBuilder::build(
+                ctx,
+                &mut taffy_tree,
+                &EntityType::ProcessDefault,
+                &mut process_rank_to_taffy_ids,
+                None,
+            ),
+        );
 
         // === Build edge_description_container nodes for top-level described edges ===
         // //
