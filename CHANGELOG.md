@@ -38,6 +38,7 @@
 * Update the LSP JSON schema to offer the split edge curvature render options and the `direct_straight` / `direct_curved` values. ([#54][#54])
 * Add the split dependency / interaction edge curvature controls, including the `Direct (Straight)` / `Direct (Curved)` options, to the playground render options editor. ([#54][#54])
 * Edges are routed through spacers at every intermediate ancestor based on ranks to avoid overlapping higher `from` and lower `to` rank nodes. ([#55][#55])
+* Separate edge contact points that exit the same face direction of different nodes at the same coordinate (e.g. a container and a node centered within it), so their protrusion stubs no longer overlap. ([#55][#55])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43

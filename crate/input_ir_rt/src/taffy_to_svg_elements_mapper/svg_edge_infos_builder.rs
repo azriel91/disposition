@@ -21,7 +21,7 @@ use disposition_model_common::edge::EdgeGroupId;
 use crate::{
     input_to_ir_diagram_mapper::tailwind_focus_mode::TailwindFocusMode,
     taffy_to_svg_elements_mapper::{
-        edge_face_contact_tracker::EdgeFaceContactTracker,
+        edge_face_contact_tracker::{EdgeFaceContactTracker, CONTACT_GAP_MIN_PX},
         edge_model::{
             EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeIdAndFace,
             NodeIdAndFaceToContactPointOffsets, PathBounds, PathMidpoint,
@@ -694,6 +694,17 @@ impl SvgEdgeInfosBuilder {
             );
         }
 
+        // Separate contacts on the same face that resolve to the same absolute
+        // coordinate across *different* nodes (e.g. an edge from a container
+        // and an edge from a node nested and centered within it). The
+        // per-(node, face) spreading above cannot see these, so their
+        // protrusion stubs would otherwise be drawn on top of each other.
+        Self::face_offsets_collisions_separate(
+            &face_contact_entries_by_node_face,
+            svg_node_info_map,
+            &mut face_offsets_by_node_face,
+        );
+
         face_offsets_by_node_face
     }
 
@@ -768,6 +779,159 @@ impl SvgEdgeInfosBuilder {
                     candidate_before
                 };
         }
+    }
+
+    /// Separates edge contacts on the same `NodeFace` that resolve to the
+    /// same absolute coordinate but belong to different nodes.
+    ///
+    /// The per-`(node, face)` spreading in `face_offsets_compute` only sees
+    /// contacts that share a single node face, so two edges exiting the same
+    /// face of *different* nodes -- e.g. an edge from a container and an edge
+    /// from a node nested and centered within it -- can land their contact
+    /// points at the identical absolute coordinate, drawing their protrusion
+    /// stubs on top of each other.
+    ///
+    /// This pass flattens every contact, clusters contacts on the same face by
+    /// proximity along the face axis, and -- for clusters that span two or more
+    /// distinct nodes -- redistributes them symmetrically around the cluster's
+    /// shared midpoint. Clusters of a single contact are left untouched, so
+    /// layouts without cross-node coincidence are byte-for-byte unchanged.
+    fn face_offsets_collisions_separate<'id>(
+        face_contact_entries_by_node_face: &Map<NodeIdAndFace<'id>, Vec<FaceContactEntry>>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        face_offsets_by_node_face: &mut NodeIdAndFaceToContactPointOffsets<'id>,
+    ) {
+        // Group records by exact `NodeFace` so opposite-direction stubs (e.g. a
+        // `Top` contact and a `Bottom` contact) are never merged.
+        let mut records_by_face: Map<NodeFace, Vec<FaceContactCollisionRecord<'id>>> = Map::new();
+
+        for (node_id_and_face, face_contact_entries) in face_contact_entries_by_node_face {
+            let Some(midpoint) = Self::face_midpoint(
+                &node_id_and_face.node_id,
+                node_id_and_face.face,
+                svg_node_info_map,
+            ) else {
+                continue;
+            };
+            let face_length = Self::face_length_for_node(
+                &node_id_and_face.node_id,
+                node_id_and_face.face,
+                svg_node_info_map,
+            );
+            let Some(offsets) = face_offsets_by_node_face.get(node_id_and_face) else {
+                continue;
+            };
+
+            face_contact_entries
+                .iter()
+                .enumerate()
+                .for_each(|(slot_index, face_contact_entry)| {
+                    let Some(offset) = offsets.get(slot_index) else {
+                        return;
+                    };
+                    records_by_face
+                        .entry(node_id_and_face.face)
+                        .or_default()
+                        .push(FaceContactCollisionRecord {
+                            node_id_and_face: node_id_and_face.clone(),
+                            slot_index,
+                            midpoint,
+                            abs_coord: midpoint + offset,
+                            face_length,
+                            rank_distance: face_contact_entry.rank_distance,
+                            pass1_group_index: face_contact_entry.pass1_group_index,
+                            edge_index: face_contact_entry.edge_index,
+                        });
+                });
+        }
+
+        for (_face, mut records) in records_by_face {
+            if records.len() < 2 {
+                continue;
+            }
+
+            // Sort by absolute coordinate so adjacent records cluster together.
+            records.sort_by(|record_a, record_b| {
+                record_a
+                    .abs_coord
+                    .partial_cmp(&record_b.abs_coord)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
+            // Walk records, splitting into clusters wherever the gap to the
+            // previous record exceeds the contact gap. Same-(node, face)
+            // contacts spread by the slot logic are at least the contact gap
+            // apart, so they split into single-record clusters (skipped) unless
+            // a contact from another node falls within the gap.
+            let mut cluster_start = 0usize;
+            for index in 1..=records.len() {
+                let split = index == records.len()
+                    || (records[index].abs_coord - records[index - 1].abs_coord)
+                        > CONTACT_GAP_MIN_PX;
+                if split {
+                    Self::face_offsets_collision_cluster_separate(
+                        &records[cluster_start..index],
+                        face_offsets_by_node_face,
+                    );
+                    cluster_start = index;
+                }
+            }
+        }
+    }
+
+    /// Redistributes one cluster of coincident face contacts symmetrically
+    /// around their shared midpoint.
+    ///
+    /// A cluster is only adjusted when it spans two or more distinct
+    /// `(node, face)` groups; a cluster wholly within one group is already
+    /// spread by the slot logic in `face_offsets_compute`, and a single-record
+    /// cluster needs no separation.
+    fn face_offsets_collision_cluster_separate<'id>(
+        cluster: &[FaceContactCollisionRecord<'id>],
+        face_offsets_by_node_face: &mut NodeIdAndFaceToContactPointOffsets<'id>,
+    ) {
+        let distinct_node_faces = cluster
+            .iter()
+            .map(|record| &record.node_id_and_face)
+            .collect::<std::collections::HashSet<_>>()
+            .len();
+        if cluster.len() < 2 || distinct_node_faces < 2 {
+            return;
+        }
+
+        let contact_count = cluster.len();
+        let center =
+            cluster.iter().map(|record| record.abs_coord).sum::<f32>() / contact_count as f32;
+        // Size the fan from the narrowest node's face so it fits within all
+        // nodes in the cluster.
+        let min_face_length = cluster
+            .iter()
+            .map(|record| record.face_length)
+            .fold(f32::INFINITY, f32::min);
+        let gap = EdgeFaceContactTracker::gap_calculate(contact_count, min_face_length);
+
+        // Order deterministically: closer-ranked edges innermost, then by stable
+        // edge identity.
+        let mut ordered_records: Vec<&FaceContactCollisionRecord<'id>> = cluster.iter().collect();
+        ordered_records.sort_by(|record_a, record_b| {
+            record_a
+                .rank_distance
+                .cmp(&record_b.rank_distance)
+                .then(record_a.pass1_group_index.cmp(&record_b.pass1_group_index))
+                .then(record_a.edge_index.cmp(&record_b.edge_index))
+        });
+
+        let center_index = (contact_count as f32 - 1.0) / 2.0;
+        ordered_records
+            .iter()
+            .enumerate()
+            .for_each(|(slot, record)| {
+                let abs_pos = center + (slot as f32 - center_index) * gap;
+                let offset = abs_pos - record.midpoint;
+                if let Some(offsets) = face_offsets_by_node_face.get_mut(&record.node_id_and_face) {
+                    offsets.offset_set(record.slot_index, offset);
+                }
+            });
     }
 
     /// Sorts the entries for a single (node, face) by rank distance
@@ -1214,6 +1378,24 @@ impl SvgEdgeInfosBuilder {
     ///
     /// For `Top` / `Bottom` this is the node width; for `Left` / `Right`
     /// this is the node collapsed height.
+    /// Returns the midpoint coordinate of a node face along the face axis.
+    ///
+    /// For `Top`/`Bottom` faces this is the horizontal midpoint
+    /// (`x + width / 2`); for `Left`/`Right` faces the vertical midpoint
+    /// (`y + height_collapsed / 2`). Returns `None` when the node has no layout
+    /// info.
+    fn face_midpoint<'id>(
+        node_id: &NodeId<'id>,
+        face: NodeFace,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+    ) -> Option<f32> {
+        let node_info = svg_node_info_map.get(node_id)?;
+        Some(match face {
+            NodeFace::Top | NodeFace::Bottom => node_info.x + node_info.width / 2.0,
+            NodeFace::Left | NodeFace::Right => node_info.y + node_info.height_collapsed / 2.0,
+        })
+    }
+
     fn face_length_for_node<'id>(
         node_id: &NodeId<'id>,
         face: NodeFace,
@@ -1266,7 +1448,7 @@ impl SvgEdgeInfosBuilder {
         let layout = taffy_tree.layout(taffy_node_id).ok()?;
         let label_width = layout.size.width;
         let label_height = layout.size.height;
-        let node_info = svg_node_info_map.get(node_id)?;
+        let face_midpoint = Self::face_midpoint(node_id, face, svg_node_info_map)?;
         match face {
             NodeFace::Top | NodeFace::Bottom => {
                 if label_width == 0.0 {
@@ -1280,8 +1462,7 @@ impl SvgEdgeInfosBuilder {
                     );
                 // Route to the entry-side (left x) edge of the label.
                 let label_contact_x = label_abs_x;
-                let face_midpoint_x = node_info.x + node_info.width / 2.0;
-                Some(label_contact_x - face_midpoint_x)
+                Some(label_contact_x - face_midpoint)
             }
             NodeFace::Left | NodeFace::Right => {
                 if label_height == 0.0 {
@@ -1295,8 +1476,7 @@ impl SvgEdgeInfosBuilder {
                     );
                 // Route to the entry-side (top y) edge of the label.
                 let label_contact_y = label_abs_y;
-                let face_midpoint_y = node_info.y + node_info.height_collapsed / 2.0;
-                Some(label_contact_y - face_midpoint_y)
+                Some(label_contact_y - face_midpoint)
             }
         }
     }
@@ -1541,6 +1721,38 @@ struct FaceContactEntry {
     /// `true` if this contact is at the "from" endpoint of the edge,
     /// `false` for the "to" endpoint.
     is_from_endpoint: bool,
+}
+
+/// A flattened face contact used by `face_offsets_collisions_separate` to
+/// detect and resolve coincident contacts across different nodes.
+///
+/// Unlike [`FaceContactEntry`], which is grouped per `(node, face)`, this
+/// record carries the resolved absolute coordinate of the contact so contacts
+/// from different nodes that land at the same place can be clustered and
+/// re-spread.
+#[derive(Clone, Debug)]
+struct FaceContactCollisionRecord<'id> {
+    /// The `(node, face)` group this contact belongs to.
+    node_id_and_face: NodeIdAndFace<'id>,
+    /// Slot index of this contact within its group's offsets vector.
+    slot_index: usize,
+    /// Midpoint of the node face along the face axis (x for Top/Bottom, y for
+    /// Left/Right).
+    midpoint: f32,
+    /// Absolute coordinate of the contact along the face axis
+    /// (`midpoint + offset`).
+    abs_coord: f32,
+    /// Length of the node face (width for Top/Bottom, collapsed height for
+    /// Left/Right), used to size the fan so it fits within the face.
+    face_length: f32,
+    /// Absolute rank difference between the edge's endpoints, used as the
+    /// primary deterministic ordering key within a cluster.
+    rank_distance: u32,
+    /// Index into `all_pass1_groups`, used as a stable ordering tie-breaker.
+    pass1_group_index: usize,
+    /// Index into the group's `pass1_infos`, used as a stable ordering
+    /// tie-breaker.
+    edge_index: usize,
 }
 
 /// Intermediate per-edge data collected in pass 1 and consumed in

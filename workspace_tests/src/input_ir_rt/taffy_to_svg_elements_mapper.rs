@@ -3731,6 +3731,45 @@ fn test_0036_mid_rank_to_high_rank_top_to_bottom_routes_cleanly() {
     );
 }
 
+/// `0036` (`top_to_bottom`): three edges exit a `Bottom` face at the same
+/// horizontal midpoint -- `t_a_0 -> t_b_0`, `t_a_00 -> t_a_01`, and
+/// `t_a_01 -> t_c_01`. `t_a_0` (the container) and its centered nested children
+/// `t_a_00` / `t_a_01` all share the midpoint x, so without cross-node contact
+/// separation their contact points (and protrusion stubs) coincide. This
+/// asserts the three contacts are spread to distinct x coordinates.
+#[test]
+fn test_0036_coincident_face_contacts_are_separated() {
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0036_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_TOP_TO_BOTTOM,
+    ) {
+        let contact_x = |from: &str, to: &str| -> f32 {
+            let edge = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == from && e.to_node_id.as_str() == to)
+                .unwrap_or_else(|| panic!("Expected edge from {from} to {to}"));
+            parse_path_endpoints(&edge.path_d)[0].0
+        };
+
+        let contact_x_a_0_b_0 = contact_x("t_a_0", "t_b_0");
+        let contact_x_a_00_a_01 = contact_x("t_a_00", "t_a_01");
+        let contact_x_a_01_c_01 = contact_x("t_a_01", "t_c_01");
+
+        // All three contacts share the same face midpoint (74.5), so before the
+        // fix they all landed at the same x. They should now be distinct.
+        let min_separation = 6.0_f32;
+        assert!(
+            (contact_x_a_0_b_0 - contact_x_a_00_a_01).abs() >= min_separation
+                && (contact_x_a_0_b_0 - contact_x_a_01_c_01).abs() >= min_separation
+                && (contact_x_a_00_a_01 - contact_x_a_01_c_01).abs() >= min_separation,
+            "Expected the three Bottom-face contacts to be separated by at least \
+             {min_separation} px, but got t_a_0->t_b_0 = {contact_x_a_0_b_0}, \
+             t_a_00->t_a_01 = {contact_x_a_00_a_01}, \
+             t_a_01->t_c_01 = {contact_x_a_01_c_01}",
+        );
+    }
+}
+
 /// `0037` (`left_to_right`): same as `0036` with a horizontal flow.
 #[test]
 fn test_0037_mid_rank_to_high_rank_left_to_right_routes_cleanly() {
