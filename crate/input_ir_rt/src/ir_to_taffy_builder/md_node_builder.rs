@@ -129,7 +129,9 @@ impl MdNodeBuilder {
                     margin_top,
                     margin_left,
                 ),
-                None => Self::build_block(taffy_tree, md_block, char_width, margin_top, margin_left),
+                None => {
+                    Self::build_block(taffy_tree, md_block, char_width, margin_top, margin_left)
+                }
             };
 
             md_block_taffy_ids_list.push(MdBlockTaffyIds {
@@ -193,11 +195,8 @@ impl MdNodeBuilder {
         blockquote_node_ids: &mut Vec<taffy::NodeId>,
     ) {
         let level = level_stack.pop().expect("blockquote level is present");
-        let blockquote_node_id = Self::build_blockquote_container(
-            taffy_tree,
-            &level.child_node_ids,
-            level.margin_top,
-        );
+        let blockquote_node_id =
+            Self::build_blockquote_container(taffy_tree, &level.child_node_ids, level.margin_top);
         blockquote_node_ids.push(blockquote_node_id);
         level_stack
             .last_mut()
@@ -230,9 +229,7 @@ impl MdNodeBuilder {
                 bottom: LengthPercentageAuto::length(0.0),
             },
             padding: Rect {
-                left: LengthPercentage::length(
-                    BLOCKQUOTE_BAR_WIDTH + BLOCKQUOTE_CONTENT_GAP,
-                ),
+                left: LengthPercentage::length(BLOCKQUOTE_BAR_WIDTH + BLOCKQUOTE_CONTENT_GAP),
                 right: LengthPercentage::length(BLOCKQUOTE_PADDING),
                 top: LengthPercentage::length(BLOCKQUOTE_PADDING),
                 bottom: LengthPercentage::length(BLOCKQUOTE_PADDING),

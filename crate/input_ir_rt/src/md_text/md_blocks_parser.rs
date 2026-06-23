@@ -997,14 +997,13 @@ map:
         assert_eq!(code_block.list_depth, Some(0));
         assert_eq!(
             code_block.lines,
-            vec![
-                "key:".to_string(),
-                "  nested: value".to_string(),
-            ]
+            vec!["key:".to_string(), "  nested: value".to_string(),]
         );
 
         // The code block carries no list marker (markers stay on item text).
-        assert!(blocks.iter().any(|block| block_text(block) == "1. first step"));
+        assert!(blocks
+            .iter()
+            .any(|block| block_text(block) == "1. first step"));
     }
 
     #[test]
