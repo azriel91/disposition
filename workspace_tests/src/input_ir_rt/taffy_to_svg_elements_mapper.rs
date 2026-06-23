@@ -3876,21 +3876,21 @@ fn test_0036_to_0039_shared_to_face_edges_do_not_cross() {
     }
 }
 
-/// `0037` / `0038` (horizontal flows): `edge_dep_b_0_c_0` enters the container
+/// `0036`-`0039` (all rank directions): `edge_dep_b_0_c_0` enters the container
 /// `t_c_0`, while `edge_dep_a_01_c_01` transits the same inter-rank gap
-/// (between `t_b_0` and `t_c_0`) to reach `t_c_01` nested inside `t_c_0`. Their
-/// near-parallel legs touched (~1 px apart). The container contact is now
-/// nudged off the transit leg; assert the two paths keep a clear margin.
-///
-/// (The vertical flows `0036` / `0039` have a separate, pre-existing
-/// routing-leg crossing between these two edges -- `b_0_c_0`'s horizontal
-/// approach crosses `a_01_c_01`'s vertical transit -- which the contact nudge
-/// does not address, so they are excluded here.)
+/// (between `t_b_0` and `t_c_0`) to reach `t_c_01` nested inside `t_c_0`. In
+/// the horizontal flows their near-parallel legs touched (~1 px apart); in the
+/// vertical flows `b_0_c_0`'s approach sweep crossed `a_01_c_01`'s transit leg.
+/// The container contact is now kept on the from-node's side of the transit
+/// (clearing it by a contact gap), so the two paths keep a clear margin in
+/// every rank direction.
 #[test]
-fn test_0037_0038_container_entry_clears_nested_transit() {
+fn test_0036_to_0039_container_entry_clears_nested_transit() {
     let diagrams = [
+        INPUT_DIAGRAM_0036_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_TOP_TO_BOTTOM,
         INPUT_DIAGRAM_0037_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_LEFT_TO_RIGHT,
         INPUT_DIAGRAM_0038_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_RIGHT_TO_LEFT,
+        INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP,
     ];
 
     // Arrow-head clearance: legs closer than this read as a single line.

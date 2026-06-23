@@ -1490,9 +1490,23 @@ impl SvgEdgeInfosBuilder {
                     continue;
                 }
 
+                // The approach origin: the cross-axis coordinate the edge's
+                // routing sweeps from toward the container face. Using the
+                // from-node face midpoint keeps the contact on the from-node's
+                // side of any transit, so the approach sweep does not cross it.
+                let Some(from_face) = pass1_info.from_face else {
+                    continue;
+                };
+                let Some(from_cross) =
+                    Self::face_midpoint(&pass1_info.edge.from, from_face, svg_node_info_map)
+                else {
+                    continue;
+                };
+
                 let face_length = Self::face_length_for_node(container, face, svg_node_info_map);
-                if let Some(new_offset) = Self::contact_offset_nudged_from_transits(
+                if let Some(new_offset) = Self::contact_offset_cleared_from_transits(
                     contact,
+                    from_cross,
                     midpoint,
                     face_length,
                     &transit_positions,
@@ -1587,56 +1601,49 @@ impl SvgEdgeInfosBuilder {
             .map(spacer_cross)
     }
 
-    /// Computes a new face offset that moves `contact` at least
-    /// `CONTACT_GAP_MIN_PX` away from the nearest `transit` coordinate, staying
-    /// within the node face. Returns `None` when no nudge is needed or
-    /// possible.
-    fn contact_offset_nudged_from_transits(
+    /// Computes a new face offset that keeps `contact` on the **same side of
+    /// each transit as `from_cross`** (the approach origin), clearing every
+    /// transit by `CONTACT_GAP_MIN_PX` while staying within the node face.
+    ///
+    /// This prevents the edge's approach sweep (from `from_cross` toward the
+    /// contact) from crossing a transit leg, and also separates a contact that
+    /// merely sits too close to one. Returns `None` when no move is needed, the
+    /// constraints conflict, or the move would leave the face.
+    fn contact_offset_cleared_from_transits(
         contact: f32,
+        from_cross: f32,
         midpoint: f32,
         face_length: f32,
         transits: &[f32],
     ) -> Option<f32> {
         let gap = CONTACT_GAP_MIN_PX;
-        let nearest = transits.iter().copied().reduce(|nearest, transit| {
-            if (transit - contact).abs() < (nearest - contact).abs() {
-                transit
-            } else {
-                nearest
-            }
-        })?;
-
-        if (nearest - contact).abs() >= gap {
-            return None;
-        }
 
         // Keep the contact within the face, leaving an arrow-head margin.
         let half = (face_length / 2.0 - 4.0).max(0.0);
-        let lower = midpoint - half;
-        let upper = midpoint + half;
+        let mut lower = midpoint - half;
+        let mut upper = midpoint + half;
 
-        // Move to the side of `nearest` that is away from the current contact.
-        let away = if contact <= nearest {
-            nearest - gap
-        } else {
-            nearest + gap
-        };
-        let mut candidate = away.clamp(lower, upper);
-        if (candidate - nearest).abs() + 1e-3 < gap {
-            // Clamping pulled it back inside the gap; try the opposite side.
-            let other = if contact <= nearest {
-                nearest + gap
-            } else {
-                nearest - gap
-            };
-            candidate = other.clamp(lower, upper);
+        for &transit in transits {
+            // Constrain the contact to the from-node's side of this transit, so
+            // the approach neither crosses nor touches it. If the from-node sits
+            // on the transit, it cannot be cleared -- skip.
+            if from_cross < transit - 1e-3 {
+                upper = upper.min(transit - gap);
+            } else if from_cross > transit + 1e-3 {
+                lower = lower.max(transit + gap);
+            }
         }
 
-        // Only apply when it improves separation from the nearest transit.
-        if (candidate - nearest).abs() <= (contact - nearest).abs() + 1e-3 {
+        if lower > upper {
+            // Transits on both sides leave no clear band; leave the contact.
             return None;
         }
-        Some(candidate - midpoint)
+
+        let new_contact = contact.clamp(lower, upper);
+        if (new_contact - contact).abs() < 1e-3 {
+            return None;
+        }
+        Some(new_contact - midpoint)
     }
 
     fn face_length_for_node<'id>(
