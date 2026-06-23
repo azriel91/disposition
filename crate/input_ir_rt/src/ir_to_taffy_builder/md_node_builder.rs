@@ -1,5 +1,6 @@
 use disposition_taffy_model::{
-    MdBlockTaffyIds, MdImageCtx, MdNodeTaffyIds, MdTokenCtx, TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    MdBlockTaffyIds, MdImageCtx, MdNodeTaffyIds, MdStyle, MdTokenCtx, TaffyNodeCtx,
+    TEXT_LINE_HEIGHT,
 };
 use taffy::{
     self, AlignItems, Display, FlexDirection, FlexWrap, LengthPercentage, LengthPercentageAuto,
@@ -9,7 +10,7 @@ use taffy::{
 use crate::{
     ir_to_taffy_builder::text_measure::md_token_width_measure,
     md_text::{
-        md_blocks_parser::{MdBlock, MdTokenItem},
+        md_blocks_parser::{MdBlock, MdCodeBlock, MdTokenItem},
         md_image_sizer::MdImageSizer,
     },
 };
@@ -44,12 +45,21 @@ impl MdNodeBuilder {
             // that consecutive list items stack tightly.
             let margin_top = Self::block_margin_top(prev_block, md_block);
             let margin_left = Self::block_margin_left(md_block, char_width);
-            let (block_col_node_id, token_node_ids) =
-                Self::build_block(taffy_tree, md_block, char_width, margin_top, margin_left);
+            let (block_col_node_id, token_node_ids) = match &md_block.code_block {
+                Some(md_code_block) => Self::build_code_block(
+                    taffy_tree,
+                    md_code_block,
+                    char_width,
+                    margin_top,
+                    margin_left,
+                ),
+                None => Self::build_block(taffy_tree, md_block, char_width, margin_top, margin_left),
+            };
 
             md_block_taffy_ids_list.push(MdBlockTaffyIds {
                 block_col_node_id,
                 token_node_ids,
+                is_code_block: md_block.code_block.is_some(),
             });
             prev_block = Some(md_block);
         }
@@ -180,6 +190,69 @@ impl MdNodeBuilder {
             .expect("Expected to create block_col_node");
 
         (block_col_node_id, all_token_node_ids)
+    }
+
+    /// Builds the `block_col_node` for a code block.
+    ///
+    /// Each line becomes a single `MdToken` leaf carrying the default
+    /// (non-`code`) `MdStyle`, so `size_measure` preserves its indentation and
+    /// keeps blank lines as `TEXT_LINE_HEIGHT` rows, while the unified rounded
+    /// background box is emitted separately by `MdSpansComputer` (sized to this
+    /// container). The leaves are stacked in a no-gap flex column with internal
+    /// padding so the box has breathing room around the text.
+    ///
+    /// `margin_top` provides inter-block spacing and `margin_left` provides any
+    /// list-item indentation (always `0` for top-level code blocks).
+    ///
+    /// Returns `(block_col_node_id, line_leaf_node_ids)`.
+    fn build_code_block(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        md_code_block: &MdCodeBlock,
+        char_width: f32,
+        margin_top: f32,
+        margin_left: f32,
+    ) -> (taffy::NodeId, Vec<taffy::NodeId>) {
+        let line_leaf_node_ids: Vec<taffy::NodeId> = md_code_block
+            .lines
+            .iter()
+            .map(|line| {
+                taffy_tree
+                    .new_leaf_with_context(
+                        Style::default(),
+                        TaffyNodeCtx::MdToken(MdTokenCtx {
+                            text: line.clone(),
+                            md_style: MdStyle::default(),
+                        }),
+                    )
+                    .expect("Expected to create code block line leaf")
+            })
+            .collect();
+
+        let padding_x = char_width.round();
+        let block_col_style = Style {
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+            flex_wrap: FlexWrap::NoWrap,
+            align_items: Some(AlignItems::FlexStart),
+            margin: Rect {
+                left: LengthPercentageAuto::length(margin_left),
+                right: LengthPercentageAuto::length(0.0),
+                top: LengthPercentageAuto::length(margin_top),
+                bottom: LengthPercentageAuto::length(0.0),
+            },
+            padding: Rect {
+                left: LengthPercentage::length(padding_x),
+                right: LengthPercentage::length(padding_x),
+                top: LengthPercentage::length(MD_CONTENT_NODE_PADDING),
+                bottom: LengthPercentage::length(MD_CONTENT_NODE_PADDING),
+            },
+            ..Default::default()
+        };
+        let block_col_node_id = taffy_tree
+            .new_with_children(block_col_style, &line_leaf_node_ids)
+            .expect("Expected to create code block_col_node");
+
+        (block_col_node_id, line_leaf_node_ids)
     }
 
     /// Builds one `line_row_node` (flex-row-wrap) from a slice of

@@ -8,7 +8,7 @@ use crate::MdBlockTaffyIds;
 /// MdNodeTaffyIds {
 ///     content_node_id: NodeId(4),
 ///     block_taffy_ids: vec![
-///         MdBlockTaffyIds { block_col_node_id: NodeId(5), token_node_ids: vec![NodeId(6)] },
+///         MdBlockTaffyIds { block_col_node_id: NodeId(5), token_node_ids: vec![NodeId(6)], is_code_block: false },
 ///     ],
 /// }
 /// ```

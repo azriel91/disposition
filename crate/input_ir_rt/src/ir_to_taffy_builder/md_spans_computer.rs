@@ -2,10 +2,13 @@ use disposition_ir_model::{edge::EdgeId, node::NodeId};
 use disposition_model_common::{Id, Map};
 use disposition_taffy_model::{
     taffy::TaffyTree, EdgeLabelTaffyNodeIds, EntityHighlightedSpan, EntityHighlightedSpans,
-    MdImageSpan, MdNodeTaffyIds, NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    MdImageSpan, MdNodeTaffyIds, MdStyle, NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 
-use crate::{AbsoluteCoordinates, TaffyNodeAbsoluteCoordinatesCalculator};
+use crate::{
+    svg_elements_to_svg_mapper::CODE_BG_DESCENT_OFFSET, AbsoluteCoordinates,
+    TaffyNodeAbsoluteCoordinatesCalculator,
+};
 
 /// Computes `EntityHighlightedSpan` and `MdImageSpan` entries for nodes that
 /// used the markdown content path.
@@ -275,6 +278,17 @@ impl MdSpansComputer {
         let mut all_image_spans = Vec::new();
 
         for block in &md_node_taffy_ids.block_taffy_ids {
+            // Emit the unified background box first so it renders behind the
+            // block's line text (SVG paint order follows span order).
+            if block.is_code_block {
+                Self::compute_node_code_block_bg(
+                    taffy_tree,
+                    block.block_col_node_id,
+                    wrapper_abs_xy,
+                    &mut all_highlighted_spans,
+                );
+            }
+
             let mut pending: Vec<TokenPosition> = Vec::with_capacity(block.token_node_ids.len());
 
             for &taffy_node_id in &block.token_node_ids {
@@ -322,6 +336,49 @@ impl MdSpansComputer {
         }
 
         (all_highlighted_spans, all_image_spans)
+    }
+
+    /// Pushes the single unified rounded background box span for a code block,
+    /// sized to its `block_col_node`.
+    ///
+    /// The span carries empty text and the `code` style, so the SVG mapper
+    /// draws only its background `<path>` (no glyphs). The mapper computes the
+    /// box top as `baseline - height + CODE_BG_DESCENT_OFFSET`, so the baseline
+    /// is offset to land the box top exactly at the container's top edge.
+    fn compute_node_code_block_bg(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        block_col_node_id: taffy::NodeId,
+        wrapper_abs_xy: AbsoluteCoordinates,
+        highlighted_spans: &mut Vec<EntityHighlightedSpan>,
+    ) {
+        let Ok(layout) = taffy_tree.layout(block_col_node_id) else {
+            return;
+        };
+        let AbsoluteCoordinates { x: abs_x, y: abs_y } =
+            TaffyNodeAbsoluteCoordinatesCalculator::calculate(
+                taffy_tree,
+                block_col_node_id,
+                layout,
+            );
+        // Make coordinates relative to the wrapper node so they are not
+        // double-translated by the CSS translate on the node's `<g>`.
+        let rel_x = abs_x - wrapper_abs_xy.x;
+        let rel_y = abs_y - wrapper_abs_xy.y;
+        let width = layout.size.width;
+        let height = layout.size.height;
+
+        highlighted_spans.push(EntityHighlightedSpan {
+            x: rel_x,
+            y: rel_y + height - CODE_BG_DESCENT_OFFSET,
+            width,
+            height,
+            text: String::new(),
+            md_style: Some(MdStyle {
+                code: true,
+                ..MdStyle::default()
+            }),
+            tailwind_classes: Vec::new(),
+        });
     }
 
     /// Processes a sorted slice of token positions for one block row, merging

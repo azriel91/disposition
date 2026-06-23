@@ -14,7 +14,7 @@ use crate::NOTO_SANS_MONO_TTF;
 
 /// Pixels to shift the inline-code background box down from the text top so its
 /// bottom edge sits below the baseline and covers glyph descenders (g, p, y).
-const CODE_BG_DESCENT_OFFSET: f32 = 3.0;
+pub(crate) const CODE_BG_DESCENT_OFFSET: f32 = 3.0;
 
 /// Corner radius (pixels) of the inline-code background box.
 const CODE_BG_CORNER_RADIUS: f32 = 3.0;

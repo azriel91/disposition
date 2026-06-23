@@ -7,7 +7,7 @@ use disposition::{
         id, Id, ProcessRenderCollapse,
     },
     svg_model::SvgElements,
-    taffy_model::{taffy::TaffyError, DimensionAndLod},
+    taffy_model::{taffy::TaffyError, DimensionAndLod, TEXT_LINE_HEIGHT},
 };
 use disposition_input_ir_rt::{
     EdgeAnimationActive, InputDiagramMerger, InputToIrDiagramMapper, IrToTaffyBuilder,
@@ -46,6 +46,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0037_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_LEFT_TO_RIGHT,
     INPUT_DIAGRAM_0038_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_RIGHT_TO_LEFT,
     INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP,
+    INPUT_DIAGRAM_0040_MD_CODE_BLOCK,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -783,6 +784,74 @@ fn build_svg_elements_for_diagram(
         })
         .collect::<Vec<_>>()
         .into_iter()
+}
+
+/// A fenced code block in a `thing_desc` renders as monospace line text sitting
+/// inside a single unified `code` background box.
+///
+/// The box is one empty-text `code` span sized to the whole block (so the SVG
+/// mapper draws its rounded background `<path>` once), and the code lines are
+/// separate non-`code` spans that preserve their indentation.
+#[test]
+fn test_md_code_block_renders_unified_background_box() {
+    for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0040_MD_CODE_BLOCK) {
+        let node_info = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_code")
+            .expect("Expected t_code in svg_node_infos");
+
+        // Exactly one unified background box: an empty-text `code` span taller
+        // than a single line (it spans the three code lines plus padding).
+        let code_bg_spans: Vec<_> = node_info
+            .text_spans
+            .iter()
+            .filter(|span| span.md_style.as_ref().is_some_and(|md_style| md_style.code))
+            .collect();
+        assert_eq!(
+            1,
+            code_bg_spans.len(),
+            "Expected exactly one unified code background span"
+        );
+        let code_bg = code_bg_spans[0];
+        assert!(
+            code_bg.text.is_empty(),
+            "Expected the code background span to carry no text, got {:?}",
+            code_bg.text
+        );
+        assert!(
+            code_bg.height > TEXT_LINE_HEIGHT,
+            "Expected the code box to span multiple lines, got height {}",
+            code_bg.height
+        );
+
+        // The code lines render as (non-`code`) monospace spans, with leading
+        // indentation preserved on the nested list item.
+        let span_texts: Vec<&str> = node_info
+            .text_spans
+            .iter()
+            .map(|span| span.text.as_str())
+            .collect();
+        assert!(
+            span_texts.contains(&"string: hello"),
+            "Expected a `string: hello` code line span, got {span_texts:?}"
+        );
+
+        let item_line = node_info
+            .text_spans
+            .iter()
+            .find(|span| span.text == "  - item 1")
+            .unwrap_or_else(|| {
+                panic!("Expected the indented `  - item 1` code line span, got {span_texts:?}")
+            });
+        assert!(
+            item_line
+                .md_style
+                .as_ref()
+                .is_some_and(|md_style| !md_style.code),
+            "Expected code line text spans to use the non-code style"
+        );
+    }
 }
 
 /// The from-protrusion for `edge_dep_bob_charlie__0` must be large enough to

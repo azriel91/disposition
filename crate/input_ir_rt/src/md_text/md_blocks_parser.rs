@@ -18,6 +18,21 @@ pub(crate) struct MdBlock {
     /// [`MdListItem::depth`]) and to stack list items tightly (no blank
     /// line between siblings).
     pub(crate) list_item: Option<MdListItem>,
+    /// Fenced / indented code block content when this block is a code block,
+    /// otherwise `None`.
+    ///
+    /// A code block has no inline [`tokens`]; its verbatim lines are held here
+    /// and laid out by `MdNodeBuilder::build_code_block`.
+    ///
+    /// [`tokens`]: MdBlock::tokens
+    pub(crate) code_block: Option<MdCodeBlock>,
+}
+
+/// The verbatim content of a code block [`MdBlock`].
+pub(crate) struct MdCodeBlock {
+    /// The code block's lines, with indentation and blank lines preserved
+    /// exactly as entered in the source.
+    pub(crate) lines: Vec<String>,
 }
 
 /// Metadata for a list-item [`MdBlock`].
@@ -157,6 +172,11 @@ impl MdBlocksParser {
         // a text run has trailing whitespace, or on a soft break; consumed (and
         // reset) when a token is emitted. Reset to `false` at each block start.
         let mut space_pending = false;
+        // Whether the parser is currently inside a fenced / indented code block.
+        // While set, `Event::Text` is accumulated verbatim into
+        // `code_block_text` instead of being split into words.
+        let mut in_code_block = false;
+        let mut code_block_text = String::new();
 
         // `into_offset_iter` gives each event's source byte range, used to read
         // the unordered bullet character (`*`, `-`, or `+`) as it was entered.
@@ -180,6 +200,7 @@ impl MdBlocksParser {
                         heading_level: Some(heading_level),
                         tokens: vec![],
                         list_item: pending_list_item.clone(),
+                        code_block: None,
                     });
                 }
                 Event::End(TagEnd::Heading(_)) => {
@@ -192,6 +213,7 @@ impl MdBlocksParser {
                         heading_level: None,
                         tokens: vec![],
                         list_item: pending_list_item.clone(),
+                        code_block: None,
                     });
                 }
                 Event::End(TagEnd::Paragraph) => {
@@ -244,10 +266,32 @@ impl MdBlocksParser {
                         heading_level: None,
                         tokens: vec![],
                         list_item: pending_list_item.clone(),
+                        code_block: None,
                     });
                 }
                 Event::End(TagEnd::Item) => {
                     Self::block_flush(&mut current_block, &mut blocks, &mut pending_list_item);
+                }
+                Event::Start(Tag::CodeBlock(_)) => {
+                    // Flush any in-progress block, then accumulate the verbatim
+                    // code text until the matching `End(CodeBlock)`.
+                    Self::block_flush(&mut current_block, &mut blocks, &mut pending_list_item);
+                    space_pending = false;
+                    in_code_block = true;
+                    code_block_text.clear();
+                }
+                Event::End(TagEnd::CodeBlock) => {
+                    // `lines()` drops the trailing newline that fences include
+                    // while preserving interior blank lines and indentation.
+                    let lines = code_block_text.lines().map(String::from).collect();
+                    current_block = Some(MdBlock {
+                        heading_level: None,
+                        tokens: vec![],
+                        list_item: None,
+                        code_block: Some(MdCodeBlock { lines }),
+                    });
+                    Self::block_flush(&mut current_block, &mut blocks, &mut pending_list_item);
+                    in_code_block = false;
                 }
                 Event::Start(Tag::Strong) => {
                     style_stack.bold_depth += 1;
@@ -300,7 +344,10 @@ impl MdBlocksParser {
                     space_pending = false;
                 }
                 Event::Text(text) => {
-                    if let Some(state) = image_state.as_mut() {
+                    if in_code_block {
+                        // Verbatim: keep newlines and indentation intact.
+                        code_block_text.push_str(&text);
+                    } else if let Some(state) = image_state.as_mut() {
                         state.alt_buffer.push_str(&text);
                     } else {
                         let heading_level = current_block
@@ -400,8 +447,8 @@ impl MdBlocksParser {
         blocks
     }
 
-    /// Pushes `current_block` into `blocks` when it holds at least one token,
-    /// then clears it.
+    /// Pushes `current_block` into `blocks` when it holds at least one token
+    /// (or is a code block), then clears it.
     ///
     /// Empty blocks are dropped rather than pushed. This matters for "loose"
     /// markdown lists, where `Start(Tag::Item)` creates a block but the item
@@ -417,7 +464,7 @@ impl MdBlocksParser {
         pending_list_item: &mut Option<MdListItem>,
     ) {
         if let Some(block) = current_block.take()
-            && !block.tokens.is_empty()
+            && (!block.tokens.is_empty() || block.code_block.is_some())
         {
             if block.list_item.is_some() {
                 *pending_list_item = None;
@@ -846,6 +893,46 @@ mod tests {
                 ("vi.".to_string(), Some(5)),
                 ("vii.".to_string(), Some(5)),
                 ("viii.".to_string(), Some(5)),
+            ]
+        );
+    }
+
+    #[test]
+    fn fenced_code_block_preserves_indentation_and_blank_lines() {
+        // The fenced block's content is captured verbatim: indentation and the
+        // interior blank line are preserved, and it does not word-split.
+        let markdown = "\
+Intro paragraph.
+
+```yaml
+string: hello
+list:
+  - item 1
+
+map:
+  key: value
+```
+";
+        let blocks = MdBlocksParser::parse(markdown);
+
+        // The intro paragraph is a normal (non-code) block.
+        assert_eq!(block_text(&blocks[0]), "Intro paragraph.");
+        assert!(blocks[0].code_block.is_none());
+
+        let code_block = blocks
+            .iter()
+            .find_map(|block| block.code_block.as_ref())
+            .expect("expected a code block to be parsed");
+
+        assert_eq!(
+            code_block.lines,
+            vec![
+                "string: hello".to_string(),
+                "list:".to_string(),
+                "  - item 1".to_string(),
+                String::new(),
+                "map:".to_string(),
+                "  key: value".to_string(),
             ]
         );
     }

@@ -85,6 +85,8 @@ pub(crate) const INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_
     &str = include_str!(
     "input_diagram/0039_nested_node_mid_rank_edge_to_next_high_rank_node_bottom_to_top.yaml"
 );
+pub(crate) const INPUT_DIAGRAM_0040_MD_CODE_BLOCK: &str =
+    include_str!("input_diagram/0040_md_code_block.yaml");
 
 mod diagram_generator;
 mod input_diagram_merger;
