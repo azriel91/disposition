@@ -89,6 +89,8 @@ pub(crate) const INPUT_DIAGRAM_0040_MD_CODE_BLOCK: &str =
     include_str!("input_diagram/0040_md_code_block.yaml");
 pub(crate) const INPUT_DIAGRAM_0041_MD_CODE_BLOCK_IN_LIST: &str =
     include_str!("input_diagram/0041_md_code_block_in_list.yaml");
+pub(crate) const INPUT_DIAGRAM_0042_MD_BLOCKQUOTE: &str =
+    include_str!("input_diagram/0042_md_blockquote.yaml");
 
 mod diagram_generator;
 mod input_diagram_merger;

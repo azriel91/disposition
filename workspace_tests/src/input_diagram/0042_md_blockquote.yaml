@@ -1,0 +1,13 @@
+things:
+  t_quote: {}
+thing_descs:
+  t_quote: |-
+    Intro:
+
+    > A quoted **note** with
+    > two lines.
+    >
+    > * quoted item 1
+    > * quoted item 2
+
+    After the quote.

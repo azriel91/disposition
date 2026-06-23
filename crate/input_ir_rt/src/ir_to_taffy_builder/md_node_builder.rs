@@ -20,6 +20,30 @@ pub(crate) struct MdNodeBuilder;
 /// Padding around the whole markdown content node.
 pub(crate) const MD_CONTENT_NODE_PADDING: f32 = 3.0;
 
+/// Width of the blockquote's left bar (thick left border), in pixels.
+///
+/// Kept in sync with the border widths the SVG mapper draws; see
+/// `svg_elements_to_svg_mapper::BLOCKQUOTE_BORDER_LEFT`.
+const BLOCKQUOTE_BAR_WIDTH: f32 = 7.0;
+
+/// Gap between the blockquote's left bar and its content, in pixels.
+const BLOCKQUOTE_CONTENT_GAP: f32 = 7.0;
+
+/// Padding on the top, right, and bottom of a blockquote's content, giving the
+/// thin borders breathing room from the text.
+const BLOCKQUOTE_PADDING: f32 = 4.0;
+
+/// One open level while assembling the markdown content tree: the content node
+/// itself (depth 0) or an open blockquote (depth >= 1).
+struct BlockquoteLevel {
+    /// Child node ids gathered for this level so far (block columns and nested
+    /// blockquote containers).
+    child_node_ids: Vec<taffy::NodeId>,
+    /// Top margin (blank-line spacing) to apply when this level is wrapped into
+    /// its blockquote container. Unused for the depth-0 content level.
+    margin_top: f32,
+}
+
 impl MdNodeBuilder {
     /// Builds a flex-column `md_content_node` containing one flex-column
     /// `block_col_node` per `MdBlock`, each holding one flex-row-wrap
@@ -37,13 +61,65 @@ impl MdNodeBuilder {
         char_width: f32,
     ) -> MdNodeTaffyIds {
         let mut md_block_taffy_ids_list = Vec::with_capacity(md_blocks.len());
+        let mut blockquote_node_ids: Vec<taffy::NodeId> = Vec::new();
+
+        // Stack of open container child-lists. Index 0 holds the content node's
+        // direct children; each deeper entry is an open blockquote at that
+        // nesting depth. Blocks append to the innermost open level; closing a
+        // level wraps its children in a bordered blockquote container.
+        let mut level_stack: Vec<BlockquoteLevel> = vec![BlockquoteLevel {
+            child_node_ids: Vec::new(),
+            margin_top: 0.0,
+        }];
 
         let mut prev_block: Option<&MdBlock> = None;
         for md_block in md_blocks {
+            let blockquote_depth = usize::from(md_block.blockquote_depth);
+
+            // Open blockquote containers until the stack reaches this block's
+            // depth. A freshly opened (empty) parent takes no top margin; an
+            // existing parent gets a blank line above the blockquote.
+            while level_stack.len() <= blockquote_depth {
+                let parent_has_children = !level_stack
+                    .last()
+                    .expect("level_stack is never empty")
+                    .child_node_ids
+                    .is_empty();
+                let margin_top = if parent_has_children {
+                    TEXT_LINE_HEIGHT
+                } else {
+                    0.0
+                };
+                level_stack.push(BlockquoteLevel {
+                    child_node_ids: Vec::new(),
+                    margin_top,
+                });
+            }
+            // Close blockquote containers until the stack reaches this block's
+            // depth.
+            while level_stack.len() > blockquote_depth + 1 {
+                Self::blockquote_level_close(
+                    taffy_tree,
+                    &mut level_stack,
+                    &mut blockquote_node_ids,
+                );
+            }
+
             // Vertical spacing is applied per-block as a top margin (see
             // `block_margin_top`) rather than as a uniform container gap, so
-            // that consecutive list items stack tightly.
-            let margin_top = Self::block_margin_top(prev_block, md_block);
+            // that consecutive list items stack tightly. The first child of a
+            // container takes no top margin -- the container's margin / padding
+            // provides the spacing instead.
+            let is_first_in_level = level_stack
+                .last()
+                .expect("level_stack is never empty")
+                .child_node_ids
+                .is_empty();
+            let margin_top = if is_first_in_level {
+                0.0
+            } else {
+                Self::block_margin_top(prev_block, md_block)
+            };
             let margin_left = Self::block_margin_left(md_block, char_width);
             let (block_col_node_id, token_node_ids) = match &md_block.code_block {
                 Some(md_code_block) => Self::build_code_block(
@@ -61,7 +137,17 @@ impl MdNodeBuilder {
                 token_node_ids,
                 is_code_block: md_block.code_block.is_some(),
             });
+            level_stack
+                .last_mut()
+                .expect("level_stack is never empty")
+                .child_node_ids
+                .push(block_col_node_id);
             prev_block = Some(md_block);
+        }
+
+        // Close any blockquotes still open at the end of the document.
+        while level_stack.len() > 1 {
+            Self::blockquote_level_close(taffy_tree, &mut level_stack, &mut blockquote_node_ids);
         }
 
         let content_node_style = Style {
@@ -83,18 +169,79 @@ impl MdNodeBuilder {
             },
             ..Default::default()
         };
-        let block_col_node_ids: Vec<taffy::NodeId> = md_block_taffy_ids_list
-            .iter()
-            .map(|md_block_taffy_ids| md_block_taffy_ids.block_col_node_id)
-            .collect();
+        let content_child_node_ids = level_stack
+            .pop()
+            .expect("level_stack root is always present")
+            .child_node_ids;
         let content_node_id = taffy_tree
-            .new_with_children(content_node_style, &block_col_node_ids)
+            .new_with_children(content_node_style, &content_child_node_ids)
             .expect("Expected to create md_content_node");
 
         MdNodeTaffyIds {
             content_node_id,
             block_taffy_ids: md_block_taffy_ids_list,
+            blockquote_node_ids,
         }
+    }
+
+    /// Pops the innermost open blockquote level, wraps its children in a
+    /// bordered blockquote container, records the container's node id, and
+    /// appends it to the now-innermost open level.
+    fn blockquote_level_close(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        level_stack: &mut Vec<BlockquoteLevel>,
+        blockquote_node_ids: &mut Vec<taffy::NodeId>,
+    ) {
+        let level = level_stack.pop().expect("blockquote level is present");
+        let blockquote_node_id = Self::build_blockquote_container(
+            taffy_tree,
+            &level.child_node_ids,
+            level.margin_top,
+        );
+        blockquote_node_ids.push(blockquote_node_id);
+        level_stack
+            .last_mut()
+            .expect("parent level is present")
+            .child_node_ids
+            .push(blockquote_node_id);
+    }
+
+    /// Builds a blockquote container: a no-gap flex column holding the
+    /// blockquote's block (and nested-blockquote) children.
+    ///
+    /// The left padding makes room for the left bar plus a gap so the content
+    /// is indented past it; the other-side padding gives the thin borders
+    /// breathing room. `MdSpansComputer` sizes the bordered frame to this
+    /// container's bounds.
+    fn build_blockquote_container(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        child_node_ids: &[taffy::NodeId],
+        margin_top: f32,
+    ) -> taffy::NodeId {
+        let blockquote_style = Style {
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+            flex_wrap: FlexWrap::NoWrap,
+            align_items: Some(AlignItems::FlexStart),
+            margin: Rect {
+                left: LengthPercentageAuto::length(0.0),
+                right: LengthPercentageAuto::length(0.0),
+                top: LengthPercentageAuto::length(margin_top),
+                bottom: LengthPercentageAuto::length(0.0),
+            },
+            padding: Rect {
+                left: LengthPercentage::length(
+                    BLOCKQUOTE_BAR_WIDTH + BLOCKQUOTE_CONTENT_GAP,
+                ),
+                right: LengthPercentage::length(BLOCKQUOTE_PADDING),
+                top: LengthPercentage::length(BLOCKQUOTE_PADDING),
+                bottom: LengthPercentage::length(BLOCKQUOTE_PADDING),
+            },
+            ..Default::default()
+        };
+        taffy_tree
+            .new_with_children(blockquote_style, child_node_ids)
+            .expect("Expected to create blockquote container node")
     }
 
     /// Returns the top margin (blank-line spacing) to place above `md_block`.

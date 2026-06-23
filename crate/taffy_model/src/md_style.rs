@@ -29,6 +29,13 @@ pub struct MdStyle {
     pub strikethrough: bool,
     /// Whether the token is an inline code fragment (`` `code` ``).
     pub code: bool,
+    /// Whether this span is a blockquote frame marker.
+    ///
+    /// Set only on the synthetic empty-text span that `MdSpansComputer` emits
+    /// to size a blockquote's bordered box; never on real text tokens. The SVG
+    /// mapper draws the box border (thick left bar, thin other sides) for such
+    /// spans.
+    pub blockquote: bool,
     /// Non-`None` when the token is inside a heading block.
     pub heading_level: Option<MdHeadingLevel>,
     /// Non-`None` when the token is inside a `[link](url)` run.

@@ -47,6 +47,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0038_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_RIGHT_TO_LEFT,
     INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP,
     INPUT_DIAGRAM_0040_MD_CODE_BLOCK, INPUT_DIAGRAM_0041_MD_CODE_BLOCK_IN_LIST,
+    INPUT_DIAGRAM_0042_MD_BLOCKQUOTE,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -899,6 +900,75 @@ fn test_md_code_block_in_list_is_indented_under_item() {
         assert!(
             span_texts.iter().any(|text| *text == "  nested: value"),
             "Expected the indented `  nested: value` code line span, got {span_texts:?}"
+        );
+    }
+}
+
+/// A blockquote renders as a single bordered box spanning all its lines, with
+/// the quoted content indented past the left bar.
+#[test]
+fn test_md_blockquote_renders_bordered_box_with_indented_content() {
+    for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0042_MD_BLOCKQUOTE) {
+        let node_info = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_quote")
+            .expect("Expected t_quote in svg_node_infos");
+
+        // Exactly one blockquote frame span: empty text, taller than a single
+        // line (it wraps a paragraph plus a two-item list).
+        let blockquote_spans: Vec<_> = node_info
+            .text_spans
+            .iter()
+            .filter(|span| {
+                span.md_style
+                    .as_ref()
+                    .is_some_and(|md_style| md_style.blockquote)
+            })
+            .collect();
+        assert_eq!(
+            1,
+            blockquote_spans.len(),
+            "Expected exactly one blockquote frame span"
+        );
+        let blockquote = blockquote_spans[0];
+        assert!(
+            blockquote.text.is_empty(),
+            "Expected the blockquote frame span to carry no text, got {:?}",
+            blockquote.text
+        );
+        assert!(
+            blockquote.height > TEXT_LINE_HEIGHT,
+            "Expected the blockquote box to span multiple lines, got height {}",
+            blockquote.height
+        );
+
+        // The un-quoted `Intro:` paragraph marks the box's left edge; the
+        // quoted content is indented to the right of the left bar.
+        let intro_x = node_info
+            .text_spans
+            .iter()
+            .find(|span| span.text == "Intro:")
+            .expect("Expected the `Intro:` paragraph span")
+            .x;
+        let quoted_x = node_info
+            .text_spans
+            .iter()
+            .find(|span| span.text == "A quoted")
+            .expect("Expected the `A quoted` span")
+            .x;
+        // The box left aligns with un-quoted content; quoted text sits past the
+        // 7px bar plus its gap.
+        assert!(
+            (blockquote.x - intro_x).abs() < 0.5,
+            "Expected the blockquote box left ({}) to align with `Intro:` ({intro_x})",
+            blockquote.x
+        );
+        assert!(
+            quoted_x > blockquote.x + 7.0,
+            "Expected quoted content ({quoted_x}) to be indented past the left bar \
+             (box x {})",
+            blockquote.x
         );
     }
 }

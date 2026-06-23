@@ -26,6 +26,13 @@ pub(crate) struct MdBlock {
     ///
     /// [`tokens`]: MdBlock::tokens
     pub(crate) code_block: Option<MdCodeBlock>,
+    /// Number of blockquotes (`>`) this block is nested inside (`0` when not in
+    /// a blockquote).
+    ///
+    /// `MdNodeBuilder::build` groups runs of blocks at the same depth into
+    /// bordered blockquote containers, nesting deeper runs inside shallower
+    /// ones.
+    pub(crate) blockquote_depth: u8,
 }
 
 /// The verbatim content of a code block [`MdBlock`].
@@ -183,6 +190,9 @@ impl MdBlocksParser {
         // `code_block_text` instead of being split into words.
         let mut in_code_block = false;
         let mut code_block_text = String::new();
+        // Current blockquote (`>`) nesting depth; recorded on each block created
+        // while it is non-zero so the layout builder can wrap blockquote runs.
+        let mut blockquote_depth: u8 = 0;
 
         // `into_offset_iter` gives each event's source byte range, used to read
         // the unordered bullet character (`*`, `-`, or `+`) as it was entered.
@@ -207,6 +217,7 @@ impl MdBlocksParser {
                         tokens: vec![],
                         list_item: pending_list_item.clone(),
                         code_block: None,
+                        blockquote_depth,
                     });
                 }
                 Event::End(TagEnd::Heading(_)) => {
@@ -220,6 +231,7 @@ impl MdBlocksParser {
                         tokens: vec![],
                         list_item: pending_list_item.clone(),
                         code_block: None,
+                        blockquote_depth,
                     });
                 }
                 Event::End(TagEnd::Paragraph) => {
@@ -273,10 +285,21 @@ impl MdBlocksParser {
                         tokens: vec![],
                         list_item: pending_list_item.clone(),
                         code_block: None,
+                        blockquote_depth,
                     });
                 }
                 Event::End(TagEnd::Item) => {
                     Self::block_flush(&mut current_block, &mut blocks, &mut pending_list_item);
+                }
+                Event::Start(Tag::BlockQuote(_)) => {
+                    // Flush so the current block is not retro-tagged with the
+                    // blockquote depth, then descend a level.
+                    Self::block_flush(&mut current_block, &mut blocks, &mut pending_list_item);
+                    blockquote_depth = blockquote_depth.saturating_add(1);
+                }
+                Event::End(TagEnd::BlockQuote(_)) => {
+                    Self::block_flush(&mut current_block, &mut blocks, &mut pending_list_item);
+                    blockquote_depth = blockquote_depth.saturating_sub(1);
                 }
                 Event::Start(Tag::CodeBlock(_)) => {
                     // Flush any in-progress block, then accumulate the verbatim
@@ -298,6 +321,7 @@ impl MdBlocksParser {
                         tokens: vec![],
                         list_item: None,
                         code_block: Some(MdCodeBlock { lines, list_depth }),
+                        blockquote_depth,
                     });
                     Self::block_flush(&mut current_block, &mut blocks, &mut pending_list_item);
                     in_code_block = false;
@@ -332,6 +356,7 @@ impl MdBlocksParser {
                         .and_then(|current_block| current_block.heading_level);
                     let md_style = MdStyle {
                         code: true,
+                        blockquote: false,
                         bold: style_stack.bold_depth > 0,
                         italic: style_stack.italic_depth > 0,
                         strikethrough: style_stack.strikethrough_depth > 0,
@@ -367,6 +392,7 @@ impl MdBlocksParser {
                             italic: style_stack.italic_depth > 0,
                             strikethrough: style_stack.strikethrough_depth > 0,
                             code: false,
+                            blockquote: false,
                             heading_level,
                             link_dest: style_stack.link_dest.clone(),
                         };
@@ -979,6 +1005,35 @@ map:
 
         // The code block carries no list marker (markers stay on item text).
         assert!(blocks.iter().any(|block| block_text(block) == "1. first step"));
+    }
+
+    #[test]
+    fn blockquote_records_nesting_depth_on_contained_blocks() {
+        // Blocks inside the `>` quote carry depth 1; the nested `>>` paragraph
+        // carries depth 2; blocks before / after the quote carry depth 0.
+        let markdown = "\
+Intro.
+
+> quoted paragraph
+>
+> > nested quote
+
+After.
+";
+        let blocks = MdBlocksParser::parse(markdown);
+
+        let depth_for = |text: &str| {
+            blocks
+                .iter()
+                .find(|block| block_text(block) == text)
+                .unwrap_or_else(|| panic!("expected a block with text {text:?}"))
+                .blockquote_depth
+        };
+
+        assert_eq!(depth_for("Intro."), 0);
+        assert_eq!(depth_for("quoted paragraph"), 1);
+        assert_eq!(depth_for("nested quote"), 2);
+        assert_eq!(depth_for("After."), 0);
     }
 
     #[test]

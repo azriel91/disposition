@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 ///     italic: false,
 ///     strikethrough: false,
 ///     code: false,
+///     blockquote: false,
 ///     heading_level: 2,
 ///     link_dest: None,
 /// };
@@ -34,6 +35,8 @@ pub struct SvgMdStyle {
     pub strikethrough: bool,
     /// Whether the span is inline code.
     pub code: bool,
+    /// Whether the span is a blockquote bordered-box frame.
+    pub blockquote: bool,
     /// Heading level: `1`--`6`, or `0` for non-heading text.
     pub heading_level: u8,
     /// Destination URL when the span is part of a link. `None` otherwise.

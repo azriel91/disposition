@@ -277,6 +277,17 @@ impl MdSpansComputer {
         let mut all_highlighted_spans = Vec::new();
         let mut all_image_spans = Vec::new();
 
+        // Blockquote borders are frames (not fills), and are emitted first so
+        // they sit behind the block text.
+        for &blockquote_node_id in &md_node_taffy_ids.blockquote_node_ids {
+            Self::compute_node_blockquote_border(
+                taffy_tree,
+                blockquote_node_id,
+                wrapper_abs_xy,
+                &mut all_highlighted_spans,
+            );
+        }
+
         for block in &md_node_taffy_ids.block_taffy_ids {
             // Emit the unified background box first so it renders behind the
             // block's line text (SVG paint order follows span order).
@@ -375,6 +386,48 @@ impl MdSpansComputer {
             text: String::new(),
             md_style: Some(MdStyle {
                 code: true,
+                ..MdStyle::default()
+            }),
+            tailwind_classes: Vec::new(),
+        });
+    }
+
+    /// Pushes a blockquote bordered-box frame span, sized to the blockquote
+    /// container node.
+    ///
+    /// The span carries empty text and the `blockquote` style, so the SVG
+    /// mapper draws only its border frame (thick left bar, thin other sides).
+    /// `y` is the box bottom; the mapper derives the box top as `y - height`.
+    fn compute_node_blockquote_border(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        blockquote_node_id: taffy::NodeId,
+        wrapper_abs_xy: AbsoluteCoordinates,
+        highlighted_spans: &mut Vec<EntityHighlightedSpan>,
+    ) {
+        let Ok(layout) = taffy_tree.layout(blockquote_node_id) else {
+            return;
+        };
+        let AbsoluteCoordinates { x: abs_x, y: abs_y } =
+            TaffyNodeAbsoluteCoordinatesCalculator::calculate(
+                taffy_tree,
+                blockquote_node_id,
+                layout,
+            );
+        // Make coordinates relative to the wrapper node so they are not
+        // double-translated by the CSS translate on the node's `<g>`.
+        let rel_x = abs_x - wrapper_abs_xy.x;
+        let rel_y = abs_y - wrapper_abs_xy.y;
+        let width = layout.size.width;
+        let height = layout.size.height;
+
+        highlighted_spans.push(EntityHighlightedSpan {
+            x: rel_x,
+            y: rel_y + height,
+            width,
+            height,
+            text: String::new(),
+            md_style: Some(MdStyle {
+                blockquote: true,
                 ..MdStyle::default()
             }),
             tailwind_classes: Vec::new(),

@@ -35,7 +35,7 @@ pub use crate::{
     entity_highlighted_spans::EntityHighlightedSpans,
     error::IrToTaffyError,
     md_block_taffy_ids::MdBlockTaffyIds,
-    md_colors::{MdColor, MD_CODE_BG_COLOR, MD_LINK_COLOR},
+    md_colors::{MdColor, MD_BLOCKQUOTE_BORDER_COLOR, MD_CODE_BG_COLOR, MD_LINK_COLOR},
     md_heading_level::MdHeadingLevel,
     md_image_ctx::MdImageCtx,
     md_image_span::MdImageSpan,

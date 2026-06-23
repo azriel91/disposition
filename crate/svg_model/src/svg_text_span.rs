@@ -70,6 +70,7 @@ impl SvgTextSpan {
     ///     italic: false,
     ///     strikethrough: false,
     ///     code: false,
+    ///     blockquote: false,
     ///     heading_level: 0,
     ///     link_dest: None,
     /// };

@@ -8,7 +8,9 @@ use disposition_ir_model::entity::EntityTailwindClasses;
 use disposition_svg_model::{
     SvgEdgeDescriptionInfo, SvgEdgeInfo, SvgEdgeLabelInfo, SvgElements, SvgNodeInfo,
 };
-use disposition_taffy_model::{MD_CODE_BG_COLOR, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT};
+use disposition_taffy_model::{
+    MD_BLOCKQUOTE_BORDER_COLOR, MD_CODE_BG_COLOR, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT,
+};
 
 use crate::NOTO_SANS_MONO_TTF;
 
@@ -18,6 +20,14 @@ pub(crate) const CODE_BG_DESCENT_OFFSET: f32 = 3.0;
 
 /// Corner radius (pixels) of the inline-code background box.
 const CODE_BG_CORNER_RADIUS: f32 = 3.0;
+
+/// Width (pixels) of the blockquote's left bar (its thick left border). Kept in
+/// sync with `MdNodeBuilder::BLOCKQUOTE_BAR_WIDTH` so the bar sits in the
+/// container's left padding without overlapping the text.
+const BLOCKQUOTE_BORDER_LEFT: f32 = 7.0;
+
+/// Width (pixels) of the blockquote's thin top / right / bottom borders.
+const BLOCKQUOTE_BORDER_THIN: f32 = 1.0;
 
 /// CSS variables to ensure CSS works correctly with `encre-css`.
 ///
@@ -480,6 +490,29 @@ impl SvgElementsToSvgMapper {
             let text_y = svg_text_span.y;
             let text_content = &svg_text_span.text;
 
+            // Emit a blockquote border frame for blockquote marker spans.
+            //
+            // The span carries no text; `text_y` is the box bottom and `height`
+            // its full height, so the box top is `text_y - height`. The frame
+            // has a thick left bar and thin top / right / bottom borders, with
+            // square corners.
+            if svg_text_span
+                .md_style
+                .as_ref()
+                .is_some_and(|svg_md_style| svg_md_style.blockquote)
+            {
+                let rect_w = svg_text_span.width;
+                let rect_h = svg_text_span.height;
+                let rect_y = text_y - rect_h;
+                let path_d = Self::blockquote_border_path_d(text_x, rect_y, rect_w, rect_h);
+                let border_class = MD_BLOCKQUOTE_BORDER_COLOR.fill_class();
+                write!(
+                    content_buffer,
+                    "<path d=\"{path_d}\" fill-rule=\"evenodd\" class=\"{border_class}\" />"
+                )
+                .unwrap();
+            }
+
             // Emit a rounded background path before code spans.
             //
             // `text_y` is the text baseline, so the box top is
@@ -613,6 +646,37 @@ impl SvgElementsToSvgMapper {
         write!(d, " A {r} {r} 0 0 1 {x_r} {y}").unwrap();
 
         d.push_str(" Z");
+
+        d
+    }
+
+    /// Builds an SVG `<path>` `d` attribute for a blockquote border frame at
+    /// absolute coordinates `(x, y)` with the given `width` and `height`.
+    ///
+    /// The path is an outer rectangle with an inner rectangle subtracted (drawn
+    /// with `fill-rule="evenodd"`), leaving a frame whose left side is
+    /// [`BLOCKQUOTE_BORDER_LEFT`] thick (the quote bar) and whose top, right,
+    /// and bottom are [`BLOCKQUOTE_BORDER_THIN`] thick. Corners are square.
+    fn blockquote_border_path_d(x: f32, y: f32, width: f32, height: f32) -> String {
+        let inner_x = x + BLOCKQUOTE_BORDER_LEFT;
+        let inner_y = y + BLOCKQUOTE_BORDER_THIN;
+        let inner_w = (width - BLOCKQUOTE_BORDER_LEFT - BLOCKQUOTE_BORDER_THIN).max(0.0);
+        let inner_h = (height - BLOCKQUOTE_BORDER_THIN * 2.0).max(0.0);
+
+        let x_w = x + width;
+        let y_h = y + height;
+        let inner_x_w = inner_x + inner_w;
+        let inner_y_h = inner_y + inner_h;
+
+        let mut d = String::with_capacity(96);
+        // Outer rectangle, clockwise.
+        write!(d, "M {x} {y} H {x_w} V {y_h} H {x} Z").unwrap();
+        // Inner rectangle (the hole), subtracted via the even-odd fill rule.
+        write!(
+            d,
+            " M {inner_x} {inner_y} H {inner_x_w} V {inner_y_h} H {inner_x} Z"
+        )
+        .unwrap();
 
         d
     }
