@@ -33,6 +33,12 @@ pub(crate) struct MdCodeBlock {
     /// The code block's lines, with indentation and blank lines preserved
     /// exactly as entered in the source.
     pub(crate) lines: Vec<String>,
+    /// 0-based nesting depth of the list this code block sits inside, or `None`
+    /// when the code block is at the top level (not inside any list).
+    ///
+    /// Used by `MdNodeBuilder::block_margin_left` to indent the code block to
+    /// align under the containing list item's content.
+    pub(crate) list_depth: Option<u8>,
 }
 
 /// Metadata for a list-item [`MdBlock`].
@@ -284,11 +290,14 @@ impl MdBlocksParser {
                     // `lines()` drops the trailing newline that fences include
                     // while preserving interior blank lines and indentation.
                     let lines = code_block_text.lines().map(String::from).collect();
+                    // The containing list (if any) has not been popped yet, so
+                    // the current stack depth is the code block's nesting depth.
+                    let list_depth = Self::list_depth_current(&list_stack);
                     current_block = Some(MdBlock {
                         heading_level: None,
                         tokens: vec![],
                         list_item: None,
-                        code_block: Some(MdCodeBlock { lines }),
+                        code_block: Some(MdCodeBlock { lines, list_depth }),
                     });
                     Self::block_flush(&mut current_block, &mut blocks, &mut pending_list_item);
                     in_code_block = false;
@@ -935,6 +944,41 @@ map:
                 "  key: value".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn fenced_code_block_inside_list_item_records_nesting_depth() {
+        // The code fence is indented under the (loose) list item, so it parses
+        // as a separate code block nested at the item's list depth.
+        let markdown = "\
+1. first step
+
+    ```yaml
+    key:
+      nested: value
+    ```
+
+2. second step
+";
+        let blocks = MdBlocksParser::parse(markdown);
+
+        let code_block = blocks
+            .iter()
+            .find_map(|block| block.code_block.as_ref())
+            .expect("expected a code block to be parsed");
+
+        // Nested in the top-level (depth 0) list, with inner indentation kept.
+        assert_eq!(code_block.list_depth, Some(0));
+        assert_eq!(
+            code_block.lines,
+            vec![
+                "key:".to_string(),
+                "  nested: value".to_string(),
+            ]
+        );
+
+        // The code block carries no list marker (markers stay on item text).
+        assert!(blocks.iter().any(|block| block_text(block) == "1. first step"));
     }
 
     #[test]

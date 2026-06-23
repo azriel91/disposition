@@ -46,7 +46,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0037_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_LEFT_TO_RIGHT,
     INPUT_DIAGRAM_0038_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_RIGHT_TO_LEFT,
     INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP,
-    INPUT_DIAGRAM_0040_MD_CODE_BLOCK,
+    INPUT_DIAGRAM_0040_MD_CODE_BLOCK, INPUT_DIAGRAM_0041_MD_CODE_BLOCK_IN_LIST,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -850,6 +850,55 @@ fn test_md_code_block_renders_unified_background_box() {
                 .as_ref()
                 .is_some_and(|md_style| !md_style.code),
             "Expected code line text spans to use the non-code style"
+        );
+    }
+}
+
+/// A fenced code block nested inside a list item is indented so it aligns
+/// under the item's content (past the list marker), and still renders its
+/// unified `code` background box with interior indentation preserved.
+#[test]
+fn test_md_code_block_in_list_is_indented_under_item() {
+    for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0041_MD_CODE_BLOCK_IN_LIST) {
+        let node_info = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_code")
+            .expect("Expected t_code in svg_node_infos");
+
+        // The top-level paragraph `Steps:` marks the un-indented left edge.
+        let steps_span = node_info
+            .text_spans
+            .iter()
+            .find(|span| span.text == "Steps:")
+            .expect("Expected the `Steps:` paragraph span");
+
+        // The unified code background box (empty-text `code` span).
+        let code_bg = node_info
+            .text_spans
+            .iter()
+            .find(|span| span.md_style.as_ref().is_some_and(|md_style| md_style.code))
+            .expect("Expected the unified code background span");
+
+        // The box is indented well past the un-indented paragraph (one list
+        // tab, ~4 character widths) rather than sitting at the left edge.
+        assert!(
+            code_bg.x > steps_span.x + 4.0,
+            "Expected the nested code box to be indented past `Steps:` \
+             (box x {} vs steps x {})",
+            code_bg.x,
+            steps_span.x
+        );
+
+        // Interior indentation within the code block is preserved.
+        let span_texts: Vec<&str> = node_info
+            .text_spans
+            .iter()
+            .map(|span| span.text.as_str())
+            .collect();
+        assert!(
+            span_texts.iter().any(|text| *text == "  nested: value"),
+            "Expected the indented `  nested: value` code line span, got {span_texts:?}"
         );
     }
 }

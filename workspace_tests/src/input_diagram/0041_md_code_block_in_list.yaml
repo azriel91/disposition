@@ -1,0 +1,14 @@
+things:
+  t_code: {}
+thing_descs:
+  t_code: |-
+    Steps:
+
+    1. first step
+
+        ```yaml
+        key:
+          nested: value
+        ```
+
+    2. second step

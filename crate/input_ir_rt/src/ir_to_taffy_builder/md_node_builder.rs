@@ -120,10 +120,18 @@ impl MdNodeBuilder {
 
     /// Returns the left margin (indentation) for `md_block`, indenting nested
     /// list items by 4 character widths per nesting level.
+    ///
+    /// A code block nested inside a list is indented one level deeper than its
+    /// containing list depth, so it aligns under the list item's content (the
+    /// item marker occupies the level above).
     fn block_margin_left(md_block: &MdBlock, char_width: f32) -> f32 {
-        Self::block_list_depth(md_block).map_or(0.0, |list_depth| {
-            (char_width * 4.0).round() * f32::from(list_depth)
-        })
+        let tab_width = (char_width * 4.0).round();
+        if let Some(md_code_block) = md_block.code_block.as_ref() {
+            return md_code_block
+                .list_depth
+                .map_or(0.0, |list_depth| tab_width * (f32::from(list_depth) + 1.0));
+        }
+        Self::block_list_depth(md_block).map_or(0.0, |list_depth| tab_width * f32::from(list_depth))
     }
 
     /// Returns the list-nesting depth of `md_block`, or `None` for non-list
