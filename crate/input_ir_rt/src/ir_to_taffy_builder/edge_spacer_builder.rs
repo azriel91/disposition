@@ -276,12 +276,18 @@ impl EdgeSpacerBuilder {
 
         let mut spacer_taffy_nodes = EdgeSpacerTaffyNodes::new();
 
-        // Only create spacers for siblings that rank strictly below the target
-        // child, i.e. the siblings that are between the container's entry point
-        // and the target in the layout order. Siblings at the same rank as the
-        // target are placed side-by-side and do not block the incoming edge;
-        // siblings at higher ranks (further into the container) are beyond the
-        // target and also do not need to be routed around.
+        // Only create spacers for siblings that are between the target child and
+        // the container face that the edge crosses to reach the LCA gap. The
+        // edge enters / exits this container on the side facing the *other*
+        // endpoint's divergent ancestor, so the blocking siblings are those on
+        // the gap side of the target child:
+        //
+        // * gap on the high-rank side -> siblings ranked strictly above target
+        // * gap on the low-rank side  -> siblings ranked strictly below target
+        //
+        // Siblings on the far side of the target (away from the gap) and
+        // siblings at the same rank (side-by-side in the same layout row) do not
+        // block the edge.
         let target_rank = node_ranks_nested
             .ranks_for(Some(container_node_id))
             .and_then(|r| {
@@ -289,6 +295,30 @@ impl EdgeSpacerBuilder {
                     .copied()
             })
             .unwrap_or(NodeRank::new(0));
+
+        // Determine which side of the target child the LCA gap lies on, from the
+        // divergent ancestor ranks at the LCA level. The gap is on the side of
+        // this container's divergent ancestor that faces the other endpoint's
+        // divergent ancestor.
+        let gap_on_high_side = match (
+            node_nesting_infos.get(&edge.from),
+            node_nesting_infos.get(&edge.to),
+        ) {
+            (Some(info_from), Some(info_to)) => {
+                let container_contains_from = info_from.ancestor_chain.contains(container_node_id);
+                Self::divergent_ancestor_ranks_from_to(info_from, info_to, node_ranks_nested)
+                    .map(|(rank_divergent_from, rank_divergent_to)| {
+                        let (this_rank, other_rank) = if container_contains_from {
+                            (rank_divergent_from, rank_divergent_to)
+                        } else {
+                            (rank_divergent_to, rank_divergent_from)
+                        };
+                        other_rank > this_rank
+                    })
+                    .unwrap_or(false)
+            }
+            _ => false,
+        };
 
         // Track which ranks have already been assigned a spacer for this
         // edge. Multiple siblings at the same rank occupy the same layout
@@ -302,16 +332,20 @@ impl EdgeSpacerBuilder {
                     return;
                 }
 
-                // Only insert spacers for siblings at ranks that are strictly
-                // before the target rank, i.e. between the container entry point
-                // and the target. Siblings at the same or higher rank are not
-                // blocking the edge path.
+                // Only insert spacers for siblings on the gap side of the target
+                // rank. Siblings on the far side of the target, or at the same
+                // rank, are not blocking the edge path.
                 let sibling_rank = node_ranks_nested
                     .ranks_for(Some(container_node_id))
                     .and_then(|r| r.get(sibling_id).copied())
                     .unwrap_or(NodeRank::new(0));
 
-                if sibling_rank >= target_rank {
+                let sibling_blocks_edge = if gap_on_high_side {
+                    sibling_rank > target_rank
+                } else {
+                    sibling_rank < target_rank
+                };
+                if !sibling_blocks_edge {
                     return;
                 }
 
@@ -755,6 +789,29 @@ impl EdgeSpacerBuilder {
         info_to: &NodeNestingInfo<'_>,
         node_ranks_nested: &NodeRanksNested<'static>,
     ) -> Option<(NodeRank, NodeRank)> {
+        let (rank_from, rank_to) =
+            Self::divergent_ancestor_ranks_from_to(info_from, info_to, node_ranks_nested)?;
+
+        let (rank_low, rank_high) = if rank_from < rank_to {
+            (rank_from, rank_to)
+        } else {
+            (rank_to, rank_from)
+        };
+        Some((rank_low, rank_high))
+    }
+
+    /// Returns the ranks of the divergent ancestors as `(rank_from, rank_to)`,
+    /// preserving which rank belongs to which endpoint.
+    ///
+    /// Unlike [`Self::divergent_ancestor_ranks`], the ranks are not reordered
+    /// into `(low, high)`, so callers can tell on which side of a container the
+    /// LCA gap lies (e.g. whether the gap is at a higher or lower rank than the
+    /// container's divergent ancestor).
+    fn divergent_ancestor_ranks_from_to(
+        info_from: &NodeNestingInfo<'_>,
+        info_to: &NodeNestingInfo<'_>,
+        node_ranks_nested: &NodeRanksNested<'static>,
+    ) -> Option<(NodeRank, NodeRank)> {
         let lca_depth = LcaDepthCalculator::calculate(info_from, info_to);
         let divergent_from = info_from.ancestor_chain.get(lca_depth)?;
         let divergent_to = info_to.ancestor_chain.get(lca_depth)?;
@@ -773,12 +830,7 @@ impl EdgeSpacerBuilder {
             .copied()
             .unwrap_or(NodeRank::new(0));
 
-        let (rank_low, rank_high) = if rank_from < rank_to {
-            (rank_from, rank_to)
-        } else {
-            (rank_to, rank_from)
-        };
-        Some((rank_low, rank_high))
+        Some((rank_from, rank_to))
     }
 
     // === Insertion index computation === //

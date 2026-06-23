@@ -102,6 +102,15 @@ impl EdgeContactPointOffsets {
     pub(super) fn get(&self, slot: usize) -> Option<f32> {
         self.0.get(slot).copied()
     }
+
+    /// Overwrites the offset at the given slot index.
+    ///
+    /// Does nothing if `slot` is out of bounds.
+    pub(super) fn offset_set(&mut self, slot: usize, value: f32) {
+        if let Some(offset) = self.0.get_mut(slot) {
+            *offset = value;
+        }
+    }
 }
 
 /// Whether an edge represents an unpaired forward edge, or the request or

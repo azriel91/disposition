@@ -43,7 +43,7 @@ pub(super) struct EdgeFaceContactTracker<'id> {
 /// same node face.
 ///
 /// May need to be twice as big as `ArrowHeadBuilder::ARROW_HEAD_HALF_WIDTH`.
-const CONTACT_GAP_MIN_PX: f32 = 12.0;
+pub(super) const CONTACT_GAP_MIN_PX: f32 = 12.0;
 
 /// Gap as a fraction of the face length (10%).
 const CONTACT_GAP_RATIO: f32 = 0.10;

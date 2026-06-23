@@ -803,6 +803,27 @@ impl OrthoProtrusionCalculator {
             &mut result,
         );
 
+        // === Step 5.6: Nest approach legs of edges entering the same to-face
+        // from different rank-gap buckets === //
+        //
+        // A cross-container (spacer-crossing) edge's to-endpoint is keyed by the
+        // LCA-level rank gap, while a plain edge into the same nested node is
+        // keyed by that node's container-level rank gap. They never compete in
+        // Step 3, so their approach legs are chosen independently and can cross.
+        // This step nests the legs of all edges entering a shared `(to-node,
+        // to-face)` when such a mix is present.
+        Self::protrusions_separate_shared_to_face_channels(
+            all_pass1_groups,
+            to_slot_indices_all,
+            face_offsets_by_node_face,
+            &all_spacer_coordinates,
+            svg_node_info_map,
+            node_nesting_infos,
+            node_ranks_nested,
+            entity_types,
+            &mut result,
+        );
+
         // === Step 6: Finalise protrusion depths for cycle edges === //
         //
         // For cycle edges registered in the adjacent rank gap (Step 2), equalise
@@ -1835,8 +1856,27 @@ impl OrthoProtrusionCalculator {
                         continue;
                     }
                 }
+                // When the edge has spacers (rank-based LCA-gap spacers or
+                // cross-container spacers), they already handle routing through
+                // the from-node's and to-node's containers. The from / to
+                // protrusion then only needs to reach the nearest spacer, not
+                // exit the entire container. Applying the divergent-sibling
+                // adjustment in this case would force the protrusion all the way
+                // to the container's far boundary, causing the path to overshoot
+                // the spacer and produce a zigzag.
+                //
+                // Separation of multiple spacer-crossing edges that enter the
+                // same to-node is handled separately, in
+                // `protrusions_separate_spacer_approach_channels` (Step 5.5).
+                let edge_has_spacers = all_spacer_coordinates
+                    .get(group_idx)
+                    .and_then(|g| g.get(edge_idx))
+                    .map(|spacers| !spacers.is_empty())
+                    .unwrap_or(false);
+
                 // === From endpoint === //
-                if let Some(from_face) = pass1_info.from_face
+                if !edge_has_spacers
+                    && let Some(from_face) = pass1_info.from_face
                     && let Some(extent) = Self::min_protrusion_divergent_sibling_extent(
                         &pass1_info.edge.from,
                         &pass1_info.edge.to,
@@ -1860,25 +1900,6 @@ impl OrthoProtrusionCalculator {
                 }
 
                 // === To endpoint === //
-                //
-                // When the edge has cross-container spacers, the spacer
-                // already handles routing inside the to-node's container.
-                // The to_protrusion only needs to reach the spacer exit,
-                // not exit the entire container. Applying the
-                // divergent-sibling adjustment in this case would force
-                // the protrusion all the way to the container's far
-                // boundary, causing the path to overshoot the spacer
-                // and produce a zigzag.
-                //
-                // Separation of multiple spacer-crossing edges that enter the
-                // same to-node is handled separately, in
-                // `protrusions_separate_spacer_approach_channels` (Step 5.5).
-                let edge_has_spacers = all_spacer_coordinates
-                    .get(group_idx)
-                    .and_then(|g| g.get(edge_idx))
-                    .map(|spacers| !spacers.is_empty())
-                    .unwrap_or(false);
-
                 if !edge_has_spacers
                     && let Some(to_face) = pass1_info.to_face
                     && let Some(extent) = Self::min_protrusion_divergent_sibling_extent(
@@ -2160,6 +2181,244 @@ impl OrthoProtrusionCalculator {
                 }
             }
         }
+    }
+
+    /// Nests the approach legs of edges that enter the **same** to-node face
+    /// from **different rank-gap buckets**.
+    ///
+    /// A cross-container (spacer-crossing) edge has its to-endpoint keyed by
+    /// the LCA-level rank gap, while a plain edge into the same nested node
+    /// is keyed by that node's container-level rank gap. The two never
+    /// compete in `protrusions_assign`, so their approach legs (protrusion
+    /// depths) are chosen independently and can cross -- e.g. in `0036`,
+    /// the local edge `t_c_00 -> t_c_01` and the cross-container edge
+    /// `t_a_01 -> t_c_01` both enter `t_c_01`'s `Top` face, and the
+    /// cross-container edge's deeper leg sweeps across the local edge
+    /// twice.
+    ///
+    /// This pass groups non-cycle to-endpoints by `(to-node, to-face)`. For
+    /// each group that **mixes** a spacer-crossing edge with at least one
+    /// other edge, it re-assigns nested approach depths within the physical
+    /// band between the to-face and the nearest same-container sibling on
+    /// the approach side: the edge entering nearest one side of the face
+    /// gets the deepest leg, fanning toward the other side (matching the
+    /// deepest-first-by-offset convention in `protrusions_assign`), so the
+    /// legs no longer cross. For spacer-crossing edges the last spacer's
+    /// `exit` protrusion is updated so the spacer exit and the to tip still
+    /// meet on the chosen leg. Groups without this mix are left to the
+    /// existing rank-gap assignment, so single-bucket layouts (and
+    /// pure spacer-channel groups handled in Step 5.5) are unchanged.
+    #[allow(clippy::too_many_arguments)]
+    fn protrusions_separate_shared_to_face_channels<'id>(
+        all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+        to_slot_indices_all: &[Vec<Option<usize>>],
+        face_offsets_by_node_face: &NodeIdAndFaceToContactPointOffsets<'id>,
+        all_spacer_coordinates: &[Vec<Vec<SpacerCoordinates>>],
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        entity_types: &EntityTypes<'id>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        /// One edge entering a shared to-node face.
+        struct ToFaceEntry {
+            group_idx: usize,
+            edge_idx: usize,
+            /// To-endpoint face offset; orders contacts along the face axis.
+            to_offset: f32,
+            /// `(last spacer index, last spacer exit coordinate)` along the
+            /// rank axis, for spacer-crossing edges.
+            last_spacer: Option<(usize, f32)>,
+        }
+
+        #[derive(PartialEq, Eq, Hash)]
+        struct ToFaceKey<'id> {
+            to_node_id: NodeId<'id>,
+            face: NodeFace,
+        }
+
+        let mut groups: Map<ToFaceKey<'id>, Vec<ToFaceEntry>> = Map::new();
+
+        for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            let to_slot_indices = &to_slot_indices_all[group_idx];
+            for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
+                if pass1_info.is_cycle_edge {
+                    continue;
+                }
+                let Some(to_face) = pass1_info.to_face else {
+                    continue;
+                };
+
+                let to_offset = Self::face_offset_resolve(
+                    pass1_info,
+                    to_slot_indices[edge_idx],
+                    false,
+                    face_offsets_by_node_face,
+                );
+
+                let spacers = &all_spacer_coordinates[group_idx][edge_idx];
+                let last_spacer = spacers.last().map(|spacer| {
+                    let exit_coord = match to_face {
+                        NodeFace::Left | NodeFace::Right => spacer.exit_x,
+                        NodeFace::Top | NodeFace::Bottom => spacer.exit_y,
+                    };
+                    (spacers.len() - 1, exit_coord)
+                });
+
+                groups
+                    .entry(ToFaceKey {
+                        to_node_id: pass1_info.edge.to.clone(),
+                        face: to_face,
+                    })
+                    .or_default()
+                    .push(ToFaceEntry {
+                        group_idx,
+                        edge_idx,
+                        to_offset,
+                        last_spacer,
+                    });
+            }
+        }
+
+        for (key, mut entries) in groups {
+            let n = entries.len();
+            if n < 2 {
+                continue;
+            }
+
+            // Only act on the mixed cross-bucket case: at least one
+            // spacer-crossing edge and at least one other edge. Pure single-
+            // bucket fan-ins are handled by Step 3; pure spacer-channel groups
+            // by Step 5.5.
+            let any_spacer = entries.iter().any(|entry| entry.last_spacer.is_some());
+            let any_plain = entries.iter().any(|entry| entry.last_spacer.is_none());
+            if !(any_spacer && any_plain) {
+                continue;
+            }
+
+            let Some(&to_info) = svg_node_info_map.get(&key.to_node_id) else {
+                continue;
+            };
+            let to_face_coord = Self::face_coord_for_node(to_info, key.face);
+            let Some(available) = Self::approach_band(
+                &key.to_node_id,
+                key.face,
+                to_info,
+                node_nesting_infos,
+                node_ranks_nested,
+                svg_node_info_map,
+                entity_types,
+            ) else {
+                continue;
+            };
+            let to_min = TO_PROTRUSION_MIN_PX.max(Self::own_envelope_clearance(to_info, key.face));
+            let band_cap = available * MAX_GAP_FRACTION;
+            if band_cap <= to_min {
+                // Gap too tight to nest distinct legs; leave the band-assigned
+                // values.
+                continue;
+            }
+
+            // Order leftmost / topmost first (smallest offset = deepest leg),
+            // matching the deepest-first-by-offset convention in
+            // `protrusions_assign`.
+            entries.sort_by(|a, b| {
+                a.to_offset
+                    .partial_cmp(&b.to_offset)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then(a.group_idx.cmp(&b.group_idx))
+                    .then(a.edge_idx.cmp(&b.edge_idx))
+            });
+
+            for (i, entry) in entries.iter().enumerate() {
+                // Stack depths from the arrow-head clearance floor upward, so
+                // the deepest leg (smallest offset) clears the others without
+                // overshooting the shared band.
+                let depth = (to_min + (n - 1 - i) as f32 * MIN_PROTRUSION_PX).min(band_cap);
+                let params = &mut result[entry.group_idx][entry.edge_idx];
+
+                if let Some((spacer_index, exit_coord)) = entry.last_spacer {
+                    // Keep the spacer exit and the to tip meeting on the leg:
+                    // their combined depth spans the spacer-exit-to-face gap.
+                    let spacer_available = (to_face_coord - exit_coord).abs();
+                    let depth = depth.min((spacer_available - MIN_PROTRUSION_PX).max(to_min));
+                    params.to_protrusion = depth;
+                    if let Some(spacer_protrusion) = params.spacer_protrusions.get_mut(spacer_index)
+                    {
+                        spacer_protrusion.exit_protrusion =
+                            (spacer_available - depth).max(MIN_PROTRUSION_PX);
+                    }
+                } else {
+                    params.to_protrusion = depth;
+                }
+            }
+        }
+    }
+
+    /// Returns the pixel distance from a to-node face to the nearest
+    /// same-container, same-category sibling on the approach side, or `None`
+    /// when there is no such sibling.
+    ///
+    /// This is the physical band an incoming edge's approach leg may occupy
+    /// before it would overlap a sibling node. The approach side is the
+    /// outward direction of `to_face`: `+y` for `Bottom`, `-y` for `Top`, `+x`
+    /// for `Right`, `-x` for `Left`. Only siblings whose near edge lies in that
+    /// outward direction are considered, so the computation is robust to
+    /// `RankDir`.
+    fn approach_band<'id>(
+        to_node_id: &NodeId<'id>,
+        to_face: NodeFace,
+        to_info: &SvgNodeInfo<'_>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        entity_types: &EntityTypes<'id>,
+    ) -> Option<f32> {
+        let parent_container = node_nesting_infos
+            .get(to_node_id)
+            .and_then(|node_nesting_info| {
+                node_nesting_info
+                    .ancestor_chain
+                    .len()
+                    .checked_sub(2)
+                    .map(|parent_index| &node_nesting_info.ancestor_chain[parent_index])
+            });
+        let ranks_in_scope = node_ranks_nested.ranks_for(parent_container)?;
+
+        let category = Self::node_category(to_node_id, entity_types);
+        let to_face_coord = Self::face_coord_for_node(to_info, to_face);
+        let outward_positive = matches!(to_face, NodeFace::Bottom | NodeFace::Right);
+
+        let boundary = ranks_in_scope
+            .iter()
+            .filter(|(sibling_id, _)| *sibling_id != to_node_id)
+            .filter(|(sibling_id, _)| Self::node_category(sibling_id, entity_types) == category)
+            .filter_map(|(sibling_id, _)| svg_node_info_map.get(sibling_id).copied())
+            .filter_map(|info| {
+                // The sibling's near edge -- the face closest to the to-node
+                // along the approach axis.
+                let near = match to_face {
+                    NodeFace::Top => info.y + info.height_collapsed,
+                    NodeFace::Bottom => info.y,
+                    NodeFace::Left => info.x + info.width,
+                    NodeFace::Right => info.x,
+                };
+                let in_outward = if outward_positive {
+                    near >= to_face_coord
+                } else {
+                    near <= to_face_coord
+                };
+                in_outward.then_some(near)
+            })
+            .reduce(|acc, near| {
+                if outward_positive {
+                    acc.min(near)
+                } else {
+                    acc.max(near)
+                }
+            })?;
+
+        Some((to_face_coord - boundary).abs())
     }
 
     /// Returns the depth of a node's own edge-label slot on `face` -- the
