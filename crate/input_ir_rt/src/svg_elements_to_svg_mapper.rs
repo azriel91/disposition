@@ -276,7 +276,9 @@ impl SvgElementsToSvgMapper {
         // way as entity classes before handing them to `encre_css`.
         let escaped_md_span_classes: Vec<String> = {
             let code_bg_class = MD_CODE_BG_COLOR.fill_class();
-            std::iter::once(code_bg_class.as_str())
+            let blockquote_border_class = MD_BLOCKQUOTE_BORDER_COLOR.fill_class();
+            [code_bg_class.as_str(), blockquote_border_class.as_str()]
+                .into_iter()
                 .chain(
                     svg_node_infos
                         .iter()
@@ -506,9 +508,14 @@ impl SvgElementsToSvgMapper {
                 let rect_y = text_y - rect_h;
                 let path_d = Self::blockquote_border_path_d(text_x, rect_y, rect_w, rect_h);
                 let border_class = MD_BLOCKQUOTE_BORDER_COLOR.fill_class();
+                // `stroke-width="0"` so the frame is drawn purely as an
+                // even-odd fill: otherwise the `<g>`'s node-border stroke is
+                // inherited and outlines both the outer and inner rectangles,
+                // doubling the visible top / right / bottom borders.
                 write!(
                     content_buffer,
-                    "<path d=\"{path_d}\" fill-rule=\"evenodd\" class=\"{border_class}\" />"
+                    "<path d=\"{path_d}\" fill-rule=\"evenodd\" stroke-width=\"0\" \
+                        class=\"{border_class}\" />"
                 )
                 .unwrap();
             }
