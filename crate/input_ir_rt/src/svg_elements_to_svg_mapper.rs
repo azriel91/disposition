@@ -29,6 +29,10 @@ const BLOCKQUOTE_BORDER_LEFT: f32 = 7.0;
 /// Width (pixels) of the blockquote's thin top / right / bottom borders.
 const BLOCKQUOTE_BORDER_THIN: f32 = 1.0;
 
+/// Corner radius (pixels) of the blockquote frame's outer rectangle. The inner
+/// rectangle uses `BLOCKQUOTE_BORDER_RADIUS - BLOCKQUOTE_BORDER_THIN`.
+const BLOCKQUOTE_BORDER_RADIUS: f32 = 2.0;
+
 /// CSS variables to ensure CSS works correctly with `encre-css`.
 ///
 /// These are copied from `DEFAULT_PREFLIGHT` in [`encre-css/src/preflight.rs`].
@@ -497,7 +501,7 @@ impl SvgElementsToSvgMapper {
             // The span carries no text; `text_y` is the box bottom and `height`
             // its full height, so the box top is `text_y - height`. The frame
             // has a thick left bar and thin top / right / bottom borders, with
-            // square corners.
+            // slightly rounded corners.
             if svg_text_span
                 .md_style
                 .as_ref()
@@ -626,13 +630,20 @@ impl SvgElementsToSvgMapper {
     /// with radius `3` yields a `d` starting `M 99 109 H 168 A 3 3 0 0 1 171
     /// 112`.
     fn code_bg_path_d(x: f32, y: f32, width: f32, height: f32, radius: f32) -> String {
+        let mut d = String::with_capacity(160);
+        Self::rounded_rect_subpath(&mut d, x, y, width, height, radius);
+        d
+    }
+
+    /// Appends a single clockwise rounded-rectangle subpath (`M ... Z`) to `d`,
+    /// starting just after the top-left corner. The radius is clamped so it
+    /// never exceeds half the width or height.
+    fn rounded_rect_subpath(d: &mut String, x: f32, y: f32, width: f32, height: f32, radius: f32) {
         let r = radius.clamp(0.0, (width / 2.0).min(height / 2.0));
         let x_r = x + r;
         let x_w = x + width;
         let y_r = y + r;
         let y_h = y + height;
-
-        let mut d = String::with_capacity(160);
 
         // Top edge, starting after the top-left corner.
         write!(d, "M {x_r} {y}").unwrap();
@@ -653,37 +664,31 @@ impl SvgElementsToSvgMapper {
         write!(d, " A {r} {r} 0 0 1 {x_r} {y}").unwrap();
 
         d.push_str(" Z");
-
-        d
     }
 
     /// Builds an SVG `<path>` `d` attribute for a blockquote border frame at
     /// absolute coordinates `(x, y)` with the given `width` and `height`.
     ///
-    /// The path is an outer rectangle with an inner rectangle subtracted (drawn
-    /// with `fill-rule="evenodd"`), leaving a frame whose left side is
-    /// [`BLOCKQUOTE_BORDER_LEFT`] thick (the quote bar) and whose top, right,
-    /// and bottom are [`BLOCKQUOTE_BORDER_THIN`] thick. Corners are square.
+    /// The path is an outer rounded rectangle with an inner rounded rectangle
+    /// subtracted (drawn with `fill-rule="evenodd"`), leaving a frame whose
+    /// left side is [`BLOCKQUOTE_BORDER_LEFT`] thick (the quote bar) and whose
+    /// top, right, and bottom are [`BLOCKQUOTE_BORDER_THIN`] thick. Corners are
+    /// rounded with a small [`BLOCKQUOTE_BORDER_RADIUS`] arc; the inner radius
+    /// is reduced by the thin border so the rounded borders keep a uniform
+    /// width.
     fn blockquote_border_path_d(x: f32, y: f32, width: f32, height: f32) -> String {
         let inner_x = x + BLOCKQUOTE_BORDER_LEFT;
         let inner_y = y + BLOCKQUOTE_BORDER_THIN;
         let inner_w = (width - BLOCKQUOTE_BORDER_LEFT - BLOCKQUOTE_BORDER_THIN).max(0.0);
         let inner_h = (height - BLOCKQUOTE_BORDER_THIN * 2.0).max(0.0);
+        let inner_radius = (BLOCKQUOTE_BORDER_RADIUS - BLOCKQUOTE_BORDER_THIN).max(0.0);
 
-        let x_w = x + width;
-        let y_h = y + height;
-        let inner_x_w = inner_x + inner_w;
-        let inner_y_h = inner_y + inner_h;
-
-        let mut d = String::with_capacity(96);
-        // Outer rectangle, clockwise.
-        write!(d, "M {x} {y} H {x_w} V {y_h} H {x} Z").unwrap();
-        // Inner rectangle (the hole), subtracted via the even-odd fill rule.
-        write!(
-            d,
-            " M {inner_x} {inner_y} H {inner_x_w} V {inner_y_h} H {inner_x} Z"
-        )
-        .unwrap();
+        let mut d = String::with_capacity(320);
+        // Outer rounded rectangle, clockwise.
+        Self::rounded_rect_subpath(&mut d, x, y, width, height, BLOCKQUOTE_BORDER_RADIUS);
+        // Inner rounded rectangle (the hole), subtracted via the even-odd rule.
+        d.push(' ');
+        Self::rounded_rect_subpath(&mut d, inner_x, inner_y, inner_w, inner_h, inner_radius);
 
         d
     }
