@@ -9,7 +9,7 @@ use disposition_ir_model::{
 use disposition_model_common::{
     edge::EdgeCurvature, entity::EntityType, theme::Css, Id, Map, RankDir,
 };
-use disposition_svg_model::{OrthoProtrusionParams, SvgEdgeInfo};
+use disposition_svg_model::{OrthoProtrusionParams, SvgEdgeInfo, SvgNodeInfo};
 use disposition_taffy_model::{
     taffy::TaffyTree, EdgeIdToEdgeLabelTaffyNodeIds, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx,
 };
@@ -26,7 +26,7 @@ use crate::{
             EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeIdAndFace,
             NodeIdAndFaceToContactPointOffsets, PathBounds, PathMidpoint,
         },
-        edge_path_builder_pass_1::EdgeFaceOffset,
+        edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
         ortho_protrusion_calculator::OrthoProtrusionCalculator,
         ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
         EdgePathLocusCalculator, SpacerCoordinatesResolver, StringCharReplacer,
@@ -142,12 +142,25 @@ impl SvgEdgeInfosBuilder {
 
         // === Global sort and offset computation === //
 
-        let face_offsets_by_node_face = Self::face_offsets_compute(
+        let mut face_offsets_by_node_face = Self::face_offsets_compute(
             &mut all_pass1_groups,
             svg_node_info_map,
             &mut face_contact_tracker,
             edge_label_taffy_nodes,
             taffy_tree,
+        );
+
+        // Nudge a container's face contact away from edges that transit the
+        // same inter-rank gap to reach a node nested inside that container, so
+        // their near-parallel legs do not visually touch.
+        Self::face_offsets_gap_transit_separate(
+            rank_dir,
+            &all_pass1_groups,
+            svg_node_info_map,
+            &ir_diagram.node_nesting_infos,
+            taffy_tree,
+            edge_spacer_taffy_nodes,
+            &mut face_offsets_by_node_face,
         );
 
         // === Global orthogonal protrusion computation === //
@@ -1394,6 +1407,236 @@ impl SvgEdgeInfosBuilder {
             NodeFace::Top | NodeFace::Bottom => node_info.x + node_info.width / 2.0,
             NodeFace::Left | NodeFace::Right => node_info.y + node_info.height_collapsed / 2.0,
         })
+    }
+
+    /// Nudges a container node's face contact away from edges that **transit**
+    /// the same inter-rank gap on their way to a node nested inside that
+    /// container.
+    ///
+    /// When an edge enters a container `C` at face `F`, and another edge routes
+    /// through the gap just before `C`'s `F` face to reach a node nested inside
+    /// `C`, the two run near-parallel one cross-axis step apart. The
+    /// per-`(node, face)` offset logic cannot see this, because the transiting
+    /// edge does not contact `C`. This pass detects the transit (via the
+    /// transiting edge's spacer in that gap) and shifts `C`'s contact along the
+    /// face axis so the two legs are at least `CONTACT_GAP_MIN_PX` apart.
+    ///
+    /// Only container to-faces with a transiting descendant edge within the
+    /// contact gap are adjusted, so layouts without this pattern are unchanged.
+    #[allow(clippy::too_many_arguments)]
+    fn face_offsets_gap_transit_separate<'edge, 'id>(
+        rank_dir: RankDir,
+        all_pass1_groups: &[EdgeGroupPass1<'edge, 'id>],
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
+        face_offsets_by_node_face: &mut NodeIdAndFaceToContactPointOffsets<'id>,
+    ) {
+        for group in all_pass1_groups {
+            for (edge_index, pass1_info) in group.pass1_infos.iter().enumerate() {
+                let Some(face) = pass1_info.to_face else {
+                    continue;
+                };
+                let container = &pass1_info.edge.to;
+
+                let Some(midpoint) = Self::face_midpoint(container, face, svg_node_info_map) else {
+                    continue;
+                };
+                let Some(slot) = group.to_slot_indices[edge_index] else {
+                    continue;
+                };
+                let node_id_and_face = NodeIdAndFace {
+                    node_id: container.clone(),
+                    face,
+                };
+                let Some(current_offset) = face_offsets_by_node_face
+                    .get(&node_id_and_face)
+                    .and_then(|offsets| offsets.get(slot))
+                else {
+                    continue;
+                };
+                let contact = midpoint + current_offset;
+
+                let Some(&container_info) = svg_node_info_map.get(container) else {
+                    continue;
+                };
+                let near_face_main = Self::face_coord_main_axis(container_info, face);
+
+                // Cross-axis positions of edges transiting the gap just before
+                // this container's face to reach a node nested inside it.
+                let transit_positions: Vec<f32> = all_pass1_groups
+                    .iter()
+                    .flat_map(|other_group| other_group.pass1_infos.iter())
+                    .filter(|other| {
+                        Self::node_is_descendant_of(&other.edge.to, container, node_nesting_infos)
+                    })
+                    .filter_map(|other| {
+                        let spacer_coordinates = SpacerCoordinatesResolver::resolve(
+                            rank_dir,
+                            &other.edge_id,
+                            taffy_tree,
+                            edge_spacer_taffy_nodes,
+                        );
+                        Self::transit_cross_axis_before_face(
+                            face,
+                            near_face_main,
+                            &spacer_coordinates,
+                        )
+                    })
+                    .collect();
+
+                if transit_positions.is_empty() {
+                    continue;
+                }
+
+                let face_length = Self::face_length_for_node(container, face, svg_node_info_map);
+                if let Some(new_offset) = Self::contact_offset_nudged_from_transits(
+                    contact,
+                    midpoint,
+                    face_length,
+                    &transit_positions,
+                ) && let Some(offsets) = face_offsets_by_node_face.get_mut(&node_id_and_face)
+                {
+                    offsets.offset_set(slot, new_offset);
+                }
+            }
+        }
+    }
+
+    /// Returns the main-axis (rank-direction) coordinate of a node's near face.
+    ///
+    /// `Left` -> left x, `Right` -> right x, `Top` -> top y, `Bottom` ->
+    /// bottom y.
+    fn face_coord_main_axis(node_info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+        match face {
+            NodeFace::Left => node_info.x,
+            NodeFace::Right => node_info.x + node_info.width,
+            NodeFace::Top => node_info.y,
+            NodeFace::Bottom => node_info.y + node_info.height_collapsed,
+        }
+    }
+
+    /// Returns whether `node_id` is a strict descendant of `ancestor_id`.
+    ///
+    /// The node's `ancestor_chain` ends with the node itself, so the ancestor
+    /// is searched in all but the last element.
+    fn node_is_descendant_of<'id>(
+        node_id: &NodeId<'id>,
+        ancestor_id: &NodeId<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> bool {
+        node_nesting_infos
+            .get(node_id)
+            .map(|node_nesting_info| {
+                let ancestor_chain = &node_nesting_info.ancestor_chain;
+                let prefix_len = ancestor_chain.len().saturating_sub(1);
+                ancestor_chain[..prefix_len]
+                    .iter()
+                    .any(|chain_node_id| chain_node_id == ancestor_id)
+            })
+            .unwrap_or(false)
+    }
+
+    /// Returns the cross-axis coordinate of the spacer routing an edge through
+    /// the gap **just before** a container's `face` on the approach side, or
+    /// `None` when the edge has no such spacer.
+    ///
+    /// The approach side is the outward direction of `face`; the relevant
+    /// spacer is the one nearest the face among those whose main-axis position
+    /// lies before it.
+    fn transit_cross_axis_before_face(
+        face: NodeFace,
+        near_face_main: f32,
+        spacer_coordinates: &[SpacerCoordinates],
+    ) -> Option<f32> {
+        // `Left`/`Top` faces are entered from the smaller-coordinate side, so a
+        // transiting spacer sits at a smaller main-axis coordinate (closest =
+        // largest). `Right`/`Bottom` are the mirror.
+        let approach_from_small = matches!(face, NodeFace::Left | NodeFace::Top);
+        let spacer_main = |spacer: &SpacerCoordinates| match face {
+            NodeFace::Left | NodeFace::Right => spacer.exit_x,
+            NodeFace::Top | NodeFace::Bottom => spacer.exit_y,
+        };
+        let spacer_cross = |spacer: &SpacerCoordinates| match face {
+            NodeFace::Left | NodeFace::Right => spacer.entry_y,
+            NodeFace::Top | NodeFace::Bottom => spacer.entry_x,
+        };
+
+        spacer_coordinates
+            .iter()
+            .filter(|spacer| {
+                if approach_from_small {
+                    spacer_main(spacer) < near_face_main
+                } else {
+                    spacer_main(spacer) > near_face_main
+                }
+            })
+            .reduce(|nearest, spacer| {
+                let closer = if approach_from_small {
+                    spacer_main(spacer) > spacer_main(nearest)
+                } else {
+                    spacer_main(spacer) < spacer_main(nearest)
+                };
+                if closer {
+                    spacer
+                } else {
+                    nearest
+                }
+            })
+            .map(spacer_cross)
+    }
+
+    /// Computes a new face offset that moves `contact` at least
+    /// `CONTACT_GAP_MIN_PX` away from the nearest `transit` coordinate, staying
+    /// within the node face. Returns `None` when no nudge is needed or
+    /// possible.
+    fn contact_offset_nudged_from_transits(
+        contact: f32,
+        midpoint: f32,
+        face_length: f32,
+        transits: &[f32],
+    ) -> Option<f32> {
+        let gap = CONTACT_GAP_MIN_PX;
+        let nearest = transits.iter().copied().reduce(|nearest, transit| {
+            if (transit - contact).abs() < (nearest - contact).abs() {
+                transit
+            } else {
+                nearest
+            }
+        })?;
+
+        if (nearest - contact).abs() >= gap {
+            return None;
+        }
+
+        // Keep the contact within the face, leaving an arrow-head margin.
+        let half = (face_length / 2.0 - 4.0).max(0.0);
+        let lower = midpoint - half;
+        let upper = midpoint + half;
+
+        // Move to the side of `nearest` that is away from the current contact.
+        let away = if contact <= nearest {
+            nearest - gap
+        } else {
+            nearest + gap
+        };
+        let mut candidate = away.clamp(lower, upper);
+        if (candidate - nearest).abs() + 1e-3 < gap {
+            // Clamping pulled it back inside the gap; try the opposite side.
+            let other = if contact <= nearest {
+                nearest + gap
+            } else {
+                nearest - gap
+            };
+            candidate = other.clamp(lower, upper);
+        }
+
+        // Only apply when it improves separation from the nearest transit.
+        if (candidate - nearest).abs() <= (contact - nearest).abs() + 1e-3 {
+            return None;
+        }
+        Some(candidate - midpoint)
     }
 
     fn face_length_for_node<'id>(

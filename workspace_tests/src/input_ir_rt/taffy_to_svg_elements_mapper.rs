@@ -1046,6 +1046,41 @@ fn polylines_cross(a: &[(f32, f32)], b: &[(f32, f32)]) -> bool {
     })
 }
 
+/// Shortest distance from point `p` to segment `a-b`.
+fn point_segment_distance(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 {
+    let abx = b.0 - a.0;
+    let aby = b.1 - a.1;
+    let len_sq = abx * abx + aby * aby;
+    let t = if len_sq <= f32::EPSILON {
+        0.0
+    } else {
+        (((p.0 - a.0) * abx + (p.1 - a.1) * aby) / len_sq).clamp(0.0, 1.0)
+    };
+    let foot = (a.0 + t * abx, a.1 + t * aby);
+    ((p.0 - foot.0).powi(2) + (p.1 - foot.1).powi(2)).sqrt()
+}
+
+/// Shortest distance between segments `p1-p2` and `p3-p4` (0 if they cross).
+fn segment_segment_distance(p1: (f32, f32), p2: (f32, f32), p3: (f32, f32), p4: (f32, f32)) -> f32 {
+    if segments_properly_intersect(p1, p2, p3, p4) {
+        return 0.0;
+    }
+    point_segment_distance(p1, p3, p4)
+        .min(point_segment_distance(p2, p3, p4))
+        .min(point_segment_distance(p3, p1, p2))
+        .min(point_segment_distance(p4, p1, p2))
+}
+
+/// Shortest distance between any segment of polyline `a` and any of `b`.
+fn polylines_min_distance(a: &[(f32, f32)], b: &[(f32, f32)]) -> f32 {
+    a.windows(2)
+        .flat_map(|sa| {
+            b.windows(2)
+                .map(move |sb| segment_segment_distance(sa[0], sa[1], sb[0], sb[1]))
+        })
+        .fold(f32::INFINITY, f32::min)
+}
+
 // === Tag and process step node routing tests === //
 
 /// Builds `SvgElements` from the tag-nodes cyclic edge fixture.
@@ -3836,6 +3871,51 @@ fn test_0036_to_0039_shared_to_face_edges_do_not_cross() {
                 "Edges t_a_01->t_c_01 and t_c_00->t_c_01 entering the shared \
                  t_c_01 face should not cross.\n  t_a_01->t_c_01: {path_a_01_c_01:?}\n  \
                  t_c_00->t_c_01: {path_c_00_c_01:?}",
+            );
+        }
+    }
+}
+
+/// `0037` / `0038` (horizontal flows): `edge_dep_b_0_c_0` enters the container
+/// `t_c_0`, while `edge_dep_a_01_c_01` transits the same inter-rank gap
+/// (between `t_b_0` and `t_c_0`) to reach `t_c_01` nested inside `t_c_0`. Their
+/// near-parallel legs touched (~1 px apart). The container contact is now
+/// nudged off the transit leg; assert the two paths keep a clear margin.
+///
+/// (The vertical flows `0036` / `0039` have a separate, pre-existing
+/// routing-leg crossing between these two edges -- `b_0_c_0`'s horizontal
+/// approach crosses `a_01_c_01`'s vertical transit -- which the contact nudge
+/// does not address, so they are excluded here.)
+#[test]
+fn test_0037_0038_container_entry_clears_nested_transit() {
+    let diagrams = [
+        INPUT_DIAGRAM_0037_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_LEFT_TO_RIGHT,
+        INPUT_DIAGRAM_0038_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_RIGHT_TO_LEFT,
+    ];
+
+    // Arrow-head clearance: legs closer than this read as a single line.
+    let min_clearance = 3.0_f32;
+
+    for input_diagram in diagrams {
+        for svg_elements in build_svg_elements_for_diagram(input_diagram) {
+            let path_for = |from: &str, to: &str| -> Vec<(f32, f32)> {
+                let edge = svg_elements
+                    .svg_edge_infos
+                    .iter()
+                    .find(|e| e.from_node_id.as_str() == from && e.to_node_id.as_str() == to)
+                    .unwrap_or_else(|| panic!("Expected edge from {from} to {to}"));
+                parse_path_endpoints(&edge.path_d)
+            };
+
+            let path_b_0_c_0 = path_for("t_b_0", "t_c_0");
+            let path_a_01_c_01 = path_for("t_a_01", "t_c_01");
+
+            let distance = polylines_min_distance(&path_b_0_c_0, &path_a_01_c_01);
+            assert!(
+                distance >= min_clearance,
+                "Edge t_b_0->t_c_0 (into container) and t_a_01->t_c_01 (transiting \
+                 to a nested node) come within {distance} px (< {min_clearance}).\n  \
+                 t_b_0->t_c_0: {path_b_0_c_0:?}\n  t_a_01->t_c_01: {path_a_01_c_01:?}",
             );
         }
     }
