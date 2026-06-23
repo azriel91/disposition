@@ -7,11 +7,11 @@ use disposition::{
         id, Id, ProcessRenderCollapse,
     },
     svg_model::SvgElements,
-    taffy_model::{taffy::TaffyError, DimensionAndLod},
+    taffy_model::{taffy::TaffyError, DimensionAndLod, TEXT_LINE_HEIGHT},
 };
 use disposition_input_ir_rt::{
     EdgeAnimationActive, InputDiagramMerger, InputToIrDiagramMapper, IrToTaffyBuilder,
-    TaffyToSvgElementsMapper,
+    SvgElementsToSvgMapper, TaffyToSvgElementsMapper,
 };
 
 use crate::input_ir_rt::{
@@ -46,6 +46,8 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0037_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_LEFT_TO_RIGHT,
     INPUT_DIAGRAM_0038_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_RIGHT_TO_LEFT,
     INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP,
+    INPUT_DIAGRAM_0040_MD_CODE_BLOCK, INPUT_DIAGRAM_0041_MD_CODE_BLOCK_IN_LIST,
+    INPUT_DIAGRAM_0042_MD_BLOCKQUOTE,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -783,6 +785,207 @@ fn build_svg_elements_for_diagram(
         })
         .collect::<Vec<_>>()
         .into_iter()
+}
+
+/// A fenced code block in a `thing_desc` renders as monospace line text sitting
+/// inside a single unified `code` background box.
+///
+/// The box is one empty-text `code` span sized to the whole block (so the SVG
+/// mapper draws its rounded background `<path>` once), and the code lines are
+/// separate non-`code` spans that preserve their indentation.
+#[test]
+fn test_md_code_block_renders_unified_background_box() {
+    for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0040_MD_CODE_BLOCK) {
+        let node_info = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_code")
+            .expect("Expected t_code in svg_node_infos");
+
+        // Exactly one unified background box: an empty-text `code` span taller
+        // than a single line (it spans the three code lines plus padding).
+        let code_bg_spans: Vec<_> = node_info
+            .text_spans
+            .iter()
+            .filter(|span| span.md_style.as_ref().is_some_and(|md_style| md_style.code))
+            .collect();
+        assert_eq!(
+            1,
+            code_bg_spans.len(),
+            "Expected exactly one unified code background span"
+        );
+        let code_bg = code_bg_spans[0];
+        assert!(
+            code_bg.text.is_empty(),
+            "Expected the code background span to carry no text, got {:?}",
+            code_bg.text
+        );
+        assert!(
+            code_bg.height > TEXT_LINE_HEIGHT,
+            "Expected the code box to span multiple lines, got height {}",
+            code_bg.height
+        );
+
+        // The code lines render as (non-`code`) monospace spans, with leading
+        // indentation preserved on the nested list item.
+        let span_texts: Vec<&str> = node_info
+            .text_spans
+            .iter()
+            .map(|span| span.text.as_str())
+            .collect();
+        assert!(
+            span_texts.contains(&"string: hello"),
+            "Expected a `string: hello` code line span, got {span_texts:?}"
+        );
+
+        let item_line = node_info
+            .text_spans
+            .iter()
+            .find(|span| span.text == "  - item 1")
+            .unwrap_or_else(|| {
+                panic!("Expected the indented `  - item 1` code line span, got {span_texts:?}")
+            });
+        assert!(
+            item_line
+                .md_style
+                .as_ref()
+                .is_some_and(|md_style| !md_style.code),
+            "Expected code line text spans to use the non-code style"
+        );
+    }
+}
+
+/// A fenced code block nested inside a list item is indented so it aligns
+/// under the item's content (past the list marker), and still renders its
+/// unified `code` background box with interior indentation preserved.
+#[test]
+fn test_md_code_block_in_list_is_indented_under_item() {
+    for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0041_MD_CODE_BLOCK_IN_LIST) {
+        let node_info = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_code")
+            .expect("Expected t_code in svg_node_infos");
+
+        // The top-level paragraph `Steps:` marks the un-indented left edge.
+        let steps_span = node_info
+            .text_spans
+            .iter()
+            .find(|span| span.text == "Steps:")
+            .expect("Expected the `Steps:` paragraph span");
+
+        // The unified code background box (empty-text `code` span).
+        let code_bg = node_info
+            .text_spans
+            .iter()
+            .find(|span| span.md_style.as_ref().is_some_and(|md_style| md_style.code))
+            .expect("Expected the unified code background span");
+
+        // The box is indented well past the un-indented paragraph (one list
+        // tab, ~4 character widths) rather than sitting at the left edge.
+        assert!(
+            code_bg.x > steps_span.x + 4.0,
+            "Expected the nested code box to be indented past `Steps:` \
+             (box x {} vs steps x {})",
+            code_bg.x,
+            steps_span.x
+        );
+
+        // Interior indentation within the code block is preserved.
+        let span_texts: Vec<&str> = node_info
+            .text_spans
+            .iter()
+            .map(|span| span.text.as_str())
+            .collect();
+        assert!(
+            span_texts.iter().any(|text| *text == "  nested: value"),
+            "Expected the indented `  nested: value` code line span, got {span_texts:?}"
+        );
+    }
+}
+
+/// A blockquote renders as a single bordered box spanning all its lines, with
+/// the quoted content indented past the left bar.
+#[test]
+fn test_md_blockquote_renders_bordered_box_with_indented_content() {
+    for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0042_MD_BLOCKQUOTE) {
+        let node_info = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_quote")
+            .expect("Expected t_quote in svg_node_infos");
+
+        // Exactly one blockquote frame span: empty text, taller than a single
+        // line (it wraps a paragraph plus a two-item list).
+        let blockquote_spans: Vec<_> = node_info
+            .text_spans
+            .iter()
+            .filter(|span| {
+                span.md_style
+                    .as_ref()
+                    .is_some_and(|md_style| md_style.blockquote)
+            })
+            .collect();
+        assert_eq!(
+            1,
+            blockquote_spans.len(),
+            "Expected exactly one blockquote frame span"
+        );
+        let blockquote = blockquote_spans[0];
+        assert!(
+            blockquote.text.is_empty(),
+            "Expected the blockquote frame span to carry no text, got {:?}",
+            blockquote.text
+        );
+        assert!(
+            blockquote.height > TEXT_LINE_HEIGHT,
+            "Expected the blockquote box to span multiple lines, got height {}",
+            blockquote.height
+        );
+
+        // The un-quoted `Intro:` paragraph marks the box's left edge; the
+        // quoted content is indented to the right of the left bar.
+        let intro_x = node_info
+            .text_spans
+            .iter()
+            .find(|span| span.text == "Intro:")
+            .expect("Expected the `Intro:` paragraph span")
+            .x;
+        let quoted_x = node_info
+            .text_spans
+            .iter()
+            .find(|span| span.text == "A quoted")
+            .expect("Expected the `A quoted` span")
+            .x;
+        // The box left aligns with un-quoted content; quoted text sits past the
+        // 7px bar plus its gap.
+        assert!(
+            (blockquote.x - intro_x).abs() < 0.5,
+            "Expected the blockquote box left ({}) to align with `Intro:` ({intro_x})",
+            blockquote.x
+        );
+        assert!(
+            quoted_x > blockquote.x + 7.0,
+            "Expected quoted content ({quoted_x}) to be indented past the left bar \
+             (box x {})",
+            blockquote.x
+        );
+
+        // The frame is only visible if its fill class is actually generated by
+        // `encre_css`. Render to SVG and assert both the `evenodd` frame path
+        // and the `fill: var(--tw-neutral-400-500)` rule are present (without
+        // the rule the path falls back to the node's inherited fill -- the
+        // colour of the node background -- and the box is invisible).
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        assert!(
+            svg.contains("fill-rule=\"evenodd\""),
+            "Expected the blockquote frame path in the rendered SVG"
+        );
+        assert!(
+            svg.contains("fill: var(--tw-neutral-400-500)"),
+            "Expected the blockquote fill rule to be generated so the frame is visible"
+        );
+    }
 }
 
 /// The from-protrusion for `edge_dep_bob_charlie__0` must be large enough to

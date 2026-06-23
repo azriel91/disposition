@@ -3,7 +3,8 @@
 #
 # `thing_descs` accept **markdown**, and so do `edge_descs`, a process's
 # `desc`, and `step_descs`. Supported styles include headings, **bold**,
-# *italic*, `inline code`, ~~strikethrough~~, bullet lists, and
+# *italic*, `inline code`, ~~strikethrough~~, bullet lists, ordered lists,
+# blockquotes, fenced code blocks, and
 # [links](https://github.com/azriel91/disposition).
 #
 # Descriptions are laid out alongside their thing, so keep them concise.
@@ -24,6 +25,9 @@ thing_descs:
     ### Source
 
     The **main** branch is protected.
+
+    > **Note:** force-pushes to `main` are rejected, and pull requests\
+    > require a passing CI run before they can be merged.
 
     Clone with `git clone`, see the
     [README](https://github.com/azriel91/disposition).
@@ -63,6 +67,18 @@ thing_descs:
     * lint and `cargo fmt`
     * test
     * ~~manual deploy~~ automated deploy
+
+    ```yaml
+    string: hello
+    number: 1
+    list:
+      - item 1
+      - item 2
+    map:
+      key1: value1
+      key2: value2
+    ```
+
 edge_descs:
   edge_dep_repo_ci__0: on **push**
 

@@ -1,0 +1,11 @@
+things:
+  t_code: {}
+thing_descs:
+  t_code: |-
+    Config:
+
+    ```yaml
+    string: hello
+    list:
+      - item 1
+    ```

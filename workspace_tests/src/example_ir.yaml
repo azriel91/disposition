@@ -2452,6 +2452,7 @@ css: |-
     --tw-neutral-200-700: oklch(92.2% 0 0);
     --tw-neutral-200-800: oklch(92.2% 0 0);
     --tw-neutral-300-700: oklch(87% 0 0);
+    --tw-neutral-400-500: oklch(70.8% 0 0);
     --tw-neutral-400-600: oklch(70.8% 0 0);
     --tw-neutral-50-950: oklch(98.5% 0 0);
     --tw-neutral-500-500: oklch(55.6% 0 0);
@@ -2504,6 +2505,7 @@ css: |-
       --tw-neutral-200-700: oklch(37.1% 0 0);
       --tw-neutral-200-800: oklch(26.9% 0 0);
       --tw-neutral-300-700: oklch(37.1% 0 0);
+      --tw-neutral-400-500: oklch(55.6% 0 0);
       --tw-neutral-400-600: oklch(43.9% 0 0);
       --tw-neutral-50-950: oklch(14.5% 0 0);
       --tw-neutral-500-500: oklch(55.6% 0 0);

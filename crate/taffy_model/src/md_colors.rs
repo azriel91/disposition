@@ -62,3 +62,12 @@ pub const MD_LINK_COLOR: MdColor = MdColor {
     shade_light: "700",
     shade_dark: "400",
 };
+
+/// Blockquote border / left-bar fill: a mid neutral grey that reads against
+/// both the page and the inline-code background (light `neutral-400`, dark
+/// `neutral-500`).
+pub const MD_BLOCKQUOTE_BORDER_COLOR: MdColor = MdColor {
+    color: "neutral",
+    shade_light: "400",
+    shade_dark: "500",
+};

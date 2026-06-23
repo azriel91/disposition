@@ -359,6 +359,7 @@ pub(super) fn svg_md_style_from(md_style: &MdStyle) -> SvgMdStyle {
         italic: md_style.italic,
         strikethrough: md_style.strikethrough,
         code: md_style.code,
+        blockquote: md_style.blockquote,
         heading_level: md_style.heading_level.map(|h| h as u8 + 1).unwrap_or(0),
         link_dest: md_style.link_dest.clone(),
     }

@@ -24,7 +24,7 @@ use disposition_ir_model::{
     IrDiagram,
 };
 use disposition_model_common::{edge::EdgeGroupId, theme::Css, Id, Map, RankDir, Set};
-use disposition_taffy_model::{MD_CODE_BG_COLOR, MD_LINK_COLOR};
+use disposition_taffy_model::{MD_BLOCKQUOTE_BORDER_COLOR, MD_CODE_BG_COLOR, MD_LINK_COLOR};
 
 use crate::{
     edge_face_assigner::EdgeFaceAssigner, node_ranks_calculator::NodeRanksCalculator,
@@ -347,6 +347,11 @@ impl InputToIrDiagramMapper {
                 MD_LINK_COLOR.color,
                 MD_LINK_COLOR.shade_light,
                 MD_LINK_COLOR.shade_dark,
+            );
+            css_theme_vars.register(
+                MD_BLOCKQUOTE_BORDER_COLOR.color,
+                MD_BLOCKQUOTE_BORDER_COLOR.shade_light,
+                MD_BLOCKQUOTE_BORDER_COLOR.shade_dark,
             );
         }
 
