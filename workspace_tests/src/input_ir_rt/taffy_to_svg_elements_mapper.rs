@@ -47,7 +47,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0038_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_RIGHT_TO_LEFT,
     INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP,
     INPUT_DIAGRAM_0040_MD_CODE_BLOCK, INPUT_DIAGRAM_0041_MD_CODE_BLOCK_IN_LIST,
-    INPUT_DIAGRAM_0042_MD_BLOCKQUOTE,
+    INPUT_DIAGRAM_0042_MD_BLOCKQUOTE, INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -1272,6 +1272,46 @@ fn segment_segment_distance(p1: (f32, f32), p2: (f32, f32), p3: (f32, f32), p4: 
         .min(point_segment_distance(p2, p3, p4))
         .min(point_segment_distance(p3, p1, p2))
         .min(point_segment_distance(p4, p1, p2))
+}
+
+/// Minimum perpendicular distance between any axis-aligned segment of `a` and
+/// any **parallel** (same-orientation) axis-aligned segment of `b` whose
+/// extents overlap along the shared axis.
+///
+/// Unlike [`polylines_min_distance`], this ignores perpendicular segment pairs
+/// (clean X-crossings, which are visually acceptable) and non-overlapping
+/// parallel pairs. It therefore measures only coincident/parallel runs -- the
+/// "two edges reading as one line" defect. Diagonal arc-corner segments are
+/// skipped (they are neither horizontal nor vertical).
+fn parallel_segment_min_gap(a: &[(f32, f32)], b: &[(f32, f32)]) -> f32 {
+    let eps = 1e-2_f32;
+    let mut min_gap = f32::INFINITY;
+    for sa in a.windows(2) {
+        let a_horiz = (sa[0].1 - sa[1].1).abs() < eps;
+        let a_vert = (sa[0].0 - sa[1].0).abs() < eps;
+        for sb in b.windows(2) {
+            let b_horiz = (sb[0].1 - sb[1].1).abs() < eps;
+            let b_vert = (sb[0].0 - sb[1].0).abs() < eps;
+            if a_horiz && b_horiz {
+                let a_lo = sa[0].0.min(sa[1].0);
+                let a_hi = sa[0].0.max(sa[1].0);
+                let b_lo = sb[0].0.min(sb[1].0);
+                let b_hi = sb[0].0.max(sb[1].0);
+                if a_hi.min(b_hi) - a_lo.max(b_lo) > eps {
+                    min_gap = min_gap.min((sa[0].1 - sb[0].1).abs());
+                }
+            } else if a_vert && b_vert {
+                let a_lo = sa[0].1.min(sa[1].1);
+                let a_hi = sa[0].1.max(sa[1].1);
+                let b_lo = sb[0].1.min(sb[1].1);
+                let b_hi = sb[0].1.max(sb[1].1);
+                if a_hi.min(b_hi) - a_lo.max(b_lo) > eps {
+                    min_gap = min_gap.min((sa[0].0 - sb[0].0).abs());
+                }
+            }
+        }
+    }
+    min_gap
 }
 
 /// Shortest distance between any segment of polyline `a` and any of `b`.
@@ -4120,6 +4160,104 @@ fn test_0036_to_0039_container_entry_clears_nested_transit() {
                  to a nested node) come within {distance} px (< {min_clearance}).\n  \
                  t_b_0->t_c_0: {path_b_0_c_0:?}\n  t_a_01->t_c_01: {path_a_01_c_01:?}",
             );
+        }
+    }
+}
+
+/// `0043` (`top_to_bottom`): three cross-container edges fan out from sibling
+/// nodes at the same rank in `t_inputs` to nodes nested at three different
+/// depths inside `t_offset_data` (`t_taffy_layout -> t_face_contacts`,
+/// `t_node_ranks -> t_slot_indices`, `t_edge_labels -> t_offsets`). All three
+/// are LCA-lifted to the same root rank gap, so before physical-gap bucketing
+/// their `from` protrusions collapsed to (near-)identical depths and the
+/// horizontal "jog" legs carrying each edge from its from-column to its
+/// spacer-column all sat at the same y (~229), reading as one line. This
+/// asserts the three jog legs are now at distinct main-axis coordinates.
+#[test]
+fn test_0043_cross_container_fan_from_protrusions_separated() {
+    // The y of the first horizontal segment of `points` -- the from-protrusion
+    // jog. Skips the rounded-corner curve points (which are neither horizontal
+    // nor vertical) and returns the y of the first truly horizontal segment.
+    fn first_horizontal_y(points: &[(f32, f32)]) -> f32 {
+        points
+            .windows(2)
+            .find(|seg| (seg[0].1 - seg[1].1).abs() < 1e-2 && (seg[0].0 - seg[1].0).abs() > 1e-2)
+            .map(|seg| seg[0].1)
+            .expect("Expected at least one horizontal segment in the edge path")
+    }
+
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1)
+    {
+        let jog_y = |from: &str, to: &str| -> f32 {
+            let edge = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == from && e.to_node_id.as_str() == to)
+                .unwrap_or_else(|| panic!("Expected edge from {from} to {to}"));
+            first_horizontal_y(&parse_path_endpoints(&edge.path_d))
+        };
+
+        let jog_layout_contacts = jog_y("t_taffy_layout", "t_face_contacts");
+        let jog_ranks_slots = jog_y("t_node_ranks", "t_slot_indices");
+        let jog_labels_offsets = jog_y("t_edge_labels", "t_offsets");
+
+        // Legs closer than this read as a single line.
+        let min_separation = 6.0_f32;
+        assert!(
+            (jog_layout_contacts - jog_ranks_slots).abs() >= min_separation
+                && (jog_layout_contacts - jog_labels_offsets).abs() >= min_separation
+                && (jog_ranks_slots - jog_labels_offsets).abs() >= min_separation,
+            "Expected the three from-protrusion jog legs to be separated by at \
+             least {min_separation} px, but got t_taffy_layout->t_face_contacts \
+             = {jog_layout_contacts}, t_node_ranks->t_slot_indices = \
+             {jog_ranks_slots}, t_edge_labels->t_offsets = {jog_labels_offsets}",
+        );
+    }
+}
+
+/// `0043` (`top_to_bottom`): the same three cross-container edges route through
+/// stacked spacers inside `t_offset_data`. The legs that share an inter-rank
+/// gap -- which previously collapsed onto the same coordinate and read as one
+/// line -- must run at distinct depths. Clean X-crossings (the edges fan to
+/// nodes at three different ranks) are visually acceptable and ignored; only
+/// coincident **parallel** (same-orientation, overlapping) legs are a defect.
+#[test]
+fn test_0043_cross_container_fan_legs_not_coincident() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1)
+    {
+        let path_for = |from: &str, to: &str| -> Vec<(f32, f32)> {
+            let edge = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == from && e.to_node_id.as_str() == to)
+                .unwrap_or_else(|| panic!("Expected edge from {from} to {to}"));
+            parse_path_endpoints(&edge.path_d)
+        };
+
+        let paths = [
+            ("t_taffy_layout", "t_face_contacts"),
+            ("t_node_ranks", "t_slot_indices"),
+            ("t_edge_labels", "t_offsets"),
+        ]
+        .map(|(from, to)| (from, to, path_for(from, to)));
+
+        // Legs closer than this read as a single line.
+        let min_clearance = 2.5_f32;
+
+        for i in 0..paths.len() {
+            for j in (i + 1)..paths.len() {
+                let (from_a, to_a, path_a) = &paths[i];
+                let (from_b, to_b, path_b) = &paths[j];
+                let gap = parallel_segment_min_gap(path_a, path_b);
+                assert!(
+                    gap >= min_clearance,
+                    "Edge {from_a}->{to_a} and {from_b}->{to_b} have parallel legs \
+                     only {gap} px apart (< {min_clearance}), reading as one line.\n  \
+                     {from_a}->{to_a}: {path_a:?}\n  {from_b}->{to_b}: {path_b:?}",
+                );
+            }
         }
     }
 }

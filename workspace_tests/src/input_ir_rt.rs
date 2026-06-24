@@ -91,6 +91,8 @@ pub(crate) const INPUT_DIAGRAM_0041_MD_CODE_BLOCK_IN_LIST: &str =
     include_str!("input_diagram/0041_md_code_block_in_list.yaml");
 pub(crate) const INPUT_DIAGRAM_0042_MD_BLOCKQUOTE: &str =
     include_str!("input_diagram/0042_md_blockquote.yaml");
+pub(crate) const INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1: &str =
+    include_str!("input_diagram/0043_edge_offsets_and_protrusion_complex_1.yaml");
 
 mod diagram_generator;
 mod input_diagram_merger;

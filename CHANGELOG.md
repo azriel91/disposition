@@ -43,6 +43,8 @@
 * Keep a container's face contact on the from-node's side of edges that transit the same inter-rank gap to reach a node nested inside it, so their legs no longer touch or cross. ([#55][#55])
 * Markdown: Support rendering code blocks. ([#56][#56])
 * Markdown: Support rendering blockquotes. ([#56][#56])
+* Bucket orthogonal edge protrusions by the physical inter-rank gap each leg occupies, instead of the lowest-common-ancestor rank pair, so the lateral routing legs of sibling cross-container edges no longer collapse onto the same coordinate. ([#57][#57])
+* Remove the now-subsumed spacer-approach-channel separation pass, which the physical-gap bucketing makes redundant. ([#57][#57])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -59,6 +61,7 @@
 [#54]: https://github.com/azriel91/disposition/pull/54
 [#55]: https://github.com/azriel91/disposition/pull/55
 [#56]: https://github.com/azriel91/disposition/pull/56
+[#57]: https://github.com/azriel91/disposition/pull/57
 
 
 ## 0.3.0 (2026-06-07)
