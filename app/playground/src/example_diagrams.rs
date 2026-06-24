@@ -54,6 +54,10 @@ pub enum ExampleDiagram {
     CloudArchitecture,
     /// Constant-speed interaction animation across very different edge lengths.
     InteractionTiming,
+    /// Spacer waypoints that route edges around nested nodes.
+    EdgeWaypoints,
+    /// Concept map of how edge contact offsets and protrusions are computed.
+    EdgeOffsetsProtrusions,
 }
 
 impl ExampleDiagram {
@@ -75,6 +79,8 @@ impl ExampleDiagram {
         ExampleDiagram::ClassDiagram,
         ExampleDiagram::CloudArchitecture,
         ExampleDiagram::InteractionTiming,
+        ExampleDiagram::EdgeWaypoints,
+        ExampleDiagram::EdgeOffsetsProtrusions,
     ];
 
     /// Human-readable label shown in the example selector dropdown.
@@ -96,6 +102,8 @@ impl ExampleDiagram {
             Self::ClassDiagram => "Class Diagram",
             Self::CloudArchitecture => "Cloud Architecture",
             Self::InteractionTiming => "Interaction Timing",
+            Self::EdgeWaypoints => "Edge Waypoints",
+            Self::EdgeOffsetsProtrusions => "Edge Offsets & Protrusions",
         }
     }
 
@@ -129,6 +137,10 @@ impl ExampleDiagram {
             }
             Self::InteractionTiming => {
                 asset!("/assets/example_diagrams/016_interaction_timing.yaml")
+            }
+            Self::EdgeWaypoints => asset!("/assets/example_diagrams/017_edge_waypoints.yaml"),
+            Self::EdgeOffsetsProtrusions => {
+                asset!("/assets/example_diagrams/018_edge_offsets_and_protrusions.yaml")
             }
         }
     }
