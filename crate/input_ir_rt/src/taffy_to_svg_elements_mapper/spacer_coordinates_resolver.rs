@@ -59,11 +59,12 @@ impl SpacerCoordinatesResolver {
             })
             .collect();
 
-        let cross_container_spacers = Self::spacers_calculate(
+        let mut cross_container_spacers = Self::spacers_calculate(
             rank_dir,
             taffy_tree,
             &spacer_nodes.cross_container_spacer_taffy_node_ids,
         );
+        Self::cross_container_spacers_snap_to_column(rank_dir, &mut cross_container_spacers);
         let edge_desc_container_spacers = Self::spacers_calculate(
             rank_dir,
             taffy_tree,
@@ -86,6 +87,72 @@ impl SpacerCoordinatesResolver {
             .collect();
 
         Self::spacers_sort_by_main_axis(rank_dir, all_spacers)
+    }
+
+    /// Snaps an edge's cross-container spacers to a single straight column on
+    /// the cross-axis (X for vertical flows, Y for horizontal flows).
+    ///
+    /// Cross-container spacers are appended to each rank row, so their
+    /// cross-axis position is set by taffy from how much sibling content
+    /// precedes them in that row. When an edge routes through several rows whose
+    /// preceding content differs -- e.g. a deeper row drops a sibling edge's
+    /// spacer that had padded this edge's spacer outward in the shallower rows
+    /// -- the per-row spacers land at different cross-axis coordinates and the
+    /// edge path zig-zags. That zig-zag can cross a neighbouring edge whose
+    /// column is straight (e.g. `ranks_slots` vs `labels_offsets` in `0043`).
+    ///
+    /// All of an edge's cross-container spacers sit on the **same** side of the
+    /// rows' nodes (the gap side they were appended on), so collapsing them onto
+    /// the single **outermost** coordinate keeps the column clear of every row's
+    /// node -- each row's node ends at or before its own spacer, which is at or
+    /// inside the chosen extreme. The outermost coordinate is the **maximum**
+    /// for forward flows (`TopToBottom` / `LeftToRight`, spacers appended after
+    /// the nodes) and the **minimum** for reversed flows (`BottomToTop` /
+    /// `RightToLeft`, whose rank rows use a reversed flex direction so appended
+    /// spacers land on the low side). A single spacer is already a straight
+    /// column, so the snap is a no-op below two.
+    fn cross_container_spacers_snap_to_column(
+        rank_dir: RankDir,
+        cross_container_spacers: &mut [SpacerCoordinates],
+    ) {
+        if cross_container_spacers.len() < 2 {
+            return;
+        }
+
+        let reversed = matches!(rank_dir, RankDir::BottomToTop | RankDir::RightToLeft);
+        let vertical_flow = matches!(rank_dir, RankDir::TopToBottom | RankDir::BottomToTop);
+
+        let cross_axis = |spacer_coordinates: &SpacerCoordinates| {
+            if vertical_flow {
+                spacer_coordinates.entry_x
+            } else {
+                spacer_coordinates.entry_y
+            }
+        };
+
+        let Some(column) = cross_container_spacers
+            .iter()
+            .map(cross_axis)
+            .reduce(|acc, value| {
+                if reversed {
+                    acc.min(value)
+                } else {
+                    acc.max(value)
+                }
+            })
+        else {
+            return;
+        };
+
+        cross_container_spacers.iter_mut().for_each(|spacer_coordinates| {
+            if vertical_flow {
+                spacer_coordinates.entry_x = column;
+                spacer_coordinates.exit_x = column;
+            } else {
+                spacer_coordinates.entry_y = column;
+                spacer_coordinates.exit_y = column;
+            }
+        });
     }
 
     /// Calculates spacer coordinates for a slice of spacer taffy node IDs,

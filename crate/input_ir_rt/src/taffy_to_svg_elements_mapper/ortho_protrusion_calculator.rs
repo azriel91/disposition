@@ -1350,15 +1350,30 @@ impl OrthoProtrusionCalculator {
             own.min(bound).max(floor)
         };
 
-        // Re-lay the participating legs in descending channel-capacity order so
-        // the widest-channel legs (the cross-container legs that must reach the
-        // inter-rank gap to clear the destination container's label) claim the
-        // deepest depths first. Ties break by the incoming deepest-first order.
+        // Re-lay the participating legs in order of their lateral leg's **far**
+        // cross-axis coordinate (`jog_far_cross_axis` -- the previous contact /
+        // source column the leg sweeps back to), nearest-first. Legs reaching
+        // back to an inner source claim the deepest depths; legs reaching back
+        // to an outer source get the shallower depths. This keeps a fan of
+        // overlapping legs **nested** in source order so a leg sourced further
+        // out stays shallower and its long sweep passes on the spacer side of
+        // the inner legs' descents, rather than being driven deepest by raw
+        // channel width and cutting across them (e.g. `labels_offsets` vs
+        // `ranks_slots` in `0043`). Within an equal far-coordinate the wider
+        // channel (which must reach the inter-rank gap to clear the destination
+        // container's label) goes deeper; ties then break by the incoming
+        // deepest-first order.
         let mut order: Vec<usize> = (0..n).filter(|&i| participates[i]).collect();
         order.sort_by(|&a, &b| {
-            cap(b)
-                .partial_cmp(&cap(a))
+            ordered[a]
+                .jog_far_cross_axis
+                .partial_cmp(&ordered[b].jog_far_cross_axis)
                 .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| {
+                    cap(b)
+                        .partial_cmp(&cap(a))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
                 .then(a.cmp(&b))
         });
 
