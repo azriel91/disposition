@@ -247,28 +247,39 @@ impl EdgeSpacerBuilder {
     /// rank rows, mirroring the to-face contact order so spacer left/right
     /// order matches contact left/right order (reducing edge crossings).
     ///
-    /// Returns `(rank_distance, outside_divergent_sibling_index)`:
+    /// Returns `(rank_distance, outside_nesting_path, inside_nesting_path)`:
     ///
     /// * `rank_distance` -- the primary contact-sort key used by
     ///   `face_entries_sort_by_rank_and_coordinate`, computed pre-layout from
     ///   the divergent-ancestor ranks. Edges with missing nesting info sort
     ///   last (`u32::MAX`).
-    /// * `outside_divergent_sibling_index` -- a structural proxy for the
-    ///   contact sort's secondary "approach coordinate" key, which is
-    ///   unavailable before taffy layout. It is the sibling index, at the LCA
-    ///   depth, of the endpoint that lies *outside* this container (the side
-    ///   the edge approaches from).
+    /// * `outside_nesting_path` -- a structural proxy for the contact sort's
+    ///   secondary "approach coordinate" key, which is unavailable before taffy
+    ///   layout. It is the full nesting path (sibling index at every level) of
+    ///   the endpoint that lies *outside* this container -- the side the edge
+    ///   approaches from. The full path is used, rather than only the index at
+    ///   the LCA depth, so that two edges whose outside endpoints share an
+    ///   ancestor at the LCA depth (e.g. both sourced from the same outer
+    ///   container) are still ordered by their distinct deeper positions --
+    ///   which is what determines their descent columns and hence their
+    ///   crossing order. Declaration-order indices are a valid cross-axis proxy
+    ///   for all rank directions because reversed-direction rows are flipped
+    ///   together with their spacers after insertion (see
+    ///   `TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed`).
+    /// * `inside_nesting_path` -- the full nesting path of the endpoint *inside*
+    ///   this container, a final structural tiebreak ordering edges by where
+    ///   they terminate when their outside sources coincide.
     fn cross_container_spacer_sort_key(
         node_nesting_infos: &NodeNestingInfos<'static>,
         node_ranks_nested: &NodeRanksNested<'static>,
         container_node_id: &NodeId<'static>,
         edge: &Edge<'_>,
-    ) -> (u32, usize) {
+    ) -> (u32, Vec<usize>, Vec<usize>) {
         let (Some(info_from), Some(info_to)) = (
             node_nesting_infos.get(&edge.from),
             node_nesting_infos.get(&edge.to),
         ) else {
-            return (u32::MAX, usize::MAX);
+            return (u32::MAX, Vec::new(), Vec::new());
         };
 
         let rank_distance =
@@ -276,19 +287,18 @@ impl EdgeSpacerBuilder {
                 .map(|(rank_low, rank_high)| rank_high.value() - rank_low.value())
                 .unwrap_or(u32::MAX);
 
-        let lca_depth = LcaDepthCalculator::calculate(info_from, info_to);
-        let info_outside = if info_from.ancestor_chain.contains(container_node_id) {
-            info_to
-        } else {
-            info_from
-        };
-        let outside_sibling_index = info_outside
-            .nesting_path
-            .get(lca_depth)
-            .copied()
-            .unwrap_or(usize::MAX);
+        let (info_outside, info_inside) =
+            if info_from.ancestor_chain.contains(container_node_id) {
+                (info_to, info_from)
+            } else {
+                (info_from, info_to)
+            };
 
-        (rank_distance, outside_sibling_index)
+        (
+            rank_distance,
+            info_outside.nesting_path.clone(),
+            info_inside.nesting_path.clone(),
+        )
     }
 
     /// Builds cross-container spacers for a single edge.
