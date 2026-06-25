@@ -24,6 +24,16 @@ use self::ortho_protrusion_geometry::OrthoProtrusionGeometry;
 
 mod ortho_protrusion_geometry;
 
+/// Minimum protrusion-depth separation (in pixels) between two same-side
+/// endpoints whose lateral routing legs overlap along the cross axis.
+///
+/// Legs whose cross-axis spans overlap and whose protrusion depths differ by
+/// less than this read as a single line. It is larger than `MIN_PROTRUSION_PX`
+/// so the separated legs clear the "reads as one line" threshold rather than
+/// merely being non-equal. Used by
+/// [`OrthoProtrusionCalculator::side_jogs_separate`].
+const JOG_SEPARATION_MIN_PX: f32 = 7.0;
+
 /// Computes orthogonal protrusion parameters globally across all edge
 /// groups.
 ///
@@ -35,13 +45,11 @@ mod ortho_protrusion_geometry;
 ///
 /// # Algorithm
 ///
-/// 1. Collect every edge endpoint that exits into a rank gap (the free span
-///    between two consecutive contact coordinates along the rank axis: a node
-///    face and an adjacent spacer, or two adjacent spacers).
-/// 2. Group these endpoints by the gap's **physical** `(lo, hi)` main-axis
-///    boundaries (quantized), so endpoints whose legs occupy the same physical
-///    band -- including the from-endpoints of sibling cross-container edges --
-///    compete in one bucket.
+/// 1. Collect every edge endpoint that exits into a rank gap (the gap between
+///    the from-node's rank and the next rank, or between the to-node's rank and
+///    the previous rank).
+/// 2. Group these endpoints by `(rank_low, rank_high)` -- the rank gap they
+///    occupy.
 /// 3. Within each group, sort endpoints by their cross-axis coordinate (the
 ///    coordinate perpendicular to the rank direction). Earlier edges (those
 ///    further from the centre of the gap's cross-axis spread) get longer
@@ -79,6 +87,22 @@ struct RankGapEntry {
     /// for `Left` / `Right` faces this is the node's Y coordinate.
     /// For spacer endpoints, the spacer's X or Y coordinate is used.
     cross_axis_coord: f32,
+    /// Cross-axis coordinate of the **next contact along the path** from this
+    /// endpoint (the other end of this endpoint's lateral "jog" segment).
+    ///
+    /// Together with [`Self::cross_axis_coord`] this defines the cross-axis
+    /// span `[min, max]` that the endpoint's lateral routing leg sweeps in
+    /// this rank gap. Two legs only "read as one line" when their spans
+    /// overlap, so the
+    /// span lets [`OrthoProtrusionCalculator::protrusions_assign`] separate
+    /// only the legs that actually overlap (interval-graph style) instead
+    /// of every endpoint in the bucket. For a from-endpoint the next
+    /// contact is the first spacer entry (or the to-node when there are no
+    /// spacers); for a to-endpoint it is the last spacer exit (or the
+    /// from-node); for a spacer entry / exit it is the adjacent spacer or
+    /// node it aligns to. Cycle endpoints store
+    /// their own `cross_axis_coord` (zero-width span -- they overlap nothing).
+    jog_far_cross_axis: f32,
     /// The face offset (slot offset) for this endpoint.
     ///
     /// Edges further from the face midpoint (larger absolute offset)
@@ -149,52 +173,14 @@ enum RankGapEndpointKind {
     },
 }
 
-/// One side of a physical rank gap, before it is split into a `Low` / `High`
-/// [`RankGapEntry`].
+/// Key for grouping endpoints into rank gaps.
 ///
-/// Carries the endpoint's main-axis coordinate (used to derive the gap key and
-/// side) alongside the spatial sort keys and clearance consumed by
-/// [`OrthoProtrusionCalculator::protrusions_assign`].
-#[derive(Clone, Copy, Debug)]
-struct GapEndpoint {
-    /// Which endpoint or spacer side this descriptor represents.
-    endpoint_kind: RankGapEndpointKind,
-    /// Main-axis (rank-axis) coordinate where this endpoint's leg meets the
-    /// gap boundary.
-    main_coord: f32,
-    /// Cross-axis coordinate, used to order endpoints spatially within a side.
-    cross_axis_coord: f32,
-    /// Face offset (slot offset) for node endpoints; `0.0` for spacers.
-    face_offset: f32,
-    /// Own edge-label wrapper width, re-added on top of the band depth in
-    /// `protrusion_write`; `0.0` for spacers and for spacer-less node
-    /// endpoints.
-    envelope_clearance: f32,
-}
-
-/// Key for grouping endpoints into a single **physical** rank gap.
-///
-/// A rank gap is the free span between two consecutive contact
-/// coordinates along the rank (main) axis -- e.g. a from-node face and the
-/// first spacer entry, two consecutive spacer boundaries, or a last spacer
-/// exit and a to-node face. The key is the gap's `(lo, hi)` main-axis
-/// boundaries quantized to a fixed grid (see
-/// [`OrthoProtrusionCalculator::quantize`]), so that legs occupying the same
-/// physical band -- including the from-endpoints of sibling cross-container
-/// edges, which taffy lays out at identical coordinates -- map to the same key
-/// and compete for distinct protrusion depths in
-/// [`OrthoProtrusionCalculator::protrusions_assign`].
-///
-/// Using physical coordinates rather than LCA-level ranks is what lets
-/// cross-container edges (whose LCA gap collapses several physical sub-rank
-/// gaps into one coarse rank pair) be separated correctly. `lo` is always
-/// <= `hi`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// Represents the gap between two adjacent ranks. `rank_low` is
+/// always <= `rank_high`.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct RankGapKey {
-    /// Quantized main-axis coordinate of the lower gap boundary.
-    lo: i64,
-    /// Quantized main-axis coordinate of the higher gap boundary.
-    hi: i64,
+    rank_low: NodeRank,
+    rank_high: NodeRank,
 }
 
 /// The high-level category of a node for grouping protrusion calculations.
@@ -352,6 +338,13 @@ impl OrthoProtrusionCalculator {
                 let rank_from = pass1_info.rank_from;
                 let rank_to = pass1_info.rank_to;
 
+                // Determine rank ordering.
+                let (_rank_low, _rank_high) = if rank_from <= rank_to {
+                    (rank_from, rank_to)
+                } else {
+                    (rank_to, rank_from)
+                };
+
                 // Cycle edges: register their endpoints in the adjacent rank
                 // gap so protrusion depths are distributed proportionally.
                 // Left/Right face pairs fall through to the MIN_PROTRUSION_PX
@@ -381,20 +374,444 @@ impl OrthoProtrusionCalculator {
 
                 let spacer_coordinates = &all_spacer_coordinates[group_idx][edge_idx];
 
-                // Register the from/to/spacer endpoints bucketed by the
-                // **physical** main-axis gap each protrusion leg occupies. See
-                // `non_cycle_edge_collect_rank_gap_entries`.
-                Self::non_cycle_edge_collect_rank_gap_entries(
-                    group_idx,
-                    edge_idx,
-                    pass1_info,
-                    from_slot_indices[edge_idx],
-                    to_slot_indices[edge_idx],
-                    face_offsets_by_node_face,
-                    svg_node_info_map,
-                    spacer_coordinates,
-                    &mut rank_gap_entries,
-                );
+                // === From endpoint === //
+                if let Some(from_face) = pass1_info.from_face {
+                    let from_offset = Self::face_offset_resolve(
+                        pass1_info,
+                        from_slot_indices[edge_idx],
+                        true,
+                        face_offsets_by_node_face,
+                    );
+
+                    let from_rank_gap_px = Self::rank_gap_px(
+                        pass1_info,
+                        from_face,
+                        true,
+                        svg_node_info_map,
+                        spacer_coordinates,
+                        node_nesting_infos,
+                    );
+
+                    // When the edge crosses spacers, the band channel is
+                    // measured beyond the from-node's envelope; the fixed
+                    // wrapper width is added back at write time so the
+                    // protrusion still spans the from-node's own edge label.
+                    // Without spacers, the divergent-sibling adjustment supplies
+                    // the own-label clearance, so the band stays in the full
+                    // inner-face gap and no clearance is added here.
+                    let from_envelope_clearance = if spacer_coordinates.is_empty() {
+                        0.0
+                    } else {
+                        Self::envelope_clearance_for(
+                            &pass1_info.edge.from,
+                            from_face,
+                            svg_node_info_map,
+                        )
+                    };
+
+                    let cross_axis_from = OrthoProtrusionGeometry::cross_axis_coord(
+                        pass1_info.from_node_x,
+                        pass1_info.from_node_y,
+                        from_face,
+                    );
+
+                    // The from-endpoint's lateral leg reaches the first spacer
+                    // (or the to-node when there are no spacers).
+                    let from_jog_far = if let Some(first_spacer) = spacer_coordinates.first() {
+                        OrthoProtrusionGeometry::cross_axis_coord(
+                            first_spacer.entry_x,
+                            first_spacer.entry_y,
+                            from_face,
+                        )
+                    } else {
+                        OrthoProtrusionGeometry::cross_axis_coord(
+                            pass1_info.to_node_x,
+                            pass1_info.to_node_y,
+                            from_face,
+                        )
+                    };
+
+                    // The from endpoint exits into the gap between the
+                    // from-node's rank and the adjacent rank toward the
+                    // to-node.
+                    let from_gap_key = if rank_from < rank_to {
+                        RankGapKey {
+                            rank_low: rank_from,
+                            rank_high: NodeRank::new(rank_from.value() + 1),
+                        }
+                    } else {
+                        RankGapKey {
+                            rank_low: NodeRank::new(rank_from.value() - 1),
+                            rank_high: rank_from,
+                        }
+                    };
+
+                    // The from-node is at rank_from. In the gap key,
+                    // rank_from is rank_low when going forward, or
+                    // rank_high when going backward.
+                    let from_gap_side = if rank_from < rank_to {
+                        GapSide::Low
+                    } else {
+                        GapSide::High
+                    };
+
+                    rank_gap_entries
+                        .entry(from_gap_key)
+                        .or_default()
+                        .push(RankGapEntry {
+                            pass1_group_index: group_idx,
+                            edge_index: edge_idx,
+                            endpoint_kind: RankGapEndpointKind::FromEndpoint,
+                            gap_side: from_gap_side,
+                            cross_axis_coord: cross_axis_from,
+                            jog_far_cross_axis: from_jog_far,
+                            face_offset: from_offset,
+                            rank_gap_px: from_rank_gap_px,
+                            envelope_clearance: from_envelope_clearance,
+                        });
+                }
+
+                // === To endpoint === //
+                if let Some(to_face) = pass1_info.to_face {
+                    let to_offset = Self::face_offset_resolve(
+                        pass1_info,
+                        to_slot_indices[edge_idx],
+                        false,
+                        face_offsets_by_node_face,
+                    );
+
+                    let to_rank_gap_px = Self::rank_gap_px(
+                        pass1_info,
+                        to_face,
+                        false,
+                        svg_node_info_map,
+                        spacer_coordinates,
+                        node_nesting_infos,
+                    );
+
+                    // Symmetric to the from endpoint: the wrapper width is added
+                    // back at write time for spacer-crossing edges.
+                    let to_envelope_clearance = if spacer_coordinates.is_empty() {
+                        0.0
+                    } else {
+                        Self::envelope_clearance_for(
+                            &pass1_info.edge.to,
+                            to_face,
+                            svg_node_info_map,
+                        )
+                    };
+
+                    let cross_axis_to = OrthoProtrusionGeometry::cross_axis_coord(
+                        pass1_info.to_node_x,
+                        pass1_info.to_node_y,
+                        to_face,
+                    );
+
+                    // The to-endpoint's lateral leg reaches the last spacer
+                    // (or the from-node when there are no spacers).
+                    let to_jog_far = if let Some(last_spacer) = spacer_coordinates.last() {
+                        OrthoProtrusionGeometry::cross_axis_coord(
+                            last_spacer.exit_x,
+                            last_spacer.exit_y,
+                            to_face,
+                        )
+                    } else {
+                        OrthoProtrusionGeometry::cross_axis_coord(
+                            pass1_info.from_node_x,
+                            pass1_info.from_node_y,
+                            to_face,
+                        )
+                    };
+
+                    // The to endpoint enters from the gap between the
+                    // to-node's rank and the adjacent rank toward the
+                    // from-node.
+                    let to_gap_key = if rank_to > rank_from {
+                        RankGapKey {
+                            rank_low: NodeRank::new(rank_to.value() - 1),
+                            rank_high: rank_to,
+                        }
+                    } else {
+                        RankGapKey {
+                            rank_low: rank_to,
+                            rank_high: NodeRank::new(rank_to.value() + 1),
+                        }
+                    };
+
+                    // The to-node is at rank_to. In the gap key,
+                    // rank_to is rank_high when going forward, or
+                    // rank_low when going backward.
+                    let to_gap_side = if rank_to > rank_from {
+                        GapSide::High
+                    } else {
+                        GapSide::Low
+                    };
+
+                    rank_gap_entries
+                        .entry(to_gap_key)
+                        .or_default()
+                        .push(RankGapEntry {
+                            pass1_group_index: group_idx,
+                            edge_index: edge_idx,
+                            endpoint_kind: RankGapEndpointKind::ToEndpoint,
+                            gap_side: to_gap_side,
+                            cross_axis_coord: cross_axis_to,
+                            jog_far_cross_axis: to_jog_far,
+                            face_offset: to_offset,
+                            rank_gap_px: to_rank_gap_px,
+                            envelope_clearance: to_envelope_clearance,
+                        });
+                }
+
+                // === Intermediate spacer endpoints === //
+                //
+                // Each spacer has an entry side and an exit side that
+                // protrude into adjacent rank gaps. Register entries
+                // so that all edges crossing the same gap get distinct
+                // protrusion depths.
+                //
+                // For an edge from rank 0 to rank 3 with spacers at
+                // ranks 1 and 2:
+                //   - spacer[0] entry side is in gap (0, 1)
+                //   - spacer[0] exit side is in gap (1, 2)
+                //   - spacer[1] entry side is in gap (1, 2)
+                //   - spacer[1] exit side is in gap (2, 3)
+                //
+                // The first spacer's entry and the last spacer's exit
+                // share the same rank gap as the from-endpoint and
+                // to-endpoint respectively, but they protrude from the
+                // **opposite side** of the gap. They must be registered
+                // so they compete for distinct protrusion depths with
+                // other edges on the same side (e.g. from-endpoints of
+                // edges originating at that spacer's rank).
+                if !spacer_coordinates.is_empty() {
+                    let from_face_for_axis = pass1_info.from_face.unwrap_or(NodeFace::Bottom);
+
+                    for spacer_idx in 0..spacer_coordinates.len() {
+                        let spacer = &spacer_coordinates[spacer_idx];
+                        let spacer_cross = OrthoProtrusionGeometry::cross_axis_coord(
+                            spacer.entry_x,
+                            spacer.entry_y,
+                            from_face_for_axis,
+                        );
+
+                        // --- Entry side of this spacer --- //
+                        //
+                        // The entry side protrudes into the gap BEFORE
+                        // this spacer.
+                        if spacer_idx > 0 {
+                            // Gap between previous spacer and this one.
+                            // The entry side of this spacer protrudes
+                            // from the high-rank boundary of the gap
+                            // (forward) or low-rank boundary (backward).
+                            let prev_spacer = &spacer_coordinates[spacer_idx - 1];
+                            let gap_px =
+                                Self::spacer_gap_px(prev_spacer, spacer, from_face_for_axis);
+
+                            // This entry's leg aligns to the previous spacer.
+                            let entry_jog_far = OrthoProtrusionGeometry::cross_axis_coord(
+                                prev_spacer.entry_x,
+                                prev_spacer.entry_y,
+                                from_face_for_axis,
+                            );
+
+                            let entry_gap_key = Self::spacer_gap_key(
+                                rank_from,
+                                rank_to,
+                                spacer_idx - 1,
+                                spacer_idx,
+                            );
+
+                            let spacer_entry_side = if rank_from < rank_to {
+                                GapSide::High
+                            } else {
+                                GapSide::Low
+                            };
+
+                            rank_gap_entries
+                                .entry(entry_gap_key)
+                                .or_default()
+                                .push(RankGapEntry {
+                                    pass1_group_index: group_idx,
+                                    edge_index: edge_idx,
+                                    endpoint_kind: RankGapEndpointKind::SpacerEntry {
+                                        spacer_index: spacer_idx,
+                                    },
+                                    gap_side: spacer_entry_side,
+                                    cross_axis_coord: spacer_cross,
+                                    jog_far_cross_axis: entry_jog_far,
+                                    face_offset: 0.0,
+                                    rank_gap_px: gap_px,
+                                    envelope_clearance: 0.0,
+                                });
+                        } else if let Some(from_face) = pass1_info.from_face {
+                            // First spacer (index 0): entry shares the
+                            // same gap as the from-endpoint, but
+                            // protrudes from the opposite side. Register
+                            // it so it competes with other edges' to-
+                            // endpoints at this spacer's rank.
+                            let gap_px = Self::rank_gap_px(
+                                pass1_info,
+                                from_face,
+                                true,
+                                svg_node_info_map,
+                                spacer_coordinates,
+                                node_nesting_infos,
+                            );
+
+                            let from_gap_key = if rank_from < rank_to {
+                                RankGapKey {
+                                    rank_low: rank_from,
+                                    rank_high: NodeRank::new(rank_from.value() + 1),
+                                }
+                            } else {
+                                RankGapKey {
+                                    rank_low: NodeRank::new(rank_from.value() - 1),
+                                    rank_high: rank_from,
+                                }
+                            };
+
+                            // The first spacer's entry is on the
+                            // opposite side from the from-endpoint.
+                            let first_spacer_entry_side = if rank_from < rank_to {
+                                GapSide::High
+                            } else {
+                                GapSide::Low
+                            };
+
+                            // This leg aligns the first spacer to the from-node.
+                            let first_entry_jog_far = OrthoProtrusionGeometry::cross_axis_coord(
+                                pass1_info.from_node_x,
+                                pass1_info.from_node_y,
+                                from_face_for_axis,
+                            );
+
+                            rank_gap_entries
+                                .entry(from_gap_key)
+                                .or_default()
+                                .push(RankGapEntry {
+                                    pass1_group_index: group_idx,
+                                    edge_index: edge_idx,
+                                    endpoint_kind: RankGapEndpointKind::SpacerEntry {
+                                        spacer_index: 0,
+                                    },
+                                    gap_side: first_spacer_entry_side,
+                                    cross_axis_coord: spacer_cross,
+                                    jog_far_cross_axis: first_entry_jog_far,
+                                    face_offset: 0.0,
+                                    rank_gap_px: gap_px,
+                                    envelope_clearance: 0.0,
+                                });
+                        }
+
+                        // --- Exit side of this spacer --- //
+                        //
+                        // The exit side protrudes into the gap AFTER
+                        // this spacer.
+                        let last_spacer_idx = spacer_coordinates.len() - 1;
+                        if spacer_idx < last_spacer_idx {
+                            // Gap between this spacer and the next one.
+                            let next_spacer = &spacer_coordinates[spacer_idx + 1];
+                            let gap_px =
+                                Self::spacer_gap_px(spacer, next_spacer, from_face_for_axis);
+
+                            // This exit leg aligns to the next spacer.
+                            let exit_jog_far = OrthoProtrusionGeometry::cross_axis_coord(
+                                next_spacer.entry_x,
+                                next_spacer.entry_y,
+                                from_face_for_axis,
+                            );
+
+                            let exit_gap_key = Self::spacer_gap_key(
+                                rank_from,
+                                rank_to,
+                                spacer_idx,
+                                spacer_idx + 1,
+                            );
+
+                            let spacer_exit_side = if rank_from < rank_to {
+                                GapSide::Low
+                            } else {
+                                GapSide::High
+                            };
+
+                            rank_gap_entries
+                                .entry(exit_gap_key)
+                                .or_default()
+                                .push(RankGapEntry {
+                                    pass1_group_index: group_idx,
+                                    edge_index: edge_idx,
+                                    endpoint_kind: RankGapEndpointKind::SpacerExit {
+                                        spacer_index: spacer_idx,
+                                    },
+                                    gap_side: spacer_exit_side,
+                                    cross_axis_coord: spacer_cross,
+                                    jog_far_cross_axis: exit_jog_far,
+                                    face_offset: 0.0,
+                                    rank_gap_px: gap_px,
+                                    envelope_clearance: 0.0,
+                                });
+                        } else if let Some(to_face) = pass1_info.to_face {
+                            // Last spacer: exit shares the same gap as
+                            // the to-endpoint, but protrudes from the
+                            // opposite side. Register it so it competes
+                            // with other edges' from-endpoints at this
+                            // spacer's rank.
+                            let gap_px = Self::rank_gap_px(
+                                pass1_info,
+                                to_face,
+                                false,
+                                svg_node_info_map,
+                                spacer_coordinates,
+                                node_nesting_infos,
+                            );
+
+                            let to_gap_key = if rank_to > rank_from {
+                                RankGapKey {
+                                    rank_low: NodeRank::new(rank_to.value() - 1),
+                                    rank_high: rank_to,
+                                }
+                            } else {
+                                RankGapKey {
+                                    rank_low: rank_to,
+                                    rank_high: NodeRank::new(rank_to.value() + 1),
+                                }
+                            };
+
+                            // The last spacer's exit is on the
+                            // opposite side from the to-endpoint.
+                            let last_spacer_exit_side = if rank_from < rank_to {
+                                GapSide::Low
+                            } else {
+                                GapSide::High
+                            };
+
+                            // This exit leg aligns to the to-node.
+                            let last_exit_jog_far = OrthoProtrusionGeometry::cross_axis_coord(
+                                pass1_info.to_node_x,
+                                pass1_info.to_node_y,
+                                from_face_for_axis,
+                            );
+
+                            rank_gap_entries
+                                .entry(to_gap_key)
+                                .or_default()
+                                .push(RankGapEntry {
+                                    pass1_group_index: group_idx,
+                                    edge_index: edge_idx,
+                                    endpoint_kind: RankGapEndpointKind::SpacerExit {
+                                        spacer_index: last_spacer_idx,
+                                    },
+                                    gap_side: last_spacer_exit_side,
+                                    cross_axis_coord: spacer_cross,
+                                    jog_far_cross_axis: last_exit_jog_far,
+                                    face_offset: 0.0,
+                                    rank_gap_px: gap_px,
+                                    envelope_clearance: 0.0,
+                                });
+                        }
+                    }
+                }
             }
         }
 
@@ -462,7 +879,23 @@ impl OrthoProtrusionCalculator {
             &mut result,
         );
 
-        // === Step 5.5: Nest approach legs of edges entering the same to-face
+        // === Step 5.5: Separate approach channels of spacer-crossing edges
+        // === //
+        //
+        // Multiple cross-container spacer edges entering the same to-node share
+        // the narrow gap between the last spacer exit and the to-node face.
+        // Their `to` protrusions and last-spacer `exit` protrusions otherwise
+        // floor to (near-)identical values, so their vertical approach legs
+        // overlap. This step assigns each such edge a distinct leg coordinate
+        // within the gap and sets both protrusions to land on it.
+        Self::protrusions_separate_spacer_approach_channels(
+            all_pass1_groups,
+            &all_spacer_coordinates,
+            svg_node_info_map,
+            &mut result,
+        );
+
+        // === Step 5.6: Nest approach legs of edges entering the same to-face
         // from different rank-gap buckets === //
         //
         // A cross-container (spacer-crossing) edge's to-endpoint is keyed by the
@@ -500,270 +933,6 @@ impl OrthoProtrusionCalculator {
         );
 
         result
-    }
-
-    /// Quantizes a main-axis coordinate to a fixed grid so that legs that
-    /// occupy the same physical gap map to the same [`RankGapKey`].
-    ///
-    /// Taffy lays out sibling rank rows (and the spacers within them) at
-    /// identical coordinates, so the 0.25 px grid here collapses float noise
-    /// while keeping genuinely distinct gaps apart.
-    fn quantize(coord: f32) -> i64 {
-        (coord * 4.0).round() as i64
-    }
-
-    /// Returns the main-axis (rank-axis) coordinate of a node's face center,
-    /// falling back to the supplied node coordinates when the node's layout is
-    /// not available.
-    fn node_face_main_coord<'id>(
-        node_id: &NodeId<'id>,
-        face: NodeFace,
-        fallback_x: f32,
-        fallback_y: f32,
-        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
-    ) -> f32 {
-        svg_node_info_map
-            .get(node_id)
-            .map(|info| {
-                let (face_x, face_y) = OrthoProtrusionGeometry::face_center(info, face);
-                OrthoProtrusionGeometry::main_axis_coord(face_x, face_y, face)
-            })
-            .unwrap_or_else(|| {
-                OrthoProtrusionGeometry::main_axis_coord(fallback_x, fallback_y, face)
-            })
-    }
-
-    /// Collects rank-gap entries for one non-cycle edge, bucketed by the
-    /// **physical** main-axis gap each protrusion leg occupies.
-    ///
-    /// A gap is the free span between two consecutive contact coordinates along
-    /// the rank (main) axis: the from-node face -> first spacer entry, each
-    /// spacer exit -> the next spacer entry, and the last spacer exit -> the
-    /// to-node face (or from-face -> to-face when there are no spacers). The
-    /// two endpoints bounding a gap are registered under a [`RankGapKey`]
-    /// derived from the gap's quantized `(lo, hi)` main-axis boundaries, so
-    /// endpoints whose legs occupy the same physical band -- including
-    /// from-endpoints of sibling cross-container edges -- compete for
-    /// distinct protrusion depths in [`Self::protrusions_assign`].
-    ///
-    /// Because a gap's two sides come from two different endpoint kinds, each
-    /// edge contributes at most one entry per side per bucket (its `from` plus
-    /// a spacer entry, a spacer exit plus a spacer entry, or a spacer exit
-    /// plus its `to`). The `GapSide` is derived from which boundary each
-    /// endpoint protrudes from, which is direction-agnostic across all four
-    /// `RankDir`s.
-    #[allow(clippy::too_many_arguments)]
-    fn non_cycle_edge_collect_rank_gap_entries<'id>(
-        group_idx: usize,
-        edge_idx: usize,
-        pass1_info: &EdgePass1Info<'_, 'id>,
-        from_slot_index: Option<usize>,
-        to_slot_index: Option<usize>,
-        face_offsets_by_node_face: &NodeIdAndFaceToContactPointOffsets<'id>,
-        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
-        spacer_coordinates: &[SpacerCoordinates],
-        rank_gap_entries: &mut Map<RankGapKey, Vec<RankGapEntry>>,
-    ) {
-        // The rank (main) axis is implied by the protruding face; from and to
-        // share the same axis (opposite faces). Fall back to `Bottom` when
-        // neither face is known (no offset applies in that case).
-        let axis_face = pass1_info
-            .from_face
-            .or(pass1_info.to_face)
-            .unwrap_or(NodeFace::Bottom);
-
-        let has_spacers = !spacer_coordinates.is_empty();
-
-        // === From / to endpoint descriptors === //
-        //
-        // When the edge crosses spacers, the band channel is measured beyond the
-        // node's own edge-label wrapper; the fixed wrapper width is re-added at
-        // write time so the protrusion still spans the node's own edge label.
-        // Without spacers, the divergent-sibling adjustment supplies the
-        // own-label clearance, so no clearance is recorded here.
-        let from_desc = pass1_info.from_face.map(|from_face| GapEndpoint {
-            endpoint_kind: RankGapEndpointKind::FromEndpoint,
-            main_coord: Self::node_face_main_coord(
-                &pass1_info.edge.from,
-                from_face,
-                pass1_info.from_node_x,
-                pass1_info.from_node_y,
-                svg_node_info_map,
-            ),
-            cross_axis_coord: OrthoProtrusionGeometry::cross_axis_coord(
-                pass1_info.from_node_x,
-                pass1_info.from_node_y,
-                from_face,
-            ),
-            face_offset: Self::face_offset_resolve(
-                pass1_info,
-                from_slot_index,
-                true,
-                face_offsets_by_node_face,
-            ),
-            envelope_clearance: if has_spacers {
-                Self::envelope_clearance_for(&pass1_info.edge.from, from_face, svg_node_info_map)
-            } else {
-                0.0
-            },
-        });
-
-        let to_desc = pass1_info.to_face.map(|to_face| GapEndpoint {
-            endpoint_kind: RankGapEndpointKind::ToEndpoint,
-            main_coord: Self::node_face_main_coord(
-                &pass1_info.edge.to,
-                to_face,
-                pass1_info.to_node_x,
-                pass1_info.to_node_y,
-                svg_node_info_map,
-            ),
-            cross_axis_coord: OrthoProtrusionGeometry::cross_axis_coord(
-                pass1_info.to_node_x,
-                pass1_info.to_node_y,
-                to_face,
-            ),
-            face_offset: Self::face_offset_resolve(
-                pass1_info,
-                to_slot_index,
-                false,
-                face_offsets_by_node_face,
-            ),
-            envelope_clearance: if has_spacers {
-                Self::envelope_clearance_for(&pass1_info.edge.to, to_face, svg_node_info_map)
-            } else {
-                0.0
-            },
-        });
-
-        // === Spacer entry / exit descriptors === //
-        let spacer_entry_desc = |spacer_idx: usize| -> GapEndpoint {
-            let spacer = &spacer_coordinates[spacer_idx];
-            GapEndpoint {
-                endpoint_kind: RankGapEndpointKind::SpacerEntry {
-                    spacer_index: spacer_idx,
-                },
-                main_coord: OrthoProtrusionGeometry::main_axis_coord(
-                    spacer.entry_x,
-                    spacer.entry_y,
-                    axis_face,
-                ),
-                cross_axis_coord: OrthoProtrusionGeometry::cross_axis_coord(
-                    spacer.entry_x,
-                    spacer.entry_y,
-                    axis_face,
-                ),
-                face_offset: 0.0,
-                envelope_clearance: 0.0,
-            }
-        };
-        let spacer_exit_desc = |spacer_idx: usize| -> GapEndpoint {
-            let spacer = &spacer_coordinates[spacer_idx];
-            GapEndpoint {
-                endpoint_kind: RankGapEndpointKind::SpacerExit {
-                    spacer_index: spacer_idx,
-                },
-                main_coord: OrthoProtrusionGeometry::main_axis_coord(
-                    spacer.exit_x,
-                    spacer.exit_y,
-                    axis_face,
-                ),
-                // Spacers route straight through, so entry and exit share a
-                // cross-axis column; use the entry coordinate for both.
-                cross_axis_coord: OrthoProtrusionGeometry::cross_axis_coord(
-                    spacer.entry_x,
-                    spacer.entry_y,
-                    axis_face,
-                ),
-                face_offset: 0.0,
-                envelope_clearance: 0.0,
-            }
-        };
-
-        // === Register each gap (a pair of bounding endpoints) === //
-        if !has_spacers {
-            if let (Some(from_desc), Some(to_desc)) = (from_desc, to_desc) {
-                Self::gap_pair_register(group_idx, edge_idx, from_desc, to_desc, rank_gap_entries);
-            }
-            return;
-        }
-
-        let last_spacer_idx = spacer_coordinates.len() - 1;
-
-        // First gap: from-node face -> first spacer entry.
-        if let Some(from_desc) = from_desc {
-            Self::gap_pair_register(
-                group_idx,
-                edge_idx,
-                from_desc,
-                spacer_entry_desc(0),
-                rank_gap_entries,
-            );
-        }
-
-        // Transit gaps: spacer[i-1] exit -> spacer[i] entry.
-        for spacer_idx in 1..spacer_coordinates.len() {
-            Self::gap_pair_register(
-                group_idx,
-                edge_idx,
-                spacer_exit_desc(spacer_idx - 1),
-                spacer_entry_desc(spacer_idx),
-                rank_gap_entries,
-            );
-        }
-
-        // Last gap: last spacer exit -> to-node face.
-        if let Some(to_desc) = to_desc {
-            Self::gap_pair_register(
-                group_idx,
-                edge_idx,
-                spacer_exit_desc(last_spacer_idx),
-                to_desc,
-                rank_gap_entries,
-            );
-        }
-    }
-
-    /// Registers the two endpoints bounding one physical rank gap under a key
-    /// derived from the gap's quantized `(lo, hi)` main-axis boundaries.
-    ///
-    /// Each endpoint's `gap_side` is `Low` when it protrudes from the lower
-    /// boundary, `High` from the higher one. The per-endpoint `rank_gap_px` is
-    /// the gap span minus that endpoint's own envelope clearance (re-added in
-    /// `protrusion_write`), so the band assignment keeps the protrusion tip
-    /// within the physical gap.
-    fn gap_pair_register(
-        group_idx: usize,
-        edge_idx: usize,
-        endpoint_a: GapEndpoint,
-        endpoint_b: GapEndpoint,
-        rank_gap_entries: &mut Map<RankGapKey, Vec<RankGapEntry>>,
-    ) {
-        let lo = endpoint_a.main_coord.min(endpoint_b.main_coord);
-        let hi = endpoint_a.main_coord.max(endpoint_b.main_coord);
-        let key = RankGapKey {
-            lo: Self::quantize(lo),
-            hi: Self::quantize(hi),
-        };
-        let span = hi - lo;
-
-        for endpoint in [endpoint_a, endpoint_b] {
-            let gap_side = if Self::quantize(endpoint.main_coord) == key.lo {
-                GapSide::Low
-            } else {
-                GapSide::High
-            };
-            let rank_gap_px = (span - endpoint.envelope_clearance).max(0.0);
-            rank_gap_entries.entry(key).or_default().push(RankGapEntry {
-                pass1_group_index: group_idx,
-                edge_index: edge_idx,
-                endpoint_kind: endpoint.endpoint_kind,
-                gap_side,
-                cross_axis_coord: endpoint.cross_axis_coord,
-                face_offset: endpoint.face_offset,
-                rank_gap_px,
-                envelope_clearance: endpoint.envelope_clearance,
-            });
-        }
     }
 
     /// Assigns protrusion depths to all endpoints in a single rank gap.
@@ -1016,12 +1185,202 @@ impl OrthoProtrusionCalculator {
             }
         };
 
-        low_ordered.iter().enumerate().for_each(|(i, entry)| {
-            Self::protrusion_write(entry, side_depth(i, n_low, low_band, low_floor), result);
+        // Initial per-side depths from the proportional band split.
+        let mut low_depths: Vec<f32> = (0..n_low)
+            .map(|i| side_depth(i, n_low, low_band, low_floor))
+            .collect();
+        let mut high_depths: Vec<f32> = (0..n_high)
+            .map(|i| side_depth(i, n_high, high_band, high_floor))
+            .collect();
+
+        // Separate the spacer-entry legs that actually overlap. The proportional
+        // band split crams every endpoint of a side into one band sized by the
+        // *tightest* `rank_gap_px` in the whole bucket, so a fan of cross-container
+        // legs sharing one LCA gap collapses onto (near-)identical depths and
+        // reads as a single line. This re-spaces only the spacer-entry legs whose
+        // cross-axis spans overlap, deepening each into its own channel (so it
+        // lifts toward the inter-rank gap) but never past its same-edge connecting
+        // partner, so the path cannot reverse.
+        Self::jogs_separate(
+            &low_ordered,
+            &mut low_depths,
+            low_floor,
+            &high_ordered,
+            &mut high_depths,
+            high_floor,
+        );
+
+        low_ordered
+            .iter()
+            .zip(low_depths)
+            .for_each(|(entry, depth)| {
+                Self::protrusion_write(entry, depth, result);
+            });
+        high_ordered
+            .iter()
+            .zip(high_depths)
+            .for_each(|(entry, depth)| {
+                Self::protrusion_write(entry, depth, result);
+            });
+    }
+
+    /// Re-spaces the protrusion depths of spacer-entry legs whose lateral
+    /// routing legs overlap along the cross axis and have collapsed to
+    /// (near-)identical depths, so a fan of cross-container edges sharing one
+    /// LCA rank gap no longer reads as a single line.
+    ///
+    /// `low_*` / `high_*` are the two sides of the gap (ordered deepest-first,
+    /// parallel depth slices from the proportional band split, and the side
+    /// floor). Each side is processed independently by
+    /// [`Self::jogs_separate_side`].
+    fn jogs_separate(
+        low_ordered: &[&RankGapEntry],
+        low_depths: &mut [f32],
+        low_floor: f32,
+        high_ordered: &[&RankGapEntry],
+        high_depths: &mut [f32],
+        high_floor: f32,
+    ) {
+        Self::jogs_separate_side(
+            low_ordered,
+            low_depths,
+            low_floor,
+            high_ordered,
+            high_depths,
+        );
+        Self::jogs_separate_side(
+            high_ordered,
+            high_depths,
+            high_floor,
+            low_ordered,
+            low_depths,
+        );
+    }
+
+    /// Deepens the participating spacer legs of one side so their lateral legs
+    /// separate.
+    ///
+    /// Only **spacer entry / exit** legs are moved: a spacer boundary carries
+    /// the lateral leg that aligns the path from the previous contact's
+    /// column onto the spacer column, which is the leg that collapses for a
+    /// fan of cross-container edges. From / to endpoints are left fixed
+    /// (their approach legs are separated by the dedicated Step 5.5 / 5.6
+    /// passes). Each spacer leg is deepened only as far as **both** its own
+    /// `rank_gap_px` channel and the room left above its same-edge
+    /// connecting partner on `opp_ordered` (the from / previous-spacer leg
+    /// it meets) allow, so the deepened leg can never overshoot its partner
+    /// and reverse the path.
+    ///
+    /// Legs that do not overlap any collapsed leg keep their band-split depth
+    /// (so single-leg and already-separated buckets are byte-for-byte
+    /// unchanged).
+    fn jogs_separate_side(
+        ordered: &[&RankGapEntry],
+        depths: &mut [f32],
+        floor: f32,
+        opp_ordered: &[&RankGapEntry],
+        opp_depths: &[f32],
+    ) {
+        let n = ordered.len();
+        if n < 2 {
+            return;
+        }
+
+        // Cross-axis span of each endpoint's lateral leg.
+        let span = |entry: &RankGapEntry| -> (f32, f32) {
+            let a = entry.cross_axis_coord;
+            let b = entry.jog_far_cross_axis;
+            (a.min(b), a.max(b))
+        };
+        let spans_overlap = |i: usize, j: usize| -> bool {
+            let (i_lo, i_hi) = span(ordered[i]);
+            let (j_lo, j_hi) = span(ordered[j]);
+            // Strictly-overlapping (shared interior), not merely touching.
+            i_hi.min(j_hi) - i_lo.max(j_lo) > 1e-2
+        };
+
+        let movable = |entry: &RankGapEntry| -> bool {
+            matches!(
+                entry.endpoint_kind,
+                RankGapEndpointKind::SpacerEntry { .. } | RankGapEndpointKind::SpacerExit { .. }
+            )
+        };
+
+        // Only spacer legs that overlap another collapsed leg are moved; every
+        // other entry keeps its band-split depth and acts as a fixed obstacle.
+        let participates: Vec<bool> = (0..n)
+            .map(|i| {
+                movable(ordered[i])
+                    && (0..n).any(|j| {
+                        j != i
+                            && spans_overlap(i, j)
+                            && (depths[i] - depths[j]).abs() < JOG_SEPARATION_MIN_PX
+                    })
+            })
+            .collect();
+
+        // The deepest a leg may protrude: its own `rank_gap_px` channel, further
+        // bounded so it leaves room above its fixed same-edge partner on the
+        // opposite side (`partner_depth`), keeping their summed depth within the
+        // shared physical gap so the connecting jog cannot reverse.
+        let cap = |i: usize| -> f32 {
+            let entry = ordered[i];
+            let own = entry.rank_gap_px * MAX_GAP_FRACTION;
+            let partner = opp_ordered.iter().position(|opp| {
+                opp.pass1_group_index == entry.pass1_group_index
+                    && opp.edge_index == entry.edge_index
+            });
+            let bound = match partner {
+                Some(p) => {
+                    let shared_gap = entry.rank_gap_px.min(opp_ordered[p].rank_gap_px);
+                    shared_gap * MAX_GAP_FRACTION - opp_depths[p]
+                }
+                None => own,
+            };
+            own.min(bound).max(floor)
+        };
+
+        // Re-lay the participating legs in descending channel-capacity order so
+        // the widest-channel legs (the cross-container legs that must reach the
+        // inter-rank gap to clear the destination container's label) claim the
+        // deepest depths first. Ties break by the incoming deepest-first order.
+        let mut order: Vec<usize> = (0..n).filter(|&i| participates[i]).collect();
+        order.sort_by(|&a, &b| {
+            cap(b)
+                .partial_cmp(&cap(a))
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.cmp(&b))
         });
-        high_ordered.iter().enumerate().for_each(|(i, entry)| {
-            Self::protrusion_write(entry, side_depth(i, n_high, high_band, high_floor), result);
-        });
+
+        for placed in 0..order.len() {
+            let i = order[placed];
+            let cap_i = cap(i);
+            let mut depth = cap_i;
+            loop {
+                // The deepest already-fixed / already-placed overlapping depth
+                // within the separation band of the current candidate, if any.
+                let conflict = (0..n)
+                    .filter(|&j| {
+                        j != i
+                            && spans_overlap(i, j)
+                            && (!participates[j] || order[..placed].contains(&j))
+                    })
+                    .map(|j| depths[j])
+                    .filter(|&dj| (dj - depth).abs() < JOG_SEPARATION_MIN_PX)
+                    .reduce(f32::min);
+                match conflict {
+                    Some(dj) => {
+                        depth = dj - JOG_SEPARATION_MIN_PX;
+                        if depth <= floor {
+                            depth = floor;
+                            break;
+                        }
+                    }
+                    None => break,
+                }
+            }
+            depths[i] = depth.clamp(floor, cap_i);
+        }
     }
 
     /// Writes a protrusion value to the appropriate slot in `result`.
@@ -1069,6 +1428,81 @@ impl OrthoProtrusionCalculator {
         }
     }
 
+    /// Computes the pixel distance between two consecutive spacers
+    /// along the rank axis.
+    ///
+    /// The distance is measured from the exit of `spacer_before` to
+    /// the entry of `spacer_after`, using the same axis as
+    /// `axis_distance`.
+    fn spacer_gap_px(
+        spacer_before: &SpacerCoordinates,
+        spacer_after: &SpacerCoordinates,
+        face: NodeFace,
+    ) -> f32 {
+        OrthoProtrusionGeometry::axis_distance(
+            spacer_before.exit_x,
+            spacer_before.exit_y,
+            spacer_after.entry_x,
+            spacer_after.entry_y,
+            face,
+        )
+    }
+
+    /// Computes the `RankGapKey` for the gap between two consecutive
+    /// spacers.
+    ///
+    /// The spacers are at logical positions between `rank_from` and
+    /// `rank_to`. Spacer indices are 0-based. The rank for spacer `i`
+    /// is interpolated between the from and to ranks.
+    ///
+    /// # Parameters
+    ///
+    /// * `rank_from`: rank of the from-node.
+    /// * `rank_to`: rank of the to-node.
+    /// * `spacer_idx_low`: index of the earlier spacer (in forward order).
+    /// * `spacer_idx_high`: index of the later spacer.
+    fn spacer_gap_key(
+        rank_from: NodeRank,
+        rank_to: NodeRank,
+        spacer_idx_low: usize,
+        spacer_idx_high: usize,
+    ) -> RankGapKey {
+        // Map spacer indices to intermediate ranks. Spacers occupy
+        // ranks between rank_from and rank_to. For an edge from rank 0
+        // to rank 3, spacers are at ranks 1 and 2:
+        //   spacer_idx 0 -> rank 1
+        //   spacer_idx 1 -> rank 2
+        let (low_rank_val, high_rank_val) = if rank_from < rank_to {
+            (
+                rank_from.value() + 1 + spacer_idx_low as u32,
+                rank_from.value() + 1 + spacer_idx_high as u32,
+            )
+        } else {
+            // Reversed direction: from higher rank to lower rank.
+            // spacer_idx 0 is closest to rank_from (the higher rank).
+            let from_val = rank_from.value();
+            (
+                from_val - 1 - spacer_idx_high as u32,
+                from_val - 1 - spacer_idx_low as u32,
+            )
+        };
+
+        let rank_a = NodeRank::new(low_rank_val);
+        let rank_b = NodeRank::new(high_rank_val);
+
+        if rank_a <= rank_b {
+            RankGapKey {
+                rank_low: rank_a,
+                rank_high: rank_b,
+            }
+        } else {
+            RankGapKey {
+                rank_low: rank_b,
+                rank_high: rank_a,
+            }
+        }
+    }
+
     /// Resolves the face offset for a single endpoint.
     fn face_offset_resolve<'id>(
         pass1_info: &EdgePass1Info<'_, 'id>,
@@ -1096,6 +1530,151 @@ impl OrthoProtrusionCalculator {
             .get(&node_id_and_face)
             .and_then(|offsets| offsets.get(slot_index))
             .unwrap_or(0.0)
+    }
+
+    /// Computes the pixel distance in the rank direction for one
+    /// endpoint of an edge.
+    ///
+    /// For the "from" endpoint, this is the distance from the
+    /// from-node's face center to the first spacer entry (or the
+    /// to-node's face center if there are no spacers), capped at the
+    /// distance to the other node's divergent ancestor boundary.
+    ///
+    /// For the "to" endpoint, this is the distance from the to-node's
+    /// face center to the last spacer exit (or the from-node's face
+    /// center if there are no spacers), capped at the distance to the
+    /// other node's divergent ancestor boundary.
+    ///
+    /// Capping at the divergent ancestor boundary prevents the
+    /// slot-assigned protrusion from exceeding the actual inter-rank
+    /// gap when nodes are deeply nested inside containers. Without the
+    /// cap, the protrusion tip can land at or past the destination
+    /// container boundary, and combined with the divergent-sibling
+    /// adjustment on the opposite endpoint, both protrusion tips end
+    /// up at the same coordinate. This suppresses proper Z/S bends and
+    /// arc-rounded corners.
+    fn rank_gap_px<'id>(
+        pass1_info: &EdgePass1Info<'_, 'id>,
+        face: NodeFace,
+        is_from: bool,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        spacer_coordinates: &[SpacerCoordinates],
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> f32 {
+        // Get node coordinates.
+        let from_info = svg_node_info_map.get(&pass1_info.edge.from);
+        let to_info = svg_node_info_map.get(&pass1_info.edge.to);
+
+        let (from_x, from_y) = from_info
+            .map(|info| {
+                OrthoProtrusionGeometry::face_center(
+                    info,
+                    pass1_info.from_face.unwrap_or(NodeFace::Bottom),
+                )
+            })
+            .unwrap_or((pass1_info.from_node_x, pass1_info.from_node_y));
+
+        let (to_x, to_y) = to_info
+            .map(|info| {
+                OrthoProtrusionGeometry::face_center(
+                    info,
+                    pass1_info.to_face.unwrap_or(NodeFace::Top),
+                )
+            })
+            .unwrap_or((pass1_info.to_node_x, pass1_info.to_node_y));
+
+        let full_dist = if is_from {
+            if spacer_coordinates.is_empty() {
+                OrthoProtrusionGeometry::axis_distance(from_x, from_y, to_x, to_y, face)
+            } else {
+                let first_spacer = &spacer_coordinates[0];
+                OrthoProtrusionGeometry::axis_distance(
+                    from_x,
+                    from_y,
+                    first_spacer.entry_x,
+                    first_spacer.entry_y,
+                    face,
+                )
+            }
+        } else {
+            if spacer_coordinates.is_empty() {
+                OrthoProtrusionGeometry::axis_distance(to_x, to_y, from_x, from_y, face)
+            } else {
+                let last_spacer = &spacer_coordinates[spacer_coordinates.len() - 1];
+                OrthoProtrusionGeometry::axis_distance(
+                    to_x,
+                    to_y,
+                    last_spacer.exit_x,
+                    last_spacer.exit_y,
+                    face,
+                )
+            }
+        };
+
+        // Cap at the boundary of the other divergent ancestor.
+        //
+        // When from/to nodes are deeply nested inside containers, the
+        // full face-to-face distance inflates `max_protrusion` beyond
+        // the actual inter-rank gap. The slot-assigned protrusion can
+        // then exceed the gap distance, and combined with the
+        // divergent-sibling adjustment on the opposite endpoint, both
+        // protrusion tips land at the same coordinate. This suppresses
+        // the proper Z/S bend and its arc-rounded corners.
+        //
+        // The fix: cap the distance at the boundary of the other
+        // node's divergent ancestor facing this node. For a Bottom-face
+        // protrusion, this is the Top face of the other divergent
+        // ancestor. This limits `max_protrusion` to the inter-rank gap
+        // between the two outermost containers.
+        let (this_node_id, other_node_id) = if is_from {
+            (&pass1_info.edge.from, &pass1_info.edge.to)
+        } else {
+            (&pass1_info.edge.to, &pass1_info.edge.from)
+        };
+        let lca_depth = Self::lca_depth(this_node_id, other_node_id, node_nesting_infos);
+        let dist = if let Some(other_div_ancestor_id) =
+            Self::divergent_ancestor_id(other_node_id, lca_depth, node_nesting_infos)
+            && let Some(&other_ancestor_info) = svg_node_info_map.get(other_div_ancestor_id)
+        {
+            let (this_face_x, this_face_y) = if is_from {
+                (from_x, from_y)
+            } else {
+                (to_x, to_y)
+            };
+            // The other ancestor's face pointing toward this node
+            // is the opposite of the protrusion direction.
+            let other_opposite_face = match face {
+                NodeFace::Bottom => NodeFace::Top,
+                NodeFace::Top => NodeFace::Bottom,
+                NodeFace::Right => NodeFace::Left,
+                NodeFace::Left => NodeFace::Right,
+            };
+            let (other_bx, other_by) =
+                OrthoProtrusionGeometry::face_center(other_ancestor_info, other_opposite_face);
+            let capped = OrthoProtrusionGeometry::axis_distance(
+                this_face_x,
+                this_face_y,
+                other_bx,
+                other_by,
+                face,
+            );
+            full_dist.min(capped)
+        } else {
+            full_dist
+        };
+
+        // For spacer-crossing edges, the band distributes protrusion depths in
+        // the *post-envelope* routing channel: subtract this node's own
+        // edge-label wrapper width so the channel starts at the envelope face
+        // (the fixed wrapper width is re-added in `protrusion_write`). Without
+        // spacers the band stays in the full inner-face gap (the divergent-
+        // sibling adjustment provides the own-label clearance instead).
+        if spacer_coordinates.is_empty() {
+            dist
+        } else {
+            let own_clearance = Self::envelope_clearance_for(this_node_id, face, svg_node_info_map);
+            (dist - own_clearance).max(0.0)
+        }
     }
 
     /// Returns the own edge-label wrapper width (envelope clearance) on `face`
@@ -1330,21 +1909,35 @@ impl OrthoProtrusionCalculator {
         // For cycle edges, both endpoints are at the same rank.
         let rank = pass1_info.rank_from;
 
-        // Steps 2–4: Determine gap side and adjacent rank based on face. The
-        // physical gap key is built later, once the adjacent rank boundary and
-        // the from-face main-axis coordinate are known. Left/Right faces have no
-        // applicable rank gap.
-        let (gap_side, adjacent_rank) = match from_face {
+        // Steps 2–4: Determine gap key, gap side, and adjacent rank based on
+        // face. Left/Right faces have no applicable rank gap.
+        let (gap_key, gap_side, adjacent_rank) = match from_face {
             NodeFace::Top => {
-                // Protrudes upward into the gap above. Skip if R == 0.
+                // Protrudes upward into gap (R-1, R). Skip if R == 0.
                 if rank.value() == 0 {
                     return;
                 }
-                (GapSide::High, NodeRank::new(rank.value() - 1))
+                let adjacent_rank = NodeRank::new(rank.value() - 1);
+                (
+                    RankGapKey {
+                        rank_low: adjacent_rank,
+                        rank_high: rank,
+                    },
+                    GapSide::High,
+                    adjacent_rank,
+                )
             }
             NodeFace::Bottom => {
-                // Protrudes downward into the gap below.
-                (GapSide::Low, NodeRank::new(rank.value() + 1))
+                // Protrudes downward into gap (R, R+1).
+                let adjacent_rank = NodeRank::new(rank.value() + 1);
+                (
+                    RankGapKey {
+                        rank_low: rank,
+                        rank_high: adjacent_rank,
+                    },
+                    GapSide::Low,
+                    adjacent_rank,
+                )
             }
             NodeFace::Left | NodeFace::Right => {
                 // No rank gap applicable; protrusions_assign_cycle_edges
@@ -1435,20 +2028,6 @@ impl OrthoProtrusionCalculator {
             from_face,
         );
 
-        // Build the physical gap key from the from-face main-axis coordinate and
-        // the adjacent rank boundary (the same `(lo, hi)` quantized form used by
-        // non-cycle edges), so a cycle edge competes with any non-cycle edges
-        // sharing the same physical gap.
-        let face_main = match from_face {
-            NodeFace::Top => from_info.y,
-            NodeFace::Bottom => from_info.y + from_info.height_collapsed,
-            _ => unreachable!(),
-        };
-        let gap_key = RankGapKey {
-            lo: Self::quantize(face_main.min(adjacent_boundary)),
-            hi: Self::quantize(face_main.max(adjacent_boundary)),
-        };
-
         // Step 11: Register the edge's single U-depth entry in the rank gap.
         //
         // The entry is registered as a `ToEndpoint` so `protrusion_write`
@@ -1469,6 +2048,9 @@ impl OrthoProtrusionCalculator {
                 endpoint_kind: RankGapEndpointKind::ToEndpoint,
                 gap_side,
                 cross_axis_coord: cross_axis_from,
+                // Cycle edges route a U-arc in place; there is no lateral jog to
+                // another column, so the span is zero-width (overlaps nothing).
+                jog_far_cross_axis: cross_axis_from,
                 face_offset: from_offset,
                 rank_gap_px: from_rank_gap_px,
                 // Cycle edges register in an open adjacent gap (no spacers),
@@ -1569,10 +2151,8 @@ impl OrthoProtrusionCalculator {
                 // the spacer and produce a zigzag.
                 //
                 // Separation of multiple spacer-crossing edges that enter the
-                // same to-node is now handled by the physical-gap bucketing in
-                // `protrusions_assign` (their shared last-gap channel competes in
-                // one bucket), with cross-bucket fan-ins nested in Step 5.5
-                // (`protrusions_separate_shared_to_face_channels`).
+                // same to-node is handled separately, in
+                // `protrusions_separate_spacer_approach_channels` (Step 5.5).
                 let edge_has_spacers = all_spacer_coordinates
                     .get(group_idx)
                     .and_then(|g| g.get(edge_idx))
@@ -1743,6 +2323,151 @@ impl OrthoProtrusionCalculator {
         }
     }
 
+    /// Separates the approach channels of cross-container spacer edges that
+    /// enter the same to-node.
+    ///
+    /// Multiple such edges share the narrow gap between their (co-located) last
+    /// spacer exit and the to-node face. Their `to` protrusions and
+    /// last-spacer `exit` protrusions otherwise floor to (near-)identical
+    /// depths -- because the overloaded rank gap leaves no band to separate
+    /// them -- so their vertical approach legs (which sit at the midpoint of
+    /// the spacer-exit tip and the to tip) coincide and overlap.
+    ///
+    /// This step assigns each edge in such a group a distinct leg coordinate
+    /// within the gap and sets both the `to` protrusion and the last spacer's
+    /// `exit` protrusion so their tips meet on that leg (a clean straight
+    /// vertical/horizontal approach with no Z/S wiggle). Edges are ordered by
+    /// cross-axis so the leg ordering does not cross the spacer rows. Groups of
+    /// a single edge (the common case) are left unchanged.
+    fn protrusions_separate_spacer_approach_channels<'id>(
+        all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+        all_spacer_coordinates: &[Vec<Vec<SpacerCoordinates>>],
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        /// One spacer edge sharing an approach channel into a to-node.
+        struct ChannelEntry {
+            group_idx: usize,
+            edge_idx: usize,
+            /// Index of the last spacer (whose `exit` protrusion is set).
+            spacer_index: usize,
+            /// Inner face coordinate of the to-node along the rank axis.
+            to_face_coord: f32,
+            /// Last spacer exit coordinate along the rank axis.
+            exit_coord: f32,
+            /// Minimum `to` protrusion (arrow-head clearance and own label).
+            to_min: f32,
+            /// Cross-axis coordinate (perpendicular to the rank axis) used to
+            /// order the leg assignment.
+            cross_axis_coord: f32,
+        }
+
+        /// Groups edges whose last spacer exit feeds the same to-node face at
+        /// the same exit coordinate.
+        #[derive(PartialEq, Eq, Hash)]
+        struct ChannelKey<'id> {
+            to_node_id: NodeId<'id>,
+            face: NodeFace,
+            /// Exit coordinate quantised to avoid float-key issues.
+            exit_coord_milli: i64,
+        }
+
+        let mut channels: Map<ChannelKey<'id>, Vec<ChannelEntry>> = Map::new();
+
+        for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
+                if pass1_info.is_cycle_edge {
+                    continue;
+                }
+                let Some(to_face) = pass1_info.to_face else {
+                    continue;
+                };
+                let spacers = &all_spacer_coordinates[group_idx][edge_idx];
+                let Some(last_spacer) = spacers.last() else {
+                    continue;
+                };
+                let Some(&to_info) = svg_node_info_map.get(&pass1_info.edge.to) else {
+                    continue;
+                };
+
+                let to_face_coord = Self::face_coord_for_node(to_info, to_face);
+                let (exit_coord, cross_axis_coord) = match to_face {
+                    NodeFace::Left | NodeFace::Right => (last_spacer.exit_x, last_spacer.entry_y),
+                    NodeFace::Top | NodeFace::Bottom => (last_spacer.exit_y, last_spacer.entry_x),
+                };
+                let to_min =
+                    TO_PROTRUSION_MIN_PX.max(Self::own_envelope_clearance(to_info, to_face));
+
+                channels
+                    .entry(ChannelKey {
+                        to_node_id: pass1_info.edge.to.clone(),
+                        face: to_face,
+                        exit_coord_milli: (exit_coord * 1000.0) as i64,
+                    })
+                    .or_default()
+                    .push(ChannelEntry {
+                        group_idx,
+                        edge_idx,
+                        spacer_index: spacers.len() - 1,
+                        to_face_coord,
+                        exit_coord,
+                        to_min,
+                        cross_axis_coord,
+                    });
+            }
+        }
+
+        for entries in channels.values_mut() {
+            let n = entries.len();
+            if n < 2 {
+                continue;
+            }
+
+            // The gap between the spacer exit and the to-node face along the
+            // rank axis. All entries share the same to-node and exit coordinate.
+            let available = (entries[0].to_face_coord - entries[0].exit_coord).abs();
+            let to_min = entries
+                .iter()
+                .map(|entry| entry.to_min)
+                .fold(0.0_f32, f32::max);
+            // The leg also stays at least `MIN_PROTRUSION_PX` past the spacer
+            // exit so the spacer's exit stub is never zero-length.
+            let span = available - to_min - MIN_PROTRUSION_PX;
+            if span <= 0.0 {
+                // Gap too tight to separate; leave the band-assigned values.
+                continue;
+            }
+
+            // Order by cross-axis ascending: the edge nearest one side of the
+            // channel turns up nearest the spacer exit, so its short spacer
+            // stub does not run across another edge's leg.
+            entries.sort_by(|a, b| {
+                a.cross_axis_coord
+                    .partial_cmp(&b.cross_axis_coord)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then(a.group_idx.cmp(&b.group_idx))
+                    .then(a.edge_idx.cmp(&b.edge_idx))
+            });
+
+            for (i, entry) in entries.iter().enumerate() {
+                // The smallest cross-axis edge (i = 0) turns up nearest the
+                // spacer exit (largest `to` protrusion); the largest turns up
+                // nearest the to-node (smallest `to` protrusion).
+                let frac = (n - 1 - i) as f32 / (n - 1) as f32;
+                let to_protrusion = to_min + span * frac;
+                let exit_protrusion = available - to_protrusion;
+
+                let params = &mut result[entry.group_idx][entry.edge_idx];
+                params.to_protrusion = to_protrusion;
+                if let Some(spacer_protrusion) =
+                    params.spacer_protrusions.get_mut(entry.spacer_index)
+                {
+                    spacer_protrusion.exit_protrusion = exit_protrusion;
+                }
+            }
+        }
+    }
+
     /// Nests the approach legs of edges that enter the **same** to-node face
     /// from **different rank-gap buckets**.
     ///
@@ -1766,9 +2491,8 @@ impl OrthoProtrusionCalculator {
     /// legs no longer cross. For spacer-crossing edges the last spacer's
     /// `exit` protrusion is updated so the spacer exit and the to tip still
     /// meet on the chosen leg. Groups without this mix are left to the
-    /// existing rank-gap assignment, so single-bucket layouts (and pure
-    /// spacer-channel fan-ins, which now share one physical gap bucket in
-    /// `protrusions_assign`) are unchanged.
+    /// existing rank-gap assignment, so single-bucket layouts (and
+    /// pure spacer-channel groups handled in Step 5.5) are unchanged.
     #[allow(clippy::too_many_arguments)]
     fn protrusions_separate_shared_to_face_channels<'id>(
         all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
@@ -1849,8 +2573,8 @@ impl OrthoProtrusionCalculator {
 
             // Only act on the mixed cross-bucket case: at least one
             // spacer-crossing edge and at least one other edge. Pure single-
-            // bucket fan-ins (including spacer-channel groups that now share one
-            // physical gap bucket) are handled by Step 3.
+            // bucket fan-ins are handled by Step 3; pure spacer-channel groups
+            // by Step 5.5.
             let any_spacer = entries.iter().any(|entry| entry.last_spacer.is_some());
             let any_plain = entries.iter().any(|entry| entry.last_spacer.is_none());
             if !(any_spacer && any_plain) {

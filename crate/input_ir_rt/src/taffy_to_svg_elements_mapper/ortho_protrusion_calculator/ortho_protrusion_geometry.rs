@@ -20,16 +20,15 @@ impl OrthoProtrusionGeometry {
         }
     }
 
-    /// Returns the main-axis (rank-axis) coordinate of a point for a given
-    /// face.
+    /// Computes the absolute distance along the rank axis between two
+    /// points.
     ///
-    /// This is the coordinate along the rank flow direction: Y for `Top` /
-    /// `Bottom` faces (vertical flow), X for `Left` / `Right` faces
-    /// (horizontal flow). It is the complement of [`Self::cross_axis_coord`].
-    pub(super) fn main_axis_coord(x: f32, y: f32, face: NodeFace) -> f32 {
+    /// For `Top` / `Bottom` faces the rank axis is Y. For `Left` /
+    /// `Right` faces the rank axis is X.
+    pub(super) fn axis_distance(ax: f32, ay: f32, bx: f32, by: f32, face: NodeFace) -> f32 {
         match face {
-            NodeFace::Top | NodeFace::Bottom => y,
-            NodeFace::Left | NodeFace::Right => x,
+            NodeFace::Top | NodeFace::Bottom => (by - ay).abs(),
+            NodeFace::Left | NodeFace::Right => (bx - ax).abs(),
         }
     }
 
@@ -73,26 +72,20 @@ mod tests {
     }
 
     #[test]
-    fn main_axis_coord_uses_y_for_horizontal_faces() {
+    fn axis_distance_uses_y_for_horizontal_faces() {
+        // Top/Bottom faces: rank axis is Y, so the distance is |by - ay|.
         assert_eq!(
-            7.0,
-            OrthoProtrusionGeometry::main_axis_coord(3.0, 7.0, NodeFace::Top)
-        );
-        assert_eq!(
-            7.0,
-            OrthoProtrusionGeometry::main_axis_coord(3.0, 7.0, NodeFace::Bottom)
+            5.0,
+            OrthoProtrusionGeometry::axis_distance(0.0, 2.0, 10.0, 7.0, NodeFace::Top)
         );
     }
 
     #[test]
-    fn main_axis_coord_uses_x_for_vertical_faces() {
+    fn axis_distance_uses_x_for_vertical_faces() {
+        // Left/Right faces: rank axis is X, so the distance is |bx - ax|.
         assert_eq!(
-            3.0,
-            OrthoProtrusionGeometry::main_axis_coord(3.0, 7.0, NodeFace::Left)
-        );
-        assert_eq!(
-            3.0,
-            OrthoProtrusionGeometry::main_axis_coord(3.0, 7.0, NodeFace::Right)
+            10.0,
+            OrthoProtrusionGeometry::axis_distance(0.0, 2.0, 10.0, 7.0, NodeFace::Left)
         );
     }
 }
