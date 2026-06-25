@@ -122,7 +122,6 @@ impl SvgEdgeInfosBuilder {
 
         // === Global Pass 1: collect metadata and register face contacts === //
 
-        let mut face_contact_tracker = EdgeFaceContactTracker::new();
         let mut all_pass1_groups: Vec<EdgeGroupPass1<'_, 'id>> = Vec::new();
 
         for (edge_group_id, edge_group) in edge_groups.iter() {
@@ -135,7 +134,6 @@ impl SvgEdgeInfosBuilder {
                 svg_node_info_map,
                 &ir_diagram.node_ranks_nested,
                 &ir_diagram.node_nesting_infos,
-                &mut face_contact_tracker,
             );
             all_pass1_groups.push(edge_group_pass1);
         }
@@ -145,7 +143,7 @@ impl SvgEdgeInfosBuilder {
         let mut face_offsets_by_node_face = Self::face_offsets_compute(
             &mut all_pass1_groups,
             svg_node_info_map,
-            &mut face_contact_tracker,
+            &ir_diagram.node_nesting_infos,
             edge_label_taffy_nodes,
             taffy_tree,
         );
@@ -176,6 +174,26 @@ impl SvgEdgeInfosBuilder {
             .map(|g| g.to_slot_indices.clone())
             .collect();
 
+        // Whether each group's effective edge curvature is direct (bypasses
+        // spacers and protrusions). Direct groups are excluded from protrusion
+        // band sizing. Edge groups are exclusively one kind, so the curvature is
+        // selected once per group from the group's edges.
+        let group_is_direct: Vec<bool> = all_pass1_groups
+            .iter()
+            .map(|edge_group_pass1| {
+                let is_interaction_group = edge_group_pass1
+                    .pass1_infos
+                    .iter()
+                    .any(|pass1_info| pass1_info.is_interaction);
+                let edge_curvature = if is_interaction_group {
+                    render_options.interactions_edge_curvature
+                } else {
+                    render_options.dependencies_edge_curvature
+                };
+                edge_curvature.is_direct()
+            })
+            .collect();
+
         let ortho_protrusions_all = OrthoProtrusionCalculator::calculate(
             rank_dir,
             &all_pass1_groups,
@@ -188,6 +206,7 @@ impl SvgEdgeInfosBuilder {
             &ir_diagram.node_nesting_infos,
             &ir_diagram.node_ranks_nested,
             entity_types,
+            &group_is_direct,
         );
 
         // === Global Pass 2: rebuild paths with offsets, emit SvgEdgeInfos === //
@@ -369,7 +388,6 @@ impl SvgEdgeInfosBuilder {
         svg_node_info_map: &'edge SvgNodeInfoByNodeId<'_, 'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
         node_nesting_infos: &NodeNestingInfos<'id>,
-        face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
     ) -> EdgeGroupPass1<'edge, 'id> {
         let edge_animation_params = EdgeAnimationParams::default();
         let mut pass1_infos: Vec<EdgePass1Info<'edge, 'id>> = Vec::new();
@@ -386,6 +404,14 @@ impl SvgEdgeInfosBuilder {
 
             let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
             let edge_type = Self::edge_type_determine(&edge_id, entity_types);
+            let is_interaction = entity_types
+                .get(AsRef::<Id<'_>>::as_ref(&edge_id))
+                .map(|edge_entity_types| {
+                    edge_entity_types
+                        .iter()
+                        .any(EntityType::is_interaction_edge)
+                })
+                .unwrap_or(false);
 
             // Compute rank distance before face selection so that same-rank
             // (cycle) edges can use clockwise face routing. Adjacent siblings
@@ -481,14 +507,6 @@ impl SvgEdgeInfosBuilder {
                 }
             };
 
-            // Register contacts.
-            if let Some(from_face) = from_face {
-                face_contact_tracker.contact_register(edge.from.clone(), from_face);
-            }
-            if let Some(to_face) = to_face {
-                face_contact_tracker.contact_register(edge.to.clone(), to_face);
-            }
-
             // Compute path midpoint and bounds for curvature-center sorting.
             let path_midpoint = Self::path_midpoint_compute(&path);
             let path_bounds = Self::path_bounds_compute(&path);
@@ -515,6 +533,7 @@ impl SvgEdgeInfosBuilder {
                 from_node_x,
                 from_node_y,
                 is_cycle_edge,
+                is_interaction,
             });
         }
 
@@ -558,7 +577,7 @@ impl SvgEdgeInfosBuilder {
     fn face_offsets_compute<'edge, 'id>(
         all_pass1_groups: &mut Vec<EdgeGroupPass1<'edge, 'id>>,
         svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
-        face_contact_tracker: &mut EdgeFaceContactTracker<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
         edge_label_taffy_nodes: &EdgeIdToEdgeLabelTaffyNodeIds<'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
     ) -> NodeIdAndFaceToContactPointOffsets<'id> {
@@ -586,9 +605,12 @@ impl SvgEdgeInfosBuilder {
                                     rank_distance: pass1_info.rank_distance,
                                     to_node_x: pass1_info.to_node_x,
                                     to_node_y: pass1_info.to_node_y,
+                                    from_node_x: pass1_info.from_node_x,
+                                    from_node_y: pass1_info.from_node_y,
                                     pass1_group_index,
                                     edge_index,
                                     is_from_endpoint: true,
+                                    is_interaction: pass1_info.is_interaction,
                                 });
                         }
                         if let Some(to_face) = pass1_info.to_face {
@@ -605,23 +627,47 @@ impl SvgEdgeInfosBuilder {
                                     rank_distance: pass1_info.rank_distance,
                                     to_node_x: pass1_info.to_node_x,
                                     to_node_y: pass1_info.to_node_y,
+                                    from_node_x: pass1_info.from_node_x,
+                                    from_node_y: pass1_info.from_node_y,
                                     pass1_group_index,
                                     edge_index,
                                     is_from_endpoint: false,
+                                    is_interaction: pass1_info.is_interaction,
                                 });
                         }
                     },
                 );
             });
 
-        // Sort each face's entries by rank distance and target coordinate,
+        // Sort each face's entries by rank distance and approach coordinate,
         // then assign slot indices.
+        //
+        // Dependency and interaction edges are spread in separate slot pools:
+        // each face's entries are partitioned by kind, each kind is sorted
+        // independently, then the dependency entries are placed before the
+        // interaction entries. This way a co-located interaction edge (e.g. an
+        // `txn_*` edge running between the same two nodes as a dependency edge)
+        // does not push the dependency edge's contact off the face midpoint.
         face_contact_entries_by_node_face.iter_mut().for_each(
             |(node_id_and_face, face_contact_entries)| {
+                let (mut dependency_entries, mut interaction_entries): (
+                    Vec<FaceContactEntry>,
+                    Vec<FaceContactEntry>,
+                ) = face_contact_entries
+                    .iter()
+                    .copied()
+                    .partition(|face_contact_entry| !face_contact_entry.is_interaction);
                 Self::face_entries_sort_by_rank_and_coordinate(
                     node_id_and_face.face,
-                    face_contact_entries,
+                    &mut dependency_entries,
                 );
+                Self::face_entries_sort_by_rank_and_coordinate(
+                    node_id_and_face.face,
+                    &mut interaction_entries,
+                );
+                face_contact_entries.clear();
+                face_contact_entries.extend(dependency_entries);
+                face_contact_entries.extend(interaction_entries);
 
                 face_contact_entries.iter().enumerate().for_each(
                     |(slot_index, face_contact_entry)| {
@@ -638,32 +684,43 @@ impl SvgEdgeInfosBuilder {
             },
         );
 
-        // Reset tracker indices so `offset_calculate` hands out slots in
-        // the order we request them.
-        face_contact_tracker.indices_reset();
-
         // Pre-compute per-face ordered offset values so we can index by
         // slot rather than relying on call order.
         let mut face_offsets_by_node_face: NodeIdAndFaceToContactPointOffsets<'id> = Map::new();
 
         for (node_id_and_face, face_contact_entries) in &face_contact_entries_by_node_face {
-            let contact_count = face_contact_entries.len();
             let face_length = Self::face_length_for_node(
                 &node_id_and_face.node_id,
                 node_id_and_face.face,
                 svg_node_info_map,
             );
-            // Compute slot-based fallback offsets for all contacts first.
+            // Compute slot-based fallback offsets per kind so dependency and
+            // interaction contacts each fan symmetrically around the face
+            // midpoint. Entries are ordered `[dependencies.., interactions..]`,
+            // so an entry's within-kind index is its slot index for
+            // dependencies, or `slot_index - dependency_count` for interactions.
             //
             // No direction-based negation is needed: sibling nodes are
             // inserted in reversed order for reversed rank directions (see
             // `TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed`),
             // so visual order matches declaration order for all directions.
-            let slot_based_offsets: Vec<f32> = (0..contact_count)
-                .map(|_| {
-                    face_contact_tracker.offset_calculate(
-                        &node_id_and_face.node_id,
-                        node_id_and_face.face,
+            let dependency_count = face_contact_entries
+                .iter()
+                .filter(|face_contact_entry| !face_contact_entry.is_interaction)
+                .count();
+            let interaction_count = face_contact_entries.len() - dependency_count;
+            let slot_based_offsets: Vec<f32> = face_contact_entries
+                .iter()
+                .enumerate()
+                .map(|(slot_index, face_contact_entry)| {
+                    let (within_kind_index, kind_count) = if face_contact_entry.is_interaction {
+                        (slot_index - dependency_count, interaction_count)
+                    } else {
+                        (slot_index, dependency_count)
+                    };
+                    EdgeFaceContactTracker::offset_for_index(
+                        within_kind_index,
+                        kind_count,
                         face_length,
                     )
                 })
@@ -715,6 +772,7 @@ impl SvgEdgeInfosBuilder {
         Self::face_offsets_collisions_separate(
             &face_contact_entries_by_node_face,
             svg_node_info_map,
+            node_nesting_infos,
             &mut face_offsets_by_node_face,
         );
 
@@ -812,6 +870,7 @@ impl SvgEdgeInfosBuilder {
     fn face_offsets_collisions_separate<'id>(
         face_contact_entries_by_node_face: &Map<NodeIdAndFace<'id>, Vec<FaceContactEntry>>,
         svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
         face_offsets_by_node_face: &mut NodeIdAndFaceToContactPointOffsets<'id>,
     ) {
         // Group records by exact `NodeFace` so opposite-direction stubs (e.g. a
@@ -831,6 +890,13 @@ impl SvgEdgeInfosBuilder {
                 node_id_and_face.face,
                 svg_node_info_map,
             );
+            let Some(main_axis_coord) = Self::face_main_axis_coord(
+                &node_id_and_face.node_id,
+                node_id_and_face.face,
+                svg_node_info_map,
+            ) else {
+                continue;
+            };
             let Some(offsets) = face_offsets_by_node_face.get(node_id_and_face) else {
                 continue;
             };
@@ -850,6 +916,7 @@ impl SvgEdgeInfosBuilder {
                             slot_index,
                             midpoint,
                             abs_coord: midpoint + offset,
+                            main_axis_coord,
                             face_length,
                             rank_distance: face_contact_entry.rank_distance,
                             pass1_group_index: face_contact_entry.pass1_group_index,
@@ -884,6 +951,7 @@ impl SvgEdgeInfosBuilder {
                 if split {
                     Self::face_offsets_collision_cluster_separate(
                         &records[cluster_start..index],
+                        node_nesting_infos,
                         face_offsets_by_node_face,
                     );
                     cluster_start = index;
@@ -892,32 +960,136 @@ impl SvgEdgeInfosBuilder {
         }
     }
 
-    /// Redistributes one cluster of coincident face contacts symmetrically
-    /// around their shared midpoint.
+    /// Splits one abs-coordinate cluster into the sub-groups that genuinely
+    /// collide, and redistributes each.
     ///
-    /// A cluster is only adjusted when it spans two or more distinct
-    /// `(node, face)` groups; a cluster wholly within one group is already
-    /// spread by the slot logic in `face_offsets_compute`, and a single-record
-    /// cluster needs no separation.
+    /// Sharing a face-axis coordinate is necessary but not sufficient for two
+    /// contacts to overlap: their stubs must also protrude into the same
+    /// inter-rank gap. That holds when the nodes are in the same rank row (equal
+    /// `main_axis_coord`) or one is nested inside the other (the stubs are
+    /// collinear through the container boundary). Vertically-stacked siblings at
+    /// different ranks share a face-axis coordinate but protrude into different
+    /// gaps, so they are kept apart here. The cluster is partitioned into
+    /// connected components under this relation, and each component is
+    /// redistributed independently.
     fn face_offsets_collision_cluster_separate<'id>(
         cluster: &[FaceContactCollisionRecord<'id>],
+        node_nesting_infos: &NodeNestingInfos<'id>,
         face_offsets_by_node_face: &mut NodeIdAndFaceToContactPointOffsets<'id>,
     ) {
-        let distinct_node_faces = cluster
+        if cluster.len() < 2 {
+            return;
+        }
+
+        let component_of = Self::collision_components_assign(cluster, node_nesting_infos);
+        let component_count = component_of.iter().copied().max().map_or(0, |max| max + 1);
+        for component_id in 0..component_count {
+            let component: Vec<&FaceContactCollisionRecord<'id>> = cluster
+                .iter()
+                .zip(component_of.iter())
+                .filter_map(|(record, &record_component)| {
+                    (record_component == component_id).then_some(record)
+                })
+                .collect();
+            Self::face_offsets_collision_component_separate(&component, face_offsets_by_node_face);
+        }
+    }
+
+    /// Assigns each record in `cluster` a connected-component id under the
+    /// collision-compatibility relation (see
+    /// [`face_offsets_collision_cluster_separate`](Self::face_offsets_collision_cluster_separate)).
+    fn collision_components_assign<'id>(
+        cluster: &[FaceContactCollisionRecord<'id>],
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> Vec<usize> {
+        let n = cluster.len();
+        let mut parent: Vec<usize> = (0..n).collect();
+
+        for i in 0..n {
+            for j in (i + 1)..n {
+                if Self::collision_records_compatible(&cluster[i], &cluster[j], node_nesting_infos) {
+                    let root_i = Self::union_find_root(&parent, i);
+                    let root_j = Self::union_find_root(&parent, j);
+                    if root_i != root_j {
+                        parent[root_i] = root_j;
+                    }
+                }
+            }
+        }
+
+        // Relabel each record by its component root into contiguous ids.
+        let mut root_to_label: Vec<Option<usize>> = vec![None; n];
+        let mut next_label = 0usize;
+        (0..n)
+            .map(|i| {
+                let root = Self::union_find_root(&parent, i);
+                match root_to_label[root] {
+                    Some(label) => label,
+                    None => {
+                        let label = next_label;
+                        next_label += 1;
+                        root_to_label[root] = Some(label);
+                        label
+                    }
+                }
+            })
+            .collect()
+    }
+
+    /// Follows the union-find parent chain to the root of `i`.
+    fn union_find_root(parent: &[usize], mut i: usize) -> usize {
+        while parent[i] != i {
+            i = parent[i];
+        }
+        i
+    }
+
+    /// Returns whether two coincident face contacts actually share an inter-rank
+    /// gap (and so their protrusion stubs would overlap).
+    fn collision_records_compatible<'id>(
+        record_a: &FaceContactCollisionRecord<'id>,
+        record_b: &FaceContactCollisionRecord<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+    ) -> bool {
+        /// Tolerance for treating two faces as being in the same rank row. Taffy
+        /// aligns same-rank siblings to an identical main-axis coordinate, so a
+        /// sub-pixel epsilon is sufficient.
+        const MAIN_AXIS_EPS: f32 = 1.0;
+
+        let node_a = &record_a.node_id_and_face.node_id;
+        let node_b = &record_b.node_id_and_face.node_id;
+        node_a == node_b
+            || (record_a.main_axis_coord - record_b.main_axis_coord).abs() < MAIN_AXIS_EPS
+            || Self::node_is_descendant_of(node_a, node_b, node_nesting_infos)
+            || Self::node_is_descendant_of(node_b, node_a, node_nesting_infos)
+    }
+
+    /// Redistributes one collision component symmetrically around its shared
+    /// midpoint.
+    ///
+    /// A component is only adjusted when it spans two or more distinct
+    /// `(node, face)` groups; a component wholly within one group is already
+    /// spread by the slot logic in `face_offsets_compute`, and a single-record
+    /// component needs no separation.
+    fn face_offsets_collision_component_separate<'id>(
+        component: &[&FaceContactCollisionRecord<'id>],
+        face_offsets_by_node_face: &mut NodeIdAndFaceToContactPointOffsets<'id>,
+    ) {
+        let distinct_node_faces = component
             .iter()
             .map(|record| &record.node_id_and_face)
             .collect::<std::collections::HashSet<_>>()
             .len();
-        if cluster.len() < 2 || distinct_node_faces < 2 {
+        if component.len() < 2 || distinct_node_faces < 2 {
             return;
         }
 
-        let contact_count = cluster.len();
+        let contact_count = component.len();
         let center =
-            cluster.iter().map(|record| record.abs_coord).sum::<f32>() / contact_count as f32;
+            component.iter().map(|record| record.abs_coord).sum::<f32>() / contact_count as f32;
         // Size the fan from the narrowest node's face so it fits within all
-        // nodes in the cluster.
-        let min_face_length = cluster
+        // nodes in the component.
+        let min_face_length = component
             .iter()
             .map(|record| record.face_length)
             .fold(f32::INFINITY, f32::min);
@@ -925,7 +1097,7 @@ impl SvgEdgeInfosBuilder {
 
         // Order deterministically: closer-ranked edges innermost, then by stable
         // edge identity.
-        let mut ordered_records: Vec<&FaceContactCollisionRecord<'id>> = cluster.iter().collect();
+        let mut ordered_records: Vec<&FaceContactCollisionRecord<'id>> = component.to_vec();
         ordered_records.sort_by(|record_a, record_b| {
             record_a
                 .rank_distance
@@ -980,19 +1152,34 @@ impl SvgEdgeInfosBuilder {
                 return rank_cmp;
             }
 
-            // Secondary: coordinate along the face axis.
-
-            match face {
-                NodeFace::Top | NodeFace::Bottom => entry_a
-                    .to_node_x
-                    .partial_cmp(&entry_b.to_node_x)
-                    .unwrap_or(std::cmp::Ordering::Equal),
-                NodeFace::Left | NodeFace::Right => entry_a
-                    .to_node_y
-                    .partial_cmp(&entry_b.to_node_y)
-                    .unwrap_or(std::cmp::Ordering::Equal),
-            }
+            // Secondary: the cross-axis coordinate of the *other* endpoint,
+            // i.e. the side the edge approaches this face from. For a
+            // from-endpoint contact the other endpoint is the `to` node; for a
+            // to-endpoint contact it is the `from` node. Using the other
+            // endpoint matters when several edges enter the *same* target face:
+            // their `to` coordinate is identical, so ordering by it collapses to
+            // input order and produces crossings. Ordering by the `from`
+            // coordinate instead fans the contacts in the spatial order of
+            // their sources.
+            Self::face_entry_approach_coord(face, entry_a)
+                .partial_cmp(&Self::face_entry_approach_coord(face, entry_b))
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
+    }
+
+    /// Returns the cross-axis coordinate of the endpoint *opposite* to this
+    /// contact -- the side the edge approaches the face from.
+    ///
+    /// * For a from-endpoint contact: the `to` node's coordinate (x for
+    ///   Top/Bottom, y for Left/Right).
+    /// * For a to-endpoint contact: the `from` node's coordinate.
+    fn face_entry_approach_coord(face: NodeFace, entry: &FaceContactEntry) -> f32 {
+        match (face, entry.is_from_endpoint) {
+            (NodeFace::Top | NodeFace::Bottom, true) => entry.to_node_x,
+            (NodeFace::Top | NodeFace::Bottom, false) => entry.from_node_x,
+            (NodeFace::Left | NodeFace::Right, true) => entry.to_node_y,
+            (NodeFace::Left | NodeFace::Right, false) => entry.from_node_y,
+        }
     }
 
     /// **Pass 2** for a single edge group: rebuilds every path using the
@@ -1409,6 +1596,28 @@ impl SvgEdgeInfosBuilder {
         })
     }
 
+    /// Returns the coordinate of `face` along the **rank** axis -- the axis
+    /// perpendicular to the face axis (y for Top/Bottom, x for Left/Right).
+    ///
+    /// This is the outward edge of the face: the node's top edge for `Top`, its
+    /// bottom edge for `Bottom`, and so on. Used by
+    /// `face_offsets_collisions_separate` to tell whether two contacts that
+    /// share a face-axis coordinate actually protrude into the same inter-rank
+    /// gap (same rank row) or merely line up across different ranks.
+    fn face_main_axis_coord<'id>(
+        node_id: &NodeId<'id>,
+        face: NodeFace,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+    ) -> Option<f32> {
+        let node_info = svg_node_info_map.get(node_id)?;
+        Some(match face {
+            NodeFace::Top => node_info.y,
+            NodeFace::Bottom => node_info.y + node_info.height_collapsed,
+            NodeFace::Left => node_info.x,
+            NodeFace::Right => node_info.x + node_info.width,
+        })
+    }
+
     /// Nudges a container node's face contact away from edges that **transit**
     /// the same inter-rank gap on their way to a node nested inside that
     /// container.
@@ -1690,11 +1899,29 @@ impl SvgEdgeInfosBuilder {
         node_id: &NodeId<'id>,
     ) -> Option<f32> {
         let edge_label_taffy_node_ids = edge_label_taffy_nodes.get(edge_id)?;
-        let taffy_node_id = if is_from_endpoint {
-            edge_label_taffy_node_ids.from_label_taffy_node_id?
+        // Only route the contact to the label when the label actually has
+        // content. Every edge -- even one without a description -- gets a
+        // padded label leaf (non-zero width), so a width check alone would
+        // always treat the leaf as a real label and pin the contact to the
+        // leaf's pre-layout position (ordered structurally by
+        // `NodeFaceEdges`, not by where the edge geometrically approaches the
+        // face). Descriptionless edges therefore fall back to the
+        // coordinate-aware slot logic in `face_offsets_compute`, which knows
+        // the real layout positions and spreads dependency and interaction
+        // edges in separate pools. `*_md_node_taffy_ids` is `Some` only when
+        // the corresponding label text is non-empty.
+        let (taffy_node_id, label_md_node_taffy_ids) = if is_from_endpoint {
+            (
+                edge_label_taffy_node_ids.from_label_taffy_node_id?,
+                &edge_label_taffy_node_ids.from_label_md_node_taffy_ids,
+            )
         } else {
-            edge_label_taffy_node_ids.to_label_taffy_node_id?
+            (
+                edge_label_taffy_node_ids.to_label_taffy_node_id?,
+                &edge_label_taffy_node_ids.to_label_md_node_taffy_ids,
+            )
         };
+        label_md_node_taffy_ids.as_ref()?;
         let layout = taffy_tree.layout(taffy_node_id).ok()?;
         let label_width = layout.size.width;
         let label_height = layout.size.height;
@@ -1962,6 +2189,25 @@ struct FaceContactEntry {
     ///
     /// `80.0` for a node positioned 80 px from the top edge.
     to_node_y: f32,
+    /// X coordinate of the edge's `from` node (absolute position).
+    ///
+    /// Used as the secondary sort key for Top / Bottom faces when this
+    /// contact is at the edge's `to` endpoint -- contacts entering a
+    /// shared target face are ordered by where each edge approaches from.
+    ///
+    /// # Examples
+    ///
+    /// `50.0` for a node positioned 50 px from the left edge.
+    from_node_x: f32,
+    /// Y coordinate of the edge's `from` node (absolute position).
+    ///
+    /// Used as the secondary sort key for Left / Right faces when this
+    /// contact is at the edge's `to` endpoint.
+    ///
+    /// # Examples
+    ///
+    /// `30.0` for a node positioned 30 px from the top edge.
+    from_node_y: f32,
     /// Index into the `all_pass1_groups` vector identifying which edge
     /// group this contact belongs to.
     pass1_group_index: usize,
@@ -1971,6 +2217,13 @@ struct FaceContactEntry {
     /// `true` if this contact is at the "from" endpoint of the edge,
     /// `false` for the "to" endpoint.
     is_from_endpoint: bool,
+    /// `true` if the edge is an interaction edge, `false` for a
+    /// dependency edge.
+    ///
+    /// Dependency and interaction edges are spread in separate slot pools
+    /// so an interaction edge sharing a face does not push a dependency
+    /// edge's contact off the face midpoint.
+    is_interaction: bool,
 }
 
 /// A flattened face contact used by `face_offsets_collisions_separate` to
@@ -1992,6 +2245,15 @@ struct FaceContactCollisionRecord<'id> {
     /// Absolute coordinate of the contact along the face axis
     /// (`midpoint + offset`).
     abs_coord: f32,
+    /// Coordinate of the node face along the **rank** axis (y for Top/Bottom,
+    /// x for Left/Right).
+    ///
+    /// Two contacts sharing an `abs_coord` only actually collide when their
+    /// stubs protrude into the same inter-rank gap. Same-rank siblings have an
+    /// equal `main_axis_coord`; vertically-stacked siblings at different ranks
+    /// do not, so this distinguishes a genuine cross-node coincidence from two
+    /// contacts that merely line up along the face axis.
+    main_axis_coord: f32,
     /// Length of the node face (width for Top/Bottom, collapsed height for
     /// Left/Right), used to size the fan so it fits within the face.
     face_length: f32,
@@ -2093,6 +2355,14 @@ pub(super) struct EdgePass1Info<'edge, 'id> {
     ///
     /// When `false` the nearest-face heuristic is used instead.
     pub(super) is_cycle_edge: bool,
+    /// Whether this edge is an interaction edge (`true`) or a dependency
+    /// edge (`false`).
+    ///
+    /// Used to spread dependency and interaction contacts in separate
+    /// slot pools during offset computation, so a co-located interaction
+    /// edge does not push a dependency edge's contact off the face
+    /// midpoint.
+    pub(super) is_interaction: bool,
 }
 
 /// All pass-1 data for a single edge group.

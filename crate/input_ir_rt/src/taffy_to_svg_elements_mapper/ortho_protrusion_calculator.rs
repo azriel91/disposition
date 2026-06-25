@@ -284,6 +284,7 @@ impl OrthoProtrusionCalculator {
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
         entity_types: &EntityTypes<'id>,
+        group_is_direct: &[bool],
     ) -> Vec<Vec<OrthoProtrusionParams>> {
         // === Step 1: Resolve spacer coordinates and initialize output === //
         //
@@ -331,6 +332,15 @@ impl OrthoProtrusionCalculator {
         let mut rank_gap_entries: Map<RankGapKey, Vec<RankGapEntry>> = Map::new();
 
         for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            // Direct-curvature edges (e.g. interaction edges drawn as
+            // `DirectCurved`) bypass spacers and protrusions entirely -- pass 2
+            // ignores their `OrthoProtrusionParams`. They must therefore neither
+            // consume nor influence the shared protrusion band that sizes the
+            // real orthogonal (dependency) edges, so skip the whole group.
+            if group_is_direct[group_idx] {
+                continue;
+            }
+
             let from_slot_indices = &from_slot_indices_all[group_idx];
             let to_slot_indices = &to_slot_indices_all[group_idx];
 

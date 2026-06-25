@@ -4319,6 +4319,81 @@ fn test_0043_cross_container_fan_legs_not_coincident() {
     }
 }
 
+/// `0043` (`top_to_bottom`): a dependency edge and an interaction edge run
+/// between the same two nodes (`t_ir_diagram -> t_pass1_path`), both contacting
+/// `t_pass1_path`'s Top face. Dependency and interaction contacts are spread in
+/// separate slot pools, so the lone dependency contact stays centred on the
+/// face instead of being fanned aside by the co-located interaction edge.
+#[test]
+fn test_0043_dependency_contact_centred_independent_of_interaction_edge() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1)
+    {
+        let node_centre_x = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_pass1_path")
+            .map(|n| n.x + n.width / 2.0)
+            .expect("Expected t_pass1_path node");
+
+        // To-contact (final path point) x of the edge with the given id.
+        let to_contact_x = |edge_id: &str| -> f32 {
+            let edge = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected edge {edge_id}"));
+            parse_path_endpoints(&edge.path_d)
+                .last()
+                .expect("Expected at least one path point")
+                .0
+        };
+
+        let dependency_contact_x = to_contact_x("edge_dep_ir_pass1__0");
+        assert!(
+            (dependency_contact_x - node_centre_x).abs() < 1.0,
+            "Expected dependency edge `edge_dep_ir_pass1__0` to contact \
+             t_pass1_path's Top face at its centre (x={node_centre_x}), but it \
+             landed at x={dependency_contact_x} -- the interaction edge should \
+             not push it aside",
+        );
+    }
+}
+
+/// `0043` (`top_to_bottom`): two dependency edges enter `t_face_contacts`'s Top
+/// face -- `edge_dep_pass1_contacts` approaches from `t_pass1_path` on the left,
+/// `edge_dep_layout_contacts` approaches via a spacer from `t_taffy_layout` on
+/// the right. Contacts are ordered by the side each edge approaches from, so the
+/// left-source edge takes the left contact and the two paths do not cross.
+#[test]
+fn test_0043_shared_target_face_contacts_ordered_by_source() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1)
+    {
+        let to_contact_x = |edge_id: &str| -> f32 {
+            let edge = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected edge {edge_id}"));
+            parse_path_endpoints(&edge.path_d)
+                .last()
+                .expect("Expected at least one path point")
+                .0
+        };
+
+        let pass1_contact_x = to_contact_x("edge_dep_pass1_contacts__0");
+        let layout_contact_x = to_contact_x("edge_dep_layout_contacts__0");
+        assert!(
+            pass1_contact_x < layout_contact_x,
+            "Expected `edge_dep_pass1_contacts__0` (approaching from the left) to \
+             contact t_face_contacts left of `edge_dep_layout_contacts__0` \
+             (approaching from the right), but got pass1 x={pass1_contact_x} and \
+             layout x={layout_contact_x} -- the paths cross",
+        );
+    }
+}
+
 /// `0037` (`left_to_right`): same as `0036` with a horizontal flow.
 #[test]
 fn test_0037_mid_rank_to_high_rank_left_to_right_routes_cleanly() {

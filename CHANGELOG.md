@@ -43,7 +43,7 @@
 * Keep a container's face contact on the from-node's side of edges that transit the same inter-rank gap to reach a node nested inside it, so their legs no longer touch or cross. ([#55][#55])
 * Markdown: Support rendering code blocks. ([#56][#56])
 * Markdown: Support rendering blockquotes. ([#56][#56])
-* Separate the lateral routing legs of sibling cross-container edges that share a rank gap by interval-graph coloring of each leg's cross-axis span, so legs that actually overlap receive distinct protrusion depths while staying within the inter-rank gap. ([#57][#57])
+* Separate the lateral routing legs of sibling cross-container edges that share a rank gap by interval-graph colouring of each leg's cross-axis span, so legs that actually overlap receive distinct protrusion depths while staying within the inter-rank gap. ([#57][#57])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
