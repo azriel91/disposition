@@ -185,30 +185,110 @@ impl EdgeSpacerBuilder {
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
         let mut rank_spacer_counts: BTreeMap<NodeRank, Vec<usize>> = BTreeMap::new();
 
-        edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
-            edge_group
-                .iter()
-                .enumerate()
-                .for_each(|(edge_index, edge)| {
-                    Self::build_cross_container_spacers_for_edge(
-                        taffy_tree,
-                        edge_group_id,
-                        node_nesting_infos,
-                        node_ranks_nested,
-                        entity_types,
-                        render_options,
-                        rank_to_taffy_ids,
-                        container_node_id,
-                        &container_node_direct_child_ids,
-                        &mut edge_spacer_taffy_nodes,
-                        &mut rank_spacer_counts,
-                        edge_index,
-                        edge,
-                    )
-                });
+        // Order edges so their cross-container spacers are inserted (appended)
+        // into each shared rank row in the same left-to-right order as their
+        // to-face contacts. Without this the spacers land in edge-group
+        // declaration order, which can be the reverse of the contact order and
+        // make two edges swap sides between their spacer row and their
+        // contacts -- drawing two crossings. See
+        // `cross_container_spacer_sort_key` for the key.
+        let mut ordered_edges: Vec<(&EdgeGroupId<'static>, usize, &Edge<'_>)> = edge_groups
+            .iter()
+            .flat_map(|(edge_group_id, edge_group)| {
+                edge_group
+                    .iter()
+                    .enumerate()
+                    .map(move |(edge_index, edge)| (edge_group_id, edge_index, edge))
+            })
+            .collect();
+        ordered_edges.sort_by(|(group_id_a, edge_index_a, edge_a), (group_id_b, edge_index_b, edge_b)| {
+            let key_a = Self::cross_container_spacer_sort_key(
+                node_nesting_infos,
+                node_ranks_nested,
+                container_node_id,
+                edge_a,
+            );
+            let key_b = Self::cross_container_spacer_sort_key(
+                node_nesting_infos,
+                node_ranks_nested,
+                container_node_id,
+                edge_b,
+            );
+            key_a
+                .cmp(&key_b)
+                .then_with(|| group_id_a.cmp(group_id_b))
+                .then_with(|| edge_index_a.cmp(edge_index_b))
         });
 
+        ordered_edges
+            .into_iter()
+            .for_each(|(edge_group_id, edge_index, edge)| {
+                Self::build_cross_container_spacers_for_edge(
+                    taffy_tree,
+                    edge_group_id,
+                    node_nesting_infos,
+                    node_ranks_nested,
+                    entity_types,
+                    render_options,
+                    rank_to_taffy_ids,
+                    container_node_id,
+                    &container_node_direct_child_ids,
+                    &mut edge_spacer_taffy_nodes,
+                    &mut rank_spacer_counts,
+                    edge_index,
+                    edge,
+                )
+            });
+
         edge_spacer_taffy_nodes
+    }
+
+    /// Sort key for ordering an edge's cross-container spacers within shared
+    /// rank rows, mirroring the to-face contact order so spacer left/right
+    /// order matches contact left/right order (reducing edge crossings).
+    ///
+    /// Returns `(rank_distance, outside_divergent_sibling_index)`:
+    ///
+    /// * `rank_distance` -- the primary contact-sort key used by
+    ///   `face_entries_sort_by_rank_and_coordinate`, computed pre-layout from
+    ///   the divergent-ancestor ranks. Edges with missing nesting info sort
+    ///   last (`u32::MAX`).
+    /// * `outside_divergent_sibling_index` -- a structural proxy for the
+    ///   contact sort's secondary "approach coordinate" key, which is
+    ///   unavailable before taffy layout. It is the sibling index, at the LCA
+    ///   depth, of the endpoint that lies *outside* this container (the side
+    ///   the edge approaches from).
+    fn cross_container_spacer_sort_key(
+        node_nesting_infos: &NodeNestingInfos<'static>,
+        node_ranks_nested: &NodeRanksNested<'static>,
+        container_node_id: &NodeId<'static>,
+        edge: &Edge<'_>,
+    ) -> (u32, usize) {
+        let (Some(info_from), Some(info_to)) = (
+            node_nesting_infos.get(&edge.from),
+            node_nesting_infos.get(&edge.to),
+        ) else {
+            return (u32::MAX, usize::MAX);
+        };
+
+        let rank_distance =
+            Self::divergent_ancestor_ranks(info_from, info_to, node_ranks_nested)
+                .map(|(rank_low, rank_high)| rank_high.value() - rank_low.value())
+                .unwrap_or(u32::MAX);
+
+        let lca_depth = LcaDepthCalculator::calculate(info_from, info_to);
+        let info_outside = if info_from.ancestor_chain.contains(container_node_id) {
+            info_to
+        } else {
+            info_from
+        };
+        let outside_sibling_index = info_outside
+            .nesting_path
+            .get(lca_depth)
+            .copied()
+            .unwrap_or(usize::MAX);
+
+        (rank_distance, outside_sibling_index)
     }
 
     /// Builds cross-container spacers for a single edge.
