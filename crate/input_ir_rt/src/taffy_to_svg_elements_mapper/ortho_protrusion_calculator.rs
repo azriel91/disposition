@@ -604,7 +604,6 @@ impl OrthoProtrusionCalculator {
                             spacer.entry_y,
                             from_face_for_axis,
                         );
-
                         // --- Entry side of this spacer --- //
                         //
                         // The entry side protrudes into the gap BEFORE
@@ -1287,7 +1286,10 @@ impl OrthoProtrusionCalculator {
     fn jogs_separate_side(
         ordered: &[&RankGapEntry],
         depths: &mut [f32],
-        floor: f32,
+        // The side's band floor is not used here: only spacer legs are re-laid
+        // and they floor at `MIN_PROTRUSION_PX` (see below), independent of the
+        // side's to-endpoint arrow-head floor.
+        _side_floor: f32,
         opp_ordered: &[&RankGapEntry],
         opp_depths: &[f32],
     ) {
@@ -1336,8 +1338,6 @@ impl OrthoProtrusionCalculator {
             let col_j = descent_col(ordered[j]);
             col_j > i_lo + 1e-2 && col_j < i_hi - 1e-2
         };
-        let sweeps_count = |i: usize| -> usize { (0..n).filter(|&j| j != i && sweeps_over(i, j)).count() };
-
         // All entries in one call share a gap side. The jog of an entry sits at
         // `boundary +/- depth` -- `+` on the `Low` side, `-` on the `High` side
         // -- so the same physical nesting (the sweeping leg must clear the swept
@@ -1386,6 +1386,16 @@ impl OrthoProtrusionCalculator {
             })
             .collect();
 
+        // Only spacer legs are re-laid here, and a spacer has no arrow head, so
+        // its shallowest depth is `MIN_PROTRUSION_PX` -- not the side `floor`,
+        // which may be `TO_PROTRUSION_MIN_PX` (the arrow-head clearance reserved
+        // for the side's *to-endpoints*). Clamping spacer legs to that larger
+        // to-endpoint floor would pin the shallow end of a long nested chain too
+        // high and collapse it (e.g. `ir_pass1` vs `layout_contacts` in the
+        // `0044` top gap, where the LCA bucket also holds deeply-nested
+        // to-endpoints). Use the spacer floor for the cap and the placement.
+        let floor = MIN_PROTRUSION_PX;
+
         // The deepest a leg may protrude: its own `rank_gap_px` channel, further
         // bounded so it leaves room above its fixed same-edge partner on the
         // opposite side (`partner_depth`), keeping their summed depth within the
@@ -1408,28 +1418,57 @@ impl OrthoProtrusionCalculator {
         };
 
         // Re-lay the participating legs **deepest-first in span-containment
-        // order**: a leg that sweeps over many other legs' descent columns nests
-        // outside them, so on the `High` side it claims the deepest depths
-        // (more sweeps first) and on the `Low` side the shallowest (fewer sweeps
-        // first). This keeps a fan of overlapping legs nested in the order their
-        // sweeps require, instead of being driven by raw channel width and
-        // cutting across each other (e.g. the top-gap fan in `0044`, or
-        // `labels_offsets` vs `ranks_slots` in `0043`). Within an equal sweep
-        // count the wider channel (which must reach the inter-rank gap to clear
-        // the destination container's label) goes deeper; ties then break by
-        // index.
-        let depth_rank = |i: usize| -> isize {
-            let s = sweeps_count(i) as isize;
+        // order**: a leg that sweeps over another's descent column nests outside
+        // it, so the two need distinct depths with the sweeping leg on the
+        // correct side. A raw sweep *count* is not a valid order -- when `A`
+        // sweeps `B`, `A` must be deeper than `B` even if `B` sweeps more
+        // unrelated legs in total. Use the **longest-path layer** over the
+        // `sweeps_over` relation instead: `layer[i] = 1 + max(layer[j])` over the
+        // legs `i` sweeps over (`0` if none). `A` sweeps `B` then implies
+        // `layer[A] > layer[B]`, so ordering by layer puts the sweeping leg on the
+        // correct side and the ceiling-based placement below nests them.
+        //
+        // The relation is *usually* acyclic (a leg's descent column is an
+        // endpoint of its own span), but two legs whose spans each contain the
+        // other's descent column **can** mutually sweep, forming a cycle. So the
+        // relaxation is capped at `n` passes -- a true DAG converges within its
+        // longest path (<= n), and a degenerate cycle is left with bounded
+        // (approximate) layers rather than looping forever.
+        //
+        // On the `High` side a leg that sweeps over more must be **deeper** (its
+        // jog sits further from the high boundary); on the `Low` side, the
+        // reverse, so the layer sign is folded by `high_side`. Ties break by the
+        // wider channel (`cap`) then index.
+        let mut layer = vec![0usize; n];
+        for _ in 0..n {
+            let mut changed = false;
+            for i in 0..n {
+                let best = (0..n)
+                    .filter(|&j| j != i && sweeps_over(i, j))
+                    .map(|j| layer[j] + 1)
+                    .max()
+                    .unwrap_or(0);
+                if best > layer[i] {
+                    layer[i] = best;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        let layer_key = |i: usize| -> isize {
+            let l = layer[i] as isize;
             if high_side {
-                s
+                l
             } else {
-                -s
+                -l
             }
         };
         let mut order: Vec<usize> = (0..n).filter(|&i| participates[i]).collect();
         order.sort_by(|&a, &b| {
-            depth_rank(b)
-                .cmp(&depth_rank(a))
+            layer_key(b)
+                .cmp(&layer_key(a))
                 .then_with(|| {
                     cap(b)
                         .partial_cmp(&cap(a))
@@ -1459,11 +1498,22 @@ impl OrthoProtrusionCalculator {
                 depth = depth.min(ceiling);
             }
 
-            // Step below any overlapping fixed (non-participating) obstacle whose
-            // depth falls within the separation band.
+            // Step below any overlapping fixed (non-participating) **spacer** leg
+            // whose depth falls within the separation band. Only spacer legs are
+            // obstacles: from / to endpoints share this LCA rank-gap bucket but
+            // sit at unrelated rank-axis positions (a deeply-nested to-endpoint is
+            // registered here yet physically descends far inside the container,
+            // and its placeholder depth is overridden by Steps 5/5.5/5.6), so
+            // treating them as obstacles would wrongly push the top-of-container
+            // spacer legs down onto the floor and collapse them.
             loop {
                 let conflict = (0..n)
-                    .filter(|&j| j != i && !participates[j] && spans_overlap(i, j))
+                    .filter(|&j| {
+                        j != i
+                            && !participates[j]
+                            && movable(ordered[j])
+                            && spans_overlap(i, j)
+                    })
                     .map(|j| depths[j])
                     .filter(|&dj| (dj - depth).abs() < JOG_SEPARATION_MIN_PX)
                     .reduce(f32::min);

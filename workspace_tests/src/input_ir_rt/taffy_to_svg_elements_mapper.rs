@@ -1243,6 +1243,19 @@ fn test_0044_edges_route_around_described_label_with_distinct_return_jogs() {
              so its descent column is not crossed (layout {y_top_layout:.1}, ranks_slots \
              {y_top_ranks:.1}, ranks_gap {y_top_gap:.1})",
         );
+
+        // 4. `ir_pass1` and `layout_contacts` both sweep right across the top gap
+        //    with overlapping lateral spans, so their first jogs must not coincide
+        //    (a collinear overlap reads as one line). `layout_contacts` sweeps over
+        //    `ir_pass1`'s descent column, so it turns higher; `ir_pass1` turns at
+        //    least `JOG_SEPARATION_MIN_PX` below it.
+        let ir_pass1 = edge_for("t_ir_diagram", "t_pass1_path");
+        let y_top_ir_pass1 = top_gap_jog_y(&ir_pass1.path_d);
+        assert!(
+            y_top_ir_pass1 - y_top_layout >= JOG_SEPARATION_MIN_PX,
+            "ir_pass1's first jog ({y_top_ir_pass1:.1}) must be >= {JOG_SEPARATION_MIN_PX} px \
+             below layout_contacts' ({y_top_layout:.1}) so they do not overlap",
+        );
     }
 }
 
@@ -4394,6 +4407,20 @@ fn test_0043_cross_container_fan_from_protrusions_separated() {
                 );
             }
         }
+
+        // Ordering: both `ranks_slots` and `labels_offsets` sweep left, and
+        // `ranks_slots`'s lateral span contains `labels_offsets`'s descent column,
+        // so `ranks_slots` sweeps over it and must turn **higher** (smaller y) so
+        // its sweep passes above `labels_offsets`'s descent rather than crossing
+        // it.
+        let (y_ranks_slots, ..) = jog("t_node_ranks", "t_slot_indices");
+        let (y_labels_offsets, ..) = jog("t_edge_labels", "t_offsets");
+        assert!(
+            y_ranks_slots < y_labels_offsets,
+            "ranks_slots's first jog ({y_ranks_slots:.1}) must be above \
+             labels_offsets's ({y_labels_offsets:.1}) -- it sweeps over the latter's \
+             descent column",
+        );
     }
 }
 
