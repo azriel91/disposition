@@ -91,7 +91,7 @@ Each spacer carries a `TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx { edge_id, rank })
 so the path builder can identify which edge the spacer belongs to and at which rank it sits.
 
 
-## Three Kinds of Spacer
+## Four Kinds of Spacer
 
     EdgeSpacerTaffyNodes {
         # Same-level cross-rank spacers, keyed by intermediate rank.
@@ -102,6 +102,9 @@ so the path builder can identify which edge the spacer belongs to and at which r
 
         # Edge description container spacers, ordered by layout position.
         edge_desc_container_spacer_taffy_node_ids:   Vec<taffy::NodeId>,
+
+        # Text-content (node-label) spacers, ordered by layout position.
+        text_content_spacer_taffy_node_ids:          Vec<taffy::NodeId>,
     }
 
 ### 1. Same-Level Cross-Rank Spacers
@@ -126,6 +129,40 @@ spacer leaf is appended as a direct child of that container, providing a coordin
 crossing edge's path builder routes through the container's visual space rather than jumping over
 it. The described edge whose container it is does **not** receive a spacer inside its own container
 -- its path terminates there.
+
+### 4. Text-Content (Node-Label) Spacers
+
+Built by `EdgeSpacerBuilder::build_text_content_spacers`. Used when a **described** container node
+(one with a `thing_desc`) is entered by a cross-container edge to reach a node nested strictly
+inside it. The node's title + description render as a text block at the top of the node body, above
+its rank containers; without a waypoint there, the entering edge cuts straight across the
+description. One spacer leaf is appended **to the right of the text content** -- the text node and
+its spacers are wrapped in a `FlexDirection::Row`, so a single spacer per edge (not one per text
+line) marks a column just past the label. The edge then bows around the label and descends on its
+outer side before returning to its rank column.
+
+Scope and behaviour differ from the other kinds in three ways:
+
+- **To-side only.** A spacer is created only for the container in which the **`to`** node is nested
+  (`edge.to`'s `ancestor_chain` contains the container). The from side (where the edge merely exits
+  its source) gets none, the diagram root gets none (it contains both endpoints, so the decider
+  skips it), and the container that *is* the `to` node gets none (the path stops at its face).
+- **Excluded from the cross-container column snap.** Unlike cross-container spacers, text-content
+  spacers are **not** passed to `cross_container_spacers_snap_to_column`
+  ([edge_paths.md](edge_paths.md)). This keeps the detour **local** to the text band -- the edge
+  approaches at its normal column, bows out only around the label, then returns to its rank column
+  for the descendants -- rather than the whole descent column being pulled onto the label's far side.
+- **Stored in `text_content_spacer_taffy_node_ids`**, merged as a routing waypoint and ordered by
+  main-axis coordinate (the label sits above rank 0, so it is the first waypoint).
+
+To keep the return jogs (text-band column back to each edge's rank column) at visually distinct
+depths, the text `Row` is given a **bottom margin** of `N * TEXT_CONTENT_SPACER_GAP_PX` (where `N`
+is the number of text spacers), enlarging only the label -> rank-0 gap so the protrusion band has
+room to stagger one jog depth per edge.
+
+> Note: appending the spacers grows the node's width by more than the bare spacer + gap sum, due to
+> a taffy slack-distribution quirk in the text `Row` that has not been fully pinned down. This is
+> cosmetic and may be revisited.
 
 
 ## When Spacer Building is Triggered
@@ -396,6 +433,7 @@ The `EdgeSpacerTaffyNodes` for each edge contains:
         rank_to_spacer_taffy_node_id:               Map<NodeRank, taffy::NodeId>,
         cross_container_spacer_taffy_node_ids:      Vec<taffy::NodeId>,
         edge_desc_container_spacer_taffy_node_ids:  Vec<taffy::NodeId>,
+        text_content_spacer_taffy_node_ids:         Vec<taffy::NodeId>,
     }
 
 `rank_to_spacer_taffy_node_id` maps each intermediate rank value to the single spacer node
@@ -410,8 +448,15 @@ layout to sort and route through them correctly.
 
 `edge_desc_container_spacer_taffy_node_ids` is an unkeyed list of edge description container
 spacer node IDs. Each entry corresponds to a spacer appended inside one `edge_description_container`
-that the edge's path crosses. Like cross-container spacers, the edge path builder sorts all three
+that the edge's path crosses. Like cross-container spacers, the edge path builder sorts all
 kinds together by main-axis coordinate after layout to determine the correct waypoint order.
+
+`text_content_spacer_taffy_node_ids` is an unkeyed list of text-content (node-label) spacer node
+IDs -- one per cross-container edge that enters a described container to reach a node nested inside
+it (see [Text-Content (Node-Label) Spacers](#4-text-content-node-label-spacers)). They are merged
+and sorted with the other kinds by main-axis coordinate, but -- unlike the cross-container list --
+are **excluded from the cross-container column snap**, so the detour around the label stays local
+to the text band.
 
 `TaffyNodeMappings::edge_spacer_taffy_nodes` is consumed by `TaffyToSvgElementsMapper` and the
 edge path routing code in

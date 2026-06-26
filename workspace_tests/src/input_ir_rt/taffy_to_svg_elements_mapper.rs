@@ -48,6 +48,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP,
     INPUT_DIAGRAM_0040_MD_CODE_BLOCK, INPUT_DIAGRAM_0041_MD_CODE_BLOCK_IN_LIST,
     INPUT_DIAGRAM_0042_MD_BLOCKQUOTE, INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1,
+    INPUT_DIAGRAM_0044_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -1091,6 +1092,105 @@ fn test_nested_node_edge_bob_charlie_routing_clears_alice_outer() {
             from_protrusion,
             ARC_RADIUS,
             alice_outer_bottom,
+        );
+    }
+}
+
+/// In `0044`, the described container `t_offset_data` is entered by two
+/// cross-container edges (`edge_dep_ranks_slots__0` -> `t_slot_indices`,
+/// `edge_dep_labels_offsets__0` -> `t_offsets`). Each must route to the **right**
+/// of the description label (not across it) via its text-content spacer, and the
+/// two "return jogs" -- from the label column back to each edge's rank column --
+/// must sit at **distinct** depths so they do not read as one line.
+#[test]
+fn test_0044_edges_route_around_described_label_with_distinct_return_jogs() {
+    // Anchor points of an SVG path's `M`/`L`/`C` commands. For these orthogonal
+    // paths the `C` arcs are tiny, so every numeric pair is close to a routing
+    // waypoint -- sufficient for the spatial checks below.
+    fn path_points(path_d: &str) -> Vec<(f32, f32)> {
+        path_d
+            .split([' ', 'M', 'L', 'C'])
+            .filter_map(|tok| {
+                let (x, y) = tok.split_once(',')?;
+                Some((x.trim().parse::<f32>().ok()?, y.trim().parse::<f32>().ok()?))
+            })
+            .collect()
+    }
+
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0044_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2)
+    {
+        let node = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_offset_data")
+            .expect("Expected t_offset_data in svg_node_infos");
+
+        // Absolute extent of the description text block (spans are node-relative).
+        let label_right = node
+            .text_spans
+            .iter()
+            .map(|s| node.x + s.x + s.width)
+            .fold(f32::MIN, f32::max);
+        let text_top = node
+            .text_spans
+            .iter()
+            .map(|s| node.y + s.y)
+            .fold(f32::MAX, f32::min);
+        let text_bottom = node
+            .text_spans
+            .iter()
+            .map(|s| node.y + s.y)
+            .fold(f32::MIN, f32::max);
+
+        let edge_for = |from: &str, to: &str| {
+            svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == from && e.to_node_id.as_str() == to)
+                .unwrap_or_else(|| panic!("Expected edge {from} -> {to}"))
+        };
+        let ranks_slots = edge_for("t_node_ranks", "t_slot_indices");
+        let labels_offsets = edge_for("t_edge_labels", "t_offsets");
+
+        // 1. Each edge has a vertical descent at/right of the label spanning the
+        //    text band -- i.e. it routes around the label, not across it.
+        for edge in [ranks_slots, labels_offsets] {
+            let descends_right_of_label = path_points(&edge.path_d).windows(2).any(|w| {
+                let (x0, y0) = w[0];
+                let (x1, y1) = w[1];
+                (x0 - x1).abs() < 1.0
+                    && x0 >= label_right - 1.0
+                    && y0.min(y1) <= text_top
+                    && y0.max(y1) >= text_bottom
+            });
+            assert!(
+                descends_right_of_label,
+                "Edge {} -> {} should descend right of the description label \
+                 (label right {:.1}) through the text band [{:.1}, {:.1}]; path: {}",
+                edge.from_node_id, edge.to_node_id, label_right, text_top, text_bottom, edge.path_d,
+            );
+        }
+
+        // 2. The two return jogs (the leftward step back over the label's right
+        //    edge, just below the text band) are at distinct y.
+        let return_jog_y = |path_d: &str| -> f32 {
+            path_points(path_d)
+                .windows(2)
+                .find_map(|w| {
+                    let (x0, _) = w[0];
+                    let (x1, y1) = w[1];
+                    (x0 >= label_right && x1 < label_right && y1 >= text_bottom).then_some(y1)
+                })
+                .expect("Expected a return jog crossing back over the label")
+        };
+        let y_ranks = return_jog_y(&ranks_slots.path_d);
+        let y_labels = return_jog_y(&labels_offsets.path_d);
+        const JOG_SEPARATION_MIN_PX: f32 = 7.0;
+        assert!(
+            (y_ranks - y_labels).abs() >= JOG_SEPARATION_MIN_PX,
+            "Return jogs of the two edges should be >= {JOG_SEPARATION_MIN_PX} px apart \
+             (ranks_slots y {y_ranks:.1}, labels_offsets y {y_labels:.1})",
         );
     }
 }

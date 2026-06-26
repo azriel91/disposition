@@ -400,6 +400,7 @@ impl TaffyDiagramNodeBuilder {
         let taffy_text_content_node_id = if text_content_spacer_ids.is_empty() {
             taffy_text_node_id
         } else {
+            let text_content_spacer_count = text_content_spacer_ids.len();
             let mut text_content_row_children = vec![taffy_text_node_id];
             text_content_row_children.extend(text_content_spacer_ids);
             let text_content_row_style = Style {
@@ -407,6 +408,20 @@ impl TaffyDiagramNodeBuilder {
                 flex_direction: FlexDirection::Row,
                 align_items: Some(AlignItems::Stretch),
                 gap: Size::length(TEXT_CONTENT_SPACER_GAP_PX),
+                // Enlarge only the gap below the label (text band -> rank 0) so
+                // each traversing edge's return jog -- from the text-band column
+                // back to its rank column -- has room to be staggered to a
+                // distinct depth, one band per edge. Taffy adds this margin on
+                // top of the wrapper column's own gap, leaving the inter-rank
+                // gaps untouched.
+                margin: Rect {
+                    left: LengthPercentageAuto::length(0.0),
+                    right: LengthPercentageAuto::length(0.0),
+                    top: LengthPercentageAuto::length(0.0),
+                    bottom: LengthPercentageAuto::length(
+                        text_content_spacer_count as f32 * TEXT_CONTENT_SPACER_GAP_PX,
+                    ),
+                },
                 ..Default::default()
             };
             state
