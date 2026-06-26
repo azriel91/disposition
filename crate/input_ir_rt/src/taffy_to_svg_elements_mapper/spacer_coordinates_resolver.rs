@@ -70,8 +70,20 @@ impl SpacerCoordinatesResolver {
             taffy_tree,
             &spacer_nodes.edge_desc_container_spacer_taffy_node_ids,
         );
+        // Text-content spacers are deliberately **not** snapped onto the
+        // cross-container column: each is a local waypoint at its node's text
+        // band so the edge only bows around that label, rather than having its
+        // whole descent column pulled onto the text's far side.
+        let text_content_spacers = Self::spacers_calculate(
+            rank_dir,
+            taffy_tree,
+            &spacer_nodes.text_content_spacer_taffy_node_ids,
+        );
 
-        if cross_container_spacers.is_empty() && edge_desc_container_spacers.is_empty() {
+        if cross_container_spacers.is_empty()
+            && edge_desc_container_spacers.is_empty()
+            && text_content_spacers.is_empty()
+        {
             // Fast path: only rank-based spacers -- sort by rank as before.
             return Self::rank_spacers_sort_by_rank(rank_spacers);
         }
@@ -84,6 +96,7 @@ impl SpacerCoordinatesResolver {
             .map(|(_rank, spacer_coordinates)| spacer_coordinates)
             .chain(cross_container_spacers)
             .chain(edge_desc_container_spacers)
+            .chain(text_content_spacers)
             .collect();
 
         Self::spacers_sort_by_main_axis(rank_dir, all_spacers)

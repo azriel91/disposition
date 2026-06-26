@@ -25,6 +25,11 @@ use super::{
 };
 use crate::md_text::md_blocks_parser::MdBlocksParser;
 
+/// Gap (in pixels) between a described node's text content and its
+/// text-content edge spacers, and between adjacent spacers, so the snapped
+/// descent columns of multiple traversing edges stay visually separated.
+const TEXT_CONTENT_SPACER_GAP_PX: f32 = 12.0;
+
 /// Builds taffy nodes for diagram nodes, handling both leaf nodes (no children)
 /// and container nodes (with child hierarchies), grouping children by rank.
 pub(crate) struct TaffyDiagramNodeBuilder;
@@ -377,6 +382,41 @@ impl TaffyDiagramNodeBuilder {
         let taffy_text_node_id =
             Self::text_leaf_build(ctx, state, node_id, entity_type, &ir_node_id, text_style);
 
+        // For described nodes, add one "text-content spacer" per cross-container
+        // edge that traverses this node, placed to the right of the text content
+        // in a `Row` wrapper. This gives those edges a waypoint at the text band
+        // so they route around the description rather than across it.
+        let (text_content_spacer_ids, text_content_spacer_taffy_nodes) =
+            EdgeSpacerBuilder::build_text_content_spacers(
+                ctx,
+                state.taffy_tree,
+                &ir_node_id,
+                child_hierarchy,
+            );
+        EdgeSpacerTaffyNodes::map_merge(
+            &mut nested_edge_taffy_nodes.edge_spacer_taffy_nodes,
+            text_content_spacer_taffy_nodes,
+        );
+        let taffy_text_content_node_id = if text_content_spacer_ids.is_empty() {
+            taffy_text_node_id
+        } else {
+            let mut text_content_row_children = vec![taffy_text_node_id];
+            text_content_row_children.extend(text_content_spacer_ids);
+            let text_content_row_style = Style {
+                display: Display::Flex,
+                flex_direction: FlexDirection::Row,
+                align_items: Some(AlignItems::Stretch),
+                gap: Size::length(TEXT_CONTENT_SPACER_GAP_PX),
+                ..Default::default()
+            };
+            state
+                .taffy_tree
+                .new_with_children(text_content_row_style, &text_content_row_children)
+                .unwrap_or_else(|e| {
+                    panic!("Expected to create text content row node for {node_id}. Error: {e}")
+                })
+        };
+
         // Build the child nodes within this container's own hierarchy.
         let child_ctx = TaffyBuildCtx {
             node_hierarchy: child_hierarchy,
@@ -492,7 +532,7 @@ impl TaffyDiagramNodeBuilder {
         // `NodeToTaffyNodeIds` record describing this node's taffy sub-tree.
         let (wrapper_node_id, node_to_taffy_node_ids) = match node_shape {
             NodeShape::Rect(_node_shape_rect) => {
-                let mut wrapper_children = vec![taffy_text_node_id];
+                let mut wrapper_children = vec![taffy_text_content_node_id];
                 wrapper_children.extend(rank_content_node_ids);
 
                 let wrapper_node_id = state
@@ -534,7 +574,10 @@ impl TaffyDiagramNodeBuilder {
 
                 let label_wrapper_node_id = state
                     .taffy_tree
-                    .new_with_children(label_wrapper_style, &[circle_node_id, taffy_text_node_id])
+                    .new_with_children(
+                        label_wrapper_style,
+                        &[circle_node_id, taffy_text_content_node_id],
+                    )
                     .unwrap_or_else(|e| {
                         panic!("Expected to create label wrapper node for {node_id}. Error: {e}")
                     });

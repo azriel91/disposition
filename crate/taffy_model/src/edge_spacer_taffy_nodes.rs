@@ -58,6 +58,18 @@ pub struct EdgeSpacerTaffyNodes {
     /// These spacers are inserted to allow edges to be routed alongside the
     /// edge description container without being obscured by it.
     pub edge_desc_container_spacer_taffy_node_ids: Vec<taffy::NodeId>,
+
+    /// Spacer taffy node IDs placed beside a described node's text content (its
+    /// title + description), so a cross-container edge that enters the node to
+    /// reach a nested child routes around the description text rather than
+    /// across it.
+    ///
+    /// Unlike [`Self::cross_container_spacer_taffy_node_ids`], these are
+    /// **excluded from the cross-container column snap** so the detour around
+    /// the text stays local to the node's text band -- the edge approaches at
+    /// its normal column and only bows out around the label, instead of the
+    /// whole descent column being pulled onto the text's far side.
+    pub text_content_spacer_taffy_node_ids: Vec<taffy::NodeId>,
 }
 
 impl EdgeSpacerTaffyNodes {
@@ -67,6 +79,7 @@ impl EdgeSpacerTaffyNodes {
             rank_to_spacer_taffy_node_id: Map::new(),
             cross_container_spacer_taffy_node_ids: Vec::new(),
             edge_desc_container_spacer_taffy_node_ids: Vec::new(),
+            text_content_spacer_taffy_node_ids: Vec::new(),
         }
     }
 
@@ -83,6 +96,7 @@ impl EdgeSpacerTaffyNodes {
             rank_to_spacer_taffy_node_id,
             cross_container_spacer_taffy_node_ids,
             edge_desc_container_spacer_taffy_node_ids,
+            text_content_spacer_taffy_node_ids,
         } = other;
 
         self.rank_to_spacer_taffy_node_id
@@ -91,6 +105,8 @@ impl EdgeSpacerTaffyNodes {
             .extend(cross_container_spacer_taffy_node_ids);
         self.edge_desc_container_spacer_taffy_node_ids
             .extend(edge_desc_container_spacer_taffy_node_ids);
+        self.text_content_spacer_taffy_node_ids
+            .extend(text_content_spacer_taffy_node_ids);
     }
 
     /// Merges `other` into `target`, combining each edge's spacers field by

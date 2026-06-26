@@ -301,6 +301,155 @@ impl EdgeSpacerBuilder {
         )
     }
 
+    /// Builds one "text-content spacer" per cross-container edge that traverses
+    /// this container, to be appended to the right of the node's text content
+    /// (its title + description) so the edge routes around the description text
+    /// rather than across it.
+    ///
+    /// Returns the ordered spacer node IDs for the caller to place in a `Row`
+    /// wrapper around the text node, plus the per-edge spacer-node map to merge
+    /// into the diagram-wide spacer map.
+    ///
+    /// Only nodes that actually have a description are handled -- an
+    /// undescribed node's text content is just its (short) title, which edges
+    /// do not need to route around, so undescribed diagrams are unchanged.
+    ///
+    /// Unlike [`Self::build_cross_container_spacers`], these spacers are not
+    /// inserted into a rank row. Each is still registered as a cross-container
+    /// spacer of its edge, so it flows through `SpacerCoordinatesResolver`
+    /// (coordinate resolution + column snap) like any other cross-container
+    /// spacer; the text band sits above the rank containers, so its small
+    /// main-axis coordinate makes it the first waypoint along the edge path.
+    ///
+    /// Edges are ordered by [`Self::cross_container_spacer_sort_key`] so the
+    /// text spacers' left-to-right order matches the rank-spacer order and the
+    /// to-face contact order.
+    pub(crate) fn build_text_content_spacers(
+        ctx: TaffyBuildCtx<'_>,
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        container_node_id: &NodeId<'static>,
+        container_node_hierarchy: &NodeHierarchy<'static>,
+    ) -> (
+        Vec<taffy::NodeId>,
+        Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
+    ) {
+        // Only described nodes need their text content routed around.
+        if ctx.thing_descs.get(container_node_id.as_ref()).is_none() {
+            return (Vec::new(), Map::new());
+        }
+
+        let edge_groups = ctx.edge_groups;
+        let node_nesting_infos = ctx.node_nesting_infos;
+        let node_ranks_nested = ctx.node_ranks_nested;
+        let entity_types = ctx.entity_types;
+        let render_options = ctx.render_options;
+
+        let container_node_direct_child_ids: Vec<NodeId<'static>> = container_node_hierarchy
+            .iter()
+            .map(|(child_id, _)| child_id.clone())
+            .collect();
+
+        let mut text_spacer_taffy_node_ids: Vec<taffy::NodeId> = Vec::new();
+        let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
+
+        // Order edges so their text spacers are appended in the same
+        // left-to-right order as their rank spacers / to-face contacts.
+        let mut ordered_edges: Vec<(&EdgeGroupId<'static>, usize, &Edge<'_>)> = edge_groups
+            .iter()
+            .flat_map(|(edge_group_id, edge_group)| {
+                edge_group
+                    .iter()
+                    .enumerate()
+                    .map(move |(edge_index, edge)| (edge_group_id, edge_index, edge))
+            })
+            .collect();
+        ordered_edges.sort_by(
+            |(group_id_a, edge_index_a, edge_a), (group_id_b, edge_index_b, edge_b)| {
+                let key_a = Self::cross_container_spacer_sort_key(
+                    node_nesting_infos,
+                    node_ranks_nested,
+                    container_node_id,
+                    edge_a,
+                );
+                let key_b = Self::cross_container_spacer_sort_key(
+                    node_nesting_infos,
+                    node_ranks_nested,
+                    container_node_id,
+                    edge_b,
+                );
+                key_a
+                    .cmp(&key_b)
+                    .then_with(|| group_id_a.cmp(group_id_b))
+                    .then_with(|| edge_index_a.cmp(edge_index_b))
+            },
+        );
+
+        ordered_edges
+            .into_iter()
+            .for_each(|(edge_group_id, edge_index, edge)| {
+                // Only edges that enter this container from outside to reach a
+                // nested child traverse the text band; the decider returns
+                // `Build` for exactly those (exactly one endpoint inside, and
+                // the container is neither endpoint).
+                let decision = EdgeSpacerBuildDecider::decide(
+                    node_nesting_infos,
+                    container_node_id,
+                    &container_node_direct_child_ids,
+                    edge,
+                );
+                if matches!(decision, EdgeSpacerBuildDecision::Skip(_)) {
+                    return;
+                }
+
+                // A text spacer is only needed on the **to** side: the edge
+                // enters this container to reach a `to` node nested strictly
+                // inside it, and must route around the container's own label to
+                // get there. On the from side the edge exits its source node and
+                // leaves the container without passing the label, so no text
+                // spacer is needed. (The container being the `to` node itself is
+                // already excluded by the decider, since then the path stops at
+                // the node face and never enters.)
+                let to_is_inside = node_nesting_infos
+                    .get(&edge.to)
+                    .map(|info_to| info_to.ancestor_chain.contains(container_node_id))
+                    .unwrap_or(false);
+                if !to_is_inside {
+                    return;
+                }
+
+                let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
+                let edge_spacer_length =
+                    Self::edge_spacer_length(render_options, entity_types, &edge_id);
+                let spacer_style = Style {
+                    min_size: Size {
+                        width: taffy::Dimension::length(edge_spacer_length),
+                        height: taffy::Dimension::length(edge_spacer_length),
+                    },
+                    align_self: Some(AlignSelf::Stretch),
+                    ..Default::default()
+                };
+
+                let spacer_taffy_node_id = taffy_tree
+                    .new_leaf_with_context(
+                        spacer_style,
+                        TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
+                            edge_id: edge_id.clone(),
+                            rank: NodeRank::new(0),
+                        }),
+                    )
+                    .expect("Expected to create text-content spacer leaf node.");
+
+                text_spacer_taffy_node_ids.push(spacer_taffy_node_id);
+                edge_spacer_taffy_nodes
+                    .entry(edge_id)
+                    .or_default()
+                    .text_content_spacer_taffy_node_ids
+                    .push(spacer_taffy_node_id);
+            });
+
+        (text_spacer_taffy_node_ids, edge_spacer_taffy_nodes)
+    }
+
     /// Builds cross-container spacers for a single edge.
     ///
     /// # Parameters
