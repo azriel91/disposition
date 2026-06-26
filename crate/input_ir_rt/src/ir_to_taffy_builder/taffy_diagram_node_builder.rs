@@ -405,6 +405,10 @@ impl TaffyDiagramNodeBuilder {
             text_content_row_children.extend(text_content_spacer_ids);
             let text_content_row_style = Style {
                 display: Display::Flex,
+                // Text-content spacers are only built for `TopToBottom` (see
+                // `EdgeSpacerBuilder::build_text_content_spacers`), where the
+                // label band is a horizontal strip and the spacers sit in a row
+                // to its right.
                 flex_direction: FlexDirection::Row,
                 align_items: Some(AlignItems::Stretch),
                 gap: Size::length(TEXT_CONTENT_SPACER_GAP_PX),

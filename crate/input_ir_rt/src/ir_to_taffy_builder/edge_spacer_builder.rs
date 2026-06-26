@@ -338,6 +338,20 @@ impl EdgeSpacerBuilder {
             return (Vec::new(), Map::new());
         }
 
+        // The description label always sits at the **top** of the container (the
+        // node wrapper is a flex column with the label above its rank
+        // containers). Only `TopToBottom` routes external edges *in through that
+        // top band* on their way to a nested child, so only it risks the edge
+        // crossing the label. For every other `RankDir` the edge enters from a
+        // side (`LeftToRight` / `RightToLeft`) or from the bottom
+        // (`BottomToTop`) at the rank level -- below the label -- and the rank
+        // spacers already keep it there, so no text-content spacer is needed.
+        // Adding one for those directions mis-routes the path (the spacer's tiny
+        // main-axis coordinate is no longer "before" the ranks), so skip them.
+        if !ctx.render_options.rank_dir.is_default() {
+            return (Vec::new(), Map::new());
+        }
+
         let edge_groups = ctx.edge_groups;
         let node_nesting_infos = ctx.node_nesting_infos;
         let node_ranks_nested = ctx.node_ranks_nested;

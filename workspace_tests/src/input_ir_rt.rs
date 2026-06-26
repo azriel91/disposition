@@ -97,6 +97,15 @@ pub(crate) const INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1: &str 
 pub(crate) const INPUT_DIAGRAM_0044_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2: &str =
     include_str!("input_diagram/0044_edge_offsets_and_protrusion_complex_2.yaml");
 
+pub(crate) const INPUT_DIAGRAM_0045_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_LEFT_TO_RIGHT: &str =
+    include_str!("input_diagram/0045_edge_offsets_and_protrusion_complex_2_left_to_right.yaml");
+
+pub(crate) const INPUT_DIAGRAM_0046_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_RIGHT_TO_LEFT: &str =
+    include_str!("input_diagram/0046_edge_offsets_and_protrusion_complex_2_right_to_left.yaml");
+
+pub(crate) const INPUT_DIAGRAM_0047_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_BOTTOM_TO_TOP: &str =
+    include_str!("input_diagram/0047_edge_offsets_and_protrusion_complex_2_bottom_to_top.yaml");
+
 mod diagram_generator;
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

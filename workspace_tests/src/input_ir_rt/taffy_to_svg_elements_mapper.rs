@@ -49,6 +49,9 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0040_MD_CODE_BLOCK, INPUT_DIAGRAM_0041_MD_CODE_BLOCK_IN_LIST,
     INPUT_DIAGRAM_0042_MD_BLOCKQUOTE, INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1,
     INPUT_DIAGRAM_0044_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2,
+    INPUT_DIAGRAM_0045_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_LEFT_TO_RIGHT,
+    INPUT_DIAGRAM_0046_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_RIGHT_TO_LEFT,
+    INPUT_DIAGRAM_0047_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_BOTTOM_TO_TOP,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -4600,6 +4603,51 @@ fn test_0038_mid_rank_to_high_rank_right_to_left_routes_cleanly() {
 fn test_0039_mid_rank_to_high_rank_bottom_to_top_routes_cleanly() {
     assert_mid_rank_to_high_rank_routes_cleanly(
         INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP,
+        FlowAxis::Vertical,
+    );
+}
+
+/// `0045` / `0046` / `0047` are `0044` (the described-container fan) rotated to
+/// `left_to_right` / `right_to_left` / `bottom_to_top`. In those directions the
+/// description label sits *above* the rank flow (the node wrapper is a flex
+/// column with the label above its rank containers), so external edges enter at
+/// the rank level -- below the label -- and need no text-content spacer. Building
+/// one (only `TopToBottom` needs it) mis-routed the path back up to the label
+/// band, producing a backward zigzag. This asserts every dependency edge now
+/// flows monotonically along the rank axis.
+fn assert_described_container_fan_routes_cleanly(input_diagram: &str, axis: FlowAxis) {
+    for svg_elements in build_svg_elements_for_diagram(input_diagram) {
+        for edge in svg_elements.svg_edge_infos.iter() {
+            // Only orthogonal dependency edges follow the rank flow; interaction
+            // (`txn_*`) edges are direct curves and are exempt.
+            if !edge.edge_group_id.as_str().starts_with("edge_dep_") {
+                continue;
+            }
+            assert_edge_path_main_axis_monotonic(&edge.path_d, axis);
+        }
+    }
+}
+
+#[test]
+fn test_0045_described_container_fan_left_to_right_routes_cleanly() {
+    assert_described_container_fan_routes_cleanly(
+        INPUT_DIAGRAM_0045_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_LEFT_TO_RIGHT,
+        FlowAxis::Horizontal,
+    );
+}
+
+#[test]
+fn test_0046_described_container_fan_right_to_left_routes_cleanly() {
+    assert_described_container_fan_routes_cleanly(
+        INPUT_DIAGRAM_0046_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_RIGHT_TO_LEFT,
+        FlowAxis::Horizontal,
+    );
+}
+
+#[test]
+fn test_0047_described_container_fan_bottom_to_top_routes_cleanly() {
+    assert_described_container_fan_routes_cleanly(
+        INPUT_DIAGRAM_0047_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_BOTTOM_TO_TOP,
         FlowAxis::Vertical,
     );
 }

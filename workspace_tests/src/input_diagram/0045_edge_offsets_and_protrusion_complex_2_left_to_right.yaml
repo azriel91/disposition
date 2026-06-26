@@ -1,0 +1,144 @@
+things:
+  t_inputs:
+    t_ir_diagram: {}
+    t_taffy_layout: {}
+    t_node_ranks: {}
+    t_edge_labels: {}
+
+  t_offset_data:
+    t_pass1_path: {}
+    t_face_contacts: {}
+    t_slot_indices: {}
+    t_offsets: {}
+
+  t_protrusion_data:
+    t_spacer_coords: {}
+    t_rank_gap_entries: {}
+    t_protrusion_params: {}
+
+  t_svg_path: {}
+
+thing_names:
+  t_inputs: Inputs
+  t_ir_diagram: IR Diagram
+  t_taffy_layout: Taffy Layout
+  t_node_ranks: NodeRanksNested
+  t_edge_labels: Edge Labels / Descs
+
+  t_offset_data: Offset Data
+  t_pass1_path: Pass-1 Path
+  t_face_contacts: Face Contact Entries
+  t_slot_indices: Slot Indices
+  t_offsets: EdgeContactPointOffsets
+
+  t_protrusion_data: Protrusion Data
+  t_spacer_coords: Spacer Coordinates
+  t_rank_gap_entries: Rank Gap Entries
+  t_protrusion_params: OrthoProtrusionParams
+
+  t_svg_path: Final SVG Path
+
+thing_descs:
+  t_offset_data: |-
+    Some markdown context for Offset Data.
+
+    1. Need to make sure edges don't cross this label.
+    2. Or this list item.
+
+  t_protrusion_data: |-
+    Some markdown context for Protrusion Data.
+
+    ```
+    and not this code block
+    ```
+
+thing_dependencies:
+  edge_dep_ir_pass1:
+    kind: sequence
+    things: [t_ir_diagram, t_pass1_path]
+  edge_dep_pass1_contacts:
+    kind: sequence
+    things: [t_pass1_path, t_face_contacts]
+  edge_dep_layout_contacts:
+    kind: sequence
+    things: [t_taffy_layout, t_face_contacts]
+  edge_dep_contacts_slots:
+    kind: sequence
+    things: [t_face_contacts, t_slot_indices]
+  edge_dep_ranks_slots:
+    kind: sequence
+    things: [t_node_ranks, t_slot_indices]
+  edge_dep_slots_offsets:
+    kind: sequence
+    things: [t_slot_indices, t_offsets]
+  edge_dep_labels_offsets:
+    kind: sequence
+    things: [t_edge_labels, t_offsets]
+
+  edge_dep_layout_spacers:
+    kind: sequence
+    things: [t_taffy_layout, t_spacer_coords]
+  edge_dep_spacers_gap:
+    kind: sequence
+    things: [t_spacer_coords, t_rank_gap_entries]
+  edge_dep_ranks_gap:
+    kind: sequence
+    things: [t_node_ranks, t_rank_gap_entries]
+  edge_dep_offsets_gap:
+    kind: sequence
+    things: [t_offsets, t_rank_gap_entries]
+  edge_dep_gap_params:
+    kind: sequence
+    things: [t_rank_gap_entries, t_protrusion_params]
+
+  edge_dep_offsets_svg:
+    kind: sequence
+    things: [t_offsets, t_svg_path]
+  edge_dep_params_svg:
+    kind: sequence
+    things: [t_protrusion_params, t_svg_path]
+
+thing_interactions:
+  txn_pass1:
+    kind: sequence
+    things:
+      - t_ir_diagram
+      - t_pass1_path
+  txn_collect_contacts:
+    kind: sequence
+    things:
+      - t_pass1_path
+      - t_face_contacts
+  txn_slots:
+    kind: sequence
+    things:
+      - t_face_contacts
+      - t_slot_indices
+  txn_offsets:
+    kind: sequence
+    things:
+      - t_slot_indices
+      - t_offsets
+  txn_spacers:
+    kind: sequence
+    things:
+      - t_taffy_layout
+      - t_spacer_coords
+  txn_gap_entries:
+    kind: sequence
+    things:
+      - t_spacer_coords
+      - t_rank_gap_entries
+  txn_depths:
+    kind: sequence
+    things:
+      - t_rank_gap_entries
+      - t_protrusion_params
+  txn_svg:
+    kind: sequence
+    things:
+      - t_protrusion_params
+      - t_svg_path
+
+render_options:
+  rank_dir: left_to_right
