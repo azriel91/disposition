@@ -1309,6 +1309,54 @@ impl OrthoProtrusionCalculator {
             i_hi.min(j_hi) - i_lo.max(j_lo) > 1e-2
         };
 
+        // The **descent column** of a leg: the cross-axis coordinate of the
+        // spacer / node the path continues along (descends / passes through)
+        // *after* this lateral jog, in the travel direction. A leg whose span
+        // sweeps over another leg's descent column crosses that descent unless
+        // the two jogs are nested at distinct depths. For a spacer-entry or
+        // to-endpoint the path turns onto and then continues along the
+        // endpoint's **own** column (`cross_axis_coord`); for a from-endpoint or
+        // spacer-exit it turns off toward the **next** contact, continuing along
+        // that column (`jog_far_cross_axis`).
+        let descent_col = |entry: &RankGapEntry| -> f32 {
+            match entry.endpoint_kind {
+                RankGapEndpointKind::SpacerEntry { .. } | RankGapEndpointKind::ToEndpoint => {
+                    entry.cross_axis_coord
+                }
+                RankGapEndpointKind::FromEndpoint | RankGapEndpointKind::SpacerExit { .. } => {
+                    entry.jog_far_cross_axis
+                }
+            }
+        };
+        // `i` sweeps over `j` when `j`'s descent column lies strictly inside
+        // `i`'s lateral span, so `i`'s leg passes over the vertical line `j`
+        // descends along.
+        let sweeps_over = |i: usize, j: usize| -> bool {
+            let (i_lo, i_hi) = span(ordered[i]);
+            let col_j = descent_col(ordered[j]);
+            col_j > i_lo + 1e-2 && col_j < i_hi - 1e-2
+        };
+        let sweeps_count = |i: usize| -> usize { (0..n).filter(|&j| j != i && sweeps_over(i, j)).count() };
+
+        // All entries in one call share a gap side. The jog of an entry sits at
+        // `boundary +/- depth` -- `+` on the `Low` side, `-` on the `High` side
+        // -- so the same physical nesting (the sweeping leg must clear the swept
+        // leg's descent) maps to **opposite** depth orders per side: on the
+        // `High` side a leg that sweeps over more descents must be **deeper**; on
+        // the `Low` side it must be **shallower**.
+        let high_side = matches!(ordered[0].gap_side, GapSide::High);
+        // True when `i` must be deeper than `j` for their jogs to nest without
+        // crossing (only meaningful when `i` sweeps over `j`).
+        let i_should_be_deeper = |i: usize, j: usize| -> bool {
+            if sweeps_over(i, j) {
+                high_side
+            } else if sweeps_over(j, i) {
+                !high_side
+            } else {
+                false
+            }
+        };
+
         let movable = |entry: &RankGapEntry| -> bool {
             matches!(
                 entry.endpoint_kind,
@@ -1316,15 +1364,24 @@ impl OrthoProtrusionCalculator {
             )
         };
 
-        // Only spacer legs that overlap another collapsed leg are moved; every
-        // other entry keeps its band-split depth and acts as a fixed obstacle.
+        // A spacer leg is re-nested when it overlaps another leg and either (a)
+        // their depths have **collapsed** (within `JOG_SEPARATION_MIN_PX`,
+        // reading as one line) or (b) their depth order **violates** the
+        // span-containment nesting (a leg that sweeps over another's descent
+        // column is not on the correct side of it). Legs that are already nested
+        // and separated keep their band-split depth and act as fixed obstacles,
+        // so correctly-routed buckets are byte-for-byte unchanged.
         let participates: Vec<bool> = (0..n)
             .map(|i| {
                 movable(ordered[i])
                     && (0..n).any(|j| {
-                        j != i
-                            && spans_overlap(i, j)
-                            && (depths[i] - depths[j]).abs() < JOG_SEPARATION_MIN_PX
+                        if j == i || !spans_overlap(i, j) {
+                            return false;
+                        }
+                        let collapsed = (depths[i] - depths[j]).abs() < JOG_SEPARATION_MIN_PX;
+                        let misordered = (i_should_be_deeper(i, j) && depths[i] <= depths[j])
+                            || (i_should_be_deeper(j, i) && depths[j] <= depths[i]);
+                        collapsed || misordered
                     })
             })
             .collect();
@@ -1350,25 +1407,29 @@ impl OrthoProtrusionCalculator {
             own.min(bound).max(floor)
         };
 
-        // Re-lay the participating legs in order of their lateral leg's **far**
-        // cross-axis coordinate (`jog_far_cross_axis` -- the previous contact /
-        // source column the leg sweeps back to), nearest-first. Legs reaching
-        // back to an inner source claim the deepest depths; legs reaching back
-        // to an outer source get the shallower depths. This keeps a fan of
-        // overlapping legs **nested** in source order so a leg sourced further
-        // out stays shallower and its long sweep passes on the spacer side of
-        // the inner legs' descents, rather than being driven deepest by raw
-        // channel width and cutting across them (e.g. `labels_offsets` vs
-        // `ranks_slots` in `0043`). Within an equal far-coordinate the wider
-        // channel (which must reach the inter-rank gap to clear the destination
-        // container's label) goes deeper; ties then break by the incoming
-        // deepest-first order.
+        // Re-lay the participating legs **deepest-first in span-containment
+        // order**: a leg that sweeps over many other legs' descent columns nests
+        // outside them, so on the `High` side it claims the deepest depths
+        // (more sweeps first) and on the `Low` side the shallowest (fewer sweeps
+        // first). This keeps a fan of overlapping legs nested in the order their
+        // sweeps require, instead of being driven by raw channel width and
+        // cutting across each other (e.g. the top-gap fan in `0044`, or
+        // `labels_offsets` vs `ranks_slots` in `0043`). Within an equal sweep
+        // count the wider channel (which must reach the inter-rank gap to clear
+        // the destination container's label) goes deeper; ties then break by
+        // index.
+        let depth_rank = |i: usize| -> isize {
+            let s = sweeps_count(i) as isize;
+            if high_side {
+                s
+            } else {
+                -s
+            }
+        };
         let mut order: Vec<usize> = (0..n).filter(|&i| participates[i]).collect();
         order.sort_by(|&a, &b| {
-            ordered[a]
-                .jog_far_cross_axis
-                .partial_cmp(&ordered[b].jog_far_cross_axis)
-                .unwrap_or(std::cmp::Ordering::Equal)
+            depth_rank(b)
+                .cmp(&depth_rank(a))
                 .then_with(|| {
                     cap(b)
                         .partial_cmp(&cap(a))
@@ -1381,15 +1442,28 @@ impl OrthoProtrusionCalculator {
             let i = order[placed];
             let cap_i = cap(i);
             let mut depth = cap_i;
+
+            // Enforce the nesting order: every overlapping already-placed
+            // participating leg was placed deeper (earlier in `order`), so this
+            // leg must sit at least `JOG_SEPARATION_MIN_PX` shallower than the
+            // shallowest of them -- even when its own channel `cap` would
+            // otherwise leave it deeper. This makes the span-containment order
+            // hold when the legs' channel widths are not monotonic with the
+            // nesting order (e.g. the top-gap fan in `0044`).
+            if let Some(ceiling) = order[..placed]
+                .iter()
+                .filter(|&&j| spans_overlap(i, j))
+                .map(|&j| depths[j] - JOG_SEPARATION_MIN_PX)
+                .reduce(f32::min)
+            {
+                depth = depth.min(ceiling);
+            }
+
+            // Step below any overlapping fixed (non-participating) obstacle whose
+            // depth falls within the separation band.
             loop {
-                // The deepest already-fixed / already-placed overlapping depth
-                // within the separation band of the current candidate, if any.
                 let conflict = (0..n)
-                    .filter(|&j| {
-                        j != i
-                            && spans_overlap(i, j)
-                            && (!participates[j] || order[..placed].contains(&j))
-                    })
+                    .filter(|&j| j != i && !participates[j] && spans_overlap(i, j))
                     .map(|j| depths[j])
                     .filter(|&dj| (dj - depth).abs() < JOG_SEPARATION_MIN_PX)
                     .reduce(f32::min);

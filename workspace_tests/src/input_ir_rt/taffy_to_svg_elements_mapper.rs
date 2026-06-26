@@ -1150,12 +1150,14 @@ fn test_0044_edges_route_around_described_label_with_distinct_return_jogs() {
                 .find(|e| e.from_node_id.as_str() == from && e.to_node_id.as_str() == to)
                 .unwrap_or_else(|| panic!("Expected edge {from} -> {to}"))
         };
+        let layout_contacts = edge_for("t_taffy_layout", "t_face_contacts");
         let ranks_slots = edge_for("t_node_ranks", "t_slot_indices");
+        let ranks_gap = edge_for("t_node_ranks", "t_rank_gap_entries");
         let labels_offsets = edge_for("t_edge_labels", "t_offsets");
 
         // 1. Each edge has a vertical descent at/right of the label spanning the
         //    text band -- i.e. it routes around the label, not across it.
-        for edge in [ranks_slots, labels_offsets] {
+        for edge in [layout_contacts, ranks_slots, labels_offsets] {
             let descends_right_of_label = path_points(&edge.path_d).windows(2).any(|w| {
                 let (x0, y0) = w[0];
                 let (x1, y1) = w[1];
@@ -1172,8 +1174,15 @@ fn test_0044_edges_route_around_described_label_with_distinct_return_jogs() {
             );
         }
 
-        // 2. The two return jogs (the leftward step back over the label's right
-        //    edge, just below the text band) are at distinct y.
+        // 2. The return jogs (the leftward step back over the label's right edge,
+        //    below the text band) must be ordered by how far left each edge
+        //    sweeps -- the edge reaching the innermost (leftmost) rank column
+        //    turns highest (smallest y) so its long sweep passes above the other
+        //    edges' descents rather than across them -- and each must clear the
+        //    rendered text. `layout_contacts` -> `t_face_contacts` (leftmost) is
+        //    above `ranks_slots` -> `t_slot_indices`, which is above
+        //    `labels_offsets` -> `t_offsets` (rightmost). The jogs must also be
+        //    pairwise separated so they do not read as one line.
         let return_jog_y = |path_d: &str| -> f32 {
             path_points(path_d)
                 .windows(2)
@@ -1184,13 +1193,55 @@ fn test_0044_edges_route_around_described_label_with_distinct_return_jogs() {
                 })
                 .expect("Expected a return jog crossing back over the label")
         };
+        let y_layout = return_jog_y(&layout_contacts.path_d);
         let y_ranks = return_jog_y(&ranks_slots.path_d);
         let y_labels = return_jog_y(&labels_offsets.path_d);
         const JOG_SEPARATION_MIN_PX: f32 = 7.0;
         assert!(
-            (y_ranks - y_labels).abs() >= JOG_SEPARATION_MIN_PX,
-            "Return jogs of the two edges should be >= {JOG_SEPARATION_MIN_PX} px apart \
-             (ranks_slots y {y_ranks:.1}, labels_offsets y {y_labels:.1})",
+            y_layout + JOG_SEPARATION_MIN_PX <= y_ranks
+                && y_ranks + JOG_SEPARATION_MIN_PX <= y_labels,
+            "Return jogs should be ordered layout_contacts < ranks_slots < labels_offsets \
+             and >= {JOG_SEPARATION_MIN_PX} px apart (layout {y_layout:.1}, ranks {y_ranks:.1}, \
+             labels {y_labels:.1})",
+        );
+
+        // 3. In the top rank gap (between rank 0 and the container), the edge that
+        //    descends at the innermost column (`layout_contacts`, whose descent is
+        //    swept over by the other two) must turn **lowest** so its descent
+        //    column begins below the others' lateral legs -- otherwise those legs
+        //    cross it. The top gap lies between the from-nodes' bottom face and
+        //    the container's top.
+        let container_top = node.y;
+        let from_face_y = layout_contacts
+            .path_d
+            .split(['M', 'L', 'C', ' '])
+            .filter_map(|tok| tok.split_once(','))
+            .filter_map(|(_, y)| y.trim().parse::<f32>().ok())
+            .next()
+            .expect("Expected a start y");
+        let top_gap_jog_y = |path_d: &str| -> f32 {
+            path_points(path_d)
+                .windows(2)
+                .find_map(|w| {
+                    let (x0, y0) = w[0];
+                    let (x1, y1) = w[1];
+                    // First lateral (x-changing, y-flat) leg within the top gap.
+                    ((x1 - x0).abs() > 1.0
+                        && (y1 - y0).abs() < 1.0
+                        && y1 > from_face_y
+                        && y1 < container_top)
+                        .then_some(y1)
+                })
+                .expect("Expected a lateral jog in the top rank gap")
+        };
+        let y_top_layout = top_gap_jog_y(&layout_contacts.path_d);
+        let y_top_ranks = top_gap_jog_y(&ranks_slots.path_d);
+        let y_top_gap = top_gap_jog_y(&ranks_gap.path_d);
+        assert!(
+            y_top_layout > y_top_ranks && y_top_layout > y_top_gap,
+            "In the top rank gap, layout_contacts must turn below ranks_slots and ranks_gap \
+             so its descent column is not crossed (layout {y_top_layout:.1}, ranks_slots \
+             {y_top_ranks:.1}, ranks_gap {y_top_gap:.1})",
         );
     }
 }
