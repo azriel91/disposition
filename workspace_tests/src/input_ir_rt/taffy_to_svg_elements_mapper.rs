@@ -4608,13 +4608,20 @@ fn test_0039_mid_rank_to_high_rank_bottom_to_top_routes_cleanly() {
 }
 
 /// `0045` / `0046` / `0047` are `0044` (the described-container fan) rotated to
-/// `left_to_right` / `right_to_left` / `bottom_to_top`. In those directions the
-/// description label sits *above* the rank flow (the node wrapper is a flex
-/// column with the label above its rank containers), so external edges enter at
-/// the rank level -- below the label -- and need no text-content spacer. Building
-/// one (only `TopToBottom` needs it) mis-routed the path back up to the label
-/// band, producing a backward zigzag. This asserts every dependency edge now
-/// flows monotonically along the rank axis.
+/// `left_to_right` / `right_to_left` / `bottom_to_top`. The description label
+/// always sits at the *top* of the node wrapper (a flex column with the label
+/// above its rank containers), regardless of `RankDir`.
+///
+/// For the horizontal flows (`left_to_right` / `right_to_left`) the label is a
+/// side strip and external edges enter at the rank level -- past the label, not
+/// through it -- so no text-content spacer is built. For `bottom_to_top` the
+/// ranks are reversed but the label stays on top, so an edge leaving a nested
+/// high-rank `from` node exits *up through* the label band and does need a
+/// text-content spacer -- built for the `from` side (the mirror of `TopToBottom`'s
+/// `to` side). That from-side waypoint sits between the from-node and to-node, so
+/// the path still flows monotonically; the earlier `to`-side attempt pointed back
+/// at the *other* container's label and produced a backward zigzag. This asserts
+/// every dependency edge flows monotonically along the rank axis.
 fn assert_described_container_fan_routes_cleanly(input_diagram: &str, axis: FlowAxis) {
     for svg_elements in build_svg_elements_for_diagram(input_diagram) {
         for edge in svg_elements.svg_edge_infos.iter() {

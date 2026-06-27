@@ -118,12 +118,27 @@ impl SpacerCoordinatesResolver {
     /// rows' nodes (the gap side they were appended on), so collapsing them onto
     /// the single **outermost** coordinate keeps the column clear of every row's
     /// node -- each row's node ends at or before its own spacer, which is at or
-    /// inside the chosen extreme. The outermost coordinate is the **maximum**
-    /// for forward flows (`TopToBottom` / `LeftToRight`, spacers appended after
-    /// the nodes) and the **minimum** for reversed flows (`BottomToTop` /
-    /// `RightToLeft`, whose rank rows use a reversed flex direction so appended
-    /// spacers land on the low side). A single spacer is already a straight
-    /// column, so the snap is a no-op below two.
+    /// inside the chosen extreme.
+    ///
+    /// The outermost coordinate is the **maximum** in every `RankDir`. The nodes
+    /// in each content-sized rank row are packed toward the low-coordinate side
+    /// (left / top) and the appended spacers toward the high-coordinate side:
+    ///
+    /// * Forward flows (`TopToBottom` / `LeftToRight`) use an un-reversed flex
+    ///   direction, so the spacers -- appended after the nodes -- render at the
+    ///   high-coordinate end.
+    /// * Reversed flows (`BottomToTop` / `RightToLeft`) use a reversed flex
+    ///   direction, but their rank rows are also reordered by
+    ///   `TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed`,
+    ///   which moves the appended spacers to the row's start -- and a reversed
+    ///   flex direction renders the start at the high-coordinate end. So they too
+    ///   land on the max side. (An earlier version snapped reversed flows to the
+    ///   minimum; that only stayed clear when every row had the same cross-axis
+    ///   extent -- e.g. `RightToLeft`'s equal-height rows -- and routed the column
+    ///   over the wider rows otherwise, e.g. `BottomToTop` in `0047`.)
+    ///
+    /// A single spacer is already a straight column, so the snap is a no-op below
+    /// two.
     fn cross_container_spacers_snap_to_column(
         rank_dir: RankDir,
         cross_container_spacers: &mut [SpacerCoordinates],
@@ -132,7 +147,6 @@ impl SpacerCoordinatesResolver {
             return;
         }
 
-        let reversed = matches!(rank_dir, RankDir::BottomToTop | RankDir::RightToLeft);
         let vertical_flow = matches!(rank_dir, RankDir::TopToBottom | RankDir::BottomToTop);
 
         let cross_axis = |spacer_coordinates: &SpacerCoordinates| {
@@ -146,13 +160,7 @@ impl SpacerCoordinatesResolver {
         let Some(column) = cross_container_spacers
             .iter()
             .map(cross_axis)
-            .reduce(|acc, value| {
-                if reversed {
-                    acc.min(value)
-                } else {
-                    acc.max(value)
-                }
-            })
+            .reduce(f32::max)
         else {
             return;
         };

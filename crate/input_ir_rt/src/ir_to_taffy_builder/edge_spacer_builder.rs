@@ -359,17 +359,27 @@ impl EdgeSpacerBuilder {
             };
         }
 
-        // The description label always sits at the **top** of the container (the
-        // node wrapper is a flex column with the label above its rank
-        // containers). Only `TopToBottom` routes external edges *in through that
-        // top band* on their way to a nested child, so only it risks the edge
-        // crossing the label. For every other `RankDir` the edge enters from a
-        // side (`LeftToRight` / `RightToLeft`) or from the bottom
-        // (`BottomToTop`) at the rank level -- below the label -- and the rank
-        // spacers already keep it there, so no text-content spacer is needed.
-        // Adding one for those directions mis-routes the path (the spacer's tiny
-        // main-axis coordinate is no longer "before" the ranks), so skip them.
-        if !matches!(ctx.render_options.rank_dir, RankDir::TopToBottom) {
+        // The description label always sits at the **top** (min main-axis) of the
+        // container -- the node wrapper is a flex column with the label above its
+        // rank containers, regardless of `RankDir`. An edge crosses the label only
+        // when its in-container leg runs through that top band, i.e. when the
+        // *external* endpoint lies on the top side of the container:
+        //
+        // * `TopToBottom`: top = lowest rank, so the external endpoint is the
+        //   lower-rank `from` and the inside (label-crossing) endpoint is `to`.
+        // * `BottomToTop`: ranks are reversed, top = highest rank, so the external
+        //   endpoint is the higher-rank `to` and the inside endpoint is `from`.
+        //
+        // Both vertical directions therefore need a text-content spacer (built for
+        // the appropriate inside endpoint below). For the horizontal directions
+        // (`LeftToRight` / `RightToLeft`) the label is a side strip and edges enter
+        // at the rank level -- past the label, not through it -- so the rank
+        // spacers already keep them clear and a text-content spacer would only
+        // mis-route the path. Skip those.
+        if !matches!(
+            ctx.render_options.rank_dir,
+            RankDir::TopToBottom | RankDir::BottomToTop
+        ) {
             return TextContentSpacersBuilt {
                 spacer_taffy_node_ids: Vec::new(),
                 edge_spacer_taffy_nodes: Map::new(),
@@ -441,19 +451,29 @@ impl EdgeSpacerBuilder {
                     return;
                 }
 
-                // A text spacer is only needed on the **to** side: the edge
-                // enters this container to reach a `to` node nested strictly
-                // inside it, and must route around the container's own label to
-                // get there. On the from side the edge exits its source node and
-                // leaves the container without passing the label, so no text
-                // spacer is needed. (The container being the `to` node itself is
-                // already excluded by the decider, since then the path stops at
-                // the node face and never enters.)
-                let to_is_inside = node_nesting_infos
-                    .get(&edge.to)
-                    .map(|info_to| info_to.ancestor_chain.contains(container_node_id))
+                // The text spacer is only needed for the endpoint nested strictly
+                // inside this container whose leg runs through the top label band
+                // (see the `RankDir` reasoning in the early-return above):
+                //
+                // * `TopToBottom`: the `to` endpoint -- the edge descends in from
+                //   the top (low-rank) side to reach a nested `to`.
+                // * `BottomToTop`: the `from` endpoint -- the edge exits upward
+                //   through the top (high-rank) side from a nested `from`.
+                //
+                // The opposite endpoint enters/exits via the bottom (rank-level)
+                // face without passing the label, so it needs no text spacer. (The
+                // container being the endpoint node itself is already excluded by
+                // the decider, since then the path stops at the node face and
+                // never enters.)
+                let inside_node_id = match render_options.rank_dir {
+                    RankDir::BottomToTop => &edge.from,
+                    _ => &edge.to,
+                };
+                let inside_endpoint_is_inside = node_nesting_infos
+                    .get(inside_node_id)
+                    .map(|info| info.ancestor_chain.contains(container_node_id))
                     .unwrap_or(false);
-                if !to_is_inside {
+                if !inside_endpoint_is_inside {
                     return;
                 }
 
