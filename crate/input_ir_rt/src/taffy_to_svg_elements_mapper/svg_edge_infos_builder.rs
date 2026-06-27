@@ -965,13 +965,13 @@ impl SvgEdgeInfosBuilder {
     ///
     /// Sharing a face-axis coordinate is necessary but not sufficient for two
     /// contacts to overlap: their stubs must also protrude into the same
-    /// inter-rank gap. That holds when the nodes are in the same rank row (equal
-    /// `main_axis_coord`) or one is nested inside the other (the stubs are
-    /// collinear through the container boundary). Vertically-stacked siblings at
-    /// different ranks share a face-axis coordinate but protrude into different
-    /// gaps, so they are kept apart here. The cluster is partitioned into
-    /// connected components under this relation, and each component is
-    /// redistributed independently.
+    /// inter-rank gap. That holds when the nodes are in the same rank row
+    /// (equal `main_axis_coord`) or one is nested inside the other (the
+    /// stubs are collinear through the container boundary).
+    /// Vertically-stacked siblings at different ranks share a face-axis
+    /// coordinate but protrude into different gaps, so they are kept apart
+    /// here. The cluster is partitioned into connected components under
+    /// this relation, and each component is redistributed independently.
     fn face_offsets_collision_cluster_separate<'id>(
         cluster: &[FaceContactCollisionRecord<'id>],
         node_nesting_infos: &NodeNestingInfos<'id>,
@@ -1007,7 +1007,8 @@ impl SvgEdgeInfosBuilder {
 
         for i in 0..n {
             for j in (i + 1)..n {
-                if Self::collision_records_compatible(&cluster[i], &cluster[j], node_nesting_infos) {
+                if Self::collision_records_compatible(&cluster[i], &cluster[j], node_nesting_infos)
+                {
                     let root_i = Self::union_find_root(&parent, i);
                     let root_j = Self::union_find_root(&parent, j);
                     if root_i != root_j {
@@ -1044,16 +1045,16 @@ impl SvgEdgeInfosBuilder {
         i
     }
 
-    /// Returns whether two coincident face contacts actually share an inter-rank
-    /// gap (and so their protrusion stubs would overlap).
+    /// Returns whether two coincident face contacts actually share an
+    /// inter-rank gap (and so their protrusion stubs would overlap).
     fn collision_records_compatible<'id>(
         record_a: &FaceContactCollisionRecord<'id>,
         record_b: &FaceContactCollisionRecord<'id>,
         node_nesting_infos: &NodeNestingInfos<'id>,
     ) -> bool {
-        /// Tolerance for treating two faces as being in the same rank row. Taffy
-        /// aligns same-rank siblings to an identical main-axis coordinate, so a
-        /// sub-pixel epsilon is sufficient.
+        /// Tolerance for treating two faces as being in the same rank row.
+        /// Taffy aligns same-rank siblings to an identical main-axis
+        /// coordinate, so a sub-pixel epsilon is sufficient.
         const MAIN_AXIS_EPS: f32 = 1.0;
 
         let node_a = &record_a.node_id_and_face.node_id;

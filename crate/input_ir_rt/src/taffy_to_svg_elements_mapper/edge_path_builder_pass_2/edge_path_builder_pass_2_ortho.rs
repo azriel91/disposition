@@ -84,8 +84,9 @@ impl EdgePathBuilderPass2Ortho {
         // This snaps such spacers' cross-axis coordinate so their leg merges
         // with the neighbouring turn; the main-axis protrusion stubs are
         // unaffected.
-        let spacers_snapped =
-            Self::spacers_turn_minimize(start_x, start_y, end_x, end_y, from_face, to_face, spacers);
+        let spacers_snapped = Self::spacers_turn_minimize(
+            start_x, start_y, end_x, end_y, from_face, to_face, spacers,
+        );
         let spacers: &[SpacerCoordinates] = &spacers_snapped;
 
         let mut waypoints: Vec<Waypoint> = Vec::new();
@@ -197,11 +198,12 @@ impl EdgePathBuilderPass2Ortho {
     /// An edge that threads through spacers at several ranks draws a staircase:
     /// it turns at each spacer's cross-axis coordinate (x for `Top`/`Bottom`
     /// flow, y for `Left`/`Right`). When the spacer coordinates are not
-    /// monotonic, this produces unnecessary back-and-forth. If a spacer is at or
-    /// inside **both** its neighbours along the bulge direction (a notch toward
-    /// the chord), the edge can pass that spacer's rank at the neighbouring
-    /// turn's coordinate -- overshooting the notch outward, which stays clear of
-    /// the nodes the spacer routes around -- removing two turns.
+    /// monotonic, this produces unnecessary back-and-forth. If a spacer is at
+    /// or inside **both** its neighbours along the bulge direction (a notch
+    /// toward the chord), the edge can pass that spacer's rank at the
+    /// neighbouring turn's coordinate -- overshooting the notch outward,
+    /// which stays clear of the nodes the spacer routes around -- removing
+    /// two turns.
     ///
     /// For example, with cross coordinates `[x0, x1, x2, x3]` where
     /// `x0 < x2 < x3 < x1`, the path turns only at `x1` and `x3`: it descends
@@ -212,13 +214,14 @@ impl EdgePathBuilderPass2Ortho {
     /// both neighbours, so nothing is snapped and the path is byte-for-byte
     /// identical.
     ///
-    /// "Out" -- the clear side an edge may overshoot toward -- is the **greater**
-    /// cross-axis coordinate (greater x for `Top`/`Bottom` flow, greater y for
-    /// `Left`/`Right` flow). A spacer that is at or inside **both** its kept
-    /// neighbours (a notch dipping toward the smaller-coordinate side) is dropped
-    /// and passed at the neighbouring turn's coordinate. The edge's from/to
-    /// contacts bound the ends. Clean monotonic staircases (no spacer inside both
-    /// neighbours) are left untouched.
+    /// "Out" -- the clear side an edge may overshoot toward -- is the
+    /// **greater** cross-axis coordinate (greater x for `Top`/`Bottom`
+    /// flow, greater y for `Left`/`Right` flow). A spacer that is at or
+    /// inside **both** its kept neighbours (a notch dipping toward the
+    /// smaller-coordinate side) is dropped and passed at the neighbouring
+    /// turn's coordinate. The edge's from/to contacts bound the ends. Clean
+    /// monotonic staircases (no spacer inside both neighbours) are left
+    /// untouched.
     fn spacers_turn_minimize(
         start_x: f32,
         start_y: f32,
@@ -277,8 +280,7 @@ impl EdgePathBuilderPass2Ortho {
 
                 let inside_prev = cross[r] <= prev_cross + 1e-3;
                 let inside_next = cross[r] <= next_cross + 1e-3;
-                let strictly_inside =
-                    cross[r] < prev_cross - 1e-3 || cross[r] < next_cross - 1e-3;
+                let strictly_inside = cross[r] < prev_cross - 1e-3 || cross[r] < next_cross - 1e-3;
                 if inside_prev && inside_next && strictly_inside {
                     kept[r] = false;
                     removed_any = true;

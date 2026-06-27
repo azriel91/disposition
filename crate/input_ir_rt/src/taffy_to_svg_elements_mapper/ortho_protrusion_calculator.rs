@@ -1509,10 +1509,7 @@ impl OrthoProtrusionCalculator {
             loop {
                 let conflict = (0..n)
                     .filter(|&j| {
-                        j != i
-                            && !participates[j]
-                            && movable(ordered[j])
-                            && spans_overlap(i, j)
+                        j != i && !participates[j] && movable(ordered[j]) && spans_overlap(i, j)
                     })
                     .map(|j| depths[j])
                     .filter(|&dj| (dj - depth).abs() < JOG_SEPARATION_MIN_PX)

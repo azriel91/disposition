@@ -1101,10 +1101,11 @@ fn test_nested_node_edge_bob_charlie_routing_clears_alice_outer() {
 
 /// In `0044`, the described container `t_offset_data` is entered by two
 /// cross-container edges (`edge_dep_ranks_slots__0` -> `t_slot_indices`,
-/// `edge_dep_labels_offsets__0` -> `t_offsets`). Each must route to the **right**
-/// of the description label (not across it) via its text-content spacer, and the
-/// two "return jogs" -- from the label column back to each edge's rank column --
-/// must sit at **distinct** depths so they do not read as one line.
+/// `edge_dep_labels_offsets__0` -> `t_offsets`). Each must route to the
+/// **right** of the description label (not across it) via its text-content
+/// spacer, and the two "return jogs" -- from the label column back to each
+/// edge's rank column -- must sit at **distinct** depths so they do not read as
+/// one line.
 #[test]
 fn test_0044_edges_route_around_described_label_with_distinct_return_jogs() {
     // Anchor points of an SVG path's `M`/`L`/`C` commands. For these orthogonal
@@ -1158,8 +1159,8 @@ fn test_0044_edges_route_around_described_label_with_distinct_return_jogs() {
         let ranks_gap = edge_for("t_node_ranks", "t_rank_gap_entries");
         let labels_offsets = edge_for("t_edge_labels", "t_offsets");
 
-        // 1. Each edge has a vertical descent at/right of the label spanning the
-        //    text band -- i.e. it routes around the label, not across it.
+        // 1. Each edge has a vertical descent at/right of the label spanning the text
+        //    band -- i.e. it routes around the label, not across it.
         for edge in [layout_contacts, ranks_slots, labels_offsets] {
             let descends_right_of_label = path_points(&edge.path_d).windows(2).any(|w| {
                 let (x0, y0) = w[0];
@@ -1177,15 +1178,14 @@ fn test_0044_edges_route_around_described_label_with_distinct_return_jogs() {
             );
         }
 
-        // 2. The return jogs (the leftward step back over the label's right edge,
-        //    below the text band) must be ordered by how far left each edge
-        //    sweeps -- the edge reaching the innermost (leftmost) rank column
-        //    turns highest (smallest y) so its long sweep passes above the other
-        //    edges' descents rather than across them -- and each must clear the
-        //    rendered text. `layout_contacts` -> `t_face_contacts` (leftmost) is
-        //    above `ranks_slots` -> `t_slot_indices`, which is above
-        //    `labels_offsets` -> `t_offsets` (rightmost). The jogs must also be
-        //    pairwise separated so they do not read as one line.
+        // 2. The return jogs (the leftward step back over the label's right edge, below
+        //    the text band) must be ordered by how far left each edge sweeps -- the
+        //    edge reaching the innermost (leftmost) rank column turns highest (smallest
+        //    y) so its long sweep passes above the other edges' descents rather than
+        //    across them -- and each must clear the rendered text. `layout_contacts` ->
+        //    `t_face_contacts` (leftmost) is above `ranks_slots` -> `t_slot_indices`,
+        //    which is above `labels_offsets` -> `t_offsets` (rightmost). The jogs must
+        //    also be pairwise separated so they do not read as one line.
         let return_jog_y = |path_d: &str| -> f32 {
             path_points(path_d)
                 .windows(2)
@@ -1210,10 +1210,10 @@ fn test_0044_edges_route_around_described_label_with_distinct_return_jogs() {
 
         // 3. In the top rank gap (between rank 0 and the container), the edge that
         //    descends at the innermost column (`layout_contacts`, whose descent is
-        //    swept over by the other two) must turn **lowest** so its descent
-        //    column begins below the others' lateral legs -- otherwise those legs
-        //    cross it. The top gap lies between the from-nodes' bottom face and
-        //    the container's top.
+        //    swept over by the other two) must turn **lowest** so its descent column
+        //    begins below the others' lateral legs -- otherwise those legs cross it.
+        //    The top gap lies between the from-nodes' bottom face and the container's
+        //    top.
         let container_top = node.y;
         let from_face_y = layout_contacts
             .path_d
@@ -1247,11 +1247,11 @@ fn test_0044_edges_route_around_described_label_with_distinct_return_jogs() {
              {y_top_ranks:.1}, ranks_gap {y_top_gap:.1})",
         );
 
-        // 4. `ir_pass1` and `layout_contacts` both sweep right across the top gap
-        //    with overlapping lateral spans, so their first jogs must not coincide
-        //    (a collinear overlap reads as one line). `layout_contacts` sweeps over
-        //    `ir_pass1`'s descent column, so it turns higher; `ir_pass1` turns at
-        //    least `JOG_SEPARATION_MIN_PX` below it.
+        // 4. `ir_pass1` and `layout_contacts` both sweep right across the top gap with
+        //    overlapping lateral spans, so their first jogs must not coincide (a
+        //    collinear overlap reads as one line). `layout_contacts` sweeps over
+        //    `ir_pass1`'s descent column, so it turns higher; `ir_pass1` turns at least
+        //    `JOG_SEPARATION_MIN_PX` below it.
         let ir_pass1 = edge_for("t_ir_diagram", "t_pass1_path");
         let y_top_ir_pass1 = top_gap_jog_y(&ir_pass1.path_d);
         assert!(
@@ -4542,10 +4542,11 @@ fn test_0043_dependency_contact_centred_independent_of_interaction_edge() {
 }
 
 /// `0043` (`top_to_bottom`): two dependency edges enter `t_face_contacts`'s Top
-/// face -- `edge_dep_pass1_contacts` approaches from `t_pass1_path` on the left,
-/// `edge_dep_layout_contacts` approaches via a spacer from `t_taffy_layout` on
-/// the right. Contacts are ordered by the side each edge approaches from, so the
-/// left-source edge takes the left contact and the two paths do not cross.
+/// face -- `edge_dep_pass1_contacts` approaches from `t_pass1_path` on the
+/// left, `edge_dep_layout_contacts` approaches via a spacer from
+/// `t_taffy_layout` on the right. Contacts are ordered by the side each edge
+/// approaches from, so the left-source edge takes the left contact and the two
+/// paths do not cross.
 #[test]
 fn test_0043_shared_target_face_contacts_ordered_by_source() {
     for svg_elements in
@@ -4617,11 +4618,12 @@ fn test_0039_mid_rank_to_high_rank_bottom_to_top_routes_cleanly() {
 /// through it -- so no text-content spacer is built. For `bottom_to_top` the
 /// ranks are reversed but the label stays on top, so an edge leaving a nested
 /// high-rank `from` node exits *up through* the label band and does need a
-/// text-content spacer -- built for the `from` side (the mirror of `TopToBottom`'s
-/// `to` side). That from-side waypoint sits between the from-node and to-node, so
-/// the path still flows monotonically; the earlier `to`-side attempt pointed back
-/// at the *other* container's label and produced a backward zigzag. This asserts
-/// every dependency edge flows monotonically along the rank axis.
+/// text-content spacer -- built for the `from` side (the mirror of
+/// `TopToBottom`'s `to` side). That from-side waypoint sits between the
+/// from-node and to-node, so the path still flows monotonically; the earlier
+/// `to`-side attempt pointed back at the *other* container's label and produced
+/// a backward zigzag. This asserts every dependency edge flows monotonically
+/// along the rank axis.
 fn assert_described_container_fan_routes_cleanly(input_diagram: &str, axis: FlowAxis) {
     for svg_elements in build_svg_elements_for_diagram(input_diagram) {
         for edge in svg_elements.svg_edge_infos.iter() {

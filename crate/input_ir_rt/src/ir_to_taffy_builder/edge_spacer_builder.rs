@@ -455,10 +455,10 @@ impl EdgeSpacerBuilder {
                 // inside this container whose leg runs through the top label band
                 // (see the `RankDir` reasoning in the early-return above):
                 //
-                // * `TopToBottom`: the `to` endpoint -- the edge descends in from
-                //   the top (low-rank) side to reach a nested `to`.
-                // * `BottomToTop`: the `from` endpoint -- the edge exits upward
-                //   through the top (high-rank) side from a nested `from`.
+                // * `TopToBottom`: the `to` endpoint -- the edge descends in from the top
+                //   (low-rank) side to reach a nested `to`.
+                // * `BottomToTop`: the `from` endpoint -- the edge exits upward through the top
+                //   (high-rank) side from a nested `from`.
                 //
                 // The opposite endpoint enters/exits via the bottom (rank-level)
                 // face without passing the label, so it needs no text spacer. (The
