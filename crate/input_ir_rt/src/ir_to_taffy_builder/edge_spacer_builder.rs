@@ -375,7 +375,7 @@ impl EdgeSpacerBuilder {
         // (`LeftToRight` / `RightToLeft`) the label is a side strip and edges enter
         // at the rank level -- past the label, not through it -- so the rank
         // spacers already keep them clear and a text-content spacer would only
-        // mis-route the path. Skip those.
+        // misroute the path. Skip those.
         if !matches!(
             ctx.render_options.rank_dir,
             RankDir::TopToBottom | RankDir::BottomToTop
