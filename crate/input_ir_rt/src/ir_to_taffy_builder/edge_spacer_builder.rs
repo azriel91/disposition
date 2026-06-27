@@ -5,7 +5,7 @@ use disposition_ir_model::{
     entity::{EntityType, EntityTypes},
     node::{NodeHierarchy, NodeId, NodeNestingInfo, NodeNestingInfos, NodeRank, NodeRanksNested},
 };
-use disposition_model_common::{edge::EdgeGroupId, Id, Map, RenderOptions};
+use disposition_model_common::{edge::EdgeGroupId, Id, Map, RankDir, RenderOptions};
 use disposition_taffy_model::{
     taffy::{self, Size, Style, TaffyTree},
     EdgeDescriptionTaffyNodes, EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx,
@@ -201,24 +201,26 @@ impl EdgeSpacerBuilder {
                     .map(move |(edge_index, edge)| (edge_group_id, edge_index, edge))
             })
             .collect();
-        ordered_edges.sort_by(|(group_id_a, edge_index_a, edge_a), (group_id_b, edge_index_b, edge_b)| {
-            let key_a = Self::cross_container_spacer_sort_key(
-                node_nesting_infos,
-                node_ranks_nested,
-                container_node_id,
-                edge_a,
-            );
-            let key_b = Self::cross_container_spacer_sort_key(
-                node_nesting_infos,
-                node_ranks_nested,
-                container_node_id,
-                edge_b,
-            );
-            key_a
-                .cmp(&key_b)
-                .then_with(|| group_id_a.cmp(group_id_b))
-                .then_with(|| edge_index_a.cmp(edge_index_b))
-        });
+        ordered_edges.sort_by(
+            |(group_id_a, edge_index_a, edge_a), (group_id_b, edge_index_b, edge_b)| {
+                let key_a = Self::cross_container_spacer_sort_key(
+                    node_nesting_infos,
+                    node_ranks_nested,
+                    container_node_id,
+                    edge_a,
+                );
+                let key_b = Self::cross_container_spacer_sort_key(
+                    node_nesting_infos,
+                    node_ranks_nested,
+                    container_node_id,
+                    edge_b,
+                );
+                key_a
+                    .cmp(&key_b)
+                    .then_with(|| group_id_a.cmp(group_id_b))
+                    .then_with(|| edge_index_a.cmp(edge_index_b))
+            },
+        );
 
         ordered_edges
             .into_iter()
@@ -266,9 +268,9 @@ impl EdgeSpacerBuilder {
     ///   for all rank directions because reversed-direction rows are flipped
     ///   together with their spacers after insertion (see
     ///   `TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed`).
-    /// * `inside_nesting_path` -- the full nesting path of the endpoint *inside*
-    ///   this container, a final structural tiebreak ordering edges by where
-    ///   they terminate when their outside sources coincide.
+    /// * `inside_nesting_path` -- the full nesting path of the endpoint
+    ///   *inside* this container, a final structural tiebreak ordering edges by
+    ///   where they terminate when their outside sources coincide.
     fn cross_container_spacer_sort_key(
         node_nesting_infos: &NodeNestingInfos<'static>,
         node_ranks_nested: &NodeRanksNested<'static>,
@@ -282,17 +284,15 @@ impl EdgeSpacerBuilder {
             return (u32::MAX, Vec::new(), Vec::new());
         };
 
-        let rank_distance =
-            Self::divergent_ancestor_ranks(info_from, info_to, node_ranks_nested)
-                .map(|(rank_low, rank_high)| rank_high.value() - rank_low.value())
-                .unwrap_or(u32::MAX);
+        let rank_distance = Self::divergent_ancestor_ranks(info_from, info_to, node_ranks_nested)
+            .map(|(rank_low, rank_high)| rank_high.value() - rank_low.value())
+            .unwrap_or(u32::MAX);
 
-        let (info_outside, info_inside) =
-            if info_from.ancestor_chain.contains(container_node_id) {
-                (info_to, info_from)
-            } else {
-                (info_from, info_to)
-            };
+        let (info_outside, info_inside) = if info_from.ancestor_chain.contains(container_node_id) {
+            (info_to, info_from)
+        } else {
+            (info_from, info_to)
+        };
 
         (
             rank_distance,
@@ -348,7 +348,7 @@ impl EdgeSpacerBuilder {
         // spacers already keep it there, so no text-content spacer is needed.
         // Adding one for those directions mis-routes the path (the spacer's tiny
         // main-axis coordinate is no longer "before" the ranks), so skip them.
-        if !ctx.render_options.rank_dir.is_default() {
+        if !matches!(ctx.render_options.rank_dir, RankDir::TopToBottom) {
             return (Vec::new(), Map::new());
         }
 

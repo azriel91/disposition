@@ -6,7 +6,7 @@ use disposition_model_common::Map;
 use disposition_taffy_model::{
     taffy::{
         self,
-        style_helpers::{auto, line},
+        style_helpers::{auto, line, max_content},
         Display, FlexDirection, JustifyContent, Rect, Style, TaffyTree,
     },
     DiagramLod, EdgeLabelCtx, MdNodeTaffyIds, TaffyNodeCtx, TaffyNodeKind,
@@ -296,15 +296,27 @@ impl TaffyEnvelopeBuilder {
         );
 
         // envelope_node: 3x3 CSS Grid -- top-middle, left, center, right,
-        // bottom-middle.  The four corner cells are left empty.  Column and
-        // row track sizes are `auto` so each track sizes to its content; the
+        // bottom-middle.  The four corner cells are left empty.  Row tracks and
+        // the side column tracks are `auto` so they size to their content; the
         // center cell stretches to fill the row/column size allocated by any
         // larger adjacent cell.
+        //
+        // The center column is `max_content` rather than `auto`. With `auto`,
+        // taffy measures the grid's intrinsic height (its flex base size in the
+        // surrounding column) by laying the center cell out at its *min-content*
+        // width, which makes a wrapping markdown description (node title / body)
+        // wrap to one word per line and report a hugely inflated height. The
+        // grid then carries that height into the rank container and the whole
+        // diagram. Pinning the center column to `max_content` keeps the node at
+        // its natural (unwrapped) content width during that measurement, so the
+        // height reflects the laid-out content rather than the min-content wrap.
+        // The resulting width matches the previous `auto` result for the
+        // unconstrained diagrams we render (auto's max is already max-content).
         let envelope_node = taffy_tree
             .new_with_children(
                 Style {
                     display: Display::Grid,
-                    grid_template_columns: vec![auto(), auto(), auto()],
+                    grid_template_columns: vec![auto(), max_content(), auto()],
                     grid_template_rows: vec![auto(), auto(), auto()],
                     ..Default::default()
                 },
