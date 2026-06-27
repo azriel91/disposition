@@ -15,7 +15,7 @@ use disposition_taffy_model::{
 
 use super::{
     edge_description_builder::EdgeDescriptionBuilder,
-    edge_spacer_builder::EdgeSpacerBuilder,
+    edge_spacer_builder::{EdgeSpacerBuilder, TextContentSpacersBuilt},
     md_node_builder::MdNodeBuilder,
     taffy_build_ctx::TaffyBuildCtx,
     taffy_build_state::TaffyBuildState,
@@ -29,6 +29,20 @@ use crate::md_text::md_blocks_parser::MdBlocksParser;
 /// text-content edge spacers, and between adjacent spacers, so the snapped
 /// descent columns of multiple traversing edges stay visually separated.
 const TEXT_CONTENT_SPACER_GAP_PX: f32 = 12.0;
+
+/// Per-traversing-edge bottom margin (in pixels) added below a described
+/// node's text band, reserving room for each edge's return jog -- from the
+/// text-band column back to its rank column -- to be staggered to a distinct
+/// depth.
+///
+/// The ortho protrusion calculator distributes those jog depths across this
+/// band (scaled by `MAX_GAP_FRACTION`), so the band only needs to be large
+/// enough that adjacent jogs clear the "reads as one line" separation, not the
+/// full text-content gap. It is intentionally smaller than
+/// [`TEXT_CONTENT_SPACER_GAP_PX`] (which sizes the horizontal spacing between
+/// spacers); an over-large margin spreads the jogs out and leaves a wide,
+/// empty band below the label.
+const TEXT_CONTENT_SPACER_MARGIN_PX: f32 = 7.5;
 
 /// Builds taffy nodes for diagram nodes, handling both leaf nodes (no children)
 /// and container nodes (with child hierarchies), grouping children by rank.
@@ -386,13 +400,16 @@ impl TaffyDiagramNodeBuilder {
         // edge that traverses this node, placed to the right of the text content
         // in a `Row` wrapper. This gives those edges a waypoint at the text band
         // so they route around the description rather than across it.
-        let (text_content_spacer_ids, text_content_spacer_taffy_nodes) =
-            EdgeSpacerBuilder::build_text_content_spacers(
-                ctx,
-                state.taffy_tree,
-                &ir_node_id,
-                child_hierarchy,
-            );
+        let TextContentSpacersBuilt {
+            spacer_taffy_node_ids: text_content_spacer_ids,
+            edge_spacer_taffy_nodes: text_content_spacer_taffy_nodes,
+            jog_spacer_count,
+        } = EdgeSpacerBuilder::build_text_content_spacers(
+            ctx,
+            state.taffy_tree,
+            &ir_node_id,
+            child_hierarchy,
+        );
         EdgeSpacerTaffyNodes::map_merge(
             &mut nested_edge_taffy_nodes.edge_spacer_taffy_nodes,
             text_content_spacer_taffy_nodes,
@@ -400,7 +417,6 @@ impl TaffyDiagramNodeBuilder {
         let taffy_text_content_node_id = if text_content_spacer_ids.is_empty() {
             taffy_text_node_id
         } else {
-            let text_content_spacer_count = text_content_spacer_ids.len();
             let mut text_content_row_children = vec![taffy_text_node_id];
             text_content_row_children.extend(text_content_spacer_ids);
             let text_content_row_style = Style {
@@ -415,15 +431,18 @@ impl TaffyDiagramNodeBuilder {
                 // Enlarge only the gap below the label (text band -> rank 0) so
                 // each traversing edge's return jog -- from the text-band column
                 // back to its rank column -- has room to be staggered to a
-                // distinct depth, one band per edge. Taffy adds this margin on
-                // top of the wrapper column's own gap, leaving the inter-rank
-                // gaps untouched.
+                // distinct depth. Only jogging (non-direct) edges are counted:
+                // direct-curvature edges keep a zero-width spacer in the row for
+                // x-layout stability but never draw a jog, so they must not
+                // inflate this band (which would over-spread the jog depths).
+                // Taffy adds this margin on top of the wrapper column's own gap,
+                // leaving the inter-rank gaps untouched.
                 margin: Rect {
                     left: LengthPercentageAuto::length(0.0),
                     right: LengthPercentageAuto::length(0.0),
                     top: LengthPercentageAuto::length(0.0),
                     bottom: LengthPercentageAuto::length(
-                        text_content_spacer_count as f32 * TEXT_CONTENT_SPACER_GAP_PX,
+                        jog_spacer_count as f32 * TEXT_CONTENT_SPACER_MARGIN_PX,
                     ),
                 },
                 ..Default::default()

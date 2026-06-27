@@ -41,6 +41,26 @@ const EDGE_SPACER_LENGTH: f32 = 5.0;
 /// being drawn over other nodes.
 pub(crate) struct EdgeSpacerBuilder;
 
+/// Result of [`EdgeSpacerBuilder::build_text_content_spacers`].
+pub(crate) struct TextContentSpacersBuilt {
+    /// All text-content spacer taffy node ids, in left-to-right row order.
+    ///
+    /// Includes the zero-width spacers created for direct-curvature edges. They
+    /// are kept in the row so its horizontal layout -- and hence the jog-depth
+    /// assignment of the *real* spacers -- stays stable; removing them shifts
+    /// the neighbouring columns and reshuffles the protrusion-depth buckets.
+    pub(crate) spacer_taffy_node_ids: Vec<taffy::NodeId>,
+    /// Per-edge text-content spacer nodes to merge into the diagram-wide map.
+    pub(crate) edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
+    /// Number of spacers belonging to a *jogging* (non-direct) edge.
+    ///
+    /// Only these edges draw a return jog below the label that must be
+    /// staggered to a distinct depth, so this -- not the total spacer count --
+    /// sizes the text-content row's bottom margin. Direct-curvature edges are
+    /// drawn as a direct curve and never jog, so they are excluded.
+    pub(crate) jog_spacer_count: usize,
+}
+
 // === EdgeSpacerBuilder === //
 
 impl EdgeSpacerBuilder {
@@ -329,13 +349,14 @@ impl EdgeSpacerBuilder {
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         container_node_id: &NodeId<'static>,
         container_node_hierarchy: &NodeHierarchy<'static>,
-    ) -> (
-        Vec<taffy::NodeId>,
-        Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
-    ) {
+    ) -> TextContentSpacersBuilt {
         // Only described nodes need their text content routed around.
         if ctx.thing_descs.get(container_node_id.as_ref()).is_none() {
-            return (Vec::new(), Map::new());
+            return TextContentSpacersBuilt {
+                spacer_taffy_node_ids: Vec::new(),
+                edge_spacer_taffy_nodes: Map::new(),
+                jog_spacer_count: 0,
+            };
         }
 
         // The description label always sits at the **top** of the container (the
@@ -349,7 +370,11 @@ impl EdgeSpacerBuilder {
         // Adding one for those directions mis-routes the path (the spacer's tiny
         // main-axis coordinate is no longer "before" the ranks), so skip them.
         if !matches!(ctx.render_options.rank_dir, RankDir::TopToBottom) {
-            return (Vec::new(), Map::new());
+            return TextContentSpacersBuilt {
+                spacer_taffy_node_ids: Vec::new(),
+                edge_spacer_taffy_nodes: Map::new(),
+                jog_spacer_count: 0,
+            };
         }
 
         let edge_groups = ctx.edge_groups;
@@ -365,6 +390,7 @@ impl EdgeSpacerBuilder {
 
         let mut text_spacer_taffy_node_ids: Vec<taffy::NodeId> = Vec::new();
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
+        let mut jog_spacer_count = 0usize;
 
         // Order edges so their text spacers are appended in the same
         // left-to-right order as their rank spacers / to-face contacts.
@@ -453,6 +479,13 @@ impl EdgeSpacerBuilder {
                     )
                     .expect("Expected to create text-content spacer leaf node.");
 
+                // Direct-curvature edges create a zero-length spacer (kept to
+                // preserve the row's x-layout) but never draw a staggered jog,
+                // so they do not count toward the margin that reserves jog room.
+                if edge_spacer_length > 0.0 {
+                    jog_spacer_count += 1;
+                }
+
                 text_spacer_taffy_node_ids.push(spacer_taffy_node_id);
                 edge_spacer_taffy_nodes
                     .entry(edge_id)
@@ -461,7 +494,11 @@ impl EdgeSpacerBuilder {
                     .push(spacer_taffy_node_id);
             });
 
-        (text_spacer_taffy_node_ids, edge_spacer_taffy_nodes)
+        TextContentSpacersBuilt {
+            spacer_taffy_node_ids: text_spacer_taffy_node_ids,
+            edge_spacer_taffy_nodes,
+            jog_spacer_count,
+        }
     }
 
     /// Builds cross-container spacers for a single edge.
