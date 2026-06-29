@@ -75,9 +75,6 @@ impl TaffyTreeFmt {
             .or_else(|| {
                 taffy_tree.get_node_context(taffy_node_id).map(
                     |taffy_node_ctx| match taffy_node_ctx {
-                        TaffyNodeCtx::DiagramNode(diagram_node_ctx) => {
-                            Cow::Borrowed(diagram_node_ctx.entity_id.as_str())
-                        }
                         TaffyNodeCtx::EdgeSpacer(edge_spacer_ctx) => {
                             let edge_id = &edge_spacer_ctx.edge_id;
                             let rank = edge_spacer_ctx.rank;

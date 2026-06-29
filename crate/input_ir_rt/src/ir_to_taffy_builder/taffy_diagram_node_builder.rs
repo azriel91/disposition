@@ -8,9 +8,12 @@ use disposition_ir_model::{
 };
 use disposition_model_common::{Id, Map};
 use disposition_taffy_model::{
-    taffy::{self, AlignItems, Display, FlexDirection, LengthPercentageAuto, Rect, Size, Style},
-    DiagramLod, DiagramNodeCtx, EdgeDescriptionTaffyNodes, EdgeSpacerTaffyNodes,
-    NodeToTaffyNodeIds, ProcessesIncluded, TaffyNodeCtx, TaffyNodeKind, LANE_WIDTH,
+    taffy::{
+        self, AlignItems, Display, FlexDirection, LengthPercentage, LengthPercentageAuto, Rect,
+        Size, Style,
+    },
+    EdgeDescriptionTaffyNodes, EdgeSpacerTaffyNodes, NodeToTaffyNodeIds, ProcessesIncluded,
+    TaffyNodeKind, LANE_WIDTH, TEXT_LINE_HEIGHT,
 };
 
 use super::{
@@ -43,6 +46,18 @@ const TEXT_CONTENT_SPACER_GAP_PX: f32 = 12.0;
 /// spacers); an over-large margin spreads the jogs out and leaves a wide,
 /// empty band below the label.
 const TEXT_CONTENT_SPACER_MARGIN_PX: f32 = 7.5;
+
+/// Half a line of vertical breathing room (in pixels) added below a diagram
+/// node's markdown text.
+///
+/// The legacy single-leaf text measurement sized a node's text to
+/// `(line_count + 0.5) * line_height`, i.e. a half-line of slack below the last
+/// line. Now that every node's text is built through the markdown content path
+/// -- whose tokens measure to exactly `line_count * line_height` -- this slack
+/// is reapplied as bottom padding on the text wrapper so node heights (and the
+/// geometry that depends on them, e.g. self-loop contact gaps and inter-rank
+/// jog room) match the previous layout.
+const NODE_TEXT_BREATHING_PX: f32 = 0.5 * TEXT_LINE_HEIGHT;
 
 /// Builds taffy nodes for diagram nodes, handling both leaf nodes (no children)
 /// and container nodes (with child hierarchies), grouping children by rank.
@@ -153,7 +168,7 @@ impl TaffyDiagramNodeBuilder {
                 }
 
                 let wrapper_node_id = if child_hierarchy.is_empty() {
-                    Self::build_node_without_child_hierarchy(ctx, state, node_id, entity_type)
+                    Self::build_node_without_child_hierarchy(ctx, state, node_id)
                 } else {
                     let node_with_child_hierarchy_built = Self::build_node_with_child_hierarchy(
                         ctx,
@@ -216,7 +231,7 @@ impl TaffyDiagramNodeBuilder {
                 };
 
                 let taffy_node_id = if child_hierarchy.is_empty() {
-                    Self::build_node_without_child_hierarchy(ctx, state, node_id, entity_type)
+                    Self::build_node_without_child_hierarchy(ctx, state, node_id)
                 } else {
                     let node_with_child_hierarchy_built = Self::build_node_with_child_hierarchy(
                         ctx,
@@ -266,7 +281,6 @@ impl TaffyDiagramNodeBuilder {
         ctx: TaffyBuildCtx<'_>,
         state: &mut TaffyBuildState<'_>,
         node_id: &Id<'static>,
-        entity_type: &EntityType,
     ) -> taffy::NodeId {
         let ir_node_id = NodeId::from(node_id.clone());
         let node_shape = ctx
@@ -280,14 +294,8 @@ impl TaffyDiagramNodeBuilder {
                     node_id,
                     Size::auto(),
                 );
-                let taffy_text_node_id = Self::text_leaf_build(
-                    ctx,
-                    state,
-                    node_id,
-                    entity_type,
-                    &ir_node_id,
-                    taffy_style,
-                );
+                let taffy_text_node_id =
+                    Self::text_leaf_build(ctx, state, node_id, &ir_node_id, taffy_style);
 
                 Self::node_envelope_finalize(
                     ctx,
@@ -311,14 +319,8 @@ impl TaffyDiagramNodeBuilder {
                     Self::circle_leaf_build(state, node_id, node_shape_circle.radius());
 
                 let text_style = Style::default();
-                let taffy_text_node_id = Self::text_leaf_build(
-                    ctx,
-                    state,
-                    node_id,
-                    entity_type,
-                    &ir_node_id,
-                    text_style,
-                );
+                let taffy_text_node_id =
+                    Self::text_leaf_build(ctx, state, node_id, &ir_node_id, text_style);
 
                 let label_wrapper_style = TaffyContainerBuilder::taffy_container_style(
                     ctx.node_layouts,
@@ -379,7 +381,6 @@ impl TaffyDiagramNodeBuilder {
                 state,
                 node_id,
                 &ir_node_id,
-                entity_type,
                 process_step_graph,
             );
             return NodeWithChildHierarchyBuilt {
@@ -394,7 +395,7 @@ impl TaffyDiagramNodeBuilder {
             child_container_style,
         } = TaffyContainerBuilder::taffy_wrapper_node_styles(ctx.node_layouts, node_id);
         let taffy_text_node_id =
-            Self::text_leaf_build(ctx, state, node_id, entity_type, &ir_node_id, text_style);
+            Self::text_leaf_build(ctx, state, node_id, &ir_node_id, text_style);
 
         // For described nodes, add one "text-content spacer" per cross-container
         // edge that traverses this node, placed to the right of the text content
@@ -852,7 +853,6 @@ impl TaffyDiagramNodeBuilder {
         state: &mut TaffyBuildState<'_>,
         node_id: &Id<'static>,
         ir_node_id: &NodeId<'static>,
-        entity_type: &EntityType,
         process_step_graph: &ProcessStepGraph<'static>,
     ) -> taffy::NodeId {
         let TaffyWrapperNodeStyles {
@@ -863,7 +863,7 @@ impl TaffyDiagramNodeBuilder {
 
         // Process label.
         let process_text_node_id =
-            Self::text_leaf_build(ctx, state, node_id, entity_type, ir_node_id, text_style);
+            Self::text_leaf_build(ctx, state, node_id, ir_node_id, text_style);
 
         let lane_count = process_step_graph.lane_count;
 
@@ -923,12 +923,6 @@ impl TaffyDiagramNodeBuilder {
         lane_count: u32,
     ) -> taffy::NodeId {
         let step_id: &Id<'static> = step_node_id.as_ref();
-        let entity_type = ctx
-            .entity_types
-            .get(step_id)
-            .and_then(|entity_types| entity_types.first())
-            .cloned()
-            .unwrap_or(EntityType::ProcessStepDefault);
 
         let radius = match ctx.node_shapes.get(step_node_id) {
             Some(NodeShape::Circle(node_shape_circle)) => node_shape_circle.radius(),
@@ -980,14 +974,8 @@ impl TaffyDiagramNodeBuilder {
                 panic!("Expected to create lane gutter node for {step_id}. Error: {e}")
             });
 
-        let taffy_text_node_id = Self::text_leaf_build(
-            ctx,
-            state,
-            step_id,
-            &entity_type,
-            step_node_id,
-            Style::default(),
-        );
+        let taffy_text_node_id =
+            Self::text_leaf_build(ctx, state, step_id, step_node_id, Style::default());
 
         let step_wrapper_node_id = state
             .taffy_tree
@@ -1022,46 +1010,46 @@ impl TaffyDiagramNodeBuilder {
 
     /// Creates the text leaf for a diagram node.
     ///
-    /// For `DiagramLod::Normal` nodes with a description, builds a markdown
-    /// content sub-tree via `MdNodeBuilder` and wraps it in `wrapper_style`
-    /// to preserve padding and margin. Records the `MdNodeTaffyIds` in the
-    /// accumulator.
+    /// Builds a markdown content sub-tree via `MdNodeBuilder` from the node's
+    /// precomputed markdown text and wraps it in `wrapper_style` to preserve
+    /// padding and margin. Records the `MdNodeTaffyIds` in the accumulator.
     ///
-    /// For all other cases, falls back to a single `TaffyNodeCtx::DiagramNode`
-    /// leaf.
+    /// The precomputed text already encodes the level of detail: at
+    /// `DiagramLod::Simple` it is the node name only, and at
+    /// `DiagramLod::Normal` the description is appended (see
+    /// `TaffyBuildCtx::node_md_texts_compute`), so this builder is
+    /// LOD-agnostic.
     fn text_leaf_build(
         ctx: TaffyBuildCtx<'_>,
         state: &mut TaffyBuildState<'_>,
         node_id: &Id<'static>,
-        entity_type: &EntityType,
         ir_node_id: &NodeId<'static>,
-        fallback_style: Style,
+        wrapper_style: Style,
     ) -> taffy::NodeId {
-        if ctx.lod == DiagramLod::Normal && ctx.thing_descs.get(ir_node_id.as_ref()).is_some() {
-            let markdown = ctx
-                .node_md_text(node_id)
-                .unwrap_or_else(|| node_id.as_str());
-            let blocks = MdBlocksParser::parse(markdown);
-            let md_ids = MdNodeBuilder::build(state.taffy_tree, &blocks, ctx.char_width);
-            let text_node_id = state
-                .taffy_tree
-                .new_with_children(fallback_style, &[md_ids.content_node_id])
-                .expect("Expected to create markdown wrapper node");
-            state.md_node_taffy_ids.insert(ir_node_id.clone(), md_ids);
-            return text_node_id;
-        }
+        let markdown = ctx
+            .node_md_text(node_id)
+            .unwrap_or_else(|| node_id.as_str());
+        let blocks = MdBlocksParser::parse(markdown);
+        let md_ids = MdNodeBuilder::build(state.taffy_tree, &blocks, ctx.char_width);
 
-        state
+        // Reapply the legacy half-line of breathing room below the text as
+        // bottom padding on the wrapper, keeping node heights stable now that
+        // all text is measured via the markdown content path.
+        let wrapper_style = Style {
+            padding: Rect {
+                bottom: LengthPercentage::length(
+                    wrapper_style.padding.bottom.into_raw().value() + NODE_TEXT_BREATHING_PX,
+                ),
+                ..wrapper_style.padding
+            },
+            ..wrapper_style
+        };
+
+        let text_node_id = state
             .taffy_tree
-            .new_leaf_with_context(
-                fallback_style,
-                TaffyNodeCtx::DiagramNode(DiagramNodeCtx {
-                    entity_id: node_id.clone(),
-                    entity_type: entity_type.clone(),
-                }),
-            )
-            .unwrap_or_else(|e| {
-                panic!("Expected to create text leaf node for {node_id}. Error: {e}")
-            })
+            .new_with_children(wrapper_style, &[md_ids.content_node_id])
+            .expect("Expected to create markdown wrapper node");
+        state.md_node_taffy_ids.insert(ir_node_id.clone(), md_ids);
+        text_node_id
     }
 }

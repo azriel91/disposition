@@ -163,7 +163,7 @@ process_wrapper_node:        # flex column
   step_row:                  # flex row, align items center -- one per step
     lane_gutter:             # fixed width = lane_count * LANE_WIDTH
       circle_node: {}        # margin-left places the circle in its lane
-    text_node: {}            # step label (DiagramNode ctx), aligned text column
+    text_node: {}            # step label (md_content_node sub-tree), aligned text column
   # ...
 ```
 
@@ -288,9 +288,13 @@ Used for rank sub-containers that sit inside a container diagram node.
 Each taffy node optionally carries a context value. The context is used during layout measurement
 and post-layout coordinate extraction.
 
-- `TaffyNodeCtx::DiagramNode(DiagramNodeCtx { entity_id, entity_type })` -- attached to `text_node`
-  and bare-leaf nodes that represent diagram nodes. Used during measurement to determine text
-  content and sizing.
+- `TaffyNodeCtx::MdToken(MdTokenCtx { text, .. })` -- attached to word / text-fragment leaves
+  inside an `md_content_node` sub-tree. Diagram node text (name, and description at
+  `DiagramLod::Normal`) is always rendered through this markdown path, so the `text_node` of every
+  diagram node wraps an `md_content_node` whose leaves carry this context. Measured individually
+  based on the fragment text and markdown style.
+- `TaffyNodeCtx::MdImage(MdImageCtx { src, .. })` -- attached to image leaves inside an
+  `md_content_node` sub-tree. Sized by `MdImageSizer::compute_size`.
 - `TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx { edge_id, rank })` -- attached to spacer leaf nodes
   inserted to help route edge paths.
 - `TaffyNodeCtx::EdgeLabel(EdgeLabelCtx { edge_id, node_id })` -- attached to edge label leaf
@@ -311,12 +315,17 @@ Text nodes are measured during `taffy_tree.compute_layout_with_measure(...)` via
 
 The text content depends on the diagram level of detail (`DiagramLod`):
 
+Node text is always rendered through an `md_content_node` sub-tree (see
+`TaffyDiagramNodeBuilder::text_leaf_build`); the level of detail only changes what text that
+sub-tree holds:
+
 - `DiagramLod::Simple`: the node name only.
-- `DiagramLod::Normal`: when a description exists, an `md_content_node` sub-tree is built instead
-  of a single `text_node`. Each `MdToken` leaf is measured individually based on its text content
-  and markdown style (bold, italic, heading level, etc.). `MdImage` leaves have fixed sizes
-  determined by `MdImageSizer::compute_size` from the image's intrinsic dimensions or explicit
-  width/height attributes.
+- `DiagramLod::Normal`: the node name, with the description appended when one exists.
+
+Each `MdToken` leaf is measured individually based on its text content and markdown style (bold,
+italic, heading level, etc.). `MdImage` leaves have fixed sizes determined by
+`MdImageSizer::compute_size` from the image's intrinsic dimensions or explicit width/height
+attributes.
 
 Width is estimated using a monospace character width ratio
 (`MONOSPACE_CHAR_WIDTH_RATIO * TEXT_FONT_SIZE`). The estimator computes wrapped line widths and

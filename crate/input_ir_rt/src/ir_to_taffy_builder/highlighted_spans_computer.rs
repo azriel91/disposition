@@ -1,186 +1,21 @@
-use disposition_ir_model::{edge::EdgeId, node::NodeId};
+use disposition_ir_model::edge::EdgeId;
 use disposition_model_common::{edge::EdgeDescs, Map};
 use disposition_taffy_model::{
     taffy::{self, TaffyTree},
-    DiagramLod, EdgeDescriptionTaffyNodes, EntityHighlightedSpan, EntityHighlightedSpans,
-    NodeToTaffyNodeIds, TaffyNodeCtx, TEXT_LINE_HEIGHT,
+    DiagramLod, EdgeDescriptionTaffyNodes, EntityHighlightedSpan, TaffyNodeCtx, TEXT_LINE_HEIGHT,
 };
 
-use super::{
-    taffy_build_ctx::TaffyBuildCtx,
-    text_measure::{line_width_measure, wrap_text_monospace},
-};
+use super::text_measure::{line_width_measure, wrap_text_monospace};
 
-/// Computes highlighted text spans for diagram nodes and edge description
-/// containers after taffy layout is complete.
+/// Computes highlighted text spans for edge description containers after taffy
+/// layout is complete.
+///
+/// Diagram node text and markdown edge descriptions are handled by
+/// `MdSpansComputer`; this computer only covers the non-markdown edge
+/// description container path.
 pub(crate) struct HighlightedSpansComputer;
 
 impl HighlightedSpansComputer {
-    /// Computes highlighted text spans for all entity nodes after taffy layout
-    /// is complete.
-    ///
-    /// Runs once per layout pass instead of inside `measure()`, which may be
-    /// called multiple times per node during layout computation.
-    ///
-    /// Nodes are sized by layout; this pass reads the computed widths to
-    /// determine line-wrapping and span positions. Edge label spans are
-    /// computed separately by `MdSpansComputer::compute_edge_labels`.
-    pub(crate) fn compute(
-        ctx: TaffyBuildCtx<'_>,
-        taffy_tree: &TaffyTree<TaffyNodeCtx>,
-        node_id_to_taffy: &Map<NodeId<'static>, NodeToTaffyNodeIds>,
-    ) -> EntityHighlightedSpans<'static> {
-        let char_width = ctx.char_width;
-
-        let mut entity_highlighted_spans =
-            EntityHighlightedSpans::with_capacity(node_id_to_taffy.len());
-
-        let line_height = TEXT_LINE_HEIGHT;
-
-        node_id_to_taffy
-            .iter()
-            .for_each(|(node_id, &taffy_node_ids)| {
-                let (wrapper_node_layout, text_node_layout, diagram_node_ctx) = match taffy_node_ids
-                {
-                    NodeToTaffyNodeIds::Leaf { text_node_id } => {
-                        let Ok(text_node_layout) = taffy_tree.layout(text_node_id) else {
-                            return;
-                        };
-                        let Some(TaffyNodeCtx::DiagramNode(diagram_node_ctx)) =
-                            taffy_tree.get_node_context(text_node_id)
-                        else {
-                            return;
-                        };
-                        (text_node_layout, text_node_layout, diagram_node_ctx)
-                    }
-                    NodeToTaffyNodeIds::Wrapper {
-                        wrapper_node_id,
-                        text_node_id,
-                    }
-                    | NodeToTaffyNodeIds::LeafWithCircle {
-                        wrapper_node_id,
-                        circle_node_id: _,
-                        text_node_id,
-                    }
-                    | NodeToTaffyNodeIds::WrapperCircle {
-                        wrapper_node_id,
-                        label_wrapper_node_id: _,
-                        circle_node_id: _,
-                        text_node_id,
-                    }
-                    | NodeToTaffyNodeIds::ProcessStepGraphLeaf {
-                        wrapper_node_id,
-                        circle_node_id: _,
-                        text_node_id,
-                    } => {
-                        let Ok(wrapper_node_layout) = taffy_tree.layout(wrapper_node_id) else {
-                            return;
-                        };
-                        let Ok(text_node_layout) = taffy_tree.layout(text_node_id) else {
-                            return;
-                        };
-                        let Some(TaffyNodeCtx::DiagramNode(diagram_node_ctx)) =
-                            taffy_tree.get_node_context(text_node_id)
-                        else {
-                            return;
-                        };
-
-                        (wrapper_node_layout, text_node_layout, diagram_node_ctx)
-                    }
-                };
-                let text_label_offset = match taffy_node_ids {
-                    NodeToTaffyNodeIds::Leaf { .. } | NodeToTaffyNodeIds::Wrapper { .. } => 0.0f32,
-                    NodeToTaffyNodeIds::LeafWithCircle {
-                        wrapper_node_id: _,
-                        circle_node_id,
-                        text_node_id: _,
-                    }
-                    | NodeToTaffyNodeIds::WrapperCircle {
-                        wrapper_node_id: _,
-                        label_wrapper_node_id: _,
-                        circle_node_id,
-                        text_node_id: _,
-                    } => taffy_tree
-                        .layout(circle_node_id)
-                        .map(|circle_node_layout| {
-                            // This could be:
-                            //
-                            // ```rust
-                            // circle_node_layout.size.width + gap
-                            // ```
-                            //
-                            // but we don't have the gap value
-                            text_node_layout.location.x - circle_node_layout.location.x
-                        })
-                        .unwrap_or_default(),
-                    // The circle is nested inside the fixed-width lane gutter, so
-                    // its `location.x` is in the gutter's coordinate space and is
-                    // not comparable to the text's. The text node is a direct
-                    // child of the wrapper, so its `location.x` already is the
-                    // offset from the node origin (and is identical across steps,
-                    // keeping labels aligned in one column).
-                    NodeToTaffyNodeIds::ProcessStepGraphLeaf { .. } => text_node_layout.location.x,
-                };
-
-                let entity_id = &diagram_node_ctx.entity_id;
-
-                // Build the text content from the precomputed markdown text.
-                let text = ctx
-                    .node_md_text(entity_id)
-                    .unwrap_or_else(|| entity_id.as_str());
-
-                if text.is_empty() {
-                    return;
-                }
-
-                // Use the computed layout width as constraint
-                let max_width = text_node_layout.size.width;
-
-                // Compute line wrapping using simple monospace calculation
-                let wrapped_lines = wrap_text_monospace(text, char_width, max_width);
-
-                // Get style info for padding calculations
-                let padding_left = text_node_layout.padding.left;
-                let padding_top = wrapper_node_layout.padding.top;
-
-                // Note: we shift the text by half a character width because even though we have
-                // padding, the text still reaches the left and right edges of the node.
-                //
-                // The half a character width (at each end) is added to the node's width in
-                // `line_width_measure`.
-                let text_leftmost_x = text_label_offset + padding_left + 0.5 * char_width;
-
-                let highlighted_spans: Vec<EntityHighlightedSpan> = {
-                    wrapped_lines
-                        .iter()
-                        .enumerate()
-                        .flat_map(|(line_index, line)| {
-                            let x = text_leftmost_x;
-                            let y = (line_index + 1) as f32 * line_height + padding_top;
-                            let width = line_width_measure(line, char_width);
-
-                            let entity_highlighted_span = EntityHighlightedSpan {
-                                x,
-                                y,
-                                width,
-                                height: line_height,
-                                // style,
-                                text: line.to_string(),
-                                md_style: None,
-                                tailwind_classes: Vec::new(),
-                            };
-
-                            vec![entity_highlighted_span]
-                        })
-                        .collect()
-                };
-
-                entity_highlighted_spans.insert(node_id.as_ref().clone(), highlighted_spans);
-            });
-
-        entity_highlighted_spans
-    }
-
     /// Computes highlighted spans for a single edge description leaf node.
     ///
     /// Returns `None` if `text` is empty or the taffy layout cannot be read.

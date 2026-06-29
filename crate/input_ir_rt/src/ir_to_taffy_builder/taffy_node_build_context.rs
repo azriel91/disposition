@@ -164,13 +164,6 @@ impl NodeMeasureContext<'_> {
         let text = match taffy_node_ctx
             .as_ref()
             .and_then(|taffy_node_ctx| match taffy_node_ctx {
-                TaffyNodeCtx::DiagramNode(diagram_node_ctx) => {
-                    let entity_id = &diagram_node_ctx.entity_id;
-                    let text = ctx
-                        .node_md_text(entity_id)
-                        .unwrap_or_else(|| entity_id.as_str());
-                    Some(Cow::Borrowed(text))
-                }
                 TaffyNodeCtx::EdgeSpacer(_) => None,
                 TaffyNodeCtx::EdgeDescription(ctx) => match lod {
                     DiagramLod::Simple => None,
