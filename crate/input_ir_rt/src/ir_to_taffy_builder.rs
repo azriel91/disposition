@@ -164,7 +164,6 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy,
             entity_types,
-            thing_descs,
             edge_descs,
             node_shapes,
             node_ranks_nested,

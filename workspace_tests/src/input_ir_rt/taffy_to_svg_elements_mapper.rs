@@ -1271,19 +1271,33 @@ fn test_0044_edges_route_around_described_label_with_distinct_return_jogs() {
 }
 
 /// Two edges from nested nodes into other nested nodes, sharing the same rank
-/// gap, must receive **distinct** `from_protrusion` and `to_protrusion` so
-/// their lateral routing segments do not overlap.
+/// gap, must keep their lateral routing segments separated so they do not
+/// collapse onto one line.
 ///
-/// Both edges clear the same divergent-ancestor sibling row, so before the
-/// row-grouped staggering their protrusions collapsed onto a single value
-/// (`from=23`, `to=73`). The fix in
-/// `OrthoProtrusionCalculator::protrusions_adjust_for_divergent_siblings`
-/// staggers endpoints clearing the same row `MIN_PROTRUSION_PX` apart.
+/// Both edges clear the same divergent-ancestor sibling row. Their separation
+/// is achieved by staggering the depths of the waypoints in that row -- the
+/// from/to protrusions and the text-content spacers that route each edge around
+/// its destination container's title band. Rather than pinning any single
+/// mechanism, this checks the outcome directly: the first horizontal "jog" leg
+/// of each edge (its lateral sweep across the shared row) sits at a distinct
+/// main-axis coordinate, at least `MIN_PROTRUSION_PX` apart. (See
+/// `OrthoProtrusionCalculator::protrusions_adjust_for_divergent_siblings`.)
 fn assert_nested_node_edge_protrusions_distinct(
     input_diagram: &str,
     edge_a: (&str, &str),
     edge_b: (&str, &str),
 ) {
+    // The main-axis coordinate of an edge path's first horizontal segment -- its
+    // lateral sweep across the shared divergent-ancestor row. Skips rounded
+    // corner curve points and returns the y of the first truly horizontal leg.
+    fn first_horizontal_leg_y(path_d: &str) -> f32 {
+        parse_path_endpoints(path_d)
+            .windows(2)
+            .find(|seg| (seg[0].1 - seg[1].1).abs() < 1e-2 && (seg[0].0 - seg[1].0).abs() > 1e-2)
+            .map(|seg| seg[0].1)
+            .expect("Expected at least one horizontal segment in the edge path")
+    }
+
     for svg_elements in build_svg_elements_for_diagram(input_diagram) {
         let edge_find = |from: &str, to: &str| {
             svg_elements
@@ -1295,22 +1309,17 @@ fn assert_nested_node_edge_protrusions_distinct(
         let edge_info_a = edge_find(edge_a.0, edge_a.1);
         let edge_info_b = edge_find(edge_b.0, edge_b.1);
 
-        let from_protrusion_a = edge_info_a.ortho_protrusion_params.from_protrusion;
-        let from_protrusion_b = edge_info_b.ortho_protrusion_params.from_protrusion;
-        let to_protrusion_a = edge_info_a.ortho_protrusion_params.to_protrusion;
-        let to_protrusion_b = edge_info_b.ortho_protrusion_params.to_protrusion;
+        let leg_y_a = first_horizontal_leg_y(&edge_info_a.path_d);
+        let leg_y_b = first_horizontal_leg_y(&edge_info_b.path_d);
 
         assert!(
-            (from_protrusion_a - from_protrusion_b).abs() >= MIN_PROTRUSION_PX - 1e-3,
-            "from_protrusion for {edge_a:?} ({from_protrusion_a:.2}) and {edge_b:?} \
-             ({from_protrusion_b:.2}) must differ by >= {MIN_PROTRUSION_PX} so their lateral \
-             segments do not overlap",
-        );
-        assert!(
-            (to_protrusion_a - to_protrusion_b).abs() >= MIN_PROTRUSION_PX - 1e-3,
-            "to_protrusion for {edge_a:?} ({to_protrusion_a:.2}) and {edge_b:?} \
-             ({to_protrusion_b:.2}) must differ by >= {MIN_PROTRUSION_PX} so their lateral \
-             segments do not overlap",
+            (leg_y_a - leg_y_b).abs() >= MIN_PROTRUSION_PX - 1e-3,
+            "lateral legs for {edge_a:?} (y={leg_y_a:.2}) and {edge_b:?} \
+             (y={leg_y_b:.2}) must differ by >= {MIN_PROTRUSION_PX} so their \
+             lateral routing segments across the shared row do not overlap. \
+             path_a = {:?}, path_b = {:?}",
+            edge_info_a.path_d,
+            edge_info_b.path_d,
         );
     }
 }
@@ -2108,14 +2117,16 @@ fn test_edge_to_nested_rank_0_node_has_no_cross_container_spacer() {
             })
             .expect("Expected edge from t_alice to t_charlie_1");
 
-        assert!(
+        assert_eq!(
             alice_charlie_1_edge
                 .ortho_protrusion_params
                 .spacer_protrusions
-                .is_empty(),
-            "Expected no spacer protrusions for edge t_alice -> t_charlie_1 \
-             (t_charlie_1 is at rank 0 inside t_charlie_outer, so no siblings \
-             are between the container entry and the target): \
+                .len(),
+            1,
+            "Expected exactly one (text-content) spacer for edge t_alice -> \
+             t_charlie_1: t_charlie_1 is at rank 0 inside t_charlie_outer, so no \
+             siblings are between the container entry and the target -- the only \
+             spacer routes around t_charlie_outer's title band: \
              spacer_protrusions = {:?}",
             alice_charlie_1_edge
                 .ortho_protrusion_params
@@ -2209,36 +2220,20 @@ fn test_edge_from_toplevel_to_nested_rank_0_node_uses_normal_face_routing() {
     }
 }
 
-/// For `edge_dep_alice_charlie_1`, the Z/S routing segment connecting the
-/// two protrusion tips must stay within the gap between the two containers.
+/// For `edge_dep_alice_charlie_1`, the routing must never loop backward in the
+/// visual (arrow) direction.
 ///
-/// When the gap between the two protrusion tips is smaller than `ARC_RADIUS`,
-/// the bend placement must be chosen carefully:
-///
-/// - **First bug**: bend placed *below* the to-protrusion tip (inside
-///   `t_charlie_outer`) -- the path dipped into the container before routing
-///   through the gap, creating an upward curve that contradicts the downward
-///   flow direction.
-///
-/// - **Second bug**: bend placed *above* the from-protrusion tip (outside the
-///   gap, further up than necessary) -- the path then had to loop back downward
-///   to reach the from-protrusion tip, creating a visible backward movement in
-///   the arrow (visual) direction.
-///
-/// The correct fix places the bend at the *midpoint* between the two
-/// protrusion tips, keeping it strictly inside the routing gap. This ensures
-/// both Leg 1 (from the to-protrusion tip) and Leg 3 (arriving at the
-/// from-protrusion tip) travel in the same upward direction, matching the
-/// edge's overall flow.
+/// `t_charlie_1` is rank 0 inside `t_charlie_outer`, directly below that
+/// container's title band, so the edge descends past the title via a
+/// text-content spacer (entering the container alongside, to the right of, the
+/// title) before reaching `t_charlie_1`. That descent is intentional, so the
+/// path legitimately dips below `t_charlie_outer`'s top -- what must *not*
+/// happen is any backward (upward) reversal, which would mean a routing bend
+/// was placed above the from-protrusion tip or the spacers were visited out of
+/// order. The path therefore stays monotonic along the downward flow axis.
 #[test]
 fn test_edge_from_nested_routing_stays_within_gap() {
     for svg_elements in build_svg_elements_from_edge_from_node_to_nested_node() {
-        let charlie_outer = svg_elements
-            .svg_node_infos
-            .iter()
-            .find(|n| n.node_id.as_str() == "t_charlie_outer")
-            .expect("Expected t_charlie_outer in svg_node_infos");
-
         let alice_charlie_1_edge = svg_elements
             .svg_edge_infos
             .iter()
@@ -2247,51 +2242,11 @@ fn test_edge_from_nested_routing_stays_within_gap() {
             })
             .expect("Expected edge from t_alice to t_charlie_1");
 
-        let charlie_outer_top_y = charlie_outer.y;
-
-        // The path is built in SVG order from the from-node (alice, at the
-        // top) to the to-node (charlie_1, at the bottom). All coordinates
-        // between the first (alice contact y) and the last (charlie_1 contact
-        // y) are the routing segment.
-        let all_coords = parse_path_endpoints(&alice_charlie_1_edge.path_d);
-
-        // The from-protrusion tip is the second coordinate (just after the
-        // alice contact point). Its y is the upper bound of the routing gap --
-        // no later point should overshoot above it.
-        let from_protrusion_tip_y = all_coords.get(1).map(|&(_, y)| y).unwrap_or(0.0);
-
-        // Skip the first (alice contact) and last (charlie_1 contact).
-        let intermediate_coords = all_coords
-            .iter()
-            .skip(1)
-            .take(all_coords.len().saturating_sub(2));
-
-        for &(x, y) in intermediate_coords {
-            // No intermediate point should fall below charlie_outer's top --
-            // that means the Z/S dipped into the destination container.
-            assert!(
-                y <= charlie_outer_top_y + 0.5,
-                "Intermediate routing coordinate ({x:.3}, {y:.3}) is below \
-                 t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}). \
-                 The Z/S bend was placed inside the destination container. \
-                 path_d = {:?}",
-                alice_charlie_1_edge.path_d,
-            );
-
-            // No intermediate point should overshoot above the from-protrusion
-            // tip -- that means the Z/S looped backward in the visual
-            // (arrow) direction, going further up than needed and then
-            // reversing to reach the from-protrusion tip.
-            assert!(
-                y >= from_protrusion_tip_y - 0.5,
-                "Intermediate routing coordinate ({x:.3}, {y:.3}) overshoots \
-                 above the from-protrusion tip (y={from_protrusion_tip_y:.3}). \
-                 The Z/S bend was placed outside the routing gap, causing a \
-                 backward loop in the visual arrow direction. \
-                 path_d = {:?}",
-                alice_charlie_1_edge.path_d,
-            );
-        }
+        // The path is built in SVG order from the from-node (alice, at the top)
+        // to the to-node (charlie_1, at the bottom). It routes around
+        // t_charlie_outer's title band on the way down, but must never reverse
+        // along the downward flow axis.
+        assert_edge_path_main_axis_monotonic(&alice_charlie_1_edge.path_d, FlowAxis::Vertical);
     }
 }
 
@@ -2401,11 +2356,11 @@ fn test_edge_to_nested_rank_1_node_has_exactly_one_cross_container_spacer() {
             .len();
         assert_eq!(
             spacer_count,
-            1,
-            "Expected exactly one cross-container spacer protrusion for edge \
-             t_alice -> t_charlie_3. Both rank-0 siblings t_charlie_1 and \
-             t_charlie_2 belong to the same rank group and should share one \
-             spacer. Got {spacer_count} spacer(s): {:?}",
+            2,
+            "Expected two spacer protrusions for edge t_alice -> t_charlie_3: the \
+             cross-container spacer for the rank-0 sibling group (t_charlie_1 and \
+             t_charlie_2 share one spacer) plus the text-content spacer routing \
+             around t_charlie_outer's title band. Got {spacer_count} spacer(s): {:?}",
             alice_charlie_3_edge
                 .ortho_protrusion_params
                 .spacer_protrusions,
@@ -2608,9 +2563,10 @@ fn test_spacer_edges_into_same_node_have_separated_approach_legs() {
     }
 }
 
-/// Edges to `t_charlie_1` (rank 0 in `t_charlie_outer`) should have no
-/// cross-container spacers, even in the presence of a rank-1 sibling
-/// (`t_charlie_3`).
+/// Edges to `t_charlie_1` (rank 0 in `t_charlie_outer`) need no *sibling*
+/// cross-container spacer, even in the presence of a rank-1 sibling
+/// (`t_charlie_3`) -- only the text-content spacer that routes around
+/// `t_charlie_outer`'s title band, for one spacer each.
 #[test]
 fn test_edge_to_nested_rank_0_node_has_no_spacers_in_complex_diagram() {
     for svg_elements in build_svg_elements_from_edge_from_node_to_nested_rank_1_node() {
@@ -2623,34 +2579,38 @@ fn test_edge_to_nested_rank_0_node_has_no_spacers_in_complex_diagram() {
             })
             .expect("Expected edge from t_alice to t_charlie_1");
 
-        assert!(
+        assert_eq!(
             alice_charlie_1_edge
                 .ortho_protrusion_params
                 .spacer_protrusions
-                .is_empty(),
-            "Expected no spacer protrusions for edge t_alice -> t_charlie_1 \
-             in the 0008 diagram (t_charlie_1 is at rank 0): \
-             spacer_protrusions = {:?}",
+                .len(),
+            1,
+            "Expected exactly one (text-content) spacer for edge t_alice -> \
+             t_charlie_1 in the 0008 diagram: t_charlie_1 is at rank 0, so no \
+             sibling spacer is needed -- the only spacer routes around \
+             t_charlie_outer's title band: spacer_protrusions = {:?}",
             alice_charlie_1_edge
                 .ortho_protrusion_params
                 .spacer_protrusions,
         );
 
-        // bob -> charlie_1 edge: also no spacers
+        // bob -> charlie_1 edge: also only the text-content spacer
         let bob_charlie_1_edge = svg_elements
             .svg_edge_infos
             .iter()
             .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_charlie_1")
             .expect("Expected edge from t_bob to t_charlie_1");
 
-        assert!(
+        assert_eq!(
             bob_charlie_1_edge
                 .ortho_protrusion_params
                 .spacer_protrusions
-                .is_empty(),
-            "Expected no spacer protrusions for edge t_bob -> t_charlie_1 \
-             in the 0008 diagram (t_charlie_1 is at rank 0): \
-             spacer_protrusions = {:?}",
+                .len(),
+            1,
+            "Expected exactly one (text-content) spacer for edge t_bob -> \
+             t_charlie_1 in the 0008 diagram: t_charlie_1 is at rank 0, so no \
+             sibling spacer is needed -- the only spacer routes around \
+             t_charlie_outer's title band: spacer_protrusions = {:?}",
             bob_charlie_1_edge
                 .ortho_protrusion_params
                 .spacer_protrusions,
@@ -2659,39 +2619,24 @@ fn test_edge_to_nested_rank_0_node_has_no_spacers_in_complex_diagram() {
 }
 
 /// The edge from `t_alice_inner` to `t_charlie_inner` in the doubly-nested
-/// diagram must route orthogonally without entering `t_charlie_outer`'s
-/// interior.
+/// diagram must descend cleanly toward its target without ever reversing along
+/// the downward flow axis.
 ///
-/// Two bugs could cause intermediate routing coordinates to fall below
-/// `t_charlie_outer`'s top:
-///
-/// 1. The `connect_waypoints` collinear check using `dot_p.abs() > 0.95`
-///    incorrectly treated the nearly anti-collinear displacement between the
-///    two protrusion tips as "straight", drawing a diagonal line instead of an
-///    orthogonal Z/S bend.
-///
-/// 2. The from-protrusion (73.44 px) plus the to-protrusion (110.0 px) summed
-///    to 183.44 px, exceeding the node-to-node gap (153 px). The
-///    from-protrusion tip was placed inside `t_charlie_outer` (at y=245.44),
-///    below the to-protrusion tip (at y=215.0).
-///
-/// After the fix the from-protrusion is capped to 43 px (= 153 - 110), so
-/// both tips meet at `t_charlie_outer`'s top boundary (y=215). The V-spike
-/// guard in `connect_waypoints` (see
-/// `test_nested_x2_node_edge_routing_no_upward_detour`) then replaces the Z/S
-/// U-bend between the tips with a straight horizontal line, so no intermediate
-/// coordinate falls below `t_charlie_outer.y`.
+/// `t_charlie_inner` is nested under the title bands of `t_charlie_outer` and
+/// `t_charlie`, so the edge legitimately enters those containers -- descending
+/// alongside (to the right of) each title via a text-content spacer -- rather
+/// than stopping at `t_charlie_outer`'s top. What must never happen is a
+/// backward (upward) reversal: a U-bend / V-spike at a container boundary, a
+/// from-protrusion tip placed below the to-tip, or spacers visited out of order
+/// would all show up as a non-monotonic dip, so the path is asserted monotonic
+/// along the downward flow axis. (The companion
+/// `test_nested_x2_node_edge_routing_no_upward_detour` guards the same property
+/// against the from-protrusion tip specifically.)
 #[test]
 fn test_nested_x2_node_edge_routing_stays_above_charlie_outer() {
     for svg_elements in
         build_svg_elements_for_diagram(INPUT_DIAGRAM_0002_NESTED_NODE_EDGE_PROTRUSION)
     {
-        let charlie_outer = svg_elements
-            .svg_node_infos
-            .iter()
-            .find(|n| n.node_id.as_str() == "t_charlie_outer")
-            .expect("Expected t_charlie_outer in svg_node_infos");
-
         let alice_inner_charlie_inner_edge = svg_elements
             .svg_edge_infos
             .iter()
@@ -2701,35 +2646,14 @@ fn test_nested_x2_node_edge_routing_stays_above_charlie_outer() {
             })
             .expect("Expected edge from t_alice_inner to t_charlie_inner");
 
-        let charlie_outer_top_y = charlie_outer.y;
-
-        // The path is built in SVG order from the from-node (t_alice_inner,
-        // at the top) to the to-node (t_charlie_inner, at the bottom). The
-        // first coordinate is t_alice_inner's contact point (above all
-        // containers) and the last is t_charlie_inner's contact point (inside
-        // t_charlie_outer).
-        //
-        // All *intermediate* coordinates represent the routing segment
-        // connecting the two protrusion tips. None of them should fall below
-        // t_charlie_outer's top, which would indicate the Z/S bend dipped
-        // into the destination container.
-        let all_coords = parse_path_endpoints(&alice_inner_charlie_inner_edge.path_d);
-
-        let intermediate_coords = all_coords
-            .iter()
-            .skip(1)
-            .take(all_coords.len().saturating_sub(2));
-
-        for &(x, y) in intermediate_coords {
-            assert!(
-                y <= charlie_outer_top_y + 0.5,
-                "Intermediate routing coordinate ({x:.3}, {y:.3}) is below \
-                 t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}). \
-                 The Z/S bend dipped into the destination container. \
-                 path_d = {:?}",
-                alice_inner_charlie_inner_edge.path_d,
-            );
-        }
+        // The path is built in SVG order from the from-node (t_alice_inner, at
+        // the top) to the to-node (t_charlie_inner, at the bottom). It routes
+        // around the destination containers' title bands on the way down, but
+        // must never reverse along the downward flow axis.
+        assert_edge_path_main_axis_monotonic(
+            &alice_inner_charlie_inner_edge.path_d,
+            FlowAxis::Vertical,
+        );
     }
 }
 
@@ -2811,6 +2735,12 @@ fn test_nested_x2_node_edge_routing_no_upward_detour() {
 ///   inter-rank gap (above `t_charlie_outer.y`), so both tips are at different
 ///   y-coordinates.
 /// - A proper Z/S bend with arc-rounded corners is drawn in the gap.
+///
+/// `t_charlie` is rank 0 beneath `t_charlie_outer`'s title band, so the edge
+/// then descends into the container alongside (to the right of) that title via
+/// a text-content spacer to reach `t_charlie`. That descent below
+/// `t_charlie_outer.y` is intentional; what must not happen is a backward
+/// (upward) reversal, so the path stays monotonic along the downward flow axis.
 #[test]
 fn test_0017_edge_inner_to_inner_routing_in_inter_rank_gap() {
     for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0017_EDGE_INNER_TO_INNER) {
@@ -2846,32 +2776,10 @@ fn test_0017_edge_inner_to_inner_routing_in_inter_rank_gap() {
             alice_charlie_edge.path_d,
         );
 
-        // All intermediate routing coordinates must stay above t_charlie_outer
-        // (no dip into the container) and not rise back above the
-        // from-protrusion tip (no backward loop).
-        let intermediate_coords = all_coords
-            .iter()
-            .skip(1)
-            .take(all_coords.len().saturating_sub(2));
-
-        for &(x, y) in intermediate_coords {
-            assert!(
-                y <= charlie_outer_top_y + 0.5,
-                "Intermediate routing coordinate ({x:.3}, {y:.3}) is below \
-                 t_charlie_outer's top (y={charlie_outer_top_y:.3}): the Z/S bend \
-                 dipped into the destination container. \
-                 path_d = {:?}",
-                alice_charlie_edge.path_d,
-            );
-            assert!(
-                y >= from_protrusion_tip_y - 0.5,
-                "Routing coordinate ({x:.3}, {y:.3}) is above the \
-                 from-protrusion tip (y={from_protrusion_tip_y:.3}): the Z/S bend \
-                 looped backward past the routing gap. \
-                 path_d = {:?}",
-                alice_charlie_edge.path_d,
-            );
-        }
+        // The edge enters the gap, then descends around t_charlie_outer's title
+        // band to reach t_charlie -- but must never reverse along the downward
+        // flow axis (no V-spike / backward loop).
+        assert_edge_path_main_axis_monotonic(&alice_charlie_edge.path_d, FlowAxis::Vertical);
     }
 }
 
@@ -4018,9 +3926,17 @@ fn assert_edge_path_clears_node(
 }
 
 /// When the `from` node is the highest-ranked child of its container, an edge
-/// to a node in the next sibling container exits straight out the gap-facing
-/// face: there is no higher-ranked sibling to route around, so the edge has no
-/// spacers and does not detour on the cross axis.
+/// to a node in the next sibling container has no higher-ranked *sibling* to
+/// route around.
+///
+/// For the horizontal flows the destination container's title is a side strip
+/// the edge enters past, so the edge exits straight out the gap-facing face
+/// with no spacer and no cross-axis detour.
+///
+/// For the vertical flows the destination container's title band sits above its
+/// ranks, so the edge picks up a single text-content spacer and routes around
+/// that band (a modest cross-axis detour) before descending to the rank-0
+/// target -- still monotonic along the flow axis, with no sibling spacer.
 fn assert_high_rank_from_edge_routes_straight(input_diagram: &str, axis: FlowAxis) {
     for svg_elements in build_svg_elements_for_diagram(input_diagram) {
         let edge = svg_elements
@@ -4029,37 +3945,61 @@ fn assert_high_rank_from_edge_routes_straight(input_diagram: &str, axis: FlowAxi
             .find(|e| e.from_node_id.as_str() == "t_a_01" && e.to_node_id.as_str() == "t_b_00")
             .expect("Expected edge from t_a_01 to t_b_00");
 
-        assert!(
-            edge.ortho_protrusion_params.spacer_protrusions.is_empty(),
-            "Expected no spacer protrusions for t_a_01 -> t_b_00 -- t_a_01 is the \
-             highest-ranked child of t_a_0, so the edge exits straight out the \
-             gap-facing face with no sibling to route around. \
-             spacer_protrusions = {:?}, path_d = {:?}",
-            edge.ortho_protrusion_params.spacer_protrusions,
-            edge.path_d,
-        );
+        match axis {
+            FlowAxis::Vertical => {
+                // The destination container `t_b_0` renders a title band above
+                // its ranks, so the edge routes around it via one text-content
+                // spacer rather than descending straight down through the title.
+                // There is still no higher-ranked sibling, so that is the only
+                // spacer, and the path never reverses along the flow axis.
+                assert_eq!(
+                    edge.ortho_protrusion_params.spacer_protrusions.len(),
+                    1,
+                    "Expected exactly one (text-content) spacer for t_a_01 -> \
+                     t_b_00 -- t_a_01 has no higher-ranked sibling, so the only \
+                     spacer routes around t_b_0's title band. \
+                     spacer_protrusions = {:?}, path_d = {:?}",
+                    edge.ortho_protrusion_params.spacer_protrusions,
+                    edge.path_d,
+                );
+                assert_edge_path_main_axis_monotonic(&edge.path_d, axis);
+            }
+            FlowAxis::Horizontal => {
+                assert!(
+                    edge.ortho_protrusion_params.spacer_protrusions.is_empty(),
+                    "Expected no spacer protrusions for t_a_01 -> t_b_00 -- t_a_01 \
+                     is the highest-ranked child of t_a_0 and the title is a side \
+                     strip, so the edge exits straight out the gap-facing face. \
+                     spacer_protrusions = {:?}, path_d = {:?}",
+                    edge.ortho_protrusion_params.spacer_protrusions,
+                    edge.path_d,
+                );
 
-        // No cross-axis detour: every vertex stays within a tight band of the
-        // first contact point (both endpoints are aligned on the cross axis in
-        // these fixtures).
-        let coords = parse_path_endpoints(&edge.path_d);
-        let first_cross = axis.cross(coords[0]);
-        for &point in &coords {
-            let cross = axis.cross(point);
-            assert!(
-                (cross - first_cross).abs() <= 12.0,
-                "Edge t_a_01 -> t_b_00 detours on the cross axis: vertex {point:?} \
-                 is {:.1} px from the contact line ({first_cross:.1}). The edge \
-                 should route straight out the gap-facing face. path_d = {:?}",
-                (cross - first_cross).abs(),
-                edge.path_d,
-            );
+                // No cross-axis detour: every vertex stays within a tight band of
+                // the first contact point (both endpoints are aligned on the
+                // cross axis in these fixtures).
+                let coords = parse_path_endpoints(&edge.path_d);
+                let first_cross = axis.cross(coords[0]);
+                for &point in &coords {
+                    let cross = axis.cross(point);
+                    assert!(
+                        (cross - first_cross).abs() <= 12.0,
+                        "Edge t_a_01 -> t_b_00 detours on the cross axis: vertex \
+                         {point:?} is {:.1} px from the contact line \
+                         ({first_cross:.1}). The edge should route straight out \
+                         the gap-facing face. path_d = {:?}",
+                        (cross - first_cross).abs(),
+                        edge.path_d,
+                    );
+                }
+            }
         }
     }
 }
 
 /// `0031` (`top_to_bottom`): `t_a_01` is rank 1 (highest) in `t_a_0`, so the
-/// edge to `t_b_00` needs no cross-container spacer.
+/// edge to `t_b_00` needs no *sibling* cross-container spacer -- only a
+/// text-content spacer to route around `t_b_0`'s title band.
 #[test]
 fn test_0031_high_rank_from_edge_top_to_bottom_routes_straight() {
     assert_high_rank_from_edge_routes_straight(
@@ -4086,7 +4026,8 @@ fn test_0033_high_rank_from_edge_right_to_left_routes_straight() {
     );
 }
 
-/// `0034` (`bottom_to_top`): same as `0031`, with a reversed vertical flow.
+/// `0034` (`bottom_to_top`): same as `0031` (one text-content spacer around
+/// `t_b_0`'s title band, no sibling spacer), with a reversed vertical flow.
 #[test]
 fn test_0034_high_rank_from_edge_bottom_to_top_routes_straight() {
     assert_high_rank_from_edge_routes_straight(
@@ -4099,7 +4040,8 @@ fn test_0034_high_rank_from_edge_bottom_to_top_routes_straight() {
 /// edge to `t_b_00` exits toward the high-rank (bottom) face, so it must route
 /// around `t_a_02` (rank 2) via a cross-container spacer on the gap side -- not
 /// around `t_a_00` (rank 0), which is on the far side -- and the path must
-/// clear `t_a_02`.
+/// clear `t_a_02`. It also picks up a text-content spacer to route around
+/// `t_b_0`'s title band, for two spacers total.
 #[test]
 fn test_0035_mid_rank_from_edge_routes_around_higher_rank_sibling() {
     for svg_elements in build_svg_elements_for_diagram(
@@ -4119,9 +4061,10 @@ fn test_0035_mid_rank_from_edge_routes_around_higher_rank_sibling() {
 
         assert_eq!(
             edge.ortho_protrusion_params.spacer_protrusions.len(),
-            1,
-            "Expected exactly one cross-container spacer (routing around t_a_02 on \
-             the gap side) for t_a_01 -> t_b_00. spacer_protrusions = {:?}, \
+            2,
+            "Expected two spacers for t_a_01 -> t_b_00: the sibling cross-container \
+             spacer routing around t_a_02 on the gap side, and the text-content \
+             spacer routing around t_b_0's title band. spacer_protrusions = {:?}, \
              path_d = {:?}",
             edge.ortho_protrusion_params.spacer_protrusions,
             edge.path_d,

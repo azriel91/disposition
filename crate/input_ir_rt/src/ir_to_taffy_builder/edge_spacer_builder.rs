@@ -323,16 +323,18 @@ impl EdgeSpacerBuilder {
 
     /// Builds one "text-content spacer" per cross-container edge that traverses
     /// this container, to be appended to the right of the node's text content
-    /// (its title + description) so the edge routes around the description text
-    /// rather than across it.
+    /// (its title + description) so the edge routes around that text rather
+    /// than across it.
     ///
     /// Returns the ordered spacer node IDs for the caller to place in a `Row`
     /// wrapper around the text node, plus the per-edge spacer-node map to merge
     /// into the diagram-wide spacer map.
     ///
-    /// Only nodes that actually have a description are handled -- an
-    /// undescribed node's text content is just its (short) title, which edges
-    /// do not need to route around, so undescribed diagrams are unchanged.
+    /// Any container that renders a non-empty top text band -- a title and/or a
+    /// description -- is handled. Node names are rendered as markdown in the
+    /// same band as descriptions, so a wide title is just as crossable as a
+    /// description and needs the same routing spacers. Only genuinely text-less
+    /// containers are skipped, leaving them unchanged.
     ///
     /// Unlike [`Self::build_cross_container_spacers`], these spacers are not
     /// inserted into a rank row. Each is still registered as a cross-container
@@ -350,8 +352,16 @@ impl EdgeSpacerBuilder {
         container_node_id: &NodeId<'static>,
         container_node_hierarchy: &NodeHierarchy<'static>,
     ) -> TextContentSpacersBuilt {
-        // Only described nodes need their text content routed around.
-        if ctx.thing_descs.get(container_node_id.as_ref()).is_none() {
+        // Only nodes that render a non-empty top text band need their text
+        // content routed around. A container almost always has at least a title
+        // (`node_md_text` is the same source `text_leaf_build` renders); guard
+        // against an empty / whitespace-only label so genuinely text-less
+        // containers stay unchanged.
+        let has_text_content = ctx
+            .node_md_text(container_node_id.as_ref())
+            .map(|text| !text.trim().is_empty())
+            .unwrap_or(false);
+        if !has_text_content {
             return TextContentSpacersBuilt {
                 spacer_taffy_node_ids: Vec::new(),
                 edge_spacer_taffy_nodes: Map::new(),
@@ -474,6 +484,24 @@ impl EdgeSpacerBuilder {
                     .map(|info| info.ancestor_chain.contains(container_node_id))
                     .unwrap_or(false);
                 if !inside_endpoint_is_inside {
+                    return;
+                }
+
+                // Only edges that actually descend through the top label band
+                // need a text spacer. The label is crossed only by a *cross-rank*
+                // entry from the top side; a same-rank edge (e.g. a cyclic edge
+                // between adjacent siblings at the same LCA rank) enters the
+                // container from the side, past the label, so adding a text
+                // spacer would loop it up to the label band and back. Skip those.
+                let crosses_ranks = node_nesting_infos
+                    .get(&edge.from)
+                    .zip(node_nesting_infos.get(&edge.to))
+                    .and_then(|(info_from, info_to)| {
+                        Self::divergent_ancestor_ranks(info_from, info_to, node_ranks_nested)
+                    })
+                    .map(|(rank_low, rank_high)| rank_low != rank_high)
+                    .unwrap_or(false);
+                if !crosses_ranks {
                     return;
                 }
 

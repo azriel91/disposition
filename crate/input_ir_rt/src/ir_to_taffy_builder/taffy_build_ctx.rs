@@ -34,8 +34,6 @@ pub(crate) struct TaffyBuildCtx<'ctx> {
     pub(crate) node_hierarchy: &'ctx NodeHierarchy<'static>,
     /// Entity types for each node, used to group nodes by entity type.
     pub(crate) entity_types: &'ctx EntityTypes<'static>,
-    /// Descriptions for each thing (diagram node).
-    pub(crate) thing_descs: &'ctx ThingDescs<'static>,
     /// Descriptions for each edge.
     pub(crate) edge_descs: &'ctx EdgeDescs<'static>,
     /// Shape (rect / circle) for each node.

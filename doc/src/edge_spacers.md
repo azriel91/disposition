@@ -132,21 +132,29 @@ it. The described edge whose container it is does **not** receive a spacer insid
 
 ### 4. Text-Content (Node-Label) Spacers
 
-Built by `EdgeSpacerBuilder::build_text_content_spacers`. Used when a **described** container node
-(one with a `thing_desc`) is entered by a cross-container edge to reach a node nested strictly
-inside it. The node's title + description render as a text block at the top of the node body, above
-its rank containers; without a waypoint there, the entering edge cuts straight across the
-description. One spacer leaf is appended **to the right of the text content** -- the text node and
-its spacers are wrapped in a `FlexDirection::Row`, so a single spacer per edge (not one per text
-line) marks a column just past the label. The edge then bows around the label and descends on its
-outer side before returning to its rank column.
+Built by `EdgeSpacerBuilder::build_text_content_spacers`. Used when a container node that renders a
+**non-empty top text band** -- a title and/or a `thing_desc` -- is entered by a cross-container edge
+to reach a node nested strictly inside it. Node names are rendered as markdown in the same band as
+descriptions, so a wide title is just as crossable as a description; the gate keys off the rendered
+text (`TaffyBuildCtx::node_md_text`), not the presence of a description, and only genuinely text-less
+containers are skipped. The text block renders at the top of the node body, above its rank
+containers; without a waypoint there, the entering edge cuts straight across the label. One spacer
+leaf is appended **to the right of the text content** -- the text node and its spacers are wrapped in
+a `FlexDirection::Row`, so a single spacer per edge (not one per text line) marks a column just past
+the label. The edge then bows around the label and descends on its outer side before returning to its
+rank column.
 
 Scope and behaviour differ from the other kinds in three ways:
 
-- **To-side only.** A spacer is created only for the container in which the **`to`** node is nested
-  (`edge.to`'s `ancestor_chain` contains the container). The from side (where the edge merely exits
-  its source) gets none, the diagram root gets none (it contains both endpoints, so the decider
-  skips it), and the container that *is* the `to` node gets none (the path stops at its face).
+- **To-side only, cross-rank entries only.** A spacer is created only for the container in which the
+  **`to`** node is nested (`edge.to`'s `ancestor_chain` contains the container; the `from` node for
+  `BottomToTop`). The from side (where the edge merely exits its source) gets none, the diagram root
+  gets none (it contains both endpoints, so the decider skips it), and the container that *is* the
+  endpoint node gets none (the path stops at its face). Only **vertical** rank directions
+  (`TopToBottom` / `BottomToTop`) build them -- horizontal flows enter past a side-strip label, not
+  through it. A spacer is also skipped when the edge's divergent ancestors share a rank (e.g. a
+  same-rank cyclic edge between adjacent siblings): such an edge enters the container from the side,
+  past the label, so a text spacer would needlessly loop it up to the label band and back.
 - **Excluded from the cross-container column snap.** Unlike cross-container spacers, text-content
   spacers are **not** passed to `cross_container_spacers_snap_to_column`
   ([edge_paths.md](edge_paths.md)). This keeps the detour **local** to the text band -- the edge
