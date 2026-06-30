@@ -54,7 +54,7 @@ stdout:
 cargo run -q -p disposition_cli -- --structure-only --data $intermediate_data --stdout $input_diagram_yaml_file 2>&1
 ```
 
-* `$intermediate_data` is one of `ir-diagram`, `taffy-tree`, `svg-elements`, or
+* `$intermediate_data` is one of `ir-diagram`, `taffy-tree`, `edge-routing`, `svg-elements`, or
   `svg`. The pipeline only computes up to the requested stage.
 * `--structure-only` omits styles / colors so the structural values are easier
   to read; drop it to see styled values.
@@ -64,7 +64,7 @@ cargo run -q -p disposition_cli -- --structure-only --data $intermediate_data --
   `workspace_tests/src/input_diagram/0018_images_animated.yaml`.
 
 Omit `--data` / `--stdout` and pass an output directory to instead write all
-stages (`ir_diagram.yaml`, `taffy_tree.txt`, `svg_elements.yaml`, `diagram.svg`)
+stages (`ir_diagram.yaml`, `taffy_tree.txt`, `edge_routing.yaml`, `svg_elements.yaml`, `diagram.svg`)
 to files.
 
 

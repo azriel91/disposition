@@ -9,7 +9,10 @@ use disposition_ir_model::{
 use disposition_model_common::{
     edge::EdgeCurvature, entity::EntityType, theme::Css, Id, Map, RankDir,
 };
-use disposition_svg_model::{OrthoProtrusionParams, SvgEdgeInfo, SvgNodeInfo};
+use disposition_svg_model::{
+    EdgePathBounds, EdgePathMidpoint, EdgeRoutingDiagnostic, EdgeRoutingDiagnostics,
+    OrthoProtrusionParams, RankGapEntryDiagnostic, SvgEdgeInfo, SvgNodeInfo,
+};
 use disposition_taffy_model::{
     taffy::TaffyTree, EdgeIdToEdgeLabelTaffyNodeIds, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx,
 };
@@ -27,7 +30,7 @@ use crate::{
             NodeIdAndFaceToContactPointOffsets, PathBounds, PathMidpoint,
         },
         edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
-        ortho_protrusion_calculator::OrthoProtrusionCalculator,
+        ortho_protrusion_calculator::{OrthoProtrusionCalculator, OrthoProtrusionOutcome},
         ArrowHeadBuilder, EdgeAnimationCalculator, EdgePathBuilderPass1, EdgePathBuilderPass2,
         EdgePathLocusCalculator, SpacerCoordinatesResolver, StringCharReplacer,
         SvgNodeInfoByNodeId,
@@ -39,6 +42,17 @@ use crate::{
 /// node layout information.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SvgEdgeInfosBuilder;
+
+/// Output of [`SvgEdgeInfosBuilder::build`].
+///
+/// Carries the rendered edge infos plus the edge-routing diagnostics
+/// captured during their computation.
+pub(super) struct SvgEdgeInfosBuilt<'id> {
+    /// The rendered SVG edge infos.
+    pub(super) svg_edge_infos: Vec<SvgEdgeInfo<'id>>,
+    /// Diagnostic snapshot of the pass-1, offset, and protrusion values.
+    pub(super) edge_routing_diagnostics: EdgeRoutingDiagnostics<'id>,
+}
 
 impl SvgEdgeInfosBuilder {
     /// Builds [`SvgEdgeInfo`] for all edges in the diagram.
@@ -69,7 +83,7 @@ impl SvgEdgeInfosBuilder {
         css: &mut Css,
         edge_animation_active: EdgeAnimationActive,
         focus_mode: TailwindFocusMode<'_, 'id>,
-    ) -> Vec<SvgEdgeInfo<'id>> {
+    ) -> SvgEdgeInfosBuilt<'id> {
         let IrDiagram {
             edge_groups,
             entity_types,
@@ -194,7 +208,10 @@ impl SvgEdgeInfosBuilder {
             })
             .collect();
 
-        let ortho_protrusions_all = OrthoProtrusionCalculator::calculate(
+        let OrthoProtrusionOutcome {
+            protrusion_params: ortho_protrusions_all,
+            rank_gap_entry_diagnostics,
+        } = OrthoProtrusionCalculator::calculate(
             rank_dir,
             &all_pass1_groups,
             &from_slot_indices_all,
@@ -207,6 +224,18 @@ impl SvgEdgeInfosBuilder {
             &ir_diagram.node_ranks_nested,
             entity_types,
             &group_is_direct,
+        );
+
+        // Assemble the per-edge routing diagnostics while the pass-1 groups,
+        // slot indices, offsets, and protrusion results are all still
+        // available (the pass-2 loop below consumes `all_pass1_groups`).
+        let edge_routing_diagnostics = Self::edge_routing_diagnostics_build(
+            &all_pass1_groups,
+            &from_slot_indices_all,
+            &to_slot_indices_all,
+            &face_offsets_by_node_face,
+            &ortho_protrusions_all,
+            rank_gap_entry_diagnostics,
         );
 
         // === Global Pass 2: rebuild paths with offsets, emit SvgEdgeInfos === //
@@ -368,7 +397,103 @@ impl SvgEdgeInfosBuilder {
             });
         }
 
-        svg_edge_infos
+        SvgEdgeInfosBuilt {
+            svg_edge_infos,
+            edge_routing_diagnostics,
+        }
+    }
+
+    /// Assembles the [`EdgeRoutingDiagnostics`] from the pass-1 groups,
+    /// slot indices, resolved face offsets, and computed protrusion
+    /// parameters.
+    ///
+    /// One [`EdgeRoutingDiagnostic`] is produced per edge, in edge-group
+    /// then edge order (parallel to `all_pass1_groups`). The rank-gap
+    /// entries are taken as-is from the protrusion calculator's snapshot.
+    fn edge_routing_diagnostics_build<'id>(
+        all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+        from_slot_indices_all: &[Vec<Option<usize>>],
+        to_slot_indices_all: &[Vec<Option<usize>>],
+        face_offsets_by_node_face: &NodeIdAndFaceToContactPointOffsets<'id>,
+        ortho_protrusions_all: &[Vec<OrthoProtrusionParams>],
+        rank_gap_entries: Vec<RankGapEntryDiagnostic<'id>>,
+    ) -> EdgeRoutingDiagnostics<'id> {
+        let face_offset_resolve =
+            |node_id: &NodeId<'id>, face: Option<NodeFace>, slot_index: Option<usize>| -> f32 {
+                let (Some(face), Some(slot_index)) = (face, slot_index) else {
+                    return 0.0;
+                };
+                let node_id_and_face = NodeIdAndFace {
+                    node_id: node_id.clone(),
+                    face,
+                };
+                face_offsets_by_node_face
+                    .get(&node_id_and_face)
+                    .and_then(|offsets| offsets.get(slot_index))
+                    .unwrap_or(0.0)
+            };
+
+        let edge_entries = all_pass1_groups
+            .iter()
+            .enumerate()
+            .flat_map(|(group_index, group)| {
+                let from_slot_indices = &from_slot_indices_all[group_index];
+                let to_slot_indices = &to_slot_indices_all[group_index];
+                let ortho_protrusions = &ortho_protrusions_all[group_index];
+
+                group
+                    .pass1_infos
+                    .iter()
+                    .enumerate()
+                    .map(move |(edge_index, pass1_info)| {
+                        let from_slot_index = from_slot_indices[edge_index];
+                        let to_slot_index = to_slot_indices[edge_index];
+
+                        EdgeRoutingDiagnostic {
+                            edge_id: pass1_info.edge_id.clone(),
+                            edge_group_id: (*group.edge_group_id).clone(),
+                            from_node_id: pass1_info.edge.from.clone(),
+                            to_node_id: pass1_info.edge.to.clone(),
+                            from_face: pass1_info.from_face,
+                            to_face: pass1_info.to_face,
+                            rank_from: pass1_info.rank_from,
+                            rank_to: pass1_info.rank_to,
+                            rank_distance: pass1_info.rank_distance,
+                            is_cycle_edge: pass1_info.is_cycle_edge,
+                            is_interaction: pass1_info.is_interaction,
+                            from_node_x: pass1_info.from_node_x,
+                            from_node_y: pass1_info.from_node_y,
+                            to_node_x: pass1_info.to_node_x,
+                            to_node_y: pass1_info.to_node_y,
+                            from_slot_index,
+                            to_slot_index,
+                            from_face_offset: face_offset_resolve(
+                                &pass1_info.edge.from,
+                                pass1_info.from_face,
+                                from_slot_index,
+                            ),
+                            to_face_offset: face_offset_resolve(
+                                &pass1_info.edge.to,
+                                pass1_info.to_face,
+                                to_slot_index,
+                            ),
+                            ortho_protrusion_params: ortho_protrusions[edge_index].clone(),
+                            path_midpoint: EdgePathMidpoint {
+                                x: pass1_info.path_midpoint.x,
+                                y: pass1_info.path_midpoint.y,
+                            },
+                            path_bounds: EdgePathBounds {
+                                x_min: pass1_info.path_bounds.x_min,
+                                x_max: pass1_info.path_bounds.x_max,
+                                y_min: pass1_info.path_bounds.y_min,
+                                y_max: pass1_info.path_bounds.y_max,
+                            },
+                        }
+                    })
+            })
+            .collect();
+
+        EdgeRoutingDiagnostics::new(edge_entries, rank_gap_entries)
     }
 
     /// **Pass 1** for a single edge group: determines edge types, builds

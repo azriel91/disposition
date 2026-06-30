@@ -3,7 +3,7 @@ use std::time::Duration;
 use disposition_input_ir_model::issue::ModelToIrIssue;
 use disposition_input_model::InputDiagram;
 use disposition_ir_model::IrDiagram;
-use disposition_svg_model::SvgElements;
+use disposition_svg_model::{EdgeRoutingDiagnostics, SvgElements};
 use disposition_taffy_model::TaffyNodeMappings;
 
 /// All intermediate and final transformations produced by generating a diagram.
@@ -38,7 +38,17 @@ pub struct DiagramGenerated {
     pub taffy_node_mappings_build_duration: Duration,
     /// The SVG elements, produced by `TaffyToSvgElementsMapper::map`.
     pub svg_elements: SvgElements<'static>,
+    /// Diagnostic snapshot of the edge-routing calculation, produced
+    /// alongside `svg_elements` by `TaffyToSvgElementsMapper`.
+    ///
+    /// Captures the pass-1, offset, slot-index, rank-gap, and protrusion
+    /// values the edge router computes internally. Nothing in the render
+    /// pipeline reads it back; it exists for inspection / diagnosis.
+    pub edge_routing_diagnostics: EdgeRoutingDiagnostics<'static>,
     /// Time taken to map the taffy node mappings to SVG elements.
+    ///
+    /// This covers both `svg_elements` and `edge_routing_diagnostics`, which
+    /// are produced together in the same mapping pass.
     pub svg_elements_map_duration: Duration,
     /// The final SVG markup, produced by
     /// `SvgElementsToSvgMapper::map_with_input`.

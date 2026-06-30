@@ -7,7 +7,10 @@ use disposition_model_common::{
     entity::EntityType,
     Map, RankDir,
 };
-use disposition_svg_model::{OrthoProtrusionParams, SpacerProtrusionParams, SvgNodeInfo};
+use disposition_svg_model::{
+    OrthoProtrusionParams, RankGapDiagnosticEndpointKind, RankGapDiagnosticSide,
+    RankGapEntryDiagnostic, SpacerProtrusionParams, SvgNodeInfo,
+};
 use disposition_taffy_model::{taffy::TaffyTree, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx};
 
 use disposition_ir_model::node::NodeFace;
@@ -257,6 +260,21 @@ struct EndpointAdjustment {
     min_protrusion: f32,
 }
 
+/// Output of [`OrthoProtrusionCalculator::calculate`].
+///
+/// Carries the protrusion parameters consumed by pass 2, plus a
+/// diagnostic snapshot of the rank-gap entries that drove the depth
+/// assignment (for the edge-routing diagnostics surfaced to the CLI and
+/// playground).
+pub(super) struct OrthoProtrusionOutcome<'id> {
+    /// Protrusion parameters, parallel to `all_pass1_groups` and each
+    /// group's `pass1_infos`.
+    pub(super) protrusion_params: Vec<Vec<OrthoProtrusionParams>>,
+    /// Diagnostic snapshot of the rank-gap entries collected in Step 2,
+    /// in `(rank_low, rank_high)` order.
+    pub(super) rank_gap_entry_diagnostics: Vec<RankGapEntryDiagnostic<'id>>,
+}
+
 impl OrthoProtrusionCalculator {
     /// Calculates protrusion parameters for every edge in every group.
     ///
@@ -285,7 +303,7 @@ impl OrthoProtrusionCalculator {
         node_ranks_nested: &NodeRanksNested<'id>,
         entity_types: &EntityTypes<'id>,
         group_is_direct: &[bool],
-    ) -> Vec<Vec<OrthoProtrusionParams>> {
+    ) -> OrthoProtrusionOutcome<'id> {
         // === Step 1: Resolve spacer coordinates and initialize output === //
         //
         // Resolve spacer coordinates once per edge so that the same
@@ -824,6 +842,14 @@ impl OrthoProtrusionCalculator {
             }
         }
 
+        // Snapshot the rank-gap entries as diagnostics before Step 3 consumes
+        // them to assign depths. The entry fields (cross-axis spans, face
+        // offsets, gap distances) are finalised at collection time; only
+        // `result` is mutated afterwards, so this captures the calculator's
+        // depth-assignment inputs.
+        let rank_gap_entry_diagnostics =
+            Self::rank_gap_entry_diagnostics_build(&rank_gap_entries, all_pass1_groups);
+
         // === Step 3: For each rank gap, assign protrusion depths === //
         rank_gap_entries
             .values_mut()
@@ -941,7 +967,70 @@ impl OrthoProtrusionCalculator {
             &mut result,
         );
 
-        result
+        OrthoProtrusionOutcome {
+            protrusion_params: result,
+            rank_gap_entry_diagnostics,
+        }
+    }
+
+    /// Builds the diagnostic snapshot of the collected rank-gap entries.
+    ///
+    /// Entries are flattened in `(rank_low, rank_high)` gap order, preserving
+    /// the within-gap collection order. The `endpoint_kind` -> `edge_id`
+    /// resolution uses each entry's `pass1_group_index` / `edge_index`.
+    fn rank_gap_entry_diagnostics_build<'id>(
+        rank_gap_entries: &Map<RankGapKey, Vec<RankGapEntry>>,
+        all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+    ) -> Vec<RankGapEntryDiagnostic<'id>> {
+        let mut rank_gap_keys: Vec<&RankGapKey> = rank_gap_entries.keys().collect();
+        rank_gap_keys.sort();
+
+        rank_gap_keys
+            .into_iter()
+            .flat_map(|rank_gap_key| {
+                rank_gap_entries[rank_gap_key]
+                    .iter()
+                    .map(move |rank_gap_entry| {
+                        let edge_id = all_pass1_groups[rank_gap_entry.pass1_group_index]
+                            .pass1_infos[rank_gap_entry.edge_index]
+                            .edge_id
+                            .clone();
+
+                        let endpoint_kind = match rank_gap_entry.endpoint_kind {
+                            RankGapEndpointKind::FromEndpoint => {
+                                RankGapDiagnosticEndpointKind::FromEndpoint
+                            }
+                            RankGapEndpointKind::ToEndpoint => {
+                                RankGapDiagnosticEndpointKind::ToEndpoint
+                            }
+                            RankGapEndpointKind::SpacerEntry { spacer_index } => {
+                                RankGapDiagnosticEndpointKind::SpacerEntry { spacer_index }
+                            }
+                            RankGapEndpointKind::SpacerExit { spacer_index } => {
+                                RankGapDiagnosticEndpointKind::SpacerExit { spacer_index }
+                            }
+                        };
+
+                        let gap_side = match rank_gap_entry.gap_side {
+                            GapSide::Low => RankGapDiagnosticSide::Low,
+                            GapSide::High => RankGapDiagnosticSide::High,
+                        };
+
+                        RankGapEntryDiagnostic {
+                            rank_low: rank_gap_key.rank_low,
+                            rank_high: rank_gap_key.rank_high,
+                            edge_id,
+                            endpoint_kind,
+                            gap_side,
+                            cross_axis_coord: rank_gap_entry.cross_axis_coord,
+                            jog_far_cross_axis: rank_gap_entry.jog_far_cross_axis,
+                            face_offset: rank_gap_entry.face_offset,
+                            rank_gap_px: rank_gap_entry.rank_gap_px,
+                            envelope_clearance: rank_gap_entry.envelope_clearance,
+                        }
+                    })
+            })
+            .collect()
     }
 
     /// Assigns protrusion depths to all endpoints in a single rank gap.

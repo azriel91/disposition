@@ -20,6 +20,8 @@ use thiserror::Error;
 /// * `ir_diagram.yaml`: the intermediate representation diagram
 /// * `taffy_tree.txt`: the taffy layout tree
 /// * `svg_elements.yaml`: the SVG elements
+/// * `edge_routing.yaml`: edge-routing diagnostics (pass-1, offset, rank-gap,
+///   and protrusion values)
 /// * `diagram.svg`: the final SVG
 ///
 /// Use `--data` to restrict output to a single intermediate stage, and
@@ -79,6 +81,9 @@ enum Data {
     TaffyTree,
     /// The SVG elements.
     SvgElements,
+    /// The edge-routing diagnostics (pass-1, offset, slot-index, rank-gap, and
+    /// protrusion values), produced alongside the SVG elements.
+    EdgeRouting,
     /// The final SVG.
     Svg,
 }
@@ -313,6 +318,7 @@ async fn diagram_stages_emit(
         && let Some(stdout_header) = stdout_header
         && (data_is_selected(Data::IrDiagram)
             || data_is_selected(Data::SvgElements)
+            || data_is_selected(Data::EdgeRouting)
             || data_is_selected(Data::Svg))
     {
         println!("{stdout_header}");
@@ -369,6 +375,24 @@ async fn diagram_stages_emit(
             stdout,
             &file_name(file_prefix, "svg_elements.yaml"),
             &svg_elements_yaml,
+        )
+        .await?;
+    }
+
+    // === Edge-routing diagnostics === //
+    // Produced alongside the SVG elements; serialized as-is (no styling values
+    // to strip, so `--structure-only` does not affect it).
+    if data_is_selected(Data::EdgeRouting) {
+        let mut edge_routing_yaml = String::new();
+        serde_saphyr::to_fmt_writer(
+            &mut edge_routing_yaml,
+            &diagram_generated.edge_routing_diagnostics,
+        )?;
+        data_emit(
+            output,
+            stdout,
+            &file_name(file_prefix, "edge_routing.yaml"),
+            &edge_routing_yaml,
         )
         .await?;
     }
