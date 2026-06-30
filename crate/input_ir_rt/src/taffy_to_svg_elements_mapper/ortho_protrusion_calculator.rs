@@ -951,6 +951,27 @@ impl OrthoProtrusionCalculator {
             &mut result,
         );
 
+        // === Step 5.7: Nest the bends of a symmetric edge pair === //
+        //
+        // A symmetric dependency between two nodes at the same rank produces two
+        // opposite-direction edges sharing the same pair of (opposite-aligned)
+        // faces. Each edge's lateral bend sits at its to-endpoint's protrusion
+        // tip. When one of the nodes is nested, both bends are forced into the
+        // narrow inter-container gap and can end up interleaved -- each edge's
+        // long horizontal run crossing the other's bend twice (e.g. `0012` in
+        // the top/bottom flow). This step detects such a pair and, when its
+        // bends cross, collapses each edge to a clean nested Z whose bend sits
+        // at its own from-side container-clearance point.
+        Self::protrusions_nest_symmetric_pair_bends(
+            all_pass1_groups,
+            &all_spacer_coordinates,
+            from_slot_indices_all,
+            to_slot_indices_all,
+            face_offsets_by_node_face,
+            svg_node_info_map,
+            &mut result,
+        );
+
         // === Step 6: Finalise protrusion depths for cycle edges === //
         //
         // For cycle edges registered in the adjacent rank gap (Step 2), equalise
@@ -2873,6 +2894,359 @@ impl OrthoProtrusionCalculator {
                 }
             }
         }
+    }
+
+    /// Nests the bends of a symmetric edge pair so they do not cross.
+    ///
+    /// A symmetric pair is two opposite-direction edges between the same two
+    /// nodes, attached to the same pair of opposite-aligned faces (e.g.
+    /// `u.Right` / `v.Left`), at the same rank, non-cycle, and without spacers.
+    /// Each edge's bend (the mid-leg of its Z) sits at its to-endpoint's
+    /// protrusion tip. When one of the nodes is nested, both bends are forced
+    /// into the narrow inter-container gap and can interleave -- each edge's
+    /// long routing leg crossing the other's bend, producing a double crossing
+    /// (e.g. `0012` in the top/bottom flow).
+    ///
+    /// When the pair's bends cross, this collapses each edge to a clean nested
+    /// Z by setting `to_protrusion = gap - from_protrusion`, so the two
+    /// protrusion tips meet and the bend lands at that edge's own from-side
+    /// container-clearance point (near its from-node). The from-protrusions
+    /// already clear their containers and the from-nodes are on opposite sides
+    /// of the gap, so the collapsed bends nest instead of interleaving. The
+    /// adjustment is applied only when it removes a crossing the pair currently
+    /// has, leaving every other pair untouched.
+    fn protrusions_nest_symmetric_pair_bends<'id>(
+        all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+        all_spacer_coordinates: &[Vec<Vec<SpacerCoordinates>>],
+        from_slot_indices_all: &[Vec<Option<usize>>],
+        to_slot_indices_all: &[Vec<Option<usize>>],
+        face_offsets_by_node_face: &NodeIdAndFaceToContactPointOffsets<'id>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            // Collect this group's edges that can take part in a symmetric pair.
+            let candidates: Vec<usize> = group
+                .pass1_infos
+                .iter()
+                .enumerate()
+                .filter(|(edge_idx, pass1_info)| {
+                    !pass1_info.is_cycle_edge
+                        && pass1_info.rank_from == pass1_info.rank_to
+                        && pass1_info.from_face.is_some()
+                        && pass1_info.to_face.is_some()
+                        && all_spacer_coordinates[group_idx][*edge_idx].is_empty()
+                })
+                .map(|(edge_idx, _)| edge_idx)
+                .collect();
+
+            for (i, &edge_idx_a) in candidates.iter().enumerate() {
+                for &edge_idx_b in &candidates[i + 1..] {
+                    let pass1_a = &group.pass1_infos[edge_idx_a];
+                    let pass1_b = &group.pass1_infos[edge_idx_b];
+
+                    // Opposite directions between the same two nodes, sharing
+                    // the same face on each node.
+                    let opposite_directions = pass1_a.edge.from == pass1_b.edge.to
+                        && pass1_a.edge.to == pass1_b.edge.from;
+                    if !opposite_directions {
+                        continue;
+                    }
+                    let (from_face_a, to_face_a) =
+                        (pass1_a.from_face.unwrap(), pass1_a.to_face.unwrap());
+                    let (from_face_b, to_face_b) =
+                        (pass1_b.from_face.unwrap(), pass1_b.to_face.unwrap());
+                    if from_face_a != to_face_b || to_face_a != from_face_b {
+                        continue;
+                    }
+                    // The faces must be an opposite-aligned pair so both edges
+                    // protrude toward each other along one axis (the bend is a
+                    // single mid-leg).
+                    if !Self::faces_opposite_aligned(from_face_a, to_face_a) {
+                        continue;
+                    }
+
+                    Self::symmetric_pair_bends_nest(
+                        group_idx,
+                        edge_idx_a,
+                        edge_idx_b,
+                        pass1_a,
+                        pass1_b,
+                        from_face_a,
+                        to_face_a,
+                        from_slot_indices_all,
+                        to_slot_indices_all,
+                        face_offsets_by_node_face,
+                        svg_node_info_map,
+                        result,
+                    );
+                }
+            }
+        }
+    }
+
+    /// Attempts to nest one detected symmetric pair's bends.
+    ///
+    /// See [`Self::protrusions_nest_symmetric_pair_bends`]. Applies the
+    /// collapse only when the pair's current bends cross and the collapsed
+    /// bends do not.
+    #[allow(clippy::too_many_arguments)]
+    fn symmetric_pair_bends_nest<'id>(
+        group_idx: usize,
+        edge_idx_a: usize,
+        edge_idx_b: usize,
+        pass1_a: &EdgePass1Info<'_, 'id>,
+        pass1_b: &EdgePass1Info<'_, 'id>,
+        from_face_a: NodeFace,
+        to_face_a: NodeFace,
+        from_slot_indices_all: &[Vec<Option<usize>>],
+        to_slot_indices_all: &[Vec<Option<usize>>],
+        face_offsets_by_node_face: &NodeIdAndFaceToContactPointOffsets<'id>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        let Some(&from_info_a) = svg_node_info_map.get(&pass1_a.edge.from) else {
+            return;
+        };
+        let Some(&to_info_a) = svg_node_info_map.get(&pass1_a.edge.to) else {
+            return;
+        };
+
+        // The two faces share one axis; the gap is the distance between them.
+        let from_axis_a = Self::face_axis_coord(from_info_a, from_face_a);
+        let to_axis_a = Self::face_axis_coord(to_info_a, to_face_a);
+        let gap = (to_axis_a - from_axis_a).abs();
+        if gap <= MIN_PROTRUSION_PX {
+            return;
+        }
+
+        let from_prot_a = result[group_idx][edge_idx_a].from_protrusion;
+        let from_prot_b = result[group_idx][edge_idx_b].from_protrusion;
+        // Both from-protrusions must fit within the gap (so the collapsed
+        // to-protrusion stays positive) and be real protrusions that clear
+        // their own containers.
+        if from_prot_a < MIN_PROTRUSION_PX
+            || from_prot_b < MIN_PROTRUSION_PX
+            || from_prot_a >= gap
+            || from_prot_b >= gap
+        {
+            return;
+        }
+
+        let to_offset_a = Self::face_offset_resolve(
+            pass1_a,
+            to_slot_indices_all[group_idx][edge_idx_a],
+            false,
+            face_offsets_by_node_face,
+        );
+        let from_offset_a = Self::face_offset_resolve(
+            pass1_a,
+            from_slot_indices_all[group_idx][edge_idx_a],
+            true,
+            face_offsets_by_node_face,
+        );
+        let to_offset_b = Self::face_offset_resolve(
+            pass1_b,
+            to_slot_indices_all[group_idx][edge_idx_b],
+            false,
+            face_offsets_by_node_face,
+        );
+        let from_offset_b = Self::face_offset_resolve(
+            pass1_b,
+            from_slot_indices_all[group_idx][edge_idx_b],
+            true,
+            face_offsets_by_node_face,
+        );
+
+        let to_prot_a = result[group_idx][edge_idx_a].to_protrusion;
+        let to_prot_b = result[group_idx][edge_idx_b].to_protrusion;
+
+        // Build polylines for the current and the collapsed configurations.
+        let poly_a_current = Self::symmetric_pair_polyline(
+            from_info_a,
+            to_info_a,
+            from_face_a,
+            to_face_a,
+            from_offset_a,
+            to_offset_a,
+            from_prot_a,
+            to_prot_a,
+            false,
+        );
+        let poly_b_current = Self::symmetric_pair_polyline(
+            to_info_a,
+            from_info_a,
+            to_face_a,
+            from_face_a,
+            from_offset_b,
+            to_offset_b,
+            from_prot_b,
+            to_prot_b,
+            false,
+        );
+        if !Self::polylines_properly_cross(&poly_a_current, &poly_b_current) {
+            // Already non-crossing -- do not disturb.
+            return;
+        }
+
+        let to_prot_a_collapsed = gap - from_prot_a;
+        let to_prot_b_collapsed = gap - from_prot_b;
+        let poly_a_collapsed = Self::symmetric_pair_polyline(
+            from_info_a,
+            to_info_a,
+            from_face_a,
+            to_face_a,
+            from_offset_a,
+            to_offset_a,
+            from_prot_a,
+            to_prot_a_collapsed,
+            true,
+        );
+        let poly_b_collapsed = Self::symmetric_pair_polyline(
+            to_info_a,
+            from_info_a,
+            to_face_a,
+            from_face_a,
+            from_offset_b,
+            to_offset_b,
+            from_prot_b,
+            to_prot_b_collapsed,
+            true,
+        );
+        if Self::polylines_properly_cross(&poly_a_collapsed, &poly_b_collapsed) {
+            // Collapsing does not help this pair; leave it unchanged.
+            return;
+        }
+
+        result[group_idx][edge_idx_a].to_protrusion = to_prot_a_collapsed;
+        result[group_idx][edge_idx_b].to_protrusion = to_prot_b_collapsed;
+    }
+
+    /// Whether two faces are an opposite-aligned pair (`Left`/`Right` or
+    /// `Top`/`Bottom`), so edges attached to them protrude toward each other
+    /// along a single axis.
+    fn faces_opposite_aligned(face_a: NodeFace, face_b: NodeFace) -> bool {
+        matches!(
+            (face_a, face_b),
+            (NodeFace::Left, NodeFace::Right)
+                | (NodeFace::Right, NodeFace::Left)
+                | (NodeFace::Top, NodeFace::Bottom)
+                | (NodeFace::Bottom, NodeFace::Top)
+        )
+    }
+
+    /// Returns the axis coordinate of a node's face along the face's normal
+    /// axis (X for `Left`/`Right`, Y for `Top`/`Bottom`).
+    fn face_axis_coord(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+        let (cx, cy) = OrthoProtrusionGeometry::face_center(info, face);
+        match face {
+            NodeFace::Left | NodeFace::Right => cx,
+            NodeFace::Top | NodeFace::Bottom => cy,
+        }
+    }
+
+    /// Returns the cross-axis coordinate of a node's face centre (Y for
+    /// `Left`/`Right`, X for `Top`/`Bottom`).
+    fn face_cross_coord(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+        let (cx, cy) = OrthoProtrusionGeometry::face_center(info, face);
+        match face {
+            NodeFace::Left | NodeFace::Right => cy,
+            NodeFace::Top | NodeFace::Bottom => cx,
+        }
+    }
+
+    /// Outward sign of a face along its normal axis: `+1` when a protrusion
+    /// increases the axis coordinate (`Right`/`Bottom`), `-1` otherwise.
+    fn face_outward_sign(face: NodeFace) -> f32 {
+        match face {
+            NodeFace::Right | NodeFace::Bottom => 1.0,
+            NodeFace::Left | NodeFace::Top => -1.0,
+        }
+    }
+
+    /// Builds the four-point routing polyline for one edge of a symmetric
+    /// pair, in absolute `(x, y)` coordinates.
+    ///
+    /// The bend sits at the to-protrusion tip (`collapsed = false`) or, when
+    /// `collapsed` is set, at the from-protrusion tip (the two tips coincide
+    /// once `to_protrusion = gap - from_protrusion`).
+    #[allow(clippy::too_many_arguments)]
+    fn symmetric_pair_polyline(
+        from_info: &SvgNodeInfo<'_>,
+        to_info: &SvgNodeInfo<'_>,
+        from_face: NodeFace,
+        to_face: NodeFace,
+        from_offset: f32,
+        to_offset: f32,
+        from_prot: f32,
+        to_prot: f32,
+        collapsed: bool,
+    ) -> [(f32, f32); 4] {
+        let axis_is_x = matches!(from_face, NodeFace::Left | NodeFace::Right);
+
+        let from_axis = Self::face_axis_coord(from_info, from_face);
+        let from_cross = Self::face_cross_coord(from_info, from_face) + from_offset;
+        let to_axis = Self::face_axis_coord(to_info, to_face);
+        let to_cross = Self::face_cross_coord(to_info, to_face) + to_offset;
+
+        let bend_axis = if collapsed {
+            from_axis + Self::face_outward_sign(from_face) * from_prot
+        } else {
+            to_axis + Self::face_outward_sign(to_face) * to_prot
+        };
+
+        let to_point = |axis: f32, cross: f32| -> (f32, f32) {
+            if axis_is_x {
+                (axis, cross)
+            } else {
+                (cross, axis)
+            }
+        };
+
+        [
+            to_point(from_axis, from_cross),
+            to_point(bend_axis, from_cross),
+            to_point(bend_axis, to_cross),
+            to_point(to_axis, to_cross),
+        ]
+    }
+
+    /// Whether any segment of polyline `a` properly crosses any segment of
+    /// polyline `b` (an interior X-crossing; shared endpoints or collinear
+    /// touches do not count).
+    fn polylines_properly_cross(a: &[(f32, f32); 4], b: &[(f32, f32); 4]) -> bool {
+        for segment_a in a.windows(2) {
+            for segment_b in b.windows(2) {
+                if Self::segments_properly_cross(
+                    segment_a[0],
+                    segment_a[1],
+                    segment_b[0],
+                    segment_b[1],
+                ) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Whether segments `p1`-`p2` and `p3`-`p4` cross at an interior point.
+    fn segments_properly_cross(
+        p1: (f32, f32),
+        p2: (f32, f32),
+        p3: (f32, f32),
+        p4: (f32, f32),
+    ) -> bool {
+        let orient = |a: (f32, f32), b: (f32, f32), c: (f32, f32)| -> f32 {
+            (b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0)
+        };
+        let d1 = orient(p3, p4, p1);
+        let d2 = orient(p3, p4, p2);
+        let d3 = orient(p1, p2, p3);
+        let d4 = orient(p1, p2, p4);
+
+        ((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0))
+            && ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0))
     }
 
     /// Returns the pixel distance from a to-node face to the nearest

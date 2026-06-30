@@ -4198,6 +4198,38 @@ fn test_0036_coincident_face_contacts_are_separated() {
     }
 }
 
+/// `0012` (`top_to_bottom`): a symmetric dependency between `t_alice` (nested
+/// inside `t_alice_outer`) and the outer node `t_bob` produces two
+/// opposite-direction edges sharing the `t_alice.Right` / `t_bob.Left` faces.
+/// Both bends are forced into the narrow gap between `t_alice_outer` and
+/// `t_bob`; without nesting them, each edge's routing leg crosses the other's
+/// bend twice. `protrusions_nest_symmetric_pair_bends` collapses the pair into
+/// nested Z paths so they no longer cross.
+#[test]
+fn test_0012_symmetric_pair_edges_do_not_cross() {
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC,
+    ) {
+        let path_for = |edge_id: &str| -> Vec<(f32, f32)> {
+            let edge = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected edge {edge_id}"));
+            parse_path_endpoints(&edge.path_d)
+        };
+
+        let path_alice_bob = path_for("edge_dep_alice_bob__0");
+        let path_bob_alice = path_for("edge_dep_alice_bob__1");
+
+        assert!(
+            !polylines_cross(&path_alice_bob, &path_bob_alice),
+            "The symmetric pair edge_dep_alice_bob__0 and __1 should not cross.\n  \
+             __0: {path_alice_bob:?}\n  __1: {path_bob_alice:?}",
+        );
+    }
+}
+
 /// `0036` (`top_to_bottom`): the local edge `t_c_00 -> t_c_01` and the
 /// cross-container edge `t_a_01 -> t_c_01` both enter `t_c_01`'s `Top` face,
 /// but from different rank-gap buckets (container ranks vs LCA ranks). Without
