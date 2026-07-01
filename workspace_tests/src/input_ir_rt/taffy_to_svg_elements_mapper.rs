@@ -4773,9 +4773,9 @@ fn test_interaction_edge_halo_disabled_omits_halo_path() {
 /// base.
 #[test]
 fn test_interaction_edge_halo_forward_reverse_use_distinct_colors() {
-    for svg_elements in build_svg_elements_for_diagram(
-        INPUT_DIAGRAM_0050_INTERACTION_EDGE_HALO_FORWARD_REVERSE,
-    ) {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0050_INTERACTION_EDGE_HALO_FORWARD_REVERSE)
+    {
         let halo_key = |edge_id: &str| {
             Id::try_from(format!("{edge_id}__halo")).expect("halo ID should be valid")
         };

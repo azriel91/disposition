@@ -58,7 +58,8 @@ pub enum ExampleDiagram {
     EdgeWaypoints,
     /// Concept map of how edge contact offsets and protrusions are computed.
     EdgeOffsetsProtrusions,
-    /// Request / response halo colours -- `render_options.interaction_edge_halo`
+    /// Request / response halo colours --
+    /// `render_options.interaction_edge_halo`
     /// and `type_interaction_edge_halo_forward` / `_reverse`.
     InteractionHalo,
 }
