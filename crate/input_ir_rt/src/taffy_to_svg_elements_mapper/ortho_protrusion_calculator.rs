@@ -3,7 +3,7 @@ use disposition_ir_model::{
     node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
 };
 use disposition_model_common::{
-    edge::{MAX_GAP_FRACTION, MIN_PROTRUSION_PX, TO_PROTRUSION_MIN_PX},
+    edge::{ARC_RADIUS, MAX_GAP_FRACTION, MIN_PROTRUSION_PX, TO_PROTRUSION_MIN_PX},
     entity::EntityType,
     Map, RankDir,
 };
@@ -2908,13 +2908,15 @@ impl OrthoProtrusionCalculator {
     /// (e.g. `0012` in the top/bottom flow).
     ///
     /// When the pair's bends cross, this collapses each edge to a clean nested
-    /// Z by setting `to_protrusion = gap - from_protrusion`, so the two
-    /// protrusion tips meet and the bend lands at that edge's own from-side
+    /// Z by setting `to_protrusion = gap - from_protrusion - 2 * ARC_RADIUS`,
+    /// so each edge's bend lands just inside its own from-side
     /// container-clearance point (near its from-node). The from-protrusions
-    /// already clear their containers and the from-nodes are on opposite sides
-    /// of the gap, so the collapsed bends nest instead of interleaving. The
-    /// adjustment is applied only when it removes a crossing the pair currently
-    /// has, leaving every other pair untouched.
+    /// already clear their containers and the from-nodes are on opposite
+    /// sides of the gap, so the collapsed bends nest instead of
+    /// interleaving. The small `2 * ARC_RADIUS` gap between the two
+    /// protrusion tips keeps the bend rendering as a rounded
+    /// Z. The adjustment is applied only when it removes a crossing the pair
+    /// currently has, leaving every other pair untouched.
     fn protrusions_nest_symmetric_pair_bends<'id>(
         all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
         all_spacer_coordinates: &[Vec<Vec<SpacerCoordinates>>],
@@ -3020,15 +3022,23 @@ impl OrthoProtrusionCalculator {
             return;
         }
 
+        // Leave a small gap between the two protrusion tips (rather than letting
+        // them meet exactly) so the bend renders as a rounded Z rather than a
+        // sharp straight corner. `2 * ARC_RADIUS` keeps each rounded leg clear
+        // of the arc-placement guards in `connect_waypoints`.
+        let tip_gap = 2.0 * ARC_RADIUS;
+
         let from_prot_a = result[group_idx][edge_idx_a].from_protrusion;
         let from_prot_b = result[group_idx][edge_idx_b].from_protrusion;
-        // Both from-protrusions must fit within the gap (so the collapsed
-        // to-protrusion stays positive) and be real protrusions that clear
-        // their own containers.
+        // Both from-protrusions must be real protrusions that clear their own
+        // containers, and must leave room (after the rounding gap) for a
+        // positive to-protrusion.
+        let to_prot_a_collapsed = gap - from_prot_a - tip_gap;
+        let to_prot_b_collapsed = gap - from_prot_b - tip_gap;
         if from_prot_a < MIN_PROTRUSION_PX
             || from_prot_b < MIN_PROTRUSION_PX
-            || from_prot_a >= gap
-            || from_prot_b >= gap
+            || to_prot_a_collapsed < MIN_PROTRUSION_PX
+            || to_prot_b_collapsed < MIN_PROTRUSION_PX
         {
             return;
         }
@@ -3061,7 +3071,9 @@ impl OrthoProtrusionCalculator {
         let to_prot_a = result[group_idx][edge_idx_a].to_protrusion;
         let to_prot_b = result[group_idx][edge_idx_b].to_protrusion;
 
-        // Build polylines for the current and the collapsed configurations.
+        // Build polylines for the current and the collapsed configurations. The
+        // bend sits at the to-protrusion tip (as `connect_waypoints` places it),
+        // so each configuration is captured by its to-protrusion value.
         let poly_a_current = Self::symmetric_pair_polyline(
             from_info_a,
             to_info_a,
@@ -3069,9 +3081,7 @@ impl OrthoProtrusionCalculator {
             to_face_a,
             from_offset_a,
             to_offset_a,
-            from_prot_a,
             to_prot_a,
-            false,
         );
         let poly_b_current = Self::symmetric_pair_polyline(
             to_info_a,
@@ -3080,17 +3090,13 @@ impl OrthoProtrusionCalculator {
             from_face_a,
             from_offset_b,
             to_offset_b,
-            from_prot_b,
             to_prot_b,
-            false,
         );
         if !Self::polylines_properly_cross(&poly_a_current, &poly_b_current) {
             // Already non-crossing -- do not disturb.
             return;
         }
 
-        let to_prot_a_collapsed = gap - from_prot_a;
-        let to_prot_b_collapsed = gap - from_prot_b;
         let poly_a_collapsed = Self::symmetric_pair_polyline(
             from_info_a,
             to_info_a,
@@ -3098,9 +3104,7 @@ impl OrthoProtrusionCalculator {
             to_face_a,
             from_offset_a,
             to_offset_a,
-            from_prot_a,
             to_prot_a_collapsed,
-            true,
         );
         let poly_b_collapsed = Self::symmetric_pair_polyline(
             to_info_a,
@@ -3109,9 +3113,7 @@ impl OrthoProtrusionCalculator {
             from_face_a,
             from_offset_b,
             to_offset_b,
-            from_prot_b,
             to_prot_b_collapsed,
-            true,
         );
         if Self::polylines_properly_cross(&poly_a_collapsed, &poly_b_collapsed) {
             // Collapsing does not help this pair; leave it unchanged.
@@ -3167,9 +3169,8 @@ impl OrthoProtrusionCalculator {
     /// Builds the four-point routing polyline for one edge of a symmetric
     /// pair, in absolute `(x, y)` coordinates.
     ///
-    /// The bend sits at the to-protrusion tip (`collapsed = false`) or, when
-    /// `collapsed` is set, at the from-protrusion tip (the two tips coincide
-    /// once `to_protrusion = gap - from_protrusion`).
+    /// The bend sits at the to-protrusion tip, matching where
+    /// `connect_waypoints` places the edge's lateral mid-leg.
     #[allow(clippy::too_many_arguments)]
     fn symmetric_pair_polyline(
         from_info: &SvgNodeInfo<'_>,
@@ -3178,9 +3179,7 @@ impl OrthoProtrusionCalculator {
         to_face: NodeFace,
         from_offset: f32,
         to_offset: f32,
-        from_prot: f32,
         to_prot: f32,
-        collapsed: bool,
     ) -> [(f32, f32); 4] {
         let axis_is_x = matches!(from_face, NodeFace::Left | NodeFace::Right);
 
@@ -3189,11 +3188,7 @@ impl OrthoProtrusionCalculator {
         let to_axis = Self::face_axis_coord(to_info, to_face);
         let to_cross = Self::face_cross_coord(to_info, to_face) + to_offset;
 
-        let bend_axis = if collapsed {
-            from_axis + Self::face_outward_sign(from_face) * from_prot
-        } else {
-            to_axis + Self::face_outward_sign(to_face) * to_prot
-        };
+        let bend_axis = to_axis + Self::face_outward_sign(to_face) * to_prot;
 
         let to_point = |axis: f32, cross: f32| -> (f32, f32) {
             if axis_is_x {
