@@ -1,0 +1,17 @@
+things:
+  t_a: {}
+  t_b: {}
+thing_dependencies:
+  edge_dep_ab:
+    kind: sequence
+    things:
+      - t_a
+      - t_b
+thing_interactions:
+  edge_ix_ab:
+    kind: sequence
+    things:
+      - t_a
+      - t_b
+render_options:
+  interaction_edge_halo: disabled

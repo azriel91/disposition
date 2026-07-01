@@ -261,6 +261,16 @@ theme_types_styles:
   type_interaction_edge_symmetric_reverse_default:
     edge_defaults: {}
 
+  # Rendering-only style key for the semi-transparent halo drawn behind
+  # interaction edges (see render_options.interaction_edge_halo).
+  type_interaction_edge_halo:
+    edge_defaults:
+      opacity: "20"
+      shape_color: "slate"
+      stroke_shade: "950"
+      stroke_style: solid
+      stroke_width: "8"
+
 # When a tag is focused, things and edges associated with the tag are highlighted.
 #
 # We also want to allow things that are not associated with the tag to be styled, but having one

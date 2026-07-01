@@ -214,7 +214,7 @@
           "const": "direct_straight"
         },
         {
-          "description": "Edges are smooth bezier curves drawn directly from the `from` node to the\n`to` node, bypassing edge spacers.\n\nEdge spacers for these edges collapse to zero size so they reserve no\nlayout space.",
+          "description": "Edges are smooth bezier curves drawn directly from the `from` node to\nthe `to` node, bypassing edge spacers.\n\nEdge spacers for these edges collapse to zero size so they reserve no\nlayout space.",
           "type": "string",
           "const": "direct_curved"
         }
@@ -399,6 +399,11 @@
           "const": "type_interaction_edge_symmetric_reverse_default"
         },
         {
+          "description": "Rendering-only style key for the semi-transparent halo drawn behind\ninteraction edges (see `RenderOptions::interaction_edge_halo`). This\ntype is never attached to a real entity via `entity_types` -- it is\nonly used to look up `theme_types_styles` for the halo's own styling.",
+          "type": "string",
+          "const": "type_interaction_edge_halo"
+        },
+        {
           "description": "Custom user-defined type.",
           "type": "string"
         }
@@ -443,6 +448,21 @@
     "Id": {
       "description": "Unique identifier for any entity in the diagram, `Cow<'s, str>`\nnewtype.\n\nMust begin with a letter or underscore, and contain only letters, numbers,\nand underscores.\n\n# Examples\n\n```rust\nuse disposition_model_common::{id, Id};\n\nlet id_compile_time_checked = id!(\"example_id\");\nlet id_runtime_checked = Id::new(\"example_id\").unwrap();\n\nassert_eq!(id_compile_time_checked, id_runtime_checked);\nassert_eq!(id_runtime_checked.as_str(), \"example_id\");\n```",
       "type": "string"
+    },
+    "InteractionEdgeHalo": {
+      "description": "Controls whether a semi-transparent halo is rendered behind interaction\nedges.\n\nInteraction edges are animated, so a wider, translucent halo sharing the\nedge's path geometry makes it easier to see where the animated edge\ntravels.\n\n# Examples\n\n```rust\nuse disposition_model_common::InteractionEdgeHalo;\n\nlet enabled = InteractionEdgeHalo::Enabled;\nlet disabled = InteractionEdgeHalo::Disabled;\nassert_eq!(InteractionEdgeHalo::default(), enabled);\nassert_ne!(enabled, disabled);\n```",
+      "oneOf": [
+        {
+          "description": "No halo is rendered behind interaction edges.",
+          "type": "string",
+          "const": "disabled"
+        },
+        {
+          "description": "A semi-transparent halo path is rendered behind each interaction edge,\nsharing its path geometry, to make animated edges easier to follow.",
+          "type": "string",
+          "const": "enabled"
+        }
+      ]
     },
     "ProcessDiagram": {
       "description": "Represents a process with its steps and associated metadata.\n\nA process is a grouping of interactions between things sequenced over time.\nIt contains the process name, optional description, steps, step\ndescriptions, and the thing interactions associated with each step.\n\n# Example\n\n```yaml\nprocesses:\n  proc_app_dev: # <-- this is a `ProcessDiagram`\n    name: \"App Development\"\n    desc: |-\n      Development of the web application.\n\n      * [🐙 Repo](https://github.com/azriel91/web_app)\n    steps:\n      proc_app_dev_step_repository_clone: \"Clone repository\"\n      proc_app_dev_step_project_build: \"Build project\"\n    process_step_dependencies:\n      proc_app_dev_step_project_build:\n        - proc_app_dev_step_repository_clone\n    step_descs:\n      proc_app_dev_step_repository_clone: |-\n        ```bash\n        git clone https://github.com/azriel91/web_app.git\n        ```\n      proc_app_dev_step_project_build: |-\n        Develop the app:\n\n        * Always link to issue.\n        * Open PR.\n    step_thing_interactions:\n      proc_app_dev_step_repository_clone: [edge_t_localhost__t_github_user_repo__pull]\n      proc_app_dev_step_project_build: [edge_t_localhost__t_localhost__within]\n```",
@@ -551,12 +571,16 @@
       ]
     },
     "RenderOptions": {
-      "description": "Options that control how the diagram is rendered.\n\n# Examples\n\n```rust\nuse disposition_model_common::RenderOptions;\n\nuse disposition_model_common::edge::EdgeCurvature;\n\nlet render_options = RenderOptions::default();\nassert_eq!(\n    render_options.dependencies_edge_curvature,\n    EdgeCurvature::Orthogonal\n);\nassert_eq!(\n    render_options.interactions_edge_curvature,\n    EdgeCurvature::DirectCurved\n);\nassert_eq!(render_options.rank_dir, Default::default());\nassert_eq!(render_options.process_render_collapse, Default::default());\n```",
+      "description": "Options that control how the diagram is rendered.\n\n# Examples\n\n```rust\nuse disposition_model_common::RenderOptions;\n\nuse disposition_model_common::edge::EdgeCurvature;\n\nlet render_options = RenderOptions::default();\nassert_eq!(\n    render_options.dependencies_edge_curvature,\n    EdgeCurvature::Orthogonal\n);\nassert_eq!(\n    render_options.interactions_edge_curvature,\n    EdgeCurvature::DirectCurved\n);\nassert_eq!(render_options.rank_dir, Default::default());\nassert_eq!(render_options.process_render_collapse, Default::default());\nassert_eq!(render_options.interaction_edge_halo, Default::default());\n```",
       "type": "object",
       "properties": {
         "dependencies_edge_curvature": {
           "description": "Controls how dependency edge paths are drawn between nodes.\n\n* `EdgeCurvature::Curved`: edges use smooth bezier curves.\n* `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.\n* `EdgeCurvature::DirectStraight`: edges are straight lines that bypass\n  edge spacers.\n* `EdgeCurvature::DirectCurved`: edges are curved lines that bypass edge\n  spacers.",
           "$ref": "#/$defs/EdgeCurvature"
+        },
+        "interaction_edge_halo": {
+          "description": "Controls whether a semi-transparent halo is rendered behind\ninteraction edges.\n\nDefaults to `InteractionEdgeHalo::Enabled`.\n\n* `InteractionEdgeHalo::Enabled`: a halo is rendered behind each\n  interaction edge, sharing its path geometry.\n* `InteractionEdgeHalo::Disabled`: no halo is rendered.",
+          "$ref": "#/$defs/InteractionEdgeHalo"
         },
         "interactions_edge_curvature": {
           "description": "Controls how interaction edge paths are drawn between nodes.\n\nDefaults to `EdgeCurvature::DirectCurved`.\n\n* `EdgeCurvature::Curved`: edges use smooth bezier curves.\n* `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.\n* `EdgeCurvature::DirectStraight`: edges are straight lines that bypass\n  edge spacers.\n* `EdgeCurvature::DirectCurved`: edges are curved lines that bypass edge\n  spacers.",

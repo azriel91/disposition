@@ -302,6 +302,7 @@ impl InputToIrDiagramMapper {
             &input_diagram.processes,
             process_render_expanded,
             focus_mode,
+            &input_diagram.render_options,
         );
         let mut tailwind_classes = tailwind_classes_build_result.tailwind_classes;
         let mut css_theme_vars = tailwind_classes_build_result.css_theme_vars;

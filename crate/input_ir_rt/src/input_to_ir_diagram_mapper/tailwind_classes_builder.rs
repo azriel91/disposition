@@ -10,15 +10,17 @@ use disposition_input_model::{
     DiagramFocus,
 };
 use disposition_ir_model::{
-    edge::EdgeGroups,
+    edge::{EdgeGroups, EdgeId},
     entity::{EntityTailwindClasses, EntityTypeId},
     node::{NodeId, NodeNames},
 };
 use disposition_model_common::{
     edge::EdgeGroupId,
     entity::{EntityType, EntityTypes},
-    Id, Map, Set,
+    Id, Map, RenderOptions, Set,
 };
+
+use crate::EdgeHaloIdGenerator;
 
 use super::{
     css_theme_vars::CssThemeVars, tailwind_class_state::TailwindClassState,
@@ -59,6 +61,7 @@ impl TailwindClassesBuilder {
         processes: &Processes<'id>,
         process_render_expanded: bool,
         focus_mode: TailwindFocusMode<'_, 'id>,
+        render_options: &RenderOptions,
     ) -> TailwindClassesBuildResult<'id> {
         let mut css_theme_vars = CssThemeVars::new(theme_default.dark_mode_config.selector);
 
@@ -156,6 +159,7 @@ impl TailwindClassesBuilder {
             &mut css_theme_vars,
             focus_mode,
             processes.is_empty(),
+            render_options,
         );
 
         let tailwind_classes = node_classes.into_iter().chain(edge_classes).collect();
@@ -173,6 +177,7 @@ impl TailwindClassesBuilder {
     /// applies any edge-specific overrides, and writes the combined classes to
     /// a single string. This prevents conflicting tailwind classes that would
     /// result from naively joining separate group and edge class strings.
+    #[allow(clippy::too_many_arguments)]
     fn edge_tailwind_classes_build<'id>(
         edge_groups: &EdgeGroups<'id>,
         edge_group_to_steps: &Map<&EdgeGroupId<'id>, Vec<&ProcessStepId<'id>>>,
@@ -180,12 +185,21 @@ impl TailwindClassesBuilder {
         css_theme_vars: &mut CssThemeVars,
         focus_mode: TailwindFocusMode<'_, 'id>,
         processes_is_empty: bool,
+        render_options: &RenderOptions,
     ) -> Vec<(Id<'id>, String)> {
         let ThemeResolveCtx {
             entity_types,
             theme_default,
             theme_types_styles,
         } = theme_ctx;
+
+        // The interaction edge halo's classes are identical for every
+        // interaction edge (a fixed theme style with no per-edge overrides),
+        // so resolve them once and reuse the string, rather than
+        // re-resolving per edge.
+        let halo_classes = render_options.interaction_edge_halo.is_enabled().then(|| {
+            Self::interaction_edge_halo_classes_build(theme_default, theme_types_styles, css_theme_vars)
+        });
 
         let mut edge_classes: Vec<(Id<'id>, String)> = Vec::new();
         edge_groups.iter().for_each(|(edge_group_id, edges)| {
@@ -195,7 +209,7 @@ impl TailwindClassesBuilder {
                 .cloned()
                 .unwrap_or_default();
 
-            let (edge_group_state, edge_group_peer_classes) =
+            let (edge_group_state, edge_group_peer_classes, is_interaction_group) =
                 Self::build_edge_group_tailwind_class_state(
                     edge_group_id,
                     entity_types,
@@ -220,10 +234,55 @@ impl TailwindClassesBuilder {
                     theme_types_styles,
                     css_theme_vars,
                 );
+
+                if is_interaction_group
+                    && let Some(halo_classes) = halo_classes.as_ref()
+                {
+                    let edge_id_for_halo: EdgeId<'id> = edge_id.clone().into();
+                    let halo_id = EdgeHaloIdGenerator::generate(&edge_id_for_halo);
+                    edge_classes.push((halo_id, halo_classes.clone()));
+                }
+
                 edge_classes.push((edge_id, classes));
             });
         });
         edge_classes
+    }
+
+    /// Builds the (identical, edge-independent) tailwind classes for the
+    /// interaction edge halo, resolved from `type_interaction_edge_halo` in
+    /// `theme_types_styles`.
+    fn interaction_edge_halo_classes_build<'id>(
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
+    ) -> String {
+        let entity_type = EntityType::InteractionEdgeHalo;
+        let mut tailwind_class_state = TailwindClassState {
+            entity_type: Some(entity_type.clone()),
+            ..Default::default()
+        };
+
+        let type_id = EntityTypeId::from(entity_type.into_id());
+        if let Some(halo_partials) = theme_types_styles
+            .get(&type_id)
+            .and_then(|type_styles| type_styles.get(&IdOrDefaults::EdgeDefaults))
+        {
+            Self::apply_tailwind_from_partials(
+                halo_partials,
+                &theme_default.style_aliases,
+                &mut tailwind_class_state,
+            );
+        }
+
+        let mut classes = String::new();
+        tailwind_class_state.write_classes(
+            &mut classes,
+            css_theme_vars,
+            theme_default.dark_mode_config.shade,
+        );
+
+        classes
     }
 
     // === Focus Mode Helpers === //
@@ -793,7 +852,8 @@ impl TailwindClassesBuilder {
     }
 
     /// Build the tailwind class state for an edge group, along with a
-    /// pre-built peer classes string for process step interactions.
+    /// pre-built peer classes string for process step interactions, and
+    /// whether the group is an interaction edge group.
     ///
     /// The returned `TailwindClassState` represents the resolved base styling
     /// for the group (EdgeDefaults + group entity-type + group ID overrides)
@@ -822,7 +882,7 @@ impl TailwindClassesBuilder {
         css_theme_vars: &mut CssThemeVars,
         focus_mode: TailwindFocusMode<'_, 'id>,
         processes_is_empty: bool,
-    ) -> (TailwindClassState<'tw_state>, String)
+    ) -> (TailwindClassState<'tw_state>, String, bool)
     where
         'id: 'tw_state,
     {
@@ -901,7 +961,7 @@ impl TailwindClassesBuilder {
             );
         });
 
-        (tailwind_class_state, peer_classes)
+        (tailwind_class_state, peer_classes, is_interaction_edge)
     }
 
     /// Build tailwind classes for an individual edge within an edge group.

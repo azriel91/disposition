@@ -928,6 +928,25 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             .into_iter()
             .collect(),
         ),
+        // type_interaction_edge_halo
+        (
+            EntityType::InteractionEdgeHalo.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(
+                    vec![],
+                    vec![
+                        (ThemeAttr::Opacity, "20"),
+                        (ThemeAttr::ShapeColor, "slate"),
+                        (ThemeAttr::StrokeShade, "950"),
+                        (ThemeAttr::StrokeStyle, "solid"),
+                        (ThemeAttr::StrokeWidth, "8"),
+                    ],
+                ),
+            )]
+            .into_iter()
+            .collect(),
+        ),
     ]
     .into_iter()
     .collect()

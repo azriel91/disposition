@@ -46,6 +46,7 @@
 * Separate the lateral routing legs of sibling cross-container edges that share a rank gap by interval-graph colouring of each leg's cross-axis span, so legs that actually overlap receive distinct protrusion depths while staying within the inter-rank gap. ([#57][#57])
 * Skip spacers for lower ranks when higher ranked spacers are further out, to avoid extra bend. ([#57][#57])
 * Introduce `EdgeRoutingDiagnostics` intermediate data to surface edge offset and protrusion calculation intermediate values. ([#57][#57])
+* Add `RenderOptions.interaction_edge_halo`, which renders a toggleable semi-transparent halo behind interaction edges (enabled by default) to make animated edge paths easier to see. ([#58][#58])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -63,6 +64,7 @@
 [#55]: https://github.com/azriel91/disposition/pull/55
 [#56]: https://github.com/azriel91/disposition/pull/56
 [#57]: https://github.com/azriel91/disposition/pull/57
+[#58]: https://github.com/azriel91/disposition/pull/58
 
 
 ## 0.3.0 (2026-06-07)

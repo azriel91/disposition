@@ -700,6 +700,7 @@ impl SvgElementsToSvgMapper {
     ///
     /// ```svg
     /// <g id="{edge_id}" .. >
+    ///   <path d="{path_d}" class="edge_halo .." />
     ///   <path d="{path_d}" .. />
     ///   <g class="arrow_head" .. >
     ///     <path d="{arrow_head_path_d}" .. />
@@ -710,6 +711,14 @@ impl SvgElementsToSvgMapper {
     /// For interaction edges the arrowhead `<path>` also carries
     /// `offset-path`, `offset-rotate`, and animation tailwind classes
     /// looked up via the `{edge_id}__arrow_head` entity key.
+    ///
+    /// When `RenderOptions::interaction_edge_halo` is enabled, interaction
+    /// edges also get a `<path class="edge_halo ..">` as the *first* child
+    /// of the `<g>`, sharing the same `d` as `edge_body` -- so it paints
+    /// behind the edge -- with tailwind classes looked up via the
+    /// `{edge_id}__halo` entity key. Dependency edges (and interaction edges
+    /// when the halo is disabled) have no such entry, so the halo path is
+    /// omitted.
     fn render_edges(
         content_buffer: &mut String,
         svg_edge_infos: &[SvgEdgeInfo<'_>],
@@ -758,7 +767,20 @@ impl SvgElementsToSvgMapper {
                 Self::class_attr_escaped("arrow_head")
             };
 
-            // Render edge as a group with a path and an arrowhead path
+            // Build class attribute for the halo element, if the interaction
+            // edge halo is enabled.  The tailwind classes builder only
+            // stores an entry under `{edge_id}__halo` for interaction edges
+            // when `RenderOptions::interaction_edge_halo` is `Enabled`, so
+            // its presence is the sole signal for whether to render it.
+            let halo_id = crate::EdgeHaloIdGenerator::generate(edge_id);
+            let halo_path = tailwind_classes.get(&halo_id).map(|halo_classes| {
+                let halo_class_attr =
+                    Self::class_attr_escaped(format!("edge_halo\n{halo_classes}").as_str());
+                format!("<path d=\"{path_d}\" fill=\"none\"{halo_class_attr} />")
+            });
+
+            // Render edge as a group with an optional halo path, a path, and
+            // an arrowhead path.
             //
             // The edge path has fill="none" since edges are stroked lines,
             // not filled shapes.  The arrowhead is a closed V-shape that
@@ -777,6 +799,11 @@ impl SvgElementsToSvgMapper {
             if !svg_edge_info.tooltip.is_empty() {
                 let tooltip_escaped = StringXmlEscaper::escape(&svg_edge_info.tooltip);
                 write!(content_buffer, "<title>{tooltip_escaped}</title>").unwrap();
+            }
+
+            // The halo path is drawn first so it paints behind edge_body.
+            if let Some(halo_path) = halo_path {
+                content_buffer.push_str(&halo_path);
             }
 
             write!(

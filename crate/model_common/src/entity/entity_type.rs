@@ -84,6 +84,12 @@ pub enum EntityType {
     /// Default type for interaction symmetric reverse edges
     InteractionEdgeSymmetricReverseDefault,
 
+    /// Rendering-only style key for the semi-transparent halo drawn behind
+    /// interaction edges (see `RenderOptions::interaction_edge_halo`). This
+    /// type is never attached to a real entity via `entity_types` -- it is
+    /// only used to look up `theme_types_styles` for the halo's own styling.
+    InteractionEdgeHalo,
+
     /// Custom user-defined type.
     Custom(Id<'static>),
 }
@@ -147,6 +153,8 @@ impl EntityType {
                 "type_interaction_edge_symmetric_reverse_default"
             }
 
+            EntityType::InteractionEdgeHalo => "type_interaction_edge_halo",
+
             EntityType::Custom(id) => id.as_str(),
         }
     }
@@ -172,7 +180,8 @@ impl EntityType {
             | EntityType::InteractionEdgeSequenceForwardDefault
             | EntityType::InteractionEdgeCyclicForwardDefault
             | EntityType::InteractionEdgeSymmetricForwardDefault
-            | EntityType::InteractionEdgeSymmetricReverseDefault => true,
+            | EntityType::InteractionEdgeSymmetricReverseDefault
+            | EntityType::InteractionEdgeHalo => true,
             EntityType::Custom(_) => false,
         }
     }
@@ -247,6 +256,8 @@ impl EntityType {
             EntityType::InteractionEdgeSymmetricReverseDefault => {
                 id!("type_interaction_edge_symmetric_reverse_default")
             }
+
+            EntityType::InteractionEdgeHalo => id!("type_interaction_edge_halo"),
 
             EntityType::Custom(id) => id,
         }
@@ -383,6 +394,8 @@ impl From<Id<'static>> for EntityType {
                 EntityType::InteractionEdgeSymmetricReverseDefault
             }
 
+            "type_interaction_edge_halo" => EntityType::InteractionEdgeHalo,
+
             _ => EntityType::Custom(id),
         }
     }
@@ -440,6 +453,7 @@ impl Visitor<'_> for EntityTypeVisitor {
             * `type_interaction_edge_cyclic_forward_default`\n\
             * `type_interaction_edge_symmetric_forward_default`\n\
             * `type_interaction_edge_symmetric_reverse_default`\n\
+            * `type_interaction_edge_halo`\n\
             \n\
             or a custom identifier",
         )
@@ -495,6 +509,8 @@ impl Visitor<'_> for EntityTypeVisitor {
             "type_interaction_edge_symmetric_reverse_default" => {
                 EntityType::InteractionEdgeSymmetricReverseDefault
             }
+
+            "type_interaction_edge_halo" => EntityType::InteractionEdgeHalo,
 
             _ => {
                 let id = Id::try_from(value.to_owned()).map_err(serde::de::Error::custom)?;

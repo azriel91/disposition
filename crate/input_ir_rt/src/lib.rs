@@ -11,6 +11,7 @@ pub use crate::{
     diagram_generate_error::DiagramGenerateError,
     diagram_generator::DiagramGenerator,
     edge_face_assigner::EdgeFaceAssigner,
+    edge_halo_id_generator::EdgeHaloIdGenerator,
     edge_id_generator::EdgeIdGenerator,
     input_diagram_merger::InputDiagramMerger,
     input_diagram_theme_sources::InputDiagramThemeSources,
@@ -37,6 +38,7 @@ mod absolute_coordinates;
 mod diagram_generate_error;
 mod diagram_generator;
 mod edge_face_assigner;
+mod edge_halo_id_generator;
 mod edge_id_generator;
 mod input_diagram_merger;
 mod input_diagram_theme_sources;
