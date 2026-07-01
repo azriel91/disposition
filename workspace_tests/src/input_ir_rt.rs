@@ -112,6 +112,9 @@ pub(crate) const INPUT_DIAGRAM_0048_INTERACTION_EDGE_HALO: &str =
 pub(crate) const INPUT_DIAGRAM_0049_INTERACTION_EDGE_HALO_DISABLED: &str =
     include_str!("input_diagram/0049_interaction_edge_halo_disabled.yaml");
 
+pub(crate) const INPUT_DIAGRAM_0050_INTERACTION_EDGE_HALO_FORWARD_REVERSE: &str =
+    include_str!("input_diagram/0050_interaction_edge_halo_forward_reverse.yaml");
+
 mod diagram_generator;
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

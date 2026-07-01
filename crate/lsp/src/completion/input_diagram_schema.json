@@ -404,6 +404,16 @@
           "const": "type_interaction_edge_halo"
         },
         {
+          "description": "Rendering-only style key for the halo behind \"request\" (forward)\ninteraction edges -- i.e. edges whose own type is\n`InteractionEdgeSequenceForwardDefault`,\n`InteractionEdgeCyclicForwardDefault`, or\n`InteractionEdgeSymmetricForwardDefault`. Any theme attribute set here\noverrides the corresponding attribute on `InteractionEdgeHalo`.",
+          "type": "string",
+          "const": "type_interaction_edge_halo_forward"
+        },
+        {
+          "description": "Rendering-only style key for the halo behind \"response\" (reverse)\ninteraction edges -- i.e. edges whose own type is\n`InteractionEdgeSymmetricReverseDefault`. Any theme attribute set here\noverrides the corresponding attribute on `InteractionEdgeHalo`.",
+          "type": "string",
+          "const": "type_interaction_edge_halo_reverse"
+        },
+        {
           "description": "Custom user-defined type.",
           "type": "string"
         }

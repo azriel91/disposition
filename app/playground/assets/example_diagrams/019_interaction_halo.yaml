@@ -1,0 +1,56 @@
+---
+# Interaction Halo
+#
+# `render_options.interaction_edge_halo` (enabled by default) draws a
+# semi-transparent halo behind each interaction edge, sharing its path
+# geometry, to make the animated edge easier to follow.
+#
+# The halo's look comes from `type_interaction_edge_halo` in
+# `theme_types_styles`. Two more specific style keys let you distinguish
+# "requests" from "responses" within the same symmetric interaction:
+#
+# * `type_interaction_edge_halo_forward`: the "request" direction -- edges
+#   whose own type is one of the `*ForwardDefault` interaction types.
+# * `type_interaction_edge_halo_reverse`: the "response" direction -- edges
+#   whose own type is `type_interaction_edge_symmetric_reverse_default`.
+#
+# Any theme attribute set on these two overrides the corresponding attribute
+# on `type_interaction_edge_halo`; attributes left unset (like the halo's
+# width) still fall back to the shared base. Here only `shape_color` is
+# overridden, so requests get a green halo and responses get a yellow halo,
+# while both keep the same width and opacity.
+#
+# There are no processes in this diagram, so the interactions are made
+# visible and animated automatically.
+things:
+  t_client: {}
+  t_server: {}
+  t_database: {}
+thing_names:
+  t_client: "Client"
+  t_server: "Server"
+  t_database: "Database"
+
+thing_interactions:
+  edge_ix_client_server:
+    kind: symmetric
+    things:
+      - t_client
+      - t_server
+  edge_ix_server_database:
+    kind: symmetric
+    things:
+      - t_server
+      - t_database
+
+edge_descs:
+  edge_ix_client_server: "request / response"
+  edge_ix_server_database: "query / result"
+
+theme_types_styles:
+  type_interaction_edge_halo_forward:
+    edge_defaults:
+      shape_color: "green"
+  type_interaction_edge_halo_reverse:
+    edge_defaults:
+      shape_color: "yellow"

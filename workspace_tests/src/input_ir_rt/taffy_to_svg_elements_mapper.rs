@@ -53,6 +53,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0046_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_RIGHT_TO_LEFT,
     INPUT_DIAGRAM_0047_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_BOTTOM_TO_TOP,
     INPUT_DIAGRAM_0048_INTERACTION_EDGE_HALO, INPUT_DIAGRAM_0049_INTERACTION_EDGE_HALO_DISABLED,
+    INPUT_DIAGRAM_0050_INTERACTION_EDGE_HALO_FORWARD_REVERSE,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -4760,6 +4761,61 @@ fn test_interaction_edge_halo_disabled_omits_halo_path() {
         assert!(
             !svg.contains("edge_halo"),
             "Expected no edge_halo path in the rendered SVG when interaction_edge_halo is disabled"
+        );
+    }
+}
+
+/// Forward (request) and reverse (response) interaction edges within the same
+/// symmetric edge group get distinct halo colours when
+/// `type_interaction_edge_halo_forward` / `type_interaction_edge_halo_reverse`
+/// override `ShapeColor`, while attributes neither overrides (like
+/// `StrokeWidth`) still fall back to the shared `type_interaction_edge_halo`
+/// base.
+#[test]
+fn test_interaction_edge_halo_forward_reverse_use_distinct_colors() {
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0050_INTERACTION_EDGE_HALO_FORWARD_REVERSE,
+    ) {
+        let halo_key = |edge_id: &str| {
+            Id::try_from(format!("{edge_id}__halo")).expect("halo ID should be valid")
+        };
+
+        // `edge_ix_chain` has 3 things in a symmetric group: 2 forward edges
+        // (indices 0, 1) followed by 2 reverse edges (indices 2, 3).
+        let forward_halo = svg_elements
+            .tailwind_classes
+            .get(&halo_key("edge_ix_chain__0"))
+            .unwrap_or_else(|| panic!("Expected halo tailwind classes for the forward edge"));
+        let reverse_halo = svg_elements
+            .tailwind_classes
+            .get(&halo_key("edge_ix_chain__2"))
+            .unwrap_or_else(|| panic!("Expected halo tailwind classes for the reverse edge"));
+
+        assert!(
+            forward_halo.contains("green"),
+            "Expected the forward (request) halo to reference green, got: {forward_halo}"
+        );
+        assert!(
+            !forward_halo.contains("yellow"),
+            "Expected the forward (request) halo to not reference yellow, got: {forward_halo}"
+        );
+
+        assert!(
+            reverse_halo.contains("yellow"),
+            "Expected the reverse (response) halo to reference yellow, got: {reverse_halo}"
+        );
+        assert!(
+            !reverse_halo.contains("green"),
+            "Expected the reverse (response) halo to not reference green, got: {reverse_halo}"
+        );
+
+        // Attributes not overridden by the forward/reverse types (e.g. the
+        // halo's width) still come from the shared `type_interaction_edge_halo`
+        // base for both.
+        assert!(
+            forward_halo.contains("stroke-8") && reverse_halo.contains("stroke-8"),
+            "Expected both halos to keep the base stroke-8 width, got forward: {forward_halo}, \
+             reverse: {reverse_halo}"
         );
     }
 }

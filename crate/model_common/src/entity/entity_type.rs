@@ -89,6 +89,18 @@ pub enum EntityType {
     /// type is never attached to a real entity via `entity_types` -- it is
     /// only used to look up `theme_types_styles` for the halo's own styling.
     InteractionEdgeHalo,
+    /// Rendering-only style key for the halo behind "request" (forward)
+    /// interaction edges -- i.e. edges whose own type is
+    /// `InteractionEdgeSequenceForwardDefault`,
+    /// `InteractionEdgeCyclicForwardDefault`, or
+    /// `InteractionEdgeSymmetricForwardDefault`. Any theme attribute set here
+    /// overrides the corresponding attribute on `InteractionEdgeHalo`.
+    InteractionEdgeHaloForward,
+    /// Rendering-only style key for the halo behind "response" (reverse)
+    /// interaction edges -- i.e. edges whose own type is
+    /// `InteractionEdgeSymmetricReverseDefault`. Any theme attribute set here
+    /// overrides the corresponding attribute on `InteractionEdgeHalo`.
+    InteractionEdgeHaloReverse,
 
     /// Custom user-defined type.
     Custom(Id<'static>),
@@ -154,6 +166,8 @@ impl EntityType {
             }
 
             EntityType::InteractionEdgeHalo => "type_interaction_edge_halo",
+            EntityType::InteractionEdgeHaloForward => "type_interaction_edge_halo_forward",
+            EntityType::InteractionEdgeHaloReverse => "type_interaction_edge_halo_reverse",
 
             EntityType::Custom(id) => id.as_str(),
         }
@@ -181,7 +195,9 @@ impl EntityType {
             | EntityType::InteractionEdgeCyclicForwardDefault
             | EntityType::InteractionEdgeSymmetricForwardDefault
             | EntityType::InteractionEdgeSymmetricReverseDefault
-            | EntityType::InteractionEdgeHalo => true,
+            | EntityType::InteractionEdgeHalo
+            | EntityType::InteractionEdgeHaloForward
+            | EntityType::InteractionEdgeHaloReverse => true,
             EntityType::Custom(_) => false,
         }
     }
@@ -258,6 +274,8 @@ impl EntityType {
             }
 
             EntityType::InteractionEdgeHalo => id!("type_interaction_edge_halo"),
+            EntityType::InteractionEdgeHaloForward => id!("type_interaction_edge_halo_forward"),
+            EntityType::InteractionEdgeHaloReverse => id!("type_interaction_edge_halo_reverse"),
 
             EntityType::Custom(id) => id,
         }
@@ -395,6 +413,8 @@ impl From<Id<'static>> for EntityType {
             }
 
             "type_interaction_edge_halo" => EntityType::InteractionEdgeHalo,
+            "type_interaction_edge_halo_forward" => EntityType::InteractionEdgeHaloForward,
+            "type_interaction_edge_halo_reverse" => EntityType::InteractionEdgeHaloReverse,
 
             _ => EntityType::Custom(id),
         }
@@ -454,6 +474,8 @@ impl Visitor<'_> for EntityTypeVisitor {
             * `type_interaction_edge_symmetric_forward_default`\n\
             * `type_interaction_edge_symmetric_reverse_default`\n\
             * `type_interaction_edge_halo`\n\
+            * `type_interaction_edge_halo_forward`\n\
+            * `type_interaction_edge_halo_reverse`\n\
             \n\
             or a custom identifier",
         )
@@ -511,6 +533,8 @@ impl Visitor<'_> for EntityTypeVisitor {
             }
 
             "type_interaction_edge_halo" => EntityType::InteractionEdgeHalo,
+            "type_interaction_edge_halo_forward" => EntityType::InteractionEdgeHaloForward,
+            "type_interaction_edge_halo_reverse" => EntityType::InteractionEdgeHaloReverse,
 
             _ => {
                 let id = Id::try_from(value.to_owned()).map_err(serde::de::Error::custom)?;

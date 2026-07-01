@@ -194,12 +194,27 @@ impl TailwindClassesBuilder {
         } = theme_ctx;
 
         // The interaction edge halo's classes are identical for every
-        // interaction edge (a fixed theme style with no per-edge overrides),
-        // so resolve them once and reuse the string, rather than
+        // forward (request) edge, and identical for every reverse (response)
+        // edge, so resolve each once and reuse the strings, rather than
         // re-resolving per edge.
-        let halo_classes = render_options.interaction_edge_halo.is_enabled().then(|| {
-            Self::interaction_edge_halo_classes_build(theme_default, theme_types_styles, css_theme_vars)
-        });
+        let (halo_classes_forward, halo_classes_reverse) =
+            if render_options.interaction_edge_halo.is_enabled() {
+                let forward = Self::interaction_edge_halo_classes_build(
+                    EntityType::InteractionEdgeHaloForward,
+                    theme_default,
+                    theme_types_styles,
+                    css_theme_vars,
+                );
+                let reverse = Self::interaction_edge_halo_classes_build(
+                    EntityType::InteractionEdgeHaloReverse,
+                    theme_default,
+                    theme_types_styles,
+                    css_theme_vars,
+                );
+                (Some(forward), Some(reverse))
+            } else {
+                (None, None)
+            };
 
         let mut edge_classes: Vec<(Id<'id>, String)> = Vec::new();
         edge_groups.iter().for_each(|(edge_group_id, edges)| {
@@ -235,12 +250,20 @@ impl TailwindClassesBuilder {
                     css_theme_vars,
                 );
 
-                if is_interaction_group
-                    && let Some(halo_classes) = halo_classes.as_ref()
-                {
-                    let edge_id_for_halo: EdgeId<'id> = edge_id.clone().into();
-                    let halo_id = EdgeHaloIdGenerator::generate(&edge_id_for_halo);
-                    edge_classes.push((halo_id, halo_classes.clone()));
+                if is_interaction_group {
+                    let is_reverse = entity_types.get(&edge_id).is_some_and(|types| {
+                        types.contains(&EntityType::InteractionEdgeSymmetricReverseDefault)
+                    });
+                    let halo_classes = if is_reverse {
+                        halo_classes_reverse.as_ref()
+                    } else {
+                        halo_classes_forward.as_ref()
+                    };
+                    if let Some(halo_classes) = halo_classes {
+                        let edge_id_for_halo: EdgeId<'id> = edge_id.clone().into();
+                        let halo_id = EdgeHaloIdGenerator::generate(&edge_id_for_halo);
+                        edge_classes.push((halo_id, halo_classes.clone()));
+                    }
                 }
 
                 edge_classes.push((edge_id, classes));
@@ -249,31 +272,40 @@ impl TailwindClassesBuilder {
         edge_classes
     }
 
-    /// Builds the (identical, edge-independent) tailwind classes for the
-    /// interaction edge halo, resolved from `type_interaction_edge_halo` in
-    /// `theme_types_styles`.
+    /// Builds the (edge-independent, but forward/reverse-specific) tailwind
+    /// classes for the interaction edge halo.
+    ///
+    /// Resolves `type_interaction_edge_halo` as the base, then overlays
+    /// `overlay_entity_type` (`InteractionEdgeHaloForward` for requests, or
+    /// `InteractionEdgeHaloReverse` for responses) on top -- any theme
+    /// attribute set on the overlay type replaces the corresponding
+    /// attribute inherited from the base.
     fn interaction_edge_halo_classes_build<'id>(
+        overlay_entity_type: EntityType,
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
     ) -> String {
-        let entity_type = EntityType::InteractionEdgeHalo;
         let mut tailwind_class_state = TailwindClassState {
-            entity_type: Some(entity_type.clone()),
+            entity_type: Some(EntityType::InteractionEdgeHalo),
             ..Default::default()
         };
 
-        let type_id = EntityTypeId::from(entity_type.into_id());
-        if let Some(halo_partials) = theme_types_styles
-            .get(&type_id)
-            .and_then(|type_styles| type_styles.get(&IdOrDefaults::EdgeDefaults))
-        {
-            Self::apply_tailwind_from_partials(
-                halo_partials,
-                &theme_default.style_aliases,
-                &mut tailwind_class_state,
-            );
-        }
+        [EntityType::InteractionEdgeHalo, overlay_entity_type]
+            .into_iter()
+            .for_each(|entity_type| {
+                let type_id = EntityTypeId::from(entity_type.into_id());
+                if let Some(halo_partials) = theme_types_styles
+                    .get(&type_id)
+                    .and_then(|type_styles| type_styles.get(&IdOrDefaults::EdgeDefaults))
+                {
+                    Self::apply_tailwind_from_partials(
+                        halo_partials,
+                        &theme_default.style_aliases,
+                        &mut tailwind_class_state,
+                    );
+                }
+            });
 
         let mut classes = String::new();
         tailwind_class_state.write_classes(

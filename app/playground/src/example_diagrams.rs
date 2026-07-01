@@ -58,6 +58,9 @@ pub enum ExampleDiagram {
     EdgeWaypoints,
     /// Concept map of how edge contact offsets and protrusions are computed.
     EdgeOffsetsProtrusions,
+    /// Request / response halo colours -- `render_options.interaction_edge_halo`
+    /// and `type_interaction_edge_halo_forward` / `_reverse`.
+    InteractionHalo,
 }
 
 impl ExampleDiagram {
@@ -81,6 +84,7 @@ impl ExampleDiagram {
         ExampleDiagram::InteractionTiming,
         ExampleDiagram::EdgeWaypoints,
         ExampleDiagram::EdgeOffsetsProtrusions,
+        ExampleDiagram::InteractionHalo,
     ];
 
     /// Human-readable label shown in the example selector dropdown.
@@ -104,6 +108,7 @@ impl ExampleDiagram {
             Self::InteractionTiming => "Interaction Timing",
             Self::EdgeWaypoints => "Edge Waypoints",
             Self::EdgeOffsetsProtrusions => "Edge Offsets & Protrusions",
+            Self::InteractionHalo => "Interaction Halo",
         }
     }
 
@@ -142,6 +147,7 @@ impl ExampleDiagram {
             Self::EdgeOffsetsProtrusions => {
                 asset!("/assets/example_diagrams/018_edge_offsets_and_protrusions.yaml")
             }
+            Self::InteractionHalo => asset!("/assets/example_diagrams/019_interaction_halo.yaml"),
         }
     }
 
