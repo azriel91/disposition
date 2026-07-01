@@ -1,21 +1,10 @@
-use disposition_ir_model::node::{NodeFace, NodeId};
-use disposition_model_common::Map;
-
-use super::edge_model::NodeIdAndFace;
-
-/// Tracks which edges contact which face of which node, and computes
-/// pixel offsets so that multiple edges sharing a face are spread evenly
-/// around the face's midpoint.
+/// Computes pixel offsets that spread multiple edges sharing a single node
+/// face symmetrically around the face's midpoint.
 ///
-/// # Algorithm
-///
-/// 1. Register every edge contact point (node + face) via `contact_register`.
-/// 2. After all contacts are registered, call `offset_calculate` for each
-///    contact in sorted order to obtain the pixel offset for that contact
-///    point.
-///
-/// The offsets are distributed symmetrically around the midpoint of the
-/// face. For `n` contact points the offsets are:
+/// Callers collect the contacts on each `(node, face)` in sorted order, then
+/// call [`offset_for_index`](Self::offset_for_index) per contact to obtain its
+/// signed pixel offset. The offsets are distributed symmetrically around the
+/// midpoint of the face. For `n` contact points the offsets are:
 ///
 /// ```text
 /// offset_i = (i - (n - 1) / 2.0) * gap
@@ -30,14 +19,7 @@ use super::edge_model::NodeIdAndFace;
 /// * Clamp to a minimum of `CONTACT_GAP_MIN_PX`.
 /// * If `n * gap > face_length`, shrink to `face_length / n` so that all
 ///   contact points fit within the face.
-#[derive(Clone, Debug)]
-pub(super) struct EdgeFaceContactTracker<'id> {
-    /// For each (node, face), the total number of contact points.
-    contact_counts: Map<NodeIdAndFace<'id>, usize>,
-    /// For each (node, face), the next index to hand out (auto-incrementing
-    /// counter used by `offset_calculate`).
-    contact_next_index: Map<NodeIdAndFace<'id>, usize>,
-}
+pub(super) struct EdgeFaceContactTracker;
 
 /// Minimum gap in pixels between adjacent edge contact points on the
 /// same node face.
@@ -48,68 +30,21 @@ pub(super) const CONTACT_GAP_MIN_PX: f32 = 12.0;
 /// Gap as a fraction of the face length (10%).
 const CONTACT_GAP_RATIO: f32 = 0.10;
 
-impl<'id> EdgeFaceContactTracker<'id> {
-    /// Creates an empty tracker.
-    pub(super) fn new() -> Self {
-        Self {
-            contact_counts: Map::new(),
-            contact_next_index: Map::new(),
-        }
-    }
-
-    /// Registers one contact point on the given `face` of `node_id`.
-    ///
-    /// Call this once per edge endpoint. For a self-loop edge that
-    /// touches the same face twice, call this twice.
-    pub(super) fn contact_register(&mut self, node_id: NodeId<'id>, face: NodeFace) {
-        let node_id_and_face = NodeIdAndFace { node_id, face };
-        *self.contact_counts.entry(node_id_and_face).or_insert(0) += 1;
-    }
-
-    /// Calculates the pixel offset for the next contact point on the
-    /// given face of `node_id`.
-    ///
-    /// Each successive call for the same (node, face) pair returns the
-    /// offset for the next index. Contacts must be presented in the
-    /// desired sorted order.
+impl EdgeFaceContactTracker {
+    /// Computes the pixel offset for the `index`-th contact out of
+    /// `count` total contacts on a face of the given `face_length`.
     ///
     /// `face_length` is the length of the face in pixels -- width for
     /// `NodeFace::Top` / `NodeFace::Bottom`, height for
     /// `NodeFace::Left` / `NodeFace::Right`.
     ///
-    /// Returns the signed pixel offset from the face midpoint.
-    /// Negative values go left/up, positive values go right/down.
-    pub(super) fn offset_calculate(
-        &mut self,
-        node_id: &NodeId<'id>,
-        face: NodeFace,
+    /// Returns the signed pixel offset from the face midpoint. Negative
+    /// values go left/up, positive values go right/down.
+    pub(super) fn offset_for_index(
+        contact_index: usize,
+        contact_count: usize,
         face_length: f32,
     ) -> f32 {
-        let node_id_and_face = NodeIdAndFace {
-            node_id: node_id.clone(),
-            face,
-        };
-
-        let contact_count = self
-            .contact_counts
-            .get(&node_id_and_face)
-            .copied()
-            .unwrap_or(1);
-        let contact_index = {
-            let next_index = self.contact_next_index.entry(node_id_and_face).or_insert(0);
-            let current_index = *next_index;
-            *next_index += 1;
-            current_index
-        };
-
-        Self::offset_for_index(contact_index, contact_count, face_length)
-    }
-
-    /// Computes the pixel offset for the `index`-th contact out of
-    /// `count` total contacts on a face of the given `face_length`.
-    ///
-    /// This is a pure function suitable for testing.
-    fn offset_for_index(contact_index: usize, contact_count: usize, face_length: f32) -> f32 {
         if contact_count <= 1 {
             return 0.0;
         }
@@ -131,14 +66,6 @@ impl<'id> EdgeFaceContactTracker<'id> {
         } else {
             gap
         }
-    }
-
-    /// Resets the per-face index counters so that a second pass can
-    /// re-iterate contacts in a (possibly different) order.
-    ///
-    /// Contact counts are preserved.
-    pub(super) fn indices_reset(&mut self) {
-        self.contact_next_index.clear();
     }
 }
 

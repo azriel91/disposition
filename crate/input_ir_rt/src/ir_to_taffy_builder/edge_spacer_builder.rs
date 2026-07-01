@@ -5,7 +5,7 @@ use disposition_ir_model::{
     entity::{EntityType, EntityTypes},
     node::{NodeHierarchy, NodeId, NodeNestingInfo, NodeNestingInfos, NodeRank, NodeRanksNested},
 };
-use disposition_model_common::{edge::EdgeGroupId, Id, Map, RenderOptions};
+use disposition_model_common::{edge::EdgeGroupId, Id, Map, RankDir, RenderOptions};
 use disposition_taffy_model::{
     taffy::{self, Size, Style, TaffyTree},
     EdgeDescriptionTaffyNodes, EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx,
@@ -40,6 +40,26 @@ const EDGE_SPACER_LENGTH: f32 = 5.0;
 /// routed through their positions, reducing the chance of edges
 /// being drawn over other nodes.
 pub(crate) struct EdgeSpacerBuilder;
+
+/// Result of [`EdgeSpacerBuilder::build_text_content_spacers`].
+pub(crate) struct TextContentSpacersBuilt {
+    /// All text-content spacer taffy node ids, in left-to-right row order.
+    ///
+    /// Includes the zero-width spacers created for direct-curvature edges. They
+    /// are kept in the row so its horizontal layout -- and hence the jog-depth
+    /// assignment of the *real* spacers -- stays stable; removing them shifts
+    /// the neighbouring columns and reshuffles the protrusion-depth buckets.
+    pub(crate) spacer_taffy_node_ids: Vec<taffy::NodeId>,
+    /// Per-edge text-content spacer nodes to merge into the diagram-wide map.
+    pub(crate) edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
+    /// Number of spacers belonging to a *jogging* (non-direct) edge.
+    ///
+    /// Only these edges draw a return jog below the label that must be
+    /// staggered to a distinct depth, so this -- not the total spacer count --
+    /// sizes the text-content row's bottom margin. Direct-curvature edges are
+    /// drawn as a direct curve and never jog, so they are excluded.
+    pub(crate) jog_spacer_count: usize,
+}
 
 // === EdgeSpacerBuilder === //
 
@@ -185,30 +205,348 @@ impl EdgeSpacerBuilder {
         let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
         let mut rank_spacer_counts: BTreeMap<NodeRank, Vec<usize>> = BTreeMap::new();
 
-        edge_groups.iter().for_each(|(edge_group_id, edge_group)| {
-            edge_group
-                .iter()
-                .enumerate()
-                .for_each(|(edge_index, edge)| {
-                    Self::build_cross_container_spacers_for_edge(
-                        taffy_tree,
-                        edge_group_id,
-                        node_nesting_infos,
-                        node_ranks_nested,
-                        entity_types,
-                        render_options,
-                        rank_to_taffy_ids,
-                        container_node_id,
-                        &container_node_direct_child_ids,
-                        &mut edge_spacer_taffy_nodes,
-                        &mut rank_spacer_counts,
-                        edge_index,
-                        edge,
-                    )
-                });
-        });
+        // Order edges so their cross-container spacers are inserted (appended)
+        // into each shared rank row in the same left-to-right order as their
+        // to-face contacts. Without this the spacers land in edge-group
+        // declaration order, which can be the reverse of the contact order and
+        // make two edges swap sides between their spacer row and their
+        // contacts -- drawing two crossings. See
+        // `cross_container_spacer_sort_key` for the key.
+        let mut ordered_edges: Vec<(&EdgeGroupId<'static>, usize, &Edge<'_>)> = edge_groups
+            .iter()
+            .flat_map(|(edge_group_id, edge_group)| {
+                edge_group
+                    .iter()
+                    .enumerate()
+                    .map(move |(edge_index, edge)| (edge_group_id, edge_index, edge))
+            })
+            .collect();
+        ordered_edges.sort_by(
+            |(group_id_a, edge_index_a, edge_a), (group_id_b, edge_index_b, edge_b)| {
+                let key_a = Self::cross_container_spacer_sort_key(
+                    node_nesting_infos,
+                    node_ranks_nested,
+                    container_node_id,
+                    edge_a,
+                );
+                let key_b = Self::cross_container_spacer_sort_key(
+                    node_nesting_infos,
+                    node_ranks_nested,
+                    container_node_id,
+                    edge_b,
+                );
+                key_a
+                    .cmp(&key_b)
+                    .then_with(|| group_id_a.cmp(group_id_b))
+                    .then_with(|| edge_index_a.cmp(edge_index_b))
+            },
+        );
+
+        ordered_edges
+            .into_iter()
+            .for_each(|(edge_group_id, edge_index, edge)| {
+                Self::build_cross_container_spacers_for_edge(
+                    taffy_tree,
+                    edge_group_id,
+                    node_nesting_infos,
+                    node_ranks_nested,
+                    entity_types,
+                    render_options,
+                    rank_to_taffy_ids,
+                    container_node_id,
+                    &container_node_direct_child_ids,
+                    &mut edge_spacer_taffy_nodes,
+                    &mut rank_spacer_counts,
+                    edge_index,
+                    edge,
+                )
+            });
 
         edge_spacer_taffy_nodes
+    }
+
+    /// Sort key for ordering an edge's cross-container spacers within shared
+    /// rank rows, mirroring the to-face contact order so spacer left/right
+    /// order matches contact left/right order (reducing edge crossings).
+    ///
+    /// Returns `(rank_distance, outside_nesting_path, inside_nesting_path)`:
+    ///
+    /// * `rank_distance` -- the primary contact-sort key used by
+    ///   `face_entries_sort_by_rank_and_coordinate`, computed pre-layout from
+    ///   the divergent-ancestor ranks. Edges with missing nesting info sort
+    ///   last (`u32::MAX`).
+    /// * `outside_nesting_path` -- a structural proxy for the contact sort's
+    ///   secondary "approach coordinate" key, which is unavailable before taffy
+    ///   layout. It is the full nesting path (sibling index at every level) of
+    ///   the endpoint that lies *outside* this container -- the side the edge
+    ///   approaches from. The full path is used, rather than only the index at
+    ///   the LCA depth, so that two edges whose outside endpoints share an
+    ///   ancestor at the LCA depth (e.g. both sourced from the same outer
+    ///   container) are still ordered by their distinct deeper positions --
+    ///   which is what determines their descent columns and hence their
+    ///   crossing order. Declaration-order indices are a valid cross-axis proxy
+    ///   for all rank directions because reversed-direction rows are flipped
+    ///   together with their spacers after insertion (see
+    ///   `TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed`).
+    /// * `inside_nesting_path` -- the full nesting path of the endpoint
+    ///   *inside* this container, a final structural tiebreak ordering edges by
+    ///   where they terminate when their outside sources coincide.
+    fn cross_container_spacer_sort_key(
+        node_nesting_infos: &NodeNestingInfos<'static>,
+        node_ranks_nested: &NodeRanksNested<'static>,
+        container_node_id: &NodeId<'static>,
+        edge: &Edge<'_>,
+    ) -> (u32, Vec<usize>, Vec<usize>) {
+        let (Some(info_from), Some(info_to)) = (
+            node_nesting_infos.get(&edge.from),
+            node_nesting_infos.get(&edge.to),
+        ) else {
+            return (u32::MAX, Vec::new(), Vec::new());
+        };
+
+        let rank_distance = Self::divergent_ancestor_ranks(info_from, info_to, node_ranks_nested)
+            .map(|(rank_low, rank_high)| rank_high.value() - rank_low.value())
+            .unwrap_or(u32::MAX);
+
+        let (info_outside, info_inside) = if info_from.ancestor_chain.contains(container_node_id) {
+            (info_to, info_from)
+        } else {
+            (info_from, info_to)
+        };
+
+        (
+            rank_distance,
+            info_outside.nesting_path.clone(),
+            info_inside.nesting_path.clone(),
+        )
+    }
+
+    /// Builds one "text-content spacer" per cross-container edge that traverses
+    /// this container, to be appended to the right of the node's text content
+    /// (its title + description) so the edge routes around that text rather
+    /// than across it.
+    ///
+    /// Returns the ordered spacer node IDs for the caller to place in a `Row`
+    /// wrapper around the text node, plus the per-edge spacer-node map to merge
+    /// into the diagram-wide spacer map.
+    ///
+    /// Any container that renders a non-empty top text band -- a title and/or a
+    /// description -- is handled. Node names are rendered as markdown in the
+    /// same band as descriptions, so a wide title is just as crossable as a
+    /// description and needs the same routing spacers. Only genuinely text-less
+    /// containers are skipped, leaving them unchanged.
+    ///
+    /// Unlike [`Self::build_cross_container_spacers`], these spacers are not
+    /// inserted into a rank row. Each is still registered as a cross-container
+    /// spacer of its edge, so it flows through `SpacerCoordinatesResolver`
+    /// (coordinate resolution + column snap) like any other cross-container
+    /// spacer; the text band sits above the rank containers, so its small
+    /// main-axis coordinate makes it the first waypoint along the edge path.
+    ///
+    /// Edges are ordered by [`Self::cross_container_spacer_sort_key`] so the
+    /// text spacers' left-to-right order matches the rank-spacer order and the
+    /// to-face contact order.
+    pub(crate) fn build_text_content_spacers(
+        ctx: TaffyBuildCtx<'_>,
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        container_node_id: &NodeId<'static>,
+        container_node_hierarchy: &NodeHierarchy<'static>,
+    ) -> TextContentSpacersBuilt {
+        // Only nodes that render a non-empty top text band need their text
+        // content routed around. A container almost always has at least a title
+        // (`node_md_text` is the same source `text_leaf_build` renders); guard
+        // against an empty / whitespace-only label so genuinely text-less
+        // containers stay unchanged.
+        let has_text_content = ctx
+            .node_md_text(container_node_id.as_ref())
+            .map(|text| !text.trim().is_empty())
+            .unwrap_or(false);
+        if !has_text_content {
+            return TextContentSpacersBuilt {
+                spacer_taffy_node_ids: Vec::new(),
+                edge_spacer_taffy_nodes: Map::new(),
+                jog_spacer_count: 0,
+            };
+        }
+
+        // The description label always sits at the **top** (min main-axis) of the
+        // container -- the node wrapper is a flex column with the label above its
+        // rank containers, regardless of `RankDir`. An edge crosses the label only
+        // when its in-container leg runs through that top band, i.e. when the
+        // *external* endpoint lies on the top side of the container:
+        //
+        // * `TopToBottom`: top = lowest rank, so the external endpoint is the
+        //   lower-rank `from` and the inside (label-crossing) endpoint is `to`.
+        // * `BottomToTop`: ranks are reversed, top = highest rank, so the external
+        //   endpoint is the higher-rank `to` and the inside endpoint is `from`.
+        //
+        // Both vertical directions therefore need a text-content spacer (built for
+        // the appropriate inside endpoint below). For the horizontal directions
+        // (`LeftToRight` / `RightToLeft`) the label is a side strip and edges enter
+        // at the rank level -- past the label, not through it -- so the rank
+        // spacers already keep them clear and a text-content spacer would only
+        // misroute the path. Skip those.
+        if !matches!(
+            ctx.render_options.rank_dir,
+            RankDir::TopToBottom | RankDir::BottomToTop
+        ) {
+            return TextContentSpacersBuilt {
+                spacer_taffy_node_ids: Vec::new(),
+                edge_spacer_taffy_nodes: Map::new(),
+                jog_spacer_count: 0,
+            };
+        }
+
+        let edge_groups = ctx.edge_groups;
+        let node_nesting_infos = ctx.node_nesting_infos;
+        let node_ranks_nested = ctx.node_ranks_nested;
+        let entity_types = ctx.entity_types;
+        let render_options = ctx.render_options;
+
+        let container_node_direct_child_ids: Vec<NodeId<'static>> = container_node_hierarchy
+            .iter()
+            .map(|(child_id, _)| child_id.clone())
+            .collect();
+
+        let mut text_spacer_taffy_node_ids: Vec<taffy::NodeId> = Vec::new();
+        let mut edge_spacer_taffy_nodes: Map<EdgeId<'static>, EdgeSpacerTaffyNodes> = Map::new();
+        let mut jog_spacer_count = 0usize;
+
+        // Order edges so their text spacers are appended in the same
+        // left-to-right order as their rank spacers / to-face contacts.
+        let mut ordered_edges: Vec<(&EdgeGroupId<'static>, usize, &Edge<'_>)> = edge_groups
+            .iter()
+            .flat_map(|(edge_group_id, edge_group)| {
+                edge_group
+                    .iter()
+                    .enumerate()
+                    .map(move |(edge_index, edge)| (edge_group_id, edge_index, edge))
+            })
+            .collect();
+        ordered_edges.sort_by(
+            |(group_id_a, edge_index_a, edge_a), (group_id_b, edge_index_b, edge_b)| {
+                let key_a = Self::cross_container_spacer_sort_key(
+                    node_nesting_infos,
+                    node_ranks_nested,
+                    container_node_id,
+                    edge_a,
+                );
+                let key_b = Self::cross_container_spacer_sort_key(
+                    node_nesting_infos,
+                    node_ranks_nested,
+                    container_node_id,
+                    edge_b,
+                );
+                key_a
+                    .cmp(&key_b)
+                    .then_with(|| group_id_a.cmp(group_id_b))
+                    .then_with(|| edge_index_a.cmp(edge_index_b))
+            },
+        );
+
+        ordered_edges
+            .into_iter()
+            .for_each(|(edge_group_id, edge_index, edge)| {
+                // Only edges that enter this container from outside to reach a
+                // nested child traverse the text band; the decider returns
+                // `Build` for exactly those (exactly one endpoint inside, and
+                // the container is neither endpoint).
+                let decision = EdgeSpacerBuildDecider::decide(
+                    node_nesting_infos,
+                    container_node_id,
+                    &container_node_direct_child_ids,
+                    edge,
+                );
+                if matches!(decision, EdgeSpacerBuildDecision::Skip(_)) {
+                    return;
+                }
+
+                // The text spacer is only needed for the endpoint nested strictly
+                // inside this container whose leg runs through the top label band
+                // (see the `RankDir` reasoning in the early-return above):
+                //
+                // * `TopToBottom`: the `to` endpoint -- the edge descends in from the top
+                //   (low-rank) side to reach a nested `to`.
+                // * `BottomToTop`: the `from` endpoint -- the edge exits upward through the top
+                //   (high-rank) side from a nested `from`.
+                //
+                // The opposite endpoint enters/exits via the bottom (rank-level)
+                // face without passing the label, so it needs no text spacer. (The
+                // container being the endpoint node itself is already excluded by
+                // the decider, since then the path stops at the node face and
+                // never enters.)
+                let inside_node_id = match render_options.rank_dir {
+                    RankDir::BottomToTop => &edge.from,
+                    _ => &edge.to,
+                };
+                let inside_endpoint_is_inside = node_nesting_infos
+                    .get(inside_node_id)
+                    .map(|info| info.ancestor_chain.contains(container_node_id))
+                    .unwrap_or(false);
+                if !inside_endpoint_is_inside {
+                    return;
+                }
+
+                // Only edges that actually descend through the top label band
+                // need a text spacer. The label is crossed only by a *cross-rank*
+                // entry from the top side; a same-rank edge (e.g. a cyclic edge
+                // between adjacent siblings at the same LCA rank) enters the
+                // container from the side, past the label, so adding a text
+                // spacer would loop it up to the label band and back. Skip those.
+                let crosses_ranks = node_nesting_infos
+                    .get(&edge.from)
+                    .zip(node_nesting_infos.get(&edge.to))
+                    .and_then(|(info_from, info_to)| {
+                        Self::divergent_ancestor_ranks(info_from, info_to, node_ranks_nested)
+                    })
+                    .map(|(rank_low, rank_high)| rank_low != rank_high)
+                    .unwrap_or(false);
+                if !crosses_ranks {
+                    return;
+                }
+
+                let edge_id = EdgeIdGenerator::generate(edge_group_id, edge_index);
+                let edge_spacer_length =
+                    Self::edge_spacer_length(render_options, entity_types, &edge_id);
+                let spacer_style = Style {
+                    min_size: Size {
+                        width: taffy::Dimension::length(edge_spacer_length),
+                        height: taffy::Dimension::length(edge_spacer_length),
+                    },
+                    align_self: Some(AlignSelf::Stretch),
+                    ..Default::default()
+                };
+
+                let spacer_taffy_node_id = taffy_tree
+                    .new_leaf_with_context(
+                        spacer_style,
+                        TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
+                            edge_id: edge_id.clone(),
+                            rank: NodeRank::new(0),
+                        }),
+                    )
+                    .expect("Expected to create text-content spacer leaf node.");
+
+                // Direct-curvature edges create a zero-length spacer (kept to
+                // preserve the row's x-layout) but never draw a staggered jog,
+                // so they do not count toward the margin that reserves jog room.
+                if edge_spacer_length > 0.0 {
+                    jog_spacer_count += 1;
+                }
+
+                text_spacer_taffy_node_ids.push(spacer_taffy_node_id);
+                edge_spacer_taffy_nodes
+                    .entry(edge_id)
+                    .or_default()
+                    .text_content_spacer_taffy_node_ids
+                    .push(spacer_taffy_node_id);
+            });
+
+        TextContentSpacersBuilt {
+            spacer_taffy_node_ids: text_spacer_taffy_node_ids,
+            edge_spacer_taffy_nodes,
+            jog_spacer_count,
+        }
     }
 
     /// Builds cross-container spacers for a single edge.

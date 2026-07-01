@@ -47,7 +47,11 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0038_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_RIGHT_TO_LEFT,
     INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP,
     INPUT_DIAGRAM_0040_MD_CODE_BLOCK, INPUT_DIAGRAM_0041_MD_CODE_BLOCK_IN_LIST,
-    INPUT_DIAGRAM_0042_MD_BLOCKQUOTE,
+    INPUT_DIAGRAM_0042_MD_BLOCKQUOTE, INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1,
+    INPUT_DIAGRAM_0044_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2,
+    INPUT_DIAGRAM_0045_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_LEFT_TO_RIGHT,
+    INPUT_DIAGRAM_0046_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_RIGHT_TO_LEFT,
+    INPUT_DIAGRAM_0047_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_BOTTOM_TO_TOP,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -1095,20 +1099,205 @@ fn test_nested_node_edge_bob_charlie_routing_clears_alice_outer() {
     }
 }
 
+/// In `0044`, the described container `t_offset_data` is entered by two
+/// cross-container edges (`edge_dep_ranks_slots__0` -> `t_slot_indices`,
+/// `edge_dep_labels_offsets__0` -> `t_offsets`). Each must route to the
+/// **right** of the description label (not across it) via its text-content
+/// spacer, and the two "return jogs" -- from the label column back to each
+/// edge's rank column -- must sit at **distinct** depths so they do not read as
+/// one line.
+#[test]
+fn test_0044_edges_route_around_described_label_with_distinct_return_jogs() {
+    // Anchor points of an SVG path's `M`/`L`/`C` commands. For these orthogonal
+    // paths the `C` arcs are tiny, so every numeric pair is close to a routing
+    // waypoint -- sufficient for the spatial checks below.
+    fn path_points(path_d: &str) -> Vec<(f32, f32)> {
+        path_d
+            .split([' ', 'M', 'L', 'C'])
+            .filter_map(|tok| {
+                let (x, y) = tok.split_once(',')?;
+                Some((x.trim().parse::<f32>().ok()?, y.trim().parse::<f32>().ok()?))
+            })
+            .collect()
+    }
+
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0044_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2)
+    {
+        let node = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_offset_data")
+            .expect("Expected t_offset_data in svg_node_infos");
+
+        // Absolute extent of the description text block (spans are node-relative).
+        let label_right = node
+            .text_spans
+            .iter()
+            .map(|s| node.x + s.x + s.width)
+            .fold(f32::MIN, f32::max);
+        let text_top = node
+            .text_spans
+            .iter()
+            .map(|s| node.y + s.y)
+            .fold(f32::MAX, f32::min);
+        let text_bottom = node
+            .text_spans
+            .iter()
+            .map(|s| node.y + s.y)
+            .fold(f32::MIN, f32::max);
+
+        let edge_for = |from: &str, to: &str| {
+            svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == from && e.to_node_id.as_str() == to)
+                .unwrap_or_else(|| panic!("Expected edge {from} -> {to}"))
+        };
+        let layout_contacts = edge_for("t_taffy_layout", "t_face_contacts");
+        let ranks_slots = edge_for("t_node_ranks", "t_slot_indices");
+        let ranks_gap = edge_for("t_node_ranks", "t_rank_gap_entries");
+        let labels_offsets = edge_for("t_edge_labels", "t_offsets");
+
+        // 1. Each edge has a vertical descent at/right of the label spanning the text
+        //    band -- i.e. it routes around the label, not across it.
+        for edge in [layout_contacts, ranks_slots, labels_offsets] {
+            let descends_right_of_label = path_points(&edge.path_d).windows(2).any(|w| {
+                let (x0, y0) = w[0];
+                let (x1, y1) = w[1];
+                (x0 - x1).abs() < 1.0
+                    && x0 >= label_right - 1.0
+                    && y0.min(y1) <= text_top
+                    && y0.max(y1) >= text_bottom
+            });
+            assert!(
+                descends_right_of_label,
+                "Edge {} -> {} should descend right of the description label \
+                 (label right {:.1}) through the text band [{:.1}, {:.1}]; path: {}",
+                edge.from_node_id, edge.to_node_id, label_right, text_top, text_bottom, edge.path_d,
+            );
+        }
+
+        // 2. The return jogs (the leftward step back over the label's right edge, below
+        //    the text band) must be ordered by how far left each edge sweeps -- the
+        //    edge reaching the innermost (leftmost) rank column turns highest (smallest
+        //    y) so its long sweep passes above the other edges' descents rather than
+        //    across them -- and each must clear the rendered text. `layout_contacts` ->
+        //    `t_face_contacts` (leftmost) is above `ranks_slots` -> `t_slot_indices`,
+        //    which is above `labels_offsets` -> `t_offsets` (rightmost). The jogs must
+        //    also be pairwise separated so they do not read as one line.
+        let return_jog_y = |path_d: &str| -> f32 {
+            path_points(path_d)
+                .windows(2)
+                .find_map(|w| {
+                    let (x0, _) = w[0];
+                    let (x1, y1) = w[1];
+                    (x0 >= label_right && x1 < label_right && y1 >= text_bottom).then_some(y1)
+                })
+                .expect("Expected a return jog crossing back over the label")
+        };
+        let y_layout = return_jog_y(&layout_contacts.path_d);
+        let y_ranks = return_jog_y(&ranks_slots.path_d);
+        let y_labels = return_jog_y(&labels_offsets.path_d);
+        const JOG_SEPARATION_MIN_PX: f32 = 7.0;
+        assert!(
+            y_layout + JOG_SEPARATION_MIN_PX <= y_ranks
+                && y_ranks + JOG_SEPARATION_MIN_PX <= y_labels,
+            "Return jogs should be ordered layout_contacts < ranks_slots < labels_offsets \
+             and >= {JOG_SEPARATION_MIN_PX} px apart (layout {y_layout:.1}, ranks {y_ranks:.1}, \
+             labels {y_labels:.1})",
+        );
+
+        // 3. In the top rank gap (between rank 0 and the container), the edge that
+        //    descends at the innermost column (`layout_contacts`, whose descent is
+        //    swept over by the other two) must turn **lowest** so its descent column
+        //    begins below the others' lateral legs -- otherwise those legs cross it.
+        //    The top gap lies between the from-nodes' bottom face and the container's
+        //    top.
+        let container_top = node.y;
+        let from_face_y = layout_contacts
+            .path_d
+            .split(['M', 'L', 'C', ' '])
+            .filter_map(|tok| tok.split_once(','))
+            .filter_map(|(_, y)| y.trim().parse::<f32>().ok())
+            .next()
+            .expect("Expected a start y");
+        let top_gap_jog_y = |path_d: &str| -> f32 {
+            path_points(path_d)
+                .windows(2)
+                .find_map(|w| {
+                    let (x0, y0) = w[0];
+                    let (x1, y1) = w[1];
+                    // First lateral (x-changing, y-flat) leg within the top gap.
+                    ((x1 - x0).abs() > 1.0
+                        && (y1 - y0).abs() < 1.0
+                        && y1 > from_face_y
+                        && y1 < container_top)
+                        .then_some(y1)
+                })
+                .expect("Expected a lateral jog in the top rank gap")
+        };
+        let y_top_layout = top_gap_jog_y(&layout_contacts.path_d);
+        let y_top_ranks = top_gap_jog_y(&ranks_slots.path_d);
+        let y_top_gap = top_gap_jog_y(&ranks_gap.path_d);
+        assert!(
+            y_top_layout > y_top_ranks && y_top_layout > y_top_gap,
+            "In the top rank gap, layout_contacts must turn below ranks_slots and ranks_gap \
+             so its descent column is not crossed (layout {y_top_layout:.1}, ranks_slots \
+             {y_top_ranks:.1}, ranks_gap {y_top_gap:.1})",
+        );
+
+        // 4. `ir_pass1` and `layout_contacts` both sweep right across the top gap with
+        //    overlapping lateral spans, so their first jogs must stay ordered and not
+        //    coincide (a collinear overlap reads as one line). `layout_contacts` sweeps
+        //    over `ir_pass1`'s descent column, so it turns higher; `ir_pass1` turns
+        //    below it.
+        //
+        //    The full `JOG_SEPARATION_MIN_PX` is not asserted here: every node label is
+        //    now measured via the markdown content path, whose tighter glyph metrics
+        //    shrink this rank gap's jog channel (`rank_gap_px * MAX_GAP_FRACTION`)
+        //    below `JOG_SEPARATION_MIN_PX`, so `jogs_separate` clamps the two
+        //    legs to the band floor. They remain correctly ordered (preserving
+        //    the span-containment nesting) and distinct, which is the
+        //    routing-correctness property the tighter band still guarantees.
+        let ir_pass1 = edge_for("t_ir_diagram", "t_pass1_path");
+        let y_top_ir_pass1 = top_gap_jog_y(&ir_pass1.path_d);
+        assert!(
+            y_top_ir_pass1 > y_top_layout,
+            "ir_pass1's first jog ({y_top_ir_pass1:.1}) must sit below layout_contacts' \
+             ({y_top_layout:.1}) so the legs stay ordered and do not coincide",
+        );
+    }
+}
+
 /// Two edges from nested nodes into other nested nodes, sharing the same rank
-/// gap, must receive **distinct** `from_protrusion` and `to_protrusion` so
-/// their lateral routing segments do not overlap.
+/// gap, must keep their lateral routing segments separated so they do not
+/// collapse onto one line.
 ///
-/// Both edges clear the same divergent-ancestor sibling row, so before the
-/// row-grouped staggering their protrusions collapsed onto a single value
-/// (`from=23`, `to=73`). The fix in
-/// `OrthoProtrusionCalculator::protrusions_adjust_for_divergent_siblings`
-/// staggers endpoints clearing the same row `MIN_PROTRUSION_PX` apart.
+/// Both edges clear the same divergent-ancestor sibling row. Their separation
+/// is achieved by staggering the depths of the waypoints in that row -- the
+/// from/to protrusions and the text-content spacers that route each edge around
+/// its destination container's title band. Rather than pinning any single
+/// mechanism, this checks the outcome directly: the first horizontal "jog" leg
+/// of each edge (its lateral sweep across the shared row) sits at a distinct
+/// main-axis coordinate, at least `MIN_PROTRUSION_PX` apart. (See
+/// `OrthoProtrusionCalculator::protrusions_adjust_for_divergent_siblings`.)
 fn assert_nested_node_edge_protrusions_distinct(
     input_diagram: &str,
     edge_a: (&str, &str),
     edge_b: (&str, &str),
 ) {
+    // The main-axis coordinate of an edge path's first horizontal segment -- its
+    // lateral sweep across the shared divergent-ancestor row. Skips rounded
+    // corner curve points and returns the y of the first truly horizontal leg.
+    fn first_horizontal_leg_y(path_d: &str) -> f32 {
+        parse_path_endpoints(path_d)
+            .windows(2)
+            .find(|seg| (seg[0].1 - seg[1].1).abs() < 1e-2 && (seg[0].0 - seg[1].0).abs() > 1e-2)
+            .map(|seg| seg[0].1)
+            .expect("Expected at least one horizontal segment in the edge path")
+    }
+
     for svg_elements in build_svg_elements_for_diagram(input_diagram) {
         let edge_find = |from: &str, to: &str| {
             svg_elements
@@ -1120,22 +1309,17 @@ fn assert_nested_node_edge_protrusions_distinct(
         let edge_info_a = edge_find(edge_a.0, edge_a.1);
         let edge_info_b = edge_find(edge_b.0, edge_b.1);
 
-        let from_protrusion_a = edge_info_a.ortho_protrusion_params.from_protrusion;
-        let from_protrusion_b = edge_info_b.ortho_protrusion_params.from_protrusion;
-        let to_protrusion_a = edge_info_a.ortho_protrusion_params.to_protrusion;
-        let to_protrusion_b = edge_info_b.ortho_protrusion_params.to_protrusion;
+        let leg_y_a = first_horizontal_leg_y(&edge_info_a.path_d);
+        let leg_y_b = first_horizontal_leg_y(&edge_info_b.path_d);
 
         assert!(
-            (from_protrusion_a - from_protrusion_b).abs() >= MIN_PROTRUSION_PX - 1e-3,
-            "from_protrusion for {edge_a:?} ({from_protrusion_a:.2}) and {edge_b:?} \
-             ({from_protrusion_b:.2}) must differ by >= {MIN_PROTRUSION_PX} so their lateral \
-             segments do not overlap",
-        );
-        assert!(
-            (to_protrusion_a - to_protrusion_b).abs() >= MIN_PROTRUSION_PX - 1e-3,
-            "to_protrusion for {edge_a:?} ({to_protrusion_a:.2}) and {edge_b:?} \
-             ({to_protrusion_b:.2}) must differ by >= {MIN_PROTRUSION_PX} so their lateral \
-             segments do not overlap",
+            (leg_y_a - leg_y_b).abs() >= MIN_PROTRUSION_PX - 1e-3,
+            "lateral legs for {edge_a:?} (y={leg_y_a:.2}) and {edge_b:?} \
+             (y={leg_y_b:.2}) must differ by >= {MIN_PROTRUSION_PX} so their \
+             lateral routing segments across the shared row do not overlap. \
+             path_a = {:?}, path_b = {:?}",
+            edge_info_a.path_d,
+            edge_info_b.path_d,
         );
     }
 }
@@ -1272,6 +1456,46 @@ fn segment_segment_distance(p1: (f32, f32), p2: (f32, f32), p3: (f32, f32), p4: 
         .min(point_segment_distance(p2, p3, p4))
         .min(point_segment_distance(p3, p1, p2))
         .min(point_segment_distance(p4, p1, p2))
+}
+
+/// Minimum perpendicular distance between any axis-aligned segment of `a` and
+/// any **parallel** (same-orientation) axis-aligned segment of `b` whose
+/// extents overlap along the shared axis.
+///
+/// Unlike [`polylines_min_distance`], this ignores perpendicular segment pairs
+/// (clean X-crossings, which are visually acceptable) and non-overlapping
+/// parallel pairs. It therefore measures only coincident/parallel runs -- the
+/// "two edges reading as one line" defect. Diagonal arc-corner segments are
+/// skipped (they are neither horizontal nor vertical).
+fn parallel_segment_min_gap(a: &[(f32, f32)], b: &[(f32, f32)]) -> f32 {
+    let eps = 1e-2_f32;
+    let mut min_gap = f32::INFINITY;
+    for sa in a.windows(2) {
+        let a_horiz = (sa[0].1 - sa[1].1).abs() < eps;
+        let a_vert = (sa[0].0 - sa[1].0).abs() < eps;
+        for sb in b.windows(2) {
+            let b_horiz = (sb[0].1 - sb[1].1).abs() < eps;
+            let b_vert = (sb[0].0 - sb[1].0).abs() < eps;
+            if a_horiz && b_horiz {
+                let a_lo = sa[0].0.min(sa[1].0);
+                let a_hi = sa[0].0.max(sa[1].0);
+                let b_lo = sb[0].0.min(sb[1].0);
+                let b_hi = sb[0].0.max(sb[1].0);
+                if a_hi.min(b_hi) - a_lo.max(b_lo) > eps {
+                    min_gap = min_gap.min((sa[0].1 - sb[0].1).abs());
+                }
+            } else if a_vert && b_vert {
+                let a_lo = sa[0].1.min(sa[1].1);
+                let a_hi = sa[0].1.max(sa[1].1);
+                let b_lo = sb[0].1.min(sb[1].1);
+                let b_hi = sb[0].1.max(sb[1].1);
+                if a_hi.min(b_hi) - a_lo.max(b_lo) > eps {
+                    min_gap = min_gap.min((sa[0].0 - sb[0].0).abs());
+                }
+            }
+        }
+    }
+    min_gap
 }
 
 /// Shortest distance between any segment of polyline `a` and any of `b`.
@@ -1893,14 +2117,16 @@ fn test_edge_to_nested_rank_0_node_has_no_cross_container_spacer() {
             })
             .expect("Expected edge from t_alice to t_charlie_1");
 
-        assert!(
+        assert_eq!(
             alice_charlie_1_edge
                 .ortho_protrusion_params
                 .spacer_protrusions
-                .is_empty(),
-            "Expected no spacer protrusions for edge t_alice -> t_charlie_1 \
-             (t_charlie_1 is at rank 0 inside t_charlie_outer, so no siblings \
-             are between the container entry and the target): \
+                .len(),
+            1,
+            "Expected exactly one (text-content) spacer for edge t_alice -> \
+             t_charlie_1: t_charlie_1 is at rank 0 inside t_charlie_outer, so no \
+             siblings are between the container entry and the target -- the only \
+             spacer routes around t_charlie_outer's title band: \
              spacer_protrusions = {:?}",
             alice_charlie_1_edge
                 .ortho_protrusion_params
@@ -1994,36 +2220,20 @@ fn test_edge_from_toplevel_to_nested_rank_0_node_uses_normal_face_routing() {
     }
 }
 
-/// For `edge_dep_alice_charlie_1`, the Z/S routing segment connecting the
-/// two protrusion tips must stay within the gap between the two containers.
+/// For `edge_dep_alice_charlie_1`, the routing must never loop backward in the
+/// visual (arrow) direction.
 ///
-/// When the gap between the two protrusion tips is smaller than `ARC_RADIUS`,
-/// the bend placement must be chosen carefully:
-///
-/// - **First bug**: bend placed *below* the to-protrusion tip (inside
-///   `t_charlie_outer`) -- the path dipped into the container before routing
-///   through the gap, creating an upward curve that contradicts the downward
-///   flow direction.
-///
-/// - **Second bug**: bend placed *above* the from-protrusion tip (outside the
-///   gap, further up than necessary) -- the path then had to loop back downward
-///   to reach the from-protrusion tip, creating a visible backward movement in
-///   the arrow (visual) direction.
-///
-/// The correct fix places the bend at the *midpoint* between the two
-/// protrusion tips, keeping it strictly inside the routing gap. This ensures
-/// both Leg 1 (from the to-protrusion tip) and Leg 3 (arriving at the
-/// from-protrusion tip) travel in the same upward direction, matching the
-/// edge's overall flow.
+/// `t_charlie_1` is rank 0 inside `t_charlie_outer`, directly below that
+/// container's title band, so the edge descends past the title via a
+/// text-content spacer (entering the container alongside, to the right of, the
+/// title) before reaching `t_charlie_1`. That descent is intentional, so the
+/// path legitimately dips below `t_charlie_outer`'s top -- what must *not*
+/// happen is any backward (upward) reversal, which would mean a routing bend
+/// was placed above the from-protrusion tip or the spacers were visited out of
+/// order. The path therefore stays monotonic along the downward flow axis.
 #[test]
 fn test_edge_from_nested_routing_stays_within_gap() {
     for svg_elements in build_svg_elements_from_edge_from_node_to_nested_node() {
-        let charlie_outer = svg_elements
-            .svg_node_infos
-            .iter()
-            .find(|n| n.node_id.as_str() == "t_charlie_outer")
-            .expect("Expected t_charlie_outer in svg_node_infos");
-
         let alice_charlie_1_edge = svg_elements
             .svg_edge_infos
             .iter()
@@ -2032,51 +2242,11 @@ fn test_edge_from_nested_routing_stays_within_gap() {
             })
             .expect("Expected edge from t_alice to t_charlie_1");
 
-        let charlie_outer_top_y = charlie_outer.y;
-
-        // The path is built in SVG order from the from-node (alice, at the
-        // top) to the to-node (charlie_1, at the bottom). All coordinates
-        // between the first (alice contact y) and the last (charlie_1 contact
-        // y) are the routing segment.
-        let all_coords = parse_path_endpoints(&alice_charlie_1_edge.path_d);
-
-        // The from-protrusion tip is the second coordinate (just after the
-        // alice contact point). Its y is the upper bound of the routing gap --
-        // no later point should overshoot above it.
-        let from_protrusion_tip_y = all_coords.get(1).map(|&(_, y)| y).unwrap_or(0.0);
-
-        // Skip the first (alice contact) and last (charlie_1 contact).
-        let intermediate_coords = all_coords
-            .iter()
-            .skip(1)
-            .take(all_coords.len().saturating_sub(2));
-
-        for &(x, y) in intermediate_coords {
-            // No intermediate point should fall below charlie_outer's top --
-            // that means the Z/S dipped into the destination container.
-            assert!(
-                y <= charlie_outer_top_y + 0.5,
-                "Intermediate routing coordinate ({x:.3}, {y:.3}) is below \
-                 t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}). \
-                 The Z/S bend was placed inside the destination container. \
-                 path_d = {:?}",
-                alice_charlie_1_edge.path_d,
-            );
-
-            // No intermediate point should overshoot above the from-protrusion
-            // tip -- that means the Z/S looped backward in the visual
-            // (arrow) direction, going further up than needed and then
-            // reversing to reach the from-protrusion tip.
-            assert!(
-                y >= from_protrusion_tip_y - 0.5,
-                "Intermediate routing coordinate ({x:.3}, {y:.3}) overshoots \
-                 above the from-protrusion tip (y={from_protrusion_tip_y:.3}). \
-                 The Z/S bend was placed outside the routing gap, causing a \
-                 backward loop in the visual arrow direction. \
-                 path_d = {:?}",
-                alice_charlie_1_edge.path_d,
-            );
-        }
+        // The path is built in SVG order from the from-node (alice, at the top)
+        // to the to-node (charlie_1, at the bottom). It routes around
+        // t_charlie_outer's title band on the way down, but must never reverse
+        // along the downward flow axis.
+        assert_edge_path_main_axis_monotonic(&alice_charlie_1_edge.path_d, FlowAxis::Vertical);
     }
 }
 
@@ -2186,11 +2356,11 @@ fn test_edge_to_nested_rank_1_node_has_exactly_one_cross_container_spacer() {
             .len();
         assert_eq!(
             spacer_count,
-            1,
-            "Expected exactly one cross-container spacer protrusion for edge \
-             t_alice -> t_charlie_3. Both rank-0 siblings t_charlie_1 and \
-             t_charlie_2 belong to the same rank group and should share one \
-             spacer. Got {spacer_count} spacer(s): {:?}",
+            2,
+            "Expected two spacer protrusions for edge t_alice -> t_charlie_3: the \
+             cross-container spacer for the rank-0 sibling group (t_charlie_1 and \
+             t_charlie_2 share one spacer) plus the text-content spacer routing \
+             around t_charlie_outer's title band. Got {spacer_count} spacer(s): {:?}",
             alice_charlie_3_edge
                 .ortho_protrusion_params
                 .spacer_protrusions,
@@ -2393,9 +2563,10 @@ fn test_spacer_edges_into_same_node_have_separated_approach_legs() {
     }
 }
 
-/// Edges to `t_charlie_1` (rank 0 in `t_charlie_outer`) should have no
-/// cross-container spacers, even in the presence of a rank-1 sibling
-/// (`t_charlie_3`).
+/// Edges to `t_charlie_1` (rank 0 in `t_charlie_outer`) need no *sibling*
+/// cross-container spacer, even in the presence of a rank-1 sibling
+/// (`t_charlie_3`) -- only the text-content spacer that routes around
+/// `t_charlie_outer`'s title band, for one spacer each.
 #[test]
 fn test_edge_to_nested_rank_0_node_has_no_spacers_in_complex_diagram() {
     for svg_elements in build_svg_elements_from_edge_from_node_to_nested_rank_1_node() {
@@ -2408,34 +2579,38 @@ fn test_edge_to_nested_rank_0_node_has_no_spacers_in_complex_diagram() {
             })
             .expect("Expected edge from t_alice to t_charlie_1");
 
-        assert!(
+        assert_eq!(
             alice_charlie_1_edge
                 .ortho_protrusion_params
                 .spacer_protrusions
-                .is_empty(),
-            "Expected no spacer protrusions for edge t_alice -> t_charlie_1 \
-             in the 0008 diagram (t_charlie_1 is at rank 0): \
-             spacer_protrusions = {:?}",
+                .len(),
+            1,
+            "Expected exactly one (text-content) spacer for edge t_alice -> \
+             t_charlie_1 in the 0008 diagram: t_charlie_1 is at rank 0, so no \
+             sibling spacer is needed -- the only spacer routes around \
+             t_charlie_outer's title band: spacer_protrusions = {:?}",
             alice_charlie_1_edge
                 .ortho_protrusion_params
                 .spacer_protrusions,
         );
 
-        // bob -> charlie_1 edge: also no spacers
+        // bob -> charlie_1 edge: also only the text-content spacer
         let bob_charlie_1_edge = svg_elements
             .svg_edge_infos
             .iter()
             .find(|e| e.from_node_id.as_str() == "t_bob" && e.to_node_id.as_str() == "t_charlie_1")
             .expect("Expected edge from t_bob to t_charlie_1");
 
-        assert!(
+        assert_eq!(
             bob_charlie_1_edge
                 .ortho_protrusion_params
                 .spacer_protrusions
-                .is_empty(),
-            "Expected no spacer protrusions for edge t_bob -> t_charlie_1 \
-             in the 0008 diagram (t_charlie_1 is at rank 0): \
-             spacer_protrusions = {:?}",
+                .len(),
+            1,
+            "Expected exactly one (text-content) spacer for edge t_bob -> \
+             t_charlie_1 in the 0008 diagram: t_charlie_1 is at rank 0, so no \
+             sibling spacer is needed -- the only spacer routes around \
+             t_charlie_outer's title band: spacer_protrusions = {:?}",
             bob_charlie_1_edge
                 .ortho_protrusion_params
                 .spacer_protrusions,
@@ -2444,39 +2619,24 @@ fn test_edge_to_nested_rank_0_node_has_no_spacers_in_complex_diagram() {
 }
 
 /// The edge from `t_alice_inner` to `t_charlie_inner` in the doubly-nested
-/// diagram must route orthogonally without entering `t_charlie_outer`'s
-/// interior.
+/// diagram must descend cleanly toward its target without ever reversing along
+/// the downward flow axis.
 ///
-/// Two bugs could cause intermediate routing coordinates to fall below
-/// `t_charlie_outer`'s top:
-///
-/// 1. The `connect_waypoints` collinear check using `dot_p.abs() > 0.95`
-///    incorrectly treated the nearly anti-collinear displacement between the
-///    two protrusion tips as "straight", drawing a diagonal line instead of an
-///    orthogonal Z/S bend.
-///
-/// 2. The from-protrusion (73.44 px) plus the to-protrusion (110.0 px) summed
-///    to 183.44 px, exceeding the node-to-node gap (153 px). The
-///    from-protrusion tip was placed inside `t_charlie_outer` (at y=245.44),
-///    below the to-protrusion tip (at y=215.0).
-///
-/// After the fix the from-protrusion is capped to 43 px (= 153 - 110), so
-/// both tips meet at `t_charlie_outer`'s top boundary (y=215). The V-spike
-/// guard in `connect_waypoints` (see
-/// `test_nested_x2_node_edge_routing_no_upward_detour`) then replaces the Z/S
-/// U-bend between the tips with a straight horizontal line, so no intermediate
-/// coordinate falls below `t_charlie_outer.y`.
+/// `t_charlie_inner` is nested under the title bands of `t_charlie_outer` and
+/// `t_charlie`, so the edge legitimately enters those containers -- descending
+/// alongside (to the right of) each title via a text-content spacer -- rather
+/// than stopping at `t_charlie_outer`'s top. What must never happen is a
+/// backward (upward) reversal: a U-bend / V-spike at a container boundary, a
+/// from-protrusion tip placed below the to-tip, or spacers visited out of order
+/// would all show up as a non-monotonic dip, so the path is asserted monotonic
+/// along the downward flow axis. (The companion
+/// `test_nested_x2_node_edge_routing_no_upward_detour` guards the same property
+/// against the from-protrusion tip specifically.)
 #[test]
 fn test_nested_x2_node_edge_routing_stays_above_charlie_outer() {
     for svg_elements in
         build_svg_elements_for_diagram(INPUT_DIAGRAM_0002_NESTED_NODE_EDGE_PROTRUSION)
     {
-        let charlie_outer = svg_elements
-            .svg_node_infos
-            .iter()
-            .find(|n| n.node_id.as_str() == "t_charlie_outer")
-            .expect("Expected t_charlie_outer in svg_node_infos");
-
         let alice_inner_charlie_inner_edge = svg_elements
             .svg_edge_infos
             .iter()
@@ -2486,35 +2646,14 @@ fn test_nested_x2_node_edge_routing_stays_above_charlie_outer() {
             })
             .expect("Expected edge from t_alice_inner to t_charlie_inner");
 
-        let charlie_outer_top_y = charlie_outer.y;
-
-        // The path is built in SVG order from the from-node (t_alice_inner,
-        // at the top) to the to-node (t_charlie_inner, at the bottom). The
-        // first coordinate is t_alice_inner's contact point (above all
-        // containers) and the last is t_charlie_inner's contact point (inside
-        // t_charlie_outer).
-        //
-        // All *intermediate* coordinates represent the routing segment
-        // connecting the two protrusion tips. None of them should fall below
-        // t_charlie_outer's top, which would indicate the Z/S bend dipped
-        // into the destination container.
-        let all_coords = parse_path_endpoints(&alice_inner_charlie_inner_edge.path_d);
-
-        let intermediate_coords = all_coords
-            .iter()
-            .skip(1)
-            .take(all_coords.len().saturating_sub(2));
-
-        for &(x, y) in intermediate_coords {
-            assert!(
-                y <= charlie_outer_top_y + 0.5,
-                "Intermediate routing coordinate ({x:.3}, {y:.3}) is below \
-                 t_charlie_outer's top boundary (y={charlie_outer_top_y:.3}). \
-                 The Z/S bend dipped into the destination container. \
-                 path_d = {:?}",
-                alice_inner_charlie_inner_edge.path_d,
-            );
-        }
+        // The path is built in SVG order from the from-node (t_alice_inner, at
+        // the top) to the to-node (t_charlie_inner, at the bottom). It routes
+        // around the destination containers' title bands on the way down, but
+        // must never reverse along the downward flow axis.
+        assert_edge_path_main_axis_monotonic(
+            &alice_inner_charlie_inner_edge.path_d,
+            FlowAxis::Vertical,
+        );
     }
 }
 
@@ -2596,6 +2735,12 @@ fn test_nested_x2_node_edge_routing_no_upward_detour() {
 ///   inter-rank gap (above `t_charlie_outer.y`), so both tips are at different
 ///   y-coordinates.
 /// - A proper Z/S bend with arc-rounded corners is drawn in the gap.
+///
+/// `t_charlie` is rank 0 beneath `t_charlie_outer`'s title band, so the edge
+/// then descends into the container alongside (to the right of) that title via
+/// a text-content spacer to reach `t_charlie`. That descent below
+/// `t_charlie_outer.y` is intentional; what must not happen is a backward
+/// (upward) reversal, so the path stays monotonic along the downward flow axis.
 #[test]
 fn test_0017_edge_inner_to_inner_routing_in_inter_rank_gap() {
     for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0017_EDGE_INNER_TO_INNER) {
@@ -2631,32 +2776,10 @@ fn test_0017_edge_inner_to_inner_routing_in_inter_rank_gap() {
             alice_charlie_edge.path_d,
         );
 
-        // All intermediate routing coordinates must stay above t_charlie_outer
-        // (no dip into the container) and not rise back above the
-        // from-protrusion tip (no backward loop).
-        let intermediate_coords = all_coords
-            .iter()
-            .skip(1)
-            .take(all_coords.len().saturating_sub(2));
-
-        for &(x, y) in intermediate_coords {
-            assert!(
-                y <= charlie_outer_top_y + 0.5,
-                "Intermediate routing coordinate ({x:.3}, {y:.3}) is below \
-                 t_charlie_outer's top (y={charlie_outer_top_y:.3}): the Z/S bend \
-                 dipped into the destination container. \
-                 path_d = {:?}",
-                alice_charlie_edge.path_d,
-            );
-            assert!(
-                y >= from_protrusion_tip_y - 0.5,
-                "Routing coordinate ({x:.3}, {y:.3}) is above the \
-                 from-protrusion tip (y={from_protrusion_tip_y:.3}): the Z/S bend \
-                 looped backward past the routing gap. \
-                 path_d = {:?}",
-                alice_charlie_edge.path_d,
-            );
-        }
+        // The edge enters the gap, then descends around t_charlie_outer's title
+        // band to reach t_charlie -- but must never reverse along the downward
+        // flow axis (no V-spike / backward loop).
+        assert_edge_path_main_axis_monotonic(&alice_charlie_edge.path_d, FlowAxis::Vertical);
     }
 }
 
@@ -3803,9 +3926,17 @@ fn assert_edge_path_clears_node(
 }
 
 /// When the `from` node is the highest-ranked child of its container, an edge
-/// to a node in the next sibling container exits straight out the gap-facing
-/// face: there is no higher-ranked sibling to route around, so the edge has no
-/// spacers and does not detour on the cross axis.
+/// to a node in the next sibling container has no higher-ranked *sibling* to
+/// route around.
+///
+/// For the horizontal flows the destination container's title is a side strip
+/// the edge enters past, so the edge exits straight out the gap-facing face
+/// with no spacer and no cross-axis detour.
+///
+/// For the vertical flows the destination container's title band sits above its
+/// ranks, so the edge picks up a single text-content spacer and routes around
+/// that band (a modest cross-axis detour) before descending to the rank-0
+/// target -- still monotonic along the flow axis, with no sibling spacer.
 fn assert_high_rank_from_edge_routes_straight(input_diagram: &str, axis: FlowAxis) {
     for svg_elements in build_svg_elements_for_diagram(input_diagram) {
         let edge = svg_elements
@@ -3814,37 +3945,61 @@ fn assert_high_rank_from_edge_routes_straight(input_diagram: &str, axis: FlowAxi
             .find(|e| e.from_node_id.as_str() == "t_a_01" && e.to_node_id.as_str() == "t_b_00")
             .expect("Expected edge from t_a_01 to t_b_00");
 
-        assert!(
-            edge.ortho_protrusion_params.spacer_protrusions.is_empty(),
-            "Expected no spacer protrusions for t_a_01 -> t_b_00 -- t_a_01 is the \
-             highest-ranked child of t_a_0, so the edge exits straight out the \
-             gap-facing face with no sibling to route around. \
-             spacer_protrusions = {:?}, path_d = {:?}",
-            edge.ortho_protrusion_params.spacer_protrusions,
-            edge.path_d,
-        );
+        match axis {
+            FlowAxis::Vertical => {
+                // The destination container `t_b_0` renders a title band above
+                // its ranks, so the edge routes around it via one text-content
+                // spacer rather than descending straight down through the title.
+                // There is still no higher-ranked sibling, so that is the only
+                // spacer, and the path never reverses along the flow axis.
+                assert_eq!(
+                    edge.ortho_protrusion_params.spacer_protrusions.len(),
+                    1,
+                    "Expected exactly one (text-content) spacer for t_a_01 -> \
+                     t_b_00 -- t_a_01 has no higher-ranked sibling, so the only \
+                     spacer routes around t_b_0's title band. \
+                     spacer_protrusions = {:?}, path_d = {:?}",
+                    edge.ortho_protrusion_params.spacer_protrusions,
+                    edge.path_d,
+                );
+                assert_edge_path_main_axis_monotonic(&edge.path_d, axis);
+            }
+            FlowAxis::Horizontal => {
+                assert!(
+                    edge.ortho_protrusion_params.spacer_protrusions.is_empty(),
+                    "Expected no spacer protrusions for t_a_01 -> t_b_00 -- t_a_01 \
+                     is the highest-ranked child of t_a_0 and the title is a side \
+                     strip, so the edge exits straight out the gap-facing face. \
+                     spacer_protrusions = {:?}, path_d = {:?}",
+                    edge.ortho_protrusion_params.spacer_protrusions,
+                    edge.path_d,
+                );
 
-        // No cross-axis detour: every vertex stays within a tight band of the
-        // first contact point (both endpoints are aligned on the cross axis in
-        // these fixtures).
-        let coords = parse_path_endpoints(&edge.path_d);
-        let first_cross = axis.cross(coords[0]);
-        for &point in &coords {
-            let cross = axis.cross(point);
-            assert!(
-                (cross - first_cross).abs() <= 12.0,
-                "Edge t_a_01 -> t_b_00 detours on the cross axis: vertex {point:?} \
-                 is {:.1} px from the contact line ({first_cross:.1}). The edge \
-                 should route straight out the gap-facing face. path_d = {:?}",
-                (cross - first_cross).abs(),
-                edge.path_d,
-            );
+                // No cross-axis detour: every vertex stays within a tight band of
+                // the first contact point (both endpoints are aligned on the
+                // cross axis in these fixtures).
+                let coords = parse_path_endpoints(&edge.path_d);
+                let first_cross = axis.cross(coords[0]);
+                for &point in &coords {
+                    let cross = axis.cross(point);
+                    assert!(
+                        (cross - first_cross).abs() <= 12.0,
+                        "Edge t_a_01 -> t_b_00 detours on the cross axis: vertex \
+                         {point:?} is {:.1} px from the contact line \
+                         ({first_cross:.1}). The edge should route straight out \
+                         the gap-facing face. path_d = {:?}",
+                        (cross - first_cross).abs(),
+                        edge.path_d,
+                    );
+                }
+            }
         }
     }
 }
 
 /// `0031` (`top_to_bottom`): `t_a_01` is rank 1 (highest) in `t_a_0`, so the
-/// edge to `t_b_00` needs no cross-container spacer.
+/// edge to `t_b_00` needs no *sibling* cross-container spacer -- only a
+/// text-content spacer to route around `t_b_0`'s title band.
 #[test]
 fn test_0031_high_rank_from_edge_top_to_bottom_routes_straight() {
     assert_high_rank_from_edge_routes_straight(
@@ -3871,7 +4026,8 @@ fn test_0033_high_rank_from_edge_right_to_left_routes_straight() {
     );
 }
 
-/// `0034` (`bottom_to_top`): same as `0031`, with a reversed vertical flow.
+/// `0034` (`bottom_to_top`): same as `0031` (one text-content spacer around
+/// `t_b_0`'s title band, no sibling spacer), with a reversed vertical flow.
 #[test]
 fn test_0034_high_rank_from_edge_bottom_to_top_routes_straight() {
     assert_high_rank_from_edge_routes_straight(
@@ -3884,7 +4040,8 @@ fn test_0034_high_rank_from_edge_bottom_to_top_routes_straight() {
 /// edge to `t_b_00` exits toward the high-rank (bottom) face, so it must route
 /// around `t_a_02` (rank 2) via a cross-container spacer on the gap side -- not
 /// around `t_a_00` (rank 0), which is on the far side -- and the path must
-/// clear `t_a_02`.
+/// clear `t_a_02`. It also picks up a text-content spacer to route around
+/// `t_b_0`'s title band, for two spacers total.
 #[test]
 fn test_0035_mid_rank_from_edge_routes_around_higher_rank_sibling() {
     for svg_elements in build_svg_elements_for_diagram(
@@ -3904,9 +4061,10 @@ fn test_0035_mid_rank_from_edge_routes_around_higher_rank_sibling() {
 
         assert_eq!(
             edge.ortho_protrusion_params.spacer_protrusions.len(),
-            1,
-            "Expected exactly one cross-container spacer (routing around t_a_02 on \
-             the gap side) for t_a_01 -> t_b_00. spacer_protrusions = {:?}, \
+            2,
+            "Expected two spacers for t_a_01 -> t_b_00: the sibling cross-container \
+             spacer routing around t_a_02 on the gap side, and the text-content \
+             spacer routing around t_b_0's title band. spacer_protrusions = {:?}, \
              path_d = {:?}",
             edge.ortho_protrusion_params.spacer_protrusions,
             edge.path_d,
@@ -4040,6 +4198,38 @@ fn test_0036_coincident_face_contacts_are_separated() {
     }
 }
 
+/// `0012` (`top_to_bottom`): a symmetric dependency between `t_alice` (nested
+/// inside `t_alice_outer`) and the outer node `t_bob` produces two
+/// opposite-direction edges sharing the `t_alice.Right` / `t_bob.Left` faces.
+/// Both bends are forced into the narrow gap between `t_alice_outer` and
+/// `t_bob`; without nesting them, each edge's routing leg crosses the other's
+/// bend twice. `protrusions_nest_symmetric_pair_bends` collapses the pair into
+/// nested Z paths so they no longer cross.
+#[test]
+fn test_0012_symmetric_pair_edges_do_not_cross() {
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC,
+    ) {
+        let path_for = |edge_id: &str| -> Vec<(f32, f32)> {
+            let edge = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected edge {edge_id}"));
+            parse_path_endpoints(&edge.path_d)
+        };
+
+        let path_alice_bob = path_for("edge_dep_alice_bob__0");
+        let path_bob_alice = path_for("edge_dep_alice_bob__1");
+
+        assert!(
+            !polylines_cross(&path_alice_bob, &path_bob_alice),
+            "The symmetric pair edge_dep_alice_bob__0 and __1 should not cross.\n  \
+             __0: {path_alice_bob:?}\n  __1: {path_bob_alice:?}",
+        );
+    }
+}
+
 /// `0036` (`top_to_bottom`): the local edge `t_c_00 -> t_c_01` and the
 /// cross-container edge `t_a_01 -> t_c_01` both enter `t_c_01`'s `Top` face,
 /// but from different rank-gap buckets (container ranks vs LCA ranks). Without
@@ -4124,6 +4314,251 @@ fn test_0036_to_0039_container_entry_clears_nested_transit() {
     }
 }
 
+/// `0043` (`top_to_bottom`): three cross-container edges fan out from sibling
+/// nodes at the same rank in `t_inputs` to nodes nested at three different
+/// depths inside `t_offset_data` (`t_taffy_layout -> t_face_contacts`,
+/// `t_node_ranks -> t_slot_indices`, `t_edge_labels -> t_offsets`). All three
+/// are LCA-lifted to the same root rank gap, so the proportional band split
+/// collapsed their `from` jogs onto (near-)identical depths and the horizontal
+/// "jog" legs carrying each edge from its from-column to its spacer-column all
+/// sat at the same y, reading as one line.
+///
+/// The interval-graph separation
+/// (`OrthoProtrusionCalculator::side_jogs_separate`) only forces distinct
+/// depths for legs whose cross-axis (x) spans actually overlap; legs whose
+/// spans are disjoint may share a depth without coinciding. This asserts that
+/// every **overlapping** pair of jog legs is separated, which
+/// is the requirement that keeps them from reading as one line.
+#[test]
+fn test_0043_cross_container_fan_from_protrusions_separated() {
+    // The first horizontal segment of `points` -- the from-protrusion jog --
+    // as `(y, x_lo, x_hi)`. Skips the rounded-corner curve points (which are
+    // neither horizontal nor vertical) and returns the first truly horizontal
+    // segment.
+    fn first_horizontal_jog(points: &[(f32, f32)]) -> (f32, f32, f32) {
+        points
+            .windows(2)
+            .find(|seg| (seg[0].1 - seg[1].1).abs() < 1e-2 && (seg[0].0 - seg[1].0).abs() > 1e-2)
+            .map(|seg| (seg[0].1, seg[0].0.min(seg[1].0), seg[0].0.max(seg[1].0)))
+            .expect("Expected at least one horizontal segment in the edge path")
+    }
+
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1)
+    {
+        let jog = |from: &str, to: &str| -> (f32, f32, f32) {
+            let edge = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == from && e.to_node_id.as_str() == to)
+                .unwrap_or_else(|| panic!("Expected edge from {from} to {to}"));
+            first_horizontal_jog(&parse_path_endpoints(&edge.path_d))
+        };
+
+        let jogs = [
+            (
+                "t_taffy_layout",
+                "t_face_contacts",
+                jog("t_taffy_layout", "t_face_contacts"),
+            ),
+            (
+                "t_node_ranks",
+                "t_slot_indices",
+                jog("t_node_ranks", "t_slot_indices"),
+            ),
+            (
+                "t_edge_labels",
+                "t_offsets",
+                jog("t_edge_labels", "t_offsets"),
+            ),
+        ];
+
+        // Overlapping legs closer than this read as a single line.
+        let min_separation = 6.0_f32;
+        for i in 0..jogs.len() {
+            for j in (i + 1)..jogs.len() {
+                let (from_a, to_a, (y_a, lo_a, hi_a)) = jogs[i];
+                let (from_b, to_b, (y_b, lo_b, hi_b)) = jogs[j];
+                let x_spans_overlap = hi_a.min(hi_b) - lo_a.max(lo_b) > 1e-2;
+                if !x_spans_overlap {
+                    // Disjoint legs may share a depth; they never coincide.
+                    continue;
+                }
+                assert!(
+                    (y_a - y_b).abs() >= min_separation,
+                    "Expected overlapping jog legs {from_a}->{to_a} (y={y_a}, \
+                     x=[{lo_a},{hi_a}]) and {from_b}->{to_b} (y={y_b}, \
+                     x=[{lo_b},{hi_b}]) to be separated by at least \
+                     {min_separation} px",
+                );
+            }
+        }
+
+        // Ordering: both `ranks_slots` and `labels_offsets` sweep left, and
+        // `ranks_slots`'s lateral span contains `labels_offsets`'s descent column,
+        // so `ranks_slots` sweeps over it and must turn **higher** (smaller y) so
+        // its sweep passes above `labels_offsets`'s descent rather than crossing
+        // it.
+        let (y_ranks_slots, ..) = jog("t_node_ranks", "t_slot_indices");
+        let (y_labels_offsets, ..) = jog("t_edge_labels", "t_offsets");
+        assert!(
+            y_ranks_slots < y_labels_offsets,
+            "ranks_slots's first jog ({y_ranks_slots:.1}) must be above \
+             labels_offsets's ({y_labels_offsets:.1}) -- it sweeps over the latter's \
+             descent column",
+        );
+    }
+}
+
+/// `0043` (`top_to_bottom`): the same three cross-container edges fan from
+/// `t_inputs` into nodes nested in `t_offset_data`. The lateral legs they run
+/// in the **inter-rank gap** between the two containers -- the legs that
+/// previously collapsed onto one coordinate and read as one line -- must run at
+/// distinct depths.
+///
+/// Only the inter-rank-gap legs (above `t_offset_data`'s top) are checked. The
+/// `jogs_separate` pass works per lowest-common-ancestor rank gap, so it lifts
+/// and separates these legs but cannot coordinate the depths of the deeper
+/// spacer-to-spacer transition legs **inside** `t_offset_data`, whose jog
+/// coordinate is governed by spacer protrusions split across several rank-gap
+/// buckets. Separating those tight in-container transitions is a known
+/// limitation of the non-physical (LCA-bucket) approach; the from-side gap legs
+/// are the reported defect and what this pass targets. Clean X-crossings (the
+/// edges fan to nodes at three different ranks) are visually acceptable and
+/// ignored; only coincident **parallel** overlapping legs are a defect.
+#[test]
+fn test_0043_cross_container_fan_legs_not_coincident() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1)
+    {
+        // Top of the destination container: legs above this y are in the
+        // inter-rank gap.
+        let container_top = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_offset_data")
+            .map(|n| n.y)
+            .expect("Expected t_offset_data node");
+
+        let path_for = |from: &str, to: &str| -> Vec<(f32, f32)> {
+            let edge = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.from_node_id.as_str() == from && e.to_node_id.as_str() == to)
+                .unwrap_or_else(|| panic!("Expected edge from {from} to {to}"));
+            // Prefix of the path that stays in the inter-rank gap (above the
+            // destination container), i.e. the from-side approach legs.
+            let points = parse_path_endpoints(&edge.path_d);
+            points
+                .iter()
+                .take_while(|(_, y)| *y <= container_top + 1.0)
+                .copied()
+                .collect()
+        };
+
+        let paths = [
+            ("t_taffy_layout", "t_face_contacts"),
+            ("t_node_ranks", "t_slot_indices"),
+            ("t_edge_labels", "t_offsets"),
+        ]
+        .map(|(from, to)| (from, to, path_for(from, to)));
+
+        // Legs closer than this read as a single line.
+        let min_clearance = 2.5_f32;
+
+        for i in 0..paths.len() {
+            for j in (i + 1)..paths.len() {
+                let (from_a, to_a, path_a) = &paths[i];
+                let (from_b, to_b, path_b) = &paths[j];
+                let gap = parallel_segment_min_gap(path_a, path_b);
+                assert!(
+                    gap >= min_clearance,
+                    "Edge {from_a}->{to_a} and {from_b}->{to_b} have parallel \
+                     inter-rank-gap legs only {gap} px apart (< {min_clearance}), \
+                     reading as one line.\n  {from_a}->{to_a}: {path_a:?}\n  \
+                     {from_b}->{to_b}: {path_b:?}",
+                );
+            }
+        }
+    }
+}
+
+/// `0043` (`top_to_bottom`): a dependency edge and an interaction edge run
+/// between the same two nodes (`t_ir_diagram -> t_pass1_path`), both contacting
+/// `t_pass1_path`'s Top face. Dependency and interaction contacts are spread in
+/// separate slot pools, so the lone dependency contact stays centred on the
+/// face instead of being fanned aside by the co-located interaction edge.
+#[test]
+fn test_0043_dependency_contact_centred_independent_of_interaction_edge() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1)
+    {
+        let node_centre_x = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_pass1_path")
+            .map(|n| n.x + n.width / 2.0)
+            .expect("Expected t_pass1_path node");
+
+        // To-contact (final path point) x of the edge with the given id.
+        let to_contact_x = |edge_id: &str| -> f32 {
+            let edge = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected edge {edge_id}"));
+            parse_path_endpoints(&edge.path_d)
+                .last()
+                .expect("Expected at least one path point")
+                .0
+        };
+
+        let dependency_contact_x = to_contact_x("edge_dep_ir_pass1__0");
+        assert!(
+            (dependency_contact_x - node_centre_x).abs() < 1.0,
+            "Expected dependency edge `edge_dep_ir_pass1__0` to contact \
+             t_pass1_path's Top face at its centre (x={node_centre_x}), but it \
+             landed at x={dependency_contact_x} -- the interaction edge should \
+             not push it aside",
+        );
+    }
+}
+
+/// `0043` (`top_to_bottom`): two dependency edges enter `t_face_contacts`'s Top
+/// face -- `edge_dep_pass1_contacts` approaches from `t_pass1_path` on the
+/// left, `edge_dep_layout_contacts` approaches via a spacer from
+/// `t_taffy_layout` on the right. Contacts are ordered by the side each edge
+/// approaches from, so the left-source edge takes the left contact and the two
+/// paths do not cross.
+#[test]
+fn test_0043_shared_target_face_contacts_ordered_by_source() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0043_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_1)
+    {
+        let to_contact_x = |edge_id: &str| -> f32 {
+            let edge = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected edge {edge_id}"));
+            parse_path_endpoints(&edge.path_d)
+                .last()
+                .expect("Expected at least one path point")
+                .0
+        };
+
+        let pass1_contact_x = to_contact_x("edge_dep_pass1_contacts__0");
+        let layout_contact_x = to_contact_x("edge_dep_layout_contacts__0");
+        assert!(
+            pass1_contact_x < layout_contact_x,
+            "Expected `edge_dep_pass1_contacts__0` (approaching from the left) to \
+             contact t_face_contacts left of `edge_dep_layout_contacts__0` \
+             (approaching from the right), but got pass1 x={pass1_contact_x} and \
+             layout x={layout_contact_x} -- the paths cross",
+        );
+    }
+}
+
 /// `0037` (`left_to_right`): same as `0036` with a horizontal flow.
 #[test]
 fn test_0037_mid_rank_to_high_rank_left_to_right_routes_cleanly() {
@@ -4152,6 +4587,59 @@ fn test_0038_mid_rank_to_high_rank_right_to_left_routes_cleanly() {
 fn test_0039_mid_rank_to_high_rank_bottom_to_top_routes_cleanly() {
     assert_mid_rank_to_high_rank_routes_cleanly(
         INPUT_DIAGRAM_0039_NESTED_NODE_MID_RANK_EDGE_TO_NEXT_HIGH_RANK_NODE_BOTTOM_TO_TOP,
+        FlowAxis::Vertical,
+    );
+}
+
+/// `0045` / `0046` / `0047` are `0044` (the described-container fan) rotated to
+/// `left_to_right` / `right_to_left` / `bottom_to_top`. The description label
+/// always sits at the *top* of the node wrapper (a flex column with the label
+/// above its rank containers), regardless of `RankDir`.
+///
+/// For the horizontal flows (`left_to_right` / `right_to_left`) the label is a
+/// side strip and external edges enter at the rank level -- past the label, not
+/// through it -- so no text-content spacer is built. For `bottom_to_top` the
+/// ranks are reversed but the label stays on top, so an edge leaving a nested
+/// high-rank `from` node exits *up through* the label band and does need a
+/// text-content spacer -- built for the `from` side (the mirror of
+/// `TopToBottom`'s `to` side). That from-side waypoint sits between the
+/// from-node and to-node, so the path still flows monotonically; the earlier
+/// `to`-side attempt pointed back at the *other* container's label and produced
+/// a backward zigzag. This asserts every dependency edge flows monotonically
+/// along the rank axis.
+fn assert_described_container_fan_routes_cleanly(input_diagram: &str, axis: FlowAxis) {
+    for svg_elements in build_svg_elements_for_diagram(input_diagram) {
+        for edge in svg_elements.svg_edge_infos.iter() {
+            // Only orthogonal dependency edges follow the rank flow; interaction
+            // (`txn_*`) edges are direct curves and are exempt.
+            if !edge.edge_group_id.as_str().starts_with("edge_dep_") {
+                continue;
+            }
+            assert_edge_path_main_axis_monotonic(&edge.path_d, axis);
+        }
+    }
+}
+
+#[test]
+fn test_0045_described_container_fan_left_to_right_routes_cleanly() {
+    assert_described_container_fan_routes_cleanly(
+        INPUT_DIAGRAM_0045_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_LEFT_TO_RIGHT,
+        FlowAxis::Horizontal,
+    );
+}
+
+#[test]
+fn test_0046_described_container_fan_right_to_left_routes_cleanly() {
+    assert_described_container_fan_routes_cleanly(
+        INPUT_DIAGRAM_0046_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_RIGHT_TO_LEFT,
+        FlowAxis::Horizontal,
+    );
+}
+
+#[test]
+fn test_0047_described_container_fan_bottom_to_top_routes_cleanly() {
+    assert_described_container_fan_routes_cleanly(
+        INPUT_DIAGRAM_0047_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_BOTTOM_TO_TOP,
         FlowAxis::Vertical,
     );
 }

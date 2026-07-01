@@ -3,11 +3,14 @@ use disposition_ir_model::{
     node::{NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
 };
 use disposition_model_common::{
-    edge::{MAX_GAP_FRACTION, MIN_PROTRUSION_PX, TO_PROTRUSION_MIN_PX},
+    edge::{ARC_RADIUS, MAX_GAP_FRACTION, MIN_PROTRUSION_PX, TO_PROTRUSION_MIN_PX},
     entity::EntityType,
     Map, RankDir,
 };
-use disposition_svg_model::{OrthoProtrusionParams, SpacerProtrusionParams, SvgNodeInfo};
+use disposition_svg_model::{
+    OrthoProtrusionParams, RankGapDiagnosticEndpointKind, RankGapDiagnosticSide,
+    RankGapEntryDiagnostic, SpacerProtrusionParams, SvgNodeInfo,
+};
 use disposition_taffy_model::{taffy::TaffyTree, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx};
 
 use disposition_ir_model::node::NodeFace;
@@ -23,6 +26,16 @@ use crate::taffy_to_svg_elements_mapper::{
 use self::ortho_protrusion_geometry::OrthoProtrusionGeometry;
 
 mod ortho_protrusion_geometry;
+
+/// Minimum protrusion-depth separation (in pixels) between two same-side
+/// endpoints whose lateral routing legs overlap along the cross axis.
+///
+/// Legs whose cross-axis spans overlap and whose protrusion depths differ by
+/// less than this read as a single line. It is larger than `MIN_PROTRUSION_PX`
+/// so the separated legs clear the "reads as one line" threshold rather than
+/// merely being non-equal. Used by
+/// [`OrthoProtrusionCalculator::side_jogs_separate`].
+const JOG_SEPARATION_MIN_PX: f32 = 7.0;
 
 /// Computes orthogonal protrusion parameters globally across all edge
 /// groups.
@@ -77,6 +90,22 @@ struct RankGapEntry {
     /// for `Left` / `Right` faces this is the node's Y coordinate.
     /// For spacer endpoints, the spacer's X or Y coordinate is used.
     cross_axis_coord: f32,
+    /// Cross-axis coordinate of the **next contact along the path** from this
+    /// endpoint (the other end of this endpoint's lateral "jog" segment).
+    ///
+    /// Together with [`Self::cross_axis_coord`] this defines the cross-axis
+    /// span `[min, max]` that the endpoint's lateral routing leg sweeps in
+    /// this rank gap. Two legs only "read as one line" when their spans
+    /// overlap, so the
+    /// span lets [`OrthoProtrusionCalculator::protrusions_assign`] separate
+    /// only the legs that actually overlap (interval-graph style) instead
+    /// of every endpoint in the bucket. For a from-endpoint the next
+    /// contact is the first spacer entry (or the to-node when there are no
+    /// spacers); for a to-endpoint it is the last spacer exit (or the
+    /// from-node); for a spacer entry / exit it is the adjacent spacer or
+    /// node it aligns to. Cycle endpoints store
+    /// their own `cross_axis_coord` (zero-width span -- they overlap nothing).
+    jog_far_cross_axis: f32,
     /// The face offset (slot offset) for this endpoint.
     ///
     /// Edges further from the face midpoint (larger absolute offset)
@@ -231,6 +260,21 @@ struct EndpointAdjustment {
     min_protrusion: f32,
 }
 
+/// Output of [`OrthoProtrusionCalculator::calculate`].
+///
+/// Carries the protrusion parameters consumed by pass 2, plus a
+/// diagnostic snapshot of the rank-gap entries that drove the depth
+/// assignment (for the edge-routing diagnostics surfaced to the CLI and
+/// playground).
+pub(super) struct OrthoProtrusionOutcome<'id> {
+    /// Protrusion parameters, parallel to `all_pass1_groups` and each
+    /// group's `pass1_infos`.
+    pub(super) protrusion_params: Vec<Vec<OrthoProtrusionParams>>,
+    /// Diagnostic snapshot of the rank-gap entries collected in Step 2,
+    /// in `(rank_low, rank_high)` order.
+    pub(super) rank_gap_entry_diagnostics: Vec<RankGapEntryDiagnostic<'id>>,
+}
+
 impl OrthoProtrusionCalculator {
     /// Calculates protrusion parameters for every edge in every group.
     ///
@@ -258,7 +302,8 @@ impl OrthoProtrusionCalculator {
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
         entity_types: &EntityTypes<'id>,
-    ) -> Vec<Vec<OrthoProtrusionParams>> {
+        group_is_direct: &[bool],
+    ) -> OrthoProtrusionOutcome<'id> {
         // === Step 1: Resolve spacer coordinates and initialize output === //
         //
         // Resolve spacer coordinates once per edge so that the same
@@ -305,6 +350,15 @@ impl OrthoProtrusionCalculator {
         let mut rank_gap_entries: Map<RankGapKey, Vec<RankGapEntry>> = Map::new();
 
         for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            // Direct-curvature edges (e.g. interaction edges drawn as
+            // `DirectCurved`) bypass spacers and protrusions entirely -- pass 2
+            // ignores their `OrthoProtrusionParams`. They must therefore neither
+            // consume nor influence the shared protrusion band that sizes the
+            // real orthogonal (dependency) edges, so skip the whole group.
+            if group_is_direct[group_idx] {
+                continue;
+            }
+
             let from_slot_indices = &from_slot_indices_all[group_idx];
             let to_slot_indices = &to_slot_indices_all[group_idx];
 
@@ -389,6 +443,22 @@ impl OrthoProtrusionCalculator {
                         from_face,
                     );
 
+                    // The from-endpoint's lateral leg reaches the first spacer
+                    // (or the to-node when there are no spacers).
+                    let from_jog_far = if let Some(first_spacer) = spacer_coordinates.first() {
+                        OrthoProtrusionGeometry::cross_axis_coord(
+                            first_spacer.entry_x,
+                            first_spacer.entry_y,
+                            from_face,
+                        )
+                    } else {
+                        OrthoProtrusionGeometry::cross_axis_coord(
+                            pass1_info.to_node_x,
+                            pass1_info.to_node_y,
+                            from_face,
+                        )
+                    };
+
                     // The from endpoint exits into the gap between the
                     // from-node's rank and the adjacent rank toward the
                     // to-node.
@@ -422,6 +492,7 @@ impl OrthoProtrusionCalculator {
                             endpoint_kind: RankGapEndpointKind::FromEndpoint,
                             gap_side: from_gap_side,
                             cross_axis_coord: cross_axis_from,
+                            jog_far_cross_axis: from_jog_far,
                             face_offset: from_offset,
                             rank_gap_px: from_rank_gap_px,
                             envelope_clearance: from_envelope_clearance,
@@ -464,6 +535,22 @@ impl OrthoProtrusionCalculator {
                         to_face,
                     );
 
+                    // The to-endpoint's lateral leg reaches the last spacer
+                    // (or the from-node when there are no spacers).
+                    let to_jog_far = if let Some(last_spacer) = spacer_coordinates.last() {
+                        OrthoProtrusionGeometry::cross_axis_coord(
+                            last_spacer.exit_x,
+                            last_spacer.exit_y,
+                            to_face,
+                        )
+                    } else {
+                        OrthoProtrusionGeometry::cross_axis_coord(
+                            pass1_info.from_node_x,
+                            pass1_info.from_node_y,
+                            to_face,
+                        )
+                    };
+
                     // The to endpoint enters from the gap between the
                     // to-node's rank and the adjacent rank toward the
                     // from-node.
@@ -497,6 +584,7 @@ impl OrthoProtrusionCalculator {
                             endpoint_kind: RankGapEndpointKind::ToEndpoint,
                             gap_side: to_gap_side,
                             cross_axis_coord: cross_axis_to,
+                            jog_far_cross_axis: to_jog_far,
                             face_offset: to_offset,
                             rank_gap_px: to_rank_gap_px,
                             envelope_clearance: to_envelope_clearance,
@@ -534,7 +622,6 @@ impl OrthoProtrusionCalculator {
                             spacer.entry_y,
                             from_face_for_axis,
                         );
-
                         // --- Entry side of this spacer --- //
                         //
                         // The entry side protrudes into the gap BEFORE
@@ -547,6 +634,13 @@ impl OrthoProtrusionCalculator {
                             let prev_spacer = &spacer_coordinates[spacer_idx - 1];
                             let gap_px =
                                 Self::spacer_gap_px(prev_spacer, spacer, from_face_for_axis);
+
+                            // This entry's leg aligns to the previous spacer.
+                            let entry_jog_far = OrthoProtrusionGeometry::cross_axis_coord(
+                                prev_spacer.entry_x,
+                                prev_spacer.entry_y,
+                                from_face_for_axis,
+                            );
 
                             let entry_gap_key = Self::spacer_gap_key(
                                 rank_from,
@@ -572,6 +666,7 @@ impl OrthoProtrusionCalculator {
                                     },
                                     gap_side: spacer_entry_side,
                                     cross_axis_coord: spacer_cross,
+                                    jog_far_cross_axis: entry_jog_far,
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
                                     envelope_clearance: 0.0,
@@ -611,6 +706,13 @@ impl OrthoProtrusionCalculator {
                                 GapSide::Low
                             };
 
+                            // This leg aligns the first spacer to the from-node.
+                            let first_entry_jog_far = OrthoProtrusionGeometry::cross_axis_coord(
+                                pass1_info.from_node_x,
+                                pass1_info.from_node_y,
+                                from_face_for_axis,
+                            );
+
                             rank_gap_entries
                                 .entry(from_gap_key)
                                 .or_default()
@@ -622,6 +724,7 @@ impl OrthoProtrusionCalculator {
                                     },
                                     gap_side: first_spacer_entry_side,
                                     cross_axis_coord: spacer_cross,
+                                    jog_far_cross_axis: first_entry_jog_far,
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
                                     envelope_clearance: 0.0,
@@ -638,6 +741,13 @@ impl OrthoProtrusionCalculator {
                             let next_spacer = &spacer_coordinates[spacer_idx + 1];
                             let gap_px =
                                 Self::spacer_gap_px(spacer, next_spacer, from_face_for_axis);
+
+                            // This exit leg aligns to the next spacer.
+                            let exit_jog_far = OrthoProtrusionGeometry::cross_axis_coord(
+                                next_spacer.entry_x,
+                                next_spacer.entry_y,
+                                from_face_for_axis,
+                            );
 
                             let exit_gap_key = Self::spacer_gap_key(
                                 rank_from,
@@ -663,6 +773,7 @@ impl OrthoProtrusionCalculator {
                                     },
                                     gap_side: spacer_exit_side,
                                     cross_axis_coord: spacer_cross,
+                                    jog_far_cross_axis: exit_jog_far,
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
                                     envelope_clearance: 0.0,
@@ -702,6 +813,13 @@ impl OrthoProtrusionCalculator {
                                 GapSide::High
                             };
 
+                            // This exit leg aligns to the to-node.
+                            let last_exit_jog_far = OrthoProtrusionGeometry::cross_axis_coord(
+                                pass1_info.to_node_x,
+                                pass1_info.to_node_y,
+                                from_face_for_axis,
+                            );
+
                             rank_gap_entries
                                 .entry(to_gap_key)
                                 .or_default()
@@ -713,6 +831,7 @@ impl OrthoProtrusionCalculator {
                                     },
                                     gap_side: last_spacer_exit_side,
                                     cross_axis_coord: spacer_cross,
+                                    jog_far_cross_axis: last_exit_jog_far,
                                     face_offset: 0.0,
                                     rank_gap_px: gap_px,
                                     envelope_clearance: 0.0,
@@ -722,6 +841,14 @@ impl OrthoProtrusionCalculator {
                 }
             }
         }
+
+        // Snapshot the rank-gap entries as diagnostics before Step 3 consumes
+        // them to assign depths. The entry fields (cross-axis spans, face
+        // offsets, gap distances) are finalised at collection time; only
+        // `result` is mutated afterwards, so this captures the calculator's
+        // depth-assignment inputs.
+        let rank_gap_entry_diagnostics =
+            Self::rank_gap_entry_diagnostics_build(&rank_gap_entries, all_pass1_groups);
 
         // === Step 3: For each rank gap, assign protrusion depths === //
         rank_gap_entries
@@ -824,6 +951,27 @@ impl OrthoProtrusionCalculator {
             &mut result,
         );
 
+        // === Step 5.7: Nest the bends of a symmetric edge pair === //
+        //
+        // A symmetric dependency between two nodes at the same rank produces two
+        // opposite-direction edges sharing the same pair of (opposite-aligned)
+        // faces. Each edge's lateral bend sits at its to-endpoint's protrusion
+        // tip. When one of the nodes is nested, both bends are forced into the
+        // narrow inter-container gap and can end up interleaved -- each edge's
+        // long horizontal run crossing the other's bend twice (e.g. `0012` in
+        // the top/bottom flow). This step detects such a pair and, when its
+        // bends cross, collapses each edge to a clean nested Z whose bend sits
+        // at its own from-side container-clearance point.
+        Self::protrusions_nest_symmetric_pair_bends(
+            all_pass1_groups,
+            &all_spacer_coordinates,
+            from_slot_indices_all,
+            to_slot_indices_all,
+            face_offsets_by_node_face,
+            svg_node_info_map,
+            &mut result,
+        );
+
         // === Step 6: Finalise protrusion depths for cycle edges === //
         //
         // For cycle edges registered in the adjacent rank gap (Step 2), equalise
@@ -840,7 +988,70 @@ impl OrthoProtrusionCalculator {
             &mut result,
         );
 
-        result
+        OrthoProtrusionOutcome {
+            protrusion_params: result,
+            rank_gap_entry_diagnostics,
+        }
+    }
+
+    /// Builds the diagnostic snapshot of the collected rank-gap entries.
+    ///
+    /// Entries are flattened in `(rank_low, rank_high)` gap order, preserving
+    /// the within-gap collection order. The `endpoint_kind` -> `edge_id`
+    /// resolution uses each entry's `pass1_group_index` / `edge_index`.
+    fn rank_gap_entry_diagnostics_build<'id>(
+        rank_gap_entries: &Map<RankGapKey, Vec<RankGapEntry>>,
+        all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+    ) -> Vec<RankGapEntryDiagnostic<'id>> {
+        let mut rank_gap_keys: Vec<&RankGapKey> = rank_gap_entries.keys().collect();
+        rank_gap_keys.sort();
+
+        rank_gap_keys
+            .into_iter()
+            .flat_map(|rank_gap_key| {
+                rank_gap_entries[rank_gap_key]
+                    .iter()
+                    .map(move |rank_gap_entry| {
+                        let edge_id = all_pass1_groups[rank_gap_entry.pass1_group_index]
+                            .pass1_infos[rank_gap_entry.edge_index]
+                            .edge_id
+                            .clone();
+
+                        let endpoint_kind = match rank_gap_entry.endpoint_kind {
+                            RankGapEndpointKind::FromEndpoint => {
+                                RankGapDiagnosticEndpointKind::FromEndpoint
+                            }
+                            RankGapEndpointKind::ToEndpoint => {
+                                RankGapDiagnosticEndpointKind::ToEndpoint
+                            }
+                            RankGapEndpointKind::SpacerEntry { spacer_index } => {
+                                RankGapDiagnosticEndpointKind::SpacerEntry { spacer_index }
+                            }
+                            RankGapEndpointKind::SpacerExit { spacer_index } => {
+                                RankGapDiagnosticEndpointKind::SpacerExit { spacer_index }
+                            }
+                        };
+
+                        let gap_side = match rank_gap_entry.gap_side {
+                            GapSide::Low => RankGapDiagnosticSide::Low,
+                            GapSide::High => RankGapDiagnosticSide::High,
+                        };
+
+                        RankGapEntryDiagnostic {
+                            rank_low: rank_gap_key.rank_low,
+                            rank_high: rank_gap_key.rank_high,
+                            edge_id,
+                            endpoint_kind,
+                            gap_side,
+                            cross_axis_coord: rank_gap_entry.cross_axis_coord,
+                            jog_far_cross_axis: rank_gap_entry.jog_far_cross_axis,
+                            face_offset: rank_gap_entry.face_offset,
+                            rank_gap_px: rank_gap_entry.rank_gap_px,
+                            envelope_clearance: rank_gap_entry.envelope_clearance,
+                        }
+                    })
+            })
+            .collect()
     }
 
     /// Assigns protrusion depths to all endpoints in a single rank gap.
@@ -1093,12 +1304,339 @@ impl OrthoProtrusionCalculator {
             }
         };
 
-        low_ordered.iter().enumerate().for_each(|(i, entry)| {
-            Self::protrusion_write(entry, side_depth(i, n_low, low_band, low_floor), result);
+        // Initial per-side depths from the proportional band split.
+        let mut low_depths: Vec<f32> = (0..n_low)
+            .map(|i| side_depth(i, n_low, low_band, low_floor))
+            .collect();
+        let mut high_depths: Vec<f32> = (0..n_high)
+            .map(|i| side_depth(i, n_high, high_band, high_floor))
+            .collect();
+
+        // Separate the spacer-entry legs that actually overlap. The proportional
+        // band split crams every endpoint of a side into one band sized by the
+        // *tightest* `rank_gap_px` in the whole bucket, so a fan of cross-container
+        // legs sharing one LCA gap collapses onto (near-)identical depths and
+        // reads as a single line. This re-spaces only the spacer-entry legs whose
+        // cross-axis spans overlap, deepening each into its own channel (so it
+        // lifts toward the inter-rank gap) but never past its same-edge connecting
+        // partner, so the path cannot reverse.
+        Self::jogs_separate(
+            &low_ordered,
+            &mut low_depths,
+            low_floor,
+            &high_ordered,
+            &mut high_depths,
+            high_floor,
+        );
+
+        low_ordered
+            .iter()
+            .zip(low_depths)
+            .for_each(|(entry, depth)| {
+                Self::protrusion_write(entry, depth, result);
+            });
+        high_ordered
+            .iter()
+            .zip(high_depths)
+            .for_each(|(entry, depth)| {
+                Self::protrusion_write(entry, depth, result);
+            });
+    }
+
+    /// Re-spaces the protrusion depths of spacer-entry legs whose lateral
+    /// routing legs overlap along the cross axis and have collapsed to
+    /// (near-)identical depths, so a fan of cross-container edges sharing one
+    /// LCA rank gap no longer reads as a single line.
+    ///
+    /// `low_*` / `high_*` are the two sides of the gap (ordered deepest-first,
+    /// parallel depth slices from the proportional band split, and the side
+    /// floor). Each side is processed independently by
+    /// [`Self::jogs_separate_side`].
+    fn jogs_separate(
+        low_ordered: &[&RankGapEntry],
+        low_depths: &mut [f32],
+        low_floor: f32,
+        high_ordered: &[&RankGapEntry],
+        high_depths: &mut [f32],
+        high_floor: f32,
+    ) {
+        Self::jogs_separate_side(
+            low_ordered,
+            low_depths,
+            low_floor,
+            high_ordered,
+            high_depths,
+        );
+        Self::jogs_separate_side(
+            high_ordered,
+            high_depths,
+            high_floor,
+            low_ordered,
+            low_depths,
+        );
+    }
+
+    /// Deepens the participating spacer legs of one side so their lateral legs
+    /// separate.
+    ///
+    /// Only **spacer entry / exit** legs are moved: a spacer boundary carries
+    /// the lateral leg that aligns the path from the previous contact's
+    /// column onto the spacer column, which is the leg that collapses for a
+    /// fan of cross-container edges. From / to endpoints are left fixed
+    /// (their approach legs are separated by the dedicated Step 5.5 / 5.6
+    /// passes). Each spacer leg is deepened only as far as **both** its own
+    /// `rank_gap_px` channel and the room left above its same-edge
+    /// connecting partner on `opp_ordered` (the from / previous-spacer leg
+    /// it meets) allow, so the deepened leg can never overshoot its partner
+    /// and reverse the path.
+    ///
+    /// Legs that do not overlap any collapsed leg keep their band-split depth
+    /// (so single-leg and already-separated buckets are byte-for-byte
+    /// unchanged).
+    fn jogs_separate_side(
+        ordered: &[&RankGapEntry],
+        depths: &mut [f32],
+        // The side's band floor is not used here: only spacer legs are re-laid
+        // and they floor at `MIN_PROTRUSION_PX` (see below), independent of the
+        // side's to-endpoint arrow-head floor.
+        _side_floor: f32,
+        opp_ordered: &[&RankGapEntry],
+        opp_depths: &[f32],
+    ) {
+        let n = ordered.len();
+        if n < 2 {
+            return;
+        }
+
+        // Cross-axis span of each endpoint's lateral leg.
+        let span = |entry: &RankGapEntry| -> (f32, f32) {
+            let a = entry.cross_axis_coord;
+            let b = entry.jog_far_cross_axis;
+            (a.min(b), a.max(b))
+        };
+        let spans_overlap = |i: usize, j: usize| -> bool {
+            let (i_lo, i_hi) = span(ordered[i]);
+            let (j_lo, j_hi) = span(ordered[j]);
+            // Strictly-overlapping (shared interior), not merely touching.
+            i_hi.min(j_hi) - i_lo.max(j_lo) > 1e-2
+        };
+
+        // The **descent column** of a leg: the cross-axis coordinate of the
+        // spacer / node the path continues along (descends / passes through)
+        // *after* this lateral jog, in the travel direction. A leg whose span
+        // sweeps over another leg's descent column crosses that descent unless
+        // the two jogs are nested at distinct depths. For a spacer-entry or
+        // to-endpoint the path turns onto and then continues along the
+        // endpoint's **own** column (`cross_axis_coord`); for a from-endpoint or
+        // spacer-exit it turns off toward the **next** contact, continuing along
+        // that column (`jog_far_cross_axis`).
+        let descent_col = |entry: &RankGapEntry| -> f32 {
+            match entry.endpoint_kind {
+                RankGapEndpointKind::SpacerEntry { .. } | RankGapEndpointKind::ToEndpoint => {
+                    entry.cross_axis_coord
+                }
+                RankGapEndpointKind::FromEndpoint | RankGapEndpointKind::SpacerExit { .. } => {
+                    entry.jog_far_cross_axis
+                }
+            }
+        };
+        // `i` sweeps over `j` when `j`'s descent column lies strictly inside
+        // `i`'s lateral span, so `i`'s leg passes over the vertical line `j`
+        // descends along.
+        let sweeps_over = |i: usize, j: usize| -> bool {
+            let (i_lo, i_hi) = span(ordered[i]);
+            let col_j = descent_col(ordered[j]);
+            col_j > i_lo + 1e-2 && col_j < i_hi - 1e-2
+        };
+        // All entries in one call share a gap side. The jog of an entry sits at
+        // `boundary +/- depth` -- `+` on the `Low` side, `-` on the `High` side
+        // -- so the same physical nesting (the sweeping leg must clear the swept
+        // leg's descent) maps to **opposite** depth orders per side: on the
+        // `High` side a leg that sweeps over more descents must be **deeper**; on
+        // the `Low` side it must be **shallower**.
+        let high_side = matches!(ordered[0].gap_side, GapSide::High);
+        // True when `i` must be deeper than `j` for their jogs to nest without
+        // crossing (only meaningful when `i` sweeps over `j`).
+        let i_should_be_deeper = |i: usize, j: usize| -> bool {
+            if sweeps_over(i, j) {
+                high_side
+            } else if sweeps_over(j, i) {
+                !high_side
+            } else {
+                false
+            }
+        };
+
+        let movable = |entry: &RankGapEntry| -> bool {
+            matches!(
+                entry.endpoint_kind,
+                RankGapEndpointKind::SpacerEntry { .. } | RankGapEndpointKind::SpacerExit { .. }
+            )
+        };
+
+        // A spacer leg is re-nested when it overlaps another leg and either (a)
+        // their depths have **collapsed** (within `JOG_SEPARATION_MIN_PX`,
+        // reading as one line) or (b) their depth order **violates** the
+        // span-containment nesting (a leg that sweeps over another's descent
+        // column is not on the correct side of it). Legs that are already nested
+        // and separated keep their band-split depth and act as fixed obstacles,
+        // so correctly-routed buckets are byte-for-byte unchanged.
+        let participates: Vec<bool> = (0..n)
+            .map(|i| {
+                movable(ordered[i])
+                    && (0..n).any(|j| {
+                        if j == i || !spans_overlap(i, j) {
+                            return false;
+                        }
+                        let collapsed = (depths[i] - depths[j]).abs() < JOG_SEPARATION_MIN_PX;
+                        let misordered = (i_should_be_deeper(i, j) && depths[i] <= depths[j])
+                            || (i_should_be_deeper(j, i) && depths[j] <= depths[i]);
+                        collapsed || misordered
+                    })
+            })
+            .collect();
+
+        // Only spacer legs are re-laid here, and a spacer has no arrow head, so
+        // its shallowest depth is `MIN_PROTRUSION_PX` -- not the side `floor`,
+        // which may be `TO_PROTRUSION_MIN_PX` (the arrow-head clearance reserved
+        // for the side's *to-endpoints*). Clamping spacer legs to that larger
+        // to-endpoint floor would pin the shallow end of a long nested chain too
+        // high and collapse it (e.g. `ir_pass1` vs `layout_contacts` in the
+        // `0044` top gap, where the LCA bucket also holds deeply-nested
+        // to-endpoints). Use the spacer floor for the cap and the placement.
+        let floor = MIN_PROTRUSION_PX;
+
+        // The deepest a leg may protrude: its own `rank_gap_px` channel, further
+        // bounded so it leaves room above its fixed same-edge partner on the
+        // opposite side (`partner_depth`), keeping their summed depth within the
+        // shared physical gap so the connecting jog cannot reverse.
+        let cap = |i: usize| -> f32 {
+            let entry = ordered[i];
+            let own = entry.rank_gap_px * MAX_GAP_FRACTION;
+            let partner = opp_ordered.iter().position(|opp| {
+                opp.pass1_group_index == entry.pass1_group_index
+                    && opp.edge_index == entry.edge_index
+            });
+            let bound = match partner {
+                Some(p) => {
+                    let shared_gap = entry.rank_gap_px.min(opp_ordered[p].rank_gap_px);
+                    shared_gap * MAX_GAP_FRACTION - opp_depths[p]
+                }
+                None => own,
+            };
+            own.min(bound).max(floor)
+        };
+
+        // Re-lay the participating legs **deepest-first in span-containment
+        // order**: a leg that sweeps over another's descent column nests outside
+        // it, so the two need distinct depths with the sweeping leg on the
+        // correct side. A raw sweep *count* is not a valid order -- when `A`
+        // sweeps `B`, `A` must be deeper than `B` even if `B` sweeps more
+        // unrelated legs in total. Use the **longest-path layer** over the
+        // `sweeps_over` relation instead: `layer[i] = 1 + max(layer[j])` over the
+        // legs `i` sweeps over (`0` if none). `A` sweeps `B` then implies
+        // `layer[A] > layer[B]`, so ordering by layer puts the sweeping leg on the
+        // correct side and the ceiling-based placement below nests them.
+        //
+        // The relation is *usually* acyclic (a leg's descent column is an
+        // endpoint of its own span), but two legs whose spans each contain the
+        // other's descent column **can** mutually sweep, forming a cycle. So the
+        // relaxation is capped at `n` passes -- a true DAG converges within its
+        // longest path (<= n), and a degenerate cycle is left with bounded
+        // (approximate) layers rather than looping forever.
+        //
+        // On the `High` side a leg that sweeps over more must be **deeper** (its
+        // jog sits further from the high boundary); on the `Low` side, the
+        // reverse, so the layer sign is folded by `high_side`. Ties break by the
+        // wider channel (`cap`) then index.
+        let mut layer = vec![0usize; n];
+        for _ in 0..n {
+            let mut changed = false;
+            for i in 0..n {
+                let best = (0..n)
+                    .filter(|&j| j != i && sweeps_over(i, j))
+                    .map(|j| layer[j] + 1)
+                    .max()
+                    .unwrap_or(0);
+                if best > layer[i] {
+                    layer[i] = best;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        let layer_key = |i: usize| -> isize {
+            let l = layer[i] as isize;
+            if high_side {
+                l
+            } else {
+                -l
+            }
+        };
+        let mut order: Vec<usize> = (0..n).filter(|&i| participates[i]).collect();
+        order.sort_by(|&a, &b| {
+            layer_key(b)
+                .cmp(&layer_key(a))
+                .then_with(|| {
+                    cap(b)
+                        .partial_cmp(&cap(a))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .then(a.cmp(&b))
         });
-        high_ordered.iter().enumerate().for_each(|(i, entry)| {
-            Self::protrusion_write(entry, side_depth(i, n_high, high_band, high_floor), result);
-        });
+
+        for placed in 0..order.len() {
+            let i = order[placed];
+            let cap_i = cap(i);
+            let mut depth = cap_i;
+
+            // Enforce the nesting order: every overlapping already-placed
+            // participating leg was placed deeper (earlier in `order`), so this
+            // leg must sit at least `JOG_SEPARATION_MIN_PX` shallower than the
+            // shallowest of them -- even when its own channel `cap` would
+            // otherwise leave it deeper. This makes the span-containment order
+            // hold when the legs' channel widths are not monotonic with the
+            // nesting order (e.g. the top-gap fan in `0044`).
+            if let Some(ceiling) = order[..placed]
+                .iter()
+                .filter(|&&j| spans_overlap(i, j))
+                .map(|&j| depths[j] - JOG_SEPARATION_MIN_PX)
+                .reduce(f32::min)
+            {
+                depth = depth.min(ceiling);
+            }
+
+            // Step below any overlapping fixed (non-participating) **spacer** leg
+            // whose depth falls within the separation band. Only spacer legs are
+            // obstacles: from / to endpoints share this LCA rank-gap bucket but
+            // sit at unrelated rank-axis positions (a deeply-nested to-endpoint is
+            // registered here yet physically descends far inside the container,
+            // and its placeholder depth is overridden by Steps 5/5.5/5.6), so
+            // treating them as obstacles would wrongly push the top-of-container
+            // spacer legs down onto the floor and collapse them.
+            loop {
+                let conflict = (0..n)
+                    .filter(|&j| {
+                        j != i && !participates[j] && movable(ordered[j]) && spans_overlap(i, j)
+                    })
+                    .map(|j| depths[j])
+                    .filter(|&dj| (dj - depth).abs() < JOG_SEPARATION_MIN_PX)
+                    .reduce(f32::min);
+                match conflict {
+                    Some(dj) => {
+                        depth = dj - JOG_SEPARATION_MIN_PX;
+                        if depth <= floor {
+                            depth = floor;
+                            break;
+                        }
+                    }
+                    None => break,
+                }
+            }
+            depths[i] = depth.clamp(floor, cap_i);
+        }
     }
 
     /// Writes a protrusion value to the appropriate slot in `result`.
@@ -1766,6 +2304,9 @@ impl OrthoProtrusionCalculator {
                 endpoint_kind: RankGapEndpointKind::ToEndpoint,
                 gap_side,
                 cross_axis_coord: cross_axis_from,
+                // Cycle edges route a U-arc in place; there is no lateral jog to
+                // another column, so the span is zero-width (overlaps nothing).
+                jog_far_cross_axis: cross_axis_from,
                 face_offset: from_offset,
                 rank_gap_px: from_rank_gap_px,
                 // Cycle edges register in an open adjacent gap (no spacers),
@@ -2353,6 +2894,354 @@ impl OrthoProtrusionCalculator {
                 }
             }
         }
+    }
+
+    /// Nests the bends of a symmetric edge pair so they do not cross.
+    ///
+    /// A symmetric pair is two opposite-direction edges between the same two
+    /// nodes, attached to the same pair of opposite-aligned faces (e.g.
+    /// `u.Right` / `v.Left`), at the same rank, non-cycle, and without spacers.
+    /// Each edge's bend (the mid-leg of its Z) sits at its to-endpoint's
+    /// protrusion tip. When one of the nodes is nested, both bends are forced
+    /// into the narrow inter-container gap and can interleave -- each edge's
+    /// long routing leg crossing the other's bend, producing a double crossing
+    /// (e.g. `0012` in the top/bottom flow).
+    ///
+    /// When the pair's bends cross, this collapses each edge to a clean nested
+    /// Z by setting `to_protrusion = gap - from_protrusion - 2 * ARC_RADIUS`,
+    /// so each edge's bend lands just inside its own from-side
+    /// container-clearance point (near its from-node). The from-protrusions
+    /// already clear their containers and the from-nodes are on opposite
+    /// sides of the gap, so the collapsed bends nest instead of
+    /// interleaving. The small `2 * ARC_RADIUS` gap between the two
+    /// protrusion tips keeps the bend rendering as a rounded
+    /// Z. The adjustment is applied only when it removes a crossing the pair
+    /// currently has, leaving every other pair untouched.
+    fn protrusions_nest_symmetric_pair_bends<'id>(
+        all_pass1_groups: &[EdgeGroupPass1<'_, 'id>],
+        all_spacer_coordinates: &[Vec<Vec<SpacerCoordinates>>],
+        from_slot_indices_all: &[Vec<Option<usize>>],
+        to_slot_indices_all: &[Vec<Option<usize>>],
+        face_offsets_by_node_face: &NodeIdAndFaceToContactPointOffsets<'id>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            // Collect this group's edges that can take part in a symmetric pair.
+            let candidates: Vec<usize> = group
+                .pass1_infos
+                .iter()
+                .enumerate()
+                .filter(|(edge_idx, pass1_info)| {
+                    !pass1_info.is_cycle_edge
+                        && pass1_info.rank_from == pass1_info.rank_to
+                        && pass1_info.from_face.is_some()
+                        && pass1_info.to_face.is_some()
+                        && all_spacer_coordinates[group_idx][*edge_idx].is_empty()
+                })
+                .map(|(edge_idx, _)| edge_idx)
+                .collect();
+
+            for (i, &edge_idx_a) in candidates.iter().enumerate() {
+                for &edge_idx_b in &candidates[i + 1..] {
+                    let pass1_a = &group.pass1_infos[edge_idx_a];
+                    let pass1_b = &group.pass1_infos[edge_idx_b];
+
+                    // Opposite directions between the same two nodes, sharing
+                    // the same face on each node.
+                    let opposite_directions = pass1_a.edge.from == pass1_b.edge.to
+                        && pass1_a.edge.to == pass1_b.edge.from;
+                    if !opposite_directions {
+                        continue;
+                    }
+                    let (from_face_a, to_face_a) =
+                        (pass1_a.from_face.unwrap(), pass1_a.to_face.unwrap());
+                    let (from_face_b, to_face_b) =
+                        (pass1_b.from_face.unwrap(), pass1_b.to_face.unwrap());
+                    if from_face_a != to_face_b || to_face_a != from_face_b {
+                        continue;
+                    }
+                    // The faces must be an opposite-aligned pair so both edges
+                    // protrude toward each other along one axis (the bend is a
+                    // single mid-leg).
+                    if !Self::faces_opposite_aligned(from_face_a, to_face_a) {
+                        continue;
+                    }
+
+                    Self::symmetric_pair_bends_nest(
+                        group_idx,
+                        edge_idx_a,
+                        edge_idx_b,
+                        pass1_a,
+                        pass1_b,
+                        from_face_a,
+                        to_face_a,
+                        from_slot_indices_all,
+                        to_slot_indices_all,
+                        face_offsets_by_node_face,
+                        svg_node_info_map,
+                        result,
+                    );
+                }
+            }
+        }
+    }
+
+    /// Attempts to nest one detected symmetric pair's bends.
+    ///
+    /// See [`Self::protrusions_nest_symmetric_pair_bends`]. Applies the
+    /// collapse only when the pair's current bends cross and the collapsed
+    /// bends do not.
+    #[allow(clippy::too_many_arguments)]
+    fn symmetric_pair_bends_nest<'id>(
+        group_idx: usize,
+        edge_idx_a: usize,
+        edge_idx_b: usize,
+        pass1_a: &EdgePass1Info<'_, 'id>,
+        pass1_b: &EdgePass1Info<'_, 'id>,
+        from_face_a: NodeFace,
+        to_face_a: NodeFace,
+        from_slot_indices_all: &[Vec<Option<usize>>],
+        to_slot_indices_all: &[Vec<Option<usize>>],
+        face_offsets_by_node_face: &NodeIdAndFaceToContactPointOffsets<'id>,
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        let Some(&from_info_a) = svg_node_info_map.get(&pass1_a.edge.from) else {
+            return;
+        };
+        let Some(&to_info_a) = svg_node_info_map.get(&pass1_a.edge.to) else {
+            return;
+        };
+
+        // The two faces share one axis; the gap is the distance between them.
+        let from_axis_a = Self::face_axis_coord(from_info_a, from_face_a);
+        let to_axis_a = Self::face_axis_coord(to_info_a, to_face_a);
+        let gap = (to_axis_a - from_axis_a).abs();
+        if gap <= MIN_PROTRUSION_PX {
+            return;
+        }
+
+        // Leave a small gap between the two protrusion tips (rather than letting
+        // them meet exactly) so the bend renders as a rounded Z rather than a
+        // sharp straight corner. `2 * ARC_RADIUS` keeps each rounded leg clear
+        // of the arc-placement guards in `connect_waypoints`.
+        let tip_gap = 2.0 * ARC_RADIUS;
+
+        let from_prot_a = result[group_idx][edge_idx_a].from_protrusion;
+        let from_prot_b = result[group_idx][edge_idx_b].from_protrusion;
+        // Both from-protrusions must be real protrusions that clear their own
+        // containers, and must leave room (after the rounding gap) for a
+        // positive to-protrusion.
+        let to_prot_a_collapsed = gap - from_prot_a - tip_gap;
+        let to_prot_b_collapsed = gap - from_prot_b - tip_gap;
+        if from_prot_a < MIN_PROTRUSION_PX
+            || from_prot_b < MIN_PROTRUSION_PX
+            || to_prot_a_collapsed < MIN_PROTRUSION_PX
+            || to_prot_b_collapsed < MIN_PROTRUSION_PX
+        {
+            return;
+        }
+
+        let to_offset_a = Self::face_offset_resolve(
+            pass1_a,
+            to_slot_indices_all[group_idx][edge_idx_a],
+            false,
+            face_offsets_by_node_face,
+        );
+        let from_offset_a = Self::face_offset_resolve(
+            pass1_a,
+            from_slot_indices_all[group_idx][edge_idx_a],
+            true,
+            face_offsets_by_node_face,
+        );
+        let to_offset_b = Self::face_offset_resolve(
+            pass1_b,
+            to_slot_indices_all[group_idx][edge_idx_b],
+            false,
+            face_offsets_by_node_face,
+        );
+        let from_offset_b = Self::face_offset_resolve(
+            pass1_b,
+            from_slot_indices_all[group_idx][edge_idx_b],
+            true,
+            face_offsets_by_node_face,
+        );
+
+        let to_prot_a = result[group_idx][edge_idx_a].to_protrusion;
+        let to_prot_b = result[group_idx][edge_idx_b].to_protrusion;
+
+        // Build polylines for the current and the collapsed configurations. The
+        // bend sits at the to-protrusion tip (as `connect_waypoints` places it),
+        // so each configuration is captured by its to-protrusion value.
+        let poly_a_current = Self::symmetric_pair_polyline(
+            from_info_a,
+            to_info_a,
+            from_face_a,
+            to_face_a,
+            from_offset_a,
+            to_offset_a,
+            to_prot_a,
+        );
+        let poly_b_current = Self::symmetric_pair_polyline(
+            to_info_a,
+            from_info_a,
+            to_face_a,
+            from_face_a,
+            from_offset_b,
+            to_offset_b,
+            to_prot_b,
+        );
+        if !Self::polylines_properly_cross(&poly_a_current, &poly_b_current) {
+            // Already non-crossing -- do not disturb.
+            return;
+        }
+
+        let poly_a_collapsed = Self::symmetric_pair_polyline(
+            from_info_a,
+            to_info_a,
+            from_face_a,
+            to_face_a,
+            from_offset_a,
+            to_offset_a,
+            to_prot_a_collapsed,
+        );
+        let poly_b_collapsed = Self::symmetric_pair_polyline(
+            to_info_a,
+            from_info_a,
+            to_face_a,
+            from_face_a,
+            from_offset_b,
+            to_offset_b,
+            to_prot_b_collapsed,
+        );
+        if Self::polylines_properly_cross(&poly_a_collapsed, &poly_b_collapsed) {
+            // Collapsing does not help this pair; leave it unchanged.
+            return;
+        }
+
+        result[group_idx][edge_idx_a].to_protrusion = to_prot_a_collapsed;
+        result[group_idx][edge_idx_b].to_protrusion = to_prot_b_collapsed;
+    }
+
+    /// Whether two faces are an opposite-aligned pair (`Left`/`Right` or
+    /// `Top`/`Bottom`), so edges attached to them protrude toward each other
+    /// along a single axis.
+    fn faces_opposite_aligned(face_a: NodeFace, face_b: NodeFace) -> bool {
+        matches!(
+            (face_a, face_b),
+            (NodeFace::Left, NodeFace::Right)
+                | (NodeFace::Right, NodeFace::Left)
+                | (NodeFace::Top, NodeFace::Bottom)
+                | (NodeFace::Bottom, NodeFace::Top)
+        )
+    }
+
+    /// Returns the axis coordinate of a node's face along the face's normal
+    /// axis (X for `Left`/`Right`, Y for `Top`/`Bottom`).
+    fn face_axis_coord(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+        let (cx, cy) = OrthoProtrusionGeometry::face_center(info, face);
+        match face {
+            NodeFace::Left | NodeFace::Right => cx,
+            NodeFace::Top | NodeFace::Bottom => cy,
+        }
+    }
+
+    /// Returns the cross-axis coordinate of a node's face centre (Y for
+    /// `Left`/`Right`, X for `Top`/`Bottom`).
+    fn face_cross_coord(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+        let (cx, cy) = OrthoProtrusionGeometry::face_center(info, face);
+        match face {
+            NodeFace::Left | NodeFace::Right => cy,
+            NodeFace::Top | NodeFace::Bottom => cx,
+        }
+    }
+
+    /// Outward sign of a face along its normal axis: `+1` when a protrusion
+    /// increases the axis coordinate (`Right`/`Bottom`), `-1` otherwise.
+    fn face_outward_sign(face: NodeFace) -> f32 {
+        match face {
+            NodeFace::Right | NodeFace::Bottom => 1.0,
+            NodeFace::Left | NodeFace::Top => -1.0,
+        }
+    }
+
+    /// Builds the four-point routing polyline for one edge of a symmetric
+    /// pair, in absolute `(x, y)` coordinates.
+    ///
+    /// The bend sits at the to-protrusion tip, matching where
+    /// `connect_waypoints` places the edge's lateral mid-leg.
+    #[allow(clippy::too_many_arguments)]
+    fn symmetric_pair_polyline(
+        from_info: &SvgNodeInfo<'_>,
+        to_info: &SvgNodeInfo<'_>,
+        from_face: NodeFace,
+        to_face: NodeFace,
+        from_offset: f32,
+        to_offset: f32,
+        to_prot: f32,
+    ) -> [(f32, f32); 4] {
+        let axis_is_x = matches!(from_face, NodeFace::Left | NodeFace::Right);
+
+        let from_axis = Self::face_axis_coord(from_info, from_face);
+        let from_cross = Self::face_cross_coord(from_info, from_face) + from_offset;
+        let to_axis = Self::face_axis_coord(to_info, to_face);
+        let to_cross = Self::face_cross_coord(to_info, to_face) + to_offset;
+
+        let bend_axis = to_axis + Self::face_outward_sign(to_face) * to_prot;
+
+        let to_point = |axis: f32, cross: f32| -> (f32, f32) {
+            if axis_is_x {
+                (axis, cross)
+            } else {
+                (cross, axis)
+            }
+        };
+
+        [
+            to_point(from_axis, from_cross),
+            to_point(bend_axis, from_cross),
+            to_point(bend_axis, to_cross),
+            to_point(to_axis, to_cross),
+        ]
+    }
+
+    /// Whether any segment of polyline `a` properly crosses any segment of
+    /// polyline `b` (an interior X-crossing; shared endpoints or collinear
+    /// touches do not count).
+    fn polylines_properly_cross(a: &[(f32, f32); 4], b: &[(f32, f32); 4]) -> bool {
+        for segment_a in a.windows(2) {
+            for segment_b in b.windows(2) {
+                if Self::segments_properly_cross(
+                    segment_a[0],
+                    segment_a[1],
+                    segment_b[0],
+                    segment_b[1],
+                ) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Whether segments `p1`-`p2` and `p3`-`p4` cross at an interior point.
+    fn segments_properly_cross(
+        p1: (f32, f32),
+        p2: (f32, f32),
+        p3: (f32, f32),
+        p4: (f32, f32),
+    ) -> bool {
+        let orient = |a: (f32, f32), b: (f32, f32), c: (f32, f32)| -> f32 {
+            (b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0)
+        };
+        let d1 = orient(p3, p4, p1);
+        let d2 = orient(p3, p4, p2);
+        let d3 = orient(p1, p2, p3);
+        let d4 = orient(p1, p2, p4);
+
+        ((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0))
+            && ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0))
     }
 
     /// Returns the pixel distance from a to-node face to the nearest

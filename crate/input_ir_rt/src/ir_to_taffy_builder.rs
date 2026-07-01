@@ -164,7 +164,6 @@ impl IrToTaffyBuilder<'_> {
             node_layouts,
             node_hierarchy,
             entity_types,
-            thing_descs,
             edge_descs,
             node_shapes,
             node_ranks_nested,
@@ -426,14 +425,8 @@ impl IrToTaffyBuilder<'_> {
         let edge_label_taffy_nodes =
             EdgeLabelBuilder::build(edge_label_leaf_builts, edge_face_assignments, edge_groups);
 
-        // Compute highlighted spans *after* layout is complete.
-        //
-        // This is done once per node instead of multiple times during layout
-        // measurement. Edge label spans are computed separately below via the
-        // markdown path.
-        let entity_highlighted_spans =
-            HighlightedSpansComputer::compute(ctx, &taffy_tree, &node_id_to_taffy);
-
+        // Compute highlighted spans *after* layout is complete, once per node
+        // instead of multiple times during layout measurement.
         let edge_description_highlighted_spans =
             HighlightedSpansComputer::compute_edge_desc_containers(
                 &taffy_tree,
@@ -443,24 +436,15 @@ impl IrToTaffyBuilder<'_> {
                 lod,
             );
 
-        // Compute highlighted text spans and image spans for markdown nodes
-        // after layout is complete.
-        //
-        // Markdown nodes are skipped by `HighlightedSpansComputer::compute`
-        // (their `text_node_id` holds a `TaffyNodeCtx::MdToken` /
-        // `TaffyNodeCtx::MdImage` rather than a `TaffyNodeCtx::DiagramNode`),
-        // so their spans must be computed separately here and merged in.
-        let (md_entity_spans, mut entity_image_spans) = MdSpansComputer::compute(
+        // Compute highlighted text spans and image spans for diagram nodes
+        // after layout is complete. All node text is built via the markdown
+        // content path, so every node's spans are produced by `MdSpansComputer`.
+        let (mut entity_highlighted_spans, mut entity_image_spans) = MdSpansComputer::compute(
             &taffy_tree,
             &node_id_to_taffy,
             &md_node_taffy_ids,
             char_width,
         );
-
-        let mut entity_highlighted_spans = entity_highlighted_spans;
-        for (node_id, spans) in md_entity_spans.into_inner() {
-            entity_highlighted_spans.insert(node_id, spans);
-        }
 
         // Compute highlighted text spans and image spans for edge labels that
         // used the markdown path (`DiagramLod::Normal` with non-empty label

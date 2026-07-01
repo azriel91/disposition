@@ -1,0 +1,341 @@
+# Edge Offset & Protrusion Computation
+#
+# A "concept map" of how an edge's contact offsets and orthogonal protrusions
+# are computed, modelled with the diagram's own primitives:
+#
+# * `things`             -- DATA: the input, intermediate, and output values
+#                           that flow through the offset / protrusion pipeline.
+# * `thing_dependencies` -- DATA LINEAGE: "B depends on A" arrows showing which
+#                           value is derived from which (the direction data is
+#                           transformed in).
+# * `thing_interactions` -- TRANSFORMS: the act of one logic step reading some
+#                           values and producing the next.
+# * `processes` /         -- LOGIC: the two calculators (offset + protrusion),
+#   `process_steps`          broken into the ordered steps that perform the
+#                           transforms above.
+#
+# Focus a process step to highlight the values (interactions) it touches.
+# See `doc/src/edge_paths.md` for the authoritative description.
+
+# === DATA: values flowing through the pipeline === //
+things:
+  # ----- Inputs ----- #
+  t_inputs:
+    t_ir_diagram: {}
+    t_taffy_layout: {}
+    t_node_ranks: {}
+    t_edge_labels: {}
+
+  # ----- Offset calculation data ----- #
+  t_offset_data:
+    t_pass1_path: {}
+    t_face_contacts: {}
+    t_slot_indices: {}
+    t_offsets: {}
+
+  # ----- Protrusion calculation data ----- #
+  t_protrusion_data:
+    t_spacer_coords: {}
+    t_rank_gap_entries: {}
+    t_protrusion_params: {}
+
+  # ----- Output ----- #
+  t_svg_path: {}
+
+thing_names:
+  t_inputs: Inputs
+  t_ir_diagram: IR Diagram
+  t_taffy_layout: Taffy Layout
+  t_node_ranks: NodeRanksNested
+  t_edge_labels: Edge Labels / Descs
+
+  t_offset_data: Offset Data
+  t_pass1_path: Pass-1 Path
+  t_face_contacts: Face Contact Entries
+  t_slot_indices: Slot Indices
+  t_offsets: EdgeContactPointOffsets
+
+  t_protrusion_data: Protrusion Data
+  t_spacer_coords: Spacer Coordinates
+  t_rank_gap_entries: Rank Gap Entries
+  t_protrusion_params: OrthoProtrusionParams
+
+  t_svg_path: Final SVG Path
+
+thing_descs:
+  t_inputs: |-
+    **Worked example** (`top_to_bottom`): two edges fan into `t_c`'s `Top`
+    face -- `a -> c` (spans 2 ranks, routed via 1 spacer) and `b -> c`
+    (1 rank, direct). The code blocks below trace this scenario end to end.
+    Values are illustrative.
+
+  t_ir_diagram: |-
+    Edges with assigned `from_face` / `to_face`, node hierarchy.
+
+    ```yaml
+    edge_dep_a_c__0: { from: {t_a, Bottom}, to: {t_c, Top} }
+    edge_dep_b_c__0: { from: {t_b, Bottom}, to: {t_c, Top} }
+    ```
+  t_taffy_layout: |-
+    Absolute `x` / `y` / `width` / `height` of every node and spacer.
+
+    ```yaml
+    t_a: { x: 10,  y:   0, width: 80, height: 30 }  # Bottom mid (50, 30)
+    t_b: { x: 110, y:  70, width: 80, height: 30 }  # Bottom mid (150,100)
+    t_c: { x: 10,  y: 200, width: 80, height: 30 }  # Top mid    (50,200)
+    ```
+  t_node_ranks: |-
+    Per-level `NodeRank`s. **LCA-level** ranks decide cycle vs. forward edges
+    and the `RankGapKey` buckets.
+
+    ```yaml
+    root: { t_a: 0, t_b: 1, t_c: 2 }
+    ```
+  t_edge_labels: |-
+    Description label nodes. When present, the contact is routed to the
+    label's entry-side edge instead of a slot.
+
+    ```yaml
+    edge_dep_a_c__0: {}   # no label -> slot fallback used
+    edge_dep_b_c__0: {}
+    ```
+
+  t_pass1_path: |-
+    Rough from-node -> to-node path, ignoring spacers. Seeds later passes.
+
+    ```text
+    a_c__0:  M 50,30  ->  50,200   # face midpoints, no offset / protrusion
+    ```
+  t_face_contacts: |-
+    One `FaceContactEntry` per `(NodeId, NodeFace)`, capturing `rank_distance`
+    and the target coordinate.
+
+    ```yaml
+    (t_c, Top):
+      - { edge: a_c__0, rank_distance: 2, x: 50 }
+      - { edge: b_c__0, rank_distance: 1, x: 50 }
+    ```
+  t_slot_indices: |-
+    Sorted contacts -> 0-based slot per `(node, face)`.
+
+    Sort: `rank_distance` asc, then target coordinate.
+
+    ```yaml
+    (t_c, Top):
+      b_c__0: 0   # rank_distance 1 sorts first (innermost)
+      a_c__0: 1   # rank_distance 2
+    ```
+  t_offsets: |-
+    **Output of offset calc.** Signed pixel shift of each contact from the
+    face midpoint (`Vec<f32>` by slot).
+
+    Label-aligned, else `(i - (n-1)/2) * gap`. Here n=2, gap=12,
+    `t_c` `Top` midpoint x=50.
+
+    ```yaml
+    (t_c, Top):
+      b_c__0: -6.0   # slot 0 -> contact x = 44
+      a_c__0: +6.0   # slot 1 -> contact x = 56
+    ```
+
+  t_spacer_coords: |-
+    `entry` / `exit` points of each spacer, resolved per `RankDir`.
+
+    ```yaml
+    spacer_a_c_rank1: { entry: [50, 98], exit: [50, 103] }  # 5px, downward
+    ```
+  t_rank_gap_entries: |-
+    One `RankGapEntry` per endpoint per gap (`RankGapKey`), with gap side,
+    cross-axis coord, face offset, and `rank_gap_px`.
+
+    ```yaml
+    a_c__0:
+      gap (0,1): [ {From,  Low,  x: 50, rank_gap_px: 68},
+                   {SpacerEntry, High, x: 50} ]
+      gap (1,2): [ {SpacerExit,  Low,  x: 50},
+                   {To,    High, x: 56, rank_gap_px: 97} ]
+    ```
+  t_protrusion_params: |-
+    **Output of protrusion calc.** `from_protrusion`, `to_protrusion`, and
+    per-spacer entry/exit protrusions.
+
+    ```yaml
+    a_c__0:
+      from_protrusion: 11.0
+      to_protrusion:   11.0          # floored to TO_PROTRUSION_MIN_PX
+      spacer_protrusions: [ { entry: 3.0, exit: 3.0 } ]
+    ```
+
+  t_svg_path: |-
+    Pass-2 orthogonal path: contacts shifted by **offsets**, stubs extended by
+    **protrusions**, routed through spacers.
+
+    ```text
+    a_c__0:  M 50,30 L 50,41    # from contact + 11px protrusion
+                     L 50,98    # down to spacer
+                     L 56,189   # align to to-contact x=56
+                     L 56,200   # +11px protrusion, then arrow head
+    ```
+
+# === DATA LINEAGE: which value derives from which === //
+# Each `sequence` edge reads "to depends on from".
+thing_dependencies:
+  # Inputs -> offset data
+  edge_dep_ir_pass1:
+    kind: sequence
+    things: [t_ir_diagram, t_pass1_path]
+  edge_dep_pass1_contacts:
+    kind: sequence
+    things: [t_pass1_path, t_face_contacts]
+  edge_dep_layout_contacts:
+    kind: sequence
+    things: [t_taffy_layout, t_face_contacts]
+  edge_dep_contacts_slots:
+    kind: sequence
+    things: [t_face_contacts, t_slot_indices]
+  edge_dep_ranks_slots:
+    kind: sequence
+    things: [t_node_ranks, t_slot_indices]
+  edge_dep_slots_offsets:
+    kind: sequence
+    things: [t_slot_indices, t_offsets]
+  edge_dep_labels_offsets:
+    kind: sequence
+    things: [t_edge_labels, t_offsets]
+
+  # Inputs / offsets -> protrusion data
+  edge_dep_layout_spacers:
+    kind: sequence
+    things: [t_taffy_layout, t_spacer_coords]
+  edge_dep_spacers_gap:
+    kind: sequence
+    things: [t_spacer_coords, t_rank_gap_entries]
+  edge_dep_ranks_gap:
+    kind: sequence
+    things: [t_node_ranks, t_rank_gap_entries]
+  edge_dep_offsets_gap:
+    kind: sequence
+    things: [t_offsets, t_rank_gap_entries]
+  edge_dep_gap_params:
+    kind: sequence
+    things: [t_rank_gap_entries, t_protrusion_params]
+
+  # Outputs -> final path
+  edge_dep_offsets_svg:
+    kind: sequence
+    things: [t_offsets, t_svg_path]
+  edge_dep_params_svg:
+    kind: sequence
+    things: [t_protrusion_params, t_svg_path]
+
+# === TRANSFORMS: the read->produce performed by each logic step === //
+thing_interactions:
+  txn_pass1:
+    kind: sequence
+    things: [t_ir_diagram, t_pass1_path]
+  txn_collect_contacts:
+    kind: sequence
+    things: [t_pass1_path, t_face_contacts]
+  txn_slots:
+    kind: sequence
+    things: [t_face_contacts, t_slot_indices]
+  txn_offsets:
+    kind: sequence
+    things: [t_slot_indices, t_offsets]
+
+  txn_spacers:
+    kind: sequence
+    things: [t_taffy_layout, t_spacer_coords]
+  txn_gap_entries:
+    kind: sequence
+    things: [t_spacer_coords, t_rank_gap_entries]
+  txn_depths:
+    kind: sequence
+    things: [t_rank_gap_entries, t_protrusion_params]
+  txn_svg:
+    kind: sequence
+    things: [t_protrusion_params, t_svg_path]
+
+edge_descs:
+  txn_offsets: |-
+    `face_offsets_compute` picks label-aligned or slot-based offsets, then
+    separates cross-node and gap-transit collisions.
+  txn_depths: |-
+    `protrusions_assign` splits each gap's band proportionally between the
+    from / to sides.
+
+# === LOGIC: the two calculators, as ordered process steps === //
+processes:
+  proc_offset_calc:
+    name: Offset Calculation
+    desc: |-
+      Places each edge's contact point along a node face so paths fan out
+      instead of stacking on the face midpoint.
+
+      `svg_edge_infos_builder::face_offsets_compute`
+    steps:
+      proc_offset_step_collect: Collect face contacts
+      proc_offset_step_slots: Sort + assign slots
+      proc_offset_step_compute: Compute offset values
+      proc_offset_step_separate: Separate coincident / transit
+    process_step_dependencies:
+      proc_offset_step_slots: [proc_offset_step_collect]
+      proc_offset_step_compute: [proc_offset_step_slots]
+      proc_offset_step_separate: [proc_offset_step_compute]
+    step_descs:
+      proc_offset_step_collect: |-
+        Walk pass-1 edges; record a `FaceContactEntry` per `(NodeId,
+        NodeFace)` with its `rank_distance` and target coordinate.
+      proc_offset_step_slots: |-
+        Sort per face by `rank_distance` then coordinate; write back
+        `from_slot_indices` / `to_slot_indices`.
+      proc_offset_step_compute: |-
+        Label-aligned offset when a non-zero label sits on the face, else the
+        symmetric slot fallback `(i - (n-1)/2) * gap`.
+      proc_offset_step_separate: |-
+        Post-passes for contacts that collide across nodes
+        (`face_offsets_collisions_separate`) or against gap transits
+        (`face_offsets_gap_transit_separate`).
+    step_thing_interactions:
+      proc_offset_step_collect: [txn_pass1, txn_collect_contacts]
+      proc_offset_step_slots: [txn_slots]
+      proc_offset_step_compute: [txn_offsets]
+      proc_offset_step_separate: [txn_offsets]
+
+  proc_protrusion_calc:
+    name: Protrusion Calculation
+    desc: |-
+      Gives each orthogonal edge a perpendicular stub of distinct depth so
+      parallel routing segments in a shared rank gap do not overlap.
+
+      `ortho_protrusion_calculator::calculate`
+    steps:
+      proc_protrusion_step_spacers: Resolve spacer coords
+      proc_protrusion_step_collect: Collect rank-gap entries
+      proc_protrusion_step_assign: Assign protrusion depths
+      proc_protrusion_step_siblings: Adjust for divergent siblings
+    process_step_dependencies:
+      proc_protrusion_step_collect: [proc_protrusion_step_spacers]
+      proc_protrusion_step_assign: [proc_protrusion_step_collect]
+      proc_protrusion_step_siblings: [proc_protrusion_step_assign]
+    step_descs:
+      proc_protrusion_step_spacers: |-
+        Resolve each spacer's entry / exit point for the diagram's `RankDir`.
+      proc_protrusion_step_collect: |-
+        Register a `RankGapEntry` for every from / to / spacer endpoint,
+        bucketed by `RankGapKey` and gap side.
+      proc_protrusion_step_assign: |-
+        Per gap, cap the band at `MAX_GAP_FRACTION`, split proportionally
+        between sides, and assign distinct deepest-first depths.
+      proc_protrusion_step_siblings: |-
+        Raise protrusions to clear same-rank divergent-ancestor siblings;
+        skipped for the `to` side of spacer-crossing edges.
+    step_thing_interactions:
+      proc_protrusion_step_spacers: [txn_spacers]
+      proc_protrusion_step_collect: [txn_gap_entries]
+      proc_protrusion_step_assign: [txn_depths]
+      proc_protrusion_step_siblings: [txn_depths]
+
+render_options:
+  rank_dir: top_to_bottom
+  process_render_collapse: expand_always

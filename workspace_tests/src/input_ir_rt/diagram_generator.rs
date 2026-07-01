@@ -1,7 +1,10 @@
 use disposition::input_model::{DiagramFocus, InputDiagram};
 use disposition_input_ir_rt::{DiagramGenerator, EdgeAnimationActive, InputDiagramMerger};
 
-use crate::input_ir_rt::EXAMPLE_INPUT;
+use crate::input_ir_rt::{
+    EXAMPLE_INPUT, INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC,
+    INPUT_DIAGRAM_0044_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2,
+};
 
 /// `PerProcessStepOrTag` generation produces one diagram per focus state, in
 /// the documented order, with no interactive focus CSS baked into the SVGs.
@@ -75,4 +78,68 @@ fn generate_single_diagram_retains_interactive_focus_css() {
         diagram_generated.svg.contains("group-has-["),
         "expected interactive `group-has-[` focus CSS in the single diagram"
     );
+}
+
+/// The edge-routing diagnostics are populated alongside the SVG elements, and
+/// stay consistent with them: one `edge_entries` record per rendered orthogonal
+/// edge, with matching protrusion params, and every `rank_gap_entries` record
+/// references an edge present in `edge_entries`.
+#[test]
+fn generate_populates_consistent_edge_routing_diagnostics() {
+    for input_diagram_yaml in [
+        INPUT_DIAGRAM_0012_EDGE_FROM_NESTED_NODE_TO_OUTER_NODE_CYCLIC,
+        INPUT_DIAGRAM_0044_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2,
+    ] {
+        let input_diagram = serde_saphyr::from_str::<InputDiagram>(input_diagram_yaml).unwrap();
+        let diagram_generated =
+            DiagramGenerator::generate(&input_diagram, EdgeAnimationActive::OnProcessStepFocus)
+                .expect("Expected diagram to be generated.");
+
+        let edge_routing_diagnostics = &diagram_generated.edge_routing_diagnostics;
+
+        assert!(
+            !edge_routing_diagnostics.edge_entries.is_empty(),
+            "Expected edge_entries to be populated for a diagram with edges."
+        );
+
+        // Each diagnostic entry's protrusion params match the rendered edge's.
+        for edge_entry in &edge_routing_diagnostics.edge_entries {
+            let svg_edge_info = diagram_generated
+                .svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|svg_edge_info| svg_edge_info.edge_id == edge_entry.edge_id)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Expected svg_edge_info for diagnostic edge {:?}",
+                        edge_entry.edge_id
+                    )
+                });
+
+            assert_eq!(
+                svg_edge_info.ortho_protrusion_params, edge_entry.ortho_protrusion_params,
+                "Protrusion params for edge {:?} should match between the diagnostics and \
+                 the rendered edge.",
+                edge_entry.edge_id,
+            );
+        }
+
+        // Every rank-gap entry references an edge present in `edge_entries`.
+        for rank_gap_entry in &edge_routing_diagnostics.rank_gap_entries {
+            assert!(
+                edge_routing_diagnostics
+                    .edge_entries
+                    .iter()
+                    .any(|edge_entry| edge_entry.edge_id == rank_gap_entry.edge_id),
+                "rank_gap_entry edge {:?} should resolve to a known edge_entry.",
+                rank_gap_entry.edge_id,
+            );
+            assert!(
+                rank_gap_entry.rank_low <= rank_gap_entry.rank_high,
+                "rank_gap_entry should have rank_low <= rank_high, got {:?} > {:?}",
+                rank_gap_entry.rank_low,
+                rank_gap_entry.rank_high,
+            );
+        }
+    }
 }

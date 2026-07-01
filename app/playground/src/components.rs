@@ -6,6 +6,7 @@
 
 pub use self::{
     disposition_editor::DispositionEditor,
+    edge_routing_diagnostics_div::EdgeRoutingDiagnosticsDiv,
     ir_diagram_div::IrDiagramDiv,
     svg_elements_div::SvgElementsDiv,
     tab_group::{TabDetails, TabGroup},
@@ -15,6 +16,7 @@ pub use self::{
 pub mod editor;
 
 mod disposition_editor;
+mod edge_routing_diagnostics_div;
 mod input_diagram_div;
 mod ir_diagram_div;
 mod svg_elements_div;

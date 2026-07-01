@@ -17,7 +17,6 @@ pub const LANE_WIDTH: f32 = 32.0f32;
 
 pub use crate::{
     diagram_lod::DiagramLod,
-    diagram_node_ctx::DiagramNodeCtx,
     dimension::Dimension,
     dimension_and_lod::DimensionAndLod,
     edge_description_ctx::EdgeDescriptionCtx,
@@ -58,7 +57,6 @@ pub use crate::{
 };
 
 mod diagram_lod;
-mod diagram_node_ctx;
 mod dimension;
 mod dimension_and_lod;
 mod edge_description_ctx;

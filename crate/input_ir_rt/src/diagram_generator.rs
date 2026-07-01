@@ -11,7 +11,7 @@ use web_time::Instant;
 use crate::{
     input_to_ir_diagram_mapper::tailwind_focus_mode::TailwindFocusMode, DiagramGenerateError,
     InputDiagramMerger, InputToIrDiagramMapper, IrToTaffyBuilder, SvgElementsToSvgMapper,
-    TaffyToSvgElementsMapper,
+    TaffyToSvgElementsMapper, TaffyToSvgElementsOutcome,
 };
 
 /// Runs the full diagram generation pipeline.
@@ -83,8 +83,14 @@ impl DiagramGenerator {
 
         // === Map taffy node mappings to SVG elements === //
         let svg_elements_map_start = Instant::now();
-        let svg_elements =
-            TaffyToSvgElementsMapper::map(&ir_diagram, &taffy_node_mappings, edge_animation_active);
+        let TaffyToSvgElementsOutcome {
+            svg_elements,
+            edge_routing_diagnostics,
+        } = TaffyToSvgElementsMapper::map_with_diagnostics(
+            &ir_diagram,
+            &taffy_node_mappings,
+            edge_animation_active,
+        );
         let svg_elements_map_duration = svg_elements_map_start.elapsed();
 
         // === Map SVG elements to SVG markup === //
@@ -101,6 +107,7 @@ impl DiagramGenerator {
             taffy_node_mappings,
             taffy_node_mappings_build_duration,
             svg_elements,
+            edge_routing_diagnostics,
             svg_elements_map_duration,
             svg,
             svg_map_duration,
@@ -180,7 +187,10 @@ impl DiagramGenerator {
 
                 // Map to SVG elements, baking the focus into edge animation.
                 let svg_elements_map_start = Instant::now();
-                let svg_elements = TaffyToSvgElementsMapper::map_with_focus(
+                let TaffyToSvgElementsOutcome {
+                    svg_elements,
+                    edge_routing_diagnostics,
+                } = TaffyToSvgElementsMapper::map_with_focus(
                     &ir_diagram,
                     &taffy_node_mappings,
                     edge_animation_active,
@@ -202,6 +212,7 @@ impl DiagramGenerator {
                     taffy_node_mappings: taffy_node_mappings.clone(),
                     taffy_node_mappings_build_duration,
                     svg_elements,
+                    edge_routing_diagnostics,
                     svg_elements_map_duration,
                     svg,
                     svg_map_duration,

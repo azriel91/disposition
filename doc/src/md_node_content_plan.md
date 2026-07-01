@@ -58,20 +58,27 @@ to the `md_content_node_id` container instead of a leaf. Existing code that
 reads the layout of `text_node_id` (e.g. for bounding-box calculations) still
 works because containers expose the same `Layout` API as leaves.
 
-The old `TaffyNodeCtx::DiagramNode` lookup on `text_node_id` will return
-`None` for markdown nodes (a container carries no context), so
-`HighlightedSpansComputer::compute` gracefully skips them. Span computation
-for markdown nodes is handled exclusively by the new `MdSpansComputer`.
+Span computation for markdown nodes is handled exclusively by `MdSpansComputer`.
+
+> Update: node text is now *always* built through the markdown path. The
+> `TaffyNodeCtx::DiagramNode` leaf and `HighlightedSpansComputer`'s node-span
+> method (described below) have since been removed, so `MdSpansComputer` is the
+> only diagram-node span path.
 
 
-### Scope: `DiagramLod::Normal` with Description Only
+### Scope: All Diagram Node Text
 
-The markdown path is only activated when:
+> Update: the markdown path is now unconditional -- every diagram node's text is
+> built through it. The level of detail only affects the text content:
+> `DiagramLod::Simple` uses the node name only, and `DiagramLod::Normal` appends
+> the description when one exists (see `TaffyBuildCtx::node_md_texts_compute`).
+
+Originally the markdown path was activated only when:
 - LOD is `DiagramLod::Normal`, **and**
 - the node has an entry in `thing_descs`.
 
-At `DiagramLod::Simple`, or at `Normal` with no description, the existing
-single-leaf path is kept unchanged.
+with a single-leaf `TaffyNodeCtx::DiagramNode` fallback otherwise. That fallback
+(and the `DiagramNode` variant itself) has since been removed.
 
 
 ### Image Sizing Priority
@@ -807,10 +814,9 @@ let (md_entity_spans, entity_image_spans) = MdSpansComputer::compute(
     char_width,
 );
 
-// Merge md spans into the main spans map (they are keyed by node_id and
-// do not overlap with the legacy spans, because markdown nodes have no
-// TaffyNodeCtx::DiagramNode on their text_node_id and are therefore skipped
-// by HighlightedSpansComputer::compute).
+// `MdSpansComputer::compute` is now the sole source of diagram-node spans:
+// every node is built through the markdown path, so its `text_node_id` is an
+// `md_content_node` container with no `TaffyNodeCtx::DiagramNode` context.
 for (node_id, spans) in md_entity_spans {
     entity_highlighted_spans.insert(node_id, spans);
 }

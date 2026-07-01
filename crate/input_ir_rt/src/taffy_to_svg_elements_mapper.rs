@@ -4,10 +4,12 @@ use disposition_ir_model::{
     node::{NodeInbuilt, NodeShape, NodeShapeRect},
     IrDiagram,
 };
-use disposition_svg_model::SvgElements;
+use disposition_svg_model::{EdgeRoutingDiagnostics, SvgElements};
 use disposition_taffy_model::TaffyNodeMappings;
 
 use crate::input_to_ir_diagram_mapper::tailwind_focus_mode::TailwindFocusMode;
+
+use self::svg_edge_infos_builder::SvgEdgeInfosBuilt;
 
 use self::{
     arrow_head_builder::ArrowHeadBuilder,
@@ -64,12 +66,47 @@ mod svg_process_info_builder;
 #[derive(Clone, Copy, Debug)]
 pub struct TaffyToSvgElementsMapper;
 
+/// The SVG elements plus the edge-routing diagnostics produced alongside
+/// them.
+///
+/// Both are produced during the same mapping pass, but kept as separate
+/// values so the `SvgElements` output stays focused on render data and the
+/// diagnostics can be surfaced independently.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaffyToSvgElementsOutcome<'id> {
+    /// The SVG elements for rendering.
+    pub svg_elements: SvgElements<'id>,
+    /// Diagnostic snapshot of the edge-routing calculation.
+    pub edge_routing_diagnostics: EdgeRoutingDiagnostics<'id>,
+}
+
 impl TaffyToSvgElementsMapper {
+    /// Maps the IR diagram and `TaffyNodeMappings` to SVG elements.
     pub fn map<'id>(
         ir_diagram: &IrDiagram<'id>,
         taffy_node_mappings: &TaffyNodeMappings<'id>,
         edge_animation_active: EdgeAnimationActive,
     ) -> SvgElements<'id> {
+        Self::map_with_focus(
+            ir_diagram,
+            taffy_node_mappings,
+            edge_animation_active,
+            TailwindFocusMode::Interactive,
+        )
+        .svg_elements
+    }
+
+    /// Maps the IR diagram and `TaffyNodeMappings` to SVG elements together
+    /// with the edge-routing diagnostics produced alongside them.
+    ///
+    /// Like [`Self::map`] but also returns the
+    /// [`EdgeRoutingDiagnostics`](disposition_svg_model::EdgeRoutingDiagnostics)
+    /// captured during edge routing.
+    pub fn map_with_diagnostics<'id>(
+        ir_diagram: &IrDiagram<'id>,
+        taffy_node_mappings: &TaffyNodeMappings<'id>,
+        edge_animation_active: EdgeAnimationActive,
+    ) -> TaffyToSvgElementsOutcome<'id> {
         Self::map_with_focus(
             ir_diagram,
             taffy_node_mappings,
@@ -88,7 +125,7 @@ impl TaffyToSvgElementsMapper {
         taffy_node_mappings: &TaffyNodeMappings<'id>,
         edge_animation_active: EdgeAnimationActive,
         focus_mode: TailwindFocusMode<'_, 'id>,
-    ) -> SvgElements<'id> {
+    ) -> TaffyToSvgElementsOutcome<'id> {
         let TaffyNodeMappings {
             taffy_tree,
             node_inbuilt_to_taffy,
@@ -244,7 +281,10 @@ impl TaffyToSvgElementsMapper {
 
         // Build edge information and compute animation data for interaction
         // edges.
-        let mut svg_edge_infos = SvgEdgeInfosBuilder::build(
+        let SvgEdgeInfosBuilt {
+            mut svg_edge_infos,
+            edge_routing_diagnostics,
+        } = SvgEdgeInfosBuilder::build(
             ir_diagram,
             &svg_node_info_map,
             taffy_tree,
@@ -280,7 +320,7 @@ impl TaffyToSvgElementsMapper {
             edge_description_image_spans,
         );
 
-        SvgElements::new(
+        let svg_elements = SvgElements::new(
             svg_width,
             svg_height,
             svg_node_infos,
@@ -290,6 +330,11 @@ impl TaffyToSvgElementsMapper {
             svg_process_infos,
             tailwind_classes,
             css,
-        )
+        );
+
+        TaffyToSvgElementsOutcome {
+            svg_elements,
+            edge_routing_diagnostics,
+        }
     }
 }

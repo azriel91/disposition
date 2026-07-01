@@ -43,6 +43,9 @@
 * Keep a container's face contact on the from-node's side of edges that transit the same inter-rank gap to reach a node nested inside it, so their legs no longer touch or cross. ([#55][#55])
 * Markdown: Support rendering code blocks. ([#56][#56])
 * Markdown: Support rendering blockquotes. ([#56][#56])
+* Separate the lateral routing legs of sibling cross-container edges that share a rank gap by interval-graph colouring of each leg's cross-axis span, so legs that actually overlap receive distinct protrusion depths while staying within the inter-rank gap. ([#57][#57])
+* Skip spacers for lower ranks when higher ranked spacers are further out, to avoid extra bend. ([#57][#57])
+* Introduce `EdgeRoutingDiagnostics` intermediate data to surface edge offset and protrusion calculation intermediate values. ([#57][#57])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -59,6 +62,7 @@
 [#54]: https://github.com/azriel91/disposition/pull/54
 [#55]: https://github.com/azriel91/disposition/pull/55
 [#56]: https://github.com/azriel91/disposition/pull/56
+[#57]: https://github.com/azriel91/disposition/pull/57
 
 
 ## 0.3.0 (2026-06-07)

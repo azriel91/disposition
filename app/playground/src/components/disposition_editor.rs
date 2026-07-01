@@ -41,8 +41,8 @@ use disposition_input_ir_rt::{
 
 use crate::{
     components::{
-        editor::EditorDataLists, IrDiagramDiv, SvgElementsDiv, TabDetails, TabGroup,
-        TaffyNodeMappingsDiv,
+        editor::EditorDataLists, EdgeRoutingDiagnosticsDiv, IrDiagramDiv, SvgElementsDiv,
+        TabDetails, TabGroup, TaffyNodeMappingsDiv,
     },
     editor_state::{EditorPage, EditorState},
     hooks::{dark_mode_toggle, use_dark_mode},
@@ -467,6 +467,23 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
         Err(_) => String::new(),
     });
 
+    let edge_routing_diagnostics_string: Memo<String> =
+        use_memo(move || match &*diagram_generated.read() {
+            Ok(diagram_generated) => {
+                let mut buffer = String::new();
+                match serde_saphyr::to_fmt_writer(
+                    &mut buffer,
+                    &diagram_generated.edge_routing_diagnostics,
+                ) {
+                    Ok(()) => buffer,
+                    Err(error) => {
+                        format!("⚠️ Error serializing edge routing diagnostics: {}", error)
+                    }
+                }
+            }
+            Err(_) => String::new(),
+        });
+
     let svg: Memo<String> = use_memo(move || match &*diagram_generated.read() {
         Ok(diagram_generated) => diagram_generated.svg.clone(),
         Err(_) => String::new(),
@@ -689,6 +706,12 @@ pub fn DispositionEditor(editor_state: ReadSignal<EditorState>) -> Element {
                     TabDetails {
                         label: String::from("Taffy Node Mappings"),
                         content: rsx! { TaffyNodeMappingsDiv { taffy_node_mappings_string } },
+                    },
+                    TabDetails {
+                        label: String::from("Edge Routing"),
+                        content: rsx! {
+                            EdgeRoutingDiagnosticsDiv { edge_routing_diagnostics_string }
+                        },
                     },
                     TabDetails {
                         label: String::from("SVG Elements"),
