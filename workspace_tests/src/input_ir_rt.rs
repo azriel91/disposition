@@ -106,6 +106,15 @@ pub(crate) const INPUT_DIAGRAM_0046_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_RIGHT_
 pub(crate) const INPUT_DIAGRAM_0047_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_BOTTOM_TO_TOP: &str =
     include_str!("input_diagram/0047_edge_offsets_and_protrusion_complex_2_bottom_to_top.yaml");
 
+pub(crate) const INPUT_DIAGRAM_0048_INTERACTION_EDGE_HALO: &str =
+    include_str!("input_diagram/0048_interaction_edge_halo.yaml");
+
+pub(crate) const INPUT_DIAGRAM_0049_INTERACTION_EDGE_HALO_DISABLED: &str =
+    include_str!("input_diagram/0049_interaction_edge_halo_disabled.yaml");
+
+pub(crate) const INPUT_DIAGRAM_0050_INTERACTION_EDGE_HALO_FORWARD_REVERSE: &str =
+    include_str!("input_diagram/0050_interaction_edge_halo_forward_reverse.yaml");
+
 mod diagram_generator;
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

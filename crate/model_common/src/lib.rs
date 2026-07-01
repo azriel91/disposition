@@ -10,7 +10,7 @@ pub use crate::{
     id::{Id, IdInvalidFmt},
     map::{Keys, Map, MapOrderedRemove},
     rank_dir::RankDir,
-    render_options::{ProcessRenderCollapse, RenderOptions},
+    render_options::{InteractionEdgeHalo, ProcessRenderCollapse, RenderOptions},
     set::{Set, SetOrderedRemove},
 };
 

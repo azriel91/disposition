@@ -2,8 +2,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{edge::EdgeCurvature, RankDir};
 
-pub use self::process_render_collapse::ProcessRenderCollapse;
+pub use self::{
+    interaction_edge_halo::InteractionEdgeHalo, process_render_collapse::ProcessRenderCollapse,
+};
 
+mod interaction_edge_halo;
 mod process_render_collapse;
 
 /// Options that control how the diagram is rendered.
@@ -26,6 +29,7 @@ mod process_render_collapse;
 /// );
 /// assert_eq!(render_options.rank_dir, Default::default());
 /// assert_eq!(render_options.process_render_collapse, Default::default());
+/// assert_eq!(render_options.interaction_edge_halo, Default::default());
 /// ```
 #[cfg_attr(
     all(feature = "schemars", not(feature = "test")),
@@ -80,6 +84,17 @@ pub struct RenderOptions {
     ///   collapsed otherwise.
     #[serde(default, skip_serializing_if = "ProcessRenderCollapse::is_default")]
     pub process_render_collapse: ProcessRenderCollapse,
+
+    /// Controls whether a semi-transparent halo is rendered behind
+    /// interaction edges.
+    ///
+    /// Defaults to `InteractionEdgeHalo::Enabled`.
+    ///
+    /// * `InteractionEdgeHalo::Enabled`: a halo is rendered behind each
+    ///   interaction edge, sharing its path geometry.
+    /// * `InteractionEdgeHalo::Disabled`: no halo is rendered.
+    #[serde(default, skip_serializing_if = "InteractionEdgeHalo::is_default")]
+    pub interaction_edge_halo: InteractionEdgeHalo,
 }
 
 impl RenderOptions {
@@ -89,6 +104,7 @@ impl RenderOptions {
             && interactions_edge_curvature_is_default(&self.interactions_edge_curvature)
             && self.rank_dir.is_default()
             && self.process_render_collapse.is_default()
+            && self.interaction_edge_halo.is_default()
     }
 }
 
@@ -99,6 +115,7 @@ impl Default for RenderOptions {
             interactions_edge_curvature: interactions_edge_curvature_default(),
             rank_dir: RankDir::default(),
             process_render_collapse: ProcessRenderCollapse::default(),
+            interaction_edge_halo: InteractionEdgeHalo::default(),
         }
     }
 }

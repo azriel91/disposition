@@ -1,0 +1,18 @@
+things:
+  t_a: {}
+  t_b: {}
+  t_c: {}
+thing_interactions:
+  edge_ix_chain:
+    kind: symmetric
+    things:
+      - t_a
+      - t_b
+      - t_c
+theme_types_styles:
+  type_interaction_edge_halo_forward:
+    edge_defaults:
+      shape_color: "green"
+  type_interaction_edge_halo_reverse:
+    edge_defaults:
+      shape_color: "yellow"
