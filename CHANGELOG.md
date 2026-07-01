@@ -47,6 +47,7 @@
 * Skip spacers for lower ranks when higher ranked spacers are further out, to avoid extra bend. ([#57][#57])
 * Introduce `EdgeRoutingDiagnostics` intermediate data to surface edge offset and protrusion calculation intermediate values. ([#57][#57])
 * Add `RenderOptions.interaction_edge_halo`, which renders a toggleable semi-transparent halo behind interaction edges (enabled by default) to make animated edge paths easier to see. ([#58][#58])
+* Add the interaction edge halo enabled / disabled control to the playground render options editor. ([#58][#58])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
