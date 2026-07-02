@@ -48,6 +48,14 @@ pub enum EntityType {
     /// Default type for process_steps
     ProcessStepDefault,
 
+    /// Default type for dependency edges (all kinds).
+    ///
+    /// This is the least specific dependency edge type -- it is attached to
+    /// every individual dependency edge (not the edge group), and its
+    /// styling is overridden by the more specific group and edge types
+    /// below.
+    DependencyEdgeDefault,
+
     // Dependency edge groups
     /// Default type for dependency sequence edge groups
     DependencyEdgeSequenceDefault,
@@ -65,6 +73,14 @@ pub enum EntityType {
     DependencyEdgeSymmetricForwardDefault,
     /// Default type for dependency symmetric reverse edges
     DependencyEdgeSymmetricReverseDefault,
+
+    /// Default type for interaction edges (all kinds).
+    ///
+    /// This is the least specific interaction edge type -- it is attached to
+    /// every individual interaction edge (not the edge group), and its
+    /// styling is overridden by the more specific group and edge types
+    /// below.
+    InteractionEdgeDefault,
 
     // Interaction edge groups
     /// Default type for interaction sequence edge groups
@@ -125,6 +141,8 @@ impl EntityType {
             EntityType::ProcessDefault => "type_process_default",
             EntityType::ProcessStepDefault => "type_process_step_default",
 
+            EntityType::DependencyEdgeDefault => "type_dependency_edge_default",
+
             // Dependency edge groups
             EntityType::DependencyEdgeSequenceDefault => "type_dependency_edge_sequence_default",
             EntityType::DependencyEdgeCyclicDefault => "type_dependency_edge_cyclic_default",
@@ -143,6 +161,8 @@ impl EntityType {
             EntityType::DependencyEdgeSymmetricReverseDefault => {
                 "type_dependency_edge_symmetric_reverse_default"
             }
+
+            EntityType::InteractionEdgeDefault => "type_interaction_edge_default",
 
             // Interaction edge groups
             EntityType::InteractionEdgeSequenceDefault => "type_interaction_edge_sequence_default",
@@ -181,6 +201,7 @@ impl EntityType {
             | EntityType::TagDefault
             | EntityType::ProcessDefault
             | EntityType::ProcessStepDefault
+            | EntityType::DependencyEdgeDefault
             | EntityType::DependencyEdgeSequenceDefault
             | EntityType::DependencyEdgeCyclicDefault
             | EntityType::DependencyEdgeSymmetricDefault
@@ -188,6 +209,7 @@ impl EntityType {
             | EntityType::DependencyEdgeCyclicForwardDefault
             | EntityType::DependencyEdgeSymmetricForwardDefault
             | EntityType::DependencyEdgeSymmetricReverseDefault
+            | EntityType::InteractionEdgeDefault
             | EntityType::InteractionEdgeSequenceDefault
             | EntityType::InteractionEdgeCyclicDefault
             | EntityType::InteractionEdgeSymmetricDefault
@@ -223,6 +245,8 @@ impl EntityType {
             EntityType::ProcessDefault => id!("type_process_default"),
             EntityType::ProcessStepDefault => id!("type_process_step_default"),
 
+            EntityType::DependencyEdgeDefault => id!("type_dependency_edge_default"),
+
             // Dependency edge groups
             EntityType::DependencyEdgeSequenceDefault => {
                 id!("type_dependency_edge_sequence_default")
@@ -247,6 +271,8 @@ impl EntityType {
             EntityType::DependencyEdgeSymmetricReverseDefault => {
                 id!("type_dependency_edge_symmetric_reverse_default")
             }
+
+            EntityType::InteractionEdgeDefault => id!("type_interaction_edge_default"),
 
             // Interaction edge groups
             EntityType::InteractionEdgeSequenceDefault => {
@@ -329,7 +355,8 @@ impl EntityType {
     pub fn is_dependency_edge(&self) -> bool {
         matches!(
             self,
-            EntityType::DependencyEdgeSequenceDefault
+            EntityType::DependencyEdgeDefault
+                | EntityType::DependencyEdgeSequenceDefault
                 | EntityType::DependencyEdgeCyclicDefault
                 | EntityType::DependencyEdgeSymmetricDefault
                 | EntityType::DependencyEdgeSequenceForwardDefault
@@ -352,7 +379,8 @@ impl EntityType {
     pub fn is_interaction_edge(&self) -> bool {
         matches!(
             self,
-            EntityType::InteractionEdgeSequenceDefault
+            EntityType::InteractionEdgeDefault
+                | EntityType::InteractionEdgeSequenceDefault
                 | EntityType::InteractionEdgeCyclicDefault
                 | EntityType::InteractionEdgeSymmetricDefault
                 | EntityType::InteractionEdgeSequenceForwardDefault
@@ -372,6 +400,8 @@ impl From<Id<'static>> for EntityType {
             "type_process_default" => EntityType::ProcessDefault,
             "type_process_step_default" => EntityType::ProcessStepDefault,
 
+            "type_dependency_edge_default" => EntityType::DependencyEdgeDefault,
+
             // Dependency edge groups
             "type_dependency_edge_sequence_default" => EntityType::DependencyEdgeSequenceDefault,
             "type_dependency_edge_cyclic_default" => EntityType::DependencyEdgeCyclicDefault,
@@ -390,6 +420,8 @@ impl From<Id<'static>> for EntityType {
             "type_dependency_edge_symmetric_reverse_default" => {
                 EntityType::DependencyEdgeSymmetricReverseDefault
             }
+
+            "type_interaction_edge_default" => EntityType::InteractionEdgeDefault,
 
             // Interaction edge groups
             "type_interaction_edge_sequence_default" => EntityType::InteractionEdgeSequenceDefault,
@@ -459,6 +491,7 @@ impl Visitor<'_> for EntityTypeVisitor {
             * `type_tag_default`\n\
             * `type_process_default`\n\
             * `type_process_step_default`\n\
+            * `type_dependency_edge_default`\n\
             * `type_dependency_edge_sequence_default`\n\
             * `type_dependency_edge_cyclic_default`\n\
             * `type_dependency_edge_symmetric_default`\n\
@@ -466,6 +499,7 @@ impl Visitor<'_> for EntityTypeVisitor {
             * `type_dependency_edge_cyclic_forward_default`\n\
             * `type_dependency_edge_symmetric_forward_default`\n\
             * `type_dependency_edge_symmetric_reverse_default`\n\
+            * `type_interaction_edge_default`\n\
             * `type_interaction_edge_sequence_default`\n\
             * `type_interaction_edge_cyclic_default`\n\
             * `type_interaction_edge_symmetric_default`\n\
@@ -492,6 +526,8 @@ impl Visitor<'_> for EntityTypeVisitor {
             "type_process_default" => EntityType::ProcessDefault,
             "type_process_step_default" => EntityType::ProcessStepDefault,
 
+            "type_dependency_edge_default" => EntityType::DependencyEdgeDefault,
+
             // Dependency edge groups
             "type_dependency_edge_sequence_default" => EntityType::DependencyEdgeSequenceDefault,
             "type_dependency_edge_cyclic_default" => EntityType::DependencyEdgeCyclicDefault,
@@ -510,6 +546,8 @@ impl Visitor<'_> for EntityTypeVisitor {
             "type_dependency_edge_symmetric_reverse_default" => {
                 EntityType::DependencyEdgeSymmetricReverseDefault
             }
+
+            "type_interaction_edge_default" => EntityType::InteractionEdgeDefault,
 
             // Interaction edge groups
             "type_interaction_edge_sequence_default" => EntityType::InteractionEdgeSequenceDefault,

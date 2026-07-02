@@ -275,58 +275,74 @@ entity_types:
   edge_dep_t_localhost__t_github_user_repo__pull:
     - type_dependency_edge_cyclic_default
   edge_dep_t_localhost__t_github_user_repo__pull__0:
+    - type_dependency_edge_default
     - type_dependency_edge_cyclic_forward_default
   edge_dep_t_localhost__t_github_user_repo__pull__1:
+    - type_dependency_edge_default
     - type_dependency_edge_cyclic_forward_default
   edge_dep_t_localhost__t_github_user_repo__push:
     - type_dependency_edge_sequence_default
   edge_dep_t_localhost__t_github_user_repo__push__0:
+    - type_dependency_edge_default
     - type_dependency_edge_sequence_forward_default
   edge_dep_t_localhost__t_localhost__within:
     - type_dependency_edge_cyclic_default
   edge_dep_t_localhost__t_localhost__within__0:
+    - type_dependency_edge_default
     - type_dependency_edge_cyclic_forward_default
   edge_dep_t_github_user_repo__t_github_user_repo__within:
     - type_dependency_edge_symmetric_default
   edge_dep_t_github_user_repo__t_github_user_repo__within__0:
+    - type_dependency_edge_default
     - type_dependency_edge_symmetric_forward_default
   edge_dep_t_github_user_repo__t_github_user_repo__within__1:
+    - type_dependency_edge_default
     - type_dependency_edge_symmetric_reverse_default
   edge_dep_t_github_user_repo__t_aws_ecr_repo__push:
     - type_dependency_edge_sequence_default
   edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0:
+    - type_dependency_edge_default
     - type_dependency_edge_sequence_forward_default
   edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push:
     - type_dependency_edge_sequence_default
   edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push__0:
+    - type_dependency_edge_default
     - type_dependency_edge_sequence_forward_default
   edge_ix_t_localhost__t_github_user_repo__pull:
     - type_interaction_edge_symmetric_default
   edge_ix_t_localhost__t_github_user_repo__pull__0:
+    - type_interaction_edge_default
     - type_interaction_edge_symmetric_forward_default
   edge_ix_t_localhost__t_github_user_repo__pull__1:
+    - type_interaction_edge_default
     - type_interaction_edge_symmetric_reverse_default
   edge_ix_t_localhost__t_github_user_repo__push:
     - type_interaction_edge_sequence_default
   edge_ix_t_localhost__t_github_user_repo__push__0:
+    - type_interaction_edge_default
     - type_interaction_edge_sequence_forward_default
   edge_ix_t_localhost__t_localhost__within:
     - type_interaction_edge_cyclic_default
   edge_ix_t_localhost__t_localhost__within__0:
+    - type_interaction_edge_default
     - type_interaction_edge_cyclic_forward_default
   edge_ix_t_github_user_repo__t_github_user_repo__within:
     - type_interaction_edge_symmetric_default
   edge_ix_t_github_user_repo__t_github_user_repo__within__0:
+    - type_interaction_edge_default
     - type_interaction_edge_symmetric_forward_default
   edge_ix_t_github_user_repo__t_github_user_repo__within__1:
+    - type_interaction_edge_default
     - type_interaction_edge_symmetric_reverse_default
   edge_ix_t_github_user_repo__t_aws_ecr_repo__push:
     - type_interaction_edge_sequence_default
   edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0:
+    - type_interaction_edge_default
     - type_interaction_edge_sequence_forward_default
   edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push:
     - type_interaction_edge_sequence_default
   edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0:
+    - type_interaction_edge_default
     - type_interaction_edge_sequence_forward_default
 tailwind_classes:
   t_aws: |

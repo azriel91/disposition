@@ -839,6 +839,7 @@ impl InputToIrDiagramMapper {
                     edge_group_id,
                     edge_kind,
                     things,
+                    EntityType::DependencyEdgeDefault,
                     Self::edge_default_type_dependency,
                 );
                 std::iter::once(edge_group_entity_types).chain(edge_entity_types)
@@ -874,6 +875,7 @@ impl InputToIrDiagramMapper {
                         edge_group_id,
                         edge_kind,
                         things,
+                        EntityType::InteractionEdgeDefault,
                         Self::edge_default_type_interaction,
                     );
                     std::iter::once(edge_group_entity_types).chain(edge_entity_types)
@@ -961,6 +963,7 @@ impl InputToIrDiagramMapper {
         edge_group_id: &EdgeGroupId<'id>,
         edge_kind: EdgeKind,
         things: &[ThingId<'id>],
+        edge_common_default_type: EntityType,
         edge_default_type_fn: fn(EdgeKind, usize, usize) -> EntityType,
     ) -> impl Iterator<Item = (Id<'id>, Set<EntityType>)> {
         let (edge_count, forward_count) = match edge_kind {
@@ -987,6 +990,7 @@ impl InputToIrDiagramMapper {
             let edge_default_type = edge_default_type_fn(edge_kind, forward_count, i);
 
             let mut types = Set::new();
+            types.insert(edge_common_default_type.clone());
             types.insert(edge_default_type);
 
             if let Some(custom_types) = input_entity_types.get(&edge_id) {
