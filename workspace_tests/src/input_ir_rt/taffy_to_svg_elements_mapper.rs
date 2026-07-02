@@ -4681,12 +4681,12 @@ fn test_interaction_edge_halo_enabled_renders_halo_path_before_edge_body() {
                     ix_edge.edge_id
                 )
             });
-        // `slate-950` is rendered via a `stroke-[var(--tw-slate-950-50)]` CSS
-        // variable class (not a plain `stroke-slate-950` class) because
+        // `slate-800` is rendered via a `stroke-[var(--tw-slate-800-200)]` CSS
+        // variable class (not a plain `stroke-slate-800` class) because
         // `base_diagram.yaml` configures inverted dark-mode shades.
         assert!(
-            ix_halo_classes.contains("slate-950"),
-            "Expected halo classes to reference slate-950, got: {ix_halo_classes}"
+            ix_halo_classes.contains("slate-800"),
+            "Expected halo classes to reference slate-800, got: {ix_halo_classes}"
         );
         assert!(
             ix_halo_classes.contains("opacity-20"),

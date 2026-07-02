@@ -267,7 +267,7 @@ theme_types_styles:
     edge_defaults:
       opacity: "20"
       shape_color: "slate"
-      stroke_shade: "950"
+      stroke_shade: "800"
       stroke_style: solid
       stroke_width: "8"
 

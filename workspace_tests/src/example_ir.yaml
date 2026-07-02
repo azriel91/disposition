@@ -1213,10 +1213,10 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-950-50)]
-    stroke-[var(--tw-slate-950-50)]
-    focus:stroke-[var(--tw-slate-950-50)]
-    active:stroke-[var(--tw-slate-950-50)]
+    hover:stroke-[var(--tw-slate-800-200)]
+    stroke-[var(--tw-slate-800-200)]
+    focus:stroke-[var(--tw-slate-800-200)]
+    active:stroke-[var(--tw-slate-800-200)]
   edge_ix_t_localhost__t_github_user_repo__pull__0: |
     invisible
     stroke-2
@@ -1239,10 +1239,10 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-950-50)]
-    stroke-[var(--tw-slate-950-50)]
-    focus:stroke-[var(--tw-slate-950-50)]
-    active:stroke-[var(--tw-slate-950-50)]
+    hover:stroke-[var(--tw-slate-800-200)]
+    stroke-[var(--tw-slate-800-200)]
+    focus:stroke-[var(--tw-slate-800-200)]
+    active:stroke-[var(--tw-slate-800-200)]
   edge_ix_t_localhost__t_github_user_repo__pull__1: |
     invisible
     stroke-2
@@ -1265,10 +1265,10 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-950-50)]
-    stroke-[var(--tw-slate-950-50)]
-    focus:stroke-[var(--tw-slate-950-50)]
-    active:stroke-[var(--tw-slate-950-50)]
+    hover:stroke-[var(--tw-slate-800-200)]
+    stroke-[var(--tw-slate-800-200)]
+    focus:stroke-[var(--tw-slate-800-200)]
+    active:stroke-[var(--tw-slate-800-200)]
   edge_ix_t_localhost__t_github_user_repo__push__0: |
     invisible
     stroke-2
@@ -1290,10 +1290,10 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-950-50)]
-    stroke-[var(--tw-slate-950-50)]
-    focus:stroke-[var(--tw-slate-950-50)]
-    active:stroke-[var(--tw-slate-950-50)]
+    hover:stroke-[var(--tw-slate-800-200)]
+    stroke-[var(--tw-slate-800-200)]
+    focus:stroke-[var(--tw-slate-800-200)]
+    active:stroke-[var(--tw-slate-800-200)]
   edge_ix_t_localhost__t_localhost__within__0: |
     invisible
     stroke-2
@@ -1316,10 +1316,10 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-950-50)]
-    stroke-[var(--tw-slate-950-50)]
-    focus:stroke-[var(--tw-slate-950-50)]
-    active:stroke-[var(--tw-slate-950-50)]
+    hover:stroke-[var(--tw-slate-800-200)]
+    stroke-[var(--tw-slate-800-200)]
+    focus:stroke-[var(--tw-slate-800-200)]
+    active:stroke-[var(--tw-slate-800-200)]
   edge_ix_t_github_user_repo__t_github_user_repo__within__0: |
     invisible
     stroke-2
@@ -1341,10 +1341,10 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-950-50)]
-    stroke-[var(--tw-slate-950-50)]
-    focus:stroke-[var(--tw-slate-950-50)]
-    active:stroke-[var(--tw-slate-950-50)]
+    hover:stroke-[var(--tw-slate-800-200)]
+    stroke-[var(--tw-slate-800-200)]
+    focus:stroke-[var(--tw-slate-800-200)]
+    active:stroke-[var(--tw-slate-800-200)]
   edge_ix_t_github_user_repo__t_github_user_repo__within__1: |
     invisible
     stroke-2
@@ -1366,10 +1366,10 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-950-50)]
-    stroke-[var(--tw-slate-950-50)]
-    focus:stroke-[var(--tw-slate-950-50)]
-    active:stroke-[var(--tw-slate-950-50)]
+    hover:stroke-[var(--tw-slate-800-200)]
+    stroke-[var(--tw-slate-800-200)]
+    focus:stroke-[var(--tw-slate-800-200)]
+    active:stroke-[var(--tw-slate-800-200)]
   edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: |
     invisible
     stroke-2
@@ -1391,10 +1391,10 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-950-50)]
-    stroke-[var(--tw-slate-950-50)]
-    focus:stroke-[var(--tw-slate-950-50)]
-    active:stroke-[var(--tw-slate-950-50)]
+    hover:stroke-[var(--tw-slate-800-200)]
+    stroke-[var(--tw-slate-800-200)]
+    focus:stroke-[var(--tw-slate-800-200)]
+    active:stroke-[var(--tw-slate-800-200)]
   edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0: |
     invisible
     stroke-2
@@ -2563,7 +2563,7 @@ css: |-
     --tw-slate-50-950: oklch(98.4% 0.003 247.858);
     --tw-slate-500-500: oklch(55.4% 0.046 257.417);
     --tw-slate-600-400: oklch(44.6% 0.043 257.281);
-    --tw-slate-950-50: oklch(12.9% 0.042 264.695);
+    --tw-slate-800-200: oklch(27.9% 0.041 260.031);
     --tw-violet-500-500: oklch(60.6% 0.25 292.717);
     --tw-violet-600-400: oklch(54.1% 0.281 293.009);
     --tw-violet-700-300: oklch(49.1% 0.27 292.581);
@@ -2617,7 +2617,7 @@ css: |-
       --tw-slate-50-950: oklch(12.9% 0.042 264.695);
       --tw-slate-500-500: oklch(55.4% 0.046 257.417);
       --tw-slate-600-400: oklch(70.4% 0.04 256.788);
-      --tw-slate-950-50: oklch(98.4% 0.003 247.858);
+      --tw-slate-800-200: oklch(92.9% 0.013 255.508);
       --tw-violet-500-500: oklch(60.6% 0.25 292.717);
       --tw-violet-600-400: oklch(70.2% 0.183 293.541);
       --tw-violet-700-300: oklch(81.1% 0.111 293.571);

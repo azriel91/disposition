@@ -938,7 +938,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                     vec![
                         (ThemeAttr::Opacity, "20"),
                         (ThemeAttr::ShapeColor, "slate"),
-                        (ThemeAttr::StrokeShade, "950"),
+                        (ThemeAttr::StrokeShade, "800"),
                         (ThemeAttr::StrokeStyle, "solid"),
                         (ThemeAttr::StrokeWidth, "8"),
                     ],
