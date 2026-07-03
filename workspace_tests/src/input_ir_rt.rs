@@ -118,6 +118,9 @@ pub(crate) const INPUT_DIAGRAM_0050_INTERACTION_EDGE_HALO_FORWARD_REVERSE: &str 
 pub(crate) const INPUT_DIAGRAM_0051_PROCESS_STEP_RANK_LOWER_THAN_DECLARATION: &str =
     include_str!("input_diagram/0051_process_step_rank_lower_than_declaration.yaml");
 
+pub(crate) const INPUT_DIAGRAM_0052_PROCESS_STEP_TWO_PROCESSES_COLLAPSE: &str =
+    include_str!("input_diagram/0052_process_step_two_processes_collapse.yaml");
+
 mod diagram_generator;
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

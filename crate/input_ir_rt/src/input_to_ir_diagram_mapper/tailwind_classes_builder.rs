@@ -376,15 +376,83 @@ impl TailwindClassesBuilder {
     /// of its steps), so that the process's steps should be revealed.
     fn focus_active_in_process<'id>(
         active: &DiagramFocus<'id>,
-        parent_process_id: Option<&ProcessId<'id>>,
+        parent_process_id: Option<&Id<'id>>,
     ) -> bool {
         let Some(parent_process_id) = parent_process_id else {
             return false;
         };
         match active {
-            DiagramFocus::Process(process_id) => process_id == parent_process_id,
-            DiagramFocus::ProcessStep { process_id, .. } => process_id == parent_process_id,
+            DiagramFocus::Process(process_id) => process_id.as_ref() == parent_process_id,
+            DiagramFocus::ProcessStep { process_id, .. } => {
+                process_id.as_ref() == parent_process_id
+            }
             DiagramFocus::None | DiagramFocus::Tag(_) => false,
+        }
+    }
+
+    /// Overrides the resolved `Visibility` attribute to `invisible` when the
+    /// process renders collapsed, shared by process step nodes and process
+    /// step connector edges.
+    ///
+    /// Must be called before `tailwind_class_state.write_classes(..)`, so
+    /// the override replaces (rather than duplicates alongside) any default
+    /// `visible` resolved from the theme's base styles.
+    ///
+    /// * `process_render_expanded`: when `true`, nothing is hidden (the
+    ///   attribute is left untouched).
+    /// * In [`TailwindFocusMode::Baked`] mode, `invisible` is written only when
+    ///   `active` does not target this process (via
+    ///   `Self::focus_active_in_process`).
+    /// * In [`TailwindFocusMode::Interactive`] mode, `invisible` is always
+    ///   written when collapsed (revealed at render time via the
+    ///   `group-has-[...]:visible` classes written by
+    ///   [`Self::process_step_visibility_reveal_classes_write`]).
+    fn process_step_visibility_attr_write<'id>(
+        tailwind_class_state: &mut TailwindClassState<'_>,
+        process_render_expanded: bool,
+        focus_mode: TailwindFocusMode<'_, 'id>,
+        process_id: &Id<'id>,
+    ) {
+        let visible = process_render_expanded
+            || matches!(
+                focus_mode,
+                TailwindFocusMode::Baked { active }
+                    if Self::focus_active_in_process(active, Some(process_id))
+            );
+        if !visible {
+            tailwind_class_state
+                .attrs
+                .insert(ThemeAttr::Visibility, Cow::Borrowed("invisible"));
+        }
+    }
+
+    /// Writes the `group-has-[...]:visible` classes that reveal a process
+    /// step node or process step connector edge when the process (or any of
+    /// its steps) gains focus, shared by both.
+    ///
+    /// Must be called after `tailwind_class_state.write_classes(..)`. In
+    /// [`TailwindFocusMode::Baked`] mode this writes nothing -- visibility is
+    /// already resolved statically by
+    /// [`Self::process_step_visibility_attr_write`].
+    fn process_step_visibility_reveal_classes_write<'a, 'id>(
+        classes: &mut String,
+        focus_mode: TailwindFocusMode<'_, 'id>,
+        process_id: &Id<'id>,
+        process_step_ids: impl Iterator<Item = &'a ProcessStepId<'id>>,
+    ) where
+        'id: 'a,
+    {
+        if matches!(focus_mode, TailwindFocusMode::Interactive) {
+            writeln!(classes, "group-has-[#{process_id}:focus-within]:visible")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+            process_step_ids.for_each(|process_step_id| {
+                writeln!(
+                    classes,
+                    "group-has-[#{process_step_id}:focus-within]:visible"
+                )
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            });
         }
     }
 
@@ -592,26 +660,16 @@ impl TailwindClassesBuilder {
         );
 
         // When processes are rendered collapsed, their steps are hidden by
-        // default. When rendered expanded, the step keeps its resolved
-        // visibility (visible by default).
-        //
-        // In interactive mode, hidden steps are revealed via
-        // `group-has-[...]:visible` classes when the process or a sibling step
-        // is focused. In baked mode there is no interactive focus, so visibility
-        // is decided statically: the step is visible when its process is
-        // rendered expanded, or when the active focus is its parent process or
-        // any step of that process.
-        let parent_process_id = parent_process_id_and_diagram.map(|(process_id, _)| process_id);
-        let step_visible = process_render_expanded
-            || matches!(
+        // default. Must run before `write_classes` so the `invisible`
+        // override replaces (not duplicates alongside) the resolved default
+        // `visible` attribute.
+        if let Some((process_id, _)) = parent_process_id_and_diagram {
+            Self::process_step_visibility_attr_write(
+                &mut tailwind_class_state,
+                process_render_expanded,
                 focus_mode,
-                TailwindFocusMode::Baked { active }
-                    if Self::focus_active_in_process(active, parent_process_id)
+                process_id.as_ref(),
             );
-        if !step_visible {
-            tailwind_class_state
-                .attrs
-                .insert(ThemeAttr::Visibility, Cow::Borrowed("invisible"));
         }
 
         let mut classes = String::new();
@@ -621,41 +679,20 @@ impl TailwindClassesBuilder {
             theme_default.dark_mode_config.shade,
         );
 
-        // In interactive mode, process steps get:
-        //
-        // * `group-has-[#{process_id}:focus-within]:visible`
-        // * one of `group-has-[#{process_step_id}:focus-within]:visible` for each of
-        //   the process steps (including itself).
-        //
-        // so that when a process or sibling steps are focused, all steps within the
-        // process are visible.
-        //
-        // These are the same for all steps in the process, so technically we could
-        // compute it just once.
-        //
-        // When a process step is selected, `thing`s receive styles
+        // Revealed when the process or a sibling step is focused. When a
+        // process step is selected, `thing`s receive styles
         // `theme_default.process_step_selected_styles` -- see
         // `build_thing_tailwind_classes`.
-        //
-        // In baked mode these have no effect (visibility is already resolved
-        // above), so they are omitted.
+        if let Some((process_id, process_diagram)) = parent_process_id_and_diagram {
+            Self::process_step_visibility_reveal_classes_write(
+                &mut classes,
+                focus_mode,
+                process_id.as_ref(),
+                process_diagram.steps.keys(),
+            );
+        }
+
         if matches!(focus_mode, TailwindFocusMode::Interactive) {
-            if let Some((process_id, process_diagram)) = parent_process_id_and_diagram {
-                writeln!(
-                    &mut classes,
-                    "group-has-[#{process_id}:focus-within]:visible"
-                )
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-
-                process_diagram.steps.keys().for_each(|process_step_id| {
-                    writeln!(
-                        &mut classes,
-                        "group-has-[#{process_step_id}:focus-within]:visible"
-                    )
-                    .expect(CLASSES_BUFFER_WRITE_FAIL);
-                });
-            }
-
             writeln!(&mut classes, "peer/{process_step_id}").expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
@@ -1101,17 +1138,25 @@ impl TailwindClassesBuilder {
         classes
     }
 
-    /// Resolves the tailwind classes for process step connector edges.
+    /// Resolves the tailwind classes for the connector edges of a single
+    /// process's step graph.
     ///
     /// Process step connectors are styled like dependency edges: the theme's
     /// base `edge_defaults` overlaid with the `type_dependency_edge_default`
-    /// edge styling. The resulting classes are identical for every connector
-    /// (they carry no per-edge overrides), so a single resolved string is
-    /// shared across all of them.
+    /// edge styling. The resulting classes carry no per-edge overrides, so a
+    /// single resolved string is shared across all of one process's
+    /// connectors -- but connectors of different processes hide/reveal
+    /// independently (mirroring their own process's steps), so the string is
+    /// resolved once per process rather than once for the whole diagram.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn build_process_step_connector_classes<'id>(
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
+        process_render_expanded: bool,
+        focus_mode: TailwindFocusMode<'_, 'id>,
+        process_id: &Id<'id>,
+        process_diagram: &ProcessDiagram<'id>,
     ) -> String {
         let entity_type = EntityType::DependencyEdgeDefault;
         let mut tailwind_class_state = TailwindClassState {
@@ -1142,11 +1187,28 @@ impl TailwindClassesBuilder {
             );
         }
 
+        // Must run before `write_classes` so the `invisible` override
+        // replaces (not duplicates alongside) the resolved default `visible`
+        // attribute.
+        Self::process_step_visibility_attr_write(
+            &mut tailwind_class_state,
+            process_render_expanded,
+            focus_mode,
+            process_id,
+        );
+
         let mut classes = String::new();
         tailwind_class_state.write_classes(
             &mut classes,
             css_theme_vars,
             theme_default.dark_mode_config.shade,
+        );
+
+        Self::process_step_visibility_reveal_classes_write(
+            &mut classes,
+            focus_mode,
+            process_id,
+            process_diagram.steps.keys(),
         );
 
         classes

@@ -24,6 +24,7 @@ use self::{
     process_step_heights_calculator::ProcessStepHeightsCalculator,
     spacer_coordinates_resolver::SpacerCoordinatesResolver,
     string_char_replacer::StringCharReplacer,
+    svg_connector_translate_classes_builder::SvgConnectorTranslateClassesBuilder,
     svg_edge_descriptions_builder::SvgEdgeDescriptionsBuilder,
     svg_edge_infos_builder::SvgEdgeInfosBuilder,
     svg_edge_labels_builder::SvgEdgeLabelsBuilder,
@@ -50,6 +51,7 @@ mod process_step_heights;
 mod process_step_heights_calculator;
 mod spacer_coordinates_resolver;
 mod string_char_replacer;
+mod svg_connector_translate_classes_builder;
 mod svg_edge_descriptions_builder;
 mod svg_edge_infos_builder;
 mod svg_edge_labels_builder;
@@ -305,6 +307,19 @@ impl TaffyToSvgElementsMapper {
             taffy_tree,
             node_id_to_taffy,
         ));
+
+        // Append the delta translate-y classes that shift each connector by
+        // the same amount its own process's step nodes shift when the
+        // process collapses/expands. The invisible/visible hide-reveal
+        // classes are already present in `tailwind_classes` (resolved during
+        // IR mapping alongside the connector's style classes).
+        SvgConnectorTranslateClassesBuilder::build(
+            ir_diagram,
+            &process_steps_heights,
+            &svg_process_infos,
+            focus_mode,
+            &mut tailwind_classes,
+        );
 
         let edge_label_infos = SvgEdgeLabelsBuilder::build(
             taffy_tree,

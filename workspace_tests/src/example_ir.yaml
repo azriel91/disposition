@@ -1426,7 +1426,7 @@ tailwind_classes:
 
     peer-[:focus-within]/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:visible
   edge_ps_proc_app_dev_step_repository_clone__proc_app_dev_step_project_build: |
-    visible
+    invisible
     [stroke-dasharray:none]
     hover:[stroke-dasharray:none]
     focus:[stroke-dasharray:none]
@@ -1441,8 +1441,11 @@ tailwind_classes:
     focus:stroke-[var(--tw-neutral-800-200)]
     active:stroke-[var(--tw-neutral-900-100)]
     [&>text]:fill-[var(--tw-neutral-950-50)]
+    group-has-[#proc_app_dev:focus-within]:visible
+    group-has-[#proc_app_dev_step_repository_clone:focus-within]:visible
+    group-has-[#proc_app_dev_step_project_build:focus-within]:visible
   edge_ps_proc_app_release_step_crate_version_update__proc_app_release_step_pull_request_open: |
-    visible
+    invisible
     [stroke-dasharray:none]
     hover:[stroke-dasharray:none]
     focus:[stroke-dasharray:none]
@@ -1457,8 +1460,14 @@ tailwind_classes:
     focus:stroke-[var(--tw-neutral-800-200)]
     active:stroke-[var(--tw-neutral-900-100)]
     [&>text]:fill-[var(--tw-neutral-950-50)]
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
   edge_ps_proc_app_release_step_pull_request_open__proc_app_release_step_tag_and_push: |
-    visible
+    invisible
     [stroke-dasharray:none]
     hover:[stroke-dasharray:none]
     focus:[stroke-dasharray:none]
@@ -1473,8 +1482,14 @@ tailwind_classes:
     focus:stroke-[var(--tw-neutral-800-200)]
     active:stroke-[var(--tw-neutral-900-100)]
     [&>text]:fill-[var(--tw-neutral-950-50)]
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
   edge_ps_proc_app_release_step_tag_and_push__proc_app_release_step_gh_actions_build: |
-    visible
+    invisible
     [stroke-dasharray:none]
     hover:[stroke-dasharray:none]
     focus:[stroke-dasharray:none]
@@ -1489,8 +1504,14 @@ tailwind_classes:
     focus:stroke-[var(--tw-neutral-800-200)]
     active:stroke-[var(--tw-neutral-900-100)]
     [&>text]:fill-[var(--tw-neutral-950-50)]
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
   edge_ps_proc_app_release_step_gh_actions_build__proc_app_release_step_gh_actions_publish: |
-    visible
+    invisible
     [stroke-dasharray:none]
     hover:[stroke-dasharray:none]
     focus:[stroke-dasharray:none]
@@ -1505,6 +1526,12 @@ tailwind_classes:
     focus:stroke-[var(--tw-neutral-800-200)]
     active:stroke-[var(--tw-neutral-900-100)]
     [&>text]:fill-[var(--tw-neutral-950-50)]
+    group-has-[#proc_app_release:focus-within]:visible
+    group-has-[#proc_app_release_step_crate_version_update:focus-within]:visible
+    group-has-[#proc_app_release_step_pull_request_open:focus-within]:visible
+    group-has-[#proc_app_release_step_tag_and_push:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_build:focus-within]:visible
+    group-has-[#proc_app_release_step_gh_actions_publish:focus-within]:visible
 node_layouts:
   _root:
     flex:

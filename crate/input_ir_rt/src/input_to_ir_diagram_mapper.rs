@@ -314,24 +314,43 @@ impl InputToIrDiagramMapper {
         let mut css_theme_vars = tailwind_classes_build_result.css_theme_vars;
 
         // Style process step connectors like dependency edges, sharing one
-        // resolved `edge_defaults` class string across all of them.
-        if !ir_diagram.process_step_graphs.is_empty() {
-            let connector_classes = TailwindClassesBuilder::build_process_step_connector_classes(
-                theme_default,
-                theme_types_styles,
-                &mut css_theme_vars,
-            );
-            ir_diagram
-                .process_step_graphs
-                .values()
-                .flat_map(|process_step_graph| &process_step_graph.edges)
-                .for_each(|process_step_graph_edge| {
-                    tailwind_classes.insert(
-                        process_step_graph_edge.edge_id().into_inner(),
-                        connector_classes.clone(),
+        // resolved `edge_defaults` class string across all connectors of a
+        // single process -- visibility differs per process (steps hide/reveal
+        // independently), so the string can't be shared across the whole
+        // diagram like it used to be.
+        ir_diagram
+            .process_step_graphs
+            .iter()
+            .for_each(|(process_node_id, process_step_graph)| {
+                if process_step_graph.edges.is_empty() {
+                    return;
+                }
+                let Some(process_diagram) = input_diagram.processes.get(process_node_id.as_ref())
+                else {
+                    return;
+                };
+
+                let connector_classes =
+                    TailwindClassesBuilder::build_process_step_connector_classes(
+                        theme_default,
+                        theme_types_styles,
+                        &mut css_theme_vars,
+                        process_render_expanded,
+                        focus_mode,
+                        process_node_id.as_ref(),
+                        process_diagram,
                     );
-                });
-        }
+
+                process_step_graph
+                    .edges
+                    .iter()
+                    .for_each(|process_step_graph_edge| {
+                        tailwind_classes.insert(
+                            process_step_graph_edge.edge_id().into_inner(),
+                            connector_classes.clone(),
+                        );
+                    });
+            });
 
         // Register the markdown span colours (inline-code background and link
         // text) with `css_theme_vars`, so they emit `--tw-...` CSS variables

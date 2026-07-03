@@ -54,6 +54,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0047_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_BOTTOM_TO_TOP,
     INPUT_DIAGRAM_0048_INTERACTION_EDGE_HALO, INPUT_DIAGRAM_0049_INTERACTION_EDGE_HALO_DISABLED,
     INPUT_DIAGRAM_0050_INTERACTION_EDGE_HALO_FORWARD_REVERSE,
+    INPUT_DIAGRAM_0052_PROCESS_STEP_TWO_PROCESSES_COLLAPSE,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -1863,6 +1864,60 @@ fn test_process_step_graph_connectors_have_arrow_locus_and_classes() {
                 connector.edge_id
             );
         }
+    }
+}
+
+/// With two processes, the default `ProcessRenderCollapse::ExpandWhenOne`
+/// renders both collapsed (`process_count > 1`), so process step connectors
+/// must hide/reveal and translate in lockstep with their own process's step
+/// circles: the first process's connectors are hidden by default and
+/// revealed by focusing it (or one of its steps), while the second process's
+/// connectors carry a translate-y delta that shifts them up by the first
+/// process's collapsed steps' height, reverting to zero when the first
+/// process is focused (revealed/expanded).
+#[test]
+fn test_process_step_graph_connectors_hide_and_translate_with_collapse() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0052_PROCESS_STEP_TWO_PROCESSES_COLLAPSE)
+    {
+        let connector_classes = |from: &str, to: &str| {
+            let edge_id = format!("edge_ps_{from}__{to}");
+            svg_elements
+                .tailwind_classes
+                .get(&Id::try_from(edge_id.clone()).unwrap())
+                .unwrap_or_else(|| panic!("Expected tailwind classes for connector {edge_id}"))
+        };
+
+        // First process's connector: hidden by default, revealed when the
+        // process (or its steps) is focused.
+        let build_classes = connector_classes("proc_build_step_a", "proc_build_step_b");
+        assert!(
+            build_classes.contains("invisible"),
+            "First process's connector should be invisible by default, got: {build_classes}"
+        );
+        assert!(
+            build_classes.contains("group-has-[#proc_build:focus-within]:visible"),
+            "First process's connector should be revealed when its process is focused, got: {build_classes}"
+        );
+        assert!(
+            build_classes.contains("group-has-[#proc_build_step_a:focus-within]:visible"),
+            "First process's connector should be revealed when a sibling step is focused, got: {build_classes}"
+        );
+
+        // Second process's connector: translated up by the first process's
+        // (collapsed) steps' height by default, reverting to a translate-y-[0px]
+        // (or thereabouts) when the first process is focused/expanded.
+        let deploy_classes = connector_classes("proc_deploy_step_a", "proc_deploy_step_b");
+        assert!(
+            deploy_classes.contains("translate-y-[-"),
+            "Second process's connector should have a nonzero default upward \
+             translate-y delta from the first process's collapse, got: {deploy_classes}"
+        );
+        assert!(
+            deploy_classes.contains("group-has-[#proc_build:focus-within]:translate-y-["),
+            "Second process's connector should override translate-y when the first \
+             process is focused, got: {deploy_classes}"
+        );
     }
 }
 
