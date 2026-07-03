@@ -49,6 +49,7 @@
 * Add `RenderOptions.interaction_edge_halo`, which renders a toggleable semi-transparent halo behind interaction edges (enabled by default) to make animated edge paths easier to see. ([#58][#58])
 * Add the interaction edge halo enabled / disabled control to the playground render options editor. ([#58][#58])
 * Add `EntityType::InteractionEdgeHaloForward` / `InteractionEdgeHaloReverse` so interaction edge halos can be coloured differently for "requests" (forward edges) versus "responses" (reverse edges), overriding attributes from `type_interaction_edge_halo`. ([#58][#58])
+* Add `EntityType::InteractionEdgeHaloOutlineForward` / `InteractionEdgeHaloOutlineReverse` so interaction edge halo outlines can be styled. ([#58][#58])
 * Add an "Interaction Halo" playground example diagram demonstrating request / response halo colouring. ([#58][#58])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
