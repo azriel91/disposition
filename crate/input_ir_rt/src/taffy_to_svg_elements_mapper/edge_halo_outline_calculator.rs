@@ -1,16 +1,5 @@
 use kurbo::{offset::offset_cubic, BezPath, CubicBez, PathEl, PathSeg};
 
-/// Half-width offset applied to each rail from the edge's centerline path,
-/// in pixels.
-///
-/// This is deliberately decoupled from the halo's theme-resolved
-/// `StrokeWidth` (default `"8"`), mirroring the existing precedent of
-/// `EdgePathLocusCalculator::LOCUS_STROKE_WIDTH` -- threading the
-/// theme-resolved value through would require passing resolved theme styles
-/// into this geometry-building pass, which does not have that dependency
-/// today.
-const HALO_OUTLINE_OFFSET_PX: f64 = 4.0;
-
 /// Accuracy tolerance for offset-curve approximation.
 const HALO_OUTLINE_TOLERANCE: f64 = 0.1;
 
@@ -30,17 +19,23 @@ pub(super) struct EdgeHaloOutlineRails {
 /// Computes the halo outline rails for an interaction edge's path.
 ///
 /// The rails are the parallel offset curves running along the long sides of
-/// the halo ribbon, at `HALO_OUTLINE_OFFSET_PX` on either side of the edge's
-/// centerline, with no cap drawn at the path's start or end.
+/// the halo ribbon, offset from the edge's centerline by half the halo's own
+/// stroke width, with no cap drawn at the path's start or end.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct EdgeHaloOutlineCalculator;
 
 impl EdgeHaloOutlineCalculator {
     /// Computes the two open rail `BezPath`s offset from `edge_path`'s
     /// centerline.
-    pub(super) fn calculate(edge_path: &BezPath) -> EdgeHaloOutlineRails {
-        let rail_a = Self::calculate_rail(edge_path, HALO_OUTLINE_OFFSET_PX);
-        let rail_b = Self::calculate_rail(edge_path, -HALO_OUTLINE_OFFSET_PX);
+    ///
+    /// `halo_stroke_width` is the halo's own resolved `ThemeAttr::StrokeWidth`
+    /// (see `IrDiagram::interaction_edge_halo_stroke_width`), in pixels --
+    /// each rail sits at half that width from the centerline, i.e. exactly on
+    /// the halo ribbon's long edges.
+    pub(super) fn calculate(edge_path: &BezPath, halo_stroke_width: f64) -> EdgeHaloOutlineRails {
+        let half_width = halo_stroke_width / 2.0;
+        let rail_a = Self::calculate_rail(edge_path, half_width);
+        let rail_b = Self::calculate_rail(edge_path, -half_width);
 
         EdgeHaloOutlineRails { rail_a, rail_b }
     }

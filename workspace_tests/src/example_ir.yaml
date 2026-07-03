@@ -2765,3 +2765,4 @@ css: |-
     0%   { stroke-dasharray: 3; stroke-dashoffset: 30; }
     100% { stroke-dasharray: 3; stroke-dashoffset: 0; }
   }
+interaction_edge_halo_stroke_width: 8.0

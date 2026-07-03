@@ -193,6 +193,15 @@ impl InputToIrDiagramMapper {
         let node_shapes =
             Self::build_node_shapes(&nodes, &ir_entity_types, theme_default, theme_types_styles);
 
+        // 12a. Resolve the interaction edge halo's stroke width from theme,
+        //      so its outline rails (built later, per edge) can be sized
+        //      proportionally to it.
+        let interaction_edge_halo_stroke_width =
+            ThemeAttrResolver::resolve_interaction_edge_halo_stroke_width(
+                theme_default,
+                theme_types_styles,
+            );
+
         // 13. Tailwind classes (and the CSS theme variables they produce) are
         //     focus-dependent, so they are applied separately via
         //     `tailwind_classes_apply`.
@@ -263,6 +272,7 @@ impl InputToIrDiagramMapper {
             process_step_graphs,
             render_options: *render_options,
             css: css.clone(),
+            interaction_edge_halo_stroke_width,
         };
 
         IrDiagramAndIssues { diagram, issues }

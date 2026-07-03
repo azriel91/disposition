@@ -381,7 +381,10 @@ impl SvgEdgeInfosBuilder {
                 let (halo_outline_rail_a_path_d, halo_outline_rail_b_path_d) =
                     if is_interaction_edge && render_options.interaction_edge_halo.is_enabled() {
                         let EdgeHaloOutlineRails { rail_a, rail_b } =
-                            EdgeHaloOutlineCalculator::calculate(&path);
+                            EdgeHaloOutlineCalculator::calculate(
+                                &path,
+                                f64::from(ir_diagram.interaction_edge_halo_stroke_width),
+                            );
                         (rail_a.to_svg(), rail_b.to_svg())
                     } else {
                         (String::new(), String::new())
