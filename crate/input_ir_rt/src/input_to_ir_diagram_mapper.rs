@@ -620,8 +620,8 @@ impl InputToIrDiagramMapper {
     }
 
     /// Recursively collect tab indices for things in hierarchy order.
-    fn collect_thing_tab_indices_recursive<'f, 'id>(
-        thing_hierarchy: &'f InputThingHierarchy<'id>,
+    fn collect_thing_tab_indices_recursive<'id>(
+        thing_hierarchy: &InputThingHierarchy<'id>,
         tab_index: &mut u32,
         tab_indices: &mut Map<NodeId<'id>, u32>,
     ) {
@@ -635,8 +635,8 @@ impl InputToIrDiagramMapper {
     }
 
     /// Recursively add things to ordering in hierarchy order.
-    fn add_things_to_ordering_recursive<'f, 'id>(
-        thing_hierarchy: &'f InputThingHierarchy<'id>,
+    fn add_things_to_ordering_recursive<'id>(
+        thing_hierarchy: &InputThingHierarchy<'id>,
         thing_tab_indices: &Map<NodeId<'id>, u32>,
         node_ordering: &mut NodeOrdering<'id>,
     ) {
