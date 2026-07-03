@@ -20,7 +20,7 @@ use disposition_model_common::{
     Id, Map, RenderOptions, Set,
 };
 
-use crate::EdgeHaloIdGenerator;
+use crate::{EdgeHaloIdGenerator, EdgeHaloOutlineIdGenerator};
 
 use super::{
     css_theme_vars::CssThemeVars, tailwind_class_state::TailwindClassState,
@@ -36,6 +36,23 @@ pub(crate) struct TailwindClassesBuildResult<'id> {
     pub(crate) tailwind_classes: EntityTailwindClasses<'id>,
     /// CSS variable definitions for light/dark mode colour pairs.
     pub(crate) css_theme_vars: CssThemeVars,
+}
+
+/// Resolved, edge-independent tailwind classes for the interaction edge
+/// halo and its outline rails, split by direction.
+///
+/// `None` fields mean `RenderOptions::interaction_edge_halo` is disabled, so
+/// no halo (or outline) entry should be emitted for any edge.
+#[derive(Clone, Debug, Default)]
+struct InteractionEdgeHaloClasses {
+    /// Halo classes for forward (request) interaction edges.
+    halo_forward: Option<String>,
+    /// Halo classes for reverse (response) interaction edges.
+    halo_reverse: Option<String>,
+    /// Halo outline classes for forward (request) interaction edges.
+    outline_forward: Option<String>,
+    /// Halo outline classes for reverse (response) interaction edges.
+    outline_reverse: Option<String>,
 }
 
 /// Builds tailwind CSS classes for all entities (nodes, edge groups, edges).
@@ -193,28 +210,21 @@ impl TailwindClassesBuilder {
             theme_types_styles,
         } = theme_ctx;
 
-        // The interaction edge halo's classes are identical for every
-        // forward (request) edge, and identical for every reverse (response)
-        // edge, so resolve each once and reuse the strings, rather than
-        // re-resolving per edge.
-        let (halo_classes_forward, halo_classes_reverse) =
-            if render_options.interaction_edge_halo.is_enabled() {
-                let forward = Self::interaction_edge_halo_classes_build(
-                    EntityType::InteractionEdgeHaloForward,
-                    theme_default,
-                    theme_types_styles,
-                    css_theme_vars,
-                );
-                let reverse = Self::interaction_edge_halo_classes_build(
-                    EntityType::InteractionEdgeHaloReverse,
-                    theme_default,
-                    theme_types_styles,
-                    css_theme_vars,
-                );
-                (Some(forward), Some(reverse))
-            } else {
-                (None, None)
-            };
+        // The interaction edge halo's (and its outline's) classes are
+        // identical for every forward (request) edge, and identical for
+        // every reverse (response) edge, so resolve each once and reuse the
+        // strings, rather than re-resolving per edge.
+        let InteractionEdgeHaloClasses {
+            halo_forward: halo_classes_forward,
+            halo_reverse: halo_classes_reverse,
+            outline_forward: halo_outline_classes_forward,
+            outline_reverse: halo_outline_classes_reverse,
+        } = Self::interaction_edge_halo_classes_resolve(
+            render_options,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        );
 
         let mut edge_classes: Vec<(Id<'id>, String)> = Vec::new();
         edge_groups.iter().for_each(|(edge_group_id, edges)| {
@@ -256,15 +266,26 @@ impl TailwindClassesBuilder {
                     let is_reverse = entity_types.get(&edge_id).is_some_and(|types| {
                         types.contains(&EntityType::InteractionEdgeSymmetricReverseDefault)
                     });
-                    let halo_classes = if is_reverse {
-                        halo_classes_reverse.as_ref()
+                    let (halo_classes, halo_outline_classes) = if is_reverse {
+                        (
+                            halo_classes_reverse.as_ref(),
+                            halo_outline_classes_reverse.as_ref(),
+                        )
                     } else {
-                        halo_classes_forward.as_ref()
+                        (
+                            halo_classes_forward.as_ref(),
+                            halo_outline_classes_forward.as_ref(),
+                        )
                     };
+                    let edge_id_for_halo: EdgeId<'id> = edge_id.clone().into();
                     if let Some(halo_classes) = halo_classes {
-                        let edge_id_for_halo: EdgeId<'id> = edge_id.clone().into();
                         let halo_id = EdgeHaloIdGenerator::generate(&edge_id_for_halo);
                         edge_classes.push((halo_id, halo_classes.clone()));
+                    }
+                    if let Some(halo_outline_classes) = halo_outline_classes {
+                        let halo_outline_id =
+                            EdgeHaloOutlineIdGenerator::generate(&edge_id_for_halo);
+                        edge_classes.push((halo_outline_id, halo_outline_classes.clone()));
                     }
                 }
 
@@ -272,6 +293,55 @@ impl TailwindClassesBuilder {
             });
         });
         edge_classes
+    }
+
+    /// Resolves the (edge-independent, but forward/reverse-specific)
+    /// tailwind classes for the interaction edge halo and its outline rails.
+    ///
+    /// Both are gated on the same `RenderOptions::interaction_edge_halo`
+    /// toggle -- the outline rails paint on top of the halo fill, so they
+    /// don't make sense without it.
+    fn interaction_edge_halo_classes_resolve<'id>(
+        render_options: &RenderOptions,
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
+    ) -> InteractionEdgeHaloClasses {
+        if !render_options.interaction_edge_halo.is_enabled() {
+            return InteractionEdgeHaloClasses::default();
+        }
+
+        let halo_forward = Self::interaction_edge_halo_classes_build(
+            EntityType::InteractionEdgeHaloForward,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        );
+        let halo_reverse = Self::interaction_edge_halo_classes_build(
+            EntityType::InteractionEdgeHaloReverse,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        );
+        let outline_forward = Self::interaction_edge_halo_outline_classes_build(
+            EntityType::InteractionEdgeHaloOutlineForward,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        );
+        let outline_reverse = Self::interaction_edge_halo_outline_classes_build(
+            EntityType::InteractionEdgeHaloOutlineReverse,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        );
+
+        InteractionEdgeHaloClasses {
+            halo_forward: Some(halo_forward),
+            halo_reverse: Some(halo_reverse),
+            outline_forward: Some(outline_forward),
+            outline_reverse: Some(outline_reverse),
+        }
     }
 
     /// Builds the (edge-independent, but forward/reverse-specific) tailwind
@@ -288,12 +358,54 @@ impl TailwindClassesBuilder {
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
     ) -> String {
+        Self::interaction_edge_halo_or_outline_classes_build(
+            EntityType::InteractionEdgeHalo,
+            overlay_entity_type,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        )
+    }
+
+    /// Builds the (edge-independent, but forward/reverse-specific) tailwind
+    /// classes for the interaction edge halo's outline rails.
+    ///
+    /// Resolves `type_interaction_edge_halo_outline` as the base, then
+    /// overlays `overlay_entity_type` (`InteractionEdgeHaloOutlineForward`
+    /// for requests, or `InteractionEdgeHaloOutlineReverse` for responses) on
+    /// top, mirroring `interaction_edge_halo_classes_build`.
+    fn interaction_edge_halo_outline_classes_build<'id>(
+        overlay_entity_type: EntityType,
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
+    ) -> String {
+        Self::interaction_edge_halo_or_outline_classes_build(
+            EntityType::InteractionEdgeHaloOutline,
+            overlay_entity_type,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        )
+    }
+
+    /// Shared implementation for `interaction_edge_halo_classes_build` and
+    /// `interaction_edge_halo_outline_classes_build` -- resolves
+    /// `base_entity_type` then overlays `overlay_entity_type` on top into
+    /// one `TailwindClassState`.
+    fn interaction_edge_halo_or_outline_classes_build<'id>(
+        base_entity_type: EntityType,
+        overlay_entity_type: EntityType,
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
+    ) -> String {
         let mut tailwind_class_state = TailwindClassState {
-            entity_type: Some(EntityType::InteractionEdgeHalo),
+            entity_type: Some(base_entity_type.clone()),
             ..Default::default()
         };
 
-        [EntityType::InteractionEdgeHalo, overlay_entity_type]
+        [base_entity_type, overlay_entity_type]
             .into_iter()
             .for_each(|entity_type| {
                 let type_id = EntityTypeId::from(entity_type.into_id());

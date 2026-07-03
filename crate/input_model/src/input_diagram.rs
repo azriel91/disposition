@@ -937,6 +937,25 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             .into_iter()
             .collect(),
         ),
+        // type_interaction_edge_halo_outline
+        (
+            EntityType::InteractionEdgeHaloOutline.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(
+                    vec![],
+                    vec![
+                        (ThemeAttr::Opacity, "60"),
+                        (ThemeAttr::ShapeColor, "slate"),
+                        (ThemeAttr::StrokeShade, "600"),
+                        (ThemeAttr::StrokeStyle, "solid"),
+                        (ThemeAttr::StrokeWidth, "1"),
+                    ],
+                ),
+            )]
+            .into_iter()
+            .collect(),
+        ),
     ]
     .into_iter()
     .collect()

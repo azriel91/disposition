@@ -741,6 +741,17 @@ theme_types_styles:
       stroke_style: solid
       stroke_width: "8"
 
+  # Rendering-only style key for the halo outline rails running along the
+  # long sides of the interaction edge halo (see
+  # render_options.interaction_edge_halo).
+  type_interaction_edge_halo_outline:
+    edge_defaults:
+      opacity: "60"
+      shape_color: "slate"
+      stroke_shade: "600"
+      stroke_style: solid
+      stroke_width: "1"
+
   # custom styles that users can provide
   type_organisation:
     node_defaults:

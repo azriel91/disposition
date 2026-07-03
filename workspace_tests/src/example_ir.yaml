@@ -1233,6 +1233,17 @@ tailwind_classes:
     stroke-[var(--tw-slate-800-200)]
     focus:stroke-[var(--tw-slate-800-200)]
     active:stroke-[var(--tw-slate-800-200)]
+  edge_ix_t_localhost__t_github_user_repo__pull__0__halo_outline: |
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-1
+    opacity-60
+    hover:stroke-[var(--tw-slate-600-400)]
+    stroke-[var(--tw-slate-600-400)]
+    focus:stroke-[var(--tw-slate-600-400)]
+    active:stroke-[var(--tw-slate-600-400)]
   edge_ix_t_localhost__t_github_user_repo__pull__0: |
     invisible
     stroke-2
@@ -1259,6 +1270,17 @@ tailwind_classes:
     stroke-[var(--tw-slate-800-200)]
     focus:stroke-[var(--tw-slate-800-200)]
     active:stroke-[var(--tw-slate-800-200)]
+  edge_ix_t_localhost__t_github_user_repo__pull__1__halo_outline: |
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-1
+    opacity-60
+    hover:stroke-[var(--tw-slate-600-400)]
+    stroke-[var(--tw-slate-600-400)]
+    focus:stroke-[var(--tw-slate-600-400)]
+    active:stroke-[var(--tw-slate-600-400)]
   edge_ix_t_localhost__t_github_user_repo__pull__1: |
     invisible
     stroke-2
@@ -1285,6 +1307,17 @@ tailwind_classes:
     stroke-[var(--tw-slate-800-200)]
     focus:stroke-[var(--tw-slate-800-200)]
     active:stroke-[var(--tw-slate-800-200)]
+  edge_ix_t_localhost__t_github_user_repo__push__0__halo_outline: |
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-1
+    opacity-60
+    hover:stroke-[var(--tw-slate-600-400)]
+    stroke-[var(--tw-slate-600-400)]
+    focus:stroke-[var(--tw-slate-600-400)]
+    active:stroke-[var(--tw-slate-600-400)]
   edge_ix_t_localhost__t_github_user_repo__push__0: |
     invisible
     stroke-2
@@ -1310,6 +1343,17 @@ tailwind_classes:
     stroke-[var(--tw-slate-800-200)]
     focus:stroke-[var(--tw-slate-800-200)]
     active:stroke-[var(--tw-slate-800-200)]
+  edge_ix_t_localhost__t_localhost__within__0__halo_outline: |
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-1
+    opacity-60
+    hover:stroke-[var(--tw-slate-600-400)]
+    stroke-[var(--tw-slate-600-400)]
+    focus:stroke-[var(--tw-slate-600-400)]
+    active:stroke-[var(--tw-slate-600-400)]
   edge_ix_t_localhost__t_localhost__within__0: |
     invisible
     stroke-2
@@ -1336,6 +1380,17 @@ tailwind_classes:
     stroke-[var(--tw-slate-800-200)]
     focus:stroke-[var(--tw-slate-800-200)]
     active:stroke-[var(--tw-slate-800-200)]
+  edge_ix_t_github_user_repo__t_github_user_repo__within__0__halo_outline: |
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-1
+    opacity-60
+    hover:stroke-[var(--tw-slate-600-400)]
+    stroke-[var(--tw-slate-600-400)]
+    focus:stroke-[var(--tw-slate-600-400)]
+    active:stroke-[var(--tw-slate-600-400)]
   edge_ix_t_github_user_repo__t_github_user_repo__within__0: |
     invisible
     stroke-2
@@ -1361,6 +1416,17 @@ tailwind_classes:
     stroke-[var(--tw-slate-800-200)]
     focus:stroke-[var(--tw-slate-800-200)]
     active:stroke-[var(--tw-slate-800-200)]
+  edge_ix_t_github_user_repo__t_github_user_repo__within__1__halo_outline: |
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-1
+    opacity-60
+    hover:stroke-[var(--tw-slate-600-400)]
+    stroke-[var(--tw-slate-600-400)]
+    focus:stroke-[var(--tw-slate-600-400)]
+    active:stroke-[var(--tw-slate-600-400)]
   edge_ix_t_github_user_repo__t_github_user_repo__within__1: |
     invisible
     stroke-2
@@ -1386,6 +1452,17 @@ tailwind_classes:
     stroke-[var(--tw-slate-800-200)]
     focus:stroke-[var(--tw-slate-800-200)]
     active:stroke-[var(--tw-slate-800-200)]
+  edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0__halo_outline: |
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-1
+    opacity-60
+    hover:stroke-[var(--tw-slate-600-400)]
+    stroke-[var(--tw-slate-600-400)]
+    focus:stroke-[var(--tw-slate-600-400)]
+    active:stroke-[var(--tw-slate-600-400)]
   edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: |
     invisible
     stroke-2
@@ -1411,6 +1488,17 @@ tailwind_classes:
     stroke-[var(--tw-slate-800-200)]
     focus:stroke-[var(--tw-slate-800-200)]
     active:stroke-[var(--tw-slate-800-200)]
+  edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0__halo_outline: |
+    [stroke-dasharray:none]
+    hover:[stroke-dasharray:none]
+    focus:[stroke-dasharray:none]
+    active:[stroke-dasharray:none]
+    stroke-1
+    opacity-60
+    hover:stroke-[var(--tw-slate-600-400)]
+    stroke-[var(--tw-slate-600-400)]
+    focus:stroke-[var(--tw-slate-600-400)]
+    active:stroke-[var(--tw-slate-600-400)]
   edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0: |
     invisible
     stroke-2

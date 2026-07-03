@@ -39,6 +39,7 @@ use self::{
 mod arrow_head_builder;
 mod edge_animation_calculator;
 mod edge_face_contact_tracker;
+mod edge_halo_outline_calculator;
 mod edge_model;
 mod edge_path_builder_pass_1;
 mod edge_path_builder_pass_2;

@@ -41,6 +41,18 @@ pub struct SvgEdgeInfo<'id> {
     /// and the arrow head, rendered as a dashed highlight when the edge is
     /// focused. Example value: `"M10,20 C30,40 50,60 70,80"`.
     pub locus_path_d: String,
+    /// The SVG path `d` attribute for one rail of the interaction edge
+    /// halo's outline.
+    ///
+    /// This is one of the two lines running along the long sides of the
+    /// halo ribbon. Empty when the edge is not an interaction edge, or when
+    /// `RenderOptions::interaction_edge_halo` is disabled.
+    #[serde(default)]
+    pub halo_outline_rail_a_path_d: String,
+    /// The SVG path `d` attribute for the other rail of the interaction edge
+    /// halo's outline.
+    #[serde(default)]
+    pub halo_outline_rail_b_path_d: String,
     /// Tooltip text to display when the edge is hovered.
     ///
     /// When non-empty, rendered as a `<title>` element inside the edge's `<g>`
@@ -69,6 +81,8 @@ impl<'id> SvgEdgeInfo<'id> {
         path_d: String,
         arrow_head_path_d: String,
         locus_path_d: String,
+        halo_outline_rail_a_path_d: String,
+        halo_outline_rail_b_path_d: String,
         tooltip: String,
         ortho_protrusion_params: OrthoProtrusionParams,
     ) -> Self {
@@ -80,6 +94,8 @@ impl<'id> SvgEdgeInfo<'id> {
             path_d,
             arrow_head_path_d,
             locus_path_d,
+            halo_outline_rail_a_path_d,
+            halo_outline_rail_b_path_d,
             tooltip,
             ortho_protrusion_params,
         }

@@ -118,6 +118,22 @@ pub enum EntityType {
     /// overrides the corresponding attribute on `InteractionEdgeHalo`.
     InteractionEdgeHaloReverse,
 
+    /// Rendering-only style key for the outline rails drawn along the long
+    /// sides of the interaction edge halo (see
+    /// `RenderOptions::interaction_edge_halo`). Like `InteractionEdgeHalo`,
+    /// this type is never attached to a real entity via `entity_types` -- it
+    /// is only used to look up `theme_types_styles` for the outline rails'
+    /// own styling.
+    InteractionEdgeHaloOutline,
+    /// Rendering-only style key for the halo outline behind "request"
+    /// (forward) interaction edges. Any theme attribute set here overrides
+    /// the corresponding attribute on `InteractionEdgeHaloOutline`.
+    InteractionEdgeHaloOutlineForward,
+    /// Rendering-only style key for the halo outline behind "response"
+    /// (reverse) interaction edges. Any theme attribute set here overrides
+    /// the corresponding attribute on `InteractionEdgeHaloOutline`.
+    InteractionEdgeHaloOutlineReverse,
+
     /// Custom user-defined type.
     Custom(Id<'static>),
 }
@@ -189,6 +205,14 @@ impl EntityType {
             EntityType::InteractionEdgeHaloForward => "type_interaction_edge_halo_forward",
             EntityType::InteractionEdgeHaloReverse => "type_interaction_edge_halo_reverse",
 
+            EntityType::InteractionEdgeHaloOutline => "type_interaction_edge_halo_outline",
+            EntityType::InteractionEdgeHaloOutlineForward => {
+                "type_interaction_edge_halo_outline_forward"
+            }
+            EntityType::InteractionEdgeHaloOutlineReverse => {
+                "type_interaction_edge_halo_outline_reverse"
+            }
+
             EntityType::Custom(id) => id.as_str(),
         }
     }
@@ -219,7 +243,10 @@ impl EntityType {
             | EntityType::InteractionEdgeSymmetricReverseDefault
             | EntityType::InteractionEdgeHalo
             | EntityType::InteractionEdgeHaloForward
-            | EntityType::InteractionEdgeHaloReverse => true,
+            | EntityType::InteractionEdgeHaloReverse
+            | EntityType::InteractionEdgeHaloOutline
+            | EntityType::InteractionEdgeHaloOutlineForward
+            | EntityType::InteractionEdgeHaloOutlineReverse => true,
             EntityType::Custom(_) => false,
         }
     }
@@ -302,6 +329,14 @@ impl EntityType {
             EntityType::InteractionEdgeHalo => id!("type_interaction_edge_halo"),
             EntityType::InteractionEdgeHaloForward => id!("type_interaction_edge_halo_forward"),
             EntityType::InteractionEdgeHaloReverse => id!("type_interaction_edge_halo_reverse"),
+
+            EntityType::InteractionEdgeHaloOutline => id!("type_interaction_edge_halo_outline"),
+            EntityType::InteractionEdgeHaloOutlineForward => {
+                id!("type_interaction_edge_halo_outline_forward")
+            }
+            EntityType::InteractionEdgeHaloOutlineReverse => {
+                id!("type_interaction_edge_halo_outline_reverse")
+            }
 
             EntityType::Custom(id) => id,
         }
@@ -448,6 +483,14 @@ impl From<Id<'static>> for EntityType {
             "type_interaction_edge_halo_forward" => EntityType::InteractionEdgeHaloForward,
             "type_interaction_edge_halo_reverse" => EntityType::InteractionEdgeHaloReverse,
 
+            "type_interaction_edge_halo_outline" => EntityType::InteractionEdgeHaloOutline,
+            "type_interaction_edge_halo_outline_forward" => {
+                EntityType::InteractionEdgeHaloOutlineForward
+            }
+            "type_interaction_edge_halo_outline_reverse" => {
+                EntityType::InteractionEdgeHaloOutlineReverse
+            }
+
             _ => EntityType::Custom(id),
         }
     }
@@ -510,6 +553,9 @@ impl Visitor<'_> for EntityTypeVisitor {
             * `type_interaction_edge_halo`\n\
             * `type_interaction_edge_halo_forward`\n\
             * `type_interaction_edge_halo_reverse`\n\
+            * `type_interaction_edge_halo_outline`\n\
+            * `type_interaction_edge_halo_outline_forward`\n\
+            * `type_interaction_edge_halo_outline_reverse`\n\
             \n\
             or a custom identifier",
         )
@@ -573,6 +619,14 @@ impl Visitor<'_> for EntityTypeVisitor {
             "type_interaction_edge_halo" => EntityType::InteractionEdgeHalo,
             "type_interaction_edge_halo_forward" => EntityType::InteractionEdgeHaloForward,
             "type_interaction_edge_halo_reverse" => EntityType::InteractionEdgeHaloReverse,
+
+            "type_interaction_edge_halo_outline" => EntityType::InteractionEdgeHaloOutline,
+            "type_interaction_edge_halo_outline_forward" => {
+                EntityType::InteractionEdgeHaloOutlineForward
+            }
+            "type_interaction_edge_halo_outline_reverse" => {
+                EntityType::InteractionEdgeHaloOutlineReverse
+            }
 
             _ => {
                 let id = Id::try_from(value.to_owned()).map_err(serde::de::Error::custom)?;
