@@ -165,38 +165,42 @@ impl NodeMeasureContext<'_> {
             .as_ref()
             .and_then(|taffy_node_ctx| match taffy_node_ctx {
                 TaffyNodeCtx::EdgeSpacer(_) => None,
-                TaffyNodeCtx::EdgeDescription(ctx) => match lod {
+                TaffyNodeCtx::EdgeDescription(edge_desc_ctx) => match lod {
                     DiagramLod::Simple => None,
                     DiagramLod::Normal => {
-                        let edge_id = &ctx.edge_id;
-                        edge_descs
-                            .get(edge_id.as_ref())
+                        let edge_id = &edge_desc_ctx.edge_id;
+                        ctx.edge_id_to_group_id
+                            .get(edge_id)
+                            .and_then(|edge_group_id| edge_descs.get_for_edge(edge_id, edge_group_id))
                             .map(|desc| Cow::Borrowed(desc.as_str()))
                     }
                 },
-                TaffyNodeCtx::EdgeLabel(ctx) => match lod {
+                TaffyNodeCtx::EdgeLabel(edge_label_ctx) => match lod {
                     DiagramLod::Simple => None,
                     DiagramLod::Normal => {
-                        let edge_id = &ctx.edge_id;
-                        let node_id = &ctx.node_id;
-                        edge_labels.get(edge_id).and_then(|edge_label| {
-                            // Use the from or to text depending on which
-                            // endpoint this label slot is attached to.
-                            let is_from_endpoint = edge_id_to_endpoint_node_ids
-                                .get(edge_id)
-                                .map(|(from_node_id, _)| from_node_id == node_id)
-                                .unwrap_or(false);
-                            let text = if is_from_endpoint {
-                                edge_label.from.as_str()
-                            } else {
-                                edge_label.to.as_str()
-                            };
-                            if text.is_empty() {
-                                None
-                            } else {
-                                Some(Cow::Borrowed(text))
-                            }
-                        })
+                        let edge_id = &edge_label_ctx.edge_id;
+                        let node_id = &edge_label_ctx.node_id;
+                        ctx.edge_id_to_group_id
+                            .get(edge_id)
+                            .and_then(|edge_group_id| edge_labels.get_for_edge(edge_id, edge_group_id))
+                            .and_then(|edge_label| {
+                                // Use the from or to text depending on which
+                                // endpoint this label slot is attached to.
+                                let is_from_endpoint = edge_id_to_endpoint_node_ids
+                                    .get(edge_id)
+                                    .map(|(from_node_id, _)| from_node_id == node_id)
+                                    .unwrap_or(false);
+                                let text = if is_from_endpoint {
+                                    edge_label.from.as_str()
+                                } else {
+                                    edge_label.to.as_str()
+                                };
+                                if text.is_empty() {
+                                    None
+                                } else {
+                                    Some(Cow::Borrowed(text))
+                                }
+                            })
                     }
                 },
                 TaffyNodeCtx::MdToken(_) | TaffyNodeCtx::MdImage(_) => None,

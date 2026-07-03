@@ -5,7 +5,7 @@ use disposition_ir_model::{
     entity::EntityType,
     node::{NodeId, NodeRank},
 };
-use disposition_model_common::Map;
+use disposition_model_common::{edge::EdgeGroupId, Map};
 use disposition_taffy_model::{
     taffy::{self, AlignSelf, Style, TaffyTree},
     DiagramLod, EdgeDescriptionCtx, EdgeDescriptionTaffyNodes, TaffyNodeCtx,
@@ -94,6 +94,7 @@ impl EdgeDescriptionBuilder {
                     )) = Self::edge_desc_build(
                         ctx,
                         taffy_tree,
+                        edge_group_id,
                         &edge_id,
                         edge,
                         target_entity_type,
@@ -194,6 +195,7 @@ impl EdgeDescriptionBuilder {
     fn edge_desc_build(
         ctx: TaffyBuildCtx<'_>,
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        edge_group_id: &EdgeGroupId<'static>,
         edge_id: &EdgeId<'static>,
         edge: &Edge<'static>,
         target_entity_type: &EntityType,
@@ -211,8 +213,9 @@ impl EdgeDescriptionBuilder {
         let lod = &ctx.lod;
         let char_width = ctx.char_width;
 
-        // Step 2.2.1 -- Filter by edge_descs.
-        let desc_text = edge_descs.get(edge_id.as_ref())?;
+        // Step 2.2.1 -- Filter by edge_descs (instance ID takes precedence
+        // over the edge's group ID).
+        let desc_text = edge_descs.get_for_edge(edge_id, edge_group_id)?;
 
         // Step 2.2.2 -- Resolve nesting infos.
         let info_from = node_nesting_infos.get(&edge.from)?;

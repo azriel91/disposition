@@ -10,10 +10,12 @@ pub(crate) use crate::{
 pub use crate::{
     diagram_generate_error::DiagramGenerateError,
     diagram_generator::DiagramGenerator,
+    edge_desc_bg_id_generator::EdgeDescBgIdGenerator,
     edge_face_assigner::EdgeFaceAssigner,
     edge_halo_id_generator::EdgeHaloIdGenerator,
     edge_halo_outline_id_generator::EdgeHaloOutlineIdGenerator,
     edge_id_generator::EdgeIdGenerator,
+    edge_label_bg_id_generator::EdgeLabelBgIdGenerator,
     input_diagram_merger::InputDiagramMerger,
     input_diagram_theme_sources::InputDiagramThemeSources,
     input_to_ir_diagram_mapper::{
@@ -38,10 +40,12 @@ const NOTO_SANS_MONO_TTF: &[u8] =
 mod absolute_coordinates;
 mod diagram_generate_error;
 mod diagram_generator;
+mod edge_desc_bg_id_generator;
 mod edge_face_assigner;
 mod edge_halo_id_generator;
 mod edge_halo_outline_id_generator;
 mod edge_id_generator;
+mod edge_label_bg_id_generator;
 mod input_diagram_merger;
 mod input_diagram_theme_sources;
 mod input_to_ir_diagram_mapper;

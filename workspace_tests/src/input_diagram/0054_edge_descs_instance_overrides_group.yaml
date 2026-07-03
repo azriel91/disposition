@@ -1,0 +1,12 @@
+things:
+  t_a: {}
+  t_b: {}
+thing_dependencies:
+  edge_dep_ab:
+    kind: symmetric
+    things:
+      - t_a
+      - t_b
+edge_descs:
+  edge_dep_ab: group description
+  edge_dep_ab__0: instance description

@@ -55,6 +55,9 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0048_INTERACTION_EDGE_HALO, INPUT_DIAGRAM_0049_INTERACTION_EDGE_HALO_DISABLED,
     INPUT_DIAGRAM_0050_INTERACTION_EDGE_HALO_FORWARD_REVERSE,
     INPUT_DIAGRAM_0052_PROCESS_STEP_TWO_PROCESSES_COLLAPSE,
+    INPUT_DIAGRAM_0053_EDGE_DESCS_GROUP_ID_KEY,
+    INPUT_DIAGRAM_0054_EDGE_DESCS_INSTANCE_OVERRIDES_GROUP,
+    INPUT_DIAGRAM_0055_INTERACTION_EDGE_LABEL_DESC_BG,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -4876,6 +4879,223 @@ fn test_interaction_edge_halo_forward_reverse_use_distinct_colors() {
             forward_halo.contains("stroke-8") && reverse_halo.contains("stroke-8"),
             "Expected both halos to keep the base stroke-8 width, got forward: {forward_halo}, \
              reverse: {reverse_halo}"
+        );
+    }
+}
+
+// === Edge group-ID fallback tests === //
+
+/// `edge_descs` / `edge_labels` entries keyed by an edge *group* ID (rather
+/// than a specific edge instance ID) apply to every edge in that group, for
+/// both dependency and interaction edges. This is a regression test for a
+/// bug where only the exact instance-ID lookup was implemented, silently
+/// dropping any group-ID-keyed description/label (affecting several
+/// playground examples, not just interaction edges).
+#[test]
+fn test_edge_descs_and_labels_group_id_key_resolves_for_dependency_and_interaction_edges() {
+    for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0053_EDGE_DESCS_GROUP_ID_KEY) {
+        let dep_desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str().starts_with("edge_dep_ab"))
+            .expect("Expected a description for the dependency edge.");
+        let ix_desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str().starts_with("edge_ix_ab"))
+            .expect("Expected a description for the interaction edge.");
+
+        assert!(
+            !dep_desc.text_spans.is_empty(),
+            "Expected the dependency edge's group-ID-keyed description to render text"
+        );
+        assert!(
+            !ix_desc.text_spans.is_empty(),
+            "Expected the interaction edge's group-ID-keyed description to render text"
+        );
+
+        let dep_label = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|l| l.edge_id.as_str().starts_with("edge_dep_ab"))
+            .expect("Expected a label for the dependency edge.");
+        let ix_label = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|l| l.edge_id.as_str().starts_with("edge_ix_ab"))
+            .expect("Expected a label for the interaction edge.");
+
+        assert!(
+            dep_label
+                .from_label
+                .as_ref()
+                .is_some_and(|l| !l.text_spans.is_empty()),
+            "Expected the dependency edge's group-ID-keyed label to render text"
+        );
+        assert!(
+            ix_label
+                .from_label
+                .as_ref()
+                .is_some_and(|l| !l.text_spans.is_empty()),
+            "Expected the interaction edge's group-ID-keyed label to render text"
+        );
+    }
+}
+
+/// A description keyed by a specific edge instance ID overrides the group-ID
+/// fallback for that one edge; other edges in the group still fall back to
+/// the group-ID description.
+#[test]
+fn test_edge_descs_instance_id_overrides_group_id() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0054_EDGE_DESCS_INSTANCE_OVERRIDES_GROUP)
+    {
+        let desc_0 = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_ab__0")
+            .expect("Expected a description for edge_dep_ab__0.");
+        let desc_1 = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_ab__1")
+            .expect("Expected a description for edge_dep_ab__1.");
+
+        let desc_0_text: String = desc_0
+            .text_spans
+            .iter()
+            .map(|span| span.text.as_str())
+            .collect();
+        let desc_1_text: String = desc_1
+            .text_spans
+            .iter()
+            .map(|span| span.text.as_str())
+            .collect();
+
+        assert!(
+            desc_0_text.contains("instance description"),
+            "Expected edge_dep_ab__0 to use its own instance-ID description, got: {desc_0_text}"
+        );
+        assert!(
+            desc_1_text.contains("group description"),
+            "Expected edge_dep_ab__1 to fall back to the group-ID description, got: {desc_1_text}"
+        );
+    }
+}
+
+// === Interaction edge label/description background tests === //
+
+/// An interaction edge's label and description get a `{edge_id}__label_bg` /
+/// `{edge_id}__desc_bg` tailwind-classes entry (styled from
+/// `type_interaction_edge_label_bg` / `type_interaction_edge_desc_bg`), and
+/// the rendered SVG draws a background `<path>` as the first child of the
+/// label/description `<g>`, before the text. Dependency edges get no such
+/// entry or path.
+#[test]
+fn test_interaction_edge_label_and_desc_bg_render_before_text() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0055_INTERACTION_EDGE_LABEL_DESC_BG)
+    {
+        let dep_edge_id = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.edge_id.as_str().starts_with("edge_dep_ab"))
+            .expect("Expected the dependency edge to exist.")
+            .edge_id
+            .clone();
+        let ix_edge_id = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.edge_id.as_str().starts_with("edge_ix_ab"))
+            .expect("Expected the interaction edge to exist.")
+            .edge_id
+            .clone();
+
+        let label_bg_key = |edge_id: &str| {
+            Id::try_from(format!("{edge_id}__label_bg")).expect("label_bg ID should be valid")
+        };
+        let desc_bg_key = |edge_id: &str| {
+            Id::try_from(format!("{edge_id}__desc_bg")).expect("desc_bg ID should be valid")
+        };
+
+        let ix_label_bg_classes = svg_elements
+            .tailwind_classes
+            .get(&label_bg_key(ix_edge_id.as_str()))
+            .unwrap_or_else(|| {
+                panic!("Expected label_bg tailwind classes for interaction edge {ix_edge_id:?}")
+            });
+        assert!(
+            ix_label_bg_classes.contains("opacity-90"),
+            "Expected label_bg classes to include opacity-90, got: {ix_label_bg_classes}"
+        );
+        let ix_desc_bg_classes = svg_elements
+            .tailwind_classes
+            .get(&desc_bg_key(ix_edge_id.as_str()))
+            .unwrap_or_else(|| {
+                panic!("Expected desc_bg tailwind classes for interaction edge {ix_edge_id:?}")
+            });
+        assert!(
+            ix_desc_bg_classes.contains("opacity-90"),
+            "Expected desc_bg classes to include opacity-90, got: {ix_desc_bg_classes}"
+        );
+
+        assert!(
+            svg_elements
+                .tailwind_classes
+                .get(&label_bg_key(dep_edge_id.as_str()))
+                .is_none(),
+            "Dependency edge {dep_edge_id:?} should not have a label_bg tailwind classes entry"
+        );
+        assert!(
+            svg_elements
+                .tailwind_classes
+                .get(&desc_bg_key(dep_edge_id.as_str()))
+                .is_none(),
+            "Dependency edge {dep_edge_id:?} should not have a desc_bg tailwind classes entry"
+        );
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+
+        let ix_label_g_start = svg
+            .find(&format!("id=\"{ix_edge_id}__from_label\""))
+            .expect("Expected the interaction edge's from_label <g> element in the rendered SVG");
+        let ix_label_g_slice = &svg[ix_label_g_start..];
+        let path_index = ix_label_g_slice
+            .find("<path")
+            .expect("Expected a background path in the interaction edge's label");
+        let text_index = ix_label_g_slice
+            .find("<text")
+            .expect("Expected text in the interaction edge's label");
+        assert!(
+            path_index < text_index,
+            "Expected the label background path to render before the label text"
+        );
+
+        let ix_desc_g_start = svg
+            .find(&format!("id=\"{ix_edge_id}__desc\""))
+            .expect("Expected the interaction edge's desc <g> element in the rendered SVG");
+        let ix_desc_g_slice = &svg[ix_desc_g_start..];
+        let path_index = ix_desc_g_slice
+            .find("<path")
+            .expect("Expected a background path in the interaction edge's description");
+        let text_index = ix_desc_g_slice
+            .find("<text")
+            .expect("Expected text in the interaction edge's description");
+        assert!(
+            path_index < text_index,
+            "Expected the description background path to render before the description text"
+        );
+
+        let dep_desc_g_start = svg
+            .find(&format!("id=\"{dep_edge_id}__desc\""))
+            .expect("Expected the dependency edge's desc <g> element in the rendered SVG");
+        let dep_desc_g_slice = &svg[dep_desc_g_start..];
+        let dep_desc_next_g_offset = dep_desc_g_slice
+            .find("<g id=\"")
+            .unwrap_or(dep_desc_g_slice.len());
+        assert!(
+            !dep_desc_g_slice[..dep_desc_next_g_offset].contains("<path"),
+            "Dependency edge {dep_edge_id:?} description should not render a background path"
         );
     }
 }

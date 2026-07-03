@@ -408,19 +408,22 @@ impl TaffyEnvelopeBuilder {
         // Resolve the label text for this slot, building a markdown sub-tree
         // only at `DiagramLod::Normal` when the text is non-empty.
         let label_text = if matches!(ctx.lod, DiagramLod::Normal) {
-            ctx.edge_labels.get(edge_id).and_then(|edge_label| {
-                let is_from_endpoint = ctx
-                    .edge_id_to_endpoint_node_ids
-                    .get(edge_id)
-                    .map(|(from_node_id, _to_node_id)| from_node_id == node_id)
-                    .unwrap_or(false);
-                let text = if is_from_endpoint {
-                    edge_label.from.as_str()
-                } else {
-                    edge_label.to.as_str()
-                };
-                (!text.is_empty()).then_some(text)
-            })
+            ctx.edge_id_to_group_id
+                .get(edge_id)
+                .and_then(|edge_group_id| ctx.edge_labels.get_for_edge(edge_id, edge_group_id))
+                .and_then(|edge_label| {
+                    let is_from_endpoint = ctx
+                        .edge_id_to_endpoint_node_ids
+                        .get(edge_id)
+                        .map(|(from_node_id, _to_node_id)| from_node_id == node_id)
+                        .unwrap_or(false);
+                    let text = if is_from_endpoint {
+                        edge_label.from.as_str()
+                    } else {
+                        edge_label.to.as_str()
+                    };
+                    (!text.is_empty()).then_some(text)
+                })
         } else {
             None
         };

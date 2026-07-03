@@ -1,5 +1,8 @@
 use disposition_ir_model::edge::EdgeId;
-use disposition_model_common::{edge::EdgeDescs, Map};
+use disposition_model_common::{
+    edge::{EdgeDescs, EdgeGroupId},
+    Map,
+};
 use disposition_taffy_model::{
     taffy::{self, TaffyTree},
     DiagramLod, EdgeDescriptionTaffyNodes, EntityHighlightedSpan, TaffyNodeCtx, TEXT_LINE_HEIGHT,
@@ -76,6 +79,7 @@ impl HighlightedSpansComputer {
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
         edge_descs: &EdgeDescs<'static>,
+        edge_id_to_group_id: &Map<EdgeId<'static>, EdgeGroupId<'static>>,
         char_width: f32,
         lod: &DiagramLod,
     ) -> Map<EdgeId<'static>, Vec<EntityHighlightedSpan>> {
@@ -89,7 +93,8 @@ impl HighlightedSpansComputer {
             .iter()
             .filter(|(_, edge_desc_taffy_nodes)| edge_desc_taffy_nodes.md_node_taffy_ids.is_none())
             .filter_map(|(edge_id, edge_desc_taffy_nodes)| {
-                let desc = edge_descs.get(edge_id.as_ref())?;
+                let edge_group_id = edge_id_to_group_id.get(edge_id)?;
+                let desc = edge_descs.get_for_edge(edge_id, edge_group_id)?;
                 let spans = Self::compute_edge_label_slot(
                     taffy_tree,
                     edge_desc_taffy_nodes.description_taffy_node_id,

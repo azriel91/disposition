@@ -284,6 +284,23 @@ theme_types_styles:
       stroke_style: solid
       stroke_width: "1"
 
+  # Rendering-only style key for the background box drawn behind an
+  # interaction edge's label text, to keep it legible where it may overlap
+  # other diagram content.
+  type_interaction_edge_label_bg:
+    edge_defaults:
+      shape_color: "neutral"
+      fill_shade: "50"
+      opacity: "90"
+
+  # Rendering-only style key for the background box drawn behind an
+  # interaction edge's description text.
+  type_interaction_edge_desc_bg:
+    edge_defaults:
+      shape_color: "neutral"
+      fill_shade: "50"
+      opacity: "90"
+
 # When a tag is focused, things and edges associated with the tag are highlighted.
 #
 # We also want to allow things that are not associated with the tag to be styled, but having one

@@ -12,6 +12,8 @@ use disposition_taffy_model::{
 };
 use typed_builder::TypedBuilder;
 
+use crate::EdgeIdGenerator;
+
 use self::{
     edge_description_builder::{EdgeDescriptionBuildResult, EdgeDescriptionBuilder},
     edge_label_builder::EdgeLabelBuilder,
@@ -161,6 +163,11 @@ impl IrToTaffyBuilder<'_> {
         // construction and when sizing edge label slots during layout.
         let edge_id_to_endpoint_node_ids = EdgeLabelBuilder::edge_id_to_node_ids_build(edge_groups);
 
+        // Precompute the edge ID -> edge group ID lookup once. It is used to
+        // resolve the group-ID fallback when looking up `edge_descs` /
+        // `edge_labels` for a specific edge instance.
+        let edge_id_to_group_id = EdgeIdGenerator::edge_id_to_group_id_build(edge_groups);
+
         let ctx = TaffyBuildCtx {
             node_layouts,
             node_hierarchy,
@@ -175,6 +182,7 @@ impl IrToTaffyBuilder<'_> {
             edge_groups,
             edge_labels,
             edge_id_to_endpoint_node_ids: &edge_id_to_endpoint_node_ids,
+            edge_id_to_group_id: &edge_id_to_group_id,
             render_options,
             lod: *lod,
             char_width,
@@ -433,6 +441,7 @@ impl IrToTaffyBuilder<'_> {
                 &taffy_tree,
                 &edge_description_taffy_nodes,
                 edge_descs,
+                &edge_id_to_group_id,
                 char_width,
                 lod,
             );

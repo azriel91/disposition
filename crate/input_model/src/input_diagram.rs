@@ -1000,6 +1000,40 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             .into_iter()
             .collect(),
         ),
+        // type_interaction_edge_label_bg
+        (
+            EntityType::InteractionEdgeLabelBg.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(
+                    vec![],
+                    vec![
+                        (ThemeAttr::ShapeColor, "neutral"),
+                        (ThemeAttr::FillShade, "50"),
+                        (ThemeAttr::Opacity, "90"),
+                    ],
+                ),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_interaction_edge_desc_bg
+        (
+            EntityType::InteractionEdgeDescBg.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(
+                    vec![],
+                    vec![
+                        (ThemeAttr::ShapeColor, "neutral"),
+                        (ThemeAttr::FillShade, "50"),
+                        (ThemeAttr::Opacity, "90"),
+                    ],
+                ),
+            )]
+            .into_iter()
+            .collect(),
+        ),
     ]
     .into_iter()
     .collect()
