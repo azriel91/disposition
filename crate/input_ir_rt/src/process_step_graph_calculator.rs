@@ -64,6 +64,29 @@ impl ProcessStepGraphCalculator {
             .collect()
     }
 
+    /// Returns this process's step `NodeId`s ordered by `(process_step_rank,
+    /// declaration_index)`.
+    ///
+    /// `sort_by_key` is stable, so steps with equal rank keep declaration
+    /// order. This is the visual top-to-bottom row order used by the
+    /// git-graph layout, and is also used for tab-order computation (see
+    /// `InputToIrDiagramMapper::build_node_ordering`).
+    pub(crate) fn steps_by_row<'id>(
+        process_diagram: &ProcessDiagram<'id>,
+        process_step_ranks: &ProcessStepRanks<'id>,
+    ) -> Vec<NodeId<'id>> {
+        let rank_of =
+            |node_id: &NodeId<'id>| process_step_ranks.get(node_id).copied().unwrap_or_default();
+
+        let mut rows: Vec<NodeId<'id>> = process_diagram
+            .steps
+            .keys()
+            .map(|step_id| NodeId::from(step_id.as_ref().clone()))
+            .collect();
+        rows.sort_by_key(|node_id| rank_of(node_id));
+        rows
+    }
+
     /// Builds the [`ProcessStepGraph`] for a single process.
     fn process_graph_build<'id>(
         process_diagram: &ProcessDiagram<'id>,
@@ -86,12 +109,8 @@ impl ProcessStepGraphCalculator {
             .map(|(index, node_id)| (node_id.clone(), index))
             .collect();
 
-        // Order steps into rows by (rank, declaration index). `sort_by` is
-        // stable, so equal ranks keep declaration order.
-        let rank_of =
-            |node_id: &NodeId<'id>| process_step_ranks.get(node_id).copied().unwrap_or_default();
-        let mut rows = steps_decl.clone();
-        rows.sort_by_key(|node_id| rank_of(node_id));
+        // Order steps into rows by (rank, declaration index).
+        let rows = Self::steps_by_row(process_diagram, process_step_ranks);
 
         let row_of: Map<NodeId<'id>, u32> = rows
             .iter()

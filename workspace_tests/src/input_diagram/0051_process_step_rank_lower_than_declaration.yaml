@@ -1,0 +1,28 @@
+things:
+  t_repo: {}
+processes:
+  proc_release:
+    name: "Release"
+    steps:
+      proc_release_step_branch: "Create release branch"
+      proc_release_step_build: "Build binaries"
+      proc_release_step_docs: "Build docs"
+      proc_release_step_tag: "Tag and publish"
+
+    # ```
+    # branch
+    # |    \
+    # build  docs
+    # |    /
+    # tag
+    # ```
+    #
+    # `docs` has no dependency (rank 0, same as `branch`), so it visually
+    # renders in the row right after `branch` -- even though it is declared
+    # after `build`.
+    process_step_dependencies:
+      proc_release_step_build:
+        - proc_release_step_branch
+      proc_release_step_tag:
+        - proc_release_step_build
+        - proc_release_step_docs

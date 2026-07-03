@@ -17,6 +17,7 @@ use pretty_assertions::assert_eq;
 use crate::input_ir_rt::{
     EXAMPLE_INPUT_MERGED, EXAMPLE_IR, INPUT_DIAGRAM_0010_SELF_LOOP_EDGE_WITH_DESCRIPTION,
     INPUT_DIAGRAM_0018_PROCESS_STEP_BRANCH_MERGE,
+    INPUT_DIAGRAM_0051_PROCESS_STEP_RANK_LOWER_THAN_DECLARATION,
 };
 
 #[test]
@@ -501,6 +502,39 @@ fn test_process_step_graph_lane_assignment_for_branch_merge() {
         })
         .expect("Expected a B->D connector.");
     assert_eq!(ProcessStepLane::new(0), b_to_d.lane);
+}
+
+#[test]
+fn test_node_ordering_process_steps_follow_rank_not_declaration_order() {
+    // `proc_release_step_docs` is declared after `proc_release_step_build`,
+    // but has no dependency so its rank (0) ties with
+    // `proc_release_step_branch`'s rank. It should therefore get a tab index
+    // between `branch` and `build` (matching the git-graph row order), not
+    // after `build` (which raw declaration order would give it).
+    let overlay = serde_saphyr::from_str::<InputDiagram>(
+        INPUT_DIAGRAM_0051_PROCESS_STEP_RANK_LOWER_THAN_DECLARATION,
+    )
+    .unwrap();
+    let input_diagram = InputDiagramMerger::merge(InputDiagram::base(), &overlay);
+    let diagram = InputToIrDiagramMapper::map(&input_diagram).diagram;
+
+    let tab_idx = |step: &str| {
+        *diagram
+            .node_ordering
+            .get(&NodeId::from(Id::try_from(step.to_string()).unwrap()))
+            .unwrap_or_else(|| panic!("Expected a tab index for {step}."))
+    };
+
+    let branch_tab = tab_idx("proc_release_step_branch");
+    let docs_tab = tab_idx("proc_release_step_docs");
+    let build_tab = tab_idx("proc_release_step_build");
+    let tag_tab = tab_idx("proc_release_step_tag");
+
+    assert!(
+        branch_tab < docs_tab && docs_tab < build_tab && build_tab < tag_tab,
+        "Expected tab order branch < docs < build < tag, got branch={branch_tab}, \
+         docs={docs_tab}, build={build_tab}, tag={tag_tab}"
+    );
 }
 
 #[test]
