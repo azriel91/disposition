@@ -937,6 +937,50 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             .into_iter()
             .collect(),
         ),
+        // type_interaction_edge_halo_forward
+        (
+            EntityType::InteractionEdgeHaloForward.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![(ThemeAttr::ShapeColor, "green")]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_interaction_edge_halo_outline_forward
+        (
+            EntityType::InteractionEdgeHaloOutlineForward
+                .into_id()
+                .into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![(ThemeAttr::ShapeColor, "green")]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_interaction_edge_halo_reverse
+        (
+            EntityType::InteractionEdgeHaloReverse.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![(ThemeAttr::ShapeColor, "yellow")]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_interaction_edge_halo_outline_reverse
+        (
+            EntityType::InteractionEdgeHaloOutlineReverse
+                .into_id()
+                .into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![(ThemeAttr::ShapeColor, "yellow")]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
         // type_interaction_edge_halo_outline
         (
             EntityType::InteractionEdgeHaloOutline.into_id().into(),
@@ -945,7 +989,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                 css_class_partials(
                     vec![],
                     vec![
-                        (ThemeAttr::Opacity, "60"),
+                        (ThemeAttr::Opacity, "40"),
                         (ThemeAttr::ShapeColor, "slate"),
                         (ThemeAttr::StrokeShade, "600"),
                         (ThemeAttr::StrokeStyle, "solid"),

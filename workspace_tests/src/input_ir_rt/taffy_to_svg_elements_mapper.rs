@@ -4736,12 +4736,17 @@ fn test_interaction_edge_halo_enabled_renders_halo_path_before_edge_body() {
                     ix_edge.edge_id
                 )
             });
-        // `slate-800` is rendered via a `stroke-[var(--tw-slate-800-200)]` CSS
-        // variable class (not a plain `stroke-slate-800` class) because
-        // `base_diagram.yaml` configures inverted dark-mode shades.
+        // `edge_ix_ab` is a `sequence`-kind interaction edge, so it always
+        // resolves as "forward" -- `type_interaction_edge_halo_forward`
+        // overrides `shape_color` to green, so the halo's colour is
+        // `green-800` (the shade still comes from the shared
+        // `type_interaction_edge_halo` base). It's rendered via a
+        // `stroke-[var(--tw-green-800-200)]` CSS variable class (not a plain
+        // `stroke-green-800` class) because `base_diagram.yaml` configures
+        // inverted dark-mode shades.
         assert!(
-            ix_halo_classes.contains("slate-800"),
-            "Expected halo classes to reference slate-800, got: {ix_halo_classes}"
+            ix_halo_classes.contains("green-800"),
+            "Expected halo classes to reference green-800, got: {ix_halo_classes}"
         );
         assert!(
             ix_halo_classes.contains("opacity-20"),

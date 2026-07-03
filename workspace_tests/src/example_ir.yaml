@@ -1229,21 +1229,21 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-800-200)]
-    stroke-[var(--tw-slate-800-200)]
-    focus:stroke-[var(--tw-slate-800-200)]
-    active:stroke-[var(--tw-slate-800-200)]
+    hover:stroke-[var(--tw-green-800-200)]
+    stroke-[var(--tw-green-800-200)]
+    focus:stroke-[var(--tw-green-800-200)]
+    active:stroke-[var(--tw-green-800-200)]
   edge_ix_t_localhost__t_github_user_repo__pull__0__halo_outline: |
     [stroke-dasharray:none]
     hover:[stroke-dasharray:none]
     focus:[stroke-dasharray:none]
     active:[stroke-dasharray:none]
     stroke-1
-    opacity-60
-    hover:stroke-[var(--tw-slate-600-400)]
-    stroke-[var(--tw-slate-600-400)]
-    focus:stroke-[var(--tw-slate-600-400)]
-    active:stroke-[var(--tw-slate-600-400)]
+    opacity-40
+    hover:stroke-[var(--tw-green-600-400)]
+    stroke-[var(--tw-green-600-400)]
+    focus:stroke-[var(--tw-green-600-400)]
+    active:stroke-[var(--tw-green-600-400)]
   edge_ix_t_localhost__t_github_user_repo__pull__0: |
     invisible
     stroke-2
@@ -1266,21 +1266,21 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-800-200)]
-    stroke-[var(--tw-slate-800-200)]
-    focus:stroke-[var(--tw-slate-800-200)]
-    active:stroke-[var(--tw-slate-800-200)]
+    hover:stroke-[var(--tw-yellow-800-200)]
+    stroke-[var(--tw-yellow-800-200)]
+    focus:stroke-[var(--tw-yellow-800-200)]
+    active:stroke-[var(--tw-yellow-800-200)]
   edge_ix_t_localhost__t_github_user_repo__pull__1__halo_outline: |
     [stroke-dasharray:none]
     hover:[stroke-dasharray:none]
     focus:[stroke-dasharray:none]
     active:[stroke-dasharray:none]
     stroke-1
-    opacity-60
-    hover:stroke-[var(--tw-slate-600-400)]
-    stroke-[var(--tw-slate-600-400)]
-    focus:stroke-[var(--tw-slate-600-400)]
-    active:stroke-[var(--tw-slate-600-400)]
+    opacity-40
+    hover:stroke-[var(--tw-yellow-600-400)]
+    stroke-[var(--tw-yellow-600-400)]
+    focus:stroke-[var(--tw-yellow-600-400)]
+    active:stroke-[var(--tw-yellow-600-400)]
   edge_ix_t_localhost__t_github_user_repo__pull__1: |
     invisible
     stroke-2
@@ -1303,21 +1303,21 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-800-200)]
-    stroke-[var(--tw-slate-800-200)]
-    focus:stroke-[var(--tw-slate-800-200)]
-    active:stroke-[var(--tw-slate-800-200)]
+    hover:stroke-[var(--tw-green-800-200)]
+    stroke-[var(--tw-green-800-200)]
+    focus:stroke-[var(--tw-green-800-200)]
+    active:stroke-[var(--tw-green-800-200)]
   edge_ix_t_localhost__t_github_user_repo__push__0__halo_outline: |
     [stroke-dasharray:none]
     hover:[stroke-dasharray:none]
     focus:[stroke-dasharray:none]
     active:[stroke-dasharray:none]
     stroke-1
-    opacity-60
-    hover:stroke-[var(--tw-slate-600-400)]
-    stroke-[var(--tw-slate-600-400)]
-    focus:stroke-[var(--tw-slate-600-400)]
-    active:stroke-[var(--tw-slate-600-400)]
+    opacity-40
+    hover:stroke-[var(--tw-green-600-400)]
+    stroke-[var(--tw-green-600-400)]
+    focus:stroke-[var(--tw-green-600-400)]
+    active:stroke-[var(--tw-green-600-400)]
   edge_ix_t_localhost__t_github_user_repo__push__0: |
     invisible
     stroke-2
@@ -1339,21 +1339,21 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-800-200)]
-    stroke-[var(--tw-slate-800-200)]
-    focus:stroke-[var(--tw-slate-800-200)]
-    active:stroke-[var(--tw-slate-800-200)]
+    hover:stroke-[var(--tw-green-800-200)]
+    stroke-[var(--tw-green-800-200)]
+    focus:stroke-[var(--tw-green-800-200)]
+    active:stroke-[var(--tw-green-800-200)]
   edge_ix_t_localhost__t_localhost__within__0__halo_outline: |
     [stroke-dasharray:none]
     hover:[stroke-dasharray:none]
     focus:[stroke-dasharray:none]
     active:[stroke-dasharray:none]
     stroke-1
-    opacity-60
-    hover:stroke-[var(--tw-slate-600-400)]
-    stroke-[var(--tw-slate-600-400)]
-    focus:stroke-[var(--tw-slate-600-400)]
-    active:stroke-[var(--tw-slate-600-400)]
+    opacity-40
+    hover:stroke-[var(--tw-green-600-400)]
+    stroke-[var(--tw-green-600-400)]
+    focus:stroke-[var(--tw-green-600-400)]
+    active:stroke-[var(--tw-green-600-400)]
   edge_ix_t_localhost__t_localhost__within__0: |
     invisible
     stroke-2
@@ -1376,21 +1376,21 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-800-200)]
-    stroke-[var(--tw-slate-800-200)]
-    focus:stroke-[var(--tw-slate-800-200)]
-    active:stroke-[var(--tw-slate-800-200)]
+    hover:stroke-[var(--tw-green-800-200)]
+    stroke-[var(--tw-green-800-200)]
+    focus:stroke-[var(--tw-green-800-200)]
+    active:stroke-[var(--tw-green-800-200)]
   edge_ix_t_github_user_repo__t_github_user_repo__within__0__halo_outline: |
     [stroke-dasharray:none]
     hover:[stroke-dasharray:none]
     focus:[stroke-dasharray:none]
     active:[stroke-dasharray:none]
     stroke-1
-    opacity-60
-    hover:stroke-[var(--tw-slate-600-400)]
-    stroke-[var(--tw-slate-600-400)]
-    focus:stroke-[var(--tw-slate-600-400)]
-    active:stroke-[var(--tw-slate-600-400)]
+    opacity-40
+    hover:stroke-[var(--tw-green-600-400)]
+    stroke-[var(--tw-green-600-400)]
+    focus:stroke-[var(--tw-green-600-400)]
+    active:stroke-[var(--tw-green-600-400)]
   edge_ix_t_github_user_repo__t_github_user_repo__within__0: |
     invisible
     stroke-2
@@ -1412,21 +1412,21 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-800-200)]
-    stroke-[var(--tw-slate-800-200)]
-    focus:stroke-[var(--tw-slate-800-200)]
-    active:stroke-[var(--tw-slate-800-200)]
+    hover:stroke-[var(--tw-yellow-800-200)]
+    stroke-[var(--tw-yellow-800-200)]
+    focus:stroke-[var(--tw-yellow-800-200)]
+    active:stroke-[var(--tw-yellow-800-200)]
   edge_ix_t_github_user_repo__t_github_user_repo__within__1__halo_outline: |
     [stroke-dasharray:none]
     hover:[stroke-dasharray:none]
     focus:[stroke-dasharray:none]
     active:[stroke-dasharray:none]
     stroke-1
-    opacity-60
-    hover:stroke-[var(--tw-slate-600-400)]
-    stroke-[var(--tw-slate-600-400)]
-    focus:stroke-[var(--tw-slate-600-400)]
-    active:stroke-[var(--tw-slate-600-400)]
+    opacity-40
+    hover:stroke-[var(--tw-yellow-600-400)]
+    stroke-[var(--tw-yellow-600-400)]
+    focus:stroke-[var(--tw-yellow-600-400)]
+    active:stroke-[var(--tw-yellow-600-400)]
   edge_ix_t_github_user_repo__t_github_user_repo__within__1: |
     invisible
     stroke-2
@@ -1448,21 +1448,21 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-800-200)]
-    stroke-[var(--tw-slate-800-200)]
-    focus:stroke-[var(--tw-slate-800-200)]
-    active:stroke-[var(--tw-slate-800-200)]
+    hover:stroke-[var(--tw-green-800-200)]
+    stroke-[var(--tw-green-800-200)]
+    focus:stroke-[var(--tw-green-800-200)]
+    active:stroke-[var(--tw-green-800-200)]
   edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0__halo_outline: |
     [stroke-dasharray:none]
     hover:[stroke-dasharray:none]
     focus:[stroke-dasharray:none]
     active:[stroke-dasharray:none]
     stroke-1
-    opacity-60
-    hover:stroke-[var(--tw-slate-600-400)]
-    stroke-[var(--tw-slate-600-400)]
-    focus:stroke-[var(--tw-slate-600-400)]
-    active:stroke-[var(--tw-slate-600-400)]
+    opacity-40
+    hover:stroke-[var(--tw-green-600-400)]
+    stroke-[var(--tw-green-600-400)]
+    focus:stroke-[var(--tw-green-600-400)]
+    active:stroke-[var(--tw-green-600-400)]
   edge_ix_t_github_user_repo__t_aws_ecr_repo__push__0: |
     invisible
     stroke-2
@@ -1484,21 +1484,21 @@ tailwind_classes:
     active:[stroke-dasharray:none]
     stroke-8
     opacity-20
-    hover:stroke-[var(--tw-slate-800-200)]
-    stroke-[var(--tw-slate-800-200)]
-    focus:stroke-[var(--tw-slate-800-200)]
-    active:stroke-[var(--tw-slate-800-200)]
+    hover:stroke-[var(--tw-green-800-200)]
+    stroke-[var(--tw-green-800-200)]
+    focus:stroke-[var(--tw-green-800-200)]
+    active:stroke-[var(--tw-green-800-200)]
   edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0__halo_outline: |
     [stroke-dasharray:none]
     hover:[stroke-dasharray:none]
     focus:[stroke-dasharray:none]
     active:[stroke-dasharray:none]
     stroke-1
-    opacity-60
-    hover:stroke-[var(--tw-slate-600-400)]
-    stroke-[var(--tw-slate-600-400)]
-    focus:stroke-[var(--tw-slate-600-400)]
-    active:stroke-[var(--tw-slate-600-400)]
+    opacity-40
+    hover:stroke-[var(--tw-green-600-400)]
+    stroke-[var(--tw-green-600-400)]
+    focus:stroke-[var(--tw-green-600-400)]
+    active:stroke-[var(--tw-green-600-400)]
   edge_ix_t_aws_ecr_repo__t_aws_ecs_cluster__push__0: |
     invisible
     stroke-2
@@ -2667,6 +2667,8 @@ css: |-
     --tw-emerald-600-400: oklch(59.6% 0.145 163.225);
     --tw-emerald-700-300: oklch(50.8% 0.118 165.612);
     --tw-emerald-800-200: oklch(43.2% 0.095 166.913);
+    --tw-green-600-400: oklch(62.7% 0.194 149.214);
+    --tw-green-800-200: oklch(44.8% 0.119 151.328);
     --tw-neutral-100-900: oklch(97% 0 0);
     --tw-neutral-200-700: oklch(92.2% 0 0);
     --tw-neutral-200-800: oklch(92.2% 0 0);
@@ -2694,7 +2696,6 @@ css: |-
     --tw-slate-50-950: oklch(98.4% 0.003 247.858);
     --tw-slate-500-500: oklch(55.4% 0.046 257.417);
     --tw-slate-600-400: oklch(44.6% 0.043 257.281);
-    --tw-slate-800-200: oklch(27.9% 0.041 260.031);
     --tw-violet-500-500: oklch(60.6% 0.25 292.717);
     --tw-violet-600-400: oklch(54.1% 0.281 293.009);
     --tw-violet-700-300: oklch(49.1% 0.27 292.581);
@@ -2705,6 +2706,8 @@ css: |-
     --tw-yellow-300-700: oklch(90.5% 0.182 98.111);
     --tw-yellow-400-600: oklch(85.2% 0.199 91.936);
     --tw-yellow-50-950: oklch(98.7% 0.026 102.212);
+    --tw-yellow-600-400: oklch(68.1% 0.162 75.834);
+    --tw-yellow-800-200: oklch(47.6% 0.114 61.907);
   }
   @media (prefers-color-scheme: dark) {
     svg {
@@ -2721,6 +2724,8 @@ css: |-
       --tw-emerald-600-400: oklch(76.5% 0.177 163.223);
       --tw-emerald-700-300: oklch(84.5% 0.143 164.978);
       --tw-emerald-800-200: oklch(90.5% 0.093 164.15);
+      --tw-green-600-400: oklch(79.2% 0.209 151.711);
+      --tw-green-800-200: oklch(92.5% 0.084 155.995);
       --tw-neutral-100-900: oklch(20.5% 0 0);
       --tw-neutral-200-700: oklch(37.1% 0 0);
       --tw-neutral-200-800: oklch(26.9% 0 0);
@@ -2748,7 +2753,6 @@ css: |-
       --tw-slate-50-950: oklch(12.9% 0.042 264.695);
       --tw-slate-500-500: oklch(55.4% 0.046 257.417);
       --tw-slate-600-400: oklch(70.4% 0.04 256.788);
-      --tw-slate-800-200: oklch(92.9% 0.013 255.508);
       --tw-violet-500-500: oklch(60.6% 0.25 292.717);
       --tw-violet-600-400: oklch(70.2% 0.183 293.541);
       --tw-violet-700-300: oklch(81.1% 0.111 293.571);
@@ -2759,6 +2763,8 @@ css: |-
       --tw-yellow-300-700: oklch(55.4% 0.135 66.442);
       --tw-yellow-400-600: oklch(68.1% 0.162 75.834);
       --tw-yellow-50-950: oklch(28.6% 0.066 53.813);
+      --tw-yellow-600-400: oklch(85.2% 0.199 91.936);
+      --tw-yellow-800-200: oklch(94.5% 0.129 101.54);
     }
   }
   @keyframes stroke-dashoffset-move {

@@ -740,13 +740,25 @@ theme_types_styles:
       stroke_shade: "800"
       stroke_style: solid
       stroke_width: "8"
+  type_interaction_edge_halo_forward:
+    edge_defaults:
+      shape_color: "green"
+  type_interaction_edge_halo_outline_forward:
+    edge_defaults:
+      shape_color: "green"
+  type_interaction_edge_halo_reverse:
+    edge_defaults:
+      shape_color: "yellow"
+  type_interaction_edge_halo_outline_reverse:
+    edge_defaults:
+      shape_color: "yellow"
 
   # Rendering-only style key for the halo outline rails running along the
   # long sides of the interaction edge halo (see
   # render_options.interaction_edge_halo).
   type_interaction_edge_halo_outline:
     edge_defaults:
-      opacity: "60"
+      opacity: "40"
       shape_color: "slate"
       stroke_shade: "600"
       stroke_style: solid
