@@ -1,0 +1,23 @@
+things:
+  t_repo: {}
+thing_names:
+  t_repo: Repository
+processes:
+  proc_build:
+    name: Build
+    steps:
+      proc_build_step_a: "A"
+      proc_build_step_b: "B"
+    process_step_dependencies:
+      proc_build_step_b:
+        - proc_build_step_a
+  proc_deploy:
+    name: Deploy
+    steps:
+      proc_deploy_step_a: "A"
+      proc_deploy_step_b: "B"
+    process_step_dependencies:
+      proc_deploy_step_b:
+        - proc_deploy_step_a
+render_options:
+  rank_dir: left_to_right

@@ -252,6 +252,16 @@ pub struct IrDiagram<'id> {
     /// cannot be expressed through Tailwind classes alone.
     #[serde(default, skip_serializing_if = "Css::is_empty")]
     pub css: Css,
+
+    /// Resolved stroke width (pixels) of the interaction edge halo, from
+    /// `ThemeAttr::StrokeWidth` on `type_interaction_edge_halo`.
+    ///
+    /// Used to size the halo's outline rails proportionally to the halo's
+    /// own width, rather than a value hardcoded independently of the theme.
+    /// Defaults to `0.0` when not resolved (e.g. an `IrDiagram` built
+    /// directly rather than through `InputToIrDiagramMapper`).
+    #[serde(default)]
+    pub interaction_edge_halo_stroke_width: f32,
 }
 
 impl<'id> IrDiagram<'id> {
@@ -289,6 +299,7 @@ impl<'id> IrDiagram<'id> {
             process_step_graphs: self.process_step_graphs.into_static(),
             render_options: self.render_options,
             css: self.css,
+            interaction_edge_halo_stroke_width: self.interaction_edge_halo_stroke_width,
         }
     }
 }

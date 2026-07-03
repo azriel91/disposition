@@ -52,6 +52,9 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0045_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_LEFT_TO_RIGHT,
     INPUT_DIAGRAM_0046_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_RIGHT_TO_LEFT,
     INPUT_DIAGRAM_0047_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_BOTTOM_TO_TOP,
+    INPUT_DIAGRAM_0048_INTERACTION_EDGE_HALO, INPUT_DIAGRAM_0049_INTERACTION_EDGE_HALO_DISABLED,
+    INPUT_DIAGRAM_0050_INTERACTION_EDGE_HALO_FORWARD_REVERSE,
+    INPUT_DIAGRAM_0052_PROCESS_STEP_TWO_PROCESSES_COLLAPSE,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -1861,6 +1864,60 @@ fn test_process_step_graph_connectors_have_arrow_locus_and_classes() {
                 connector.edge_id
             );
         }
+    }
+}
+
+/// With two processes, the default `ProcessRenderCollapse::ExpandWhenOne`
+/// renders both collapsed (`process_count > 1`), so process step connectors
+/// must hide/reveal and translate in lockstep with their own process's step
+/// circles: the first process's connectors are hidden by default and
+/// revealed by focusing it (or one of its steps), while the second process's
+/// connectors carry a translate-y delta that shifts them up by the first
+/// process's collapsed steps' height, reverting to zero when the first
+/// process is focused (revealed/expanded).
+#[test]
+fn test_process_step_graph_connectors_hide_and_translate_with_collapse() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0052_PROCESS_STEP_TWO_PROCESSES_COLLAPSE)
+    {
+        let connector_classes = |from: &str, to: &str| {
+            let edge_id = format!("edge_ps_{from}__{to}");
+            svg_elements
+                .tailwind_classes
+                .get(&Id::try_from(edge_id.clone()).unwrap())
+                .unwrap_or_else(|| panic!("Expected tailwind classes for connector {edge_id}"))
+        };
+
+        // First process's connector: hidden by default, revealed when the
+        // process (or its steps) is focused.
+        let build_classes = connector_classes("proc_build_step_a", "proc_build_step_b");
+        assert!(
+            build_classes.contains("invisible"),
+            "First process's connector should be invisible by default, got: {build_classes}"
+        );
+        assert!(
+            build_classes.contains("group-has-[#proc_build:focus-within]:visible"),
+            "First process's connector should be revealed when its process is focused, got: {build_classes}"
+        );
+        assert!(
+            build_classes.contains("group-has-[#proc_build_step_a:focus-within]:visible"),
+            "First process's connector should be revealed when a sibling step is focused, got: {build_classes}"
+        );
+
+        // Second process's connector: translated up by the first process's
+        // (collapsed) steps' height by default, reverting to a translate-y-[0px]
+        // (or thereabouts) when the first process is focused/expanded.
+        let deploy_classes = connector_classes("proc_deploy_step_a", "proc_deploy_step_b");
+        assert!(
+            deploy_classes.contains("translate-y-[-"),
+            "Second process's connector should have a nonzero default upward \
+             translate-y delta from the first process's collapse, got: {deploy_classes}"
+        );
+        assert!(
+            deploy_classes.contains("group-has-[#proc_build:focus-within]:translate-y-["),
+            "Second process's connector should override translate-y when the first \
+             process is focused, got: {deploy_classes}"
+        );
     }
 }
 
@@ -4642,4 +4699,183 @@ fn test_0047_described_container_fan_bottom_to_top_routes_cleanly() {
         INPUT_DIAGRAM_0047_EDGE_OFFSETS_AND_PROTRUSION_COMPLEX_2_BOTTOM_TO_TOP,
         FlowAxis::Vertical,
     );
+}
+
+// === Interaction edge halo tests === //
+
+/// When `RenderOptions.interaction_edge_halo` is enabled (the default), an
+/// interaction edge gets a `{edge_id}__halo` tailwind-classes entry styled
+/// from `type_interaction_edge_halo`, and the rendered SVG draws a
+/// `class="edge_halo .."` path -- sharing the edge's `d` -- as the first
+/// child of the edge's `<g>`, before `edge_body`. Dependency edges get no
+/// such entry or path.
+#[test]
+fn test_interaction_edge_halo_enabled_renders_halo_path_before_edge_body() {
+    for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0048_INTERACTION_EDGE_HALO) {
+        let dep_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.edge_id.as_str().starts_with("edge_dep_ab"))
+            .expect("Expected the dependency edge to exist.");
+        let ix_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.edge_id.as_str().starts_with("edge_ix_ab"))
+            .expect("Expected the interaction edge to exist.");
+
+        let halo_key = |edge_id: &str| {
+            Id::try_from(format!("{edge_id}__halo")).expect("halo ID should be valid")
+        };
+
+        let ix_halo_classes = svg_elements
+            .tailwind_classes
+            .get(&halo_key(ix_edge.edge_id.as_str()))
+            .unwrap_or_else(|| {
+                panic!(
+                    "Expected halo tailwind classes for interaction edge {:?}",
+                    ix_edge.edge_id
+                )
+            });
+        // `edge_ix_ab` is a `sequence`-kind interaction edge, so it always
+        // resolves as "forward" -- `type_interaction_edge_halo_forward`
+        // overrides `shape_color` to green, so the halo's colour is
+        // `green-800` (the shade still comes from the shared
+        // `type_interaction_edge_halo` base). It's rendered via a
+        // `stroke-[var(--tw-green-800-200)]` CSS variable class (not a plain
+        // `stroke-green-800` class) because `base_diagram.yaml` configures
+        // inverted dark-mode shades.
+        assert!(
+            ix_halo_classes.contains("green-800"),
+            "Expected halo classes to reference green-800, got: {ix_halo_classes}"
+        );
+        assert!(
+            ix_halo_classes.contains("opacity-20"),
+            "Expected halo classes to include opacity-20, got: {ix_halo_classes}"
+        );
+        assert!(
+            ix_halo_classes.contains("stroke-8"),
+            "Expected halo classes to include stroke-8, got: {ix_halo_classes}"
+        );
+
+        assert!(
+            svg_elements
+                .tailwind_classes
+                .get(&halo_key(dep_edge.edge_id.as_str()))
+                .is_none(),
+            "Dependency edge {:?} should not have a halo tailwind classes entry",
+            dep_edge.edge_id
+        );
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+
+        let ix_g_start = svg
+            .find(&format!("id=\"{}\"", ix_edge.edge_id))
+            .expect("Expected the interaction edge's <g> element in the rendered SVG");
+        let ix_g_slice = &svg[ix_g_start..];
+        let halo_index = ix_g_slice
+            .find("class=\"edge_halo")
+            .expect("Expected an edge_halo path for the interaction edge");
+        let body_index = ix_g_slice
+            .find("class=\"edge_body")
+            .expect("Expected an edge_body path for the interaction edge");
+        assert!(
+            halo_index < body_index,
+            "Expected edge_halo to render before edge_body within the interaction edge's <g>"
+        );
+
+        let dep_g_start = svg
+            .find(&format!("id=\"{}\"", dep_edge.edge_id))
+            .expect("Expected the dependency edge's <g> element in the rendered SVG");
+        let dep_g_slice = &svg[dep_g_start..];
+        let dep_next_g_offset = dep_g_slice.find("<g id=\"").unwrap_or(dep_g_slice.len());
+        assert!(
+            !dep_g_slice[..dep_next_g_offset].contains("edge_halo"),
+            "Dependency edge {:?} should not render an edge_halo path",
+            dep_edge.edge_id
+        );
+    }
+}
+
+/// When `RenderOptions.interaction_edge_halo` is disabled, no halo tailwind
+/// classes entry is created for the interaction edge, and the rendered SVG
+/// contains no `edge_halo` class at all.
+#[test]
+fn test_interaction_edge_halo_disabled_omits_halo_path() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0049_INTERACTION_EDGE_HALO_DISABLED)
+    {
+        let ix_edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.edge_id.as_str().starts_with("edge_ix_ab"))
+            .expect("Expected the interaction edge to exist.");
+
+        let halo_key =
+            Id::try_from(format!("{}__halo", ix_edge.edge_id)).expect("halo ID should be valid");
+        assert!(
+            svg_elements.tailwind_classes.get(&halo_key).is_none(),
+            "Expected no halo tailwind classes entry when interaction_edge_halo is disabled"
+        );
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        assert!(
+            !svg.contains("edge_halo"),
+            "Expected no edge_halo path in the rendered SVG when interaction_edge_halo is disabled"
+        );
+    }
+}
+
+/// Forward (request) and reverse (response) interaction edges within the same
+/// symmetric edge group get distinct halo colours when
+/// `type_interaction_edge_halo_forward` / `type_interaction_edge_halo_reverse`
+/// override `ShapeColor`, while attributes neither overrides (like
+/// `StrokeWidth`) still fall back to the shared `type_interaction_edge_halo`
+/// base.
+#[test]
+fn test_interaction_edge_halo_forward_reverse_use_distinct_colors() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0050_INTERACTION_EDGE_HALO_FORWARD_REVERSE)
+    {
+        let halo_key = |edge_id: &str| {
+            Id::try_from(format!("{edge_id}__halo")).expect("halo ID should be valid")
+        };
+
+        // `edge_ix_chain` has 3 things in a symmetric group: 2 forward edges
+        // (indices 0, 1) followed by 2 reverse edges (indices 2, 3).
+        let forward_halo = svg_elements
+            .tailwind_classes
+            .get(&halo_key("edge_ix_chain__0"))
+            .unwrap_or_else(|| panic!("Expected halo tailwind classes for the forward edge"));
+        let reverse_halo = svg_elements
+            .tailwind_classes
+            .get(&halo_key("edge_ix_chain__2"))
+            .unwrap_or_else(|| panic!("Expected halo tailwind classes for the reverse edge"));
+
+        assert!(
+            forward_halo.contains("green"),
+            "Expected the forward (request) halo to reference green, got: {forward_halo}"
+        );
+        assert!(
+            !forward_halo.contains("yellow"),
+            "Expected the forward (request) halo to not reference yellow, got: {forward_halo}"
+        );
+
+        assert!(
+            reverse_halo.contains("yellow"),
+            "Expected the reverse (response) halo to reference yellow, got: {reverse_halo}"
+        );
+        assert!(
+            !reverse_halo.contains("green"),
+            "Expected the reverse (response) halo to not reference green, got: {reverse_halo}"
+        );
+
+        // Attributes not overridden by the forward/reverse types (e.g. the
+        // halo's width) still come from the shared `type_interaction_edge_halo`
+        // base for both.
+        assert!(
+            forward_halo.contains("stroke-8") && reverse_halo.contains("stroke-8"),
+            "Expected both halos to keep the base stroke-8 width, got forward: {forward_halo}, \
+             reverse: {reverse_halo}"
+        );
+    }
 }

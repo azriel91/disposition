@@ -727,9 +727,9 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             .into_iter()
             .collect(),
         ),
-        // type_dependency_edge_sequence_default
+        // type_dependency_edge_default
         (
-            EntityType::DependencyEdgeSequenceDefault.into_id().into(),
+            EntityType::DependencyEdgeDefault.into_id().into(),
             [(
                 IdOrDefaults::EdgeDefaults,
                 css_class_partials(
@@ -741,6 +741,16 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                         (ThemeAttr::Visibility, "visible"),
                     ],
                 ),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_dependency_edge_sequence_default
+        (
+            EntityType::DependencyEdgeSequenceDefault.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
@@ -750,15 +760,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             EntityType::DependencyEdgeCyclicDefault.into_id().into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(
-                    vec![StyleAlias::ShadeDark],
-                    vec![
-                        (ThemeAttr::StrokeStyle, "solid"),
-                        (ThemeAttr::ShapeColor, "neutral"),
-                        (ThemeAttr::StrokeWidth, "2"),
-                        (ThemeAttr::Visibility, "visible"),
-                    ],
-                ),
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
@@ -768,15 +770,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             EntityType::DependencyEdgeSymmetricDefault.into_id().into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(
-                    vec![StyleAlias::ShadeDark],
-                    vec![
-                        (ThemeAttr::StrokeStyle, "solid"),
-                        (ThemeAttr::ShapeColor, "neutral"),
-                        (ThemeAttr::StrokeWidth, "2"),
-                        (ThemeAttr::Visibility, "visible"),
-                    ],
-                ),
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
@@ -829,9 +823,9 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             .into_iter()
             .collect(),
         ),
-        // type_interaction_edge_sequence_default
+        // type_interaction_edge_default
         (
-            EntityType::InteractionEdgeSequenceDefault.into_id().into(),
+            EntityType::InteractionEdgeDefault.into_id().into(),
             [(
                 IdOrDefaults::EdgeDefaults,
                 css_class_partials(
@@ -842,6 +836,16 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                         (ThemeAttr::Visibility, "invisible"),
                     ],
                 ),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_interaction_edge_sequence_default
+        (
+            EntityType::InteractionEdgeSequenceDefault.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
@@ -851,14 +855,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             EntityType::InteractionEdgeCyclicDefault.into_id().into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(
-                    vec![StyleAlias::ShadeDark],
-                    vec![
-                        (ThemeAttr::ShapeColor, "violet"),
-                        (ThemeAttr::StrokeWidth, "2"),
-                        (ThemeAttr::Visibility, "invisible"),
-                    ],
-                ),
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
@@ -868,14 +865,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             EntityType::InteractionEdgeSymmetricDefault.into_id().into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(
-                    vec![StyleAlias::ShadeDark],
-                    vec![
-                        (ThemeAttr::ShapeColor, "violet"),
-                        (ThemeAttr::StrokeWidth, "2"),
-                        (ThemeAttr::Visibility, "invisible"),
-                    ],
-                ),
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
@@ -924,6 +914,88 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             [(
                 IdOrDefaults::EdgeDefaults,
                 css_class_partials(vec![], vec![]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_interaction_edge_halo
+        (
+            EntityType::InteractionEdgeHalo.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(
+                    vec![],
+                    vec![
+                        (ThemeAttr::Opacity, "20"),
+                        (ThemeAttr::ShapeColor, "slate"),
+                        (ThemeAttr::StrokeShade, "800"),
+                        (ThemeAttr::StrokeStyle, "solid"),
+                        (ThemeAttr::StrokeWidth, "8"),
+                    ],
+                ),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_interaction_edge_halo_forward
+        (
+            EntityType::InteractionEdgeHaloForward.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![(ThemeAttr::ShapeColor, "green")]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_interaction_edge_halo_outline_forward
+        (
+            EntityType::InteractionEdgeHaloOutlineForward
+                .into_id()
+                .into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![(ThemeAttr::ShapeColor, "green")]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_interaction_edge_halo_reverse
+        (
+            EntityType::InteractionEdgeHaloReverse.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![(ThemeAttr::ShapeColor, "yellow")]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_interaction_edge_halo_outline_reverse
+        (
+            EntityType::InteractionEdgeHaloOutlineReverse
+                .into_id()
+                .into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![(ThemeAttr::ShapeColor, "yellow")]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_interaction_edge_halo_outline
+        (
+            EntityType::InteractionEdgeHaloOutline.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(
+                    vec![],
+                    vec![
+                        (ThemeAttr::Opacity, "40"),
+                        (ThemeAttr::ShapeColor, "slate"),
+                        (ThemeAttr::StrokeShade, "600"),
+                        (ThemeAttr::StrokeStyle, "solid"),
+                        (ThemeAttr::StrokeWidth, "1"),
+                    ],
+                ),
             )]
             .into_iter()
             .collect(),

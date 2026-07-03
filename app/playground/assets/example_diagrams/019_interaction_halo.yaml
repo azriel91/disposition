@@ -1,0 +1,70 @@
+---
+# Interaction Halo
+#
+# `render_options.interaction_edge_halo` (enabled by default) draws a
+# semi-transparent halo behind each interaction edge, sharing its path
+# geometry, to make the animated edge easier to follow. The halo also gets a
+# darker, more opaque outline along the long sides of its ribbon, from
+# `type_interaction_edge_halo_outline`.
+#
+# The halo's look comes from `type_interaction_edge_halo` (and its outline
+# from `type_interaction_edge_halo_outline`) in `theme_types_styles`. Two
+# more specific style keys let you distinguish "requests" from "responses"
+# within the same symmetric interaction -- and each has an outline
+# counterpart:
+#
+# * `type_interaction_edge_halo_forward` / `_outline_forward`: the "request"
+#   direction -- edges whose own type is one of the `*ForwardDefault`
+#   interaction types. Defaults to a green halo and outline.
+# * `type_interaction_edge_halo_reverse` / `_outline_reverse`: the "response"
+#   direction -- edges whose own type is
+#   `type_interaction_edge_symmetric_reverse_default`. Defaults to a yellow
+#   halo and outline.
+#
+# Any theme attribute set on these overrides the corresponding attribute on
+# the shared base (`type_interaction_edge_halo` / `_outline`); attributes
+# left unset (like the halo's width) still fall back to the shared base.
+# Here only `shape_color` is overridden, so requests get an indigo halo and
+# outline, and responses get a purple halo and outline, while both keep the
+# same width and opacity as the defaults.
+#
+# There are no processes in this diagram, so the interactions are made
+# visible and animated automatically.
+things:
+  t_client: {}
+  t_server: {}
+  t_database: {}
+thing_names:
+  t_client: "Client"
+  t_server: "Server"
+  t_database: "Database"
+
+thing_interactions:
+  edge_ix_client_server:
+    kind: symmetric
+    things:
+      - t_client
+      - t_server
+  edge_ix_server_database:
+    kind: symmetric
+    things:
+      - t_server
+      - t_database
+
+edge_descs:
+  edge_ix_client_server: "request / response"
+  edge_ix_server_database: "query / result"
+
+theme_types_styles:
+  type_interaction_edge_halo_forward:
+    edge_defaults:
+      shape_color: "indigo"
+  type_interaction_edge_halo_outline_forward:
+    edge_defaults:
+      shape_color: "indigo"
+  type_interaction_edge_halo_reverse:
+    edge_defaults:
+      shape_color: "purple"
+  type_interaction_edge_halo_outline_reverse:
+    edge_defaults:
+      shape_color: "purple"

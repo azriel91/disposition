@@ -263,7 +263,10 @@ impl SvgNodeTranslateClassesBuilder {
         // Use the expanded path when this process (or one of its steps) is the
         // active focus, otherwise the collapsed path.
         let self_focused = height_to_expand_to.is_some()
-            && Self::focus_active_targets_process(active, &process_steps_height[process_index]);
+            && process_step_heights::focus_active_targets_process(
+                active,
+                &process_steps_height[process_index],
+            );
         let path_d = if self_focused {
             path_d_expanded
         } else {
@@ -283,7 +286,10 @@ impl SvgNodeTranslateClassesBuilder {
         let y_offset_from_focused_predecessor = (0..process_index)
             .map(|prev_idx| &process_steps_height[prev_idx])
             .filter(|process_steps_height_prev| {
-                Self::focus_active_targets_process(active, process_steps_height_prev)
+                process_step_heights::focus_active_targets_process(
+                    active,
+                    process_steps_height_prev,
+                )
             })
             .map(|process_steps_height_prev| process_steps_height_prev.total_height)
             .sum::<f32>();
@@ -291,30 +297,5 @@ impl SvgNodeTranslateClassesBuilder {
         writeln!(&mut classes, "translate-y-[{y}px]").unwrap();
 
         classes
-    }
-
-    /// Returns whether `active` focuses the given process directly, or via one
-    /// of its steps.
-    fn focus_active_targets_process<'id>(
-        active: &DiagramFocus<'id>,
-        process_steps_height: &ProcessStepsHeight<'id>,
-    ) -> bool {
-        let ProcessStepsHeight {
-            process_id,
-            process_step_ids,
-            ..
-        } = process_steps_height;
-        match active {
-            DiagramFocus::Process(active_process_id) => {
-                active_process_id.as_ref() == process_id.as_ref()
-            }
-            DiagramFocus::ProcessStep {
-                process_step_id: active_step_id,
-                ..
-            } => process_step_ids
-                .iter()
-                .any(|process_step_id| process_step_id.as_ref() == active_step_id.as_ref()),
-            DiagramFocus::None | DiagramFocus::Tag(_) => false,
-        }
     }
 }

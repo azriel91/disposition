@@ -678,28 +678,22 @@ theme_types_styles:
       shape_color: "sky"
       stroke_width: "2"
 
+  # Default type for dependency edges (all kinds), attached to individual edges.
+  type_dependency_edge_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      stroke_style: solid
+      shape_color: "neutral"
+      stroke_width: "2"
+      visibility: "visible"
+
   # thing_dependencies - edge groups
   type_dependency_edge_sequence_default:
-    edge_defaults:
-      style_aliases_applied: [shade_dark]
-      stroke_style: solid
-      shape_color: "neutral"
-      stroke_width: "2"
-      visibility: "visible"
+    edge_defaults: {}
   type_dependency_edge_cyclic_default:
-    edge_defaults:
-      style_aliases_applied: [shade_dark]
-      stroke_style: solid
-      shape_color: "neutral"
-      stroke_width: "2"
-      visibility: "visible"
+    edge_defaults: {}
   type_dependency_edge_symmetric_default:
-    edge_defaults:
-      style_aliases_applied: [shade_dark]
-      stroke_style: solid
-      shape_color: "neutral"
-      stroke_width: "2"
-      visibility: "visible"
+    edge_defaults: {}
 
   # thing_dependencies - edges
   type_dependency_edge_sequence_forward_default:
@@ -711,25 +705,21 @@ theme_types_styles:
   type_dependency_edge_symmetric_reverse_default:
     edge_defaults: {}
 
+  # Default type for interaction edges (all kinds), attached to individual edges.
+  type_interaction_edge_default:
+    edge_defaults:
+      style_aliases_applied: [shade_dark]
+      shape_color: "violet"
+      stroke_width: "2"
+      visibility: "invisible"
+
   # thing_interactions - edge groups
   type_interaction_edge_sequence_default:
-    edge_defaults:
-      style_aliases_applied: [shade_dark]
-      shape_color: "violet"
-      stroke_width: "2"
-      visibility: "invisible"
+    edge_defaults: {}
   type_interaction_edge_cyclic_default:
-    edge_defaults:
-      style_aliases_applied: [shade_dark]
-      shape_color: "violet"
-      stroke_width: "2"
-      visibility: "invisible"
+    edge_defaults: {}
   type_interaction_edge_symmetric_default:
-    edge_defaults:
-      style_aliases_applied: [shade_dark]
-      shape_color: "violet"
-      stroke_width: "2"
-      visibility: "invisible"
+    edge_defaults: {}
 
   # thing_interactions - edges
   type_interaction_edge_sequence_forward_default:
@@ -740,6 +730,39 @@ theme_types_styles:
     edge_defaults: {}
   type_interaction_edge_symmetric_reverse_default:
     edge_defaults: {}
+
+  # Rendering-only style key for the semi-transparent halo drawn behind
+  # interaction edges (see render_options.interaction_edge_halo).
+  type_interaction_edge_halo:
+    edge_defaults:
+      opacity: "20"
+      shape_color: "slate"
+      stroke_shade: "800"
+      stroke_style: solid
+      stroke_width: "8"
+  type_interaction_edge_halo_forward:
+    edge_defaults:
+      shape_color: "green"
+  type_interaction_edge_halo_outline_forward:
+    edge_defaults:
+      shape_color: "green"
+  type_interaction_edge_halo_reverse:
+    edge_defaults:
+      shape_color: "yellow"
+  type_interaction_edge_halo_outline_reverse:
+    edge_defaults:
+      shape_color: "yellow"
+
+  # Rendering-only style key for the halo outline rails running along the
+  # long sides of the interaction edge halo (see
+  # render_options.interaction_edge_halo).
+  type_interaction_edge_halo_outline:
+    edge_defaults:
+      opacity: "40"
+      shape_color: "slate"
+      stroke_shade: "600"
+      stroke_style: solid
+      stroke_width: "1"
 
   # custom styles that users can provide
   type_organisation:

@@ -8,7 +8,7 @@ use disposition_ir_model::{
     entity::EntityTypeId,
     node::{NodeShapeCircle, NodeShapeRect},
 };
-use disposition_model_common::Id;
+use disposition_model_common::{entity::EntityType, Id};
 
 /// Resolves theme attributes (padding, margin, gap, radius) from theme
 /// configuration.
@@ -25,6 +25,13 @@ use disposition_model_common::Id;
 pub(crate) struct ThemeAttrResolver;
 
 impl ThemeAttrResolver {
+    // === Interaction Edge Halo Stroke Width === //
+
+    /// Default interaction edge halo stroke width (pixels), used when
+    /// `type_interaction_edge_halo` does not configure
+    /// `ThemeAttr::StrokeWidth`.
+    const INTERACTION_EDGE_HALO_STROKE_WIDTH_DEFAULT: f32 = 8.0;
+
     /// Resolves a theme attribute value by traversing theme sources in priority
     /// order.
     ///
@@ -521,5 +528,48 @@ impl ThemeAttrResolver {
                 radius_bottom_right,
             })
         }
+    }
+
+    /// Resolves the interaction edge halo's stroke width from
+    /// `type_interaction_edge_halo` in `theme_types_styles`.
+    ///
+    /// This is a rendering-only style key (see
+    /// `EntityType::InteractionEdgeHalo`), so unlike node attributes it has
+    /// no `NodeId`/`EntityTypes` tiering to walk -- only the one type's
+    /// `EdgeDefaults` partials (and any style aliases it applies) are
+    /// checked. Used to size the halo's outline rails proportionally to the
+    /// halo's own width (see `EdgeHaloOutlineCalculator`), rather than a
+    /// value hardcoded independently of the theme.
+    pub(crate) fn resolve_interaction_edge_halo_stroke_width<'id>(
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+    ) -> f32 {
+        let halo_type_id = EntityTypeId::from(EntityType::InteractionEdgeHalo.into_id());
+        let Some(halo_partials) = theme_types_styles
+            .get(&halo_type_id)
+            .and_then(|type_styles| type_styles.get(&IdOrDefaults::EdgeDefaults))
+        else {
+            return Self::INTERACTION_EDGE_HALO_STROKE_WIDTH_DEFAULT;
+        };
+
+        let mut stroke_width = None;
+
+        // First, check style_aliases_applied (lower priority).
+        halo_partials
+            .style_aliases_applied()
+            .iter()
+            .filter_map(|alias| theme_default.style_aliases.get(alias))
+            .filter_map(|alias_partials| alias_partials.get(&ThemeAttr::StrokeWidth))
+            .filter_map(|value| value.parse::<f32>().ok())
+            .for_each(|v| stroke_width = Some(v));
+
+        // Then, check the direct attribute (higher priority).
+        if let Some(value) = halo_partials.get(&ThemeAttr::StrokeWidth)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            stroke_width = Some(v);
+        }
+
+        stroke_width.unwrap_or(Self::INTERACTION_EDGE_HALO_STROKE_WIDTH_DEFAULT)
     }
 }

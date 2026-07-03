@@ -74,6 +74,8 @@ impl ProcessStepGraphEdgesBuilder {
                     arrow_head_path.to_svg(),
                     locus_path.to_svg(),
                     String::new(),
+                    String::new(),
+                    String::new(),
                     OrthoProtrusionParams::default(),
                 ));
             }

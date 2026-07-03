@@ -48,6 +48,14 @@ pub enum EntityType {
     /// Default type for process_steps
     ProcessStepDefault,
 
+    /// Default type for dependency edges (all kinds).
+    ///
+    /// This is the least specific dependency edge type -- it is attached to
+    /// every individual dependency edge (not the edge group), and its
+    /// styling is overridden by the more specific group and edge types
+    /// below.
+    DependencyEdgeDefault,
+
     // Dependency edge groups
     /// Default type for dependency sequence edge groups
     DependencyEdgeSequenceDefault,
@@ -66,6 +74,14 @@ pub enum EntityType {
     /// Default type for dependency symmetric reverse edges
     DependencyEdgeSymmetricReverseDefault,
 
+    /// Default type for interaction edges (all kinds).
+    ///
+    /// This is the least specific interaction edge type -- it is attached to
+    /// every individual interaction edge (not the edge group), and its
+    /// styling is overridden by the more specific group and edge types
+    /// below.
+    InteractionEdgeDefault,
+
     // Interaction edge groups
     /// Default type for interaction sequence edge groups
     InteractionEdgeSequenceDefault,
@@ -83,6 +99,40 @@ pub enum EntityType {
     InteractionEdgeSymmetricForwardDefault,
     /// Default type for interaction symmetric reverse edges
     InteractionEdgeSymmetricReverseDefault,
+
+    /// Rendering-only style key for the semi-transparent halo drawn behind
+    /// interaction edges (see `RenderOptions::interaction_edge_halo`). This
+    /// type is never attached to a real entity via `entity_types` -- it is
+    /// only used to look up `theme_types_styles` for the halo's own styling.
+    InteractionEdgeHalo,
+    /// Rendering-only style key for the halo behind "request" (forward)
+    /// interaction edges -- i.e. edges whose own type is
+    /// `InteractionEdgeSequenceForwardDefault`,
+    /// `InteractionEdgeCyclicForwardDefault`, or
+    /// `InteractionEdgeSymmetricForwardDefault`. Any theme attribute set here
+    /// overrides the corresponding attribute on `InteractionEdgeHalo`.
+    InteractionEdgeHaloForward,
+    /// Rendering-only style key for the halo behind "response" (reverse)
+    /// interaction edges -- i.e. edges whose own type is
+    /// `InteractionEdgeSymmetricReverseDefault`. Any theme attribute set here
+    /// overrides the corresponding attribute on `InteractionEdgeHalo`.
+    InteractionEdgeHaloReverse,
+
+    /// Rendering-only style key for the outline rails drawn along the long
+    /// sides of the interaction edge halo (see
+    /// `RenderOptions::interaction_edge_halo`). Like `InteractionEdgeHalo`,
+    /// this type is never attached to a real entity via `entity_types` -- it
+    /// is only used to look up `theme_types_styles` for the outline rails'
+    /// own styling.
+    InteractionEdgeHaloOutline,
+    /// Rendering-only style key for the halo outline behind "request"
+    /// (forward) interaction edges. Any theme attribute set here overrides
+    /// the corresponding attribute on `InteractionEdgeHaloOutline`.
+    InteractionEdgeHaloOutlineForward,
+    /// Rendering-only style key for the halo outline behind "response"
+    /// (reverse) interaction edges. Any theme attribute set here overrides
+    /// the corresponding attribute on `InteractionEdgeHaloOutline`.
+    InteractionEdgeHaloOutlineReverse,
 
     /// Custom user-defined type.
     Custom(Id<'static>),
@@ -107,6 +157,8 @@ impl EntityType {
             EntityType::ProcessDefault => "type_process_default",
             EntityType::ProcessStepDefault => "type_process_step_default",
 
+            EntityType::DependencyEdgeDefault => "type_dependency_edge_default",
+
             // Dependency edge groups
             EntityType::DependencyEdgeSequenceDefault => "type_dependency_edge_sequence_default",
             EntityType::DependencyEdgeCyclicDefault => "type_dependency_edge_cyclic_default",
@@ -125,6 +177,8 @@ impl EntityType {
             EntityType::DependencyEdgeSymmetricReverseDefault => {
                 "type_dependency_edge_symmetric_reverse_default"
             }
+
+            EntityType::InteractionEdgeDefault => "type_interaction_edge_default",
 
             // Interaction edge groups
             EntityType::InteractionEdgeSequenceDefault => "type_interaction_edge_sequence_default",
@@ -147,6 +201,18 @@ impl EntityType {
                 "type_interaction_edge_symmetric_reverse_default"
             }
 
+            EntityType::InteractionEdgeHalo => "type_interaction_edge_halo",
+            EntityType::InteractionEdgeHaloForward => "type_interaction_edge_halo_forward",
+            EntityType::InteractionEdgeHaloReverse => "type_interaction_edge_halo_reverse",
+
+            EntityType::InteractionEdgeHaloOutline => "type_interaction_edge_halo_outline",
+            EntityType::InteractionEdgeHaloOutlineForward => {
+                "type_interaction_edge_halo_outline_forward"
+            }
+            EntityType::InteractionEdgeHaloOutlineReverse => {
+                "type_interaction_edge_halo_outline_reverse"
+            }
+
             EntityType::Custom(id) => id.as_str(),
         }
     }
@@ -159,6 +225,7 @@ impl EntityType {
             | EntityType::TagDefault
             | EntityType::ProcessDefault
             | EntityType::ProcessStepDefault
+            | EntityType::DependencyEdgeDefault
             | EntityType::DependencyEdgeSequenceDefault
             | EntityType::DependencyEdgeCyclicDefault
             | EntityType::DependencyEdgeSymmetricDefault
@@ -166,13 +233,20 @@ impl EntityType {
             | EntityType::DependencyEdgeCyclicForwardDefault
             | EntityType::DependencyEdgeSymmetricForwardDefault
             | EntityType::DependencyEdgeSymmetricReverseDefault
+            | EntityType::InteractionEdgeDefault
             | EntityType::InteractionEdgeSequenceDefault
             | EntityType::InteractionEdgeCyclicDefault
             | EntityType::InteractionEdgeSymmetricDefault
             | EntityType::InteractionEdgeSequenceForwardDefault
             | EntityType::InteractionEdgeCyclicForwardDefault
             | EntityType::InteractionEdgeSymmetricForwardDefault
-            | EntityType::InteractionEdgeSymmetricReverseDefault => true,
+            | EntityType::InteractionEdgeSymmetricReverseDefault
+            | EntityType::InteractionEdgeHalo
+            | EntityType::InteractionEdgeHaloForward
+            | EntityType::InteractionEdgeHaloReverse
+            | EntityType::InteractionEdgeHaloOutline
+            | EntityType::InteractionEdgeHaloOutlineForward
+            | EntityType::InteractionEdgeHaloOutlineReverse => true,
             EntityType::Custom(_) => false,
         }
     }
@@ -197,6 +271,8 @@ impl EntityType {
             EntityType::TagDefault => id!("type_tag_default"),
             EntityType::ProcessDefault => id!("type_process_default"),
             EntityType::ProcessStepDefault => id!("type_process_step_default"),
+
+            EntityType::DependencyEdgeDefault => id!("type_dependency_edge_default"),
 
             // Dependency edge groups
             EntityType::DependencyEdgeSequenceDefault => {
@@ -223,6 +299,8 @@ impl EntityType {
                 id!("type_dependency_edge_symmetric_reverse_default")
             }
 
+            EntityType::InteractionEdgeDefault => id!("type_interaction_edge_default"),
+
             // Interaction edge groups
             EntityType::InteractionEdgeSequenceDefault => {
                 id!("type_interaction_edge_sequence_default")
@@ -246,6 +324,18 @@ impl EntityType {
             }
             EntityType::InteractionEdgeSymmetricReverseDefault => {
                 id!("type_interaction_edge_symmetric_reverse_default")
+            }
+
+            EntityType::InteractionEdgeHalo => id!("type_interaction_edge_halo"),
+            EntityType::InteractionEdgeHaloForward => id!("type_interaction_edge_halo_forward"),
+            EntityType::InteractionEdgeHaloReverse => id!("type_interaction_edge_halo_reverse"),
+
+            EntityType::InteractionEdgeHaloOutline => id!("type_interaction_edge_halo_outline"),
+            EntityType::InteractionEdgeHaloOutlineForward => {
+                id!("type_interaction_edge_halo_outline_forward")
+            }
+            EntityType::InteractionEdgeHaloOutlineReverse => {
+                id!("type_interaction_edge_halo_outline_reverse")
             }
 
             EntityType::Custom(id) => id,
@@ -300,7 +390,8 @@ impl EntityType {
     pub fn is_dependency_edge(&self) -> bool {
         matches!(
             self,
-            EntityType::DependencyEdgeSequenceDefault
+            EntityType::DependencyEdgeDefault
+                | EntityType::DependencyEdgeSequenceDefault
                 | EntityType::DependencyEdgeCyclicDefault
                 | EntityType::DependencyEdgeSymmetricDefault
                 | EntityType::DependencyEdgeSequenceForwardDefault
@@ -323,7 +414,8 @@ impl EntityType {
     pub fn is_interaction_edge(&self) -> bool {
         matches!(
             self,
-            EntityType::InteractionEdgeSequenceDefault
+            EntityType::InteractionEdgeDefault
+                | EntityType::InteractionEdgeSequenceDefault
                 | EntityType::InteractionEdgeCyclicDefault
                 | EntityType::InteractionEdgeSymmetricDefault
                 | EntityType::InteractionEdgeSequenceForwardDefault
@@ -342,6 +434,8 @@ impl From<Id<'static>> for EntityType {
             "type_tag_default" => EntityType::TagDefault,
             "type_process_default" => EntityType::ProcessDefault,
             "type_process_step_default" => EntityType::ProcessStepDefault,
+
+            "type_dependency_edge_default" => EntityType::DependencyEdgeDefault,
 
             // Dependency edge groups
             "type_dependency_edge_sequence_default" => EntityType::DependencyEdgeSequenceDefault,
@@ -362,6 +456,8 @@ impl From<Id<'static>> for EntityType {
                 EntityType::DependencyEdgeSymmetricReverseDefault
             }
 
+            "type_interaction_edge_default" => EntityType::InteractionEdgeDefault,
+
             // Interaction edge groups
             "type_interaction_edge_sequence_default" => EntityType::InteractionEdgeSequenceDefault,
             "type_interaction_edge_cyclic_default" => EntityType::InteractionEdgeCyclicDefault,
@@ -381,6 +477,18 @@ impl From<Id<'static>> for EntityType {
             }
             "type_interaction_edge_symmetric_reverse_default" => {
                 EntityType::InteractionEdgeSymmetricReverseDefault
+            }
+
+            "type_interaction_edge_halo" => EntityType::InteractionEdgeHalo,
+            "type_interaction_edge_halo_forward" => EntityType::InteractionEdgeHaloForward,
+            "type_interaction_edge_halo_reverse" => EntityType::InteractionEdgeHaloReverse,
+
+            "type_interaction_edge_halo_outline" => EntityType::InteractionEdgeHaloOutline,
+            "type_interaction_edge_halo_outline_forward" => {
+                EntityType::InteractionEdgeHaloOutlineForward
+            }
+            "type_interaction_edge_halo_outline_reverse" => {
+                EntityType::InteractionEdgeHaloOutlineReverse
             }
 
             _ => EntityType::Custom(id),
@@ -426,6 +534,7 @@ impl Visitor<'_> for EntityTypeVisitor {
             * `type_tag_default`\n\
             * `type_process_default`\n\
             * `type_process_step_default`\n\
+            * `type_dependency_edge_default`\n\
             * `type_dependency_edge_sequence_default`\n\
             * `type_dependency_edge_cyclic_default`\n\
             * `type_dependency_edge_symmetric_default`\n\
@@ -433,6 +542,7 @@ impl Visitor<'_> for EntityTypeVisitor {
             * `type_dependency_edge_cyclic_forward_default`\n\
             * `type_dependency_edge_symmetric_forward_default`\n\
             * `type_dependency_edge_symmetric_reverse_default`\n\
+            * `type_interaction_edge_default`\n\
             * `type_interaction_edge_sequence_default`\n\
             * `type_interaction_edge_cyclic_default`\n\
             * `type_interaction_edge_symmetric_default`\n\
@@ -440,6 +550,12 @@ impl Visitor<'_> for EntityTypeVisitor {
             * `type_interaction_edge_cyclic_forward_default`\n\
             * `type_interaction_edge_symmetric_forward_default`\n\
             * `type_interaction_edge_symmetric_reverse_default`\n\
+            * `type_interaction_edge_halo`\n\
+            * `type_interaction_edge_halo_forward`\n\
+            * `type_interaction_edge_halo_reverse`\n\
+            * `type_interaction_edge_halo_outline`\n\
+            * `type_interaction_edge_halo_outline_forward`\n\
+            * `type_interaction_edge_halo_outline_reverse`\n\
             \n\
             or a custom identifier",
         )
@@ -455,6 +571,8 @@ impl Visitor<'_> for EntityTypeVisitor {
             "type_tag_default" => EntityType::TagDefault,
             "type_process_default" => EntityType::ProcessDefault,
             "type_process_step_default" => EntityType::ProcessStepDefault,
+
+            "type_dependency_edge_default" => EntityType::DependencyEdgeDefault,
 
             // Dependency edge groups
             "type_dependency_edge_sequence_default" => EntityType::DependencyEdgeSequenceDefault,
@@ -475,6 +593,8 @@ impl Visitor<'_> for EntityTypeVisitor {
                 EntityType::DependencyEdgeSymmetricReverseDefault
             }
 
+            "type_interaction_edge_default" => EntityType::InteractionEdgeDefault,
+
             // Interaction edge groups
             "type_interaction_edge_sequence_default" => EntityType::InteractionEdgeSequenceDefault,
             "type_interaction_edge_cyclic_default" => EntityType::InteractionEdgeCyclicDefault,
@@ -494,6 +614,18 @@ impl Visitor<'_> for EntityTypeVisitor {
             }
             "type_interaction_edge_symmetric_reverse_default" => {
                 EntityType::InteractionEdgeSymmetricReverseDefault
+            }
+
+            "type_interaction_edge_halo" => EntityType::InteractionEdgeHalo,
+            "type_interaction_edge_halo_forward" => EntityType::InteractionEdgeHaloForward,
+            "type_interaction_edge_halo_reverse" => EntityType::InteractionEdgeHaloReverse,
+
+            "type_interaction_edge_halo_outline" => EntityType::InteractionEdgeHaloOutline,
+            "type_interaction_edge_halo_outline_forward" => {
+                EntityType::InteractionEdgeHaloOutlineForward
+            }
+            "type_interaction_edge_halo_outline_reverse" => {
+                EntityType::InteractionEdgeHaloOutlineReverse
             }
 
             _ => {

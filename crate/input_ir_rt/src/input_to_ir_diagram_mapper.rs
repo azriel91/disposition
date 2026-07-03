@@ -130,8 +130,18 @@ impl InputToIrDiagramMapper {
         //    hierarchy
         let node_hierarchy = Self::build_node_hierarchy(tags, processes, things);
 
+        // 3a. Build ProcessStepEdges from process_step_dependencies (needed
+        //     for process_step_ranks below, ahead of its later use at step
+        //     14c for process_step_graphs)
+        let process_step_edges = Self::build_process_step_edges(processes);
+
+        // 3b. Compute ProcessStepRanks from process steps and their edges
+        //     (needed by build_node_ordering so process step tab indices
+        //     follow the same visual row order as the git-graph layout)
+        let process_step_ranks = Self::build_process_step_ranks(processes, &process_step_edges);
+
         // 4. Build NodeOrdering from the things hierarchy, tags, and processes
-        let node_ordering = Self::build_node_ordering(things, tags, processes);
+        let node_ordering = Self::build_node_ordering(things, tags, processes, &process_step_ranks);
 
         // 5. Build EdgeGroups from thing_dependencies and thing_interactions
         let edge_groups = Self::build_edge_groups(thing_dependencies, thing_interactions);
@@ -183,6 +193,15 @@ impl InputToIrDiagramMapper {
         let node_shapes =
             Self::build_node_shapes(&nodes, &ir_entity_types, theme_default, theme_types_styles);
 
+        // 12a. Resolve the interaction edge halo's stroke width from theme,
+        //      so its outline rails (built later, per edge) can be sized
+        //      proportionally to it.
+        let interaction_edge_halo_stroke_width =
+            ThemeAttrResolver::resolve_interaction_edge_halo_stroke_width(
+                theme_default,
+                theme_types_styles,
+            );
+
         // 13. Tailwind classes (and the CSS theme variables they produce) are
         //     focus-dependent, so they are applied separately via
         //     `tailwind_classes_apply`.
@@ -190,13 +209,9 @@ impl InputToIrDiagramMapper {
         // 14. Build ProcessStepEntities from step_thing_interactions
         let process_step_entities = Self::build_process_step_entities(processes);
 
-        // 14a. Build ProcessStepEdges from process_step_dependencies
-        let process_step_edges = Self::build_process_step_edges(processes);
-
-        // 14b. Compute ProcessStepRanks from process steps and their edges
-        let process_step_ranks = Self::build_process_step_ranks(processes, &process_step_edges);
-
-        // 14c. Compute ProcessStepGraphs (git-graph lane layout) from ranks and edges
+        // 14c. Compute ProcessStepGraphs (git-graph lane layout) from ranks
+        //      and edges (process_step_edges / process_step_ranks were
+        //      computed earlier at steps 3a/3b, ahead of node_ordering)
         let process_step_graphs = ProcessStepGraphCalculator::calculate(
             processes,
             &process_step_ranks,
@@ -257,6 +272,7 @@ impl InputToIrDiagramMapper {
             process_step_graphs,
             render_options: *render_options,
             css: css.clone(),
+            interaction_edge_halo_stroke_width,
         };
 
         IrDiagramAndIssues { diagram, issues }
@@ -302,29 +318,49 @@ impl InputToIrDiagramMapper {
             &input_diagram.processes,
             process_render_expanded,
             focus_mode,
+            &input_diagram.render_options,
         );
         let mut tailwind_classes = tailwind_classes_build_result.tailwind_classes;
         let mut css_theme_vars = tailwind_classes_build_result.css_theme_vars;
 
         // Style process step connectors like dependency edges, sharing one
-        // resolved `edge_defaults` class string across all of them.
-        if !ir_diagram.process_step_graphs.is_empty() {
-            let connector_classes = TailwindClassesBuilder::build_process_step_connector_classes(
-                theme_default,
-                theme_types_styles,
-                &mut css_theme_vars,
-            );
-            ir_diagram
-                .process_step_graphs
-                .values()
-                .flat_map(|process_step_graph| &process_step_graph.edges)
-                .for_each(|process_step_graph_edge| {
-                    tailwind_classes.insert(
-                        process_step_graph_edge.edge_id().into_inner(),
-                        connector_classes.clone(),
+        // resolved `edge_defaults` class string across all connectors of a
+        // single process -- visibility differs per process (steps hide/reveal
+        // independently), so the string can't be shared across the whole
+        // diagram like it used to be.
+        ir_diagram
+            .process_step_graphs
+            .iter()
+            .for_each(|(process_node_id, process_step_graph)| {
+                if process_step_graph.edges.is_empty() {
+                    return;
+                }
+                let Some(process_diagram) = input_diagram.processes.get(process_node_id.as_ref())
+                else {
+                    return;
+                };
+
+                let connector_classes =
+                    TailwindClassesBuilder::build_process_step_connector_classes(
+                        theme_default,
+                        theme_types_styles,
+                        &mut css_theme_vars,
+                        process_render_expanded,
+                        focus_mode,
+                        process_node_id.as_ref(),
+                        process_diagram,
                     );
-                });
-        }
+
+                process_step_graph
+                    .edges
+                    .iter()
+                    .for_each(|process_step_graph_edge| {
+                        tailwind_classes.insert(
+                            process_step_graph_edge.edge_id().into_inner(),
+                            connector_classes.clone(),
+                        );
+                    });
+            });
 
         // Register the markdown span colours (inline-code background and link
         // text) with `css_theme_vars`, so they emit `--tw-...` CSS variables
@@ -516,38 +552,45 @@ impl InputToIrDiagramMapper {
     ///
     /// The tab indices are calculated for keyboard navigation:
     /// 1. Things (starting from 1, in declaration order)
-    /// 2. Processes and their steps (process first, then its steps)
+    /// 2. Processes and their steps (process first, then its steps in visual
+    ///    row order -- see [`ProcessStepGraphCalculator::steps_by_row`])
     /// 3. Tags (at the end)
     fn build_node_ordering<'id>(
         things: &InputThingHierarchy<'id>,
         tags: &TagNames<'id>,
         processes: &Processes<'id>,
+        process_step_ranks: &ProcessStepRanks<'id>,
     ) -> NodeOrdering<'id> {
         // First, calculate tab indices in the user-expected order:
         // things, then processes with their steps, then tags
         let mut tab_index: u32 = 1;
 
         // Collect things tab indices in hierarchy order (depth-first)
-        let mut tab_indices = Map::<&Id<'id>, u32>::new();
+        let mut tab_indices = Map::<NodeId<'id>, u32>::new();
         Self::collect_thing_tab_indices_recursive(things, &mut tab_index, &mut tab_indices);
 
-        // Collect process and step tab indices
+        // Collect process and step tab indices. Steps are visited in visual
+        // row order (rank, then declaration index) rather than raw
+        // declaration order, so the tab order matches the git-graph layout
+        // even when a step's rank differs from its declaration position.
         let mut process_step_count = 0;
         processes.iter().for_each(|(process_id, process_diagram)| {
-            tab_indices.insert(process_id.as_ref(), tab_index);
+            tab_indices.insert(NodeId::from(process_id.as_ref().clone()), tab_index);
             tab_index += 1;
 
-            process_diagram.steps.keys().for_each(|step_id| {
-                tab_indices.insert(step_id.as_ref(), tab_index);
-                tab_index += 1;
-            });
+            ProcessStepGraphCalculator::steps_by_row(process_diagram, process_step_ranks)
+                .into_iter()
+                .for_each(|step_node_id| {
+                    tab_indices.insert(step_node_id, tab_index);
+                    tab_index += 1;
+                });
 
             process_step_count += process_diagram.steps.len();
         });
 
         // Collect tag tab indices
         tags.keys().for_each(|tag_id| {
-            tab_indices.insert(tag_id.as_ref(), tab_index);
+            tab_indices.insert(NodeId::from(tag_id.as_ref().clone()), tab_index);
             tab_index += 1;
         });
 
@@ -559,18 +602,15 @@ impl InputToIrDiagramMapper {
 
         // 1. Tags first (for CSS peer selector ordering)
         tags.keys().for_each(|tag_id| {
-            let tab_idx = tab_indices.get(tag_id.as_ref()).copied().unwrap_or(0);
             let tag_node_id = NodeId::from(tag_id.as_ref().clone());
+            let tab_idx = tab_indices.get(&tag_node_id).copied().unwrap_or(0);
             node_ordering.insert(tag_node_id, tab_idx);
         });
 
         // 2. Processes (must come before process steps for peer styling)
         processes.keys().for_each(|process_id| {
             let process_node_id = NodeId::from(process_id.as_ref().clone());
-            let tab_idx = tab_indices
-                .get(process_node_id.as_ref())
-                .copied()
-                .unwrap_or(0);
+            let tab_idx = tab_indices.get(&process_node_id).copied().unwrap_or(0);
             node_ordering.insert(process_node_id, tab_idx);
         });
 
@@ -578,10 +618,7 @@ impl InputToIrDiagramMapper {
         processes.values().for_each(|process_diagram| {
             process_diagram.steps.keys().for_each(|step_id| {
                 let process_step_node_id = NodeId::from(step_id.as_ref().clone());
-                let tab_idx = tab_indices
-                    .get(process_step_node_id.as_ref())
-                    .copied()
-                    .unwrap_or(0);
+                let tab_idx = tab_indices.get(&process_step_node_id).copied().unwrap_or(0);
                 node_ordering.insert(process_step_node_id, tab_idx);
             });
         });
@@ -593,13 +630,13 @@ impl InputToIrDiagramMapper {
     }
 
     /// Recursively collect tab indices for things in hierarchy order.
-    fn collect_thing_tab_indices_recursive<'f, 'id>(
-        thing_hierarchy: &'f InputThingHierarchy<'id>,
+    fn collect_thing_tab_indices_recursive<'id>(
+        thing_hierarchy: &InputThingHierarchy<'id>,
         tab_index: &mut u32,
-        tab_indices: &mut Map<&'f Id<'id>, u32>,
+        tab_indices: &mut Map<NodeId<'id>, u32>,
     ) {
         thing_hierarchy.iter().for_each(|(thing_id, children)| {
-            tab_indices.insert(thing_id.as_ref(), *tab_index);
+            tab_indices.insert(NodeId::from(thing_id.as_ref().clone()), *tab_index);
             *tab_index += 1;
 
             // Recurse into children
@@ -608,17 +645,14 @@ impl InputToIrDiagramMapper {
     }
 
     /// Recursively add things to ordering in hierarchy order.
-    fn add_things_to_ordering_recursive<'f, 'id>(
-        thing_hierarchy: &'f InputThingHierarchy<'id>,
-        thing_tab_indices: &Map<&'f Id<'id>, u32>,
+    fn add_things_to_ordering_recursive<'id>(
+        thing_hierarchy: &InputThingHierarchy<'id>,
+        thing_tab_indices: &Map<NodeId<'id>, u32>,
         node_ordering: &mut NodeOrdering<'id>,
     ) {
         thing_hierarchy.iter().for_each(|(thing_id, children)| {
             let thing_node_id = NodeId::from(thing_id.as_ref().clone());
-            let tab_idx = thing_tab_indices
-                .get(thing_node_id.as_ref())
-                .copied()
-                .unwrap_or(0);
+            let tab_idx = thing_tab_indices.get(&thing_node_id).copied().unwrap_or(0);
             node_ordering.insert(thing_node_id, tab_idx);
 
             // Recurse into children
@@ -838,6 +872,7 @@ impl InputToIrDiagramMapper {
                     edge_group_id,
                     edge_kind,
                     things,
+                    EntityType::DependencyEdgeDefault,
                     Self::edge_default_type_dependency,
                 );
                 std::iter::once(edge_group_entity_types).chain(edge_entity_types)
@@ -873,6 +908,7 @@ impl InputToIrDiagramMapper {
                         edge_group_id,
                         edge_kind,
                         things,
+                        EntityType::InteractionEdgeDefault,
                         Self::edge_default_type_interaction,
                     );
                     std::iter::once(edge_group_entity_types).chain(edge_entity_types)
@@ -960,6 +996,7 @@ impl InputToIrDiagramMapper {
         edge_group_id: &EdgeGroupId<'id>,
         edge_kind: EdgeKind,
         things: &[ThingId<'id>],
+        edge_common_default_type: EntityType,
         edge_default_type_fn: fn(EdgeKind, usize, usize) -> EntityType,
     ) -> impl Iterator<Item = (Id<'id>, Set<EntityType>)> {
         let (edge_count, forward_count) = match edge_kind {
@@ -986,6 +1023,7 @@ impl InputToIrDiagramMapper {
             let edge_default_type = edge_default_type_fn(edge_kind, forward_count, i);
 
             let mut types = Set::new();
+            types.insert(edge_common_default_type.clone());
             types.insert(edge_default_type);
 
             if let Some(custom_types) = input_entity_types.get(&edge_id) {

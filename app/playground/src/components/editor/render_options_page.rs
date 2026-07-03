@@ -10,7 +10,7 @@ use dioxus::{
 };
 use disposition::{
     input_model::InputDiagram,
-    model_common::{edge::EdgeCurvature, ProcessRenderCollapse, RankDir},
+    model_common::{edge::EdgeCurvature, InteractionEdgeHalo, ProcessRenderCollapse, RankDir},
 };
 
 use crate::components::editor::common::{LABEL_CLASS, SECTION_HEADING};
@@ -35,6 +35,8 @@ const RADIO_LABEL_CLASS: &str = "\
 /// * `rank_dir`: direction that edges connect nodes.
 /// * `process_render_collapse`: whether processes are rendered collapsed or
 ///   expanded.
+/// * `interaction_edge_halo`: whether a semi-transparent halo is rendered
+///   behind interaction edges.
 #[component]
 pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let dependencies_edge_curvature = input_diagram
@@ -47,6 +49,7 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
         .interactions_edge_curvature;
     let rank_dir = input_diagram.read().render_options.rank_dir;
     let process_render_collapse = input_diagram.read().render_options.process_render_collapse;
+    let interaction_edge_halo = input_diagram.read().render_options.interaction_edge_halo;
 
     rsx! {
         div {
@@ -423,6 +426,61 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                         p {
                             class: "text-xs text-gray-500 pl-6",
                             "Processes are collapsed, expanding to reveal their steps when focused."
+                        }
+                    }
+                }
+            }
+
+            // === Interaction Edge Halo === //
+            fieldset {
+                class: "flex flex-col gap-1",
+
+                legend { class: LABEL_CLASS, "Interaction Edge Halo" }
+                div {
+                    class: RADIO_GROUP_CLASS,
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "interaction_edge_halo",
+                                value: "enabled",
+                                checked: interaction_edge_halo == InteractionEdgeHalo::Enabled,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.interaction_edge_halo =
+                                        InteractionEdgeHalo::Enabled;
+                                },
+                            }
+                            "Enabled"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "A semi-transparent halo is rendered behind each interaction edge, \
+                             sharing its path geometry, to make animated edges easier to follow. \
+                             This is the default."
+                        }
+                    }
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "interaction_edge_halo",
+                                value: "disabled",
+                                checked: interaction_edge_halo == InteractionEdgeHalo::Disabled,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.interaction_edge_halo =
+                                        InteractionEdgeHalo::Disabled;
+                                },
+                            }
+                            "Disabled"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "No halo is rendered behind interaction edges."
                         }
                     }
                 }

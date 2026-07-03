@@ -103,6 +103,6 @@ protrusions are used.
 Connector tailwind classes are resolved during IR mapping (not in the router):
 `TailwindClassesBuilder::build_process_step_connector_classes` styles connectors
 like dependency edges -- the theme's base `edge_defaults` overlaid with
-`type_dependency_edge_sequence_default` -- and the resulting string is stored in
+`type_dependency_edge_default` -- and the resulting string is stored in
 `IrDiagram::tailwind_classes` keyed by `ProcessStepGraphEdge::edge_id` (prefixed
 `edge_ps_`). Per-lane colouring is a possible future enhancement.

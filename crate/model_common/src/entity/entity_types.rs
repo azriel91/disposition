@@ -37,7 +37,10 @@ use super::EntityType;
 /// * `type_interaction_edge_cyclic_default`
 /// * `type_interaction_edge_symmetric_default`
 ///
-/// and each edge within each edge group is assigned a type from the following:
+/// and each edge within each edge group is assigned *two* types: the common,
+/// least-specific `type_dependency_edge_default` /
+/// `type_interaction_edge_default` (lowest priority), plus one of the following
+/// (higher priority, so it overrides the common type's styling):
 ///
 /// * `type_dependency_edge_sequence_forward_default`
 /// * `type_dependency_edge_cyclic_forward_default`

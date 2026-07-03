@@ -10,15 +10,17 @@ use disposition_input_model::{
     DiagramFocus,
 };
 use disposition_ir_model::{
-    edge::EdgeGroups,
+    edge::{EdgeGroups, EdgeId},
     entity::{EntityTailwindClasses, EntityTypeId},
     node::{NodeId, NodeNames},
 };
 use disposition_model_common::{
     edge::EdgeGroupId,
     entity::{EntityType, EntityTypes},
-    Id, Map, Set,
+    Id, Map, RenderOptions, Set,
 };
+
+use crate::{EdgeHaloIdGenerator, EdgeHaloOutlineIdGenerator};
 
 use super::{
     css_theme_vars::CssThemeVars, tailwind_class_state::TailwindClassState,
@@ -34,6 +36,23 @@ pub(crate) struct TailwindClassesBuildResult<'id> {
     pub(crate) tailwind_classes: EntityTailwindClasses<'id>,
     /// CSS variable definitions for light/dark mode colour pairs.
     pub(crate) css_theme_vars: CssThemeVars,
+}
+
+/// Resolved, edge-independent tailwind classes for the interaction edge
+/// halo and its outline rails, split by direction.
+///
+/// `None` fields mean `RenderOptions::interaction_edge_halo` is disabled, so
+/// no halo (or outline) entry should be emitted for any edge.
+#[derive(Clone, Debug, Default)]
+struct InteractionEdgeHaloClasses {
+    /// Halo classes for forward (request) interaction edges.
+    halo_forward: Option<String>,
+    /// Halo classes for reverse (response) interaction edges.
+    halo_reverse: Option<String>,
+    /// Halo outline classes for forward (request) interaction edges.
+    outline_forward: Option<String>,
+    /// Halo outline classes for reverse (response) interaction edges.
+    outline_reverse: Option<String>,
 }
 
 /// Builds tailwind CSS classes for all entities (nodes, edge groups, edges).
@@ -59,6 +78,7 @@ impl TailwindClassesBuilder {
         processes: &Processes<'id>,
         process_render_expanded: bool,
         focus_mode: TailwindFocusMode<'_, 'id>,
+        render_options: &RenderOptions,
     ) -> TailwindClassesBuildResult<'id> {
         let mut css_theme_vars = CssThemeVars::new(theme_default.dark_mode_config.selector);
 
@@ -156,6 +176,7 @@ impl TailwindClassesBuilder {
             &mut css_theme_vars,
             focus_mode,
             processes.is_empty(),
+            render_options,
         );
 
         let tailwind_classes = node_classes.into_iter().chain(edge_classes).collect();
@@ -173,6 +194,7 @@ impl TailwindClassesBuilder {
     /// applies any edge-specific overrides, and writes the combined classes to
     /// a single string. This prevents conflicting tailwind classes that would
     /// result from naively joining separate group and edge class strings.
+    #[allow(clippy::too_many_arguments)]
     fn edge_tailwind_classes_build<'id>(
         edge_groups: &EdgeGroups<'id>,
         edge_group_to_steps: &Map<&EdgeGroupId<'id>, Vec<&ProcessStepId<'id>>>,
@@ -180,12 +202,29 @@ impl TailwindClassesBuilder {
         css_theme_vars: &mut CssThemeVars,
         focus_mode: TailwindFocusMode<'_, 'id>,
         processes_is_empty: bool,
+        render_options: &RenderOptions,
     ) -> Vec<(Id<'id>, String)> {
         let ThemeResolveCtx {
             entity_types,
             theme_default,
             theme_types_styles,
         } = theme_ctx;
+
+        // The interaction edge halo's (and its outline's) classes are
+        // identical for every forward (request) edge, and identical for
+        // every reverse (response) edge, so resolve each once and reuse the
+        // strings, rather than re-resolving per edge.
+        let InteractionEdgeHaloClasses {
+            halo_forward: halo_classes_forward,
+            halo_reverse: halo_classes_reverse,
+            outline_forward: halo_outline_classes_forward,
+            outline_reverse: halo_outline_classes_reverse,
+        } = Self::interaction_edge_halo_classes_resolve(
+            render_options,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        );
 
         let mut edge_classes: Vec<(Id<'id>, String)> = Vec::new();
         edge_groups.iter().for_each(|(edge_group_id, edges)| {
@@ -195,7 +234,7 @@ impl TailwindClassesBuilder {
                 .cloned()
                 .unwrap_or_default();
 
-            let (edge_group_state, edge_group_peer_classes) =
+            let (edge_group_state, edge_group_peer_classes, is_interaction_group) =
                 Self::build_edge_group_tailwind_class_state(
                     edge_group_id,
                     entity_types,
@@ -204,7 +243,6 @@ impl TailwindClassesBuilder {
                     &interaction_steps,
                     css_theme_vars,
                     focus_mode,
-                    processes_is_empty,
                 );
 
             edges.iter().enumerate().for_each(|(index, _edge)| {
@@ -212,6 +250,7 @@ impl TailwindClassesBuilder {
                 let edge_id = Id::try_from(edge_id_str).expect("valid ID string");
 
                 let classes = Self::build_edge_tailwind_classes(
+                    edge_group_id,
                     &edge_group_state,
                     &edge_group_peer_classes,
                     &edge_id,
@@ -219,11 +258,177 @@ impl TailwindClassesBuilder {
                     theme_default,
                     theme_types_styles,
                     css_theme_vars,
+                    processes_is_empty,
+                    is_interaction_group,
                 );
+
+                if is_interaction_group {
+                    let is_reverse = entity_types.get(&edge_id).is_some_and(|types| {
+                        types.contains(&EntityType::InteractionEdgeSymmetricReverseDefault)
+                    });
+                    let (halo_classes, halo_outline_classes) = if is_reverse {
+                        (
+                            halo_classes_reverse.as_ref(),
+                            halo_outline_classes_reverse.as_ref(),
+                        )
+                    } else {
+                        (
+                            halo_classes_forward.as_ref(),
+                            halo_outline_classes_forward.as_ref(),
+                        )
+                    };
+                    let edge_id_for_halo: EdgeId<'id> = edge_id.clone().into();
+                    if let Some(halo_classes) = halo_classes {
+                        let halo_id = EdgeHaloIdGenerator::generate(&edge_id_for_halo);
+                        edge_classes.push((halo_id, halo_classes.clone()));
+                    }
+                    if let Some(halo_outline_classes) = halo_outline_classes {
+                        let halo_outline_id =
+                            EdgeHaloOutlineIdGenerator::generate(&edge_id_for_halo);
+                        edge_classes.push((halo_outline_id, halo_outline_classes.clone()));
+                    }
+                }
+
                 edge_classes.push((edge_id, classes));
             });
         });
         edge_classes
+    }
+
+    /// Resolves the (edge-independent, but forward/reverse-specific)
+    /// tailwind classes for the interaction edge halo and its outline rails.
+    ///
+    /// Both are gated on the same `RenderOptions::interaction_edge_halo`
+    /// toggle -- the outline rails paint on top of the halo fill, so they
+    /// don't make sense without it.
+    fn interaction_edge_halo_classes_resolve<'id>(
+        render_options: &RenderOptions,
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
+    ) -> InteractionEdgeHaloClasses {
+        if !render_options.interaction_edge_halo.is_enabled() {
+            return InteractionEdgeHaloClasses::default();
+        }
+
+        let halo_forward = Self::interaction_edge_halo_classes_build(
+            EntityType::InteractionEdgeHaloForward,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        );
+        let halo_reverse = Self::interaction_edge_halo_classes_build(
+            EntityType::InteractionEdgeHaloReverse,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        );
+        let outline_forward = Self::interaction_edge_halo_outline_classes_build(
+            EntityType::InteractionEdgeHaloOutlineForward,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        );
+        let outline_reverse = Self::interaction_edge_halo_outline_classes_build(
+            EntityType::InteractionEdgeHaloOutlineReverse,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        );
+
+        InteractionEdgeHaloClasses {
+            halo_forward: Some(halo_forward),
+            halo_reverse: Some(halo_reverse),
+            outline_forward: Some(outline_forward),
+            outline_reverse: Some(outline_reverse),
+        }
+    }
+
+    /// Builds the (edge-independent, but forward/reverse-specific) tailwind
+    /// classes for the interaction edge halo.
+    ///
+    /// Resolves `type_interaction_edge_halo` as the base, then overlays
+    /// `overlay_entity_type` (`InteractionEdgeHaloForward` for requests, or
+    /// `InteractionEdgeHaloReverse` for responses) on top -- any theme
+    /// attribute set on the overlay type replaces the corresponding
+    /// attribute inherited from the base.
+    fn interaction_edge_halo_classes_build<'id>(
+        overlay_entity_type: EntityType,
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
+    ) -> String {
+        Self::interaction_edge_halo_or_outline_classes_build(
+            EntityType::InteractionEdgeHalo,
+            overlay_entity_type,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        )
+    }
+
+    /// Builds the (edge-independent, but forward/reverse-specific) tailwind
+    /// classes for the interaction edge halo's outline rails.
+    ///
+    /// Resolves `type_interaction_edge_halo_outline` as the base, then
+    /// overlays `overlay_entity_type` (`InteractionEdgeHaloOutlineForward`
+    /// for requests, or `InteractionEdgeHaloOutlineReverse` for responses) on
+    /// top, mirroring `interaction_edge_halo_classes_build`.
+    fn interaction_edge_halo_outline_classes_build<'id>(
+        overlay_entity_type: EntityType,
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
+    ) -> String {
+        Self::interaction_edge_halo_or_outline_classes_build(
+            EntityType::InteractionEdgeHaloOutline,
+            overlay_entity_type,
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        )
+    }
+
+    /// Shared implementation for `interaction_edge_halo_classes_build` and
+    /// `interaction_edge_halo_outline_classes_build` -- resolves
+    /// `base_entity_type` then overlays `overlay_entity_type` on top into
+    /// one `TailwindClassState`.
+    fn interaction_edge_halo_or_outline_classes_build<'id>(
+        base_entity_type: EntityType,
+        overlay_entity_type: EntityType,
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
+    ) -> String {
+        let mut tailwind_class_state = TailwindClassState {
+            entity_type: Some(base_entity_type.clone()),
+            ..Default::default()
+        };
+
+        [base_entity_type, overlay_entity_type]
+            .into_iter()
+            .for_each(|entity_type| {
+                let type_id = EntityTypeId::from(entity_type.into_id());
+                if let Some(halo_partials) = theme_types_styles
+                    .get(&type_id)
+                    .and_then(|type_styles| type_styles.get(&IdOrDefaults::EdgeDefaults))
+                {
+                    Self::apply_tailwind_from_partials(
+                        halo_partials,
+                        &theme_default.style_aliases,
+                        &mut tailwind_class_state,
+                    );
+                }
+            });
+
+        let mut classes = String::new();
+        tailwind_class_state.write_classes(
+            &mut classes,
+            css_theme_vars,
+            theme_default.dark_mode_config.shade,
+        );
+
+        classes
     }
 
     // === Focus Mode Helpers === //
@@ -283,15 +488,83 @@ impl TailwindClassesBuilder {
     /// of its steps), so that the process's steps should be revealed.
     fn focus_active_in_process<'id>(
         active: &DiagramFocus<'id>,
-        parent_process_id: Option<&ProcessId<'id>>,
+        parent_process_id: Option<&Id<'id>>,
     ) -> bool {
         let Some(parent_process_id) = parent_process_id else {
             return false;
         };
         match active {
-            DiagramFocus::Process(process_id) => process_id == parent_process_id,
-            DiagramFocus::ProcessStep { process_id, .. } => process_id == parent_process_id,
+            DiagramFocus::Process(process_id) => process_id.as_ref() == parent_process_id,
+            DiagramFocus::ProcessStep { process_id, .. } => {
+                process_id.as_ref() == parent_process_id
+            }
             DiagramFocus::None | DiagramFocus::Tag(_) => false,
+        }
+    }
+
+    /// Overrides the resolved `Visibility` attribute to `invisible` when the
+    /// process renders collapsed, shared by process step nodes and process
+    /// step connector edges.
+    ///
+    /// Must be called before `tailwind_class_state.write_classes(..)`, so
+    /// the override replaces (rather than duplicates alongside) any default
+    /// `visible` resolved from the theme's base styles.
+    ///
+    /// * `process_render_expanded`: when `true`, nothing is hidden (the
+    ///   attribute is left untouched).
+    /// * In [`TailwindFocusMode::Baked`] mode, `invisible` is written only when
+    ///   `active` does not target this process (via
+    ///   `Self::focus_active_in_process`).
+    /// * In [`TailwindFocusMode::Interactive`] mode, `invisible` is always
+    ///   written when collapsed (revealed at render time via the
+    ///   `group-has-[...]:visible` classes written by
+    ///   [`Self::process_step_visibility_reveal_classes_write`]).
+    fn process_step_visibility_attr_write<'id>(
+        tailwind_class_state: &mut TailwindClassState<'_>,
+        process_render_expanded: bool,
+        focus_mode: TailwindFocusMode<'_, 'id>,
+        process_id: &Id<'id>,
+    ) {
+        let visible = process_render_expanded
+            || matches!(
+                focus_mode,
+                TailwindFocusMode::Baked { active }
+                    if Self::focus_active_in_process(active, Some(process_id))
+            );
+        if !visible {
+            tailwind_class_state
+                .attrs
+                .insert(ThemeAttr::Visibility, Cow::Borrowed("invisible"));
+        }
+    }
+
+    /// Writes the `group-has-[...]:visible` classes that reveal a process
+    /// step node or process step connector edge when the process (or any of
+    /// its steps) gains focus, shared by both.
+    ///
+    /// Must be called after `tailwind_class_state.write_classes(..)`. In
+    /// [`TailwindFocusMode::Baked`] mode this writes nothing -- visibility is
+    /// already resolved statically by
+    /// [`Self::process_step_visibility_attr_write`].
+    fn process_step_visibility_reveal_classes_write<'a, 'id>(
+        classes: &mut String,
+        focus_mode: TailwindFocusMode<'_, 'id>,
+        process_id: &Id<'id>,
+        process_step_ids: impl Iterator<Item = &'a ProcessStepId<'id>>,
+    ) where
+        'id: 'a,
+    {
+        if matches!(focus_mode, TailwindFocusMode::Interactive) {
+            writeln!(classes, "group-has-[#{process_id}:focus-within]:visible")
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+
+            process_step_ids.for_each(|process_step_id| {
+                writeln!(
+                    classes,
+                    "group-has-[#{process_step_id}:focus-within]:visible"
+                )
+                .expect(CLASSES_BUFFER_WRITE_FAIL);
+            });
         }
     }
 
@@ -401,6 +674,7 @@ impl TailwindClassesBuilder {
             theme_default,
             theme_types_styles,
             IdOrDefaults::NodeDefaults,
+            true,
             &mut tailwind_class_state,
         );
 
@@ -445,6 +719,7 @@ impl TailwindClassesBuilder {
             theme_default,
             theme_types_styles,
             IdOrDefaults::NodeDefaults,
+            true,
             &mut tailwind_class_state,
         );
 
@@ -492,30 +767,21 @@ impl TailwindClassesBuilder {
             theme_default,
             theme_types_styles,
             IdOrDefaults::NodeDefaults,
+            true,
             &mut tailwind_class_state,
         );
 
         // When processes are rendered collapsed, their steps are hidden by
-        // default. When rendered expanded, the step keeps its resolved
-        // visibility (visible by default).
-        //
-        // In interactive mode, hidden steps are revealed via
-        // `group-has-[...]:visible` classes when the process or a sibling step
-        // is focused. In baked mode there is no interactive focus, so visibility
-        // is decided statically: the step is visible when its process is
-        // rendered expanded, or when the active focus is its parent process or
-        // any step of that process.
-        let parent_process_id = parent_process_id_and_diagram.map(|(process_id, _)| process_id);
-        let step_visible = process_render_expanded
-            || matches!(
+        // default. Must run before `write_classes` so the `invisible`
+        // override replaces (not duplicates alongside) the resolved default
+        // `visible` attribute.
+        if let Some((process_id, _)) = parent_process_id_and_diagram {
+            Self::process_step_visibility_attr_write(
+                &mut tailwind_class_state,
+                process_render_expanded,
                 focus_mode,
-                TailwindFocusMode::Baked { active }
-                    if Self::focus_active_in_process(active, parent_process_id)
+                process_id.as_ref(),
             );
-        if !step_visible {
-            tailwind_class_state
-                .attrs
-                .insert(ThemeAttr::Visibility, Cow::Borrowed("invisible"));
         }
 
         let mut classes = String::new();
@@ -525,41 +791,20 @@ impl TailwindClassesBuilder {
             theme_default.dark_mode_config.shade,
         );
 
-        // In interactive mode, process steps get:
-        //
-        // * `group-has-[#{process_id}:focus-within]:visible`
-        // * one of `group-has-[#{process_step_id}:focus-within]:visible` for each of
-        //   the process steps (including itself).
-        //
-        // so that when a process or sibling steps are focused, all steps within the
-        // process are visible.
-        //
-        // These are the same for all steps in the process, so technically we could
-        // compute it just once.
-        //
-        // When a process step is selected, `thing`s receive styles
+        // Revealed when the process or a sibling step is focused. When a
+        // process step is selected, `thing`s receive styles
         // `theme_default.process_step_selected_styles` -- see
         // `build_thing_tailwind_classes`.
-        //
-        // In baked mode these have no effect (visibility is already resolved
-        // above), so they are omitted.
+        if let Some((process_id, process_diagram)) = parent_process_id_and_diagram {
+            Self::process_step_visibility_reveal_classes_write(
+                &mut classes,
+                focus_mode,
+                process_id.as_ref(),
+                process_diagram.steps.keys(),
+            );
+        }
+
         if matches!(focus_mode, TailwindFocusMode::Interactive) {
-            if let Some((process_id, process_diagram)) = parent_process_id_and_diagram {
-                writeln!(
-                    &mut classes,
-                    "group-has-[#{process_id}:focus-within]:visible"
-                )
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
-
-                process_diagram.steps.keys().for_each(|process_step_id| {
-                    writeln!(
-                        &mut classes,
-                        "group-has-[#{process_step_id}:focus-within]:visible"
-                    )
-                    .expect(CLASSES_BUFFER_WRITE_FAIL);
-                });
-            }
-
             writeln!(&mut classes, "peer/{process_step_id}").expect(CLASSES_BUFFER_WRITE_FAIL);
         }
 
@@ -595,6 +840,7 @@ impl TailwindClassesBuilder {
             theme_default,
             theme_types_styles,
             IdOrDefaults::NodeDefaults,
+            true,
             &mut tailwind_class_state,
         );
 
@@ -793,7 +1039,8 @@ impl TailwindClassesBuilder {
     }
 
     /// Build the tailwind class state for an edge group, along with a
-    /// pre-built peer classes string for process step interactions.
+    /// pre-built peer classes string for process step interactions, and
+    /// whether the group is an interaction edge group.
     ///
     /// The returned `TailwindClassState` represents the resolved base styling
     /// for the group (EdgeDefaults + group entity-type + group ID overrides)
@@ -810,8 +1057,6 @@ impl TailwindClassesBuilder {
     /// * `interaction_process_step_ids`: The process step IDs that interact
     ///   with this edge.
     /// * `css_theme_vars`: Collector for CSS variable definitions.
-    /// * `processes_is_empty`: Whether the diagram has no processes, in which
-    ///   case interaction edges are made visible by default.
     #[allow(clippy::too_many_arguments)]
     fn build_edge_group_tailwind_class_state<'id, 'tw_state>(
         edge_group_id: &EdgeGroupId<'id>,
@@ -821,8 +1066,7 @@ impl TailwindClassesBuilder {
         interaction_process_step_ids: &[&ProcessStepId<'id>],
         css_theme_vars: &mut CssThemeVars,
         focus_mode: TailwindFocusMode<'_, 'id>,
-        processes_is_empty: bool,
-    ) -> (TailwindClassState<'tw_state>, String)
+    ) -> (TailwindClassState<'tw_state>, String, bool)
     where
         'id: 'tw_state,
     {
@@ -835,29 +1079,24 @@ impl TailwindClassesBuilder {
             ..Default::default()
         };
 
+        // The group ID override is intentionally NOT applied here (last
+        // parameter `false`): it must run after the individual edge's own
+        // entity types (see `build_edge_tailwind_classes`), which are
+        // applied on top of this group state, so it stays the higher
+        // priority as documented, instead of being shadowed by them.
         Self::resolve_tailwind_attrs(
             edge_group_id,
             entity_types,
             theme_default,
             theme_types_styles,
             IdOrDefaults::EdgeDefaults,
+            false,
             &mut tailwind_class_state,
         );
 
-        // Interaction edges default to `invisible` because they are meant to be
-        // revealed by focusing a process step. When the diagram has no processes
-        // at all, there is nothing to reveal them, so make them visible by
-        // default (their animation is likewise forced on in
-        // `TaffyToSvgElementsMapper`). This removes the need for a manual
-        // `theme_types_styles` visibility override on process-less diagrams.
         let is_interaction_edge = entity_types
             .get(edge_group_id.as_ref())
             .is_some_and(|types| types.iter().any(EntityType::is_interaction_edge));
-        if processes_is_empty && is_interaction_edge {
-            tailwind_class_state
-                .attrs
-                .insert(ThemeAttr::Visibility, Cow::Borrowed("visible"));
-        }
 
         // Build peer classes string for process step interactions.
         //
@@ -901,7 +1140,7 @@ impl TailwindClassesBuilder {
             );
         });
 
-        (tailwind_class_state, peer_classes)
+        (tailwind_class_state, peer_classes, is_interaction_edge)
     }
 
     /// Build tailwind classes for an individual edge within an edge group.
@@ -918,8 +1157,11 @@ impl TailwindClassesBuilder {
     ///
     /// # Parameters
     ///
+    /// * `edge_group_id`: The ID of the edge group, used to apply the group's
+    ///   own ID-specific style override at the correct priority (see below).
     /// * `edge_group_state`: The resolved state for the edge group (not yet
-    ///   stringified).
+    ///   stringified). Does NOT include the edge group's own ID override --
+    ///   that is applied here instead, see below.
     /// * `edge_group_peer_classes`: Pre-built peer classes for process step
     ///   interactions, shared by all edges in the group.
     /// * `edge_id`: The ID of the individual edge (e.g., `edge_group_id__0`).
@@ -927,7 +1169,13 @@ impl TailwindClassesBuilder {
     /// * `theme_default`: The default theme configuration.
     /// * `theme_types_styles`: Styles defined per entity type.
     /// * `css_theme_vars`: Collector for CSS variable definitions.
+    /// * `processes_is_empty`: Whether the diagram has no processes, in which
+    ///   case interaction edges are made visible by default.
+    /// * `is_interaction_edge`: Whether this edge belongs to an interaction
+    ///   edge group.
+    #[allow(clippy::too_many_arguments)]
     fn build_edge_tailwind_classes<'id, 'tw_state>(
+        edge_group_id: &EdgeGroupId<'id>,
         edge_group_state: &TailwindClassState<'tw_state>,
         edge_group_peer_classes: &str,
         edge_id: &Id<'id>,
@@ -935,6 +1183,8 @@ impl TailwindClassesBuilder {
         theme_default: &'tw_state ThemeDefault<'id>,
         theme_types_styles: &'tw_state ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
+        processes_is_empty: bool,
+        is_interaction_edge: bool,
     ) -> String
     where
         'id: 'tw_state,
@@ -951,14 +1201,38 @@ impl TailwindClassesBuilder {
             tailwind_class_state.entity_type = Some(entity_type);
         }
 
-        // Apply edge-specific type and ID overrides on top of the group state.
-        Self::resolve_tailwind_attrs_edge_overrides(
+        // Apply the edge's own entity-type styles on top of the group state.
+        Self::resolve_tailwind_attrs_edge_types(
             edge_id,
             entity_types,
             theme_default,
             theme_types_styles,
             &mut tailwind_class_state,
         );
+
+        // Interaction edges default to `invisible` (via
+        // `type_interaction_edge_default`, applied above) because they are
+        // meant to be revealed by focusing a process step. When the diagram has
+        // no processes at all, there is nothing to reveal them, so make them
+        // visible by default (their animation is likewise forced on in
+        // `TaffyToSvgElementsMapper`). This must run after the edge-specific
+        // overrides above so it always wins, regardless of the edge's own
+        // entity types.
+        if processes_is_empty && is_interaction_edge {
+            tailwind_class_state
+                .attrs
+                .insert(ThemeAttr::Visibility, Cow::Borrowed("visible"));
+        }
+
+        // ID overrides are applied last, in increasing specificity, so
+        // explicit per-ID customisation always wins over entity-type styling
+        // regardless of which tier (group or edge) the type came from.
+        Self::apply_id_specific_partials(
+            edge_group_id.as_ref(),
+            theme_default,
+            &mut tailwind_class_state,
+        );
+        Self::apply_id_specific_partials(edge_id, theme_default, &mut tailwind_class_state);
 
         let mut classes = String::new();
         tailwind_class_state.write_classes(
@@ -976,19 +1250,27 @@ impl TailwindClassesBuilder {
         classes
     }
 
-    /// Resolves the tailwind classes for process step connector edges.
+    /// Resolves the tailwind classes for the connector edges of a single
+    /// process's step graph.
     ///
     /// Process step connectors are styled like dependency edges: the theme's
-    /// base `edge_defaults` overlaid with the
-    /// `type_dependency_edge_sequence_default` edge styling. The resulting
-    /// classes are identical for every connector (they carry no per-edge
-    /// overrides), so a single resolved string is shared across all of them.
+    /// base `edge_defaults` overlaid with the `type_dependency_edge_default`
+    /// edge styling. The resulting classes carry no per-edge overrides, so a
+    /// single resolved string is shared across all of one process's
+    /// connectors -- but connectors of different processes hide/reveal
+    /// independently (mirroring their own process's steps), so the string is
+    /// resolved once per process rather than once for the whole diagram.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn build_process_step_connector_classes<'id>(
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
+        process_render_expanded: bool,
+        focus_mode: TailwindFocusMode<'_, 'id>,
+        process_id: &Id<'id>,
+        process_diagram: &ProcessDiagram<'id>,
     ) -> String {
-        let entity_type = EntityType::DependencyEdgeSequenceDefault;
+        let entity_type = EntityType::DependencyEdgeDefault;
         let mut tailwind_class_state = TailwindClassState {
             entity_type: Some(entity_type.clone()),
             ..Default::default()
@@ -1017,6 +1299,16 @@ impl TailwindClassesBuilder {
             );
         }
 
+        // Must run before `write_classes` so the `invisible` override
+        // replaces (not duplicates alongside) the resolved default `visible`
+        // attribute.
+        Self::process_step_visibility_attr_write(
+            &mut tailwind_class_state,
+            process_render_expanded,
+            focus_mode,
+            process_id,
+        );
+
         let mut classes = String::new();
         tailwind_class_state.write_classes(
             &mut classes,
@@ -1024,19 +1316,29 @@ impl TailwindClassesBuilder {
             theme_default.dark_mode_config.shade,
         );
 
+        Self::process_step_visibility_reveal_classes_write(
+            &mut classes,
+            focus_mode,
+            process_id,
+            process_diagram.steps.keys(),
+        );
+
         classes
     }
 
     // === Tailwind Attribute Resolution === //
 
-    /// Resolve tailwind attribute overrides specific to an individual edge,
-    /// without re-applying EdgeDefaults.
+    /// Resolve entity-type-based tailwind attribute overrides specific to an
+    /// individual edge, without re-applying EdgeDefaults or any ID override.
     ///
     /// This is used when building an edge's classes on top of an
-    /// already-resolved edge group state. Only the entity-type-specific and
-    /// ID-specific overrides for the individual edge are applied; EdgeDefaults
-    /// are intentionally skipped because they are already present in the
-    /// cloned group state.
+    /// already-resolved edge group state. Only the entity-type-specific
+    /// styles for the individual edge are applied; EdgeDefaults are
+    /// intentionally skipped because they are already present in the cloned
+    /// group state, and ID overrides (both the edge group's and this edge's
+    /// own) are applied afterwards by the caller via
+    /// [`Self::apply_id_specific_partials`], so they always win over
+    /// entity-type styling regardless of tier.
     ///
     /// # Parameters
     ///
@@ -1046,7 +1348,7 @@ impl TailwindClassesBuilder {
     /// * `theme_types_styles`: Styles defined per entity type.
     /// * `tailwind_class_state`: The cloned edge group state to apply overrides
     ///   onto.
-    fn resolve_tailwind_attrs_edge_overrides<'partials, 'tw_state, 'id>(
+    fn resolve_tailwind_attrs_edge_types<'partials, 'tw_state, 'id>(
         edge_id: &Id<'id>,
         entity_types: &'partials EntityTypes<'id>,
         theme_default: &'partials ThemeDefault<'id>,
@@ -1073,18 +1375,6 @@ impl TailwindClassesBuilder {
                     );
                 });
         }
-
-        // Apply edge ID-specific styles (highest priority).
-        if let Some(edge_partials) = theme_default
-            .base_styles
-            .get(&IdOrDefaults::Id(edge_id.clone()))
-        {
-            Self::apply_tailwind_from_partials(
-                edge_partials,
-                &theme_default.style_aliases,
-                tailwind_class_state,
-            );
-        }
     }
 
     /// Resolve tailwind attributes for a node.
@@ -1097,13 +1387,20 @@ impl TailwindClassesBuilder {
     /// * `theme_types_styles`: The styles defined for entity types.
     /// * `id_or_defaults_key`: `IdOrDefaults::NodeDefaults` or
     ///   `IdOrDefaults::EdgeDefaults`.
+    /// * `apply_id_override`: Whether to apply the entity ID's own style
+    ///   override (step 3). Edge groups pass `false` here and apply their ID
+    ///   override later via [`Self::apply_id_specific_partials`], after the
+    ///   individual edge's own entity types have been layered on -- so the
+    ///   override isn't shadowed by them. All other callers pass `true`.
     /// * `state`: Tailwind class state to write the resolved classes to.
+    #[allow(clippy::too_many_arguments)]
     fn resolve_tailwind_attrs<'partials, 'tw_state, 'id>(
         entity_id: &Id<'id>,
         entity_types: &'partials EntityTypes<'id>,
         theme_default: &'partials ThemeDefault<'id>,
         theme_types_styles: &'partials ThemeTypesStyles<'id>,
         id_or_defaults_key: IdOrDefaults<'id>,
+        apply_id_override: bool,
         tailwind_class_state: &mut TailwindClassState<'tw_state>,
     ) where
         'partials: 'tw_state,
@@ -1136,13 +1433,31 @@ impl TailwindClassesBuilder {
                 });
         }
 
-        // 3. Apply node ID itself (highest priority)
-        if let Some(node_partials) = theme_default
+        // 3. Apply the entity ID itself (highest priority), unless deferred.
+        if apply_id_override {
+            Self::apply_id_specific_partials(entity_id, theme_default, tailwind_class_state);
+        }
+    }
+
+    /// Applies the style override registered for a specific entity ID (via
+    /// `theme_default.base_styles.get(IdOrDefaults::Id(entity_id))`), if any.
+    ///
+    /// This is the highest-priority style layer for a given entity -- it
+    /// should always be applied after any entity-type-based styling for that
+    /// entity, so explicit per-ID customisation always wins.
+    fn apply_id_specific_partials<'partials, 'tw_state, 'id>(
+        entity_id: &Id<'id>,
+        theme_default: &'partials ThemeDefault<'id>,
+        tailwind_class_state: &mut TailwindClassState<'tw_state>,
+    ) where
+        'partials: 'tw_state,
+    {
+        if let Some(partials) = theme_default
             .base_styles
             .get(&IdOrDefaults::Id(entity_id.clone()))
         {
             Self::apply_tailwind_from_partials(
-                node_partials,
+                partials,
                 &theme_default.style_aliases,
                 tailwind_class_state,
             );

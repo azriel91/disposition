@@ -134,6 +134,7 @@ impl IrToTaffyBuilder<'_> {
             process_step_graphs,
             render_options,
             css: _,
+            interaction_edge_halo_stroke_width: _,
         } = ir_diagram;
 
         let DimensionAndLod { dimension, lod } = dimension_and_lod;

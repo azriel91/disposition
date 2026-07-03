@@ -25,6 +25,7 @@ use crate::{
     input_to_ir_diagram_mapper::tailwind_focus_mode::TailwindFocusMode,
     taffy_to_svg_elements_mapper::{
         edge_face_contact_tracker::{EdgeFaceContactTracker, CONTACT_GAP_MIN_PX},
+        edge_halo_outline_calculator::{EdgeHaloOutlineCalculator, EdgeHaloOutlineRails},
         edge_model::{
             EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeIdAndFace,
             NodeIdAndFaceToContactPointOffsets, PathBounds, PathMidpoint,
@@ -377,6 +378,18 @@ impl SvgEdgeInfosBuilder {
                 let arrow_head_path_d = arrow_head_path.to_svg();
                 let locus_path_d = locus_path.to_svg();
 
+                let (halo_outline_rail_a_path_d, halo_outline_rail_b_path_d) =
+                    if is_interaction_edge && render_options.interaction_edge_halo.is_enabled() {
+                        let EdgeHaloOutlineRails { rail_a, rail_b } =
+                            EdgeHaloOutlineCalculator::calculate(
+                                &path,
+                                f64::from(ir_diagram.interaction_edge_halo_stroke_width),
+                            );
+                        (rail_a.to_svg(), rail_b.to_svg())
+                    } else {
+                        (String::new(), String::new())
+                    };
+
                 let tooltip = ir_diagram
                     .entity_tooltips
                     .get(edge_id.as_ref())
@@ -391,6 +404,8 @@ impl SvgEdgeInfosBuilder {
                     path_d,
                     arrow_head_path_d,
                     locus_path_d,
+                    halo_outline_rail_a_path_d,
+                    halo_outline_rail_b_path_d,
                     tooltip,
                     ortho_protrusion_params,
                 ));
