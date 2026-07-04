@@ -2,16 +2,16 @@ use disposition_ir_model::{
     edge::EdgeId,
     node::{NodeFace, NodeFaceEdges, NodeId},
 };
-use disposition_model_common::Map;
+use disposition_model_common::{Map, RankDir};
 use disposition_taffy_model::{
     taffy::{
         self,
         style_helpers::{auto, line, max_content},
         Display, FlexDirection, JustifyContent, Rect, Style, TaffyTree,
     },
-    DiagramLod, EdgeLabelCtx, MdNodeTaffyIds, TaffyNodeCtx, TaffyNodeKind,
+    DiagramLod, EdgeLabelCtx, MdNodeTaffyIds, TaffyNodeCtx, TaffyNodeKind, TEXT_FONT_SIZE,
 };
-use taffy::LengthPercentage;
+use taffy::{LengthPercentage, LengthPercentageAuto};
 
 use crate::md_text::md_blocks_parser::MdBlocksParser;
 
@@ -80,8 +80,40 @@ impl TaffyEnvelopeBuilder {
     ) -> (taffy::NodeId, Vec<EdgeLabelLeafBuilt>) {
         let mut edge_label_leaves = Vec::new();
 
-        let pad = LengthPercentage::length(EDGE_LABEL_PADDING_PX);
         let md_content_node_padding = LengthPercentage::length(MD_CONTENT_NODE_PADDING);
+        let pad = LengthPercentage::length(EDGE_LABEL_PADDING_PX);
+
+        // Halo clearance: the interaction edge halo is a wide path centered on the
+        // edge, so the label needs clearance of half its stroke width on whichever
+        // sides the halo extends into.
+        //
+        // This must be `margin`, not `padding` -- the label's background box is sized
+        // to include its padding, so padding-based clearance would still leave the
+        // background overlapping the halo even though the text itself wouldn't.
+        //
+        // Halo orientation follows the diagram's overall rank direction (not which face
+        // the label sits on): horizontal rank directions produce a vertically-extending
+        // halo (top/bottom clearance), vertical rank directions produce a
+        // horizontally-extending halo (left/right clearance).
+        //
+        // An additional margin is added on the side facing away from the node, so the
+        // label reads as visually associated with its edge.
+        let halo_pad_px = ctx.interaction_edge_halo_stroke_width / 2.0;
+        let label_margin_px = TEXT_FONT_SIZE / 2.0;
+        let label_margin = match ctx.render_options.rank_dir {
+            RankDir::LeftToRight | RankDir::RightToLeft => Rect {
+                left: LengthPercentageAuto::length(0.0),
+                right: LengthPercentageAuto::length(0.0),
+                top: LengthPercentageAuto::length(halo_pad_px),
+                bottom: LengthPercentageAuto::length(halo_pad_px + label_margin_px),
+            },
+            RankDir::TopToBottom | RankDir::BottomToTop => Rect {
+                left: LengthPercentageAuto::length(halo_pad_px),
+                right: LengthPercentageAuto::length(halo_pad_px + label_margin_px),
+                top: LengthPercentageAuto::length(0.0),
+                bottom: LengthPercentageAuto::length(0.0),
+            },
+        };
 
         // For Top/Bottom faces the edge contacts the left x edge of the label
         // for all rank directions (sibling order matches declaration order,
@@ -95,6 +127,7 @@ impl TaffyEnvelopeBuilder {
                 top: md_content_node_padding,
                 bottom: md_content_node_padding,
             },
+            margin: label_margin,
             ..Default::default()
         };
 
@@ -108,6 +141,7 @@ impl TaffyEnvelopeBuilder {
                 top: md_content_node_padding,
                 bottom: pad,
             },
+            margin: label_margin,
             ..Default::default()
         };
 

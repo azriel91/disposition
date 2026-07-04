@@ -90,6 +90,11 @@ pub(crate) struct TaffyBuildCtx<'ctx> {
     /// consistent across the node-building, size-measuring, and
     /// highlighted-span passes.
     pub(crate) node_md_texts: &'ctx Map<NodeId<'static>, String>,
+    /// Resolved stroke width (pixels) of the interaction edge halo.
+    ///
+    /// Used to pad edge label taffy nodes so the halo doesn't overlap label
+    /// text. See `IrDiagram::interaction_edge_halo_stroke_width`.
+    pub(crate) interaction_edge_halo_stroke_width: f32,
 }
 
 impl<'ctx> TaffyBuildCtx<'ctx> {
