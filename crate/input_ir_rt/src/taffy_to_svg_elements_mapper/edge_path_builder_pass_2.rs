@@ -10,6 +10,7 @@ use crate::taffy_to_svg_elements_mapper::{
         EdgeFaceOffset, EdgePathBuilderPass1, NodeEdgeGeometry, SpacerCoordinates,
         BIDIRECTIONAL_OFFSET_RATIO, CURVE_CONTROL_RATIO,
     },
+    ortho_protrusion_calculator::OrthoProtrusionCalculator,
 };
 
 use disposition_svg_model::OrthoProtrusionParams;
@@ -167,8 +168,7 @@ impl EdgePathBuilderPass2 {
                             * offset_direction;
                     }
                     NodeFace::Top | NodeFace::Bottom => {
-                        start_x +=
-                            from_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+                        start_x += from_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
                     }
                 }
             }
@@ -208,6 +208,18 @@ impl EdgePathBuilderPass2 {
             end_x = ex;
             end_y = ey;
         }
+
+        // Direct-curvature edges get no protrusion/spacer routing at all, so
+        // without help their contact point curves away from the node
+        // immediately. Give each endpoint a short straight stub -- sized from
+        // the node's own envelope clearance on that face (the same quantity
+        // `OrthoProtrusionCalculator` uses to size protrusions for
+        // spacer-routed edges) -- so the path still travels out through the
+        // node's own edge-label region before curving toward the other
+        // endpoint. Zero on faces with no label (clearance is `0.0` there),
+        // so unlabeled direct edges are unaffected.
+        let from_stub_len = OrthoProtrusionCalculator::own_envelope_clearance(from_info, from_face);
+        let to_stub_len = OrthoProtrusionCalculator::own_envelope_clearance(to_info, to_face);
 
         // === Delegate to curvature-specific builder === //
 
@@ -273,7 +285,16 @@ impl EdgePathBuilderPass2 {
                         face_offset.to_offset,
                     )
                 } else {
-                    EdgePathBuilderPass1::build_straight_edge_path(start_x, start_y, end_x, end_y)
+                    EdgePathBuilderPass1::build_straight_edge_path_with_stubs(
+                        start_x,
+                        start_y,
+                        end_x,
+                        end_y,
+                        from_face,
+                        to_face,
+                        from_stub_len,
+                        to_stub_len,
+                    )
                 }
             }
             EdgeCurvature::DirectCurved => {
@@ -286,7 +307,7 @@ impl EdgePathBuilderPass2 {
                         face_offset.to_offset,
                     )
                 } else {
-                    EdgePathBuilderPass1::build_curved_edge_path(
+                    EdgePathBuilderPass1::build_curved_edge_path_with_stubs(
                         start_x,
                         start_y,
                         end_x,
@@ -294,6 +315,8 @@ impl EdgePathBuilderPass2 {
                         from_face,
                         to_face,
                         CURVE_CONTROL_RATIO,
+                        from_stub_len,
+                        to_stub_len,
                     )
                 }
             }

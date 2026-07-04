@@ -3317,7 +3317,11 @@ impl OrthoProtrusionCalculator {
     /// An endpoint protrusion must be at least this long so the Z/S bend
     /// clears the node's own edge label (including the markdown content
     /// padding) rather than overlapping it.
-    fn own_envelope_clearance(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+    ///
+    /// Also reused by `EdgePathBuilderPass2::build` to size the envelope
+    /// stub for direct-curvature edges, which otherwise get no protrusion at
+    /// all -- see `doc/src/edge_paths.md`'s "Edge Curvature" section.
+    pub(super) fn own_envelope_clearance(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
         let face_sign: f32 = match face {
             NodeFace::Bottom | NodeFace::Right => 1.0,
             NodeFace::Top | NodeFace::Left => -1.0,

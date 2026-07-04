@@ -30,6 +30,8 @@ The second pass (`EdgePathBuilderPass2::build`) branches on the curvature:
 
 The `Direct*` variants bypass edge spacers. The spacer taffy nodes are still inserted (the taffy tree structure is unchanged), but for edges whose effective curvature `is_direct()`, the spacer nodes are built with zero `min_size` so they reserve no layout space and the layout stays compact. See [Edge Spacers](edge_spacers.md) for where this is applied.
 
+Because `Direct*` edges skip spacer routing and protrusion (see [Protrusion Calculation](#protrusion-calculation) -- direct-curvature groups are excluded from `OrthoProtrusionCalculator` entirely), they would otherwise curve away from the node face immediately with no stub -- fine for a short unlabeled contact, but visually detached whenever the endpoint has a label (the contact point sits at the label's edge, some distance from the node's own face, per [Label-based offset](#label-based-offset) below). `EdgePathBuilderPass2::build` gives each direct-curvature endpoint a straight stub leg, sized from `OrthoProtrusionCalculator::own_envelope_clearance` (the same quantity used to size protrusions for spacer-routed edges -- the distance from the node's inner face to its envelope face on that side), before the curved/straight segment begins. The stub is `0.0` on faces with no label, so unlabeled direct edges are visually unchanged. `EdgePathBuilderPass1::build_curved_edge_path_with_stubs`/`build_straight_edge_path_with_stubs` implement this; passing `0.0` for both stub lengths reproduces the original two-point path exactly, so every other curvature/call site is unaffected.
+
 
 ## Node Rank Calculation
 

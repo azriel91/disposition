@@ -352,7 +352,12 @@ impl EdgePathBuilderPass1 {
     ///
     /// For `Top`/`Bottom` faces this clamps `x` using `node_info.width`; for
     /// `Left`/`Right` faces it clamps `y` using `node_info.height_collapsed`.
-    pub(super) fn face_contact_clamp(x: &mut f32, y: &mut f32, face: NodeFace, node_info: &SvgNodeInfo) {
+    pub(super) fn face_contact_clamp(
+        x: &mut f32,
+        y: &mut f32,
+        face: NodeFace,
+        node_info: &SvgNodeInfo,
+    ) {
         match face {
             NodeFace::Top | NodeFace::Bottom => {
                 let half = (node_info.width / 2.0 - FACE_CONTACT_MARGIN_PX).max(0.0);
@@ -696,47 +701,123 @@ impl EdgePathBuilderPass1 {
         to_face: NodeFace,
         curve_ratio: f32,
     ) -> BezPath {
-        let dx = end_x - start_x;
-        let dy = end_y - start_y;
+        Self::build_curved_edge_path_with_stubs(
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+            from_face,
+            to_face,
+            curve_ratio,
+            0.0,
+            0.0,
+        )
+    }
+
+    /// Builds a curved bezier path between two points with control points
+    /// based on the faces being connected, with an optional straight stub
+    /// leg at each endpoint before the curve begins.
+    ///
+    /// `from_stub_len`/`to_stub_len` extend a straight segment outward from
+    /// `(start_x, start_y)`/`(end_x, end_y)` along the face's outward normal
+    /// before the curved segment, so the path travels through a node's
+    /// envelope (e.g. past its edge-label region) rather than curving away
+    /// immediately. `0.0` reproduces [`Self::build_curved_edge_path`]'s
+    /// output exactly -- used by direct-curvature edges (see
+    /// `EdgePathBuilderPass2::build`'s `DirectCurved` branch), every other
+    /// call site passes `0.0` for both.
+    pub(super) fn build_curved_edge_path_with_stubs(
+        start_x: f32,
+        start_y: f32,
+        end_x: f32,
+        end_y: f32,
+        from_face: NodeFace,
+        to_face: NodeFace,
+        curve_ratio: f32,
+        from_stub_len: f32,
+        to_stub_len: f32,
+    ) -> BezPath {
+        let (from_stub_dx, from_stub_dy) = Self::get_control_point_offset(from_face, from_stub_len);
+        let (to_stub_dx, to_stub_dy) = Self::get_control_point_offset(to_face, to_stub_len);
+        let stub_start_x = start_x + from_stub_dx;
+        let stub_start_y = start_y + from_stub_dy;
+        let stub_end_x = end_x + to_stub_dx;
+        let stub_end_y = end_y + to_stub_dy;
+
+        let dx = stub_end_x - stub_start_x;
+        let dy = stub_end_y - stub_start_y;
         let distance = (dx * dx + dy * dy).sqrt();
         let ctrl_distance = distance * curve_ratio;
 
         // Calculate control points based on face directions
         let start = Point::new(start_x as f64, start_y as f64);
+        let stub_start = Point::new(stub_start_x as f64, stub_start_y as f64);
         let (ctrl1_x, ctrl1_y) = Self::get_control_point_offset(from_face, ctrl_distance);
         let (ctrl2_x, ctrl2_y) = Self::get_control_point_offset(to_face, ctrl_distance);
-        let ctrl1 = Point::new((start_x + ctrl1_x) as f64, (start_y + ctrl1_y) as f64);
-        let ctrl2 = Point::new((end_x + ctrl2_x) as f64, (end_y + ctrl2_y) as f64);
+        let ctrl1 = Point::new(
+            (stub_start_x + ctrl1_x) as f64,
+            (stub_start_y + ctrl1_y) as f64,
+        );
+        let ctrl2 = Point::new((stub_end_x + ctrl2_x) as f64, (stub_end_y + ctrl2_y) as f64);
+        let stub_end = Point::new(stub_end_x as f64, stub_end_y as f64);
         let end = Point::new(end_x as f64, end_y as f64);
 
         // The path runs from the `from` node to the `to` node.
         let mut path = BezPath::new();
         path.move_to(start);
-        path.curve_to(ctrl1, ctrl2, end);
+        if from_stub_len != 0.0 {
+            path.line_to(stub_start);
+        }
+        path.curve_to(ctrl1, ctrl2, stub_end);
+        if to_stub_len != 0.0 {
+            path.line_to(end);
+        }
 
         path
     }
 
     /// Builds a straight-line edge path directly from the `from` node to the
-    /// `to` node.
+    /// `to` node, with an optional straight stub leg at each endpoint
+    /// extended outward along the face's outward normal before the direct
+    /// segment.
     ///
     /// Used by [`EdgeCurvature::DirectStraight`], which bypasses edge spacers
-    /// entirely.
+    /// entirely. `from_stub_len`/`to_stub_len` of `0.0` draws the segment
+    /// directly between `(start_x, start_y)` and `(end_x, end_y)` with no
+    /// stub -- see [`Self::build_curved_edge_path_with_stubs`] for why this
+    /// exists.
     ///
     /// [`EdgeCurvature::DirectStraight`]:
     /// disposition_model_common::edge::EdgeCurvature::DirectStraight
-    pub(super) fn build_straight_edge_path(
+    pub(super) fn build_straight_edge_path_with_stubs(
         start_x: f32,
         start_y: f32,
         end_x: f32,
         end_y: f32,
+        from_face: NodeFace,
+        to_face: NodeFace,
+        from_stub_len: f32,
+        to_stub_len: f32,
     ) -> BezPath {
+        let (from_stub_dx, from_stub_dy) = Self::get_control_point_offset(from_face, from_stub_len);
+        let (to_stub_dx, to_stub_dy) = Self::get_control_point_offset(to_face, to_stub_len);
+        let stub_start = Point::new(
+            (start_x + from_stub_dx) as f64,
+            (start_y + from_stub_dy) as f64,
+        );
+        let stub_end = Point::new((end_x + to_stub_dx) as f64, (end_y + to_stub_dy) as f64);
         let start = Point::new(start_x as f64, start_y as f64);
         let end = Point::new(end_x as f64, end_y as f64);
 
         let mut path = BezPath::new();
         path.move_to(start);
-        path.line_to(end);
+        if from_stub_len != 0.0 {
+            path.line_to(stub_start);
+        }
+        path.line_to(stub_end);
+        if to_stub_len != 0.0 {
+            path.line_to(end);
+        }
 
         path
     }

@@ -171,7 +171,9 @@ impl NodeMeasureContext<'_> {
                         let edge_id = &edge_desc_ctx.edge_id;
                         ctx.edge_id_to_group_id
                             .get(edge_id)
-                            .and_then(|edge_group_id| edge_descs.get_for_edge(edge_id, edge_group_id))
+                            .and_then(|edge_group_id| {
+                                edge_descs.get_for_edge(edge_id, edge_group_id)
+                            })
                             .map(|desc| Cow::Borrowed(desc.as_str()))
                     }
                 },
@@ -182,7 +184,9 @@ impl NodeMeasureContext<'_> {
                         let node_id = &edge_label_ctx.node_id;
                         ctx.edge_id_to_group_id
                             .get(edge_id)
-                            .and_then(|edge_group_id| edge_labels.get_for_edge(edge_id, edge_group_id))
+                            .and_then(|edge_group_id| {
+                                edge_labels.get_for_edge(edge_id, edge_group_id)
+                            })
                             .and_then(|edge_label| {
                                 // Use the from or to text depending on which
                                 // endpoint this label slot is attached to.

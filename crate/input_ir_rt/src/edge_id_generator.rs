@@ -27,12 +27,15 @@ impl EdgeIdGenerator {
         edge_groups
             .iter()
             .flat_map(|(edge_group_id, edge_group)| {
-                edge_group.iter().enumerate().map(move |(edge_index, _edge)| {
-                    (
-                        Self::generate(edge_group_id, edge_index),
-                        edge_group_id.clone(),
-                    )
-                })
+                edge_group
+                    .iter()
+                    .enumerate()
+                    .map(move |(edge_index, _edge)| {
+                        (
+                            Self::generate(edge_group_id, edge_index),
+                            edge_group_id.clone(),
+                        )
+                    })
             })
             .collect()
     }
