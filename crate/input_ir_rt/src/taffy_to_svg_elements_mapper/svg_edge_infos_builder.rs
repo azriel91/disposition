@@ -161,6 +161,7 @@ impl SvgEdgeInfosBuilder {
             &ir_diagram.node_nesting_infos,
             edge_label_taffy_nodes,
             taffy_tree,
+            ir_diagram.interaction_edge_halo_stroke_width,
         );
 
         // Nudge a container's face contact away from edges that transit the
@@ -720,6 +721,7 @@ impl SvgEdgeInfosBuilder {
         node_nesting_infos: &NodeNestingInfos<'id>,
         edge_label_taffy_nodes: &EdgeIdToEdgeLabelTaffyNodeIds<'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        interaction_edge_halo_stroke_width: f32,
     ) -> NodeIdAndFaceToContactPointOffsets<'id> {
         // Collect face contact entries per (node, face) across all groups.
         let mut face_contact_entries_by_node_face: Map<NodeIdAndFace<'id>, Vec<FaceContactEntry>> =
@@ -886,6 +888,7 @@ impl SvgEdgeInfosBuilder {
                         taffy_tree,
                         svg_node_info_map,
                         &node_id_and_face.node_id,
+                        interaction_edge_halo_stroke_width,
                     );
                     (label_offset.unwrap_or(slot_offset), label_offset.is_some())
                 })
@@ -2042,6 +2045,18 @@ impl SvgEdgeInfosBuilder {
     /// when the label has zero size along the face axis (indicating no
     /// description text).  The caller should fall back to the slot-based
     /// offset in that case.
+    ///
+    /// The returned offset is pulled back by half
+    /// `interaction_edge_halo_stroke_width` from the label's entry-side edge,
+    /// so the routed path stops short of the label rather than terminating
+    /// flush against it.
+    ///
+    /// Without this, the contact point is defined as the label's own
+    /// (post-layout) coordinate, so any clearance added via the label's own
+    /// margin (see `TaffyEnvelopeBuilder::build`) would shift both the label
+    /// and the path by the same amount and never open up a visible gap -- the
+    /// halo, being centered on the path, would still overlap the label by half
+    /// its stroke width.
     #[allow(clippy::too_many_arguments)]
     fn label_face_offset_compute<'id>(
         face: NodeFace,
@@ -2051,7 +2066,9 @@ impl SvgEdgeInfosBuilder {
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         node_id: &NodeId<'id>,
+        interaction_edge_halo_stroke_width: f32,
     ) -> Option<f32> {
+        let halo_pad_px = interaction_edge_halo_stroke_width / 2.0;
         let edge_label_taffy_node_ids = edge_label_taffy_nodes.get(edge_id)?;
         // Only route the contact to the label when the label actually has
         // content. Every edge -- even one without a description -- gets a
@@ -2091,8 +2108,9 @@ impl SvgEdgeInfosBuilder {
                         taffy_node_id,
                         layout,
                     );
-                // Route to the entry-side (left x) edge of the label.
-                let label_contact_x = label_abs_x;
+                // Route to just short of the entry-side (left x) edge of the
+                // label, so the halo doesn't overlap the label's background.
+                let label_contact_x = label_abs_x - halo_pad_px;
                 Some(label_contact_x - face_midpoint)
             }
             NodeFace::Left | NodeFace::Right => {
@@ -2105,8 +2123,9 @@ impl SvgEdgeInfosBuilder {
                         taffy_node_id,
                         layout,
                     );
-                // Route to the entry-side (top y) edge of the label.
-                let label_contact_y = label_abs_y;
+                // Route to just short of the entry-side (top y) edge of the
+                // label, so the halo doesn't overlap the label's background.
+                let label_contact_y = label_abs_y - halo_pad_px;
                 Some(label_contact_y - face_midpoint)
             }
         }
