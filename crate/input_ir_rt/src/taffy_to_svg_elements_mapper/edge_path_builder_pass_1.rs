@@ -726,6 +726,7 @@ impl EdgePathBuilderPass1 {
     /// output exactly -- used by direct-curvature edges (see
     /// `EdgePathBuilderPass2::build`'s `DirectCurved` branch), every other
     /// call site passes `0.0` for both.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn build_curved_edge_path_with_stubs(
         start_x: f32,
         start_y: f32,
@@ -789,6 +790,7 @@ impl EdgePathBuilderPass1 {
     ///
     /// [`EdgeCurvature::DirectStraight`]:
     /// disposition_model_common::edge::EdgeCurvature::DirectStraight
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn build_straight_edge_path_with_stubs(
         start_x: f32,
         start_y: f32,
