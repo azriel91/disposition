@@ -11,7 +11,9 @@ use disposition_svg_model::{
     OrthoProtrusionParams, RankGapDiagnosticEndpointKind, RankGapDiagnosticSide,
     RankGapEntryDiagnostic, SpacerProtrusionParams, SvgNodeInfo,
 };
-use disposition_taffy_model::{taffy::TaffyTree, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx};
+use disposition_taffy_model::{
+    taffy::TaffyTree, EdgeIdToEdgeDescriptionTaffyNodes, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx,
+};
 
 use disposition_ir_model::node::NodeFace;
 
@@ -289,6 +291,9 @@ impl OrthoProtrusionCalculator {
     /// * `svg_node_info_map`: node layout information.
     /// * `taffy_tree`: the layout tree (for spacer coordinate lookups).
     /// * `edge_spacer_taffy_nodes`: spacer node mappings per edge.
+    /// * `edge_description_taffy_nodes`: description node mappings per edge,
+    ///   used to size `spacer_protrusions` consistently with
+    ///   `SpacerCoordinatesResolver::resolve`'s merged waypoint list.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn calculate<'id>(
         rank_dir: RankDir,
@@ -299,6 +304,7 @@ impl OrthoProtrusionCalculator {
         svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
+        edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
         entity_types: &EntityTypes<'id>,
@@ -323,6 +329,7 @@ impl OrthoProtrusionCalculator {
                             &pass1_info.edge_id,
                             taffy_tree,
                             edge_spacer_taffy_nodes,
+                            edge_description_taffy_nodes,
                         )
                     })
                     .collect()

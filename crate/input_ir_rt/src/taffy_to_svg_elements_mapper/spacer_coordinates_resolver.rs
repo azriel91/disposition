@@ -1,6 +1,9 @@
 use disposition_ir_model::{edge::EdgeId, node::NodeRank};
 use disposition_model_common::RankDir;
-use disposition_taffy_model::{taffy::TaffyTree, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx};
+use disposition_taffy_model::{
+    taffy::TaffyTree, EdgeIdToEdgeDescriptionTaffyNodes, EdgeIdToEdgeSpacerTaffyNodes,
+    EdgeSpacerTaffyNodes, TaffyNodeCtx,
+};
 
 use crate::taffy_to_svg_elements_mapper::{
     edge_path_builder_pass_1::SpacerCoordinates, EdgeSpacerCoordinatesCalculator,
@@ -8,7 +11,7 @@ use crate::taffy_to_svg_elements_mapper::{
 
 /// Resolves the spacer coordinates an edge passes through, in visual order.
 ///
-/// An edge may have spacer taffy nodes of three kinds:
+/// An edge may have spacer taffy nodes of four kinds:
 ///
 /// * Rank-based spacers (`rank_to_spacer_taffy_node_id`), inserted at
 ///   intermediate ranks the edge crosses.
@@ -17,6 +20,9 @@ use crate::taffy_to_svg_elements_mapper::{
 ///   boundaries.
 /// * Edge-description-container spacers
 ///   (`edge_desc_container_spacer_taffy_node_ids`).
+/// * The edge's own description contact -- read directly from the
+///   `edge_description_container` leaf's own resolved rect (not a spacer leaf
+///   at all), via [`Self::description_contact_resolve`].
 ///
 /// Each resolved [`SpacerCoordinates`] has an entry point and an exit point
 /// that slice the spacer in half, so the edge path passes straight through the
@@ -41,10 +47,15 @@ impl SpacerCoordinatesResolver {
         edge_id: &EdgeId<'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
+        edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
     ) -> Vec<SpacerCoordinates> {
-        let Some(spacer_nodes) = edge_spacer_taffy_nodes.get(edge_id) else {
-            return Vec::new();
-        };
+        // An edge whose only waypoint is its own description contact has no
+        // entry in `edge_spacer_taffy_nodes` at all, so this must not early
+        // return before the description contact is considered.
+        let default_spacer_nodes = EdgeSpacerTaffyNodes::new();
+        let spacer_nodes = edge_spacer_taffy_nodes
+            .get(edge_id)
+            .unwrap_or(&default_spacer_nodes);
 
         let rank_spacers: Vec<(NodeRank, SpacerCoordinates)> = spacer_nodes
             .rank_to_spacer_taffy_node_id
@@ -79,10 +90,17 @@ impl SpacerCoordinatesResolver {
             taffy_tree,
             &spacer_nodes.text_content_spacer_taffy_node_ids,
         );
+        let description_contact = Self::description_contact_resolve(
+            rank_dir,
+            edge_id,
+            taffy_tree,
+            edge_description_taffy_nodes,
+        );
 
         if cross_container_spacers.is_empty()
             && edge_desc_container_spacers.is_empty()
             && text_content_spacers.is_empty()
+            && description_contact.is_none()
         {
             // Fast path: only rank-based spacers -- sort by rank as before.
             return Self::rank_spacers_sort_by_rank(rank_spacers);
@@ -97,9 +115,44 @@ impl SpacerCoordinatesResolver {
             .chain(cross_container_spacers)
             .chain(edge_desc_container_spacers)
             .chain(text_content_spacers)
+            .chain(description_contact)
             .collect();
 
         Self::spacers_sort_by_main_axis(rank_dir, all_spacers)
+    }
+
+    /// Resolves the waypoint for an edge's own `edge_description_container`
+    /// leaf, read directly from the description box's own post-layout
+    /// absolute rect (not a decoupled spacer leaf).
+    ///
+    /// Returns `None` when the edge has no description (absent from
+    /// `edge_description_taffy_nodes`) or its layout cannot be resolved.
+    ///
+    /// Unlike every other spacer kind, this waypoint applies
+    /// **unconditionally**, regardless of `EdgeCurvature::is_direct()`: it is
+    /// folded into [`Self::resolve`]'s merged list (consumed unconditionally
+    /// by `Curved`/`Orthogonal` routing), and is also passed separately into
+    /// `EdgePathBuilderPass2::build`'s `description_contact` parameter, which
+    /// the `DirectStraight`/`DirectCurved` arms consult directly since they
+    /// otherwise ignore `resolve`'s output entirely.
+    ///
+    /// # Example values
+    ///
+    /// `edge_id = "edge_dep_client_server__0"`, with that edge's
+    /// `description_taffy_node_id` resolving to the post-layout rect `x=200,
+    /// y=60, width=80, height=24` under `rank_dir: TopToBottom` -- returns
+    /// `Some(SpacerCoordinates { entry_x: 240.0, entry_y: 60.0, exit_x: 240.0,
+    /// exit_y: 84.0 })`.
+    pub fn description_contact_resolve<'id>(
+        rank_dir: RankDir,
+        edge_id: &EdgeId<'id>,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
+    ) -> Option<SpacerCoordinates> {
+        let description_taffy_node_id = edge_description_taffy_nodes
+            .get(edge_id)?
+            .description_taffy_node_id;
+        EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, description_taffy_node_id)
     }
 
     /// Snaps an edge's cross-container spacers to a single straight column on

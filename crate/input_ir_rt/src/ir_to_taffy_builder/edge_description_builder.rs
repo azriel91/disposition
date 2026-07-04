@@ -7,7 +7,7 @@ use disposition_ir_model::{
 };
 use disposition_model_common::{edge::EdgeGroupId, Map};
 use disposition_taffy_model::{
-    taffy::{self, AlignSelf, Style, TaffyTree},
+    taffy::{self, style::FlexDirection, AlignSelf, Style, TaffyTree},
     DiagramLod, EdgeDescriptionCtx, EdgeDescriptionTaffyNodes, TaffyNodeCtx,
 };
 
@@ -128,14 +128,8 @@ impl EdgeDescriptionBuilder {
                     .map(|node| node.description_taffy_node_id)
                     .collect();
 
-                // The rank container style carries the rank gap (the vertical
-                // spacing between rank rows). In this Row container that gap
-                // becomes horizontal space between the description text and its
-                // routing spacer, pushing the edge path far from the text.
-                //
-                // Use half a character width instead so the path sits just beside the text.
-                let mut container_style = rank_container_style.clone();
-                container_style.gap.width = taffy::LengthPercentage::length(ctx.char_width / 2.0);
+                let container_style =
+                    Self::container_style_build(rank_container_style, ctx.char_width);
 
                 let container_taffy_node_id = taffy_tree
                     .new_with_children(container_style, &leaf_node_ids)
@@ -165,6 +159,39 @@ impl EdgeDescriptionBuilder {
             edge_description_taffy_nodes,
             position_to_container_ids,
         }
+    }
+
+    /// Builds the `edge_description_container`'s style from the rank
+    /// container style, overriding the gap on whichever axis is the
+    /// container's actual stacking axis.
+    ///
+    /// The container mirrors `rank_container_style` (same `flex_direction` as
+    /// ordinary rank containers), so its stacking axis -- and hence which gap
+    /// component actually separates its children -- depends on `rank_dir`:
+    /// `Row` / `RowReverse` (`TopToBottom` / `BottomToTop`) stack children
+    /// horizontally, so the gap lives on `gap.width`; `Column` /
+    /// `ColumnReverse` (`LeftToRight` / `RightToLeft`) stack children
+    /// vertically, so the gap lives on `gap.height`. Using the wrong axis
+    /// leaves the *other* axis at the full rank gap, pushing the edge path
+    /// far from the description text.
+    ///
+    /// # Example values
+    ///
+    /// `rank_container_style.flex_direction = Column` (rank_dir:
+    /// left_to_right), `char_width = 8.0` -- overrides `gap.height` to
+    /// `LengthPercentage::length(4.0)`, leaving `gap.width` unchanged.
+    fn container_style_build(rank_container_style: &Style, char_width: f32) -> Style {
+        let mut container_style = rank_container_style.clone();
+        let gap_value = taffy::LengthPercentage::length(char_width / 2.0);
+        match container_style.flex_direction {
+            FlexDirection::Row | FlexDirection::RowReverse => {
+                container_style.gap.width = gap_value;
+            }
+            FlexDirection::Column | FlexDirection::ColumnReverse => {
+                container_style.gap.height = gap_value;
+            }
+        }
+        container_style
     }
 
     /// Builds the description leaf or markdown sub-tree taffy nodes for a

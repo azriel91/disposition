@@ -822,6 +822,45 @@ impl EdgePathBuilderPass1 {
         path
     }
 
+    /// Builds a straight-line edge path that bends through a single
+    /// intermediate waypoint -- the owning edge's own description box
+    /// contact.
+    ///
+    /// Used by [`EdgeCurvature::DirectStraight`] when the edge owns an
+    /// `edge_description_container` leaf: unlike
+    /// [`Self::build_straight_edge_path_with_stubs`], which draws directly
+    /// between the two node faces, this path also visits the waypoint's entry
+    /// and exit points in between, so it visibly passes through/beside the
+    /// description box. Mirrors how [`EdgeCurvature::DirectCurved`] reuses
+    /// `EdgePathBuilderPass2Curve::build_spacer_edge_path` for the same
+    /// purpose.
+    ///
+    /// # Example values
+    ///
+    /// `start = (100.0, 50.0)`, `waypoint = SpacerCoordinates { entry_x:
+    /// 150.0, entry_y: 120.0, exit_x: 150.0, exit_y: 140.0 }`, `end = (100.0,
+    /// 300.0)` produces a 4-point polyline `(100,50) -> (150,120) ->
+    /// (150,140) -> (100,300)`.
+    ///
+    /// [`EdgeCurvature::DirectStraight`]:
+    /// disposition_model_common::edge::EdgeCurvature::DirectStraight
+    /// [`EdgeCurvature::DirectCurved`]:
+    /// disposition_model_common::edge::EdgeCurvature::DirectCurved
+    pub(super) fn build_straight_edge_path_via_waypoint(
+        start_x: f32,
+        start_y: f32,
+        end_x: f32,
+        end_y: f32,
+        waypoint: SpacerCoordinates,
+    ) -> BezPath {
+        let mut path = BezPath::new();
+        path.move_to(Point::new(start_x as f64, start_y as f64));
+        path.line_to(Point::new(waypoint.entry_x as f64, waypoint.entry_y as f64));
+        path.line_to(Point::new(waypoint.exit_x as f64, waypoint.exit_y as f64));
+        path.line_to(Point::new(end_x as f64, end_y as f64));
+        path
+    }
+
     /// Gets the control point offset direction based on the face.
     pub(super) fn get_control_point_offset(face: NodeFace, distance: f32) -> (f32, f32) {
         match face {

@@ -742,7 +742,8 @@ impl EdgeSpacerBuilder {
     ///
     /// The described edge itself (the edge whose description owns the
     /// container) does NOT receive a spacer in its own container -- its path
-    /// terminates there rather than passing through.
+    /// bends directly to the description box's own resolved rect instead, via
+    /// `SpacerCoordinatesResolver::description_contact_resolve`.
     ///
     /// Only `edge_desc_container_spacer_taffy_node_ids` is populated in the
     /// returned `EdgeSpacerTaffyNodes` values; callers must merge into any
@@ -894,11 +895,19 @@ impl EdgeSpacerBuilder {
                 }
 
                 container_ids.iter().for_each(|container_id| {
-                    // Insert a spacer for this edge into every container within
-                    // range. When the container already holds this edge's own
-                    // description node, place the spacer immediately after that
-                    // description node so the routing waypoint sits right
-                    // beside it; otherwise append it at the end.
+                    // The edge that owns this container's description does not
+                    // get a spacer inside its own container -- its path bends
+                    // directly to the description box's own resolved rect
+                    // instead (see
+                    // `SpacerCoordinatesResolver::description_contact_resolve`),
+                    // which supersedes this spacer for the owning edge.
+                    let is_own_container = edge_description_taffy_nodes
+                        .get(edge_id)
+                        .is_some_and(|nodes| nodes.container_taffy_node_id == *container_id);
+                    if is_own_container {
+                        return;
+                    }
+
                     let spacer_taffy_node_id = taffy_tree
                         .new_leaf_with_context(
                             spacer_style.clone(),
@@ -909,29 +918,9 @@ impl EdgeSpacerBuilder {
                         )
                         .expect("Expected to create edge_desc_container spacer leaf node.");
 
-                    let description_index = edge_description_taffy_nodes
-                        .get(edge_id)
-                        .filter(|nodes| nodes.container_taffy_node_id == *container_id)
-                        .and_then(|nodes| {
-                            taffy_tree
-                                .children(*container_id)
-                                .ok()
-                                .and_then(|children| {
-                                    children
-                                        .iter()
-                                        .position(|&child| child == nodes.description_taffy_node_id)
-                                })
-                        });
-
-                    if let Some(index) = description_index {
-                        taffy_tree
-                            .insert_child_at_index(*container_id, index + 1, spacer_taffy_node_id)
-                            .expect("Expected to insert spacer after description node.");
-                    } else {
-                        taffy_tree
-                            .add_child(*container_id, spacer_taffy_node_id)
-                            .expect("Expected to add spacer child to edge_description_container.");
-                    }
+                    taffy_tree
+                        .add_child(*container_id, spacer_taffy_node_id)
+                        .expect("Expected to add spacer child to edge_description_container.");
 
                     edge_spacer_taffy_nodes
                         .entry(edge_id.clone())

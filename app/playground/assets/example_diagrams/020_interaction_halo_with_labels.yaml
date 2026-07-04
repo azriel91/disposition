@@ -36,6 +36,9 @@ thing_interactions:
       - t_database
 
 edge_labels:
+  edge_dep_client_server__0:
+    from: "c/s dep from"
+    to: "c/s dep to"
   edge_ix_client_server__0:
     from: c/s from
     to: c/s to
@@ -48,6 +51,11 @@ edge_labels:
   edge_ix_server_database__1:
     from: db from
     to: db to
+
+edge_descs:
+  edge_dep_client_server__0: "c/s dep"
+  edge_ix_client_server__0: "ix 0"
+  edge_ix_client_server__1: "ix 1"
 
 theme_types_styles:
   type_interaction_edge_halo_forward:
@@ -66,3 +74,6 @@ theme_types_styles:
     edge_defaults:
       style_aliases_applied: []
       shape_color: purple
+
+render_options:
+  rank_dir: left_to_right

@@ -128,7 +128,11 @@ belongs to a **different** described edge (condition: `rank_low <= rank_P < rank
 spacer leaf is appended as a direct child of that container, providing a coordinate waypoint so the
 crossing edge's path builder routes through the container's visual space rather than jumping over
 it. The described edge whose container it is does **not** receive a spacer inside its own container
--- its path terminates there.
+-- instead its path bends directly to the description box's own resolved rect, via
+`SpacerCoordinatesResolver::description_contact_resolve` (see
+[edge_descriptions.md](edge_descriptions.md)). That contact is applied to the owning edge's path
+**unconditionally**, regardless of `EdgeCurvature::is_direct()` -- unlike every other spacer kind
+here, which direct-curvature edges bypass entirely.
 
 ### 4. Text-Content (Node-Label) Spacers
 

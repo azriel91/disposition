@@ -516,6 +516,46 @@ leaf nodes with the same style as all other spacers, so no changes are needed
 there.
 
 
+### Step 6.3 -- The owning edge's own description contact (implemented)
+
+Step 6.1's plan (a generic spacer leaf per edge, including the owning edge, in
+its own container) was implemented but left the owning edge's waypoint
+decoupled from its own description box: the spacer leaf's rect, not the
+description leaf's rect, was what the path builder read. Combined with all
+spacers being ignored outright by `EdgeCurvature::is_direct()` edges (the
+default for interaction edges), described edges routinely rendered with no
+visible connection to their own description box.
+
+The implemented fix instead reads the owning edge's `description_taffy_node_id`
+directly:
+
+- `SpacerCoordinatesResolver::description_contact_resolve` (source:
+  `crate/input_ir_rt/src/taffy_to_svg_elements_mapper/spacer_coordinates_resolver.rs`)
+  looks up the edge's `EdgeDescriptionTaffyNodes::description_taffy_node_id`
+  and calls `EdgeSpacerCoordinatesCalculator::calculate` on it directly --
+  no separate spacer leaf is created for the owning edge any more (see the
+  correction to `build_edge_desc_container_spacers_for_edge` below).
+- `SpacerCoordinatesResolver::resolve` folds this contact into its merged,
+  sorted waypoint list, so `EdgeCurvature::Curved`/`Orthogonal` routing picks
+  it up unconditionally (no code changes needed in those branches).
+- `EdgeCurvature::DirectStraight`/`DirectCurved` ignore `resolve`'s output
+  entirely (by design, to stay spacer-free), so the contact is *also* passed
+  as a separate `description_contact` parameter to
+  `EdgePathBuilderPass2::build`, consulted only by those two arms. This makes
+  the description contact behave like the label-based face offset
+  (`label_face_offset_compute`): the one waypoint kind applied regardless of
+  curvature.
+- `EdgeSpacerBuilder::build_edge_desc_container_spacers_for_edge` (source:
+  `crate/input_ir_rt/src/ir_to_taffy_builder/edge_spacer_builder.rs`) now
+  actually skips creating a spacer when the container is the edge's own
+  description container (previously documented but not implemented), since
+  the direct-box-read contact supersedes it.
+
+Crossing (non-owning) edges into someone else's `edge_description_container`
+are unchanged: they still get a generic, curvature-gated `EdgeSpacer` leaf, as
+originally planned.
+
+
 ## Phase 7 -- Documentation Updates
 
 ### Step 7.1 -- Update `taffy_node_hierarchy.md`

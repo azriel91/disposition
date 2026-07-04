@@ -52,6 +52,8 @@
 * Add `EntityType::InteractionEdgeHaloOutlineForward` / `InteractionEdgeHaloOutlineReverse` so interaction edge halo outlines can be styled. ([#58][#58])
 * Add an "Interaction Halo" playground example diagram demonstrating request / response halo colouring. ([#58][#58])
 * Support edge labels and descriptions on interaction edges. ([#59][#59])
+* Route edge description text through its edge's path, mirroring how edge labels contact one side of their node face, instead of rendering decoupled from the edge -- applied regardless of edge curvature. ([#59][#59])
+* Fix `edge_description_container` gap spacing for `RankDir::LeftToRight` / `RightToLeft` diagrams, which previously left the full rank gap between stacked descriptions instead of a tight gap. ([#59][#59])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43

@@ -293,6 +293,7 @@ impl TaffyToSvgElementsMapper {
             taffy_tree,
             edge_spacer_taffy_nodes,
             edge_label_taffy_nodes,
+            edge_description_taffy_nodes,
             &mut tailwind_classes,
             &mut css,
             edge_animation_active,

@@ -86,6 +86,14 @@ The description text is rendered in an `edge_description_container` node
 positioned between the rank containers of the edge's divergent ancestors.  See
 `edge_description_containers_plan.md` for details.
 
+The description's own rendered position is also a routing waypoint for its
+owning edge's path: `SpacerCoordinatesResolver::description_contact_resolve`
+reads the description leaf's post-layout rect and bends the edge's path to
+pass through it, applied unconditionally regardless of edge curvature (see
+`edge_spacers.md` -- Edge Description Container Spacers). This mirrors how
+`label_face_offset_compute` bends a path's face contact to sit beside an edge
+label's own box.
+
 
 ## Step-by-Step: How Face-Label Slots Are Built
 

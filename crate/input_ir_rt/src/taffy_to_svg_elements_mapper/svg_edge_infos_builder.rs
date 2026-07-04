@@ -14,7 +14,8 @@ use disposition_svg_model::{
     OrthoProtrusionParams, RankGapEntryDiagnostic, SvgEdgeInfo, SvgNodeInfo,
 };
 use disposition_taffy_model::{
-    taffy::TaffyTree, EdgeIdToEdgeLabelTaffyNodeIds, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx,
+    taffy::TaffyTree, EdgeIdToEdgeDescriptionTaffyNodes, EdgeIdToEdgeLabelTaffyNodeIds,
+    EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx,
 };
 use kurbo::Shape;
 
@@ -80,6 +81,7 @@ impl SvgEdgeInfosBuilder {
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
         edge_label_taffy_nodes: &EdgeIdToEdgeLabelTaffyNodeIds<'id>,
+        edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
         tailwind_classes: &mut EntityTailwindClasses<'id>,
         css: &mut Css,
         edge_animation_active: EdgeAnimationActive,
@@ -174,6 +176,7 @@ impl SvgEdgeInfosBuilder {
             &ir_diagram.node_nesting_infos,
             taffy_tree,
             edge_spacer_taffy_nodes,
+            edge_description_taffy_nodes,
             &mut face_offsets_by_node_face,
         );
 
@@ -222,6 +225,7 @@ impl SvgEdgeInfosBuilder {
             svg_node_info_map,
             taffy_tree,
             edge_spacer_taffy_nodes,
+            edge_description_taffy_nodes,
             &ir_diagram.node_nesting_infos,
             &ir_diagram.node_ranks_nested,
             entity_types,
@@ -285,6 +289,7 @@ impl SvgEdgeInfosBuilder {
                 svg_node_info_map,
                 taffy_tree,
                 edge_spacer_taffy_nodes,
+                edge_description_taffy_nodes,
                 visible_segments_length,
                 ortho_protrusions,
             );
@@ -1342,6 +1347,7 @@ impl SvgEdgeInfosBuilder {
         svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
+        edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
         visible_segments_length: f64,
         ortho_protrusions: &[OrthoProtrusionParams],
     ) -> Vec<EdgePathInfo<'edge, 'id>> {
@@ -1400,12 +1406,27 @@ impl SvgEdgeInfosBuilder {
                 };
 
                 // Compute spacer coordinates from spacer taffy nodes if
-                // this edge has any intermediate-rank spacers.
+                // this edge has any intermediate-rank spacers. The edge's own
+                // description contact (if any) is already folded into this
+                // list, so `Curved`/`Orthogonal` routing picks it up
+                // unconditionally.
                 let spacer_coordinates = SpacerCoordinatesResolver::resolve(
                     rank_dir,
                     &pass1_info.edge_id,
                     taffy_tree,
                     edge_spacer_taffy_nodes,
+                    edge_description_taffy_nodes,
+                );
+
+                // Direct-curvature edges ignore `spacer_coordinates` entirely
+                // (see `EdgePathBuilderPass2::build`'s `Direct*` arms), so the
+                // description contact must also be passed separately -- this
+                // is the one waypoint applied regardless of curvature.
+                let description_contact = SpacerCoordinatesResolver::description_contact_resolve(
+                    rank_dir,
+                    &pass1_info.edge_id,
+                    taffy_tree,
+                    edge_description_taffy_nodes,
                 );
 
                 let ortho_protrusion_default = OrthoProtrusionParams::default();
@@ -1425,6 +1446,7 @@ impl SvgEdgeInfosBuilder {
                     // Pass the faces computed in pass 1 (which uses cycle-aware
                     // face selection) so that pass 2 uses the same faces.
                     pass1_info.from_face.zip(pass1_info.to_face),
+                    description_contact,
                 );
                 let path_length = {
                     let accuracy = 1.0;
@@ -1797,6 +1819,7 @@ impl SvgEdgeInfosBuilder {
         node_nesting_infos: &NodeNestingInfos<'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
+        edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
         face_offsets_by_node_face: &mut NodeIdAndFaceToContactPointOffsets<'id>,
     ) {
         for group in all_pass1_groups {
@@ -1843,6 +1866,7 @@ impl SvgEdgeInfosBuilder {
                             &other.edge_id,
                             taffy_tree,
                             edge_spacer_taffy_nodes,
+                            edge_description_taffy_nodes,
                         );
                         Self::transit_cross_axis_before_face(
                             face,
