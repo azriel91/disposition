@@ -867,15 +867,18 @@ impl SvgEdgeInfosBuilder {
                 .collect();
 
             // Substitute label-based offsets where the edge has a
-            // non-zero description label on this face.
-            let mut offsets: Vec<f32> = face_contact_entries
+            // non-zero description label on this face. Also record whether
+            // each offset is label-based, so `EdgePathBuilderPass2::build`
+            // can avoid additionally applying the bidirectional pair offset
+            // on top of it (see `EdgeContactPointOffsets::is_label_based`).
+            let (mut offsets, is_label_based): (Vec<f32>, Vec<bool>) = face_contact_entries
                 .iter()
                 .zip(slot_based_offsets)
                 .map(|(entry, slot_offset)| {
                     let edge_id = &all_pass1_groups[entry.pass1_group_index].pass1_infos
                         [entry.edge_index]
                         .edge_id;
-                    Self::label_face_offset_compute(
+                    let label_offset = Self::label_face_offset_compute(
                         node_id_and_face.face,
                         edge_id,
                         entry.is_from_endpoint,
@@ -883,10 +886,10 @@ impl SvgEdgeInfosBuilder {
                         taffy_tree,
                         svg_node_info_map,
                         &node_id_and_face.node_id,
-                    )
-                    .unwrap_or(slot_offset)
+                    );
+                    (label_offset.unwrap_or(slot_offset), label_offset.is_some())
                 })
-                .collect();
+                .unzip();
 
             // Self-loop from/to contacts may come from different sources
             // (label-aligned from vs slot-based to); enforce the face contact
@@ -900,7 +903,7 @@ impl SvgEdgeInfosBuilder {
 
             face_offsets_by_node_face.insert(
                 node_id_and_face.clone(),
-                EdgeContactPointOffsets::new(offsets),
+                EdgeContactPointOffsets::new(offsets, is_label_based),
             );
         }
 
@@ -1350,7 +1353,7 @@ impl SvgEdgeInfosBuilder {
                     .get(&pass1_info.edge.to)
                     .expect("to node validated in pass 1");
 
-                let from_offset = pass1_info
+                let (from_offset, from_offset_is_label) = pass1_info
                     .from_face
                     .and_then(|from_face| {
                         let slot_index = from_slot_indices[pass1_info_index]?;
@@ -1360,11 +1363,15 @@ impl SvgEdgeInfosBuilder {
                         };
                         let contact_point_offsets =
                             face_offsets_by_node_face.get(&node_id_and_face)?;
-                        contact_point_offsets.get(slot_index)
+                        let offset = contact_point_offsets.get(slot_index)?;
+                        let is_label = contact_point_offsets
+                            .is_label_based(slot_index)
+                            .unwrap_or(false);
+                        Some((offset, is_label))
                     })
-                    .unwrap_or(0.0);
+                    .unwrap_or((0.0, false));
 
-                let to_offset = pass1_info
+                let (to_offset, to_offset_is_label) = pass1_info
                     .to_face
                     .and_then(|to_face| {
                         let slot_index = to_slot_indices[pass1_info_index]?;
@@ -1374,13 +1381,19 @@ impl SvgEdgeInfosBuilder {
                         };
                         let contact_point_offsets =
                             face_offsets_by_node_face.get(&node_id_and_face)?;
-                        contact_point_offsets.get(slot_index)
+                        let offset = contact_point_offsets.get(slot_index)?;
+                        let is_label = contact_point_offsets
+                            .is_label_based(slot_index)
+                            .unwrap_or(false);
+                        Some((offset, is_label))
                     })
-                    .unwrap_or(0.0);
+                    .unwrap_or((0.0, false));
 
                 let face_offset = EdgeFaceOffset {
                     from_offset,
                     to_offset,
+                    from_offset_is_label,
+                    to_offset_is_label,
                 };
 
                 // Compute spacer coordinates from spacer taffy nodes if

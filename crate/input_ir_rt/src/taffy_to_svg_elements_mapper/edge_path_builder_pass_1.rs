@@ -29,6 +29,16 @@ pub(super) struct EdgeFaceOffset {
     /// `0.0` -- edge at the face midpoint.
     /// `10.0` -- edge shifted 10 px right/down from the face midpoint.
     pub(super) to_offset: f32,
+    /// Whether `from_offset` came from an edge's own label content (via
+    /// `label_face_offset_compute`) rather than the slot-based fallback.
+    ///
+    /// A label-based offset already separates a symmetric edge pair's two
+    /// contacts, so `EdgePathBuilderPass2::build` must not additionally
+    /// apply the bidirectional pair offset to this endpoint.
+    pub(super) from_offset_is_label: bool,
+    /// Whether `to_offset` came from an edge's own label content, mirroring
+    /// `from_offset_is_label`.
+    pub(super) to_offset_is_label: bool,
 }
 
 /// Absolute coordinates of a spacer node's entry and exit edges,
@@ -99,6 +109,11 @@ pub(super) const SELF_LOOP_X_EXTENSION_RATIO: f32 = 0.2;
 pub(super) const BIDIRECTIONAL_OFFSET_RATIO: f32 = 0.1;
 /// Percentage of the node's width/height to curve the edge outward.
 pub(super) const CURVE_CONTROL_RATIO: f32 = 0.3;
+/// Margin (px) kept between a clamped contact point and the node's own face
+/// corner, so the line doesn't touch the exact corner pixel. Matches the
+/// existing margin used by `contact_offset_cleared_from_transits` in
+/// `svg_edge_infos_builder.rs`.
+pub(super) const FACE_CONTACT_MARGIN_PX: f32 = 4.0;
 
 /// Builds SVG bezier curve paths for pass-1 edge layout (zero-offset
 /// paths for metadata collection).
@@ -325,6 +340,30 @@ impl EdgePathBuilderPass1 {
         match face {
             NodeFace::Left | NodeFace::Right => *y += offset,
             NodeFace::Top | NodeFace::Bottom => *x += offset,
+        }
+    }
+
+    /// Clamps a contact point to stay within the node's own face span,
+    /// leaving `FACE_CONTACT_MARGIN_PX` on each side.
+    ///
+    /// Defends against any offset source (label-based offset, bidirectional
+    /// pair offset, collision separation, ...) placing the contact point
+    /// outside the node's own rectangle.
+    ///
+    /// For `Top`/`Bottom` faces this clamps `x` using `node_info.width`; for
+    /// `Left`/`Right` faces it clamps `y` using `node_info.height_collapsed`.
+    pub(super) fn face_contact_clamp(x: &mut f32, y: &mut f32, face: NodeFace, node_info: &SvgNodeInfo) {
+        match face {
+            NodeFace::Top | NodeFace::Bottom => {
+                let half = (node_info.width / 2.0 - FACE_CONTACT_MARGIN_PX).max(0.0);
+                let mid = node_info.x + node_info.width / 2.0;
+                *x = x.clamp(mid - half, mid + half);
+            }
+            NodeFace::Left | NodeFace::Right => {
+                let half = (node_info.height_collapsed / 2.0 - FACE_CONTACT_MARGIN_PX).max(0.0);
+                let mid = node_info.y + node_info.height_collapsed / 2.0;
+                *y = y.clamp(mid - half, mid + half);
+            }
         }
     }
 

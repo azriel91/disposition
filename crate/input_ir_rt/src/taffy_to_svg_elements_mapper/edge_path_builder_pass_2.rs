@@ -146,7 +146,11 @@ impl EdgePathBuilderPass2 {
             face_offset.to_offset,
         );
 
-        // Apply bidirectional offset.
+        // Apply bidirectional offset. Skipped per-endpoint when that
+        // endpoint's contact is already label-based: the label offset
+        // already separates the pair's two contacts, so stacking the
+        // bidirectional shift on top would push the contact past the
+        // node's own face bounds (see `EdgeFaceOffset::from_offset_is_label`).
         if edge_type == EdgeType::PairRequest || edge_type == EdgeType::PairResponse {
             let offset_direction = if edge_type == EdgeType::PairResponse {
                 1.0
@@ -155,27 +159,40 @@ impl EdgePathBuilderPass2 {
             };
 
             // Move start point down if this is the `PairRequest` edge.
-            match from_face {
-                NodeFace::Right | NodeFace::Left => {
-                    start_y +=
-                        from_info.height_collapsed * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                }
-                NodeFace::Top | NodeFace::Bottom => {
-                    start_x += from_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+            if !face_offset.from_offset_is_label {
+                match from_face {
+                    NodeFace::Right | NodeFace::Left => {
+                        start_y += from_info.height_collapsed
+                            * BIDIRECTIONAL_OFFSET_RATIO
+                            * offset_direction;
+                    }
+                    NodeFace::Top | NodeFace::Bottom => {
+                        start_x +=
+                            from_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+                    }
                 }
             }
 
             // Move end point down if this is the `PairResponse` edge.
-            match to_face {
-                NodeFace::Right | NodeFace::Left => {
-                    end_y +=
-                        to_info.height_collapsed * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                }
-                NodeFace::Top | NodeFace::Bottom => {
-                    end_x += to_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+            if !face_offset.to_offset_is_label {
+                match to_face {
+                    NodeFace::Right | NodeFace::Left => {
+                        end_y += to_info.height_collapsed
+                            * BIDIRECTIONAL_OFFSET_RATIO
+                            * offset_direction;
+                    }
+                    NodeFace::Top | NodeFace::Bottom => {
+                        end_x += to_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+                    }
                 }
             }
         }
+
+        // Defensive clamp: keep the contact point within the node's own
+        // face span regardless of which mechanism produced the offset
+        // (label offset, bidirectional pair offset, collision separation).
+        EdgePathBuilderPass1::face_contact_clamp(&mut start_x, &mut start_y, from_face, from_info);
+        EdgePathBuilderPass1::face_contact_clamp(&mut end_x, &mut end_y, to_face, to_info);
 
         // If either node has a circle, snap the connection point to the
         // circle perimeter instead of the rectangular face center.
