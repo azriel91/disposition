@@ -51,6 +51,7 @@
 * Add `EntityType::InteractionEdgeHaloForward` / `InteractionEdgeHaloReverse` so interaction edge halos can be coloured differently for "requests" (forward edges) versus "responses" (reverse edges), overriding attributes from `type_interaction_edge_halo`. ([#58][#58])
 * Add `EntityType::InteractionEdgeHaloOutlineForward` / `InteractionEdgeHaloOutlineReverse` so interaction edge halo outlines can be styled. ([#58][#58])
 * Add an "Interaction Halo" playground example diagram demonstrating request / response halo colouring. ([#58][#58])
+* Support edge labels and descriptions on interaction edges. ([#59][#59])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -69,6 +70,7 @@
 [#56]: https://github.com/azriel91/disposition/pull/56
 [#57]: https://github.com/azriel91/disposition/pull/57
 [#58]: https://github.com/azriel91/disposition/pull/58
+[#59]: https://github.com/azriel91/disposition/pull/59
 
 
 ## 0.3.0 (2026-06-07)
