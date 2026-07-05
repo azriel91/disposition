@@ -621,6 +621,18 @@ rank axis.
 - The old `calculate_description_contact`/`description_contact_from_rect`
   single-point functions were removed entirely, since both branches now
   thread through.
+- Further correction (implemented): after choosing the axis (inverted or
+  not), `container_style_build` also strips any `Reverse` variant down to
+  plain `Row`/`Column` (`RowReverse` -> `Row`, `ColumnReverse` -> `Column`),
+  for both cross-rank and same-rank containers. This matters under
+  `rank_dir: bottom_to_top`/`right_to_left`, whose rank containers use the
+  reversed variant. Ordinary rank containers need that reversed variant
+  because their sibling insertion order is separately corrected for it
+  (`TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed`),
+  but an `edge_description_container`'s children are freshly sorted into
+  visual order every time (ascending `sibling_index_middle`/`EdgeId`), so a
+  reversed direction would instead render them back to front, crossing over
+  each other.
 
 
 ## Phase 7 -- Documentation Updates

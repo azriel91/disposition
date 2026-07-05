@@ -60,6 +60,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0055_INTERACTION_EDGE_LABEL_DESC_BG,
     INPUT_DIAGRAM_0056_INTERACTION_HALO_WITH_LABELS,
     INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC,
+    INPUT_DIAGRAM_0058_INTERACTION_HALO_WITH_LABELS_RIGHT_TO_LEFT,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -5140,6 +5141,52 @@ fn test_between_ranks_edge_description_sits_between_rank_containers() {
             desc.x,
             t_client.envelope_x + t_client.envelope_width,
             t_server.envelope_x,
+        );
+    }
+}
+
+/// Regression test for a bug where a cross-rank `edge_description_container`
+/// under a reversed `rank_dir` (`bottom_to_top`/`right_to_left`) rendered its
+/// descriptions back to front. The container mirrors
+/// `rank_container_style.flex_direction`, which is `RowReverse`/
+/// `ColumnReverse` for those two directions (so ordinary rank containers'
+/// *reversed* sibling stacking, combined with a separate sibling-order
+/// correction, still matches declaration order) -- but an
+/// `edge_description_container`'s children are freshly sorted into visual
+/// order every time it is built, so mirroring the reversed direction
+/// (without also correcting sibling order, which nothing does for this
+/// container) would render them in the opposite of sorted order.
+///
+/// `EdgeDescriptionBuilder::container_style_build` strips `Reverse` down to
+/// plain `Row`/`Column`. `0058` mirrors `0056` under `rank_dir: right_to_left`,
+/// so `edge_dep_client_server__0`, `edge_ix_client_server__0`, and
+/// `edge_ix_client_server__1` (sorted in that order, by `EdgeId`) share one
+/// cross-rank container with a `ColumnReverse` rank container style -- this
+/// asserts their descriptions' `y` positions are strictly increasing
+/// (sorted order, top to bottom), not decreasing (reversed).
+#[test]
+fn test_cross_rank_edge_description_container_direction_not_reversed() {
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0058_INTERACTION_HALO_WITH_LABELS_RIGHT_TO_LEFT,
+    ) {
+        let desc_y = |edge_id: &str| {
+            svg_elements
+                .edge_description_infos
+                .iter()
+                .find(|d| d.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected a description for {edge_id}."))
+                .y
+        };
+
+        let dep_y = desc_y("edge_dep_client_server__0");
+        let ix_0_y = desc_y("edge_ix_client_server__0");
+        let ix_1_y = desc_y("edge_ix_client_server__1");
+
+        assert!(
+            dep_y < ix_0_y && ix_0_y < ix_1_y,
+            "Expected the shared container's descriptions to be stacked in sorted \
+             (not reversed) order: edge_dep_client_server__0 (y: {dep_y}) < \
+             edge_ix_client_server__0 (y: {ix_0_y}) < edge_ix_client_server__1 (y: {ix_1_y})"
         );
     }
 }

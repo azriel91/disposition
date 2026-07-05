@@ -293,11 +293,22 @@ impl EdgeDescriptionBuilder {
     /// inverted (`taffy_container_builder::flex_direction_invert`) before
     /// the gap axis is chosen.
     ///
+    /// After the axis is chosen (inverted or not), any `Reverse` variant is
+    /// stripped (`RowReverse` -> `Row`, `ColumnReverse` -> `Column`): the
+    /// container's children are already inserted in the correct visual order
+    /// (ascending `sibling_index_middle`/`EdgeId`, see [`Self::build`]), so a
+    /// reversed direction would render them back to front, crossing over
+    /// each other. Ordinary rank containers need `Reverse` (their sibling
+    /// insertion order is separately corrected for it, see
+    /// `edge_paths.md` -- Sibling order for reversed rank directions), but an
+    /// `edge_description_container` has no such correction and does not need
+    /// one, since its own children are always freshly sorted here.
+    ///
     /// Either way, the gap component matching the *actual* (possibly
-    /// inverted) stacking axis is overridden: `Row`/`RowReverse` stack
-    /// children horizontally, so the gap lives on `gap.width`;
-    /// `Column`/`ColumnReverse` stack children vertically, so the gap lives
-    /// on `gap.height`. Using the wrong axis leaves the *other* axis at the
+    /// inverted, always non-reversed) stacking axis is overridden:
+    /// `Row` stacks children horizontally, so the gap lives on `gap.width`;
+    /// `Column` stacks children vertically, so the gap lives on
+    /// `gap.height`. Using the wrong axis leaves the *other* axis at the
     /// full rank gap, pushing the edge path far from the description text.
     ///
     /// # Example values
@@ -307,6 +318,12 @@ impl EdgeDescriptionBuilder {
     /// overrides `gap.height` to `LengthPercentage::length(4.0)`, leaving
     /// `gap.width` unchanged. With `is_cross_rank = false`, `flex_direction`
     /// is inverted to `Row` first, so `gap.width` is overridden instead.
+    ///
+    /// `rank_container_style.flex_direction = ColumnReverse` (rank_dir:
+    /// right_to_left), `is_cross_rank = true` -- `Reverse` is stripped to
+    /// `Column`, so `gap.height` is overridden (not `RowReverse`/`gap.width`
+    /// as inverting alone, without the strip, would give for the same-rank
+    /// case).
     fn container_style_build(
         rank_container_style: &Style,
         char_width: f32,
@@ -316,6 +333,13 @@ impl EdgeDescriptionBuilder {
         if !is_cross_rank {
             container_style.flex_direction = flex_direction_invert(container_style.flex_direction);
         }
+        // Remove `Reverse` from `flex_direction` to avoid crossing edges.
+        container_style.flex_direction = match container_style.flex_direction {
+            FlexDirection::RowReverse => FlexDirection::Row,
+            FlexDirection::ColumnReverse => FlexDirection::Column,
+            _ => container_style.flex_direction,
+        };
+
         let gap_value = taffy::LengthPercentage::length(char_width / 2.0);
         match container_style.flex_direction {
             FlexDirection::Row | FlexDirection::RowReverse => {

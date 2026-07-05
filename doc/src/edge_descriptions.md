@@ -117,22 +117,33 @@ sibling_index_middle)` so that a different pair of same-ranked siblings gets
 its own container rather than being merged in.
 
 Unlike a cross-rank `edge_description_container` (which mirrors
-`rank_container_style.flex_direction` unchanged, since it is inserted *as a
-sibling of* rank containers and multiple descriptions sharing that position
-should lay out along the same axis rank siblings use), a same-rank
-container's own children layout is *inverted*
-(`EdgeDescriptionBuilder::container_style_build`, via
-`taffy_container_builder::flex_direction_invert`): the container is inserted
-*as a rank sibling itself*, directly between the two divergent ancestors,
-which already occupy the rank's own stacking axis. Mirroring that axis for
-multiple described edges sharing the slot would stack their boxes along the
-same axis the two divergent ancestors sit on, widening (or heightening) the
-gap between them per extra description. Since the divergent ancestors' own
-edges run *along* that axis, the descriptions instead stack along the
-perpendicular (cross) axis -- e.g. under `rank_dir: top_to_bottom`, two
-described edges between the same pair of same-ranked (horizontally adjacent)
-siblings stack vertically (`Column`) rather than widening the horizontal gap
-between them.
+`rank_container_style.flex_direction`, since it is inserted *as a sibling of*
+rank containers and multiple descriptions sharing that position should lay
+out along the same axis rank siblings use), a same-rank container's own
+children layout is *inverted* (`EdgeDescriptionBuilder::container_style_build`,
+via `taffy_container_builder::flex_direction_invert`): the container is
+inserted *as a rank sibling itself*, directly between the two divergent
+ancestors, which already occupy the rank's own stacking axis. Mirroring that
+axis for multiple described edges sharing the slot would stack their boxes
+along the same axis the two divergent ancestors sit on, widening (or
+heightening) the gap between them per extra description. Since the divergent
+ancestors' own edges run *along* that axis, the descriptions instead stack
+along the perpendicular (cross) axis -- e.g. under `rank_dir: top_to_bottom`,
+two described edges between the same pair of same-ranked (horizontally
+adjacent) siblings stack vertically (`Column`) rather than widening the
+horizontal gap between them.
+
+Either way (cross-rank or same-rank), a `RowReverse`/`ColumnReverse`
+`flex_direction` -- which occurs under `rank_dir: bottom_to_top` /
+`right_to_left`, whose rank containers use the reversed variant so ranks
+stack in reverse screen order -- is stripped down to plain `Row`/`Column`
+for the `edge_description_container`. Ordinary rank containers need the
+reversed variant because their *own* sibling order is separately corrected
+for it (see [Sibling order for reversed rank directions](edge_paths.md#sibling-order-for-reversed-rank-directions)),
+but an `edge_description_container`'s children are freshly built and sorted
+by `sibling_index_middle`/`EdgeId` in visual order every time (see above), so
+no such correction exists -- a reversed direction would instead render them
+back to front, crossing over each other.
 
 This placement is scoped per LCA level exactly like same-level cross-rank
 spacers: `EdgeDescriptionBuilder::build` is called once per level (root, and
