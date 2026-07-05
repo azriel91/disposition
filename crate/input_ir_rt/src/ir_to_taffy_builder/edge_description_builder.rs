@@ -18,6 +18,7 @@ use crate::md_text::md_blocks_parser::MdBlocksParser;
 use super::{
     edge_spacer_builder::LcaDepthCalculator, md_node_builder::MdNodeBuilder,
     rank_sibling_inserter::RankSiblingInserter, taffy_build_ctx::TaffyBuildCtx,
+    taffy_container_builder::flex_direction_invert,
 };
 
 use self::{
@@ -239,7 +240,8 @@ impl EdgeDescriptionBuilder {
             .map(|node| node.description_taffy_node_id)
             .collect();
 
-        let container_style = Self::container_style_build(rank_container_style, char_width);
+        let container_style =
+            Self::container_style_build(rank_container_style, char_width, is_cross_rank);
 
         let container_taffy_node_id = taffy_tree
             .new_with_children(container_style, &leaf_node_ids)
@@ -271,23 +273,49 @@ impl EdgeDescriptionBuilder {
     /// container style, overriding the gap on whichever axis is the
     /// container's actual stacking axis.
     ///
-    /// The container mirrors `rank_container_style` (same `flex_direction` as
-    /// ordinary rank containers), so its stacking axis -- and hence which gap
-    /// component actually separates its children -- depends on `rank_dir`:
-    /// `Row` / `RowReverse` (`TopToBottom` / `BottomToTop`) stack children
-    /// horizontally, so the gap lives on `gap.width`; `Column` /
-    /// `ColumnReverse` (`LeftToRight` / `RightToLeft`) stack children
-    /// vertically, so the gap lives on `gap.height`. Using the wrong axis
-    /// leaves the *other* axis at the full rank gap, pushing the edge path
-    /// far from the description text.
+    /// For a **cross-rank** (`BetweenRanks`) container, this mirrors
+    /// `rank_container_style` (same `flex_direction` as ordinary rank
+    /// containers): the container sits as a sibling of rank containers
+    /// (stacked along the rank axis by its parent), so multiple described
+    /// edges sharing that position lay out their own descriptions along the
+    /// same axis rank siblings use, keeping the gap compact along the
+    /// cross-rank axis instead.
+    ///
+    /// For a **same-rank** (`SameRank`, cycle edge) container, the roles are
+    /// reversed: it is inserted *as a rank sibling itself*, directly between
+    /// its two divergent ancestors, which sit side by side along
+    /// `rank_container_style.flex_direction`. Mirroring that direction would
+    /// stack multiple described edges' boxes along the same axis the two
+    /// divergent ancestors are laid out on, widening/heightening the gap
+    /// between them per extra description. Since the divergent ancestors'
+    /// own edges run *along* that axis, the descriptions should instead
+    /// stack along the perpendicular (cross) axis -- so `flex_direction` is
+    /// inverted (`taffy_container_builder::flex_direction_invert`) before
+    /// the gap axis is chosen.
+    ///
+    /// Either way, the gap component matching the *actual* (possibly
+    /// inverted) stacking axis is overridden: `Row`/`RowReverse` stack
+    /// children horizontally, so the gap lives on `gap.width`;
+    /// `Column`/`ColumnReverse` stack children vertically, so the gap lives
+    /// on `gap.height`. Using the wrong axis leaves the *other* axis at the
+    /// full rank gap, pushing the edge path far from the description text.
     ///
     /// # Example values
     ///
     /// `rank_container_style.flex_direction = Column` (rank_dir:
-    /// left_to_right), `char_width = 8.0` -- overrides `gap.height` to
-    /// `LengthPercentage::length(4.0)`, leaving `gap.width` unchanged.
-    fn container_style_build(rank_container_style: &Style, char_width: f32) -> Style {
+    /// left_to_right), `char_width = 8.0`, `is_cross_rank = true` --
+    /// overrides `gap.height` to `LengthPercentage::length(4.0)`, leaving
+    /// `gap.width` unchanged. With `is_cross_rank = false`, `flex_direction`
+    /// is inverted to `Row` first, so `gap.width` is overridden instead.
+    fn container_style_build(
+        rank_container_style: &Style,
+        char_width: f32,
+        is_cross_rank: bool,
+    ) -> Style {
         let mut container_style = rank_container_style.clone();
+        if !is_cross_rank {
+            container_style.flex_direction = flex_direction_invert(container_style.flex_direction);
+        }
         let gap_value = taffy::LengthPercentage::length(char_width / 2.0);
         match container_style.flex_direction {
             FlexDirection::Row | FlexDirection::RowReverse => {
@@ -327,7 +355,8 @@ impl EdgeDescriptionBuilder {
     ///   `sibling_index_from.cmp(&sibling_index_to)`, carried through to
     ///   [`disposition_taffy_model::EdgeDescriptionTaffyNodes`] for the routing
     ///   waypoint calculation (see
-    ///   `EdgeSpacerCoordinatesCalculator::calculate_description_contact`).
+    ///   `EdgeSpacerCoordinatesCalculator::calculate_description_thread`/
+    ///   `calculate_description_thread_same_rank`).
     ///
     /// The shared container node is created later in `build` once all leaves
     /// at the same position have been collected.

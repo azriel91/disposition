@@ -5373,10 +5373,9 @@ fn test_reverse_interaction_edge_description_contact_does_not_loop() {
 }
 
 /// Regression test for a bug where a **cross-rank** edge's own description
-/// contact used the same-rank single-point calculation
-/// (`calculate_description_contact`), collapsing the box's corridor down to
-/// one point. Downstream spacer-ordering/protrusion logic (built to expect a
-/// genuine two-point corridor, like every other spacer kind) then
+/// contact used a single-point calculation, collapsing the box's corridor
+/// down to one point. Downstream spacer-ordering/protrusion logic (built to
+/// expect a genuine two-point corridor, like every other spacer kind) then
 /// mishandled the degenerate waypoint: before the fix,
 /// `edge_dep_client_server__0`'s path was pinned at the box's `left_x` with
 /// wildly varying, out-of-box `y` values, instead of threading straight
@@ -5433,6 +5432,70 @@ fn test_between_ranks_edge_description_contact_threads_through_box() {
             "Expected edge_dep_client_server__0's path to reach the box's left edge \
              (index {entry_index}) before its right edge (index {exit_index}), \
              threading left-to-right: {points:?}"
+        );
+    }
+}
+
+/// Regression test for the equivalent bug in the **same-rank** (cycle edge)
+/// case: the description contact used a single fixed-corner point (biased by
+/// `sibling_index_from_cmp_to` to avoid two edges sharing a box backtracking
+/// through its center) instead of threading through the box, even though a
+/// same-rank edge's divergent ancestors sit directly side by side -- the box
+/// is genuinely on their connecting line, just like the cross-rank case is on
+/// the line between ranks.
+///
+/// `edge_dep_client_server__0` in `0057` is a same-rank cyclic dependency
+/// under `rank_dir: left_to_right`, where same-rank siblings are laid out
+/// *vertically* (`Column`) within their shared rank. So
+/// `EdgeSpacerCoordinatesCalculator::calculate_description_thread_same_rank`
+/// rotates onto the `TopToBottom` row (fixed `x = box.left_x`) rather than
+/// `calculate_description_thread`'s own `LeftToRight` row (which would fix
+/// `y`) -- this asserts the rendered path visits both
+/// `(box.left_x, box.top_y)` and `(box.left_x, box.bottom_y)`, in that order,
+/// confirming it threads top-to-bottom along the box's left edge rather than
+/// touching only one corner.
+#[test]
+fn test_same_rank_edge_description_contact_threads_through_box() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_client_server__0")
+            .expect("Expected a description for edge_dep_client_server__0.");
+        let box_left_x = desc.x;
+        let box_top_y = desc.y;
+        let box_bottom_y = desc.y + desc.height;
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        let d = edge_body_path_d(&svg, "edge_dep_client_server__0");
+        let points = path_d_points(&d);
+
+        let near_matches = |x: f32, y: f32| -> Option<usize> {
+            points
+                .iter()
+                .position(|&(px, py)| (px - x).abs() < 1e-2 && (py - y).abs() < 1e-2)
+        };
+
+        let entry_index = near_matches(box_left_x, box_top_y).unwrap_or_else(|| {
+            panic!(
+                "Expected edge_dep_client_server__0's path to visit the box's \
+                 top edge at (x: {box_left_x}, y: {box_top_y}), got points: {points:?}"
+            )
+        });
+        let exit_index = near_matches(box_left_x, box_bottom_y).unwrap_or_else(|| {
+            panic!(
+                "Expected edge_dep_client_server__0's path to visit the box's \
+                 bottom edge at (x: {box_left_x}, y: {box_bottom_y}), got points: {points:?}"
+            )
+        });
+
+        assert!(
+            entry_index < exit_index,
+            "Expected edge_dep_client_server__0's path to reach the box's top edge \
+             (index {entry_index}) before its bottom edge (index {exit_index}), \
+             threading top-to-bottom: {points:?}"
         );
     }
 }

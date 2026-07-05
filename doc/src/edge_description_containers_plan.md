@@ -566,11 +566,9 @@ Crossing (non-owning) edges into someone else's `edge_description_container`
 are unchanged: they still get a generic, curvature-gated `EdgeSpacer` leaf, as
 originally planned.
 
-### Step 6.4 -- Cross-rank vs same-rank waypoint shape (implemented)
+### Step 6.4 -- Cross-rank waypoint shape (implemented)
 
-Step 6.3's single-point contact (`calculate_description_contact`,
-`entry == exit`) is correct for same-rank (cycle edge) description boxes,
-which sit beside the edge's path, but wrong for cross-rank
+Step 6.3's single-point contact (`entry == exit`) was wrong for cross-rank
 (`EdgeDescPosition::BetweenRanks`) boxes, which sit directly on the rank
 corridor between the edge's divergent ancestors and should be threaded
 *through* like an ordinary spacer.
@@ -589,7 +587,40 @@ corridor between the edge's divergent ancestors and should be threaded
   Cross-Rank Contact for the full table and derivation.
 - `SpacerCoordinatesResolver::description_contact_resolve` branches on
   `is_cross_rank` to call `calculate_description_thread` (cross-rank) or
-  `calculate_description_contact` (same-rank, unchanged from Step 6.3).
+  `calculate_description_thread_same_rank` (same-rank, see Step 6.5).
+
+### Step 6.5 -- Same-rank waypoint shape and container axis (implemented)
+
+Step 6.3's single-point contact was originally kept for the same-rank
+(cycle edge) case, on the assumption that the description box there sits
+*beside* the edge's path. In fact a same-rank edge's divergent ancestors sit
+directly side by side (the box is directly *on* their connecting line, just
+like the cross-rank case is on the line between ranks), so the same-rank
+case should also thread through -- just on the axis the two ancestors are
+laid out on *within* their shared rank, rather than the diagram's overall
+rank axis.
+
+- `EdgeSpacerCoordinatesCalculator::calculate_description_thread_same_rank`
+  reuses `calculate_description_thread`'s table by rotating `rank_dir`:
+  `TopToBottom`/`BottomToTop` (horizontal within-rank siblings) rotate to
+  `LeftToRight`; `LeftToRight`/`RightToLeft` (vertical within-rank siblings)
+  rotate to `TopToBottom`. See `edge_descriptions.md` -- Same-Rank Contact
+  for the full derivation (within-rank sibling order matches declaration
+  order regardless of `RankDir`'s forward/reverse convention, so only the
+  horizontal-vs-vertical axis, not the `Less`/`Greater` mapping, depends on
+  `RankDir`).
+- Separately, the same-rank `edge_description_container`'s own children
+  layout is inverted relative to a cross-rank container's
+  (`EdgeDescriptionBuilder::container_style_build`, via
+  `taffy_container_builder::flex_direction_invert`, now made `pub(super)`):
+  since the container is inserted *as a rank sibling itself* (between the
+  two divergent ancestors, who already occupy the rank's own stacking axis),
+  multiple described edges sharing that slot stack along the perpendicular
+  axis instead of widening/heightening the gap between the two ancestors.
+  See `edge_descriptions.md` -- Same-Rank (Cycle Edge) Placement.
+- The old `calculate_description_contact`/`description_contact_from_rect`
+  single-point functions were removed entirely, since both branches now
+  thread through.
 
 
 ## Phase 7 -- Documentation Updates

@@ -39,8 +39,10 @@ fn flex_direction_to_taffy(direction: ModelFlexDirection) -> FlexDirection {
 ///
 /// `Row` / `Column` are swapped, preserving the reversed variant. This is used
 /// to stack rank containers along the axis perpendicular to the one their
-/// within-rank siblings are laid out on.
-fn flex_direction_invert(flex_direction: FlexDirection) -> FlexDirection {
+/// within-rank siblings are laid out on, and (via `edge_description_builder`)
+/// to stack a same-rank `edge_description_container`'s own children
+/// perpendicular to how its two divergent-ancestor siblings are laid out.
+pub(super) fn flex_direction_invert(flex_direction: FlexDirection) -> FlexDirection {
     match flex_direction {
         FlexDirection::Row => FlexDirection::Column,
         FlexDirection::Column => FlexDirection::Row,

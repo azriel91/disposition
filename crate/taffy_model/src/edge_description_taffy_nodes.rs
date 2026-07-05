@@ -53,13 +53,14 @@ pub struct EdgeDescriptionTaffyNodes {
     /// the relative order of the edge's `from`/`to` divergent ancestors among
     /// their siblings.
     ///
-    /// Used by `EdgeSpacerCoordinatesCalculator::calculate_description_contact`
-    /// (same-rank edges) or `calculate_description_thread` (cross-rank
-    /// edges) -- selected via `is_cross_rank` -- to pick this edge's own
-    /// routing waypoint(s) through/beside the description box, so that
-    /// edges travelling in opposite directions (e.g. a `symmetric`
-    /// interaction group's forward and reverse edges) don't both clip
-    /// through the box's center and backtrack.
+    /// Used by `EdgeSpacerCoordinatesCalculator::calculate_description_thread`
+    /// (cross-rank edges) or `calculate_description_thread_same_rank`
+    /// (same-rank edges) -- selected via `is_cross_rank` -- to pick which end
+    /// of the description box this edge's own routing waypoint pair enters
+    /// from, so that edges travelling in opposite directions (e.g. a
+    /// `symmetric` interaction group's forward and reverse edges) each
+    /// thread through the box in their own travel direction rather than
+    /// backtracking.
     ///
     /// `Ordering::Equal` should not occur in practice: two distinct divergent
     /// ancestors always have distinct sibling indices.
@@ -67,13 +68,15 @@ pub struct EdgeDescriptionTaffyNodes {
     /// `true` for a cross-rank edge (`EdgeDescPosition::BetweenRanks`) whose
     /// description box sits directly on the rank corridor between its
     /// divergent ancestors; `false` for a same-rank/cycle edge
-    /// (`EdgeDescPosition::SameRank`) whose box sits beside its own rank row.
+    /// (`EdgeDescPosition::SameRank`) whose box sits directly between its
+    /// two divergent ancestors *within* their shared rank.
     ///
     /// Selects between
     /// `EdgeSpacerCoordinatesCalculator::calculate_description_thread`
-    /// (cross-rank: threaded through, entry != exit) and
-    /// `calculate_description_contact` (same-rank: a single point beside the
-    /// path, entry == exit) in
-    /// `SpacerCoordinatesResolver::description_contact_resolve`.
+    /// (cross-rank) and `calculate_description_thread_same_rank` (same-rank)
+    /// in `SpacerCoordinatesResolver::description_contact_resolve`. Both
+    /// thread through the box (`entry != exit`); the same-rank variant
+    /// additionally rotates onto the axis its two divergent ancestors are
+    /// laid out on within the shared rank.
     pub is_cross_rank: bool,
 }
