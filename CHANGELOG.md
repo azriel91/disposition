@@ -55,6 +55,7 @@
 * Route edge description text through its edge's path, mirroring how edge labels contact one side of their node face, instead of rendering decoupled from the edge -- applied regardless of edge curvature. ([#59][#59])
 * Fix `edge_description_container` gap spacing for `RankDir::LeftToRight` / `RightToLeft` diagrams, which previously left the full rank gap between stacked descriptions instead of a tight gap. ([#59][#59])
 * Relayout edge descriptions to align with edge label positioning. ([#59][#59])
+* Cater for same-rank vs cross-rank edge description container positioning. ([#59][#59])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
