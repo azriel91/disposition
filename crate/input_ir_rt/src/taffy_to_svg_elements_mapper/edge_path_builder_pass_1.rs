@@ -65,15 +65,15 @@ pub(super) struct EdgeFaceOffset {
 ///                     exit_x:  205.0, exit_y:  150.0 }
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct SpacerCoordinates {
+pub(crate) struct SpacerCoordinates {
     /// X coordinate where the path enters the spacer.
-    pub(super) entry_x: f32,
+    pub(crate) entry_x: f32,
     /// Y coordinate where the path enters the spacer.
-    pub(super) entry_y: f32,
+    pub(crate) entry_y: f32,
     /// X coordinate where the path exits the spacer.
-    pub(super) exit_x: f32,
+    pub(crate) exit_x: f32,
     /// Y coordinate where the path exits the spacer.
-    pub(super) exit_y: f32,
+    pub(crate) exit_y: f32,
 }
 
 /// Represents the connection geometry for an edge endpoint on a node.

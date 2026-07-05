@@ -52,6 +52,7 @@ impl SpacerCoordinatesResolver {
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
         edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
+        interaction_edge_halo_stroke_width: f32,
     ) -> Vec<SpacerCoordinates> {
         // An edge whose only waypoint is its own description contact has no
         // entry in `edge_spacer_taffy_nodes` at all, so this must not early
@@ -99,6 +100,7 @@ impl SpacerCoordinatesResolver {
             edge_id,
             taffy_tree,
             edge_description_taffy_nodes,
+            interaction_edge_halo_stroke_width,
         );
 
         if cross_container_spacers.is_empty()
@@ -162,6 +164,7 @@ impl SpacerCoordinatesResolver {
         edge_id: &EdgeId<'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
+        interaction_edge_halo_stroke_width: f32,
     ) -> Option<SpacerCoordinates> {
         let edge_description_taffy_nodes = edge_description_taffy_nodes.get(edge_id)?;
         if edge_description_taffy_nodes.is_cross_rank {
@@ -170,6 +173,7 @@ impl SpacerCoordinatesResolver {
                 taffy_tree,
                 edge_description_taffy_nodes.description_taffy_node_id,
                 edge_description_taffy_nodes.sibling_index_from_cmp_to,
+                interaction_edge_halo_stroke_width,
             )
         } else {
             EdgeSpacerCoordinatesCalculator::calculate_description_thread_same_rank(
@@ -177,6 +181,7 @@ impl SpacerCoordinatesResolver {
                 taffy_tree,
                 edge_description_taffy_nodes.description_taffy_node_id,
                 edge_description_taffy_nodes.sibling_index_from_cmp_to,
+                interaction_edge_halo_stroke_width,
             )
         }
     }

@@ -282,6 +282,57 @@ two divergent ancestors, instead of widening/heightening the gap between
 them.
 
 
+### Halo Clearance
+
+Like edge labels (see `TaffyEnvelopeBuilder::build`'s `label_margin_top_bottom_face`
+/ `label_margin_left_right_face`, and `SvgEdgeInfosBuilder::label_face_offset_compute`'s
+`- halo_pad_px` pullback), a described edge's box needs clearance from the
+interaction edge halo -- a wide path drawn `interaction_edge_halo_stroke_width / 2.0`
+("`halo_pad_px`") either side of the edge's own path -- so the halo doesn't
+visually overlap the box's rendered content. Unlike a label (which the path
+approaches and stops beside), a description box is threaded *through*, flush
+against exactly one of its own edges (see the fixed-axis tables above), so the
+clearance mechanism mirrors the label case in two coordinated halves:
+
+1. **Build time** (`EdgeDescriptionBuilder::edge_desc_build`): the description
+   leaf/`md_content_node` gets a `margin` (not `padding`) of `halo_pad_px` on
+   whichever side the routing path runs flush against.
+2. **Routing time** (`EdgeSpacerCoordinatesCalculator::description_thread_from_rect`):
+   the same fixed-axis coordinate is pulled back by `halo_pad_px`, canceling
+   the margin's push for the routing calculation only -- the path stays
+   pinned at the box's pre-margin position while the box's rendered content
+   has physically moved away by `halo_pad_px`, opening real clearance.
+
+Which side gets the margin/pullback follows the same fixed-axis selection as
+[Cross-Rank Contact](#cross-rank-contact) and [Same-Rank Contact](#same-rank-contact)
+above:
+
+| Effective `RankDir`\* | fixed axis | margin / pullback side |
+|---|---|---|
+| `TopToBottom` / `BottomToTop` | `x = left_x` | **left** |
+| `LeftToRight` / `RightToLeft` | `y = top_y` | **top** |
+
+\* For same-rank (cycle edge) boxes, "effective `RankDir`" is `rank_dir`
+rotated via `EdgeSpacerCoordinatesCalculator::rank_dir_same_rank_rotate` --
+the same rotation `calculate_description_thread_same_rank` already applies --
+so both the build-time margin side and the routing-time pullback axis are
+derived identically and cannot drift apart. `EdgeDescriptionBuilder::edge_desc_build`
+reuses `rank_dir_same_rank_rotate` directly (re-exported `pub(crate)` from
+`taffy_to_svg_elements_mapper`) rather than re-deriving the mapping.
+
+The fixed axis chosen above is also the axis multiple described edges sharing
+the same position are packed along: `container_style_build` mirrors (cross-rank)
+or inverts (same-rank) `rank_container_style`'s `flex_direction` onto that same
+axis, so sibling description boxes at a shared position stack along it. As
+with `TaffyEnvelopeBuilder::build`'s label margins, an additional
+`label_margin_px` (`TEXT_FONT_SIZE / 2.0`) is added on the *far* side (opposite
+the routing-path side) -- e.g. `right: halo_pad_px + label_margin_px` for the
+`TopToBottom`/`BottomToTop` case -- so each box reads as visually associated
+with its own edge rather than crowding the next sibling box, matching
+`label_margin_top_bottom_face` / `label_margin_left_right_face`'s far-side
+margin exactly.
+
+
 ## Step-by-Step: How Face-Label Slots Are Built
 
 Face-label slots are the taffy leaf nodes placed in each node's envelope

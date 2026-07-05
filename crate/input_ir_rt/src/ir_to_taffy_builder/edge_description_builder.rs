@@ -5,13 +5,14 @@ use disposition_ir_model::{
     entity::EntityType,
     node::{NodeId, NodeRank},
 };
-use disposition_model_common::{edge::EdgeGroupId, Map};
+use disposition_model_common::{edge::EdgeGroupId, Map, RankDir};
 use disposition_taffy_model::{
-    taffy::{self, style::FlexDirection, AlignSelf, Style, TaffyTree},
-    DiagramLod, EdgeDescriptionCtx, EdgeDescriptionTaffyNodes, TaffyNodeCtx,
+    taffy::{self, style::FlexDirection, AlignSelf, Rect, Style, TaffyTree},
+    DiagramLod, EdgeDescriptionCtx, EdgeDescriptionTaffyNodes, TaffyNodeCtx, TEXT_FONT_SIZE,
 };
+use taffy::LengthPercentageAuto;
 
-use crate::EdgeIdGenerator;
+use crate::{taffy_to_svg_elements_mapper::EdgeSpacerCoordinatesCalculator, EdgeIdGenerator};
 
 use crate::md_text::md_blocks_parser::MdBlocksParser;
 
@@ -496,12 +497,67 @@ impl EdgeDescriptionBuilder {
             ))
         };
 
+        // Step 2.2.8b -- Compute halo-clearance margin.
+        //
+        // Mirrors `TaffyEnvelopeBuilder::build`'s edge label margins: the
+        // description box gets `margin` (not `padding`) on whichever side the
+        // routing path (`EdgeSpacerCoordinatesCalculator::
+        // calculate_description_thread`/`calculate_description_thread_same_rank`)
+        // runs flush against, so the wide interaction-edge halo doesn't
+        // visually overlap the box's rendered content. The routing
+        // calculation pulls the same axis back by the same amount (see
+        // `EdgeSpacerCoordinatesCalculator::description_thread_from_rect`),
+        // so the path stays pinned at the box's pre-margin position while the
+        // box itself physically moves away by `halo_pad_px`.
+        //
+        // That axis is also the axis multiple described edges sharing the
+        // same position are packed along (`container_style_build` mirrors --
+        // or, for same-rank boxes, inverts -- `rank_container_style`'s
+        // `flex_direction` onto the same axis the fixed-axis choice below
+        // uses), so as with `TaffyEnvelopeBuilder::build`'s label margins, an
+        // additional `label_margin_px` is added on the far side (opposite the
+        // routing-path side) so each box reads as visually associated with
+        // its own edge rather than crowding the next sibling box.
+        //
+        // Same-rank (cycle edge) boxes are threaded on the *rotated* axis
+        // (see `EdgeSpacerCoordinatesCalculator::rank_dir_same_rank_rotate`),
+        // so the margin side is chosen from the rotated direction to match --
+        // reusing that same rotation fn (rather than re-deriving the mapping
+        // here) so the two can't drift apart. The axis choice below mirrors
+        // `description_thread_from_rect`'s fixed-axis selection: `left_x` for
+        // `TopToBottom`/`BottomToTop`, `top_y` for `LeftToRight`/`RightToLeft`.
+        let margin_rank_dir = match &position {
+            EdgeDescPosition::BetweenRanks(_) => ctx.render_options.rank_dir,
+            EdgeDescPosition::SameRank(_) => {
+                EdgeSpacerCoordinatesCalculator::rank_dir_same_rank_rotate(
+                    ctx.render_options.rank_dir,
+                )
+            }
+        };
+        let halo_pad_px = ctx.interaction_edge_halo_stroke_width / 2.0;
+        let label_margin_px = TEXT_FONT_SIZE / 2.0;
+        let description_margin = match margin_rank_dir {
+            RankDir::TopToBottom | RankDir::BottomToTop => Rect {
+                left: LengthPercentageAuto::length(halo_pad_px),
+                right: LengthPercentageAuto::length(halo_pad_px + label_margin_px),
+                top: LengthPercentageAuto::length(0.0),
+                bottom: LengthPercentageAuto::length(0.0),
+            },
+            RankDir::LeftToRight | RankDir::RightToLeft => Rect {
+                left: LengthPercentageAuto::length(0.0),
+                right: LengthPercentageAuto::length(0.0),
+                top: LengthPercentageAuto::length(halo_pad_px),
+                bottom: LengthPercentageAuto::length(halo_pad_px + label_margin_px),
+            },
+        };
+
         // Step 2.2.9 -- Create the description leaf or markdown sub-tree.
         let (description_taffy_node_id, md_node_taffy_ids) = match lod {
             DiagramLod::Simple => {
                 // Legacy path: single leaf with EdgeDescription context.
                 let description_style = Style {
                     align_self: Some(AlignSelf::Stretch),
+                    margin: description_margin,
                     ..Default::default()
                 };
 
@@ -521,6 +577,27 @@ impl EdgeDescriptionBuilder {
                 let blocks = MdBlocksParser::parse(desc_text);
                 let md_node_taffy_ids = MdNodeBuilder::build(taffy_tree, &blocks, char_width);
                 let description_taffy_node_id = md_node_taffy_ids.content_node_id;
+
+                // Halo clearance: `MdNodeBuilder::build`'s `content_node_style`
+                // has no margin of its own (it's shared with node content and
+                // edge labels, which must NOT get this margin unconditionally),
+                // so it is re-styled here rather than threading a margin
+                // parameter into `MdNodeBuilder::build` -- mirrors
+                // `TaffyEnvelopeBuilder::build`'s re-style of
+                // `diagram_node_wrapper_node`.
+                let content_style = taffy_tree
+                    .style(description_taffy_node_id)
+                    .expect("Expected md_content_node to have a style.")
+                    .clone();
+                taffy_tree
+                    .set_style(
+                        description_taffy_node_id,
+                        Style {
+                            margin: description_margin,
+                            ..content_style
+                        },
+                    )
+                    .expect("Expected to set halo-clearance margin on md_content_node.");
 
                 (description_taffy_node_id, Some(md_node_taffy_ids))
             }

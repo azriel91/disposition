@@ -11,13 +11,20 @@ use crate::input_to_ir_diagram_mapper::tailwind_focus_mode::TailwindFocusMode;
 
 use self::svg_edge_infos_builder::SvgEdgeInfosBuilt;
 
+/// Re-exported at `pub(crate)` (rather than only the private `use self::...`
+/// below) so `ir_to_taffy_builder::edge_description_builder` -- a sibling
+/// module, not a descendant of this one -- can reuse
+/// `rank_dir_same_rank_rotate` to choose which side of an edge
+/// description's halo-clearance margin to apply, keeping that mapping in
+/// sync with this module's routing-pullback mapping.
+pub(crate) use self::edge_spacer_coordinates_calculator::EdgeSpacerCoordinatesCalculator;
+
 use self::{
     arrow_head_builder::ArrowHeadBuilder,
     edge_animation_calculator::EdgeAnimationCalculator,
     edge_path_builder_pass_1::EdgePathBuilderPass1,
     edge_path_builder_pass_2::EdgePathBuilderPass2,
     edge_path_locus_calculator::EdgePathLocusCalculator,
-    edge_spacer_coordinates_calculator::EdgeSpacerCoordinatesCalculator,
     node_id_to_svg_process_info::NodeIdToSvgProcessInfo,
     process_step_graph_edges_builder::ProcessStepGraphEdgesBuilder,
     process_step_heights::ProcessStepsHeight,

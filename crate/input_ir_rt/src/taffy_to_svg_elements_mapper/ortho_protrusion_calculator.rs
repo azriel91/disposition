@@ -294,6 +294,12 @@ impl OrthoProtrusionCalculator {
     /// * `edge_description_taffy_nodes`: description node mappings per edge,
     ///   used to size `spacer_protrusions` consistently with
     ///   `SpacerCoordinatesResolver::resolve`'s merged waypoint list.
+    /// * `interaction_edge_halo_stroke_width`: resolved stroke width (pixels)
+    ///   of the interaction edge halo, passed through to
+    ///   `SpacerCoordinatesResolver::resolve` so the description contact
+    ///   waypoint is pulled back by half this value, matching the
+    ///   halo-clearance margin `EdgeDescriptionBuilder::edge_desc_build`
+    ///   applies to the description box (e.g. `8.0`).
     #[allow(clippy::too_many_arguments)]
     pub(super) fn calculate<'id>(
         rank_dir: RankDir,
@@ -309,6 +315,7 @@ impl OrthoProtrusionCalculator {
         node_ranks_nested: &NodeRanksNested<'id>,
         entity_types: &EntityTypes<'id>,
         group_is_direct: &[bool],
+        interaction_edge_halo_stroke_width: f32,
     ) -> OrthoProtrusionOutcome<'id> {
         // === Step 1: Resolve spacer coordinates and initialize output === //
         //
@@ -330,6 +337,7 @@ impl OrthoProtrusionCalculator {
                             taffy_tree,
                             edge_spacer_taffy_nodes,
                             edge_description_taffy_nodes,
+                            interaction_edge_halo_stroke_width,
                         )
                     })
                     .collect()

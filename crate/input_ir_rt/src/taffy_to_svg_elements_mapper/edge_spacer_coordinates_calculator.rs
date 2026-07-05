@@ -142,22 +142,37 @@ impl EdgeSpacerCoordinatesCalculator {
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         taffy_node_id: taffy::NodeId,
         sibling_index_from_cmp_to: Ordering,
+        interaction_edge_halo_stroke_width: f32,
     ) -> Option<SpacerCoordinates> {
         let node_rect = Self::node_rect_compute(taffy_tree, taffy_node_id)?;
         Some(Self::description_thread_from_rect(
             rank_dir,
             &node_rect,
             sibling_index_from_cmp_to,
+            interaction_edge_halo_stroke_width,
         ))
     }
 
     /// Pure coordinate selection for [`Self::calculate_description_thread`],
     /// separated from taffy tree access so the `RankDir` x `Ordering` table
     /// can be unit tested directly against a constructed [`NodeRect`].
+    ///
+    /// `interaction_edge_halo_stroke_width` pulls the fixed-axis coordinate
+    /// back by half its value (`halo_pad_px`), mirroring
+    /// `SvgEdgeInfosBuilder::label_face_offset_compute`'s `- halo_pad_px`
+    /// pullback for edge labels: `EdgeDescriptionBuilder::edge_desc_build`
+    /// gives the description box a matching `halo_pad_px` margin on the same
+    /// fixed-axis side, so the pullback here cancels that margin's push for
+    /// routing purposes, keeping the path pinned at the box's pre-margin
+    /// position while the rendered box (and its content) has physically
+    /// moved away -- opening real clearance for the halo. Only the fixed
+    /// axis moves; the free axis (spanning the box's own width/height) is
+    /// untouched.
     fn description_thread_from_rect(
         rank_dir: RankDir,
         node_rect: &NodeRect,
         sibling_index_from_cmp_to: Ordering,
+        interaction_edge_halo_stroke_width: f32,
     ) -> SpacerCoordinates {
         let NodeRect {
             left_x,
@@ -167,9 +182,11 @@ impl EdgeSpacerCoordinatesCalculator {
             ..
         } = *node_rect;
         let from_before_to = sibling_index_from_cmp_to == Ordering::Less;
+        let halo_pad_px = interaction_edge_halo_stroke_width / 2.0;
 
         let ((entry_x, entry_y), (exit_x, exit_y)) = match rank_dir {
             RankDir::LeftToRight => {
+                let top_y = top_y - halo_pad_px;
                 if from_before_to {
                     ((left_x, top_y), (right_x, top_y))
                 } else {
@@ -177,6 +194,7 @@ impl EdgeSpacerCoordinatesCalculator {
                 }
             }
             RankDir::RightToLeft => {
+                let top_y = top_y - halo_pad_px;
                 if from_before_to {
                     ((right_x, top_y), (left_x, top_y))
                 } else {
@@ -184,6 +202,7 @@ impl EdgeSpacerCoordinatesCalculator {
                 }
             }
             RankDir::TopToBottom => {
+                let left_x = left_x - halo_pad_px;
                 if from_before_to {
                     ((left_x, top_y), (left_x, bottom_y))
                 } else {
@@ -191,6 +210,7 @@ impl EdgeSpacerCoordinatesCalculator {
                 }
             }
             RankDir::BottomToTop => {
+                let left_x = left_x - halo_pad_px;
                 if from_before_to {
                     ((left_x, bottom_y), (left_x, top_y))
                 } else {
@@ -250,12 +270,14 @@ impl EdgeSpacerCoordinatesCalculator {
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         taffy_node_id: taffy::NodeId,
         sibling_index_from_cmp_to: Ordering,
+        interaction_edge_halo_stroke_width: f32,
     ) -> Option<SpacerCoordinates> {
         let node_rect = Self::node_rect_compute(taffy_tree, taffy_node_id)?;
         Some(Self::description_thread_from_rect(
             Self::rank_dir_same_rank_rotate(rank_dir),
             &node_rect,
             sibling_index_from_cmp_to,
+            interaction_edge_halo_stroke_width,
         ))
     }
 
@@ -269,7 +291,14 @@ impl EdgeSpacerCoordinatesCalculator {
     /// within-rank siblings) both rotate to `TopToBottom`. Separated from
     /// [`Self::calculate_description_thread_same_rank`] so the mapping can be
     /// unit tested without constructing a taffy tree.
-    fn rank_dir_same_rank_rotate(rank_dir: RankDir) -> RankDir {
+    ///
+    /// Also reused by `EdgeDescriptionBuilder::edge_desc_build` (a sibling
+    /// module, not a descendant of this one -- re-exported `pub(crate)` from
+    /// `taffy_to_svg_elements_mapper` for this) to choose which side of an
+    /// edge description's halo-clearance margin to apply, so the build-time
+    /// margin side and the routing-time pullback axis
+    /// (`description_thread_from_rect`) can't drift apart.
+    pub(crate) fn rank_dir_same_rank_rotate(rank_dir: RankDir) -> RankDir {
         match rank_dir {
             RankDir::TopToBottom | RankDir::BottomToTop => RankDir::LeftToRight,
             RankDir::LeftToRight | RankDir::RightToLeft => RankDir::TopToBottom,
@@ -329,6 +358,7 @@ mod tests {
             RankDir::LeftToRight,
             &node_rect(),
             Ordering::Less,
+            0.0,
         );
         assert_eq!(10.0, spacer_coordinates.entry_x);
         assert_eq!(100.0, spacer_coordinates.entry_y);
@@ -342,6 +372,7 @@ mod tests {
             RankDir::LeftToRight,
             &node_rect(),
             Ordering::Greater,
+            0.0,
         );
         assert_eq!(30.0, spacer_coordinates.entry_x);
         assert_eq!(100.0, spacer_coordinates.entry_y);
@@ -358,6 +389,7 @@ mod tests {
             RankDir::RightToLeft,
             &node_rect(),
             Ordering::Less,
+            0.0,
         );
         assert_eq!(30.0, spacer_coordinates.entry_x);
         assert_eq!(100.0, spacer_coordinates.entry_y);
@@ -371,6 +403,7 @@ mod tests {
             RankDir::RightToLeft,
             &node_rect(),
             Ordering::Greater,
+            0.0,
         );
         assert_eq!(10.0, spacer_coordinates.entry_x);
         assert_eq!(100.0, spacer_coordinates.entry_y);
@@ -384,6 +417,7 @@ mod tests {
             RankDir::TopToBottom,
             &node_rect(),
             Ordering::Less,
+            0.0,
         );
         assert_eq!(10.0, spacer_coordinates.entry_x);
         assert_eq!(100.0, spacer_coordinates.entry_y);
@@ -397,6 +431,7 @@ mod tests {
             RankDir::TopToBottom,
             &node_rect(),
             Ordering::Greater,
+            0.0,
         );
         assert_eq!(10.0, spacer_coordinates.entry_x);
         assert_eq!(140.0, spacer_coordinates.entry_y);
@@ -412,6 +447,7 @@ mod tests {
             RankDir::BottomToTop,
             &node_rect(),
             Ordering::Less,
+            0.0,
         );
         assert_eq!(10.0, spacer_coordinates.entry_x);
         assert_eq!(140.0, spacer_coordinates.entry_y);
@@ -425,10 +461,47 @@ mod tests {
             RankDir::BottomToTop,
             &node_rect(),
             Ordering::Greater,
+            0.0,
         );
         assert_eq!(10.0, spacer_coordinates.entry_x);
         assert_eq!(100.0, spacer_coordinates.entry_y);
         assert_eq!(10.0, spacer_coordinates.exit_x);
+        assert_eq!(140.0, spacer_coordinates.exit_y);
+    }
+
+    // === `description_thread_from_rect` halo-pullback tests === //
+
+    /// `LeftToRight` fixed axis is `y = top_y`; a non-zero
+    /// `interaction_edge_halo_stroke_width` pulls `top_y` back by
+    /// `halo_pad_px`, leaving the free axis (`left_x`/`right_x`) untouched.
+    #[test]
+    fn left_to_right_pulls_back_top_y_by_half_halo_stroke_width() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_thread_from_rect(
+            RankDir::LeftToRight,
+            &node_rect(),
+            Ordering::Less,
+            8.0,
+        );
+        assert_eq!(10.0, spacer_coordinates.entry_x);
+        assert_eq!(96.0, spacer_coordinates.entry_y);
+        assert_eq!(30.0, spacer_coordinates.exit_x);
+        assert_eq!(96.0, spacer_coordinates.exit_y);
+    }
+
+    /// `TopToBottom` fixed axis is `x = left_x`; a non-zero
+    /// `interaction_edge_halo_stroke_width` pulls `left_x` back by
+    /// `halo_pad_px`, leaving the free axis (`top_y`/`bottom_y`) untouched.
+    #[test]
+    fn top_to_bottom_pulls_back_left_x_by_half_halo_stroke_width() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_thread_from_rect(
+            RankDir::TopToBottom,
+            &node_rect(),
+            Ordering::Less,
+            8.0,
+        );
+        assert_eq!(6.0, spacer_coordinates.entry_x);
+        assert_eq!(100.0, spacer_coordinates.entry_y);
+        assert_eq!(6.0, spacer_coordinates.exit_x);
         assert_eq!(140.0, spacer_coordinates.exit_y);
     }
 

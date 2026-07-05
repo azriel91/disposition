@@ -178,6 +178,7 @@ impl SvgEdgeInfosBuilder {
             edge_spacer_taffy_nodes,
             edge_description_taffy_nodes,
             &mut face_offsets_by_node_face,
+            ir_diagram.interaction_edge_halo_stroke_width,
         );
 
         // === Global orthogonal protrusion computation === //
@@ -230,6 +231,7 @@ impl SvgEdgeInfosBuilder {
             &ir_diagram.node_ranks_nested,
             entity_types,
             &group_is_direct,
+            ir_diagram.interaction_edge_halo_stroke_width,
         );
 
         // Assemble the per-edge routing diagnostics while the pass-1 groups,
@@ -292,6 +294,7 @@ impl SvgEdgeInfosBuilder {
                 edge_description_taffy_nodes,
                 visible_segments_length,
                 ortho_protrusions,
+                ir_diagram.interaction_edge_halo_stroke_width,
             );
 
             // Total `travel` distance animated by the whole group: each edge
@@ -1350,6 +1353,7 @@ impl SvgEdgeInfosBuilder {
         edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
         visible_segments_length: f64,
         ortho_protrusions: &[OrthoProtrusionParams],
+        interaction_edge_halo_stroke_width: f32,
     ) -> Vec<EdgePathInfo<'edge, 'id>> {
         let mut edge_path_infos = pass1_infos
             .iter()
@@ -1416,6 +1420,7 @@ impl SvgEdgeInfosBuilder {
                     taffy_tree,
                     edge_spacer_taffy_nodes,
                     edge_description_taffy_nodes,
+                    interaction_edge_halo_stroke_width,
                 );
 
                 // Direct-curvature edges ignore `spacer_coordinates` entirely
@@ -1427,6 +1432,7 @@ impl SvgEdgeInfosBuilder {
                     &pass1_info.edge_id,
                     taffy_tree,
                     edge_description_taffy_nodes,
+                    interaction_edge_halo_stroke_width,
                 );
 
                 let ortho_protrusion_default = OrthoProtrusionParams::default();
@@ -1821,6 +1827,7 @@ impl SvgEdgeInfosBuilder {
         edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
         edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
         face_offsets_by_node_face: &mut NodeIdAndFaceToContactPointOffsets<'id>,
+        interaction_edge_halo_stroke_width: f32,
     ) {
         for group in all_pass1_groups {
             for (edge_index, pass1_info) in group.pass1_infos.iter().enumerate() {
@@ -1867,6 +1874,7 @@ impl SvgEdgeInfosBuilder {
                             taffy_tree,
                             edge_spacer_taffy_nodes,
                             edge_description_taffy_nodes,
+                            interaction_edge_halo_stroke_width,
                         );
                         Self::transit_cross_axis_before_face(
                             face,
