@@ -162,6 +162,7 @@ impl EdgeDescriptionBuilder {
                     rank_container_style,
                     ctx.char_width,
                     description_nodes,
+                    true, // BetweenRanks: cross-rank edges.
                     &mut edge_description_taffy_nodes,
                 );
 
@@ -192,6 +193,7 @@ impl EdgeDescriptionBuilder {
                     rank_container_style,
                     ctx.char_width,
                     description_nodes,
+                    false, // SameRank: same-rank/cycle edges.
                     &mut edge_description_taffy_nodes,
                 );
 
@@ -215,11 +217,21 @@ impl EdgeDescriptionBuilder {
     /// Builds one shared `edge_description_container` from a group of
     /// same-position description nodes, recording each edge's
     /// `EdgeDescriptionTaffyNodes` against the shared container.
+    ///
+    /// `is_cross_rank` is uniform across every node in `description_nodes`:
+    /// callers pass all-`BetweenRanks` groups (from
+    /// `position_to_sorted_descriptions`) with `true`, and all-`SameRank`
+    /// groups (from `same_rank_to_sorted_descriptions`) with `false` -- the
+    /// two source maps never mix `EdgeDescPosition` variants, so a single
+    /// bool per call is sufficient. Stored on `EdgeDescriptionTaffyNodes` so
+    /// `SpacerCoordinatesResolver::description_contact_resolve` can pick the
+    /// correct routing waypoint calculation per edge.
     fn container_from_description_nodes_build(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         rank_container_style: &Style,
         char_width: f32,
         description_nodes: Vec<EdgeIdAndTaffyDescriptionNode>,
+        is_cross_rank: bool,
         edge_description_taffy_nodes: &mut Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
     ) -> taffy::NodeId {
         let leaf_node_ids: Vec<taffy::NodeId> = description_nodes
@@ -247,6 +259,7 @@ impl EdgeDescriptionBuilder {
                     description_taffy_node_id,
                     md_node_taffy_ids,
                     sibling_index_from_cmp_to,
+                    is_cross_rank,
                 },
             );
         }

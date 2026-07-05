@@ -97,13 +97,13 @@ impl EdgeSpacerCoordinatesCalculator {
     }
 
     /// Computes the single routing waypoint (`entry == exit`) for an edge's
-    /// own `edge_description_container` leaf.
+    /// own `edge_description_container` leaf, for a **same-rank (cycle edge)**
+    /// description box.
     ///
     /// Unlike [`Self::calculate`], the description box is not a corridor the
     /// path threads *through* -- it sits beside the edge's actual travel
-    /// path (whether the divergent ancestors share a rank, or sit at
-    /// different ranks), so entry and exit are the same point: a fixed side
-    /// of the box (independent of `RankDir`'s forward/reverse direction),
+    /// path, so entry and exit are the same point: a fixed side of the box
+    /// (independent of `RankDir`'s forward/reverse direction),
     /// with the position along the other axis chosen by comparing the
     /// edge's `from`/`to` divergent-ancestor sibling indices
     /// (`sibling_index_from_cmp_to`).
@@ -183,6 +183,114 @@ impl EdgeSpacerCoordinatesCalculator {
             entry_y: y,
             exit_x: x,
             exit_y: y,
+        }
+    }
+
+    /// Computes the routing waypoint pair (`entry != exit`) for a
+    /// **cross-rank** edge's own `edge_description_container` leaf.
+    ///
+    /// Unlike [`Self::calculate_description_contact`] (used for same-rank
+    /// cycle edges, whose description box sits *beside* the path), a
+    /// cross-rank edge's description box sits directly on the rank corridor
+    /// between its divergent ancestors, so the path should thread *through*
+    /// it, the same way [`Self::calculate`] threads through an ordinary
+    /// spacer.
+    ///
+    /// The fixed cross-axis coordinate mirrors [`Self::calculate`]'s
+    /// `cx`/`cy` convention (unchanged between a `RankDir` and its reverse
+    /// pair -- `top_y` for `LeftToRight`/`RightToLeft`, `left_x` for
+    /// `TopToBottom`/`BottomToTop`). `Ordering::Less` (this edge's `from` is
+    /// before its `to`, i.e. it travels in the topological-forward
+    /// direction) reuses [`Self::calculate`]'s canonical entry/exit
+    /// assignment for that `RankDir` (substituting the fixed value for
+    /// `cx`/`cy`); `Ordering::Greater` (a reverse-direction edge, e.g. a
+    /// `symmetric` interaction group's response edge) swaps entry and exit,
+    /// so the waypoint pair always runs in *this edge's own* travel
+    /// direction rather than the diagram's canonical one.
+    ///
+    /// | `RankDir` | fixed axis | `from` before `to` (`Less`) | else (`Greater`) |
+    /// |---|---|---|---|
+    /// | `LeftToRight` | `y = top_y` | entry=`(left_x,top_y)` exit=`(right_x,top_y)` | entry=`(right_x,top_y)` exit=`(left_x,top_y)` |
+    /// | `RightToLeft` | `y = top_y` | entry=`(right_x,top_y)` exit=`(left_x,top_y)` | entry=`(left_x,top_y)` exit=`(right_x,top_y)` |
+    /// | `TopToBottom` | `x = left_x` | entry=`(left_x,top_y)` exit=`(left_x,bottom_y)` | entry=`(left_x,bottom_y)` exit=`(left_x,top_y)` |
+    /// | `BottomToTop` | `x = left_x` | entry=`(left_x,bottom_y)` exit=`(left_x,top_y)` | entry=`(left_x,top_y)` exit=`(left_x,bottom_y)` |
+    ///
+    /// `Ordering::Equal` should not occur (two distinct divergent ancestors
+    /// always have distinct sibling indices); treated the same as `Greater`.
+    ///
+    /// # Example values
+    ///
+    /// `rank_dir = LeftToRight`, box `left_x = 245, right_x = 311, top_y =
+    /// 20`, `sibling_index_from_cmp_to = Ordering::Less` -- returns
+    /// `Some(SpacerCoordinates { entry_x: 245.0, entry_y: 20.0, exit_x:
+    /// 311.0, exit_y: 20.0 })`.
+    pub fn calculate_description_thread(
+        rank_dir: RankDir,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        taffy_node_id: taffy::NodeId,
+        sibling_index_from_cmp_to: Ordering,
+    ) -> Option<SpacerCoordinates> {
+        let node_rect = Self::node_rect_compute(taffy_tree, taffy_node_id)?;
+        Some(Self::description_thread_from_rect(
+            rank_dir,
+            &node_rect,
+            sibling_index_from_cmp_to,
+        ))
+    }
+
+    /// Pure coordinate selection for [`Self::calculate_description_thread`],
+    /// separated from taffy tree access so the `RankDir` x `Ordering` table
+    /// can be unit tested directly against a constructed [`NodeRect`].
+    fn description_thread_from_rect(
+        rank_dir: RankDir,
+        node_rect: &NodeRect,
+        sibling_index_from_cmp_to: Ordering,
+    ) -> SpacerCoordinates {
+        let NodeRect {
+            left_x,
+            right_x,
+            top_y,
+            bottom_y,
+            ..
+        } = *node_rect;
+        let from_before_to = sibling_index_from_cmp_to == Ordering::Less;
+
+        let ((entry_x, entry_y), (exit_x, exit_y)) = match rank_dir {
+            RankDir::LeftToRight => {
+                if from_before_to {
+                    ((left_x, top_y), (right_x, top_y))
+                } else {
+                    ((right_x, top_y), (left_x, top_y))
+                }
+            }
+            RankDir::RightToLeft => {
+                if from_before_to {
+                    ((right_x, top_y), (left_x, top_y))
+                } else {
+                    ((left_x, top_y), (right_x, top_y))
+                }
+            }
+            RankDir::TopToBottom => {
+                if from_before_to {
+                    ((left_x, top_y), (left_x, bottom_y))
+                } else {
+                    ((left_x, bottom_y), (left_x, top_y))
+                }
+            }
+            RankDir::BottomToTop => {
+                if from_before_to {
+                    ((left_x, bottom_y), (left_x, top_y))
+                } else {
+                    ((left_x, top_y), (left_x, bottom_y))
+                }
+            }
+        };
+
+        SpacerCoordinates {
+            entry_x,
+            entry_y,
+            exit_x,
+            exit_y,
         }
     }
 
@@ -339,5 +447,120 @@ mod tests {
         assert_entry_eq_exit(spacer_coordinates);
         assert_eq!(100.0, spacer_coordinates.entry_y);
         assert_eq!(10.0, spacer_coordinates.entry_x);
+    }
+
+    // === `description_thread_from_rect` tests (cross-rank edges) === //
+    //
+    // Unlike the same-rank `description_contact_from_rect` tests above,
+    // entry and exit are expected to differ -- the box is threaded through,
+    // not touched at a single point beside the path.
+
+    #[test]
+    fn left_to_right_from_before_to_threads_top_y_left_to_right() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_thread_from_rect(
+            RankDir::LeftToRight,
+            &node_rect(),
+            Ordering::Less,
+        );
+        assert_eq!(10.0, spacer_coordinates.entry_x);
+        assert_eq!(100.0, spacer_coordinates.entry_y);
+        assert_eq!(30.0, spacer_coordinates.exit_x);
+        assert_eq!(100.0, spacer_coordinates.exit_y);
+    }
+
+    #[test]
+    fn left_to_right_from_after_to_threads_top_y_right_to_left() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_thread_from_rect(
+            RankDir::LeftToRight,
+            &node_rect(),
+            Ordering::Greater,
+        );
+        assert_eq!(30.0, spacer_coordinates.entry_x);
+        assert_eq!(100.0, spacer_coordinates.entry_y);
+        assert_eq!(10.0, spacer_coordinates.exit_x);
+        assert_eq!(100.0, spacer_coordinates.exit_y);
+    }
+
+    /// `RightToLeft` keeps the same fixed `top_y`, but flips the canonical
+    /// entry/exit assignment relative to `LeftToRight` -- mirroring
+    /// [`EdgeSpacerCoordinatesCalculator::calculate`]'s convention.
+    #[test]
+    fn right_to_left_from_before_to_threads_top_y_right_to_left() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_thread_from_rect(
+            RankDir::RightToLeft,
+            &node_rect(),
+            Ordering::Less,
+        );
+        assert_eq!(30.0, spacer_coordinates.entry_x);
+        assert_eq!(100.0, spacer_coordinates.entry_y);
+        assert_eq!(10.0, spacer_coordinates.exit_x);
+        assert_eq!(100.0, spacer_coordinates.exit_y);
+    }
+
+    #[test]
+    fn right_to_left_from_after_to_threads_top_y_left_to_right() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_thread_from_rect(
+            RankDir::RightToLeft,
+            &node_rect(),
+            Ordering::Greater,
+        );
+        assert_eq!(10.0, spacer_coordinates.entry_x);
+        assert_eq!(100.0, spacer_coordinates.entry_y);
+        assert_eq!(30.0, spacer_coordinates.exit_x);
+        assert_eq!(100.0, spacer_coordinates.exit_y);
+    }
+
+    #[test]
+    fn top_to_bottom_from_before_to_threads_left_x_top_to_bottom() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_thread_from_rect(
+            RankDir::TopToBottom,
+            &node_rect(),
+            Ordering::Less,
+        );
+        assert_eq!(10.0, spacer_coordinates.entry_x);
+        assert_eq!(100.0, spacer_coordinates.entry_y);
+        assert_eq!(10.0, spacer_coordinates.exit_x);
+        assert_eq!(140.0, spacer_coordinates.exit_y);
+    }
+
+    #[test]
+    fn top_to_bottom_from_after_to_threads_left_x_bottom_to_top() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_thread_from_rect(
+            RankDir::TopToBottom,
+            &node_rect(),
+            Ordering::Greater,
+        );
+        assert_eq!(10.0, spacer_coordinates.entry_x);
+        assert_eq!(140.0, spacer_coordinates.entry_y);
+        assert_eq!(10.0, spacer_coordinates.exit_x);
+        assert_eq!(100.0, spacer_coordinates.exit_y);
+    }
+
+    /// `BottomToTop` keeps the same fixed `left_x`, but flips the canonical
+    /// entry/exit assignment relative to `TopToBottom`.
+    #[test]
+    fn bottom_to_top_from_before_to_threads_left_x_bottom_to_top() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_thread_from_rect(
+            RankDir::BottomToTop,
+            &node_rect(),
+            Ordering::Less,
+        );
+        assert_eq!(10.0, spacer_coordinates.entry_x);
+        assert_eq!(140.0, spacer_coordinates.entry_y);
+        assert_eq!(10.0, spacer_coordinates.exit_x);
+        assert_eq!(100.0, spacer_coordinates.exit_y);
+    }
+
+    #[test]
+    fn bottom_to_top_from_after_to_threads_left_x_top_to_bottom() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_thread_from_rect(
+            RankDir::BottomToTop,
+            &node_rect(),
+            Ordering::Greater,
+        );
+        assert_eq!(10.0, spacer_coordinates.entry_x);
+        assert_eq!(100.0, spacer_coordinates.entry_y);
+        assert_eq!(10.0, spacer_coordinates.exit_x);
+        assert_eq!(140.0, spacer_coordinates.exit_y);
     }
 }

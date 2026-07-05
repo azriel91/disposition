@@ -566,6 +566,31 @@ Crossing (non-owning) edges into someone else's `edge_description_container`
 are unchanged: they still get a generic, curvature-gated `EdgeSpacer` leaf, as
 originally planned.
 
+### Step 6.4 -- Cross-rank vs same-rank waypoint shape (implemented)
+
+Step 6.3's single-point contact (`calculate_description_contact`,
+`entry == exit`) is correct for same-rank (cycle edge) description boxes,
+which sit beside the edge's path, but wrong for cross-rank
+(`EdgeDescPosition::BetweenRanks`) boxes, which sit directly on the rank
+corridor between the edge's divergent ancestors and should be threaded
+*through* like an ordinary spacer.
+
+- `EdgeDescriptionTaffyNodes::is_cross_rank` (source:
+  `crate/taffy_model/src/edge_description_taffy_nodes.rs`) records which case
+  applies, set in `EdgeDescriptionBuilder::container_from_description_nodes_build`
+  from which of the two already-segregated `BTreeMap`s
+  (`position_to_sorted_descriptions` -- `BetweenRanks` -- vs
+  `same_rank_to_sorted_descriptions` -- `SameRank`) a group of description
+  nodes came from.
+- `EdgeSpacerCoordinatesCalculator::calculate_description_thread` (source:
+  `crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_spacer_coordinates_calculator.rs`)
+  computes the cross-rank corridor pair (`entry != exit`), mirroring
+  `calculate`'s fixed-cross-axis convention. See `edge_descriptions.md` --
+  Cross-Rank Contact for the full table and derivation.
+- `SpacerCoordinatesResolver::description_contact_resolve` branches on
+  `is_cross_rank` to call `calculate_description_thread` (cross-rank) or
+  `calculate_description_contact` (same-rank, unchanged from Step 6.3).
+
 
 ## Phase 7 -- Documentation Updates
 

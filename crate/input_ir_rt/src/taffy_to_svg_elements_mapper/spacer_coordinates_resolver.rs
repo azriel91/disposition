@@ -26,10 +26,12 @@ use crate::taffy_to_svg_elements_mapper::{
 ///
 /// Each resolved [`SpacerCoordinates`] for the first three kinds has an entry
 /// point and an exit point that slice the spacer in half, so the edge path
-/// passes straight through the spacer area. The description contact is the
-/// exception: entry and exit are the same point, since the description box
-/// sits beside the edge's path rather than on a corridor it threads through
-/// (see [`Self::description_contact_resolve`]).
+/// passes straight through the spacer area. The description contact follows
+/// suit for **cross-rank** edges (its box sits directly on the rank corridor
+/// between its divergent ancestors), but for **same-rank** (cycle) edges
+/// entry and exit are the same point, since the box then sits beside the
+/// edge's path rather than on a corridor it threads through (see
+/// [`Self::description_contact_resolve`]).
 ///
 /// This logic is shared by the edge path builder and the ortho protrusion
 /// calculator so they agree on the spacer ordering for every edge.
@@ -124,7 +126,7 @@ impl SpacerCoordinatesResolver {
         Self::spacers_sort_by_main_axis(rank_dir, all_spacers)
     }
 
-    /// Resolves the waypoint for an edge's own `edge_description_container`
+    /// Resolves the waypoint(s) for an edge's own `edge_description_container`
     /// leaf, read directly from the description box's own post-layout
     /// absolute rect (not a decoupled spacer leaf).
     ///
@@ -139,21 +141,25 @@ impl SpacerCoordinatesResolver {
     /// the `DirectStraight`/`DirectCurved` arms consult directly since they
     /// otherwise ignore `resolve`'s output entirely.
     ///
-    /// The description box is not a corridor the path threads through, so the
-    /// entry and exit point are the same: see
-    /// `EdgeSpacerCoordinatesCalculator::calculate_description_contact` for
-    /// how the single waypoint is chosen (a fixed side of the box, biased
-    /// along the other axis by the edge's `from`/`to` divergent-ancestor
-    /// sibling order).
+    /// For a **cross-rank** edge (`EdgeDescriptionTaffyNodes::is_cross_rank`),
+    /// the description box sits directly on the rank corridor between the
+    /// edge's divergent ancestors, so it is threaded *through* (entry != exit)
+    /// via `EdgeSpacerCoordinatesCalculator::calculate_description_thread`.
+    /// For a **same-rank** (cycle edge) box, which sits beside the edge's
+    /// path rather than on a corridor, entry and exit are the same point --
+    /// see `EdgeSpacerCoordinatesCalculator::calculate_description_contact`
+    /// for how that single waypoint is chosen (a fixed side of the box,
+    /// biased along the other axis by the edge's `from`/`to`
+    /// divergent-ancestor sibling order).
     ///
     /// # Example values
     ///
     /// `edge_id = "edge_dep_client_server__0"`, with that edge's
     /// `description_taffy_node_id` resolving to the post-layout rect `x=200,
-    /// y=60, width=80, height=24` under `rank_dir: TopToBottom` and
-    /// `sibling_index_from_cmp_to: Ordering::Less` -- returns
-    /// `Some(SpacerCoordinates { entry_x: 200.0, entry_y: 60.0, exit_x: 200.0,
-    /// exit_y: 60.0 })`.
+    /// y=60, width=80, height=24` under `rank_dir: TopToBottom`,
+    /// `sibling_index_from_cmp_to: Ordering::Less`, `is_cross_rank: true` --
+    /// returns `Some(SpacerCoordinates { entry_x: 200.0, entry_y: 60.0,
+    /// exit_x: 200.0, exit_y: 84.0 })`.
     pub fn description_contact_resolve<'id>(
         rank_dir: RankDir,
         edge_id: &EdgeId<'id>,
@@ -161,12 +167,21 @@ impl SpacerCoordinatesResolver {
         edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
     ) -> Option<SpacerCoordinates> {
         let edge_description_taffy_nodes = edge_description_taffy_nodes.get(edge_id)?;
-        EdgeSpacerCoordinatesCalculator::calculate_description_contact(
-            rank_dir,
-            taffy_tree,
-            edge_description_taffy_nodes.description_taffy_node_id,
-            edge_description_taffy_nodes.sibling_index_from_cmp_to,
-        )
+        if edge_description_taffy_nodes.is_cross_rank {
+            EdgeSpacerCoordinatesCalculator::calculate_description_thread(
+                rank_dir,
+                taffy_tree,
+                edge_description_taffy_nodes.description_taffy_node_id,
+                edge_description_taffy_nodes.sibling_index_from_cmp_to,
+            )
+        } else {
+            EdgeSpacerCoordinatesCalculator::calculate_description_contact(
+                rank_dir,
+                taffy_tree,
+                edge_description_taffy_nodes.description_taffy_node_id,
+                edge_description_taffy_nodes.sibling_index_from_cmp_to,
+            )
+        }
     }
 
     /// Snaps an edge's cross-container spacers to a single straight column on

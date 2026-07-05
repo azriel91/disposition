@@ -35,6 +35,7 @@ use crate::MdNodeTaffyIds;
 ///     description_taffy_node_id: NodeId(11), // points to md_content_node
 ///     md_node_taffy_ids: Some(MdNodeTaffyIds { ... }),
 ///     sibling_index_from_cmp_to: Ordering::Greater,
+///     is_cross_rank: true,
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq)]
@@ -53,12 +54,26 @@ pub struct EdgeDescriptionTaffyNodes {
     /// their siblings.
     ///
     /// Used by `EdgeSpacerCoordinatesCalculator::calculate_description_contact`
-    /// to pick which side of the description box this edge's own routing
-    /// waypoint sits on, so that edges travelling in opposite directions
-    /// (e.g. a `symmetric` interaction group's forward and reverse edges)
-    /// don't both clip through the box's center and backtrack.
+    /// (same-rank edges) or `calculate_description_thread` (cross-rank
+    /// edges) -- selected via `is_cross_rank` -- to pick this edge's own
+    /// routing waypoint(s) through/beside the description box, so that
+    /// edges travelling in opposite directions (e.g. a `symmetric`
+    /// interaction group's forward and reverse edges) don't both clip
+    /// through the box's center and backtrack.
     ///
     /// `Ordering::Equal` should not occur in practice: two distinct divergent
     /// ancestors always have distinct sibling indices.
     pub sibling_index_from_cmp_to: Ordering,
+    /// `true` for a cross-rank edge (`EdgeDescPosition::BetweenRanks`) whose
+    /// description box sits directly on the rank corridor between its
+    /// divergent ancestors; `false` for a same-rank/cycle edge
+    /// (`EdgeDescPosition::SameRank`) whose box sits beside its own rank row.
+    ///
+    /// Selects between
+    /// `EdgeSpacerCoordinatesCalculator::calculate_description_thread`
+    /// (cross-rank: threaded through, entry != exit) and
+    /// `calculate_description_contact` (same-rank: a single point beside the
+    /// path, entry == exit) in
+    /// `SpacerCoordinatesResolver::description_contact_resolve`.
+    pub is_cross_rank: bool,
 }
