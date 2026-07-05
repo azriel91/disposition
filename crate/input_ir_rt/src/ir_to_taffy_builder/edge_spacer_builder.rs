@@ -1138,5 +1138,4 @@ impl EdgeSpacerBuilder {
 
         Some((rank_from, rank_to))
     }
-
 }

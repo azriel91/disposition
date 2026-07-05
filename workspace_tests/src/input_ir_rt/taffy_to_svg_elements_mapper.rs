@@ -5133,7 +5133,8 @@ fn test_between_ranks_edge_description_sits_between_rank_containers() {
             .expect("Expected a description for edge_dep_client_server__0.");
 
         assert!(
-            desc.x >= t_client.envelope_x + t_client.envelope_width && desc.x <= t_server.envelope_x,
+            desc.x >= t_client.envelope_x + t_client.envelope_width
+                && desc.x <= t_server.envelope_x,
             "Expected edge_dep_client_server__0's description (x: {}) to sit between t_client's \
              right edge ({}) and t_server's left edge ({})",
             desc.x,
@@ -5243,6 +5244,126 @@ fn test_same_rank_cyclic_edge_description_sits_between_nested_divergent_ancestor
             desc.y,
             desc.height,
             lower.envelope_y,
+        );
+    }
+}
+
+// === Edge description contact waypoint tests === //
+
+/// Extracts the sequence of points an SVG path `d` attribute actually passes
+/// through: `M`/`L` targets, and each `C` (cubic bezier) command's final
+/// endpoint (its third coordinate pair) -- the two control points of a `C`
+/// only shape the curve and are not points the path terminates at, so they
+/// are skipped.
+fn path_d_points(d: &str) -> Vec<(f32, f32)> {
+    let mut tokens: Vec<String> = Vec::new();
+    let mut current = String::new();
+    for c in d.chars() {
+        if c.is_ascii_alphabetic() {
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+            tokens.push(c.to_string());
+        } else if c == ',' || c.is_whitespace() {
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+        } else {
+            current.push(c);
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    let parse_pair = |tokens: &[String], x_index: usize| -> Option<(f32, f32)> {
+        let x = tokens.get(x_index)?.parse::<f32>().ok()?;
+        let y = tokens.get(x_index + 1)?.parse::<f32>().ok()?;
+        Some((x, y))
+    };
+
+    let mut points = Vec::new();
+    let mut index = 0;
+    while index < tokens.len() {
+        match tokens[index].as_str() {
+            "M" | "L" => {
+                if let Some(point) = parse_pair(&tokens, index + 1) {
+                    points.push(point);
+                }
+                index += 3;
+            }
+            "C" => {
+                // Three coordinate pairs (six numbers); only the third pair
+                // is a point the path actually reaches.
+                if let Some(point) = parse_pair(&tokens, index + 5) {
+                    points.push(point);
+                }
+                index += 7;
+            }
+            _ => index += 1,
+        }
+    }
+    points
+}
+
+/// Extracts the `d` attribute of the `edge_body` path within an edge's `<g>`
+/// element in a rendered SVG string.
+fn edge_body_path_d(svg: &str, edge_id: &str) -> String {
+    let g_start = svg
+        .find(&format!("id=\"{edge_id}\""))
+        .unwrap_or_else(|| panic!("Expected <g id=\"{edge_id}\"> in the rendered SVG"));
+    let slice = &svg[g_start..];
+    let class_pos = slice
+        .find("class=\"edge_body\"")
+        .unwrap_or_else(|| panic!("Expected an edge_body path for {edge_id}"));
+    let before_class = &slice[..class_pos];
+    let d_key = "d=\"";
+    let d_start = before_class.rfind(d_key).unwrap_or_else(|| {
+        panic!("Expected a `d` attribute before the edge_body class for {edge_id}")
+    }) + d_key.len();
+    let d_end = d_start
+        + before_class[d_start..].find('"').unwrap_or_else(|| {
+            panic!("Expected a closing quote for the `d` attribute for {edge_id}")
+        });
+    before_class[d_start..d_end].to_string()
+}
+
+/// Regression test for a bug where an interaction edge travelling *against*
+/// the diagram's `RankDir` (a `symmetric` group's reverse edge) looped back
+/// on itself when routing through its own description box.
+///
+/// Before the fix, `edge_ix_client_server__1` (`t_server -> t_client`, i.e.
+/// high-rank to low-rank under `rank_dir: left_to_right`) rendered as
+/// `... 456 -> 245 -> 285 -> 91 ...`: the path reached the description box's
+/// near (left) edge at x=245, then had to backtrack rightward to the box's
+/// far edge at x=285 before continuing on to 91 -- a visible loop. The fix
+/// (`EdgeSpacerCoordinatesCalculator::calculate_description_contact`) makes
+/// entry and exit the same point on a fixed side, so the path no longer
+/// touches two different x-coordinates for the box.
+///
+/// This asserts the path's x-coordinates are monotonically non-increasing,
+/// matching this edge's actual right-to-left travel -- the backward hop
+/// would fail this.
+#[test]
+fn test_reverse_interaction_edge_description_contact_does_not_loop() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0056_INTERACTION_HALO_WITH_LABELS)
+    {
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        let d = edge_body_path_d(&svg, "edge_ix_client_server__1");
+        let points = path_d_points(&d);
+
+        assert!(
+            points.len() >= 2,
+            "Expected at least two points in edge_ix_client_server__1's path, got: {points:?}"
+        );
+
+        let xs: Vec<f32> = points.iter().map(|&(x, _y)| x).collect();
+        let non_increasing = xs.windows(2).all(|pair| pair[0] >= pair[1] - 1e-3);
+        assert!(
+            non_increasing,
+            "Expected edge_ix_client_server__1's path x-coordinates to be monotonically \
+             non-increasing (this edge travels right-to-left), but got a backward hop: {xs:?}"
         );
     }
 }

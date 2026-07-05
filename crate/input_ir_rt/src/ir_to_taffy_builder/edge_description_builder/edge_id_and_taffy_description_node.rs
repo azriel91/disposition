@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use disposition_ir_model::edge::EdgeId;
 use disposition_taffy_model::MdNodeTaffyIds;
 use taffy::NodeId;
@@ -22,4 +24,10 @@ pub struct EdgeIdAndTaffyDescriptionNode {
 
     /// Populated at `DiagramLod::Normal` with the markdown sub-tree IDs.
     pub md_node_taffy_ids: Option<MdNodeTaffyIds>,
+
+    /// `sibling_index_from.cmp(&sibling_index_to)` at the edge's LCA depth,
+    /// carried through to
+    /// [`disposition_taffy_model::EdgeDescriptionTaffyNodes`]
+    /// for the routing waypoint calculation.
+    pub sibling_index_from_cmp_to: Ordering,
 }

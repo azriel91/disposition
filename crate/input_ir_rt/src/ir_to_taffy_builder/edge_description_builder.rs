@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{cmp::Ordering, collections::BTreeMap};
 
 use disposition_ir_model::{
     edge::{Edge, EdgeId},
@@ -115,6 +115,7 @@ impl EdgeDescriptionBuilder {
                         sort_key,
                         description_taffy_node_id,
                         md_node_taffy_ids,
+                        sibling_index_from_cmp_to,
                     )) = Self::edge_desc_build(
                         ctx,
                         taffy_tree,
@@ -128,6 +129,7 @@ impl EdgeDescriptionBuilder {
                             edge_id,
                             description_taffy_node_id,
                             md_node_taffy_ids,
+                            sibling_index_from_cmp_to,
                         };
                         match position {
                             EdgeDescPosition::BetweenRanks(rank) => {
@@ -235,6 +237,7 @@ impl EdgeDescriptionBuilder {
             edge_id,
             description_taffy_node_id,
             md_node_taffy_ids,
+            sibling_index_from_cmp_to,
         } in description_nodes
         {
             edge_description_taffy_nodes.insert(
@@ -243,6 +246,7 @@ impl EdgeDescriptionBuilder {
                     container_taffy_node_id,
                     description_taffy_node_id,
                     md_node_taffy_ids,
+                    sibling_index_from_cmp_to,
                 },
             );
         }
@@ -296,7 +300,7 @@ impl EdgeDescriptionBuilder {
     /// 5. The edge's LCA must match the `lca_node_id` filter.
     ///
     /// On success returns `(position, sort_key, description_taffy_node_id,
-    /// md_node_taffy_ids)` where:
+    /// md_node_taffy_ids, sibling_index_from_cmp_to)` where:
     /// - `position` -- an [`EdgeDescPosition`]: `BetweenRanks(rank)` when the
     ///   divergent ancestors sit at different ranks, or `SameRank(..)` when
     ///   they share a rank (cycle edge).
@@ -306,6 +310,11 @@ impl EdgeDescriptionBuilder {
     ///   path) or `md_content_node` container (markdown path).
     /// - `md_node_taffy_ids` -- populated at `DiagramLod::Normal` with the
     ///   markdown sub-tree IDs.
+    /// - `sibling_index_from_cmp_to` --
+    ///   `sibling_index_from.cmp(&sibling_index_to)`, carried through to
+    ///   [`disposition_taffy_model::EdgeDescriptionTaffyNodes`] for the routing
+    ///   waypoint calculation (see
+    ///   `EdgeSpacerCoordinatesCalculator::calculate_description_contact`).
     ///
     /// The shared container node is created later in `build` once all leaves
     /// at the same position have been collected.
@@ -322,6 +331,7 @@ impl EdgeDescriptionBuilder {
         SiblingIndexMiddleAndEdgeId,
         taffy::NodeId,
         Option<disposition_taffy_model::MdNodeTaffyIds>,
+        Ordering,
     )> {
         let edge_descs = ctx.edge_descs;
         let node_nesting_infos = ctx.node_nesting_infos;
@@ -397,6 +407,7 @@ impl EdgeDescriptionBuilder {
         let sibling_index_from = info_from.nesting_path.get(lca_depth).copied().unwrap_or(0);
         let sibling_index_to = info_to.nesting_path.get(lca_depth).copied().unwrap_or(0);
         let sibling_index_middle = (sibling_index_from + sibling_index_to) / 2;
+        let sibling_index_from_cmp_to = sibling_index_from.cmp(&sibling_index_to);
         let sort_key = SiblingIndexMiddleAndEdgeId {
             sibling_index_middle,
             edge_id: edge_id.as_str().to_string(),
@@ -454,6 +465,7 @@ impl EdgeDescriptionBuilder {
             sort_key,
             description_taffy_node_id,
             md_node_taffy_ids,
+            sibling_index_from_cmp_to,
         ))
     }
 }

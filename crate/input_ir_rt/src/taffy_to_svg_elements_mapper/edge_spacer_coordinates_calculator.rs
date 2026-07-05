@@ -1,13 +1,30 @@
+use std::cmp::Ordering;
+
 use disposition_model_common::RankDir;
 use disposition_taffy_model::TaffyNodeCtx;
 use taffy::TaffyTree;
 
-use crate::taffy_to_svg_elements_mapper::edge_path_builder_pass_1::SpacerCoordinates;
+use crate::{
+    taffy_to_svg_elements_mapper::edge_path_builder_pass_1::SpacerCoordinates,
+    TaffyNodeAbsoluteCoordinatesCalculator,
+};
 
 /// Computes absolute spacer coordinates for a single taffy node.
 ///
 /// See [`EdgeSpacerCoordinatesCalculator::calculate`] for details.
 pub struct EdgeSpacerCoordinatesCalculator;
+
+/// Absolute bounding box extremes and center of a taffy node, in SVG
+/// coordinate space.
+#[derive(Clone, Copy)]
+struct NodeRect {
+    left_x: f32,
+    right_x: f32,
+    top_y: f32,
+    bottom_y: f32,
+    cx: f32,
+    cy: f32,
+}
 
 impl EdgeSpacerCoordinatesCalculator {
     /// Computes absolute spacer coordinates for a single taffy node.
@@ -24,32 +41,26 @@ impl EdgeSpacerCoordinatesCalculator {
     ///   right midpoint (largest x).
     /// * `RankDir::RightToLeft`: entry at right midpoint (largest x), exit at
     ///   left midpoint (smallest x).
+    ///
+    /// Used for spacers the edge path genuinely threads *through* along the
+    /// main rank axis (rank-based, cross-container, edge-desc-container, and
+    /// text-content spacers). For an edge's own description contact, see
+    /// [`Self::calculate_description_contact`] instead, which does not center
+    /// on the cross axis.
     pub fn calculate(
         rank_dir: RankDir,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         taffy_node_id: taffy::NodeId,
     ) -> Option<SpacerCoordinates> {
-        let layout = taffy_tree.layout(taffy_node_id).ok()?;
-
-        // === Absolute Coordinates === //
-        let mut x_acc = layout.location.x;
-        let mut y_acc = layout.location.y;
-        let mut current_node_id = taffy_node_id;
-        while let Some(parent_taffy_node_id) = taffy_tree.parent(current_node_id) {
-            let Ok(parent_layout) = taffy_tree.layout(parent_taffy_node_id) else {
-                break;
-            };
-            x_acc += parent_layout.location.x;
-            y_acc += parent_layout.location.y;
-            current_node_id = parent_taffy_node_id;
-        }
-
-        let cx = x_acc + layout.size.width / 2.0;
-        let cy = y_acc + layout.size.height / 2.0;
-        let left_x = x_acc;
-        let right_x = x_acc + layout.size.width;
-        let top_y = y_acc;
-        let bottom_y = y_acc + layout.size.height;
+        let node_rect = Self::node_rect_compute(taffy_tree, taffy_node_id)?;
+        let NodeRect {
+            left_x,
+            right_x,
+            top_y,
+            bottom_y,
+            cx,
+            cy,
+        } = node_rect;
 
         let spacer_coordinates = match rank_dir {
             // Vertical flow: entry/exit share the same x (center),
@@ -83,5 +94,250 @@ impl EdgeSpacerCoordinatesCalculator {
         };
 
         Some(spacer_coordinates)
+    }
+
+    /// Computes the single routing waypoint (`entry == exit`) for an edge's
+    /// own `edge_description_container` leaf.
+    ///
+    /// Unlike [`Self::calculate`], the description box is not a corridor the
+    /// path threads *through* -- it sits beside the edge's actual travel
+    /// path (whether the divergent ancestors share a rank, or sit at
+    /// different ranks), so entry and exit are the same point: a fixed side
+    /// of the box (independent of `RankDir`'s forward/reverse direction),
+    /// with the position along the other axis chosen by comparing the
+    /// edge's `from`/`to` divergent-ancestor sibling indices
+    /// (`sibling_index_from_cmp_to`).
+    ///
+    /// This intentionally diverges from `EdgeFaceAssigner::cycle_faces`'s
+    /// "no flip between forward/reverse RankDir" convention: that function
+    /// selects a face on the node itself (an absolute-canvas-position
+    /// concept, consistent regardless of rank progression direction), while
+    /// this waypoint is biased by which endpoint is genuinely "from" for
+    /// *this* edge. Two edges sharing the same box but travelling in
+    /// opposite directions (e.g. a `symmetric` interaction group's forward
+    /// and reverse edges) need their own bias so neither backtracks through
+    /// the box -- confirmed by a real regression: without the
+    /// `RightToLeft`/`BottomToTop` flip, a reverse-direction edge's path
+    /// visibly looped back on itself when routing through its own
+    /// description box (`edge_ix_client_server__1` in
+    /// `020_interaction_halo_with_labels.yaml`, whose path back then read
+    /// `... 456 -> 245(entry) -> 285(exit) -> 91 ...`, backtracking
+    /// rightward from 245 to 285 against its actual right-to-left travel).
+    ///
+    /// | `RankDir` | fixed axis | `from` before `to` (`Less`) | else (`Greater`) |
+    /// |---|---|---|---|
+    /// | `LeftToRight` | `x = left_x` | `y = top_y` | `y = bottom_y` |
+    /// | `RightToLeft` | `x = left_x` | `y = bottom_y` | `y = top_y` |
+    /// | `TopToBottom` | `y = top_y` | `x = left_x` | `x = right_x` |
+    /// | `BottomToTop` | `y = top_y` | `x = right_x` | `x = left_x` |
+    ///
+    /// `Ordering::Equal` should not occur (two distinct divergent ancestors
+    /// always have distinct sibling indices); treated the same as `Greater`.
+    ///
+    /// # Example values
+    ///
+    /// `rank_dir = LeftToRight`, box `left_x = 245, top_y = 37, bottom_y =
+    /// 60`, `sibling_index_from_cmp_to = Ordering::Less` -- returns
+    /// `Some(SpacerCoordinates { entry_x: 245.0, entry_y: 37.0, exit_x:
+    /// 245.0, exit_y: 37.0 })`.
+    pub fn calculate_description_contact(
+        rank_dir: RankDir,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        taffy_node_id: taffy::NodeId,
+        sibling_index_from_cmp_to: Ordering,
+    ) -> Option<SpacerCoordinates> {
+        let node_rect = Self::node_rect_compute(taffy_tree, taffy_node_id)?;
+        Some(Self::description_contact_from_rect(
+            rank_dir,
+            &node_rect,
+            sibling_index_from_cmp_to,
+        ))
+    }
+
+    /// Pure coordinate selection for [`Self::calculate_description_contact`],
+    /// separated from taffy tree access so the `RankDir` x `Ordering` table
+    /// can be unit tested directly against a constructed [`NodeRect`].
+    fn description_contact_from_rect(
+        rank_dir: RankDir,
+        node_rect: &NodeRect,
+        sibling_index_from_cmp_to: Ordering,
+    ) -> SpacerCoordinates {
+        let NodeRect {
+            left_x,
+            right_x,
+            top_y,
+            bottom_y,
+            ..
+        } = *node_rect;
+        let from_before_to = sibling_index_from_cmp_to == Ordering::Less;
+
+        let (x, y) = match rank_dir {
+            RankDir::LeftToRight => (left_x, if from_before_to { top_y } else { bottom_y }),
+            RankDir::RightToLeft => (left_x, if from_before_to { bottom_y } else { top_y }),
+            RankDir::TopToBottom => (if from_before_to { left_x } else { right_x }, top_y),
+            RankDir::BottomToTop => (if from_before_to { right_x } else { left_x }, top_y),
+        };
+
+        SpacerCoordinates {
+            entry_x: x,
+            entry_y: y,
+            exit_x: x,
+            exit_y: y,
+        }
+    }
+
+    /// Computes the absolute bounding box extremes and center of a taffy
+    /// node, walking up the tree to accumulate its absolute position.
+    fn node_rect_compute(
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        taffy_node_id: taffy::NodeId,
+    ) -> Option<NodeRect> {
+        let layout = taffy_tree.layout(taffy_node_id).ok()?;
+        let absolute_coordinates =
+            TaffyNodeAbsoluteCoordinatesCalculator::calculate(taffy_tree, taffy_node_id, layout);
+
+        let left_x = absolute_coordinates.x;
+        let top_y = absolute_coordinates.y;
+        let right_x = left_x + layout.size.width;
+        let bottom_y = top_y + layout.size.height;
+        let cx = left_x + layout.size.width / 2.0;
+        let cy = top_y + layout.size.height / 2.0;
+
+        Some(NodeRect {
+            left_x,
+            right_x,
+            top_y,
+            bottom_y,
+            cx,
+            cy,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A description box at `x: 10..30` (`left_x: 10, right_x: 30`),
+    /// `y: 100..140` (`top_y: 100, bottom_y: 140`).
+    fn node_rect() -> NodeRect {
+        NodeRect {
+            left_x: 10.0,
+            right_x: 30.0,
+            top_y: 100.0,
+            bottom_y: 140.0,
+            cx: 20.0,
+            cy: 120.0,
+        }
+    }
+
+    /// Every case returns `entry == exit`: the description box sits beside
+    /// the edge's path rather than on a corridor it threads through, so
+    /// there is exactly one waypoint, not a pass-through pair.
+    fn assert_entry_eq_exit(spacer_coordinates: SpacerCoordinates) {
+        assert_eq!(spacer_coordinates.entry_x, spacer_coordinates.exit_x);
+        assert_eq!(spacer_coordinates.entry_y, spacer_coordinates.exit_y);
+    }
+
+    #[test]
+    fn left_to_right_from_before_to_uses_left_x_and_top_y() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_contact_from_rect(
+            RankDir::LeftToRight,
+            &node_rect(),
+            Ordering::Less,
+        );
+        assert_entry_eq_exit(spacer_coordinates);
+        assert_eq!(10.0, spacer_coordinates.entry_x);
+        assert_eq!(100.0, spacer_coordinates.entry_y);
+    }
+
+    #[test]
+    fn left_to_right_from_after_to_uses_left_x_and_bottom_y() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_contact_from_rect(
+            RankDir::LeftToRight,
+            &node_rect(),
+            Ordering::Greater,
+        );
+        assert_entry_eq_exit(spacer_coordinates);
+        assert_eq!(10.0, spacer_coordinates.entry_x);
+        assert_eq!(140.0, spacer_coordinates.entry_y);
+    }
+
+    /// `RightToLeft` flips the y choice relative to `LeftToRight`, but keeps
+    /// the same fixed `x` side -- confirmed necessary by a real regression
+    /// (`edge_ix_client_server__1` in `020_interaction_halo_with_labels.yaml`
+    /// looped without this flip).
+    #[test]
+    fn right_to_left_from_before_to_uses_left_x_and_bottom_y() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_contact_from_rect(
+            RankDir::RightToLeft,
+            &node_rect(),
+            Ordering::Less,
+        );
+        assert_entry_eq_exit(spacer_coordinates);
+        assert_eq!(10.0, spacer_coordinates.entry_x);
+        assert_eq!(140.0, spacer_coordinates.entry_y);
+    }
+
+    #[test]
+    fn right_to_left_from_after_to_uses_left_x_and_top_y() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_contact_from_rect(
+            RankDir::RightToLeft,
+            &node_rect(),
+            Ordering::Greater,
+        );
+        assert_entry_eq_exit(spacer_coordinates);
+        assert_eq!(10.0, spacer_coordinates.entry_x);
+        assert_eq!(100.0, spacer_coordinates.entry_y);
+    }
+
+    #[test]
+    fn top_to_bottom_from_before_to_uses_top_y_and_left_x() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_contact_from_rect(
+            RankDir::TopToBottom,
+            &node_rect(),
+            Ordering::Less,
+        );
+        assert_entry_eq_exit(spacer_coordinates);
+        assert_eq!(100.0, spacer_coordinates.entry_y);
+        assert_eq!(10.0, spacer_coordinates.entry_x);
+    }
+
+    #[test]
+    fn top_to_bottom_from_after_to_uses_top_y_and_right_x() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_contact_from_rect(
+            RankDir::TopToBottom,
+            &node_rect(),
+            Ordering::Greater,
+        );
+        assert_entry_eq_exit(spacer_coordinates);
+        assert_eq!(100.0, spacer_coordinates.entry_y);
+        assert_eq!(30.0, spacer_coordinates.entry_x);
+    }
+
+    /// `BottomToTop` flips the x choice relative to `TopToBottom`, but keeps
+    /// the same fixed `y` side.
+    #[test]
+    fn bottom_to_top_from_before_to_uses_top_y_and_right_x() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_contact_from_rect(
+            RankDir::BottomToTop,
+            &node_rect(),
+            Ordering::Less,
+        );
+        assert_entry_eq_exit(spacer_coordinates);
+        assert_eq!(100.0, spacer_coordinates.entry_y);
+        assert_eq!(30.0, spacer_coordinates.entry_x);
+    }
+
+    #[test]
+    fn bottom_to_top_from_after_to_uses_top_y_and_left_x() {
+        let spacer_coordinates = EdgeSpacerCoordinatesCalculator::description_contact_from_rect(
+            RankDir::BottomToTop,
+            &node_rect(),
+            Ordering::Greater,
+        );
+        assert_entry_eq_exit(spacer_coordinates);
+        assert_eq!(100.0, spacer_coordinates.entry_y);
+        assert_eq!(10.0, spacer_coordinates.entry_x);
     }
 }

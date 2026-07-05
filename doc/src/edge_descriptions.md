@@ -126,10 +126,63 @@ between two children of one of those root nodes) cannot collide.
 The description's own rendered position is also a routing waypoint for its
 owning edge's path: `SpacerCoordinatesResolver::description_contact_resolve`
 reads the description leaf's post-layout rect and bends the edge's path to
-pass through it, applied unconditionally regardless of edge curvature (see
+touch it, applied unconditionally regardless of edge curvature (see
 `edge_spacers.md` -- Edge Description Container Spacers). This mirrors how
 `label_face_offset_compute` bends a path's face contact to sit beside an edge
-label's own box.
+label's own box. See [Description Contact Waypoint](#description-contact-waypoint)
+below for how that single touch point is chosen.
+
+
+## Description Contact Waypoint
+
+`description_contact_resolve` does not treat the description box the way
+same-level cross-rank spacers, cross-container spacers, or edge-desc-container
+spacers are treated (`EdgeSpacerCoordinatesCalculator::calculate`) -- those
+represent a corridor the edge path genuinely threads *through* along the main
+rank axis (entry on the near main-axis side, exit on the far side, centered on
+the cross axis). A description box instead sits *beside* the edge's actual
+travel path, whether its divergent ancestors share a rank or sit at different
+ranks. Using the pass-through calculation for it is actively wrong: the
+near/far side pair is chosen from `RankDir` alone, not from which endpoint is
+genuinely "from" for a specific edge, so an edge travelling *against* the
+canonical `RankDir` flow (e.g. a `symmetric` interaction group's reverse edge)
+would be forced through entry then exit in the wrong order -- reaching the
+near side, then backtracking to the far side before continuing on. This was a
+real, observed regression: `edge_ix_client_server__1` in
+`020_interaction_halo_with_labels.yaml` (`t_server -> t_client`, i.e. high-rank
+to low-rank under `rank_dir: left_to_right`) rendered as `... 456 -> 245(entry)
+-> 285(exit) -> 91 ...`, visibly looping back on itself.
+
+`EdgeSpacerCoordinatesCalculator::calculate_description_contact` fixes this by
+using a single point (`entry == exit`) instead of a pass-through pair: a fixed
+side of the box (independent of `RankDir`'s forward/reverse direction), with
+the position along the other axis chosen by comparing the edge's `from`/`to`
+divergent-ancestor sibling indices (`sibling_index_from_cmp_to`, stored on
+`EdgeDescriptionTaffyNodes` alongside the taffy node IDs, computed in
+`EdgeDescriptionBuilder::edge_desc_build` from the same `sibling_index_from`
+/`sibling_index_to` values used for `sibling_index_middle`):
+
+| `RankDir` | fixed axis | `from` before `to` (`Ordering::Less`) | else (`Greater`) |
+|---|---|---|---|
+| `LeftToRight` | `x = left_x` | `y = top_y` | `y = bottom_y` |
+| `RightToLeft` | `x = left_x` | `y = bottom_y` | `y = top_y` |
+| `TopToBottom` | `y = top_y` | `x = left_x` | `x = right_x` |
+| `BottomToTop` | `y = top_y` | `x = right_x` | `x = left_x` |
+
+This intentionally diverges from `EdgeFaceAssigner::cycle_faces`'s convention
+of *not* flipping between `LeftToRight`/`RightToLeft` or between
+`TopToBottom`/`BottomToTop` (that function selects a face on the node itself --
+an absolute-canvas-position concept, consistent regardless of rank progression
+direction -- which is a different problem from biasing a shared box's
+single waypoint by which endpoint is genuinely "from" for a specific edge).
+The flip was confirmed necessary by the `edge_ix_client_server__1` regression
+above: without it, `RightToLeft`/`BottomToTop` reverse edges would loop the
+same way `LeftToRight`/`TopToBottom` ones did before the fix.
+
+`entry == exit` is a valid, already-used pattern elsewhere in this pipeline
+(e.g. the `SpacerCoordinatesResolver` test fixtures); the path builders that
+consume `SpacerCoordinates` degrade a repeated point to a harmless zero-length
+segment.
 
 
 ## Step-by-Step: How Face-Label Slots Are Built
