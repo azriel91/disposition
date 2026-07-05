@@ -130,6 +130,12 @@ pub(crate) const INPUT_DIAGRAM_0054_EDGE_DESCS_INSTANCE_OVERRIDES_GROUP: &str =
 pub(crate) const INPUT_DIAGRAM_0055_INTERACTION_EDGE_LABEL_DESC_BG: &str =
     include_str!("input_diagram/0055_interaction_edge_label_desc_bg.yaml");
 
+pub(crate) const INPUT_DIAGRAM_0056_INTERACTION_HALO_WITH_LABELS: &str =
+    include_str!("input_diagram/0056_interaction_halo_with_labels.yaml");
+
+pub(crate) const INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC: &str =
+    include_str!("input_diagram/0057_interaction_halo_with_desc_cyclic.yaml");
+
 mod diagram_generator;
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

@@ -727,6 +727,7 @@ impl TaffyDiagramNodeBuilder {
                 target_entity_type,
                 Some(lca_node_id),
                 edge_description_container_style,
+                rank_to_taffy_ids,
             );
             nested_edge_taffy_nodes
                 .edge_description_taffy_nodes

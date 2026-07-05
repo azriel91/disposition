@@ -1,0 +1,87 @@
+---
+# Interaction Halo With Description with cyclic relationships between nodes.
+#
+# Adds edge labels and descriptions so that we can see how interaction edges route
+# around the rendered labels and descriptions.
+#
+# There are no processes in this diagram, so the interactions are made
+# visible and animated automatically.
+things:
+  t_client: {}
+  t_server:
+    t_server_proc_1: {}
+    t_server_proc_2: {}
+  t_database: {}
+
+thing_names:
+  t_client: Client
+  t_server: Server
+  t_database: Database
+
+thing_dependencies:
+  edge_dep_client_server:
+    kind: cyclic
+    things:
+      - t_client
+      - t_server
+  edge_dep_server_proc_1_proc_2:
+    kind: cyclic
+    things:
+      - t_server_proc_1
+      - t_server_proc_2
+
+thing_interactions:
+  edge_ix_client_server:
+    kind: symmetric
+    things:
+      - t_client
+      - t_server
+  edge_ix_server_database:
+    kind: symmetric
+    things:
+      - t_server
+      - t_database
+
+edge_labels:
+  edge_dep_client_server__0:
+    from: "c/s dep from"
+    to: "c/s dep to"
+  edge_ix_client_server__0:
+    from: c/s from
+    to: c/s to
+  edge_ix_client_server__1:
+    from: s/c from
+    to: s/c to
+  edge_ix_server_database__0:
+    from: server from
+    to: server to
+  edge_ix_server_database__1:
+    from: db from
+    to: db to
+
+edge_descs:
+  edge_dep_client_server__0: "c/s_dep_desc"
+  edge_ix_client_server__0: "ix 0"
+  edge_ix_client_server__1: "ix 1"
+  edge_dep_server_proc_1_proc_2__0: "proc1_proc2_desc"
+
+theme_types_styles:
+  type_interaction_edge_halo_forward:
+    edge_defaults:
+      style_aliases_applied: []
+      shape_color: indigo
+  type_interaction_edge_halo_outline_forward:
+    edge_defaults:
+      style_aliases_applied: []
+      shape_color: indigo
+  type_interaction_edge_halo_reverse:
+    edge_defaults:
+      style_aliases_applied: []
+      shape_color: purple
+  type_interaction_edge_halo_outline_reverse:
+    edge_defaults:
+      style_aliases_applied: []
+      shape_color: purple
+
+render_options:
+  rank_dir: left_to_right

@@ -14,7 +14,7 @@ use taffy::AlignSelf;
 
 use crate::EdgeIdGenerator;
 
-use super::taffy_build_ctx::TaffyBuildCtx;
+use super::{rank_sibling_inserter::RankSiblingInserter, taffy_build_ctx::TaffyBuildCtx};
 
 pub use self::{
     edge_spacer_build_decider::EdgeSpacerBuildDecider,
@@ -1017,7 +1017,7 @@ impl EdgeSpacerBuilder {
 
         // Compute the insertion index based on nesting info.
         let insertion_base_index =
-            Self::insertion_base_index_compute(nesting_info_from, nesting_info_to);
+            RankSiblingInserter::insertion_base_index_compute(nesting_info_from, nesting_info_to);
 
         let edge_spacer_length = Self::edge_spacer_length(render_options, entity_types, edge_id);
         let spacer_style = Style {
@@ -1047,34 +1047,13 @@ impl EdgeSpacerBuilder {
                 )
                 .expect("Expected to create spacer leaf node.");
 
-            // Determine actual insertion index accounting for existing spacers.
-            let taffy_ids = rank_to_taffy_ids.entry(rank).or_default();
-            let spacer_counts = rank_spacer_counts.entry(rank).or_default();
-
-            // Ensure spacer_counts has enough entries.
-            if spacer_counts.len() < taffy_ids.len() + 1 {
-                spacer_counts.resize(taffy_ids.len() + 1, 0);
-            }
-
-            // The effective index accounts for previously inserted spacers.
-            let effective_index = Self::effective_insertion_index(
+            RankSiblingInserter::node_insert(
+                rank_to_taffy_ids,
+                rank_spacer_counts,
+                rank,
                 insertion_base_index,
-                taffy_ids.len(),
-                spacer_counts,
+                spacer_taffy_node_id,
             );
-
-            // Insert the spacer.
-            if effective_index >= taffy_ids.len() {
-                taffy_ids.push(spacer_taffy_node_id);
-            } else {
-                taffy_ids.insert(effective_index, spacer_taffy_node_id);
-            }
-
-            // Update spacer counts: increment count at this position.
-            if spacer_counts.len() <= effective_index {
-                spacer_counts.resize(effective_index + 1, 0);
-            }
-            spacer_counts.insert(effective_index, 1);
 
             spacer_taffy_nodes
                 .rank_to_spacer_taffy_node_id
@@ -1160,61 +1139,4 @@ impl EdgeSpacerBuilder {
         Some((rank_from, rank_to))
     }
 
-    // === Insertion index computation === //
-
-    /// Computes the base insertion index from the nesting info of two nodes.
-    ///
-    /// Finds the depth at which the two ancestor chains diverge, then
-    /// uses the sibling indices at that depth to compute a midpoint
-    /// position. Returns `(from_index + to_index) / 2 + 1`.
-    ///
-    /// When the ancestor chains share a common prefix (the nodes have a
-    /// common ancestor), the comparison is done at the first level where
-    /// the chains differ, ensuring the spacer is placed between the
-    /// correct subtrees.
-    fn insertion_base_index_compute(
-        nesting_info_from: &NodeNestingInfo<'_>,
-        nesting_info_to: &NodeNestingInfo<'_>,
-    ) -> usize {
-        let lca_depth = LcaDepthCalculator::calculate(nesting_info_from, nesting_info_to);
-
-        // Get the sibling index at the divergence depth for each node.
-        // This is the position of each node's subtree among the children
-        // of their lowest common ancestor.
-        let from_index = nesting_info_from
-            .nesting_path
-            .get(lca_depth)
-            .copied()
-            .unwrap_or(0);
-        let to_index = nesting_info_to
-            .nesting_path
-            .get(lca_depth)
-            .copied()
-            .unwrap_or(0);
-
-        // Mean index + 1 (the +1 is so the spacer goes *after* the midpoint).
-        (from_index + to_index) / 2 + 1
-    }
-
-    /// Computes the effective insertion index, accounting for previously
-    /// inserted spacers at or before the base insertion index.
-    ///
-    /// This ensures that when multiple edges insert spacers at the same
-    /// rank, each new spacer is placed after any existing spacers at or
-    /// before its intended position.
-    fn effective_insertion_index(
-        base_index: usize,
-        current_len: usize,
-        spacer_counts: &[usize],
-    ) -> usize {
-        // Count the number of spacers already inserted at or before the
-        // base position.
-        let spacers_at_or_before: usize = spacer_counts
-            .iter()
-            .take(base_index.min(spacer_counts.len()))
-            .sum();
-
-        let effective = base_index + spacers_at_or_before;
-        effective.min(current_len)
-    }
 }

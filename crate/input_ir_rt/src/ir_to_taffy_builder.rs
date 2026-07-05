@@ -34,6 +34,7 @@ mod edge_spacer_builder;
 mod highlighted_spans_computer;
 mod md_node_builder;
 mod md_spans_computer;
+mod rank_sibling_inserter;
 mod taffy_build_ctx;
 mod taffy_build_state;
 mod taffy_container_builder;
@@ -301,6 +302,7 @@ impl IrToTaffyBuilder<'_> {
             &EntityType::ThingDefault,
             None,
             &thing_rank_container_style,
+            &mut thing_rank_to_taffy_ids,
         );
         let EdgeDescriptionBuildResult {
             edge_description_taffy_nodes: tag_edge_desc_taffy_nodes,
@@ -311,6 +313,7 @@ impl IrToTaffyBuilder<'_> {
             &EntityType::TagDefault,
             None,
             &tag_rank_container_style,
+            &mut tag_rank_to_taffy_ids,
         );
         let EdgeDescriptionBuildResult {
             edge_description_taffy_nodes: process_edge_desc_taffy_nodes,
@@ -321,6 +324,7 @@ impl IrToTaffyBuilder<'_> {
             &EntityType::ProcessDefault,
             None,
             &process_rank_container_style,
+            &mut process_rank_to_taffy_ids,
         );
         edge_description_taffy_nodes.extend(thing_edge_desc_taffy_nodes);
         edge_description_taffy_nodes.extend(tag_edge_desc_taffy_nodes);

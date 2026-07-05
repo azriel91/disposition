@@ -6,9 +6,11 @@ are specified via `edge_descs` in `InputDiagram`, keyed by the edge
 
 > **Note:** `EdgeDescs` is **not** rendered through face-label slots.
 > Description text is rendered via `edge_description_container` nodes
-> interleaved between rank containers.  See
-> `edge_description_containers_plan.md` for the implementation plan of that
-> feature.
+> interleaved between rank containers -- except for cycle edges (see
+> [Same-Rank (Cycle Edge) Placement](#same-rank-cycle-edge-placement) below),
+> whose container is inserted as a sibling *within* the shared rank instead.
+> See `edge_description_containers_plan.md` for the implementation plan of
+> that feature.
 
 Face-label slots (documented below) are structural taffy leaf nodes placed at
 the `from`/`to` node faces.  They exist purely for edge contact-point
@@ -84,7 +86,42 @@ edge_descs:
 
 The description text is rendered in an `edge_description_container` node
 positioned between the rank containers of the edge's divergent ancestors.  See
-`edge_description_containers_plan.md` for details.
+`edge_description_containers_plan.md` for details, and
+[Same-Rank (Cycle Edge) Placement](#same-rank-cycle-edge-placement) below for
+the exception when the divergent ancestors share a rank.
+
+
+## Same-Rank (Cycle Edge) Placement
+
+When an edge's divergent ancestors share a rank -- a cycle edge, e.g. a
+`cyclic` dependency group, or any edge (dependency or interaction) between two
+nodes that a dependency cycle placed on the same rank -- there is no gap
+*between* rank containers to interleave a container into: both ancestors live
+in the same rank container's children.
+
+For this case, `EdgeDescriptionBuilder::build` inserts the
+`edge_description_container` as a direct child of the shared rank, at the
+sibling index between the two divergent ancestors, rather than as a sibling of
+rank containers. This mirrors how `EdgeSpacerBuilder` places same-level
+cross-rank spacers (see [edge_spacers.md](edge_spacers.md) -- Same-Level
+Cross-Rank Spacers): both use the shared
+[`RankSiblingInserter`](crate/input_ir_rt/src/ir_to_taffy_builder/rank_sibling_inserter.rs)
+helper to compute the sibling insertion index
+(`(from_sibling_index + to_sibling_index) / 2 + 1`) and to insert at the
+effective index, accounting for other insertions already made at that rank.
+
+Multiple edges whose divergent ancestors are the *same* pair of same-ranked
+siblings (e.g. a cyclic dependency plus a symmetric interaction group between
+the same two nodes) share one container, grouped by `(rank,
+sibling_index_middle)` so that a different pair of same-ranked siblings gets
+its own container rather than being merged in.
+
+This placement is scoped per LCA level exactly like same-level cross-rank
+spacers: `EdgeDescriptionBuilder::build` is called once per level (root, and
+once per container that is an LCA for at least one described edge), each with
+its own independently-scoped `rank_to_taffy_ids`, so two cyclic pairs at
+different nesting depths (e.g. a root-level cycle and, separately, a cycle
+between two children of one of those root nodes) cannot collide.
 
 The description's own rendered position is also a routing waypoint for its
 owning edge's path: `SpacerCoordinatesResolver::description_contact_resolve`

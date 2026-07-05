@@ -17,15 +17,19 @@ use crate::md_text::md_blocks_parser::MdBlocksParser;
 
 use super::{
     edge_spacer_builder::LcaDepthCalculator, md_node_builder::MdNodeBuilder,
-    taffy_build_ctx::TaffyBuildCtx,
+    rank_sibling_inserter::RankSiblingInserter, taffy_build_ctx::TaffyBuildCtx,
 };
 
 use self::{
+    edge_desc_position::EdgeDescPosition,
     edge_id_and_taffy_description_node::EdgeIdAndTaffyDescriptionNode,
+    rank_and_sibling_index_middle::RankAndSiblingIndexMiddle,
     sibling_index_middle_and_edge_id::SiblingIndexMiddleAndEdgeId,
 };
 
+mod edge_desc_position;
 mod edge_id_and_taffy_description_node;
+mod rank_and_sibling_index_middle;
 mod sibling_index_middle_and_edge_id;
 
 /// Builds `edge_description_container` and `edge_description` leaf taffy nodes
@@ -53,12 +57,21 @@ impl EdgeDescriptionBuilder {
     ///
     /// At `DiagramLod::Normal`, the single description leaf is replaced by an
     /// `md_content_node` sub-tree built via `MdNodeBuilder`.
+    ///
+    /// Edges whose divergent ancestors share a rank (cycle edges) do not go
+    /// through the position-based interleaving above -- their container is
+    /// inserted directly into `rank_to_taffy_ids[rank]`, between the two
+    /// divergent ancestors' sibling subtrees, mirroring how
+    /// `EdgeSpacerBuilder` places same-level cross-rank spacers. This
+    /// requires mutable access to the same `rank_to_taffy_ids` map the caller
+    /// passes to `EdgeSpacerBuilder::build`.
     pub(crate) fn build(
         ctx: TaffyBuildCtx<'_>,
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         target_entity_type: &EntityType,
         lca_node_id: Option<&NodeId<'static>>,
         rank_container_style: &Style,
+        rank_to_taffy_ids: &mut BTreeMap<NodeRank, Vec<taffy::NodeId>>,
     ) -> EdgeDescriptionBuildResult {
         let edge_groups = ctx.edge_groups;
 
@@ -67,15 +80,26 @@ impl EdgeDescriptionBuilder {
 
         // Collect per-edge description leaf nodes grouped by insertion position.
         //
-        // Inner BTreeMap key: `MiddleSiblingNodeIndexAndEdgeId` -- sorted so
+        // Inner BTreeMap key: `SiblingIndexMiddleAndEdgeId` -- sorted so
         // descriptions at the same position are ordered by sibling proximity
         // and then by edge ID as a tiebreaker.
         //
         // Inner BTreeMap value: `EdgeIdAndTaffyDescriptionNode` so we can
         // build `EdgeDescriptionTaffyNodes` after the shared container is
         // created.
+        //
+        // Edges whose divergent ancestors sit at different ranks
+        // (`EdgeDescPosition::BetweenRanks`) are grouped here. Edges whose
+        // divergent ancestors share a rank (`EdgeDescPosition::SameRank`,
+        // cycle edges) are grouped in `same_rank_to_sorted_descriptions`
+        // instead, since their container is inserted at a sibling index
+        // within a rank rather than interleaved between ranks.
         let mut position_to_sorted_descriptions: BTreeMap<
             Option<NodeRank>,
+            BTreeMap<SiblingIndexMiddleAndEdgeId, EdgeIdAndTaffyDescriptionNode>,
+        > = BTreeMap::new();
+        let mut same_rank_to_sorted_descriptions: BTreeMap<
+            RankAndSiblingIndexMiddle,
             BTreeMap<SiblingIndexMiddleAndEdgeId, EdgeIdAndTaffyDescriptionNode>,
         > = BTreeMap::new();
 
@@ -100,17 +124,25 @@ impl EdgeDescriptionBuilder {
                         target_entity_type,
                         lca_node_id,
                     ) {
-                        position_to_sorted_descriptions
-                            .entry(position)
-                            .or_default()
-                            .insert(
-                                sort_key,
-                                EdgeIdAndTaffyDescriptionNode {
-                                    edge_id,
-                                    description_taffy_node_id,
-                                    md_node_taffy_ids,
-                                },
-                            );
+                        let description_node = EdgeIdAndTaffyDescriptionNode {
+                            edge_id,
+                            description_taffy_node_id,
+                            md_node_taffy_ids,
+                        };
+                        match position {
+                            EdgeDescPosition::BetweenRanks(rank) => {
+                                position_to_sorted_descriptions
+                                    .entry(Some(rank))
+                                    .or_default()
+                                    .insert(sort_key, description_node);
+                            }
+                            EdgeDescPosition::SameRank(rank_and_sibling_index_middle) => {
+                                same_rank_to_sorted_descriptions
+                                    .entry(rank_and_sibling_index_middle)
+                                    .or_default()
+                                    .insert(sort_key, description_node);
+                            }
+                        }
                     }
                 });
         });
@@ -123,42 +155,99 @@ impl EdgeDescriptionBuilder {
             .map(|(position, sorted)| {
                 let description_nodes: Vec<EdgeIdAndTaffyDescriptionNode> =
                     sorted.into_values().collect();
-                let leaf_node_ids: Vec<taffy::NodeId> = description_nodes
-                    .iter()
-                    .map(|node| node.description_taffy_node_id)
-                    .collect();
-
-                let container_style =
-                    Self::container_style_build(rank_container_style, ctx.char_width);
-
-                let container_taffy_node_id = taffy_tree
-                    .new_with_children(container_style, &leaf_node_ids)
-                    .expect("Expected to create edge_description_container node.");
-
-                for EdgeIdAndTaffyDescriptionNode {
-                    edge_id,
-                    description_taffy_node_id,
-                    md_node_taffy_ids,
-                } in description_nodes
-                {
-                    edge_description_taffy_nodes.insert(
-                        edge_id,
-                        EdgeDescriptionTaffyNodes {
-                            container_taffy_node_id,
-                            description_taffy_node_id,
-                            md_node_taffy_ids,
-                        },
-                    );
-                }
+                let container_taffy_node_id = Self::container_from_description_nodes_build(
+                    taffy_tree,
+                    rank_container_style,
+                    ctx.char_width,
+                    description_nodes,
+                    &mut edge_description_taffy_nodes,
+                );
 
                 (position, vec![container_taffy_node_id])
             })
             .collect();
 
+        // For each same-rank group, create one shared container and insert it
+        // directly into the shared rank's sibling list, between the two
+        // divergent ancestors -- mirroring how `EdgeSpacerBuilder` inserts
+        // same-level cross-rank spacers. Grouping (and inserting) in
+        // ascending `(rank, sibling_index_middle)` order, guaranteed by
+        // `BTreeMap` iteration, keeps `same_rank_insertion_counts` accounting
+        // for earlier insertions correctly.
+        let mut same_rank_insertion_counts: BTreeMap<NodeRank, Vec<usize>> = BTreeMap::new();
+        same_rank_to_sorted_descriptions.into_iter().for_each(
+            |(
+                RankAndSiblingIndexMiddle {
+                    rank,
+                    sibling_index_middle,
+                },
+                sorted,
+            )| {
+                let description_nodes: Vec<EdgeIdAndTaffyDescriptionNode> =
+                    sorted.into_values().collect();
+                let container_taffy_node_id = Self::container_from_description_nodes_build(
+                    taffy_tree,
+                    rank_container_style,
+                    ctx.char_width,
+                    description_nodes,
+                    &mut edge_description_taffy_nodes,
+                );
+
+                let insertion_base_index = sibling_index_middle + 1;
+                RankSiblingInserter::node_insert(
+                    rank_to_taffy_ids,
+                    &mut same_rank_insertion_counts,
+                    rank,
+                    insertion_base_index,
+                    container_taffy_node_id,
+                );
+            },
+        );
+
         EdgeDescriptionBuildResult {
             edge_description_taffy_nodes,
             position_to_container_ids,
         }
+    }
+
+    /// Builds one shared `edge_description_container` from a group of
+    /// same-position description nodes, recording each edge's
+    /// `EdgeDescriptionTaffyNodes` against the shared container.
+    fn container_from_description_nodes_build(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        rank_container_style: &Style,
+        char_width: f32,
+        description_nodes: Vec<EdgeIdAndTaffyDescriptionNode>,
+        edge_description_taffy_nodes: &mut Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
+    ) -> taffy::NodeId {
+        let leaf_node_ids: Vec<taffy::NodeId> = description_nodes
+            .iter()
+            .map(|node| node.description_taffy_node_id)
+            .collect();
+
+        let container_style = Self::container_style_build(rank_container_style, char_width);
+
+        let container_taffy_node_id = taffy_tree
+            .new_with_children(container_style, &leaf_node_ids)
+            .expect("Expected to create edge_description_container node.");
+
+        for EdgeIdAndTaffyDescriptionNode {
+            edge_id,
+            description_taffy_node_id,
+            md_node_taffy_ids,
+        } in description_nodes
+        {
+            edge_description_taffy_nodes.insert(
+                edge_id,
+                EdgeDescriptionTaffyNodes {
+                    container_taffy_node_id,
+                    description_taffy_node_id,
+                    md_node_taffy_ids,
+                },
+            );
+        }
+
+        container_taffy_node_id
     }
 
     /// Builds the `edge_description_container`'s style from the rank
@@ -208,9 +297,10 @@ impl EdgeDescriptionBuilder {
     ///
     /// On success returns `(position, sort_key, description_taffy_node_id,
     /// md_node_taffy_ids)` where:
-    /// - `position` -- `None` = before all rank containers; `Some(rank)` =
-    ///   after rank_container[rank].
-    /// - `sort_key` -- [`MiddleSiblingNodeIndexAndEdgeId`] for deterministic
+    /// - `position` -- an [`EdgeDescPosition`]: `BetweenRanks(rank)` when the
+    ///   divergent ancestors sit at different ranks, or `SameRank(..)` when
+    ///   they share a rank (cycle edge).
+    /// - `sort_key` -- [`SiblingIndexMiddleAndEdgeId`] for deterministic
     ///   ordering at the same position.
     /// - `description_taffy_node_id` -- the newly created leaf node (simple
     ///   path) or `md_content_node` container (markdown path).
@@ -228,7 +318,7 @@ impl EdgeDescriptionBuilder {
         target_entity_type: &EntityType,
         lca_node_id: Option<&NodeId<'static>>,
     ) -> Option<(
-        Option<NodeRank>,
+        EdgeDescPosition,
         SiblingIndexMiddleAndEdgeId,
         taffy::NodeId,
         Option<disposition_taffy_model::MdNodeTaffyIds>,
@@ -301,29 +391,32 @@ impl EdgeDescriptionBuilder {
             .copied()
             .unwrap_or(NodeRank::new(0));
 
-        // Step 2.2.7 -- Compute insertion position.
-        let position = if rank_from == rank_to {
-            // Cycle edge: insert before the shared rank container.
-            if rank_from.value() > 0 {
-                Some(NodeRank::new(rank_from.value() - 1))
-            } else {
-                None
-            }
-        } else {
-            let rank_low = rank_from.min(rank_to);
-            let rank_high = rank_from.max(rank_to);
-            Some(NodeRank::new(
-                rank_low.value() + (rank_high.value() - rank_low.value()) / 2,
-            ))
-        };
-
-        // Step 2.2.8 -- Compute sibling middle index (sort key).
+        // Step 2.2.7 -- Compute sibling middle index (sort key). Needed by
+        // both branches of Step 2.2.8, since the same-rank branch uses it as
+        // the sibling insertion position rather than just a sort key.
         let sibling_index_from = info_from.nesting_path.get(lca_depth).copied().unwrap_or(0);
         let sibling_index_to = info_to.nesting_path.get(lca_depth).copied().unwrap_or(0);
         let sibling_index_middle = (sibling_index_from + sibling_index_to) / 2;
         let sort_key = SiblingIndexMiddleAndEdgeId {
             sibling_index_middle,
             edge_id: edge_id.as_str().to_string(),
+        };
+
+        // Step 2.2.8 -- Compute insertion position.
+        let position = if rank_from == rank_to {
+            // Cycle edge: insert directly into the shared rank's sibling
+            // list, between the two divergent ancestors (see
+            // `EdgeDescriptionBuilder::build`'s same-rank handling).
+            EdgeDescPosition::SameRank(RankAndSiblingIndexMiddle {
+                rank: rank_from,
+                sibling_index_middle,
+            })
+        } else {
+            let rank_low = rank_from.min(rank_to);
+            let rank_high = rank_from.max(rank_to);
+            EdgeDescPosition::BetweenRanks(NodeRank::new(
+                rank_low.value() + (rank_high.value() - rank_low.value()) / 2,
+            ))
         };
 
         // Step 2.2.9 -- Create the description leaf or markdown sub-tree.

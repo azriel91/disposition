@@ -35,10 +35,19 @@ Phases at a glance:
 Given a `divergent_ancestor_node_rank_from` and a
 `divergent_ancestor_node_rank_to`, the insertion position P is:
 
-- **Cycle edge** (`rank_from == rank_to`):
-  `P = rank_from - 1`, inserting **before** the shared rank container.
-  Special case: if `rank_from == 0`, insert before all rank containers (P = -1,
-  represented as `None`).
+- **Cycle edge** (`rank_from == rank_to`): **not** a between-rank position at
+  all. The container is inserted as a direct child of the shared rank, at the
+  sibling index between the two divergent ancestors --
+  `sibling_index_middle + 1` where `sibling_index_middle =
+  (sibling_index_from + sibling_index_to) / 2` -- via the same
+  `RankSiblingInserter` helper (base-index formula + effective-index/count
+  tracking) that `EdgeSpacerBuilder` uses for same-level cross-rank spacers.
+  See [edge_descriptions.md](edge_descriptions.md) -- Same-Rank (Cycle Edge)
+  Placement for the full explanation. (An earlier version of this fell back to
+  `P = rank_from - 1`, inserting the container as an extra sibling **before
+  the entire shared rank row** instead of between the two specific nodes --
+  this was wrong and has been replaced by the in-rank insertion described
+  here.)
 
 - **Normal edge** (`rank_from != rank_to`):
   `P = rank_low + (rank_high - rank_low) / 2`
@@ -246,13 +255,15 @@ rank_to        = node_ranks_nested.ranks_for(lca_container)[divergent_to]
 
 ```text
 if rank_from == rank_to {
-    // Cycle edge: insert before the shared rank container.
-    position = if rank_from > 0 { Some(rank_from - 1) } else { None }
+    // Cycle edge: insert directly into the shared rank's sibling list,
+    // between the two divergent ancestors (see edge_descriptions.md --
+    // Same-Rank (Cycle Edge) Placement).
+    position = EdgeDescPosition::SameRank { rank: rank_from, sibling_index_middle }
 } else {
     // Normal edge: insert after the rank container at the midpoint rank.
     rank_low  = min(rank_from, rank_to)
     rank_high = max(rank_from, rank_to)
-    position  = Some(rank_low + (rank_high - rank_low) / 2)
+    position  = EdgeDescPosition::BetweenRanks(rank_low + (rank_high - rank_low) / 2)
 }
 ```
 
@@ -636,9 +647,10 @@ Either approach works since the spacers are already segregated into the
 `edge_desc_container_spacer_taffy_node_ids` list and sorted by coordinate.
 Confirm which is cleaner during implementation.
 
-### OQ2 -- Cycle edges at rank 0
+### OQ2 -- Cycle edges at rank 0 (resolved)
 
-For a cycle edge whose divergent ancestors share rank 0, the computed position
-is `None` (before all rank containers). If there are no rank containers yet
-(e.g., a container with only cycle-rank-0 nodes), the container list is just
-the `edge_description_container`s. Confirm this is acceptable visually.
+This no longer applies: cycle edges are never given a between-ranks
+`position` any more (see the updated Background section above), so there is
+no `rank_from == 0` special case to reason about -- the container is always
+inserted directly into the shared rank's own sibling list, which always has
+at least the two divergent ancestors already in it.

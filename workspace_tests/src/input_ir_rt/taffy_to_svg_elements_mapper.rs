@@ -58,6 +58,8 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0053_EDGE_DESCS_GROUP_ID_KEY,
     INPUT_DIAGRAM_0054_EDGE_DESCS_INSTANCE_OVERRIDES_GROUP,
     INPUT_DIAGRAM_0055_INTERACTION_EDGE_LABEL_DESC_BG,
+    INPUT_DIAGRAM_0056_INTERACTION_HALO_WITH_LABELS,
+    INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -5096,6 +5098,151 @@ fn test_interaction_edge_label_and_desc_bg_render_before_text() {
         assert!(
             !dep_desc_g_slice[..dep_desc_next_g_offset].contains("<path"),
             "Dependency edge {dep_edge_id:?} description should not render a background path"
+        );
+    }
+}
+
+// === Between-ranks (non-cycle edge) description placement baseline === //
+
+/// Baseline companion to the same-rank tests below: when the divergent
+/// ancestors sit at *different* ranks (a plain `sequence` dependency, not a
+/// cycle), the description must still be interleaved between the two rank
+/// containers -- confirming the same-rank fix did not regress this path.
+#[test]
+fn test_between_ranks_edge_description_sits_between_rank_containers() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0056_INTERACTION_HALO_WITH_LABELS)
+    {
+        let t_client = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_client")
+            .expect("Expected t_client in svg_node_infos");
+        let t_server = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_server")
+            .expect("Expected t_server in svg_node_infos");
+
+        // `rank_dir: left_to_right` puts different-ranked nodes at different
+        // X positions; t_client (rank 0) sits left of t_server (rank 1).
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_client_server__0")
+            .expect("Expected a description for edge_dep_client_server__0.");
+
+        assert!(
+            desc.x >= t_client.envelope_x + t_client.envelope_width && desc.x <= t_server.envelope_x,
+            "Expected edge_dep_client_server__0's description (x: {}) to sit between t_client's \
+             right edge ({}) and t_server's left edge ({})",
+            desc.x,
+            t_client.envelope_x + t_client.envelope_width,
+            t_server.envelope_x,
+        );
+    }
+}
+
+// === Same-rank (cycle edge) description placement tests === //
+
+/// When an edge's divergent ancestors share a rank (a cycle edge, e.g. a
+/// `cyclic` dependency), the description container must be inserted between
+/// the two same-ranked siblings, not before/after the whole shared rank row.
+/// This is a regression test for a bug where the container was placed at
+/// `Some(rank - 1)`, floating before the entire rank instead of between the
+/// specific pair of nodes it describes.
+#[test]
+fn test_same_rank_cyclic_edge_description_sits_between_divergent_ancestors_at_root_level() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        let t_client = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_client")
+            .expect("Expected t_client in svg_node_infos");
+        let t_server = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_server")
+            .expect("Expected t_server in svg_node_infos");
+
+        // `rank_dir: left_to_right` stacks same-ranked siblings vertically, so
+        // "between" is a Y-axis relationship. t_client and t_server share a
+        // rank (the cyclic dependency), so whichever renders first is
+        // strictly above the other -- the container must sit in the gap.
+        let (upper, lower) = if t_client.envelope_y < t_server.envelope_y {
+            (t_client, t_server)
+        } else {
+            (t_server, t_client)
+        };
+        let upper_bottom = upper.envelope_y + upper.envelope_height_collapsed;
+
+        for edge_id in [
+            "edge_dep_client_server__0",
+            "edge_ix_client_server__0",
+            "edge_ix_client_server__1",
+        ] {
+            let desc = svg_elements
+                .edge_description_infos
+                .iter()
+                .find(|d| d.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected a description for {edge_id}."));
+
+            assert!(
+                desc.y >= upper_bottom && desc.y + desc.height <= lower.envelope_y,
+                "Expected {edge_id}'s description (y: {}, height: {}) to sit between t_client/\
+                 t_server (upper bottom: {upper_bottom}, lower top: {}), not before/after the \
+                 whole shared rank row",
+                desc.y,
+                desc.height,
+                lower.envelope_y,
+            );
+        }
+    }
+}
+
+/// The same same-rank placement fix applies at nested LCA levels: the cyclic
+/// dependency between `t_server_proc_1` and `t_server_proc_2` (both direct
+/// children of `t_server`, sharing a rank) must place its description between
+/// those two siblings, not before/after `t_server`'s whole rank row.
+#[test]
+fn test_same_rank_cyclic_edge_description_sits_between_nested_divergent_ancestors() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        let proc_1 = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_server_proc_1")
+            .expect("Expected t_server_proc_1 in svg_node_infos");
+        let proc_2 = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_server_proc_2")
+            .expect("Expected t_server_proc_2 in svg_node_infos");
+
+        let (upper, lower) = if proc_1.envelope_y < proc_2.envelope_y {
+            (proc_1, proc_2)
+        } else {
+            (proc_2, proc_1)
+        };
+        let upper_bottom = upper.envelope_y + upper.envelope_height_collapsed;
+
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_server_proc_1_proc_2__0")
+            .expect("Expected a description for edge_dep_server_proc_1_proc_2__0.");
+
+        assert!(
+            desc.y >= upper_bottom && desc.y + desc.height <= lower.envelope_y,
+            "Expected edge_dep_server_proc_1_proc_2__0's description (y: {}, height: {}) to sit \
+             between t_server_proc_1/t_server_proc_2 (upper bottom: {upper_bottom}, lower top: \
+             {}), not before/after t_server's whole shared rank row",
+            desc.y,
+            desc.height,
+            lower.envelope_y,
         );
     }
 }

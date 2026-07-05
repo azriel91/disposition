@@ -322,6 +322,14 @@ After insertion, `rank_spacer_counts[rank]` is updated by inserting `1` at `effe
 shifting all subsequent counts right. This keeps the count vector aligned with the position vector
 so future insertions at the same rank compute the correct offset.
 
+Both the base-index formula and the effective-index/count-tracking logic above live in a shared
+helper, [`RankSiblingInserter`](crate/input_ir_rt/src/ir_to_taffy_builder/rank_sibling_inserter.rs)
+(`insertion_base_index_compute`, `node_insert`), rather than being private to `EdgeSpacerBuilder`.
+`EdgeDescriptionBuilder` calls the same helper to place same-rank edge description containers (see
+[edge_descriptions.md](edge_descriptions.md) -- Same-Rank (Cycle Edge) Placement) between two
+same-ranked divergent ancestors, keeping its own separate `same_rank_insertion_counts` tracker since
+the two builders insert into `rank_to_taffy_ids` at different times.
+
 
 ## Cross-Container Spacers: EdgeSpacerBuilder::build_cross_container_spacers
 
