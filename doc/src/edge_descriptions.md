@@ -6,9 +6,11 @@ are specified via `edge_descs` in `InputDiagram`, keyed by the edge
 
 > **Note:** `EdgeDescs` is **not** rendered through face-label slots.
 > Description text is rendered via `edge_description_container` nodes
-> interleaved between rank containers.  See
-> `edge_description_containers_plan.md` for the implementation plan of that
-> feature.
+> interleaved between rank containers -- except for cycle edges (see
+> [Same-Rank (Cycle Edge) Placement](#same-rank-cycle-edge-placement) below),
+> whose container is inserted as a sibling *within* the shared rank instead.
+> See `edge_description_containers_plan.md` for the implementation plan of
+> that feature.
 
 Face-label slots (documented below) are structural taffy leaf nodes placed at
 the `from`/`to` node faces.  They exist purely for edge contact-point
@@ -84,7 +86,281 @@ edge_descs:
 
 The description text is rendered in an `edge_description_container` node
 positioned between the rank containers of the edge's divergent ancestors.  See
-`edge_description_containers_plan.md` for details.
+`edge_description_containers_plan.md` for details, and
+[Same-Rank (Cycle Edge) Placement](#same-rank-cycle-edge-placement) below for
+the exception when the divergent ancestors share a rank.
+
+
+## Same-Rank (Cycle Edge) Placement
+
+When an edge's divergent ancestors share a rank -- a cycle edge, e.g. a
+`cyclic` dependency group, or any edge (dependency or interaction) between two
+nodes that a dependency cycle placed on the same rank -- there is no gap
+*between* rank containers to interleave a container into: both ancestors live
+in the same rank container's children.
+
+For this case, `EdgeDescriptionBuilder::build` inserts the
+`edge_description_container` as a direct child of the shared rank, at the
+sibling index between the two divergent ancestors, rather than as a sibling of
+rank containers. This mirrors how `EdgeSpacerBuilder` places same-level
+cross-rank spacers (see [edge_spacers.md](edge_spacers.md) -- Same-Level
+Cross-Rank Spacers): both use the shared
+[`RankSiblingInserter`](crate/input_ir_rt/src/ir_to_taffy_builder/rank_sibling_inserter.rs)
+helper to compute the sibling insertion index
+(`(from_sibling_index + to_sibling_index) / 2 + 1`) and to insert at the
+effective index, accounting for other insertions already made at that rank.
+
+Multiple edges whose divergent ancestors are the *same* pair of same-ranked
+siblings (e.g. a cyclic dependency plus a symmetric interaction group between
+the same two nodes) share one container, grouped by `(rank,
+sibling_index_middle)` so that a different pair of same-ranked siblings gets
+its own container rather than being merged in.
+
+Unlike a cross-rank `edge_description_container` (which mirrors
+`rank_container_style.flex_direction`, since it is inserted *as a sibling of*
+rank containers and multiple descriptions sharing that position should lay
+out along the same axis rank siblings use), a same-rank container's own
+children layout is *inverted* (`EdgeDescriptionBuilder::container_style_build`,
+via `taffy_container_builder::flex_direction_invert`): the container is
+inserted *as a rank sibling itself*, directly between the two divergent
+ancestors, which already occupy the rank's own stacking axis. Mirroring that
+axis for multiple described edges sharing the slot would stack their boxes
+along the same axis the two divergent ancestors sit on, widening (or
+heightening) the gap between them per extra description. Since the divergent
+ancestors' own edges run *along* that axis, the descriptions instead stack
+along the perpendicular (cross) axis -- e.g. under `rank_dir: top_to_bottom`,
+two described edges between the same pair of same-ranked (horizontally
+adjacent) siblings stack vertically (`Column`) rather than widening the
+horizontal gap between them.
+
+Either way (cross-rank or same-rank), a `RowReverse`/`ColumnReverse`
+`flex_direction` -- which occurs under `rank_dir: bottom_to_top` /
+`right_to_left`, whose rank containers use the reversed variant so ranks
+stack in reverse screen order -- is stripped down to plain `Row`/`Column`
+for the `edge_description_container`. Ordinary rank containers need the
+reversed variant because their *own* sibling order is separately corrected
+for it (see [Sibling order for reversed rank directions](edge_paths.md#sibling-order-for-reversed-rank-directions)),
+but an `edge_description_container`'s children are freshly built and sorted
+by `sibling_index_middle`/`EdgeId` in visual order every time (see above), so
+no such correction exists -- a reversed direction would instead render them
+back to front, crossing over each other.
+
+This placement is scoped per LCA level exactly like same-level cross-rank
+spacers: `EdgeDescriptionBuilder::build` is called once per level (root, and
+once per container that is an LCA for at least one described edge), each with
+its own independently-scoped `rank_to_taffy_ids`, so two cyclic pairs at
+different nesting depths (e.g. a root-level cycle and, separately, a cycle
+between two children of one of those root nodes) cannot collide.
+
+The description's own rendered position is also a routing waypoint for its
+owning edge's path: `SpacerCoordinatesResolver::description_contact_resolve`
+reads the description leaf's post-layout rect and bends the edge's path to
+touch it, applied unconditionally regardless of edge curvature (see
+`edge_spacers.md` -- Edge Description Container Spacers). This mirrors how
+`label_face_offset_compute` bends a path's face contact to sit beside an edge
+label's own box. See [Description Contact Waypoint](#description-contact-waypoint)
+below for how that waypoint is chosen -- it differs for same-rank vs
+cross-rank edges.
+
+
+## Description Contact Waypoint
+
+`description_contact_resolve` branches on
+`EdgeDescriptionTaffyNodes::is_cross_rank` (`true` for
+`EdgeDescPosition::BetweenRanks`, `false` for `EdgeDescPosition::SameRank`).
+In both cases, the description box sits directly *on* the connection between
+the edge's two divergent ancestors -- between ranks for a cross-rank edge, or
+directly between the two same-ranked siblings for a same-rank (cycle) edge --
+so in both cases the path threads *through* the box (`entry != exit`), the
+same way an ordinary spacer's corridor is threaded via
+`EdgeSpacerCoordinatesCalculator::calculate`:
+
+- **Cross-rank (`BetweenRanks`)**: threaded via `calculate_description_thread`
+  -- see [Cross-Rank Contact](#cross-rank-contact) below.
+- **Same-rank (cycle edges)**: threaded via
+  `calculate_description_thread_same_rank`, which additionally rotates onto
+  the axis the two divergent ancestors are laid out on *within* their shared
+  rank -- see [Same-Rank Contact](#same-rank-contact) below.
+
+Both share the same divergent-ancestor sibling-order input
+(`sibling_index_from_cmp_to`, stored on `EdgeDescriptionTaffyNodes` alongside
+the taffy node IDs, computed in `EdgeDescriptionBuilder::edge_desc_build` from
+the same `sibling_index_from`/`sibling_index_to` values used for
+`sibling_index_middle`), because both must account for an edge travelling
+*against* the diagram's canonical `RankDir` flow (e.g. a `symmetric`
+interaction group's reverse edge) -- naively assigning entry/exit purely from
+`RankDir` would force such an edge through its waypoints in the wrong order,
+backtracking through the box. This was a real, observed regression:
+`edge_ix_client_server__1` in `020_interaction_halo_with_labels.yaml`
+(`t_server -> t_client`, i.e. high-rank to low-rank under
+`rank_dir: left_to_right`) once rendered as `... 456 -> 245(entry) ->
+285(exit) -> 91 ...`, visibly looping back on itself.
+
+
+### Cross-Rank Contact
+
+A cross-rank edge's description box sits directly on the rank corridor
+between its divergent ancestors. `EdgeSpacerCoordinatesCalculator::
+calculate_description_thread` returns a proper corridor pair (`entry !=
+exit`), the same shape `calculate` produces for ordinary spacers. The fixed
+cross-axis coordinate mirrors `calculate`'s `cx`/`cy` convention (unchanged
+between a `RankDir` and its reverse pair -- `top_y` for
+`LeftToRight`/`RightToLeft`, `left_x` for `TopToBottom`/`BottomToTop`);
+`Ordering::Less` (this edge's `from` is before its `to`, i.e. it travels in
+the topological-forward direction) reuses `calculate`'s canonical entry/exit
+assignment for that `RankDir` (substituting the fixed value for `cx`/`cy`);
+`Ordering::Greater` (a reverse-direction edge, e.g. a `symmetric` interaction
+group's response edge) swaps entry and exit so the pair always runs in *this
+edge's own* travel direction rather than the diagram's canonical one:
+
+| `RankDir` | fixed axis | `from` before `to` (`Less`) | else (`Greater`) |
+|---|---|---|---|
+| `LeftToRight` | `y = top_y` | entry=`(left_x,top_y)` exit=`(right_x,top_y)` | entry=`(right_x,top_y)` exit=`(left_x,top_y)` |
+| `RightToLeft` | `y = top_y` | entry=`(right_x,top_y)` exit=`(left_x,top_y)` | entry=`(left_x,top_y)` exit=`(right_x,top_y)` |
+| `TopToBottom` | `x = left_x` | entry=`(left_x,top_y)` exit=`(left_x,bottom_y)` | entry=`(left_x,bottom_y)` exit=`(left_x,top_y)` |
+| `BottomToTop` | `x = left_x` | entry=`(left_x,bottom_y)` exit=`(left_x,top_y)` | entry=`(left_x,top_y)` exit=`(left_x,bottom_y)` |
+
+`Ordering::Equal` should not occur (two distinct divergent ancestors always
+have distinct sibling indices); treated the same as `Greater`.
+
+Concretely, before this fix, `edge_dep_client_server__0` in
+`020_interaction_halo_with_labels.yaml` (`rank_from: 0, rank_to: 1`) used a
+single-point calculation and rendered pinned at the box's `left_x` with
+wildly varying, out-of-box `y` values -- downstream spacer-ordering and
+protrusion logic (built to expect a real two-point corridor, like every
+other spacer kind) mishandled the degenerate zero-length waypoint. Threading
+through the box properly fixed this.
+
+This waypoint pair is folded into `SpacerCoordinatesResolver::resolve`'s
+merged, sorted spacer list exactly like any other spacer kind, so protrusion
+and turn-minimization logic (built generically over entry/exit corridors)
+handle it without any special-casing.
+
+
+### Same-Rank Contact
+
+A same-rank (cycle) edge's divergent ancestors are laid out side by side
+*within* their shared rank -- horizontally when the rank's own children stack
+via `Row`/`RowReverse` (`RankDir::TopToBottom`/`BottomToTop`), vertically when
+they stack via `Column`/`ColumnReverse` (`RankDir::LeftToRight`/
+`RightToLeft`). The description box sits directly between them, on that
+within-rank axis, so the path threads through it just like the cross-rank
+case -- but on the axis the *siblings* are laid out on, not the diagram's
+overall rank axis.
+
+Because within-rank sibling order always matches declaration order
+regardless of `RankDir`'s forward/reverse convention (see
+[Sibling order for reversed rank directions](edge_paths.md#sibling-order-for-reversed-rank-directions)
+in `edge_paths.md`), `Ordering::Less`/`Greater` here means the same thing
+(`from`'s divergent ancestor sits earlier/later along the shared rank) for
+both members of a forward/reverse `RankDir` pair -- unlike the cross-rank
+case, where the physical meaning of `Less`/`Greater` flips between a
+`RankDir` and its reverse pair. Only the horizontal-vs-vertical layout axis
+depends on `RankDir`.
+
+`EdgeSpacerCoordinatesCalculator::calculate_description_thread_same_rank`
+therefore reuses `calculate_description_thread`'s table by rotating
+`rank_dir` onto whichever of its two canonical rows matches the axis
+same-rank siblings are actually laid out on: `TopToBottom`/`BottomToTop`
+(horizontal siblings) both use the `LeftToRight` row (fixed `y = top_y`);
+`LeftToRight`/`RightToLeft` (vertical siblings) both use the `TopToBottom`
+row (fixed `x = left_x`).
+
+Before this fix, the same-rank case used a single-point calculation (a fixed
+corner of the box, biased by `sibling_index_from_cmp_to` to avoid two edges
+sharing a box backtracking through its center) instead of threading through
+-- visible in `019_interaction_halo.yaml`'s `edge_ix_client_server__0`
+(`t_client`/`t_server`, same rank since there are no `thing_dependencies`
+between them, only `thing_interactions`), which touched only its box's
+top-left corner rather than running along its top edge. Also see
+[Same-Rank (Cycle Edge) Placement](#same-rank-cycle-edge-placement) above
+for the companion `FlexDirection` fix: the `edge_description_container` for a
+same-rank group inverts `rank_container_style.flex_direction` (via
+`taffy_container_builder::flex_direction_invert`) so multiple described
+edges sharing that same-rank slot stack along the axis perpendicular to the
+two divergent ancestors, instead of widening/heightening the gap between
+them.
+
+
+### Halo Clearance
+
+Like edge labels (see `TaffyEnvelopeBuilder::label_margin_build`, and
+`SvgEdgeInfosBuilder::label_face_offset_compute`'s `- halo_pad_px` pullback),
+a described edge's box needs clearance from the interaction edge halo -- a
+wide path drawn `interaction_edge_halo_stroke_width / 2.0` ("`halo_pad_px`")
+either side of the edge's own path -- so the halo doesn't visually overlap the
+box's rendered content. Unlike a label (which the path approaches and stops
+beside), a description box is threaded *through*, flush against exactly one
+of its own edges (see the fixed-axis tables above), so the clearance
+mechanism mirrors the label case in two coordinated halves:
+
+1. **Build time** (`EdgeDescriptionBuilder::edge_desc_build`): the description
+   leaf/`md_content_node` gets a `margin` (not `padding`) of `halo_pad_px +
+   label_margin_px` (`label_margin_px` = `TEXT_FONT_SIZE / 2.0`) on **both**
+   sides of whichever axis the routing path runs flush against.
+2. **Routing time** (`EdgeSpacerCoordinatesCalculator::description_thread_from_rect`):
+   the same fixed-axis coordinate is pulled back by `halo_pad_px` only (not
+   the full margin), canceling just the halo-clearance component of the
+   margin's push for the routing calculation -- the path ends up
+   `label_margin_px` further from the box's pre-margin position (rather than
+   exactly pinned to it), so the description still reads as visually
+   associated with its edge, matching how `label_face_offset_compute`'s
+   pullback likewise only ever cancels `halo_pad_px` for edge labels.
+
+Both sides of the margin get the *same* value (rather than only the far side)
+because the fixed axis chosen below is also the axis multiple described edges
+sharing the same position are packed along (`container_style_build` mirrors
+-- cross-rank -- or inverts -- same-rank -- `rank_container_style`'s
+`flex_direction` onto that same axis, so sibling description boxes at a
+shared position stack along it). If only the far side carried the margin, a
+dependency edge (whose `halo_pad_px` is `0.0`, see below) would end up with
+*no* margin at all on the near/routing-path side, losing separation from
+whatever sits before it along the packing axis -- typically the previous
+sibling description box sharing the same position, or the container's own
+edge for the first box.
+
+Which side gets the margin/pullback follows the same fixed-axis selection as
+[Cross-Rank Contact](#cross-rank-contact) and [Same-Rank Contact](#same-rank-contact)
+above:
+
+| Effective `RankDir`\* | fixed axis | margin / pullback side |
+|---|---|---|
+| `TopToBottom` / `BottomToTop` | `x = left_x` | **left and right** |
+| `LeftToRight` / `RightToLeft` | `y = top_y` | **top and bottom** |
+
+\* For same-rank (cycle edge) boxes, "effective `RankDir`" is `rank_dir`
+rotated via `EdgeSpacerCoordinatesCalculator::rank_dir_same_rank_rotate` --
+the same rotation `calculate_description_thread_same_rank` already applies --
+so both the build-time margin axis and the routing-time pullback axis are
+derived identically and cannot drift apart. `EdgeDescriptionBuilder::edge_desc_build`
+reuses `rank_dir_same_rank_rotate` directly (re-exported `pub(crate)` from
+`taffy_to_svg_elements_mapper`) rather than re-deriving the mapping.
+
+`halo_pad_px` itself is `0.0` for **dependency** edges (`EntityType::is_dependency_edge`):
+only interaction edges render the wide interaction-edge halo (`render_options.interaction_edge_halo`),
+so a dependency edge's description has nothing to clear from a halo, and its
+routed path sits flush against the box (which still carries `label_margin_px`
+of margin on both sides, for separation from its neighbors -- see above).
+`label_margin_px` applies unconditionally to both edge kinds. Both the
+build-time margin (`EdgeDescriptionBuilder::edge_desc_build`, which looks up
+the edge's own entity types) and the routing-time pullback (each call site
+threading `interaction_edge_halo_stroke_width` into `SpacerCoordinatesResolver::resolve`
+/ `description_contact_resolve` -- `SvgEdgeInfosBuilder::build_edge_path_infos_with_offsets`,
+`face_offsets_gap_transit_separate`, and `OrthoProtrusionCalculator::calculate`
+-- substitutes `0.0` per edge based on `EdgePass1Info::is_interaction`) apply
+this exception independently, so a mismatch between the two would show up as
+either an unfilled gap (routing pulls back but the box never moved) or an
+uncleared overlap (the box moved but routing didn't compensate); keeping both
+checks in sync is required.
+
+Edge labels (`TaffyEnvelopeBuilder::label_margin_build`) apply the identical
+dependency-edge exception and both-sides margin, for the same reason: the
+label's packing axis (multiple sibling labels on the same node face) is the
+same axis the halo-clearance margin applies to, so a label-only far-side
+margin would equally lose near-side separation for dependency edges.
+`SvgEdgeInfosBuilder::face_offsets_compute` passes `0.0` for
+`interaction_edge_halo_stroke_width` per edge (via `FaceContactEntry::is_interaction`)
+when calling `label_face_offset_compute`, mirroring the description case.
 
 
 ## Step-by-Step: How Face-Label Slots Are Built

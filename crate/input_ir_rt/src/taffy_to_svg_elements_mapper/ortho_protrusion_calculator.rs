@@ -11,7 +11,9 @@ use disposition_svg_model::{
     OrthoProtrusionParams, RankGapDiagnosticEndpointKind, RankGapDiagnosticSide,
     RankGapEntryDiagnostic, SpacerProtrusionParams, SvgNodeInfo,
 };
-use disposition_taffy_model::{taffy::TaffyTree, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx};
+use disposition_taffy_model::{
+    taffy::TaffyTree, EdgeIdToEdgeDescriptionTaffyNodes, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx,
+};
 
 use disposition_ir_model::node::NodeFace;
 
@@ -289,6 +291,16 @@ impl OrthoProtrusionCalculator {
     /// * `svg_node_info_map`: node layout information.
     /// * `taffy_tree`: the layout tree (for spacer coordinate lookups).
     /// * `edge_spacer_taffy_nodes`: spacer node mappings per edge.
+    /// * `edge_description_taffy_nodes`: description node mappings per edge,
+    ///   used to size `spacer_protrusions` consistently with
+    ///   `SpacerCoordinatesResolver::resolve`'s merged waypoint list.
+    /// * `interaction_edge_halo_stroke_width`: resolved stroke width (pixels)
+    ///   of the interaction edge halo, passed through to
+    ///   `SpacerCoordinatesResolver::resolve` (as `0.0` for dependency edges,
+    ///   which have no halo) so the description contact waypoint is pulled back
+    ///   by half this value, matching the halo-clearance margin
+    ///   `EdgeDescriptionBuilder::edge_desc_build` applies to the description
+    ///   box (e.g. `8.0`).
     #[allow(clippy::too_many_arguments)]
     pub(super) fn calculate<'id>(
         rank_dir: RankDir,
@@ -299,10 +311,12 @@ impl OrthoProtrusionCalculator {
         svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
+        edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
         entity_types: &EntityTypes<'id>,
         group_is_direct: &[bool],
+        interaction_edge_halo_stroke_width: f32,
     ) -> OrthoProtrusionOutcome<'id> {
         // === Step 1: Resolve spacer coordinates and initialize output === //
         //
@@ -318,11 +332,22 @@ impl OrthoProtrusionCalculator {
                     .pass1_infos
                     .iter()
                     .map(|pass1_info| {
+                        // Dependency edges have no interaction edge halo, so
+                        // their description contact needs no halo-clearance
+                        // pullback (see
+                        // `EdgeDescriptionBuilder::edge_desc_build`).
+                        let description_halo_stroke_width = if pass1_info.is_interaction {
+                            interaction_edge_halo_stroke_width
+                        } else {
+                            0.0
+                        };
                         SpacerCoordinatesResolver::resolve(
                             rank_dir,
                             &pass1_info.edge_id,
                             taffy_tree,
                             edge_spacer_taffy_nodes,
+                            edge_description_taffy_nodes,
+                            description_halo_stroke_width,
                         )
                     })
                     .collect()
@@ -365,6 +390,7 @@ impl OrthoProtrusionCalculator {
             for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
                 let rank_from = pass1_info.rank_from;
                 let rank_to = pass1_info.rank_to;
+                let spacer_coordinates = &all_spacer_coordinates[group_idx][edge_idx];
 
                 // Determine rank ordering.
                 let (_rank_low, _rank_high) = if rank_from <= rank_to {
@@ -394,13 +420,29 @@ impl OrthoProtrusionCalculator {
                 }
 
                 // Same-rank non-cycle edges (adjacent siblings, tag/process
-                // nodes) use normal face routing with zero protrusion and do
-                // not register rank-gap entries.
+                // nodes) normally use direct face routing with zero
+                // protrusion, since there is no gap to jog through. But when
+                // the edge has real spacer waypoints -- e.g. one direction of
+                // a cyclic pair routing around a same-rank
+                // `edge_description_container` sitting between the two
+                // siblings -- it still needs a floor so its Z/S bend clears
+                // the arrow head, and there is no shared inter-rank gap here
+                // for the `rank_gap_entries` band-splitting machinery below to
+                // apply to, so it is floored directly instead.
                 if rank_from == rank_to {
+                    if !spacer_coordinates.is_empty() {
+                        Self::same_rank_edge_protrusions_write(
+                            group_idx,
+                            edge_idx,
+                            pass1_info,
+                            spacer_coordinates,
+                            svg_node_info_map,
+                            node_nesting_infos,
+                            &mut result,
+                        );
+                    }
                     continue;
                 }
-
-                let spacer_coordinates = &all_spacer_coordinates[group_idx][edge_idx];
 
                 // === From endpoint === //
                 if let Some(from_face) = pass1_info.from_face {
@@ -864,12 +906,26 @@ impl OrthoProtrusionCalculator {
         // as a safety net for edges where a face was not available
         // (e.g. `from_face` or `to_face` was `None`), which prevented
         // registration of the spacer side in Step 2.
-        result
-            .iter_mut()
-            .flat_map(|group_params| group_params.iter_mut())
-            .for_each(|params| {
+        //
+        // Same-rank, non-cycle edges are excluded: their `spacer_protrusions`
+        // entries are the box-threading waypoint of a same-rank
+        // `edge_description_container` (see
+        // `Self::same_rank_edge_protrusions_write`), whose entry/exit
+        // coordinates already sit exactly on the box -- not a real spacer
+        // requiring its own lateral clearance stub. Propagating
+        // `from_protrusion`/`to_protrusion` (sized to clear the arrow head at
+        // the real node, a much larger distance) into these entries
+        // over-extends the path past the box and back, producing a spurious
+        // double bend.
+        for (group_idx, group) in all_pass1_groups.iter().enumerate() {
+            for (edge_idx, pass1_info) in group.pass1_infos.iter().enumerate() {
+                if pass1_info.rank_from == pass1_info.rank_to && !pass1_info.is_cycle_edge {
+                    continue;
+                }
+
+                let params = &mut result[group_idx][edge_idx];
                 if params.spacer_protrusions.is_empty() {
-                    return;
+                    continue;
                 }
 
                 let first = &mut params.spacer_protrusions[0];
@@ -882,7 +938,8 @@ impl OrthoProtrusionCalculator {
                 if last.exit_protrusion < 1e-3 {
                     last.exit_protrusion = params.to_protrusion;
                 }
-            });
+            }
+        }
 
         // === Step 5: Enforce minimum protrusions to clear divergent ancestor siblings
         // === //
@@ -1681,6 +1738,71 @@ impl OrthoProtrusionCalculator {
                     sp.exit_protrusion = protrusion;
                 }
             }
+        }
+    }
+
+    /// Floors `from_protrusion`/`to_protrusion` for a same-rank, non-cycle
+    /// edge that has real spacer waypoints (e.g. its own same-rank
+    /// `edge_description_container` thread-through, or a crossing spacer for
+    /// the reverse direction of a cyclic pair -- see
+    /// `EdgeSpacerBuilder::build_edge_desc_container_spacers_for_edge_same_rank`).
+    ///
+    /// Deliberately bypasses the `rank_gap_entries`/`RankGapKey` band-splitting
+    /// machinery `protrusion_write` feeds: that machinery distributes depths
+    /// across a shared inter-rank gap that other edges may also occupy, which
+    /// does not apply here -- this is a private corridor between exactly two
+    /// same-rank adjacent siblings, so there is nothing to distribute against.
+    /// Mirrors `protrusion_write`'s two formulas directly, with the
+    /// shared-band `protrusion` term at `0.0`.
+    ///
+    /// Without this floor, `to_protrusion` stays at its Step 1 default of
+    /// `0.0`, so `build_spacer_edge_path`
+    /// (`crate::taffy_to_svg_elements_mapper::edge_path_builder_pass_2`) never
+    /// inserts a dedicated protrusion waypoint before the final corner and
+    /// falls back to `EdgePathBuilderPass2Ortho::connect_waypoints`'s generic
+    /// `ARC_RADIUS`-only bend synthesis, which has no arrow-head awareness and
+    /// can land the bend inside the arrow head.
+    fn same_rank_edge_protrusions_write<'id>(
+        group_idx: usize,
+        edge_idx: usize,
+        pass1_info: &EdgePass1Info<'_, 'id>,
+        spacer_coordinates: &[SpacerCoordinates],
+        svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        result: &mut [Vec<OrthoProtrusionParams>],
+    ) {
+        let params = &mut result[group_idx][edge_idx];
+
+        if let Some(from_face) = pass1_info.from_face {
+            let from_rank_gap_px = Self::rank_gap_px(
+                pass1_info,
+                from_face,
+                true,
+                svg_node_info_map,
+                spacer_coordinates,
+                node_nesting_infos,
+            );
+            let from_envelope_clearance =
+                Self::envelope_clearance_for(&pass1_info.edge.from, from_face, svg_node_info_map);
+            let from_floor = MIN_PROTRUSION_PX
+                .min((from_rank_gap_px + from_envelope_clearance) * MAX_GAP_FRACTION);
+            params.from_protrusion = from_floor + from_envelope_clearance;
+        }
+
+        if let Some(to_face) = pass1_info.to_face {
+            let to_rank_gap_px = Self::rank_gap_px(
+                pass1_info,
+                to_face,
+                false,
+                svg_node_info_map,
+                spacer_coordinates,
+                node_nesting_infos,
+            );
+            let to_envelope_clearance =
+                Self::envelope_clearance_for(&pass1_info.edge.to, to_face, svg_node_info_map);
+            let to_protrusion_min = TO_PROTRUSION_MIN_PX
+                .min((to_rank_gap_px + to_envelope_clearance) * MAX_GAP_FRACTION);
+            params.to_protrusion = to_envelope_clearance.max(to_protrusion_min);
         }
     }
 
@@ -3317,7 +3439,11 @@ impl OrthoProtrusionCalculator {
     /// An endpoint protrusion must be at least this long so the Z/S bend
     /// clears the node's own edge label (including the markdown content
     /// padding) rather than overlapping it.
-    fn own_envelope_clearance(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
+    ///
+    /// Also reused by `EdgePathBuilderPass2::build` to size the envelope
+    /// stub for direct-curvature edges, which otherwise get no protrusion at
+    /// all -- see `doc/src/edge_paths.md`'s "Edge Curvature" section.
+    pub(super) fn own_envelope_clearance(info: &SvgNodeInfo<'_>, face: NodeFace) -> f32 {
         let face_sign: f32 = match face {
             NodeFace::Bottom | NodeFace::Right => 1.0,
             NodeFace::Top | NodeFace::Left => -1.0,

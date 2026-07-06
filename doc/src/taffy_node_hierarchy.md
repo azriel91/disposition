@@ -196,8 +196,14 @@ ThingsContainer:        # or TagsContainer / ProcessesContainer / wrapper_node
 ```
 
 The **edge description container** uses the same `rank_container_style` as the surrounding rank
-containers (i.e. `taffy_container_style` for the relevant entity type). It carries no
-`TaffyNodeCtx` (same as rank containers).
+containers (i.e. `taffy_container_style` for the relevant entity type), except that a
+`RowReverse`/`ColumnReverse` direction (under `rank_dir: bottom_to_top`/`right_to_left`) is
+stripped down to plain `Row`/`Column` (`EdgeDescriptionBuilder::container_style_build`): the
+container's children are freshly sorted into visual order every time, unlike ordinary rank
+containers whose sibling order is separately corrected for the reversed direction, so a reversed
+direction here would instead render them back to front. It carries no `TaffyNodeCtx` (same as
+rank containers). See `edge_descriptions.md` -- Same-Rank (Cycle Edge) Placement for the
+same-rank (cycle edge) case, whose container additionally inverts the axis.
 
 The **edge description leaf** (`edge_description`) is a child of the container. It carries
 `TaffyNodeCtx::EdgeDescription(EdgeDescriptionCtx { edge_id })` and is measured at

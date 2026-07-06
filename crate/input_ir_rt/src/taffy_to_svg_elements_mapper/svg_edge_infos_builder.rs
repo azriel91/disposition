@@ -14,7 +14,8 @@ use disposition_svg_model::{
     OrthoProtrusionParams, RankGapEntryDiagnostic, SvgEdgeInfo, SvgNodeInfo,
 };
 use disposition_taffy_model::{
-    taffy::TaffyTree, EdgeIdToEdgeLabelTaffyNodeIds, EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx,
+    taffy::TaffyTree, EdgeIdToEdgeDescriptionTaffyNodes, EdgeIdToEdgeLabelTaffyNodeIds,
+    EdgeIdToEdgeSpacerTaffyNodes, TaffyNodeCtx,
 };
 use kurbo::Shape;
 
@@ -80,6 +81,7 @@ impl SvgEdgeInfosBuilder {
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
         edge_label_taffy_nodes: &EdgeIdToEdgeLabelTaffyNodeIds<'id>,
+        edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
         tailwind_classes: &mut EntityTailwindClasses<'id>,
         css: &mut Css,
         edge_animation_active: EdgeAnimationActive,
@@ -161,6 +163,7 @@ impl SvgEdgeInfosBuilder {
             &ir_diagram.node_nesting_infos,
             edge_label_taffy_nodes,
             taffy_tree,
+            ir_diagram.interaction_edge_halo_stroke_width,
         );
 
         // Nudge a container's face contact away from edges that transit the
@@ -173,7 +176,9 @@ impl SvgEdgeInfosBuilder {
             &ir_diagram.node_nesting_infos,
             taffy_tree,
             edge_spacer_taffy_nodes,
+            edge_description_taffy_nodes,
             &mut face_offsets_by_node_face,
+            ir_diagram.interaction_edge_halo_stroke_width,
         );
 
         // === Global orthogonal protrusion computation === //
@@ -221,10 +226,12 @@ impl SvgEdgeInfosBuilder {
             svg_node_info_map,
             taffy_tree,
             edge_spacer_taffy_nodes,
+            edge_description_taffy_nodes,
             &ir_diagram.node_nesting_infos,
             &ir_diagram.node_ranks_nested,
             entity_types,
             &group_is_direct,
+            ir_diagram.interaction_edge_halo_stroke_width,
         );
 
         // Assemble the per-edge routing diagnostics while the pass-1 groups,
@@ -284,8 +291,10 @@ impl SvgEdgeInfosBuilder {
                 svg_node_info_map,
                 taffy_tree,
                 edge_spacer_taffy_nodes,
+                edge_description_taffy_nodes,
                 visible_segments_length,
                 ortho_protrusions,
+                ir_diagram.interaction_edge_halo_stroke_width,
             );
 
             // Total `travel` distance animated by the whole group: each edge
@@ -720,6 +729,7 @@ impl SvgEdgeInfosBuilder {
         node_nesting_infos: &NodeNestingInfos<'id>,
         edge_label_taffy_nodes: &EdgeIdToEdgeLabelTaffyNodeIds<'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        interaction_edge_halo_stroke_width: f32,
     ) -> NodeIdAndFaceToContactPointOffsets<'id> {
         // Collect face contact entries per (node, face) across all groups.
         let mut face_contact_entries_by_node_face: Map<NodeIdAndFace<'id>, Vec<FaceContactEntry>> =
@@ -867,15 +877,28 @@ impl SvgEdgeInfosBuilder {
                 .collect();
 
             // Substitute label-based offsets where the edge has a
-            // non-zero description label on this face.
-            let mut offsets: Vec<f32> = face_contact_entries
+            // non-zero description label on this face. Also record whether
+            // each offset is label-based, so `EdgePathBuilderPass2::build`
+            // can avoid additionally applying the bidirectional pair offset
+            // on top of it (see `EdgeContactPointOffsets::is_label_based`).
+            let (mut offsets, is_label_based): (Vec<f32>, Vec<bool>) = face_contact_entries
                 .iter()
                 .zip(slot_based_offsets)
                 .map(|(entry, slot_offset)| {
                     let edge_id = &all_pass1_groups[entry.pass1_group_index].pass1_infos
                         [entry.edge_index]
                         .edge_id;
-                    Self::label_face_offset_compute(
+                    // Dependency edges have no interaction edge halo, so
+                    // their label contact needs no halo-clearance pullback
+                    // (see `TaffyEnvelopeBuilder::label_margin_build`, which
+                    // likewise omits the halo-clearance margin component for
+                    // dependency edges).
+                    let label_halo_stroke_width = if entry.is_interaction {
+                        interaction_edge_halo_stroke_width
+                    } else {
+                        0.0
+                    };
+                    let label_offset = Self::label_face_offset_compute(
                         node_id_and_face.face,
                         edge_id,
                         entry.is_from_endpoint,
@@ -883,10 +906,11 @@ impl SvgEdgeInfosBuilder {
                         taffy_tree,
                         svg_node_info_map,
                         &node_id_and_face.node_id,
-                    )
-                    .unwrap_or(slot_offset)
+                        label_halo_stroke_width,
+                    );
+                    (label_offset.unwrap_or(slot_offset), label_offset.is_some())
                 })
-                .collect();
+                .unzip();
 
             // Self-loop from/to contacts may come from different sources
             // (label-aligned from vs slot-based to); enforce the face contact
@@ -900,7 +924,7 @@ impl SvgEdgeInfosBuilder {
 
             face_offsets_by_node_face.insert(
                 node_id_and_face.clone(),
-                EdgeContactPointOffsets::new(offsets),
+                EdgeContactPointOffsets::new(offsets, is_label_based),
             );
         }
 
@@ -1336,8 +1360,10 @@ impl SvgEdgeInfosBuilder {
         svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
+        edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
         visible_segments_length: f64,
         ortho_protrusions: &[OrthoProtrusionParams],
+        interaction_edge_halo_stroke_width: f32,
     ) -> Vec<EdgePathInfo<'edge, 'id>> {
         let mut edge_path_infos = pass1_infos
             .iter()
@@ -1350,7 +1376,7 @@ impl SvgEdgeInfosBuilder {
                     .get(&pass1_info.edge.to)
                     .expect("to node validated in pass 1");
 
-                let from_offset = pass1_info
+                let (from_offset, from_offset_is_label) = pass1_info
                     .from_face
                     .and_then(|from_face| {
                         let slot_index = from_slot_indices[pass1_info_index]?;
@@ -1360,11 +1386,15 @@ impl SvgEdgeInfosBuilder {
                         };
                         let contact_point_offsets =
                             face_offsets_by_node_face.get(&node_id_and_face)?;
-                        contact_point_offsets.get(slot_index)
+                        let offset = contact_point_offsets.get(slot_index)?;
+                        let is_label = contact_point_offsets
+                            .is_label_based(slot_index)
+                            .unwrap_or(false);
+                        Some((offset, is_label))
                     })
-                    .unwrap_or(0.0);
+                    .unwrap_or((0.0, false));
 
-                let to_offset = pass1_info
+                let (to_offset, to_offset_is_label) = pass1_info
                     .to_face
                     .and_then(|to_face| {
                         let slot_index = to_slot_indices[pass1_info_index]?;
@@ -1374,22 +1404,55 @@ impl SvgEdgeInfosBuilder {
                         };
                         let contact_point_offsets =
                             face_offsets_by_node_face.get(&node_id_and_face)?;
-                        contact_point_offsets.get(slot_index)
+                        let offset = contact_point_offsets.get(slot_index)?;
+                        let is_label = contact_point_offsets
+                            .is_label_based(slot_index)
+                            .unwrap_or(false);
+                        Some((offset, is_label))
                     })
-                    .unwrap_or(0.0);
+                    .unwrap_or((0.0, false));
 
                 let face_offset = EdgeFaceOffset {
                     from_offset,
                     to_offset,
+                    from_offset_is_label,
+                    to_offset_is_label,
+                };
+
+                // Dependency edges have no interaction edge halo, so their
+                // description contact needs no halo-clearance pullback (see
+                // `EdgeDescriptionBuilder::edge_desc_build`, which likewise
+                // omits the halo-clearance margin for dependency edges).
+                let description_halo_stroke_width = if pass1_info.is_interaction {
+                    interaction_edge_halo_stroke_width
+                } else {
+                    0.0
                 };
 
                 // Compute spacer coordinates from spacer taffy nodes if
-                // this edge has any intermediate-rank spacers.
+                // this edge has any intermediate-rank spacers. The edge's own
+                // description contact (if any) is already folded into this
+                // list, so `Curved`/`Orthogonal` routing picks it up
+                // unconditionally.
                 let spacer_coordinates = SpacerCoordinatesResolver::resolve(
                     rank_dir,
                     &pass1_info.edge_id,
                     taffy_tree,
                     edge_spacer_taffy_nodes,
+                    edge_description_taffy_nodes,
+                    description_halo_stroke_width,
+                );
+
+                // Direct-curvature edges ignore `spacer_coordinates` entirely
+                // (see `EdgePathBuilderPass2::build`'s `Direct*` arms), so the
+                // description contact must also be passed separately -- this
+                // is the one waypoint applied regardless of curvature.
+                let description_contact = SpacerCoordinatesResolver::description_contact_resolve(
+                    rank_dir,
+                    &pass1_info.edge_id,
+                    taffy_tree,
+                    edge_description_taffy_nodes,
+                    description_halo_stroke_width,
                 );
 
                 let ortho_protrusion_default = OrthoProtrusionParams::default();
@@ -1409,6 +1472,7 @@ impl SvgEdgeInfosBuilder {
                     // Pass the faces computed in pass 1 (which uses cycle-aware
                     // face selection) so that pass 2 uses the same faces.
                     pass1_info.from_face.zip(pass1_info.to_face),
+                    description_contact,
                 );
                 let path_length = {
                     let accuracy = 1.0;
@@ -1781,7 +1845,9 @@ impl SvgEdgeInfosBuilder {
         node_nesting_infos: &NodeNestingInfos<'id>,
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         edge_spacer_taffy_nodes: &EdgeIdToEdgeSpacerTaffyNodes<'id>,
+        edge_description_taffy_nodes: &EdgeIdToEdgeDescriptionTaffyNodes<'id>,
         face_offsets_by_node_face: &mut NodeIdAndFaceToContactPointOffsets<'id>,
+        interaction_edge_halo_stroke_width: f32,
     ) {
         for group in all_pass1_groups {
             for (edge_index, pass1_info) in group.pass1_infos.iter().enumerate() {
@@ -1822,11 +1888,22 @@ impl SvgEdgeInfosBuilder {
                         Self::node_is_descendant_of(&other.edge.to, container, node_nesting_infos)
                     })
                     .filter_map(|other| {
+                        // Dependency edges have no interaction edge halo, so
+                        // their description contact needs no halo-clearance
+                        // pullback (see
+                        // `EdgeDescriptionBuilder::edge_desc_build`).
+                        let description_halo_stroke_width = if other.is_interaction {
+                            interaction_edge_halo_stroke_width
+                        } else {
+                            0.0
+                        };
                         let spacer_coordinates = SpacerCoordinatesResolver::resolve(
                             rank_dir,
                             &other.edge_id,
                             taffy_tree,
                             edge_spacer_taffy_nodes,
+                            edge_description_taffy_nodes,
+                            description_halo_stroke_width,
                         );
                         Self::transit_cross_axis_before_face(
                             face,
@@ -2029,6 +2106,36 @@ impl SvgEdgeInfosBuilder {
     /// when the label has zero size along the face axis (indicating no
     /// description text).  The caller should fall back to the slot-based
     /// offset in that case.
+    ///
+    /// The returned offset is pulled back by half
+    /// `interaction_edge_halo_stroke_width` ("`halo_pad_px`") from the
+    /// label's entry-side edge, so the routed path stops short of the label
+    /// rather than terminating flush against it.
+    ///
+    /// Without this, the contact point is defined as the label's own
+    /// (post-layout) coordinate, so any clearance added via the label's own
+    /// margin (see `TaffyEnvelopeBuilder::label_margin_build`) would shift
+    /// both the label and the path by the same amount and never open up a
+    /// visible gap -- the halo, being centered on the path, would still
+    /// overlap the label by half its stroke width.
+    ///
+    /// `label_margin_build` gives the label slot `margin` of `halo_pad_px +
+    /// label_margin_px` on *both* sides of the packing axis (not just the far
+    /// side), but this pullback only ever cancels the `halo_pad_px`
+    /// component -- so after cancellation, the routed path still ends up
+    /// `label_margin_px` further from the face midpoint than the label's
+    /// pre-margin position, leaving the label visibly associated with its
+    /// edge rather than flush against the contact point. This is intentional
+    /// and mirrors `EdgeDescriptionBuilder::edge_desc_build`'s equivalent
+    /// margin/pullback split for edge descriptions.
+    ///
+    /// The caller (`Self::face_offsets_compute`) passes `0.0` for
+    /// `interaction_edge_halo_stroke_width` when the edge is a dependency
+    /// edge (`!FaceContactEntry::is_interaction`), since dependency edges
+    /// render no interaction edge halo and so have nothing to pull back from
+    /// -- only the `label_margin_px` component of the label's own margin
+    /// applies in that case, matching `label_margin_build`'s halo-clearance
+    /// exception for dependency edges.
     #[allow(clippy::too_many_arguments)]
     fn label_face_offset_compute<'id>(
         face: NodeFace,
@@ -2038,7 +2145,9 @@ impl SvgEdgeInfosBuilder {
         taffy_tree: &TaffyTree<TaffyNodeCtx>,
         svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         node_id: &NodeId<'id>,
+        interaction_edge_halo_stroke_width: f32,
     ) -> Option<f32> {
+        let halo_pad_px = interaction_edge_halo_stroke_width / 2.0;
         let edge_label_taffy_node_ids = edge_label_taffy_nodes.get(edge_id)?;
         // Only route the contact to the label when the label actually has
         // content. Every edge -- even one without a description -- gets a
@@ -2078,8 +2187,9 @@ impl SvgEdgeInfosBuilder {
                         taffy_node_id,
                         layout,
                     );
-                // Route to the entry-side (left x) edge of the label.
-                let label_contact_x = label_abs_x;
+                // Route to just short of the entry-side (left x) edge of the
+                // label, so the halo doesn't overlap the label's background.
+                let label_contact_x = label_abs_x - halo_pad_px;
                 Some(label_contact_x - face_midpoint)
             }
             NodeFace::Left | NodeFace::Right => {
@@ -2092,8 +2202,9 @@ impl SvgEdgeInfosBuilder {
                         taffy_node_id,
                         layout,
                     );
-                // Route to the entry-side (top y) edge of the label.
-                let label_contact_y = label_abs_y;
+                // Route to just short of the entry-side (top y) edge of the
+                // label, so the halo doesn't overlap the label's background.
+                let label_contact_y = label_abs_y - halo_pad_px;
                 Some(label_contact_y - face_midpoint)
             }
         }

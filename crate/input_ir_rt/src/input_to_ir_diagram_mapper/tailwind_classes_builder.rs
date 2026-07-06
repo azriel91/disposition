@@ -20,7 +20,9 @@ use disposition_model_common::{
     Id, Map, RenderOptions, Set,
 };
 
-use crate::{EdgeHaloIdGenerator, EdgeHaloOutlineIdGenerator};
+use crate::{
+    EdgeDescBgIdGenerator, EdgeHaloIdGenerator, EdgeHaloOutlineIdGenerator, EdgeLabelBgIdGenerator,
+};
 
 use super::{
     css_theme_vars::CssThemeVars, tailwind_class_state::TailwindClassState,
@@ -53,6 +55,18 @@ struct InteractionEdgeHaloClasses {
     outline_forward: Option<String>,
     /// Halo outline classes for reverse (response) interaction edges.
     outline_reverse: Option<String>,
+}
+
+/// Resolved, edge-independent tailwind classes for the interaction edge
+/// label and description backgrounds.
+#[derive(Clone, Debug, Default)]
+struct InteractionEdgeBgClasses {
+    /// Classes for the background box behind an interaction edge's label
+    /// text.
+    label_bg: String,
+    /// Classes for the background box behind an interaction edge's
+    /// description text.
+    desc_bg: String,
 }
 
 /// Builds tailwind CSS classes for all entities (nodes, edge groups, edges).
@@ -226,6 +240,19 @@ impl TailwindClassesBuilder {
             css_theme_vars,
         );
 
+        // The interaction edge label/description background classes are
+        // identical for every interaction edge (no forward/reverse split),
+        // so resolve them once and reuse the strings, rather than
+        // re-resolving per edge.
+        let InteractionEdgeBgClasses {
+            label_bg: label_bg_classes,
+            desc_bg: desc_bg_classes,
+        } = Self::interaction_edge_bg_classes_resolve(
+            theme_default,
+            theme_types_styles,
+            css_theme_vars,
+        );
+
         let mut edge_classes: Vec<(Id<'id>, String)> = Vec::new();
         edge_groups.iter().for_each(|(edge_group_id, edges)| {
             // Get the process steps that interact with this edge group.
@@ -287,6 +314,11 @@ impl TailwindClassesBuilder {
                             EdgeHaloOutlineIdGenerator::generate(&edge_id_for_halo);
                         edge_classes.push((halo_outline_id, halo_outline_classes.clone()));
                     }
+
+                    let label_bg_id = EdgeLabelBgIdGenerator::generate(&edge_id_for_halo);
+                    edge_classes.push((label_bg_id, label_bg_classes.clone()));
+                    let desc_bg_id = EdgeDescBgIdGenerator::generate(&edge_id_for_halo);
+                    edge_classes.push((desc_bg_id, desc_bg_classes.clone()));
                 }
 
                 edge_classes.push((edge_id, classes));
@@ -420,6 +452,70 @@ impl TailwindClassesBuilder {
                     );
                 }
             });
+
+        let mut classes = String::new();
+        tailwind_class_state.write_classes(
+            &mut classes,
+            css_theme_vars,
+            theme_default.dark_mode_config.shade,
+        );
+
+        classes
+    }
+
+    /// Resolves the (edge-independent) tailwind classes for the interaction
+    /// edge label and description background boxes.
+    ///
+    /// Unlike the halo, there is no forward/reverse split and no
+    /// enable/disable render option -- these are always resolved for
+    /// interaction edges, since they exist purely to keep label/description
+    /// text legible where it may overlap other diagram content.
+    fn interaction_edge_bg_classes_resolve<'id>(
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
+    ) -> InteractionEdgeBgClasses {
+        InteractionEdgeBgClasses {
+            label_bg: Self::interaction_edge_bg_classes_build(
+                EntityType::InteractionEdgeLabelBg,
+                theme_default,
+                theme_types_styles,
+                css_theme_vars,
+            ),
+            desc_bg: Self::interaction_edge_bg_classes_build(
+                EntityType::InteractionEdgeDescBg,
+                theme_default,
+                theme_types_styles,
+                css_theme_vars,
+            ),
+        }
+    }
+
+    /// Builds the tailwind classes for one interaction edge background type
+    /// (label or description), resolving `theme_types_styles` for the given
+    /// entity type's `EdgeDefaults` key.
+    fn interaction_edge_bg_classes_build<'id>(
+        entity_type: EntityType,
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+        css_theme_vars: &mut CssThemeVars,
+    ) -> String {
+        let mut tailwind_class_state = TailwindClassState {
+            entity_type: Some(entity_type.clone()),
+            ..Default::default()
+        };
+
+        let type_id = EntityTypeId::from(entity_type.into_id());
+        if let Some(bg_partials) = theme_types_styles
+            .get(&type_id)
+            .and_then(|type_styles| type_styles.get(&IdOrDefaults::EdgeDefaults))
+        {
+            Self::apply_tailwind_from_partials(
+                bg_partials,
+                &theme_default.style_aliases,
+                &mut tailwind_class_state,
+            );
+        }
 
         let mut classes = String::new();
         tailwind_class_state.write_classes(

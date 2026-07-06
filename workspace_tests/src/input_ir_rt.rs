@@ -121,6 +121,24 @@ pub(crate) const INPUT_DIAGRAM_0051_PROCESS_STEP_RANK_LOWER_THAN_DECLARATION: &s
 pub(crate) const INPUT_DIAGRAM_0052_PROCESS_STEP_TWO_PROCESSES_COLLAPSE: &str =
     include_str!("input_diagram/0052_process_step_two_processes_collapse.yaml");
 
+pub(crate) const INPUT_DIAGRAM_0053_EDGE_DESCS_GROUP_ID_KEY: &str =
+    include_str!("input_diagram/0053_edge_descs_group_id_key.yaml");
+
+pub(crate) const INPUT_DIAGRAM_0054_EDGE_DESCS_INSTANCE_OVERRIDES_GROUP: &str =
+    include_str!("input_diagram/0054_edge_descs_instance_overrides_group.yaml");
+
+pub(crate) const INPUT_DIAGRAM_0055_INTERACTION_EDGE_LABEL_DESC_BG: &str =
+    include_str!("input_diagram/0055_interaction_edge_label_desc_bg.yaml");
+
+pub(crate) const INPUT_DIAGRAM_0056_INTERACTION_HALO_WITH_LABELS: &str =
+    include_str!("input_diagram/0056_interaction_halo_with_labels.yaml");
+
+pub(crate) const INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC: &str =
+    include_str!("input_diagram/0057_interaction_halo_with_desc_cyclic.yaml");
+
+pub(crate) const INPUT_DIAGRAM_0058_INTERACTION_HALO_WITH_LABELS_RIGHT_TO_LEFT: &str =
+    include_str!("input_diagram/0058_interaction_halo_with_labels_right_to_left.yaml");
+
 mod diagram_generator;
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

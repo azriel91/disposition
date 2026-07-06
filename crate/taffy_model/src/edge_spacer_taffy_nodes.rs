@@ -53,11 +53,31 @@ pub struct EdgeSpacerTaffyNodes {
     /// the correct ordering along the edge path.
     pub cross_container_spacer_taffy_node_ids: Vec<taffy::NodeId>,
 
-    /// Spacer taffy node IDs inside `edge_description_container` nodes.
+    /// Spacer taffy node IDs inside `BetweenRanks` `edge_description_container`
+    /// nodes.
     ///
     /// These spacers are inserted to allow edges to be routed alongside the
     /// edge description container without being obscured by it.
     pub edge_desc_container_spacer_taffy_node_ids: Vec<taffy::NodeId>,
+
+    /// Spacer taffy node IDs inside `SameRank` (cycle edge)
+    /// `edge_description_container` nodes, for edges crossing a same-rank
+    /// pair's container without owning its description.
+    ///
+    /// Tracked separately from
+    /// [`Self::edge_desc_container_spacer_taffy_node_ids`]
+    /// because a same-rank container's children stack along the axis
+    /// *perpendicular* to the edge's own travel direction (see
+    /// `EdgeDescriptionBuilder::container_style_build`), so the spacer's
+    /// resolved rect must be threaded on the *rotated* axis
+    /// (`EdgeSpacerCoordinatesCalculator::rank_dir_same_rank_rotate`), matching
+    /// the direction of the `from_protrusion` leg leaving the node face, not
+    /// the diagram's raw `RankDir`. Resolving it with the raw `RankDir`
+    /// (as `Self::edge_desc_container_spacer_taffy_node_ids` is) gives a
+    /// passthrough direction perpendicular to the incoming leg, so the
+    /// connector between them continues straight through the container's
+    /// interior before turning, instead of jogging clear of it first.
+    pub same_rank_edge_desc_container_spacer_taffy_node_ids: Vec<taffy::NodeId>,
 
     /// Spacer taffy node IDs placed beside a described node's text content (its
     /// title + description), so a cross-container edge that enters the node to
@@ -79,6 +99,7 @@ impl EdgeSpacerTaffyNodes {
             rank_to_spacer_taffy_node_id: Map::new(),
             cross_container_spacer_taffy_node_ids: Vec::new(),
             edge_desc_container_spacer_taffy_node_ids: Vec::new(),
+            same_rank_edge_desc_container_spacer_taffy_node_ids: Vec::new(),
             text_content_spacer_taffy_node_ids: Vec::new(),
         }
     }
@@ -96,6 +117,7 @@ impl EdgeSpacerTaffyNodes {
             rank_to_spacer_taffy_node_id,
             cross_container_spacer_taffy_node_ids,
             edge_desc_container_spacer_taffy_node_ids,
+            same_rank_edge_desc_container_spacer_taffy_node_ids,
             text_content_spacer_taffy_node_ids,
         } = other;
 
@@ -105,6 +127,8 @@ impl EdgeSpacerTaffyNodes {
             .extend(cross_container_spacer_taffy_node_ids);
         self.edge_desc_container_spacer_taffy_node_ids
             .extend(edge_desc_container_spacer_taffy_node_ids);
+        self.same_rank_edge_desc_container_spacer_taffy_node_ids
+            .extend(same_rank_edge_desc_container_spacer_taffy_node_ids);
         self.text_content_spacer_taffy_node_ids
             .extend(text_content_spacer_taffy_node_ids);
     }

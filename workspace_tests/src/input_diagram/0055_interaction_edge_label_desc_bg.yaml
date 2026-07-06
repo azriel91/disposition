@@ -1,0 +1,25 @@
+things:
+  t_a: {}
+  t_b: {}
+thing_dependencies:
+  edge_dep_ab:
+    kind: sequence
+    things:
+      - t_a
+      - t_b
+thing_interactions:
+  edge_ix_ab:
+    kind: sequence
+    things:
+      - t_a
+      - t_b
+edge_descs:
+  edge_dep_ab__0: dependency description
+  edge_ix_ab__0: interaction description
+edge_labels:
+  edge_dep_ab__0:
+    from: dep label
+    to: dep label
+  edge_ix_ab__0:
+    from: ix label
+    to: ix label

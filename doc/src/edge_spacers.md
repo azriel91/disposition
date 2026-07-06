@@ -91,20 +91,23 @@ Each spacer carries a `TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx { edge_id, rank })
 so the path builder can identify which edge the spacer belongs to and at which rank it sits.
 
 
-## Four Kinds of Spacer
+## Five Kinds of Spacer
 
     EdgeSpacerTaffyNodes {
         # Same-level cross-rank spacers, keyed by intermediate rank.
-        rank_to_spacer_taffy_node_id:                Map<NodeRank, taffy::NodeId>,
+        rank_to_spacer_taffy_node_id:                          Map<NodeRank, taffy::NodeId>,
 
         # Cross-container spacers, ordered by layout position.
-        cross_container_spacer_taffy_node_ids:       Vec<taffy::NodeId>,
+        cross_container_spacer_taffy_node_ids:                 Vec<taffy::NodeId>,
 
-        # Edge description container spacers, ordered by layout position.
-        edge_desc_container_spacer_taffy_node_ids:   Vec<taffy::NodeId>,
+        # BetweenRanks edge description container spacers, ordered by layout position.
+        edge_desc_container_spacer_taffy_node_ids:             Vec<taffy::NodeId>,
+
+        # SameRank edge description container crossing spacers, ordered by layout position.
+        same_rank_edge_desc_container_spacer_taffy_node_ids:   Vec<taffy::NodeId>,
 
         # Text-content (node-label) spacers, ordered by layout position.
-        text_content_spacer_taffy_node_ids:          Vec<taffy::NodeId>,
+        text_content_spacer_taffy_node_ids:                    Vec<taffy::NodeId>,
     }
 
 ### 1. Same-Level Cross-Rank Spacers
@@ -122,13 +125,38 @@ sibling children within the container.
 
 ### 3. Edge Description Container Spacers
 
-Built by `EdgeSpacerBuilder::build_edge_desc_container_spacers`. Used when an edge's rank span
-`[rank_low, rank_high)` crosses the position `rank_P` of an `edge_description_container` that
-belongs to a **different** described edge (condition: `rank_low <= rank_P < rank_high`). A single
-spacer leaf is appended as a direct child of that container, providing a coordinate waypoint so the
-crossing edge's path builder routes through the container's visual space rather than jumping over
-it. The described edge whose container it is does **not** receive a spacer inside its own container
--- its path terminates there.
+Built by `EdgeSpacerBuilder::build_edge_desc_container_spacers`. For a **cross-rank**
+(`BetweenRanks`) container, used when an edge's rank span `[rank_low, rank_high)` crosses the
+position `rank_P` of an `edge_description_container` that belongs to a **different** described edge
+(condition: `rank_low <= rank_P < rank_high`). For a **same-rank** (cycle edge) container, the
+sibling-index-axis analog applies instead (`EdgeSpacerBuilder::build_edge_desc_container_spacers_for_edge_same_rank`):
+another edge sharing the same rank whose own two divergent siblings' indices span across the
+container's `sibling_index_middle` -- e.g. the reverse direction of the same cyclic pair -- is
+crossing it too, even without a description of its own. In both cases a single spacer leaf is
+appended as a direct child of that container, providing a coordinate waypoint so the crossing edge's
+path builder routes through the container's visual space rather than jumping over it. The described
+edge whose container it is does **not** receive a spacer inside its own container -- instead its path
+bends directly to the description box's own resolved rect, via
+`SpacerCoordinatesResolver::description_contact_resolve` (see
+[edge_descriptions.md](edge_descriptions.md)). That contact is applied to the owning edge's path
+**unconditionally**, regardless of `EdgeCurvature::is_direct()` -- unlike every other spacer kind
+here, which direct-curvature edges bypass entirely.
+
+A same-rank crossing spacer is tracked in a **separate** list,
+`same_rank_edge_desc_container_spacer_taffy_node_ids`, and its `EdgeSpacerCtx` carries this edge's
+own `sibling_index_from.cmp(&sibling_index_to)` ordering (`same_rank_sibling_index_from_cmp_to`).
+`SpacerCoordinatesResolver::resolve` uses this to resolve the spacer's entry/exit via
+`EdgeSpacerCoordinatesCalculator::calculate_description_thread_same_rank` -- the same
+direction-aware, rotated-axis calculation the owning edge's own contact already uses -- instead of
+the direction-oblivious generic `calculate` used for every other spacer kind. This matters because a
+same-rank container's children stack *perpendicular* to the edge's own travel direction: resolving
+with the diagram's canonical direction regardless of which end the crossing edge actually approaches
+first can select the far end as the nominal entry, forcing the connector between the `from`-node's
+protrusion leg and that entry point to cut straight through the container's interior to reach it,
+instead of jogging clear of the container first. (Before this fix, `edge_dep_server_proc_1_proc_2__1`
+in `021_interaction_halo_with_desc_cyclic.yaml` -- whose divergent ancestors sit in the reverse order
+along the shared rank relative to the described `edge_dep_server_proc_1_proc_2__0` -- visibly cut
+through the top of `proc1_proc2_desc`'s box.)
 
 ### 4. Text-Content (Node-Label) Spacers
 
@@ -194,9 +222,10 @@ inserted in five stages per dimension:
    produced `edge_description_container` nodes for this nesting level,
    `build_taffy_nodes_for_node_with_child_hierarchy` calls
    `EdgeSpacerBuilder::build_edge_desc_container_spacers` once per entity type with
-   `lca_node_id = Some(&container_id)`. Each edge whose rank span crosses an
-   `edge_description_container` at this level (other than its own) receives a spacer leaf appended
-   as a child of that container.
+   `lca_node_id = Some(&container_id)`. Each edge whose rank span crosses a `BetweenRanks`
+   `edge_description_container` at this level, or whose sibling-index span crosses a `SameRank` one
+   (other than its own container, in either case) receives a spacer leaf appended as a child of that
+   container.
 
 4. **Top-level same-level spacers.** After all containers have been processed,
    `build_taffy_trees_for_dimension` calls `EdgeSpacerBuilder::build` once per entity type with
@@ -205,8 +234,9 @@ inserted in five stages per dimension:
 5. **Top-level edge description container spacers.** Immediately after the top-level
    `EdgeDescriptionBuilder::build` calls, `build_taffy_trees_for_dimension` calls
    `EdgeSpacerBuilder::build_edge_desc_container_spacers` once per entity type with
-   `lca_node_id = None`. Each top-level edge whose rank span crosses a top-level
-   `edge_description_container` (other than its own) receives a spacer inside that container.
+   `lca_node_id = None`. Each top-level edge whose rank span (or, for a same-rank container,
+   sibling-index span) crosses a top-level `edge_description_container` (other than its own)
+   receives a spacer inside that container.
 
 All five stages accumulate their results into a single `Map<EdgeId, EdgeSpacerTaffyNodes>`. Stages
 1-3 return results that are merged into `nested_edge_spacer_taffy_nodes` and carried back up to
@@ -317,6 +347,14 @@ vector.
 After insertion, `rank_spacer_counts[rank]` is updated by inserting `1` at `effective_index`,
 shifting all subsequent counts right. This keeps the count vector aligned with the position vector
 so future insertions at the same rank compute the correct offset.
+
+Both the base-index formula and the effective-index/count-tracking logic above live in a shared
+helper, [`RankSiblingInserter`](crate/input_ir_rt/src/ir_to_taffy_builder/rank_sibling_inserter.rs)
+(`insertion_base_index_compute`, `node_insert`), rather than being private to `EdgeSpacerBuilder`.
+`EdgeDescriptionBuilder` calls the same helper to place same-rank edge description containers (see
+[edge_descriptions.md](edge_descriptions.md) -- Same-Rank (Cycle Edge) Placement) between two
+same-ranked divergent ancestors, keeping its own separate `same_rank_insertion_counts` tracker since
+the two builders insert into `rank_to_taffy_ids` at different times.
 
 
 ## Cross-Container Spacers: EdgeSpacerBuilder::build_cross_container_spacers
@@ -438,10 +476,11 @@ All spacer nodes from both kinds of building are accumulated into:
 The `EdgeSpacerTaffyNodes` for each edge contains:
 
     EdgeSpacerTaffyNodes {
-        rank_to_spacer_taffy_node_id:               Map<NodeRank, taffy::NodeId>,
-        cross_container_spacer_taffy_node_ids:      Vec<taffy::NodeId>,
-        edge_desc_container_spacer_taffy_node_ids:  Vec<taffy::NodeId>,
-        text_content_spacer_taffy_node_ids:         Vec<taffy::NodeId>,
+        rank_to_spacer_taffy_node_id:                         Map<NodeRank, taffy::NodeId>,
+        cross_container_spacer_taffy_node_ids:                Vec<taffy::NodeId>,
+        edge_desc_container_spacer_taffy_node_ids:            Vec<taffy::NodeId>,
+        same_rank_edge_desc_container_spacer_taffy_node_ids:  Vec<taffy::NodeId>,
+        text_content_spacer_taffy_node_ids:                   Vec<taffy::NodeId>,
     }
 
 `rank_to_spacer_taffy_node_id` maps each intermediate rank value to the single spacer node
@@ -454,10 +493,21 @@ independent rank numbering), so a map keyed by rank would conflate them. Instead
 ordered by iteration order, and the edge path builder uses the computed absolute positions after
 layout to sort and route through them correctly.
 
-`edge_desc_container_spacer_taffy_node_ids` is an unkeyed list of edge description container
-spacer node IDs. Each entry corresponds to a spacer appended inside one `edge_description_container`
-that the edge's path crosses. Like cross-container spacers, the edge path builder sorts all
-kinds together by main-axis coordinate after layout to determine the correct waypoint order.
+`edge_desc_container_spacer_taffy_node_ids` is an unkeyed list of `BetweenRanks` edge description
+container spacer node IDs. Each entry corresponds to a spacer appended inside one
+`edge_description_container` that the edge's path crosses. Like cross-container spacers, the edge
+path builder sorts all kinds together by main-axis coordinate after layout to determine the correct
+waypoint order, and their coordinates are resolved via the direction-oblivious generic
+`EdgeSpacerCoordinatesCalculator::calculate`.
+
+`same_rank_edge_desc_container_spacer_taffy_node_ids` is the `SameRank` (cycle edge) counterpart:
+an unkeyed list of spacer node IDs appended inside a same-rank `edge_description_container` that the
+edge crosses without owning. These are tracked separately because their coordinates are resolved via
+`EdgeSpacerCoordinatesCalculator::calculate_description_thread_same_rank` instead -- the rotated,
+direction-aware calculation, using the `sibling_index_from_cmp_to` ordering recorded on each node's
+own `EdgeSpacerCtx` -- not the generic `calculate`, since a same-rank container's children stack
+perpendicular to the edge's own travel direction (see [Edge Description Container
+Spacers](#3-edge-description-container-spacers)).
 
 `text_content_spacer_taffy_node_ids` is an unkeyed list of text-content (node-label) spacer node
 IDs -- one per cross-container edge that enters a described container to reach a node nested inside

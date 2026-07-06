@@ -21,6 +21,10 @@ pub(crate) const CODE_BG_DESCENT_OFFSET: f32 = 3.0;
 /// Corner radius (pixels) of the inline-code background box.
 const CODE_BG_CORNER_RADIUS: f32 = 3.0;
 
+/// Corner radius (pixels) of the background box drawn behind interaction
+/// edge label and description text.
+const INTERACTION_EDGE_BG_CORNER_RADIUS: f32 = 4.0;
+
 /// Width (pixels) of the blockquote's left bar (its thick left border). Kept in
 /// sync with `MdNodeBuilder::BLOCKQUOTE_BAR_WIDTH` so the bar sits in the
 /// container's left padding without overlapping the text.
@@ -635,6 +639,32 @@ impl SvgElementsToSvgMapper {
         d
     }
 
+    /// Builds the `<path>` element for an interaction edge label/description
+    /// background box, if `tailwind_classes` has an entry for `bg_id`.
+    ///
+    /// Returns `None` for dependency edges (no entry is ever inserted for
+    /// them by `TailwindClassesBuilder`), so the background is a zero-cost
+    /// no-op there, mirroring the halo pattern. `stroke-width="0"` is set
+    /// explicitly so the box does not inherit the parent `<g>`'s edge stroke
+    /// colour/width. Visibility is not set here -- the box inherits it via
+    /// normal CSS inheritance from its parent `<g>`, which already carries
+    /// the edge's own visibility classes.
+    fn interaction_edge_bg_path(
+        tailwind_classes: &EntityTailwindClasses<'_>,
+        bg_id: &disposition_model_common::Id<'static>,
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+    ) -> Option<String> {
+        let bg_classes = tailwind_classes.get(bg_id)?;
+        let path_d = Self::code_bg_path_d(x, y, width, height, INTERACTION_EDGE_BG_CORNER_RADIUS);
+        let class_attr = Self::class_attr_escaped(bg_classes.as_str());
+        Some(format!(
+            "<path d=\"{path_d}\" stroke-width=\"0\"{class_attr} />"
+        ))
+    }
+
     /// Appends a single clockwise rounded-rectangle subpath (`M ... Z`) to `d`,
     /// starting just after the top-left corner. The radius is clamped so it
     /// never exceeds half the width or height.
@@ -874,6 +904,13 @@ impl SvgElementsToSvgMapper {
     /// spans are non-empty). Each `<g>` carries the edge's Tailwind CSS classes
     /// so that the label inherits the edge's colour and visibility behaviour.
     ///
+    /// For interaction edges, a background `<path>` (see
+    /// [`Self::interaction_edge_bg_path`]) is emitted as the first child of
+    /// each populated `<g>`, behind the text/image content, so the label
+    /// stays legible if it overlaps a dependency edge's label or description
+    /// (dependency and interaction edges are positioned via separate,
+    /// uncoordinated offset pools -- see `doc/src/edge_paths.md`).
+    ///
     /// Label text is rendered with markdown styling (bold, italic, inline
     /// code, links) and inline images via [`Self::render_text_and_images`],
     /// matching node and edge description rendering. The span coordinates are
@@ -881,9 +918,11 @@ impl SvgElementsToSvgMapper {
     ///
     /// ```svg
     /// <g id="{edge_id}__from_label" {class_attr}>
+    ///   <path d="..." stroke-width="0" {bg_class_attr} />
     ///   <text x="{x}" y="{y}" stroke-width="0">{text}</text>
     /// </g>
     /// <g id="{edge_id}__to_label" {class_attr}>
+    ///   <path d="..." stroke-width="0" {bg_class_attr} />
     ///   <text x="{x}" y="{y}" stroke-width="0">{text}</text>
     /// </g>
     /// ```
@@ -901,6 +940,7 @@ impl SvgElementsToSvgMapper {
                     .unwrap_or("");
                 Self::class_attr_escaped(edge_tailwind_classes)
             };
+            let label_bg_id = crate::EdgeLabelBgIdGenerator::generate(edge_id);
 
             if let Some(from_label) = &svg_edge_label_info.from_label
                 && (!from_label.text_spans.is_empty() || !from_label.image_spans.is_empty())
@@ -910,6 +950,16 @@ impl SvgElementsToSvgMapper {
                     "<g id=\"{edge_id}__from_label\"{class_attr}>"
                 )
                 .unwrap();
+                if let Some(bg_path) = Self::interaction_edge_bg_path(
+                    tailwind_classes,
+                    &label_bg_id,
+                    from_label.x,
+                    from_label.y,
+                    from_label.width,
+                    from_label.height,
+                ) {
+                    content_buffer.push_str(&bg_path);
+                }
                 Self::render_text_and_images(
                     content_buffer,
                     &from_label.text_spans,
@@ -922,6 +972,16 @@ impl SvgElementsToSvgMapper {
                 && (!to_label.text_spans.is_empty() || !to_label.image_spans.is_empty())
             {
                 write!(content_buffer, "<g id=\"{edge_id}__to_label\"{class_attr}>").unwrap();
+                if let Some(bg_path) = Self::interaction_edge_bg_path(
+                    tailwind_classes,
+                    &label_bg_id,
+                    to_label.x,
+                    to_label.y,
+                    to_label.width,
+                    to_label.height,
+                ) {
+                    content_buffer.push_str(&bg_path);
+                }
                 Self::render_text_and_images(
                     content_buffer,
                     &to_label.text_spans,
@@ -937,8 +997,16 @@ impl SvgElementsToSvgMapper {
     /// For each [`SvgEdgeDescriptionInfo`], emits a `<g>` element with
     /// `<text>` children for each line of wrapped description text.
     ///
+    /// For interaction edges, a background `<path>` (see
+    /// [`Self::interaction_edge_bg_path`]) is emitted as the first child,
+    /// behind the text/image content, so the description stays legible if it
+    /// overlaps a dependency edge's label or description (dependency and
+    /// interaction edges are positioned via separate, uncoordinated offset
+    /// pools -- see `doc/src/edge_paths.md`).
+    ///
     /// ```svg
     /// <g id="{edge_id}__desc" class="edge-description">
+    ///   <path d="..." stroke-width="0" {bg_class_attr} />
     ///   <text x="{x}" y="{y}" stroke-width="0">{text}</text>
     /// </g>
     /// ```
@@ -965,6 +1033,18 @@ impl SvgElementsToSvgMapper {
                 };
 
                 write!(content_buffer, "<g id=\"{edge_id}__desc\" {class_attr}>").unwrap();
+
+                let desc_bg_id = crate::EdgeDescBgIdGenerator::generate(edge_id);
+                if let Some(bg_path) = Self::interaction_edge_bg_path(
+                    tailwind_classes,
+                    &desc_bg_id,
+                    svg_edge_description_info.x,
+                    svg_edge_description_info.y,
+                    svg_edge_description_info.width,
+                    svg_edge_description_info.height,
+                ) {
+                    content_buffer.push_str(&bg_path);
+                }
 
                 // Add text and image elements
                 Self::render_text_and_images(

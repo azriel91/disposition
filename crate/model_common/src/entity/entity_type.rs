@@ -134,6 +134,19 @@ pub enum EntityType {
     /// the corresponding attribute on `InteractionEdgeHaloOutline`.
     InteractionEdgeHaloOutlineReverse,
 
+    /// Rendering-only style key for the background box drawn behind an
+    /// interaction edge's label text (`{edge_id}__from_label` /
+    /// `{edge_id}__to_label`), to keep it legible where it may overlap other
+    /// diagram content. This type is never attached to a real entity via
+    /// `entity_types` -- it is only used to look up `theme_types_styles` for
+    /// the background's own styling.
+    InteractionEdgeLabelBg,
+    /// Rendering-only style key for the background box drawn behind an
+    /// interaction edge's description text (`{edge_id}__desc`). Like
+    /// `InteractionEdgeLabelBg`, this type is never attached to a real
+    /// entity via `entity_types`.
+    InteractionEdgeDescBg,
+
     /// Custom user-defined type.
     Custom(Id<'static>),
 }
@@ -213,6 +226,9 @@ impl EntityType {
                 "type_interaction_edge_halo_outline_reverse"
             }
 
+            EntityType::InteractionEdgeLabelBg => "type_interaction_edge_label_bg",
+            EntityType::InteractionEdgeDescBg => "type_interaction_edge_desc_bg",
+
             EntityType::Custom(id) => id.as_str(),
         }
     }
@@ -246,7 +262,9 @@ impl EntityType {
             | EntityType::InteractionEdgeHaloReverse
             | EntityType::InteractionEdgeHaloOutline
             | EntityType::InteractionEdgeHaloOutlineForward
-            | EntityType::InteractionEdgeHaloOutlineReverse => true,
+            | EntityType::InteractionEdgeHaloOutlineReverse
+            | EntityType::InteractionEdgeLabelBg
+            | EntityType::InteractionEdgeDescBg => true,
             EntityType::Custom(_) => false,
         }
     }
@@ -337,6 +355,9 @@ impl EntityType {
             EntityType::InteractionEdgeHaloOutlineReverse => {
                 id!("type_interaction_edge_halo_outline_reverse")
             }
+
+            EntityType::InteractionEdgeLabelBg => id!("type_interaction_edge_label_bg"),
+            EntityType::InteractionEdgeDescBg => id!("type_interaction_edge_desc_bg"),
 
             EntityType::Custom(id) => id,
         }
@@ -491,6 +512,9 @@ impl From<Id<'static>> for EntityType {
                 EntityType::InteractionEdgeHaloOutlineReverse
             }
 
+            "type_interaction_edge_label_bg" => EntityType::InteractionEdgeLabelBg,
+            "type_interaction_edge_desc_bg" => EntityType::InteractionEdgeDescBg,
+
             _ => EntityType::Custom(id),
         }
     }
@@ -556,6 +580,8 @@ impl Visitor<'_> for EntityTypeVisitor {
             * `type_interaction_edge_halo_outline`\n\
             * `type_interaction_edge_halo_outline_forward`\n\
             * `type_interaction_edge_halo_outline_reverse`\n\
+            * `type_interaction_edge_label_bg`\n\
+            * `type_interaction_edge_desc_bg`\n\
             \n\
             or a custom identifier",
         )
@@ -627,6 +653,9 @@ impl Visitor<'_> for EntityTypeVisitor {
             "type_interaction_edge_halo_outline_reverse" => {
                 EntityType::InteractionEdgeHaloOutlineReverse
             }
+
+            "type_interaction_edge_label_bg" => EntityType::InteractionEdgeLabelBg,
+            "type_interaction_edge_desc_bg" => EntityType::InteractionEdgeDescBg,
 
             _ => {
                 let id = Id::try_from(value.to_owned()).map_err(serde::de::Error::custom)?;

@@ -35,10 +35,19 @@ Phases at a glance:
 Given a `divergent_ancestor_node_rank_from` and a
 `divergent_ancestor_node_rank_to`, the insertion position P is:
 
-- **Cycle edge** (`rank_from == rank_to`):
-  `P = rank_from - 1`, inserting **before** the shared rank container.
-  Special case: if `rank_from == 0`, insert before all rank containers (P = -1,
-  represented as `None`).
+- **Cycle edge** (`rank_from == rank_to`): **not** a between-rank position at
+  all. The container is inserted as a direct child of the shared rank, at the
+  sibling index between the two divergent ancestors --
+  `sibling_index_middle + 1` where `sibling_index_middle =
+  (sibling_index_from + sibling_index_to) / 2` -- via the same
+  `RankSiblingInserter` helper (base-index formula + effective-index/count
+  tracking) that `EdgeSpacerBuilder` uses for same-level cross-rank spacers.
+  See [edge_descriptions.md](edge_descriptions.md) -- Same-Rank (Cycle Edge)
+  Placement for the full explanation. (An earlier version of this fell back to
+  `P = rank_from - 1`, inserting the container as an extra sibling **before
+  the entire shared rank row** instead of between the two specific nodes --
+  this was wrong and has been replaced by the in-rank insertion described
+  here.)
 
 - **Normal edge** (`rank_from != rank_to`):
   `P = rank_low + (rank_high - rank_low) / 2`
@@ -246,13 +255,15 @@ rank_to        = node_ranks_nested.ranks_for(lca_container)[divergent_to]
 
 ```text
 if rank_from == rank_to {
-    // Cycle edge: insert before the shared rank container.
-    position = if rank_from > 0 { Some(rank_from - 1) } else { None }
+    // Cycle edge: insert directly into the shared rank's sibling list,
+    // between the two divergent ancestors (see edge_descriptions.md --
+    // Same-Rank (Cycle Edge) Placement).
+    position = EdgeDescPosition::SameRank { rank: rank_from, sibling_index_middle }
 } else {
     // Normal edge: insert after the rank container at the midpoint rank.
     rank_low  = min(rank_from, rank_to)
     rank_high = max(rank_from, rank_to)
-    position  = Some(rank_low + (rank_high - rank_low) / 2)
+    position  = EdgeDescPosition::BetweenRanks(rank_low + (rank_high - rank_low) / 2)
 }
 ```
 
@@ -516,6 +527,114 @@ leaf nodes with the same style as all other spacers, so no changes are needed
 there.
 
 
+### Step 6.3 -- The owning edge's own description contact (implemented)
+
+Step 6.1's plan (a generic spacer leaf per edge, including the owning edge, in
+its own container) was implemented but left the owning edge's waypoint
+decoupled from its own description box: the spacer leaf's rect, not the
+description leaf's rect, was what the path builder read. Combined with all
+spacers being ignored outright by `EdgeCurvature::is_direct()` edges (the
+default for interaction edges), described edges routinely rendered with no
+visible connection to their own description box.
+
+The implemented fix instead reads the owning edge's `description_taffy_node_id`
+directly:
+
+- `SpacerCoordinatesResolver::description_contact_resolve` (source:
+  `crate/input_ir_rt/src/taffy_to_svg_elements_mapper/spacer_coordinates_resolver.rs`)
+  looks up the edge's `EdgeDescriptionTaffyNodes::description_taffy_node_id`
+  and calls `EdgeSpacerCoordinatesCalculator::calculate` on it directly --
+  no separate spacer leaf is created for the owning edge any more (see the
+  correction to `build_edge_desc_container_spacers_for_edge` below).
+- `SpacerCoordinatesResolver::resolve` folds this contact into its merged,
+  sorted waypoint list, so `EdgeCurvature::Curved`/`Orthogonal` routing picks
+  it up unconditionally (no code changes needed in those branches).
+- `EdgeCurvature::DirectStraight`/`DirectCurved` ignore `resolve`'s output
+  entirely (by design, to stay spacer-free), so the contact is *also* passed
+  as a separate `description_contact` parameter to
+  `EdgePathBuilderPass2::build`, consulted only by those two arms. This makes
+  the description contact behave like the label-based face offset
+  (`label_face_offset_compute`): the one waypoint kind applied regardless of
+  curvature.
+- `EdgeSpacerBuilder::build_edge_desc_container_spacers_for_edge` (source:
+  `crate/input_ir_rt/src/ir_to_taffy_builder/edge_spacer_builder.rs`) now
+  actually skips creating a spacer when the container is the edge's own
+  description container (previously documented but not implemented), since
+  the direct-box-read contact supersedes it.
+
+Crossing (non-owning) edges into someone else's `edge_description_container`
+are unchanged: they still get a generic, curvature-gated `EdgeSpacer` leaf, as
+originally planned.
+
+### Step 6.4 -- Cross-rank waypoint shape (implemented)
+
+Step 6.3's single-point contact (`entry == exit`) was wrong for cross-rank
+(`EdgeDescPosition::BetweenRanks`) boxes, which sit directly on the rank
+corridor between the edge's divergent ancestors and should be threaded
+*through* like an ordinary spacer.
+
+- `EdgeDescriptionTaffyNodes::is_cross_rank` (source:
+  `crate/taffy_model/src/edge_description_taffy_nodes.rs`) records which case
+  applies, set in `EdgeDescriptionBuilder::container_from_description_nodes_build`
+  from which of the two already-segregated `BTreeMap`s
+  (`position_to_sorted_descriptions` -- `BetweenRanks` -- vs
+  `same_rank_to_sorted_descriptions` -- `SameRank`) a group of description
+  nodes came from.
+- `EdgeSpacerCoordinatesCalculator::calculate_description_thread` (source:
+  `crate/input_ir_rt/src/taffy_to_svg_elements_mapper/edge_spacer_coordinates_calculator.rs`)
+  computes the cross-rank corridor pair (`entry != exit`), mirroring
+  `calculate`'s fixed-cross-axis convention. See `edge_descriptions.md` --
+  Cross-Rank Contact for the full table and derivation.
+- `SpacerCoordinatesResolver::description_contact_resolve` branches on
+  `is_cross_rank` to call `calculate_description_thread` (cross-rank) or
+  `calculate_description_thread_same_rank` (same-rank, see Step 6.5).
+
+### Step 6.5 -- Same-rank waypoint shape and container axis (implemented)
+
+Step 6.3's single-point contact was originally kept for the same-rank
+(cycle edge) case, on the assumption that the description box there sits
+*beside* the edge's path. In fact a same-rank edge's divergent ancestors sit
+directly side by side (the box is directly *on* their connecting line, just
+like the cross-rank case is on the line between ranks), so the same-rank
+case should also thread through -- just on the axis the two ancestors are
+laid out on *within* their shared rank, rather than the diagram's overall
+rank axis.
+
+- `EdgeSpacerCoordinatesCalculator::calculate_description_thread_same_rank`
+  reuses `calculate_description_thread`'s table by rotating `rank_dir`:
+  `TopToBottom`/`BottomToTop` (horizontal within-rank siblings) rotate to
+  `LeftToRight`; `LeftToRight`/`RightToLeft` (vertical within-rank siblings)
+  rotate to `TopToBottom`. See `edge_descriptions.md` -- Same-Rank Contact
+  for the full derivation (within-rank sibling order matches declaration
+  order regardless of `RankDir`'s forward/reverse convention, so only the
+  horizontal-vs-vertical axis, not the `Less`/`Greater` mapping, depends on
+  `RankDir`).
+- Separately, the same-rank `edge_description_container`'s own children
+  layout is inverted relative to a cross-rank container's
+  (`EdgeDescriptionBuilder::container_style_build`, via
+  `taffy_container_builder::flex_direction_invert`, now made `pub(super)`):
+  since the container is inserted *as a rank sibling itself* (between the
+  two divergent ancestors, who already occupy the rank's own stacking axis),
+  multiple described edges sharing that slot stack along the perpendicular
+  axis instead of widening/heightening the gap between the two ancestors.
+  See `edge_descriptions.md` -- Same-Rank (Cycle Edge) Placement.
+- The old `calculate_description_contact`/`description_contact_from_rect`
+  single-point functions were removed entirely, since both branches now
+  thread through.
+- Further correction (implemented): after choosing the axis (inverted or
+  not), `container_style_build` also strips any `Reverse` variant down to
+  plain `Row`/`Column` (`RowReverse` -> `Row`, `ColumnReverse` -> `Column`),
+  for both cross-rank and same-rank containers. This matters under
+  `rank_dir: bottom_to_top`/`right_to_left`, whose rank containers use the
+  reversed variant. Ordinary rank containers need that reversed variant
+  because their sibling insertion order is separately corrected for it
+  (`TaffyContainerBuilder::rank_taffy_ids_reverse_if_direction_reversed`),
+  but an `edge_description_container`'s children are freshly sorted into
+  visual order every time (ascending `sibling_index_middle`/`EdgeId`), so a
+  reversed direction would instead render them back to front, crossing over
+  each other.
+
+
 ## Phase 7 -- Documentation Updates
 
 ### Step 7.1 -- Update `taffy_node_hierarchy.md`
@@ -596,9 +715,10 @@ Either approach works since the spacers are already segregated into the
 `edge_desc_container_spacer_taffy_node_ids` list and sorted by coordinate.
 Confirm which is cleaner during implementation.
 
-### OQ2 -- Cycle edges at rank 0
+### OQ2 -- Cycle edges at rank 0 (resolved)
 
-For a cycle edge whose divergent ancestors share rank 0, the computed position
-is `None` (before all rank containers). If there are no rank containers yet
-(e.g., a container with only cycle-rank-0 nodes), the container list is just
-the `edge_description_container`s. Confirm this is acceptable visually.
+This no longer applies: cycle edges are never given a between-ranks
+`position` any more (see the updated Background section above), so there is
+no `rank_from == 0` special case to reason about -- the container is always
+inserted directly into the shared rank's own sibling list, which always has
+at least the two divergent ancestors already in it.

@@ -12,6 +12,8 @@ use disposition_taffy_model::{
 };
 use typed_builder::TypedBuilder;
 
+use crate::EdgeIdGenerator;
+
 use self::{
     edge_description_builder::{EdgeDescriptionBuildResult, EdgeDescriptionBuilder},
     edge_label_builder::EdgeLabelBuilder,
@@ -32,6 +34,8 @@ mod edge_spacer_builder;
 mod highlighted_spans_computer;
 mod md_node_builder;
 mod md_spans_computer;
+mod rank_and_sibling_index_middle;
+mod rank_sibling_inserter;
 mod taffy_build_ctx;
 mod taffy_build_state;
 mod taffy_container_builder;
@@ -134,7 +138,7 @@ impl IrToTaffyBuilder<'_> {
             process_step_graphs,
             render_options,
             css: _,
-            interaction_edge_halo_stroke_width: _,
+            interaction_edge_halo_stroke_width,
         } = ir_diagram;
 
         let DimensionAndLod { dimension, lod } = dimension_and_lod;
@@ -161,6 +165,11 @@ impl IrToTaffyBuilder<'_> {
         // construction and when sizing edge label slots during layout.
         let edge_id_to_endpoint_node_ids = EdgeLabelBuilder::edge_id_to_node_ids_build(edge_groups);
 
+        // Precompute the edge ID -> edge group ID lookup once. It is used to
+        // resolve the group-ID fallback when looking up `edge_descs` /
+        // `edge_labels` for a specific edge instance.
+        let edge_id_to_group_id = EdgeIdGenerator::edge_id_to_group_id_build(edge_groups);
+
         let ctx = TaffyBuildCtx {
             node_layouts,
             node_hierarchy,
@@ -175,10 +184,12 @@ impl IrToTaffyBuilder<'_> {
             edge_groups,
             edge_labels,
             edge_id_to_endpoint_node_ids: &edge_id_to_endpoint_node_ids,
+            edge_id_to_group_id: &edge_id_to_group_id,
             render_options,
             lod: *lod,
             char_width,
             node_md_texts: &node_md_texts,
+            interaction_edge_halo_stroke_width: *interaction_edge_halo_stroke_width,
         };
 
         let FirstLevelNodesBuilt {
@@ -286,32 +297,38 @@ impl IrToTaffyBuilder<'_> {
         let EdgeDescriptionBuildResult {
             edge_description_taffy_nodes: thing_edge_desc_taffy_nodes,
             position_to_container_ids: thing_position_to_container_ids,
+            same_rank_position_to_container_ids: thing_same_rank_position_to_container_ids,
         } = EdgeDescriptionBuilder::build(
             ctx,
             &mut taffy_tree,
             &EntityType::ThingDefault,
             None,
             &thing_rank_container_style,
+            &mut thing_rank_to_taffy_ids,
         );
         let EdgeDescriptionBuildResult {
             edge_description_taffy_nodes: tag_edge_desc_taffy_nodes,
             position_to_container_ids: tag_position_to_container_ids,
+            same_rank_position_to_container_ids: tag_same_rank_position_to_container_ids,
         } = EdgeDescriptionBuilder::build(
             ctx,
             &mut taffy_tree,
             &EntityType::TagDefault,
             None,
             &tag_rank_container_style,
+            &mut tag_rank_to_taffy_ids,
         );
         let EdgeDescriptionBuildResult {
             edge_description_taffy_nodes: process_edge_desc_taffy_nodes,
             position_to_container_ids: process_position_to_container_ids,
+            same_rank_position_to_container_ids: process_same_rank_position_to_container_ids,
         } = EdgeDescriptionBuilder::build(
             ctx,
             &mut taffy_tree,
             &EntityType::ProcessDefault,
             None,
             &process_rank_container_style,
+            &mut process_rank_to_taffy_ids,
         );
         edge_description_taffy_nodes.extend(thing_edge_desc_taffy_nodes);
         edge_description_taffy_nodes.extend(tag_edge_desc_taffy_nodes);
@@ -323,12 +340,21 @@ impl IrToTaffyBuilder<'_> {
         // the top level, insert a spacer inside that container so the edge
         // path can route around it. Must run before position_to_container_ids
         // is consumed by `rank_containers_for_first_level_nodes_build`.
-        for (target_entity_type, position_to_container_ids) in [
-            (&EntityType::ThingDefault, &thing_position_to_container_ids),
-            (&EntityType::TagDefault, &tag_position_to_container_ids),
+        for (target_entity_type, position_to_container_ids, same_rank_position_to_container_ids) in [
+            (
+                &EntityType::ThingDefault,
+                &thing_position_to_container_ids,
+                &thing_same_rank_position_to_container_ids,
+            ),
+            (
+                &EntityType::TagDefault,
+                &tag_position_to_container_ids,
+                &tag_same_rank_position_to_container_ids,
+            ),
             (
                 &EntityType::ProcessDefault,
                 &process_position_to_container_ids,
+                &process_same_rank_position_to_container_ids,
             ),
         ] {
             for (edge_id, new_spacers) in EdgeSpacerBuilder::build_edge_desc_container_spacers(
@@ -337,13 +363,13 @@ impl IrToTaffyBuilder<'_> {
                 target_entity_type,
                 None,
                 position_to_container_ids,
+                same_rank_position_to_container_ids,
                 &edge_description_taffy_nodes,
             ) {
                 edge_spacer_taffy_nodes
                     .entry(edge_id)
                     .or_default()
-                    .edge_desc_container_spacer_taffy_node_ids
-                    .extend(new_spacers.edge_desc_container_spacer_taffy_node_ids);
+                    .merge(new_spacers);
             }
         }
 
@@ -433,6 +459,7 @@ impl IrToTaffyBuilder<'_> {
                 &taffy_tree,
                 &edge_description_taffy_nodes,
                 edge_descs,
+                &edge_id_to_group_id,
                 char_width,
                 lod,
             );

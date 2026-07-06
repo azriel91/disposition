@@ -20,6 +20,7 @@ use super::{
     edge_description_builder::EdgeDescriptionBuilder,
     edge_spacer_builder::{EdgeSpacerBuilder, TextContentSpacersBuilt},
     md_node_builder::MdNodeBuilder,
+    rank_and_sibling_index_middle::RankAndSiblingIndexMiddle,
     taffy_build_ctx::TaffyBuildCtx,
     taffy_build_state::TaffyBuildState,
     taffy_container_builder::{NodeRankToTaffyNodeId, TaffyContainerBuilder},
@@ -719,6 +720,10 @@ impl TaffyDiagramNodeBuilder {
         // === level === //
         let mut position_to_container_ids: BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>> =
             BTreeMap::new();
+        let mut same_rank_position_to_container_ids: BTreeMap<
+            RankAndSiblingIndexMiddle,
+            Vec<taffy::NodeId>,
+        > = BTreeMap::new();
         let edge_description_container_style = child_container_style;
         target_entity_types.iter().for_each(|target_entity_type| {
             let edge_description_containers_build_result = EdgeDescriptionBuilder::build(
@@ -727,6 +732,7 @@ impl TaffyDiagramNodeBuilder {
                 target_entity_type,
                 Some(lca_node_id),
                 edge_description_container_style,
+                rank_to_taffy_ids,
             );
             nested_edge_taffy_nodes
                 .edge_description_taffy_nodes
@@ -737,6 +743,15 @@ impl TaffyDiagramNodeBuilder {
                 .for_each(|(pos, containers)| {
                     position_to_container_ids
                         .entry(pos)
+                        .or_default()
+                        .extend(containers);
+                });
+            edge_description_containers_build_result
+                .same_rank_position_to_container_ids
+                .into_iter()
+                .for_each(|(position, containers)| {
+                    same_rank_position_to_container_ids
+                        .entry(position)
                         .or_default()
                         .extend(containers);
                 });
@@ -755,6 +770,7 @@ impl TaffyDiagramNodeBuilder {
                 target_entity_type,
                 Some(lca_node_id),
                 &position_to_container_ids,
+                &same_rank_position_to_container_ids,
                 &nested_edge_taffy_nodes.edge_description_taffy_nodes,
             );
             edge_desc_container_spacers
@@ -764,8 +780,7 @@ impl TaffyDiagramNodeBuilder {
                         .edge_spacer_taffy_nodes
                         .entry(edge_id)
                         .or_default()
-                        .edge_desc_container_spacer_taffy_node_ids
-                        .extend(new_spacers.edge_desc_container_spacer_taffy_node_ids);
+                        .merge(new_spacers);
                 });
         });
 

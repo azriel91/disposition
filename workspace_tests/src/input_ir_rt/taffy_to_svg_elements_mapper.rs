@@ -55,6 +55,12 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0048_INTERACTION_EDGE_HALO, INPUT_DIAGRAM_0049_INTERACTION_EDGE_HALO_DISABLED,
     INPUT_DIAGRAM_0050_INTERACTION_EDGE_HALO_FORWARD_REVERSE,
     INPUT_DIAGRAM_0052_PROCESS_STEP_TWO_PROCESSES_COLLAPSE,
+    INPUT_DIAGRAM_0053_EDGE_DESCS_GROUP_ID_KEY,
+    INPUT_DIAGRAM_0054_EDGE_DESCS_INSTANCE_OVERRIDES_GROUP,
+    INPUT_DIAGRAM_0055_INTERACTION_EDGE_LABEL_DESC_BG,
+    INPUT_DIAGRAM_0056_INTERACTION_HALO_WITH_LABELS,
+    INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC,
+    INPUT_DIAGRAM_0058_INTERACTION_HALO_WITH_LABELS_RIGHT_TO_LEFT,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -4877,5 +4883,887 @@ fn test_interaction_edge_halo_forward_reverse_use_distinct_colors() {
             "Expected both halos to keep the base stroke-8 width, got forward: {forward_halo}, \
              reverse: {reverse_halo}"
         );
+    }
+}
+
+// === Edge group-ID fallback tests === //
+
+/// `edge_descs` / `edge_labels` entries keyed by an edge *group* ID (rather
+/// than a specific edge instance ID) apply to every edge in that group, for
+/// both dependency and interaction edges. This is a regression test for a
+/// bug where only the exact instance-ID lookup was implemented, silently
+/// dropping any group-ID-keyed description/label (affecting several
+/// playground examples, not just interaction edges).
+#[test]
+fn test_edge_descs_and_labels_group_id_key_resolves_for_dependency_and_interaction_edges() {
+    for svg_elements in build_svg_elements_for_diagram(INPUT_DIAGRAM_0053_EDGE_DESCS_GROUP_ID_KEY) {
+        let dep_desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str().starts_with("edge_dep_ab"))
+            .expect("Expected a description for the dependency edge.");
+        let ix_desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str().starts_with("edge_ix_ab"))
+            .expect("Expected a description for the interaction edge.");
+
+        assert!(
+            !dep_desc.text_spans.is_empty(),
+            "Expected the dependency edge's group-ID-keyed description to render text"
+        );
+        assert!(
+            !ix_desc.text_spans.is_empty(),
+            "Expected the interaction edge's group-ID-keyed description to render text"
+        );
+
+        let dep_label = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|l| l.edge_id.as_str().starts_with("edge_dep_ab"))
+            .expect("Expected a label for the dependency edge.");
+        let ix_label = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|l| l.edge_id.as_str().starts_with("edge_ix_ab"))
+            .expect("Expected a label for the interaction edge.");
+
+        assert!(
+            dep_label
+                .from_label
+                .as_ref()
+                .is_some_and(|l| !l.text_spans.is_empty()),
+            "Expected the dependency edge's group-ID-keyed label to render text"
+        );
+        assert!(
+            ix_label
+                .from_label
+                .as_ref()
+                .is_some_and(|l| !l.text_spans.is_empty()),
+            "Expected the interaction edge's group-ID-keyed label to render text"
+        );
+    }
+}
+
+/// A description keyed by a specific edge instance ID overrides the group-ID
+/// fallback for that one edge; other edges in the group still fall back to
+/// the group-ID description.
+#[test]
+fn test_edge_descs_instance_id_overrides_group_id() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0054_EDGE_DESCS_INSTANCE_OVERRIDES_GROUP)
+    {
+        let desc_0 = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_ab__0")
+            .expect("Expected a description for edge_dep_ab__0.");
+        let desc_1 = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_ab__1")
+            .expect("Expected a description for edge_dep_ab__1.");
+
+        let desc_0_text: String = desc_0
+            .text_spans
+            .iter()
+            .map(|span| span.text.as_str())
+            .collect();
+        let desc_1_text: String = desc_1
+            .text_spans
+            .iter()
+            .map(|span| span.text.as_str())
+            .collect();
+
+        assert!(
+            desc_0_text.contains("instance description"),
+            "Expected edge_dep_ab__0 to use its own instance-ID description, got: {desc_0_text}"
+        );
+        assert!(
+            desc_1_text.contains("group description"),
+            "Expected edge_dep_ab__1 to fall back to the group-ID description, got: {desc_1_text}"
+        );
+    }
+}
+
+// === Interaction edge label/description background tests === //
+
+/// An interaction edge's label and description get a `{edge_id}__label_bg` /
+/// `{edge_id}__desc_bg` tailwind-classes entry (styled from
+/// `type_interaction_edge_label_bg` / `type_interaction_edge_desc_bg`), and
+/// the rendered SVG draws a background `<path>` as the first child of the
+/// label/description `<g>`, before the text. Dependency edges get no such
+/// entry or path.
+#[test]
+fn test_interaction_edge_label_and_desc_bg_render_before_text() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0055_INTERACTION_EDGE_LABEL_DESC_BG)
+    {
+        let dep_edge_id = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.edge_id.as_str().starts_with("edge_dep_ab"))
+            .expect("Expected the dependency edge to exist.")
+            .edge_id
+            .clone();
+        let ix_edge_id = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.edge_id.as_str().starts_with("edge_ix_ab"))
+            .expect("Expected the interaction edge to exist.")
+            .edge_id
+            .clone();
+
+        let label_bg_key = |edge_id: &str| {
+            Id::try_from(format!("{edge_id}__label_bg")).expect("label_bg ID should be valid")
+        };
+        let desc_bg_key = |edge_id: &str| {
+            Id::try_from(format!("{edge_id}__desc_bg")).expect("desc_bg ID should be valid")
+        };
+
+        let ix_label_bg_classes = svg_elements
+            .tailwind_classes
+            .get(&label_bg_key(ix_edge_id.as_str()))
+            .unwrap_or_else(|| {
+                panic!("Expected label_bg tailwind classes for interaction edge {ix_edge_id:?}")
+            });
+        assert!(
+            ix_label_bg_classes.contains("opacity-90"),
+            "Expected label_bg classes to include opacity-90, got: {ix_label_bg_classes}"
+        );
+        let ix_desc_bg_classes = svg_elements
+            .tailwind_classes
+            .get(&desc_bg_key(ix_edge_id.as_str()))
+            .unwrap_or_else(|| {
+                panic!("Expected desc_bg tailwind classes for interaction edge {ix_edge_id:?}")
+            });
+        assert!(
+            ix_desc_bg_classes.contains("opacity-90"),
+            "Expected desc_bg classes to include opacity-90, got: {ix_desc_bg_classes}"
+        );
+
+        assert!(
+            svg_elements
+                .tailwind_classes
+                .get(&label_bg_key(dep_edge_id.as_str()))
+                .is_none(),
+            "Dependency edge {dep_edge_id:?} should not have a label_bg tailwind classes entry"
+        );
+        assert!(
+            svg_elements
+                .tailwind_classes
+                .get(&desc_bg_key(dep_edge_id.as_str()))
+                .is_none(),
+            "Dependency edge {dep_edge_id:?} should not have a desc_bg tailwind classes entry"
+        );
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+
+        let ix_label_g_start = svg
+            .find(&format!("id=\"{ix_edge_id}__from_label\""))
+            .expect("Expected the interaction edge's from_label <g> element in the rendered SVG");
+        let ix_label_g_slice = &svg[ix_label_g_start..];
+        let path_index = ix_label_g_slice
+            .find("<path")
+            .expect("Expected a background path in the interaction edge's label");
+        let text_index = ix_label_g_slice
+            .find("<text")
+            .expect("Expected text in the interaction edge's label");
+        assert!(
+            path_index < text_index,
+            "Expected the label background path to render before the label text"
+        );
+
+        let ix_desc_g_start = svg
+            .find(&format!("id=\"{ix_edge_id}__desc\""))
+            .expect("Expected the interaction edge's desc <g> element in the rendered SVG");
+        let ix_desc_g_slice = &svg[ix_desc_g_start..];
+        let path_index = ix_desc_g_slice
+            .find("<path")
+            .expect("Expected a background path in the interaction edge's description");
+        let text_index = ix_desc_g_slice
+            .find("<text")
+            .expect("Expected text in the interaction edge's description");
+        assert!(
+            path_index < text_index,
+            "Expected the description background path to render before the description text"
+        );
+
+        let dep_desc_g_start = svg
+            .find(&format!("id=\"{dep_edge_id}__desc\""))
+            .expect("Expected the dependency edge's desc <g> element in the rendered SVG");
+        let dep_desc_g_slice = &svg[dep_desc_g_start..];
+        let dep_desc_next_g_offset = dep_desc_g_slice
+            .find("<g id=\"")
+            .unwrap_or(dep_desc_g_slice.len());
+        assert!(
+            !dep_desc_g_slice[..dep_desc_next_g_offset].contains("<path"),
+            "Dependency edge {dep_edge_id:?} description should not render a background path"
+        );
+    }
+}
+
+// === Between-ranks (non-cycle edge) description placement baseline === //
+
+/// Baseline companion to the same-rank tests below: when the divergent
+/// ancestors sit at *different* ranks (a plain `sequence` dependency, not a
+/// cycle), the description must still be interleaved between the two rank
+/// containers -- confirming the same-rank fix did not regress this path.
+#[test]
+fn test_between_ranks_edge_description_sits_between_rank_containers() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0056_INTERACTION_HALO_WITH_LABELS)
+    {
+        let t_client = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_client")
+            .expect("Expected t_client in svg_node_infos");
+        let t_server = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_server")
+            .expect("Expected t_server in svg_node_infos");
+
+        // `rank_dir: left_to_right` puts different-ranked nodes at different
+        // X positions; t_client (rank 0) sits left of t_server (rank 1).
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_client_server__0")
+            .expect("Expected a description for edge_dep_client_server__0.");
+
+        assert!(
+            desc.x >= t_client.envelope_x + t_client.envelope_width
+                && desc.x <= t_server.envelope_x,
+            "Expected edge_dep_client_server__0's description (x: {}) to sit between t_client's \
+             right edge ({}) and t_server's left edge ({})",
+            desc.x,
+            t_client.envelope_x + t_client.envelope_width,
+            t_server.envelope_x,
+        );
+    }
+}
+
+/// Regression test for a bug where a cross-rank `edge_description_container`
+/// under a reversed `rank_dir` (`bottom_to_top`/`right_to_left`) rendered its
+/// descriptions back to front. The container mirrors
+/// `rank_container_style.flex_direction`, which is `RowReverse`/
+/// `ColumnReverse` for those two directions (so ordinary rank containers'
+/// *reversed* sibling stacking, combined with a separate sibling-order
+/// correction, still matches declaration order) -- but an
+/// `edge_description_container`'s children are freshly sorted into visual
+/// order every time it is built, so mirroring the reversed direction
+/// (without also correcting sibling order, which nothing does for this
+/// container) would render them in the opposite of sorted order.
+///
+/// `EdgeDescriptionBuilder::container_style_build` strips `Reverse` down to
+/// plain `Row`/`Column`. `0058` mirrors `0056` under `rank_dir: right_to_left`,
+/// so `edge_dep_client_server__0`, `edge_ix_client_server__0`, and
+/// `edge_ix_client_server__1` (sorted in that order, by `EdgeId`) share one
+/// cross-rank container with a `ColumnReverse` rank container style -- this
+/// asserts their descriptions' `y` positions are strictly increasing
+/// (sorted order, top to bottom), not decreasing (reversed).
+#[test]
+fn test_cross_rank_edge_description_container_direction_not_reversed() {
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0058_INTERACTION_HALO_WITH_LABELS_RIGHT_TO_LEFT,
+    ) {
+        let desc_y = |edge_id: &str| {
+            svg_elements
+                .edge_description_infos
+                .iter()
+                .find(|d| d.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected a description for {edge_id}."))
+                .y
+        };
+
+        let dep_y = desc_y("edge_dep_client_server__0");
+        let ix_0_y = desc_y("edge_ix_client_server__0");
+        let ix_1_y = desc_y("edge_ix_client_server__1");
+
+        assert!(
+            dep_y < ix_0_y && ix_0_y < ix_1_y,
+            "Expected the shared container's descriptions to be stacked in sorted \
+             (not reversed) order: edge_dep_client_server__0 (y: {dep_y}) < \
+             edge_ix_client_server__0 (y: {ix_0_y}) < edge_ix_client_server__1 (y: {ix_1_y})"
+        );
+    }
+}
+
+// === Same-rank (cycle edge) description placement tests === //
+
+/// When an edge's divergent ancestors share a rank (a cycle edge, e.g. a
+/// `cyclic` dependency), the description container must be inserted between
+/// the two same-ranked siblings, not before/after the whole shared rank row.
+/// This is a regression test for a bug where the container was placed at
+/// `Some(rank - 1)`, floating before the entire rank instead of between the
+/// specific pair of nodes it describes.
+#[test]
+fn test_same_rank_cyclic_edge_description_sits_between_divergent_ancestors_at_root_level() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        let t_client = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_client")
+            .expect("Expected t_client in svg_node_infos");
+        let t_server = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_server")
+            .expect("Expected t_server in svg_node_infos");
+
+        // `rank_dir: left_to_right` stacks same-ranked siblings vertically, so
+        // "between" is a Y-axis relationship. t_client and t_server share a
+        // rank (the cyclic dependency), so whichever renders first is
+        // strictly above the other -- the container must sit in the gap.
+        let (upper, lower) = if t_client.envelope_y < t_server.envelope_y {
+            (t_client, t_server)
+        } else {
+            (t_server, t_client)
+        };
+        let upper_bottom = upper.envelope_y + upper.envelope_height_collapsed;
+
+        for edge_id in [
+            "edge_dep_client_server__0",
+            "edge_ix_client_server__0",
+            "edge_ix_client_server__1",
+        ] {
+            let desc = svg_elements
+                .edge_description_infos
+                .iter()
+                .find(|d| d.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected a description for {edge_id}."));
+
+            assert!(
+                desc.y >= upper_bottom && desc.y + desc.height <= lower.envelope_y,
+                "Expected {edge_id}'s description (y: {}, height: {}) to sit between t_client/\
+                 t_server (upper bottom: {upper_bottom}, lower top: {}), not before/after the \
+                 whole shared rank row",
+                desc.y,
+                desc.height,
+                lower.envelope_y,
+            );
+        }
+    }
+}
+
+/// The same same-rank placement fix applies at nested LCA levels: the cyclic
+/// dependency between `t_server_proc_1` and `t_server_proc_2` (both direct
+/// children of `t_server`, sharing a rank) must place its description between
+/// those two siblings, not before/after `t_server`'s whole rank row.
+#[test]
+fn test_same_rank_cyclic_edge_description_sits_between_nested_divergent_ancestors() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        let proc_1 = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_server_proc_1")
+            .expect("Expected t_server_proc_1 in svg_node_infos");
+        let proc_2 = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_server_proc_2")
+            .expect("Expected t_server_proc_2 in svg_node_infos");
+
+        let (upper, lower) = if proc_1.envelope_y < proc_2.envelope_y {
+            (proc_1, proc_2)
+        } else {
+            (proc_2, proc_1)
+        };
+        let upper_bottom = upper.envelope_y + upper.envelope_height_collapsed;
+
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_server_proc_1_proc_2__0")
+            .expect("Expected a description for edge_dep_server_proc_1_proc_2__0.");
+
+        assert!(
+            desc.y >= upper_bottom && desc.y + desc.height <= lower.envelope_y,
+            "Expected edge_dep_server_proc_1_proc_2__0's description (y: {}, height: {}) to sit \
+             between t_server_proc_1/t_server_proc_2 (upper bottom: {upper_bottom}, lower top: \
+             {}), not before/after t_server's whole shared rank row",
+            desc.y,
+            desc.height,
+            lower.envelope_y,
+        );
+    }
+}
+
+// === Edge description contact waypoint tests === //
+
+/// Extracts the sequence of points an SVG path `d` attribute actually passes
+/// through: `M`/`L` targets, and each `C` (cubic bezier) command's final
+/// endpoint (its third coordinate pair) -- the two control points of a `C`
+/// only shape the curve and are not points the path terminates at, so they
+/// are skipped.
+fn path_d_points(d: &str) -> Vec<(f32, f32)> {
+    let mut tokens: Vec<String> = Vec::new();
+    let mut current = String::new();
+    for c in d.chars() {
+        if c.is_ascii_alphabetic() {
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+            tokens.push(c.to_string());
+        } else if c == ',' || c.is_whitespace() {
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+        } else {
+            current.push(c);
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    let parse_pair = |tokens: &[String], x_index: usize| -> Option<(f32, f32)> {
+        let x = tokens.get(x_index)?.parse::<f32>().ok()?;
+        let y = tokens.get(x_index + 1)?.parse::<f32>().ok()?;
+        Some((x, y))
+    };
+
+    let mut points = Vec::new();
+    let mut index = 0;
+    while index < tokens.len() {
+        match tokens[index].as_str() {
+            "M" | "L" => {
+                if let Some(point) = parse_pair(&tokens, index + 1) {
+                    points.push(point);
+                }
+                index += 3;
+            }
+            "C" => {
+                // Three coordinate pairs (six numbers); only the third pair
+                // is a point the path actually reaches.
+                if let Some(point) = parse_pair(&tokens, index + 5) {
+                    points.push(point);
+                }
+                index += 7;
+            }
+            _ => index += 1,
+        }
+    }
+    points
+}
+
+/// Extracts the `d` attribute of the `edge_body` path within an edge's `<g>`
+/// element in a rendered SVG string.
+fn edge_body_path_d(svg: &str, edge_id: &str) -> String {
+    let g_start = svg
+        .find(&format!("id=\"{edge_id}\""))
+        .unwrap_or_else(|| panic!("Expected <g id=\"{edge_id}\"> in the rendered SVG"));
+    let slice = &svg[g_start..];
+    let class_pos = slice
+        .find("class=\"edge_body\"")
+        .unwrap_or_else(|| panic!("Expected an edge_body path for {edge_id}"));
+    let before_class = &slice[..class_pos];
+    let d_key = "d=\"";
+    let d_start = before_class.rfind(d_key).unwrap_or_else(|| {
+        panic!("Expected a `d` attribute before the edge_body class for {edge_id}")
+    }) + d_key.len();
+    let d_end = d_start
+        + before_class[d_start..].find('"').unwrap_or_else(|| {
+            panic!("Expected a closing quote for the `d` attribute for {edge_id}")
+        });
+    before_class[d_start..d_end].to_string()
+}
+
+/// Regression test for a bug where an interaction edge travelling *against*
+/// the diagram's `RankDir` (a `symmetric` group's reverse edge) looped back
+/// on itself when routing through its own description box.
+///
+/// Before the fix, `edge_ix_client_server__1` (`t_server -> t_client`, i.e.
+/// high-rank to low-rank under `rank_dir: left_to_right`) rendered as
+/// `... 456 -> 245 -> 285 -> 91 ...`: the path reached the description box's
+/// near (left) edge at x=245, then had to backtrack rightward to the box's
+/// far edge at x=285 before continuing on to 91 -- a visible loop.
+///
+/// This edge is cross-rank (`t_client` rank 0, `t_server` rank 1), so its
+/// waypoint is now produced by
+/// `EdgeSpacerCoordinatesCalculator::calculate_description_thread`, which
+/// threads *through* the box (`entry != exit`) rather than touching a single
+/// point -- but the entry/exit order is chosen so it still runs in this
+/// edge's own (reverse) travel direction, so the invariant below continues
+/// to hold. This asserts the path's x-coordinates are monotonically
+/// non-increasing, matching this edge's actual right-to-left travel -- a
+/// backward hop (the original bug) would fail this regardless of which
+/// calculator produced the waypoint.
+#[test]
+fn test_reverse_interaction_edge_description_contact_does_not_loop() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0056_INTERACTION_HALO_WITH_LABELS)
+    {
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        let d = edge_body_path_d(&svg, "edge_ix_client_server__1");
+        let points = path_d_points(&d);
+
+        assert!(
+            points.len() >= 2,
+            "Expected at least two points in edge_ix_client_server__1's path, got: {points:?}"
+        );
+
+        let xs: Vec<f32> = points.iter().map(|&(x, _y)| x).collect();
+        let non_increasing = xs.windows(2).all(|pair| pair[0] >= pair[1] - 1e-3);
+        assert!(
+            non_increasing,
+            "Expected edge_ix_client_server__1's path x-coordinates to be monotonically \
+             non-increasing (this edge travels right-to-left), but got a backward hop: {xs:?}"
+        );
+    }
+}
+
+/// Regression test for a bug where a **cross-rank** edge's own description
+/// contact used a single-point calculation, collapsing the box's corridor
+/// down to one point. Downstream spacer-ordering/protrusion logic (built to
+/// expect a genuine two-point corridor, like every other spacer kind) then
+/// mishandled the degenerate waypoint: before the fix,
+/// `edge_dep_client_server__0`'s path was pinned at the box's `left_x` with
+/// wildly varying, out-of-box `y` values, instead of threading straight
+/// across the box at a constant `y`.
+///
+/// `edge_dep_client_server__0` is cross-rank (`t_client` rank 0, `t_server`
+/// rank 1) and travels `from < to` (`Ordering::Less`) under
+/// `rank_dir: left_to_right`, so
+/// `EdgeSpacerCoordinatesCalculator::calculate_description_thread` should
+/// produce entry=(box.left_x, box.top_y), exit=(box.right_x, box.top_y) --
+/// this asserts the rendered path visits both of those points, in that
+/// order (left before right), confirming it threads through the box's top
+/// edge left-to-right rather than collapsing to (or backtracking around) a
+/// single point.
+#[test]
+fn test_between_ranks_edge_description_contact_threads_through_box() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0056_INTERACTION_HALO_WITH_LABELS)
+    {
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_client_server__0")
+            .expect("Expected a description for edge_dep_client_server__0.");
+        let box_left_x = desc.x;
+        let box_right_x = desc.x + desc.width;
+        // `edge_dep_client_server__0` is a dependency edge, which has no
+        // interaction edge halo -- `EdgeDescriptionBuilder::edge_desc_build`
+        // gives it no halo-clearance margin, and `description_thread_from_rect`
+        // pulls back by `0.0`, so the routed path sits flush against the
+        // box's own rendered top edge with no offset.
+        let box_top_y = desc.y;
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        let d = edge_body_path_d(&svg, "edge_dep_client_server__0");
+        let points = path_d_points(&d);
+
+        let near_matches = |x: f32, y: f32| -> Option<usize> {
+            points
+                .iter()
+                .position(|&(px, py)| (px - x).abs() < 1e-2 && (py - y).abs() < 1e-2)
+        };
+
+        let entry_index = near_matches(box_left_x, box_top_y).unwrap_or_else(|| {
+            panic!(
+                "Expected edge_dep_client_server__0's path to visit the box's \
+                 left edge at (x: {box_left_x}, y: {box_top_y}), got points: {points:?}"
+            )
+        });
+        let exit_index = near_matches(box_right_x, box_top_y).unwrap_or_else(|| {
+            panic!(
+                "Expected edge_dep_client_server__0's path to visit the box's \
+                 right edge at (x: {box_right_x}, y: {box_top_y}), got points: {points:?}"
+            )
+        });
+
+        assert!(
+            entry_index < exit_index,
+            "Expected edge_dep_client_server__0's path to reach the box's left edge \
+             (index {entry_index}) before its right edge (index {exit_index}), \
+             threading left-to-right: {points:?}"
+        );
+    }
+}
+
+/// Regression test for the equivalent bug in the **same-rank** (cycle edge)
+/// case: the description contact used a single fixed-corner point (biased by
+/// `sibling_index_from_cmp_to` to avoid two edges sharing a box backtracking
+/// through its center) instead of threading through the box, even though a
+/// same-rank edge's divergent ancestors sit directly side by side -- the box
+/// is genuinely on their connecting line, just like the cross-rank case is on
+/// the line between ranks.
+///
+/// `edge_dep_client_server__0` in `0057` is a same-rank cyclic dependency
+/// under `rank_dir: left_to_right`, where same-rank siblings are laid out
+/// *vertically* (`Column`) within their shared rank. So
+/// `EdgeSpacerCoordinatesCalculator::calculate_description_thread_same_rank`
+/// rotates onto the `TopToBottom` row (fixed `x = box.left_x`) rather than
+/// `calculate_description_thread`'s own `LeftToRight` row (which would fix
+/// `y`) -- this asserts the rendered path visits both
+/// `(box.left_x, box.top_y)` and `(box.left_x, box.bottom_y)`, in that order,
+/// confirming it threads top-to-bottom along the box's left edge rather than
+/// touching only one corner.
+#[test]
+fn test_same_rank_edge_description_contact_threads_through_box() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_client_server__0")
+            .expect("Expected a description for edge_dep_client_server__0.");
+        // `edge_dep_client_server__0` is a dependency edge, which has no
+        // interaction edge halo -- `EdgeDescriptionBuilder::edge_desc_build`
+        // gives it no halo-clearance margin, and `description_thread_from_rect`
+        // pulls back by `0.0`, so the routed path sits flush against the
+        // box's own rendered left edge with no offset.
+        let box_left_x = desc.x;
+        let box_top_y = desc.y;
+        let box_bottom_y = desc.y + desc.height;
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        let d = edge_body_path_d(&svg, "edge_dep_client_server__0");
+        let points = path_d_points(&d);
+
+        let near_matches = |x: f32, y: f32| -> Option<usize> {
+            points
+                .iter()
+                .position(|&(px, py)| (px - x).abs() < 1e-2 && (py - y).abs() < 1e-2)
+        };
+
+        let entry_index = near_matches(box_left_x, box_top_y).unwrap_or_else(|| {
+            panic!(
+                "Expected edge_dep_client_server__0's path to visit the box's \
+                 top edge at (x: {box_left_x}, y: {box_top_y}), got points: {points:?}"
+            )
+        });
+        let exit_index = near_matches(box_left_x, box_bottom_y).unwrap_or_else(|| {
+            panic!(
+                "Expected edge_dep_client_server__0's path to visit the box's \
+                 bottom edge at (x: {box_left_x}, y: {box_bottom_y}), got points: {points:?}"
+            )
+        });
+
+        assert!(
+            entry_index < exit_index,
+            "Expected edge_dep_client_server__0's path to reach the box's top edge \
+             (index {entry_index}) before its bottom edge (index {exit_index}), \
+             threading top-to-bottom: {points:?}"
+        );
+    }
+}
+
+// === Same-rank description container crossing tests === //
+
+/// Regression test for a bug where an edge sharing a same-rank
+/// `edge_description_container`'s pair of divergent siblings, but not itself
+/// described (no entry in `edge_descs`), got no routing waypoint at all and
+/// cut straight past/through the box.
+///
+/// `edge_dep_server_proc_1_proc_2__1` is the reverse direction of the same
+/// cyclic pair as the described `edge_dep_server_proc_1_proc_2__0` -- it
+/// shares the same two divergent siblings (`t_server_proc_1` /
+/// `t_server_proc_2`) and the same same-rank container position, but has no
+/// description of its own. Before the fix its rendered path was a bare
+/// `M ... L ...` two-point straight line; this asserts it now has real
+/// intermediate waypoints, with at least one inside the description box's
+/// vertical band, confirming it routes via a spacer crossing the box rather
+/// than ignoring it.
+#[test]
+fn test_same_rank_crossing_edge_routes_around_description_container() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_server_proc_1_proc_2__0")
+            .expect("Expected a description for edge_dep_server_proc_1_proc_2__0.");
+        let box_top_y = desc.y;
+        let box_bottom_y = desc.y + desc.height;
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        let d = edge_body_path_d(&svg, "edge_dep_server_proc_1_proc_2__1");
+        let points = path_d_points(&d);
+
+        assert!(
+            points.len() > 2,
+            "Expected edge_dep_server_proc_1_proc_2__1's path to have intermediate \
+             waypoints routing around the description container, not a bare two-point \
+             straight line: {points:?}"
+        );
+
+        let visits_box_band = points
+            .iter()
+            .any(|&(_x, y)| y >= box_top_y - 0.5 && y <= box_bottom_y + 0.5);
+        assert!(
+            visits_box_band,
+            "Expected edge_dep_server_proc_1_proc_2__1's path to visit a waypoint within \
+             the description box's vertical band (y: {box_top_y}..{box_bottom_y}), \
+             confirming it routes via a spacer crossing the box: {points:?}"
+        );
+    }
+}
+
+/// Regression test for a bug where a same-rank (cycle edge) description
+/// contact's final orthogonal corner landed inside its own arrow head instead
+/// of clearing it, because same-rank non-cycle edges (adjacent siblings) were
+/// unconditionally given zero protrusion, even when they had a real spacer
+/// waypoint (their own description-contact thread-through).
+///
+/// `edge_dep_server_proc_1_proc_2__0` and `__1` are both same-rank,
+/// adjacent-sibling edges with a spacer waypoint (the owning edge's own
+/// description contact, and the crossing spacer respectively) -- both must
+/// now have `to_protrusion` floored to at least `TO_PROTRUSION_MIN_PX` so the
+/// Z/S bend clears the arrow head.
+#[test]
+fn test_same_rank_edge_to_protrusion_clears_arrow_head() {
+    const EPSILON: f32 = 0.01;
+
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        for edge_id in [
+            "edge_dep_server_proc_1_proc_2__0",
+            "edge_dep_server_proc_1_proc_2__1",
+        ] {
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected edge {edge_id}"));
+            let to_protrusion = edge_info.ortho_protrusion_params.to_protrusion;
+
+            assert!(
+                to_protrusion >= TO_PROTRUSION_MIN_PX - EPSILON,
+                "edge {edge_id} to_protrusion {to_protrusion:.2} should be at least \
+                 {TO_PROTRUSION_MIN_PX} so the Z/S bend clears the arrow head"
+            );
+        }
+    }
+}
+
+/// Regression test for a bug where a same-rank edge's arrow-head-clearance
+/// `from_protrusion`/`to_protrusion` (sized to clear the arrow head at the
+/// real node, tens of pixels) leaked into its lone spacer waypoint's own
+/// `entry_protrusion`/`exit_protrusion` (meant to be a small stub past a real
+/// spacer's boundary), extending the path's waypoint far past the
+/// `edge_description_container`'s box or the crossing spacer's tiny footprint
+/// and back, producing a spurious double bend / detour.
+///
+/// Affects both the owning edge's own description-contact "spacer"
+/// (`edge_dep_client_server__0`, `edge_dep_server_proc_1_proc_2__0`) and a
+/// crossing edge's real spacer leaf (`edge_dep_server_proc_1_proc_2__1`) --
+/// in all three cases the spacer's own entry/exit protrusion must stay well
+/// below the node-endpoint protrusion it must not be confused with.
+#[test]
+fn test_same_rank_edge_spacer_protrusion_not_inflated_by_node_protrusion() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        for edge_id in [
+            "edge_dep_client_server__0",
+            "edge_dep_server_proc_1_proc_2__0",
+            "edge_dep_server_proc_1_proc_2__1",
+        ] {
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected edge {edge_id}"));
+            let params = &edge_info.ortho_protrusion_params;
+            let spacer_prot = params
+                .spacer_protrusions
+                .first()
+                .unwrap_or_else(|| panic!("Expected a spacer waypoint for edge {edge_id}"));
+
+            assert!(
+                spacer_prot.entry_protrusion < params.from_protrusion,
+                "edge {edge_id} spacer entry_protrusion {:.2} should be well below \
+                 from_protrusion {:.2} (not leaked from the node-endpoint arrow-head floor)",
+                spacer_prot.entry_protrusion,
+                params.from_protrusion,
+            );
+            assert!(
+                spacer_prot.exit_protrusion < params.to_protrusion,
+                "edge {edge_id} spacer exit_protrusion {:.2} should be well below \
+                 to_protrusion {:.2} (not leaked from the node-endpoint arrow-head floor)",
+                spacer_prot.exit_protrusion,
+                params.to_protrusion,
+            );
+        }
+    }
+}
+
+/// Regression test for a bug where a same-rank crossing edge's path still cut
+/// through its `edge_description_container`'s bounding rect, even after the
+/// entry/exit-protrusion leak (see
+/// `test_same_rank_edge_spacer_protrusion_not_inflated_by_node_protrusion`)
+/// was fixed.
+///
+/// The crossing spacer's entry/exit were resolved via the direction-oblivious
+/// generic `EdgeSpacerCoordinatesCalculator::calculate`, which always treats
+/// the container's "forward" end (matching the diagram's canonical `RankDir`)
+/// as the entry -- for `edge_dep_server_proc_1_proc_2__1` (whose divergent
+/// ancestors sit in the *reverse* order along the shared rank), this selected
+/// the far end of the crossing spacer as the nominal entry point, so the
+/// connector from the `from`-node's protrusion leg had to cut straight through
+/// the box's vertical span to reach it before turning. Fixed by resolving the
+/// crossing spacer via `calculate_description_thread_same_rank` (rotated
+/// axis, entry/exit swapped to match *this* edge's own travel direction),
+/// mirroring how the owning edge's own description contact is already
+/// resolved.
+///
+/// Asserts that no segment of the crossing edge's rendered path overlaps the
+/// description box's bounding rect (checked as an axis-aligned bounding-box
+/// test per consecutive point pair, which correctly covers this diagram's
+/// orthogonal routing: every real routing segment is horizontal or vertical,
+/// and the small `ARC_RADIUS`-rounded corners are short enough that their
+/// own bounding box is equally telling).
+#[test]
+fn test_same_rank_crossing_edge_path_does_not_cross_description_box() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_server_proc_1_proc_2__0")
+            .expect("Expected a description for edge_dep_server_proc_1_proc_2__0.");
+        let box_left_x = desc.x;
+        let box_right_x = desc.x + desc.width;
+        let box_top_y = desc.y;
+        let box_bottom_y = desc.y + desc.height;
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        let d = edge_body_path_d(&svg, "edge_dep_server_proc_1_proc_2__1");
+        let points = path_d_points(&d);
+
+        for pair in points.windows(2) {
+            let &[(x1, y1), (x2, y2)] = pair else {
+                unreachable!("windows(2) always yields pairs");
+            };
+            let seg_left_x = x1.min(x2);
+            let seg_right_x = x1.max(x2);
+            let seg_top_y = y1.min(y2);
+            let seg_bottom_y = y1.max(y2);
+
+            let overlaps_box = seg_left_x < box_right_x
+                && seg_right_x > box_left_x
+                && seg_top_y < box_bottom_y
+                && seg_bottom_y > box_top_y;
+
+            assert!(
+                !overlaps_box,
+                "Expected edge_dep_server_proc_1_proc_2__1's path segment \
+                 (({x1:.2}, {y1:.2}) -> ({x2:.2}, {y2:.2})) to stay clear of the \
+                 description box (x: {box_left_x:.2}..{box_right_x:.2}, \
+                 y: {box_top_y:.2}..{box_bottom_y:.2}), full path: {points:?}"
+            );
+        }
     }
 }

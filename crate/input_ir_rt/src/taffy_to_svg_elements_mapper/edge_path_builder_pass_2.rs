@@ -10,6 +10,7 @@ use crate::taffy_to_svg_elements_mapper::{
         EdgeFaceOffset, EdgePathBuilderPass1, NodeEdgeGeometry, SpacerCoordinates,
         BIDIRECTIONAL_OFFSET_RATIO, CURVE_CONTROL_RATIO,
     },
+    ortho_protrusion_calculator::OrthoProtrusionCalculator,
 };
 
 use disposition_svg_model::OrthoProtrusionParams;
@@ -83,6 +84,12 @@ impl EdgePathBuilderPass2 {
     ///   This is used to propagate the cycle-aware faces chosen in pass 1 so
     ///   that pass 2 produces a consistent path. When `None` the faces are
     ///   re-derived from the relative node positions.
+    /// * `description_contact`: the edge's own description box contact (see
+    ///   `SpacerCoordinatesResolver::description_contact_resolve`), applied
+    ///   unconditionally regardless of `edge_curvature`. `Curved`/`Orthogonal`
+    ///   already see it folded into `spacers`; this parameter exists so
+    ///   `DirectStraight`/`DirectCurved` -- which otherwise ignore `spacers`
+    ///   entirely -- honour it too. `None` for edges without a description.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn build(
         edge_curvature: EdgeCurvature,
@@ -94,6 +101,7 @@ impl EdgePathBuilderPass2 {
         spacers: &[SpacerCoordinates],
         ortho_protrusion: &OrthoProtrusionParams,
         face_override: Option<(NodeFace, NodeFace)>,
+        description_contact: Option<SpacerCoordinates>,
     ) -> BezPath {
         // Self-loops route through the curvature-specific builders below,
         // using the duplicated pass-1 face for both contacts. The
@@ -146,7 +154,11 @@ impl EdgePathBuilderPass2 {
             face_offset.to_offset,
         );
 
-        // Apply bidirectional offset.
+        // Apply bidirectional offset. Skipped per-endpoint when that
+        // endpoint's contact is already label-based: the label offset
+        // already separates the pair's two contacts, so stacking the
+        // bidirectional shift on top would push the contact past the
+        // node's own face bounds (see `EdgeFaceOffset::from_offset_is_label`).
         if edge_type == EdgeType::PairRequest || edge_type == EdgeType::PairResponse {
             let offset_direction = if edge_type == EdgeType::PairResponse {
                 1.0
@@ -155,27 +167,39 @@ impl EdgePathBuilderPass2 {
             };
 
             // Move start point down if this is the `PairRequest` edge.
-            match from_face {
-                NodeFace::Right | NodeFace::Left => {
-                    start_y +=
-                        from_info.height_collapsed * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                }
-                NodeFace::Top | NodeFace::Bottom => {
-                    start_x += from_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+            if !face_offset.from_offset_is_label {
+                match from_face {
+                    NodeFace::Right | NodeFace::Left => {
+                        start_y += from_info.height_collapsed
+                            * BIDIRECTIONAL_OFFSET_RATIO
+                            * offset_direction;
+                    }
+                    NodeFace::Top | NodeFace::Bottom => {
+                        start_x += from_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+                    }
                 }
             }
 
             // Move end point down if this is the `PairResponse` edge.
-            match to_face {
-                NodeFace::Right | NodeFace::Left => {
-                    end_y +=
-                        to_info.height_collapsed * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                }
-                NodeFace::Top | NodeFace::Bottom => {
-                    end_x += to_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+            if !face_offset.to_offset_is_label {
+                match to_face {
+                    NodeFace::Right | NodeFace::Left => {
+                        end_y += to_info.height_collapsed
+                            * BIDIRECTIONAL_OFFSET_RATIO
+                            * offset_direction;
+                    }
+                    NodeFace::Top | NodeFace::Bottom => {
+                        end_x += to_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
+                    }
                 }
             }
         }
+
+        // Defensive clamp: keep the contact point within the node's own
+        // face span regardless of which mechanism produced the offset
+        // (label offset, bidirectional pair offset, collision separation).
+        EdgePathBuilderPass1::face_contact_clamp(&mut start_x, &mut start_y, from_face, from_info);
+        EdgePathBuilderPass1::face_contact_clamp(&mut end_x, &mut end_y, to_face, to_info);
 
         // If either node has a circle, snap the connection point to the
         // circle perimeter instead of the rectangular face center.
@@ -191,6 +215,18 @@ impl EdgePathBuilderPass2 {
             end_x = ex;
             end_y = ey;
         }
+
+        // Direct-curvature edges get no protrusion/spacer routing at all, so
+        // without help their contact point curves away from the node
+        // immediately. Give each endpoint a short straight stub -- sized from
+        // the node's own envelope clearance on that face (the same quantity
+        // `OrthoProtrusionCalculator` uses to size protrusions for
+        // spacer-routed edges) -- so the path still travels out through the
+        // node's own edge-label region before curving toward the other
+        // endpoint. Zero on faces with no label (clearance is `0.0` there),
+        // so unlabeled direct edges are unaffected.
+        let from_stub_len = OrthoProtrusionCalculator::own_envelope_clearance(from_info, from_face);
+        let to_stub_len = OrthoProtrusionCalculator::own_envelope_clearance(to_info, to_face);
 
         // === Delegate to curvature-specific builder === //
 
@@ -245,7 +281,9 @@ impl EdgePathBuilderPass2 {
                 }
             }
             // Direct variants draw straight from the `from` node to the `to`
-            // node, ignoring `spacers` entirely.
+            // node, ignoring `spacers` entirely -- except for
+            // `description_contact`, the one waypoint applied regardless of
+            // curvature (see the parameter doc above).
             EdgeCurvature::DirectStraight => {
                 if is_self_loop {
                     EdgePathBuilderPass1::self_loop_path_build(
@@ -255,8 +293,21 @@ impl EdgePathBuilderPass2 {
                         face_offset.from_offset,
                         face_offset.to_offset,
                     )
+                } else if let Some(contact) = description_contact {
+                    EdgePathBuilderPass1::build_straight_edge_path_via_waypoint(
+                        start_x, start_y, end_x, end_y, contact,
+                    )
                 } else {
-                    EdgePathBuilderPass1::build_straight_edge_path(start_x, start_y, end_x, end_y)
+                    EdgePathBuilderPass1::build_straight_edge_path_with_stubs(
+                        start_x,
+                        start_y,
+                        end_x,
+                        end_y,
+                        from_face,
+                        to_face,
+                        from_stub_len,
+                        to_stub_len,
+                    )
                 }
             }
             EdgeCurvature::DirectCurved => {
@@ -268,8 +319,22 @@ impl EdgePathBuilderPass2 {
                         face_offset.from_offset,
                         face_offset.to_offset,
                     )
+                } else if let Some(contact) = description_contact {
+                    // Reuses the existing curved spacer-passthrough builder
+                    // (the same one `Curved` uses above) instead of new
+                    // bezier code -- a direct-curved edge with a description
+                    // simply gets one waypoint.
+                    EdgePathBuilderPass2Curve::build_spacer_edge_path(
+                        start_x,
+                        start_y,
+                        end_x,
+                        end_y,
+                        from_face,
+                        to_face,
+                        &[contact],
+                    )
                 } else {
-                    EdgePathBuilderPass1::build_curved_edge_path(
+                    EdgePathBuilderPass1::build_curved_edge_path_with_stubs(
                         start_x,
                         start_y,
                         end_x,
@@ -277,6 +342,8 @@ impl EdgePathBuilderPass2 {
                         from_face,
                         to_face,
                         CURVE_CONTROL_RATIO,
+                        from_stub_len,
+                        to_stub_len,
                     )
                 }
             }

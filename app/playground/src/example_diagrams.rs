@@ -62,6 +62,12 @@ pub enum ExampleDiagram {
     /// `render_options.interaction_edge_halo`
     /// and `type_interaction_edge_halo_forward` / `_reverse`.
     InteractionHalo,
+    /// Interaction halo with edge labels and descriptions on both dependency
+    /// and interaction edges.
+    InteractionHaloLabels,
+    /// Interaction halo with edge descriptions on cyclic dependency edges,
+    /// where the divergent ancestors share a rank.
+    InteractionHaloDescCyclic,
 }
 
 impl ExampleDiagram {
@@ -86,6 +92,8 @@ impl ExampleDiagram {
         ExampleDiagram::EdgeWaypoints,
         ExampleDiagram::EdgeOffsetsProtrusions,
         ExampleDiagram::InteractionHalo,
+        ExampleDiagram::InteractionHaloLabels,
+        ExampleDiagram::InteractionHaloDescCyclic,
     ];
 
     /// Human-readable label shown in the example selector dropdown.
@@ -110,6 +118,8 @@ impl ExampleDiagram {
             Self::EdgeWaypoints => "Edge Waypoints",
             Self::EdgeOffsetsProtrusions => "Edge Offsets & Protrusions",
             Self::InteractionHalo => "Interaction Halo",
+            Self::InteractionHaloLabels => "Interaction Halo Labels",
+            Self::InteractionHaloDescCyclic => "Interaction Halo Cyclic Descriptions",
         }
     }
 
@@ -149,6 +159,12 @@ impl ExampleDiagram {
                 asset!("/assets/example_diagrams/018_edge_offsets_and_protrusions.yaml")
             }
             Self::InteractionHalo => asset!("/assets/example_diagrams/019_interaction_halo.yaml"),
+            Self::InteractionHaloLabels => {
+                asset!("/assets/example_diagrams/020_interaction_halo_with_labels.yaml")
+            }
+            Self::InteractionHaloDescCyclic => {
+                asset!("/assets/example_diagrams/021_interaction_halo_with_desc_cyclic.yaml")
+            }
         }
     }
 

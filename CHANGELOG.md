@@ -51,6 +51,15 @@
 * Add `EntityType::InteractionEdgeHaloForward` / `InteractionEdgeHaloReverse` so interaction edge halos can be coloured differently for "requests" (forward edges) versus "responses" (reverse edges), overriding attributes from `type_interaction_edge_halo`. ([#58][#58])
 * Add `EntityType::InteractionEdgeHaloOutlineForward` / `InteractionEdgeHaloOutlineReverse` so interaction edge halo outlines can be styled. ([#58][#58])
 * Add an "Interaction Halo" playground example diagram demonstrating request / response halo colouring. ([#58][#58])
+* Support edge labels and descriptions on interaction edges. ([#59][#59])
+* Route edge description text through its edge's path, mirroring how edge labels contact one side of their node face, instead of rendering decoupled from the edge -- applied regardless of edge curvature. ([#59][#59])
+* Fix `edge_description_container` gap spacing for `RankDir::LeftToRight` / `RightToLeft` diagrams, which previously left the full rank gap between stacked descriptions instead of a tight gap. ([#59][#59])
+* Relayout edge descriptions to align with edge label positioning. ([#59][#59])
+* Cater for same-rank vs cross-rank edge description container positioning. ([#59][#59])
+* Route other edges sharing a same-rank (cycle edge) pair through a spacer around that pair's `edge_description_container`, so an edge without its own description still avoids a description box shared with its cyclic counterpart. ([#59][#59])
+* Give same-rank, adjacent-sibling edges with a spacer waypoint (e.g. an edge description contact) a protrusion floor, so the orthogonal bend clears the arrow head instead of landing inside it. ([#59][#59])
+* Stop propagating a same-rank edge's node-endpoint protrusion (sized to clear the arrow head) into its own spacer waypoint's entry/exit protrusion, which previously extended the path far past the `edge_description_container` box or crossing spacer and back, producing a spurious double bend. ([#59][#59])
+* Resolve a same-rank crossing spacer's entry/exit on the rotated axis, swapped to match that edge's own travel direction, instead of the diagram's canonical direction, so its path no longer cuts through the `edge_description_container` box it is meant to route around. ([#59][#59])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -69,6 +78,7 @@
 [#56]: https://github.com/azriel91/disposition/pull/56
 [#57]: https://github.com/azriel91/disposition/pull/57
 [#58]: https://github.com/azriel91/disposition/pull/58
+[#59]: https://github.com/azriel91/disposition/pull/59
 
 
 ## 0.3.0 (2026-06-07)

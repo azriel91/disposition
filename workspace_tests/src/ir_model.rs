@@ -74,8 +74,10 @@ fn test_parse_example_ir() {
     assert_eq!(12, diagram.edge_groups.len());
     assert_eq!(64, diagram.entity_types.len());
     // 52 base entries + 8 interaction edges each getting a `__halo` entry
-    // + 8 interaction edges each getting a `__halo_outline` entry.
-    assert_eq!(68, diagram.tailwind_classes.len());
+    // + 8 interaction edges each getting a `__halo_outline` entry
+    // + 8 interaction edges each getting a `__label_bg` entry
+    // + 8 interaction edges each getting a `__desc_bg` entry.
+    assert_eq!(84, diagram.tailwind_classes.len());
     assert_eq!(36, diagram.node_layouts.len());
     assert!(!diagram.css.is_empty());
 }

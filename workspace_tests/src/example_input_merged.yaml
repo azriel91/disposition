@@ -764,6 +764,23 @@ theme_types_styles:
       stroke_style: solid
       stroke_width: "1"
 
+  # Rendering-only style key for the background box drawn behind an
+  # interaction edge's label text, to keep it legible where it may overlap
+  # other diagram content.
+  type_interaction_edge_label_bg:
+    edge_defaults:
+      shape_color: "neutral"
+      fill_shade: "50"
+      opacity: "90"
+
+  # Rendering-only style key for the background box drawn behind an
+  # interaction edge's description text.
+  type_interaction_edge_desc_bg:
+    edge_defaults:
+      shape_color: "neutral"
+      fill_shade: "50"
+      opacity: "90"
+
   # custom styles that users can provide
   type_organisation:
     node_defaults:
