@@ -5449,14 +5449,12 @@ fn test_between_ranks_edge_description_contact_threads_through_box() {
             .expect("Expected a description for edge_dep_client_server__0.");
         let box_left_x = desc.x;
         let box_right_x = desc.x + desc.width;
-        // Halo-clearance pullback: `EdgeDescriptionBuilder::edge_desc_build`
-        // gives the description box a `halo_pad_px` top margin (half of
-        // `ThemeAttrResolver::INTERACTION_EDGE_HALO_STROKE_WIDTH_DEFAULT` =
-        // `8.0`), and `description_thread_from_rect` pulls the fixed `top_y`
-        // axis back by the same amount, so the routed path sits above the
-        // box's own rendered top edge rather than flush against it.
-        const HALO_PAD_PX: f32 = 4.0;
-        let box_top_y = desc.y - HALO_PAD_PX;
+        // `edge_dep_client_server__0` is a dependency edge, which has no
+        // interaction edge halo -- `EdgeDescriptionBuilder::edge_desc_build`
+        // gives it no halo-clearance margin, and `description_thread_from_rect`
+        // pulls back by `0.0`, so the routed path sits flush against the
+        // box's own rendered top edge with no offset.
+        let box_top_y = desc.y;
 
         let svg = SvgElementsToSvgMapper::map(&svg_elements);
         let d = edge_body_path_d(&svg, "edge_dep_client_server__0");
@@ -5518,16 +5516,12 @@ fn test_same_rank_edge_description_contact_threads_through_box() {
             .iter()
             .find(|d| d.edge_id.as_str() == "edge_dep_client_server__0")
             .expect("Expected a description for edge_dep_client_server__0.");
-        // Halo-clearance pullback: `EdgeDescriptionBuilder::edge_desc_build`
-        // gives the description box a `halo_pad_px` left margin (half of
-        // `ThemeAttrResolver::INTERACTION_EDGE_HALO_STROKE_WIDTH_DEFAULT` =
-        // `8.0`, since same-rank boxes thread on the rotated `TopToBottom`
-        // row here), and `description_thread_from_rect` pulls the fixed
-        // `left_x` axis back by the same amount, so the routed path sits to
-        // the left of the box's own rendered left edge rather than flush
-        // against it.
-        const HALO_PAD_PX: f32 = 4.0;
-        let box_left_x = desc.x - HALO_PAD_PX;
+        // `edge_dep_client_server__0` is a dependency edge, which has no
+        // interaction edge halo -- `EdgeDescriptionBuilder::edge_desc_build`
+        // gives it no halo-clearance margin, and `description_thread_from_rect`
+        // pulls back by `0.0`, so the routed path sits flush against the
+        // box's own rendered left edge with no offset.
+        let box_left_x = desc.x;
         let box_top_y = desc.y;
         let box_bottom_y = desc.y + desc.height;
 

@@ -284,24 +284,40 @@ them.
 
 ### Halo Clearance
 
-Like edge labels (see `TaffyEnvelopeBuilder::build`'s `label_margin_top_bottom_face`
-/ `label_margin_left_right_face`, and `SvgEdgeInfosBuilder::label_face_offset_compute`'s
-`- halo_pad_px` pullback), a described edge's box needs clearance from the
-interaction edge halo -- a wide path drawn `interaction_edge_halo_stroke_width / 2.0`
-("`halo_pad_px`") either side of the edge's own path -- so the halo doesn't
-visually overlap the box's rendered content. Unlike a label (which the path
-approaches and stops beside), a description box is threaded *through*, flush
-against exactly one of its own edges (see the fixed-axis tables above), so the
-clearance mechanism mirrors the label case in two coordinated halves:
+Like edge labels (see `TaffyEnvelopeBuilder::label_margin_build`, and
+`SvgEdgeInfosBuilder::label_face_offset_compute`'s `- halo_pad_px` pullback),
+a described edge's box needs clearance from the interaction edge halo -- a
+wide path drawn `interaction_edge_halo_stroke_width / 2.0` ("`halo_pad_px`")
+either side of the edge's own path -- so the halo doesn't visually overlap the
+box's rendered content. Unlike a label (which the path approaches and stops
+beside), a description box is threaded *through*, flush against exactly one
+of its own edges (see the fixed-axis tables above), so the clearance
+mechanism mirrors the label case in two coordinated halves:
 
 1. **Build time** (`EdgeDescriptionBuilder::edge_desc_build`): the description
-   leaf/`md_content_node` gets a `margin` (not `padding`) of `halo_pad_px` on
-   whichever side the routing path runs flush against.
+   leaf/`md_content_node` gets a `margin` (not `padding`) of `halo_pad_px +
+   label_margin_px` (`label_margin_px` = `TEXT_FONT_SIZE / 2.0`) on **both**
+   sides of whichever axis the routing path runs flush against.
 2. **Routing time** (`EdgeSpacerCoordinatesCalculator::description_thread_from_rect`):
-   the same fixed-axis coordinate is pulled back by `halo_pad_px`, canceling
-   the margin's push for the routing calculation only -- the path stays
-   pinned at the box's pre-margin position while the box's rendered content
-   has physically moved away by `halo_pad_px`, opening real clearance.
+   the same fixed-axis coordinate is pulled back by `halo_pad_px` only (not
+   the full margin), canceling just the halo-clearance component of the
+   margin's push for the routing calculation -- the path ends up
+   `label_margin_px` further from the box's pre-margin position (rather than
+   exactly pinned to it), so the description still reads as visually
+   associated with its edge, matching how `label_face_offset_compute`'s
+   pullback likewise only ever cancels `halo_pad_px` for edge labels.
+
+Both sides of the margin get the *same* value (rather than only the far side)
+because the fixed axis chosen below is also the axis multiple described edges
+sharing the same position are packed along (`container_style_build` mirrors
+-- cross-rank -- or inverts -- same-rank -- `rank_container_style`'s
+`flex_direction` onto that same axis, so sibling description boxes at a
+shared position stack along it). If only the far side carried the margin, a
+dependency edge (whose `halo_pad_px` is `0.0`, see below) would end up with
+*no* margin at all on the near/routing-path side, losing separation from
+whatever sits before it along the packing axis -- typically the previous
+sibling description box sharing the same position, or the container's own
+edge for the first box.
 
 Which side gets the margin/pullback follows the same fixed-axis selection as
 [Cross-Rank Contact](#cross-rank-contact) and [Same-Rank Contact](#same-rank-contact)
@@ -309,28 +325,42 @@ above:
 
 | Effective `RankDir`\* | fixed axis | margin / pullback side |
 |---|---|---|
-| `TopToBottom` / `BottomToTop` | `x = left_x` | **left** |
-| `LeftToRight` / `RightToLeft` | `y = top_y` | **top** |
+| `TopToBottom` / `BottomToTop` | `x = left_x` | **left and right** |
+| `LeftToRight` / `RightToLeft` | `y = top_y` | **top and bottom** |
 
 \* For same-rank (cycle edge) boxes, "effective `RankDir`" is `rank_dir`
 rotated via `EdgeSpacerCoordinatesCalculator::rank_dir_same_rank_rotate` --
 the same rotation `calculate_description_thread_same_rank` already applies --
-so both the build-time margin side and the routing-time pullback axis are
+so both the build-time margin axis and the routing-time pullback axis are
 derived identically and cannot drift apart. `EdgeDescriptionBuilder::edge_desc_build`
 reuses `rank_dir_same_rank_rotate` directly (re-exported `pub(crate)` from
 `taffy_to_svg_elements_mapper`) rather than re-deriving the mapping.
 
-The fixed axis chosen above is also the axis multiple described edges sharing
-the same position are packed along: `container_style_build` mirrors (cross-rank)
-or inverts (same-rank) `rank_container_style`'s `flex_direction` onto that same
-axis, so sibling description boxes at a shared position stack along it. As
-with `TaffyEnvelopeBuilder::build`'s label margins, an additional
-`label_margin_px` (`TEXT_FONT_SIZE / 2.0`) is added on the *far* side (opposite
-the routing-path side) -- e.g. `right: halo_pad_px + label_margin_px` for the
-`TopToBottom`/`BottomToTop` case -- so each box reads as visually associated
-with its own edge rather than crowding the next sibling box, matching
-`label_margin_top_bottom_face` / `label_margin_left_right_face`'s far-side
-margin exactly.
+`halo_pad_px` itself is `0.0` for **dependency** edges (`EntityType::is_dependency_edge`):
+only interaction edges render the wide interaction-edge halo (`render_options.interaction_edge_halo`),
+so a dependency edge's description has nothing to clear from a halo, and its
+routed path sits flush against the box (which still carries `label_margin_px`
+of margin on both sides, for separation from its neighbors -- see above).
+`label_margin_px` applies unconditionally to both edge kinds. Both the
+build-time margin (`EdgeDescriptionBuilder::edge_desc_build`, which looks up
+the edge's own entity types) and the routing-time pullback (each call site
+threading `interaction_edge_halo_stroke_width` into `SpacerCoordinatesResolver::resolve`
+/ `description_contact_resolve` -- `SvgEdgeInfosBuilder::build_edge_path_infos_with_offsets`,
+`face_offsets_gap_transit_separate`, and `OrthoProtrusionCalculator::calculate`
+-- substitutes `0.0` per edge based on `EdgePass1Info::is_interaction`) apply
+this exception independently, so a mismatch between the two would show up as
+either an unfilled gap (routing pulls back but the box never moved) or an
+uncleared overlap (the box moved but routing didn't compensate); keeping both
+checks in sync is required.
+
+Edge labels (`TaffyEnvelopeBuilder::label_margin_build`) apply the identical
+dependency-edge exception and both-sides margin, for the same reason: the
+label's packing axis (multiple sibling labels on the same node face) is the
+same axis the halo-clearance margin applies to, so a label-only far-side
+margin would equally lose near-side separation for dependency edges.
+`SvgEdgeInfosBuilder::face_offsets_compute` passes `0.0` for
+`interaction_edge_halo_stroke_width` per edge (via `FaceContactEntry::is_interaction`)
+when calling `label_face_offset_compute`, mirroring the description case.
 
 
 ## Step-by-Step: How Face-Label Slots Are Built

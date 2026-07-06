@@ -296,10 +296,11 @@ impl OrthoProtrusionCalculator {
     ///   `SpacerCoordinatesResolver::resolve`'s merged waypoint list.
     /// * `interaction_edge_halo_stroke_width`: resolved stroke width (pixels)
     ///   of the interaction edge halo, passed through to
-    ///   `SpacerCoordinatesResolver::resolve` so the description contact
-    ///   waypoint is pulled back by half this value, matching the
-    ///   halo-clearance margin `EdgeDescriptionBuilder::edge_desc_build`
-    ///   applies to the description box (e.g. `8.0`).
+    ///   `SpacerCoordinatesResolver::resolve` (as `0.0` for dependency edges,
+    ///   which have no halo) so the description contact waypoint is pulled back
+    ///   by half this value, matching the halo-clearance margin
+    ///   `EdgeDescriptionBuilder::edge_desc_build` applies to the description
+    ///   box (e.g. `8.0`).
     #[allow(clippy::too_many_arguments)]
     pub(super) fn calculate<'id>(
         rank_dir: RankDir,
@@ -331,13 +332,22 @@ impl OrthoProtrusionCalculator {
                     .pass1_infos
                     .iter()
                     .map(|pass1_info| {
+                        // Dependency edges have no interaction edge halo, so
+                        // their description contact needs no halo-clearance
+                        // pullback (see
+                        // `EdgeDescriptionBuilder::edge_desc_build`).
+                        let description_halo_stroke_width = if pass1_info.is_interaction {
+                            interaction_edge_halo_stroke_width
+                        } else {
+                            0.0
+                        };
                         SpacerCoordinatesResolver::resolve(
                             rank_dir,
                             &pass1_info.edge_id,
                             taffy_tree,
                             edge_spacer_taffy_nodes,
                             edge_description_taffy_nodes,
-                            interaction_edge_halo_stroke_width,
+                            description_halo_stroke_width,
                         )
                     })
                     .collect()

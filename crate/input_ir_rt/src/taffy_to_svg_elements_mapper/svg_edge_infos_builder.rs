@@ -888,6 +888,16 @@ impl SvgEdgeInfosBuilder {
                     let edge_id = &all_pass1_groups[entry.pass1_group_index].pass1_infos
                         [entry.edge_index]
                         .edge_id;
+                    // Dependency edges have no interaction edge halo, so
+                    // their label contact needs no halo-clearance pullback
+                    // (see `TaffyEnvelopeBuilder::label_margin_build`, which
+                    // likewise omits the halo-clearance margin component for
+                    // dependency edges).
+                    let label_halo_stroke_width = if entry.is_interaction {
+                        interaction_edge_halo_stroke_width
+                    } else {
+                        0.0
+                    };
                     let label_offset = Self::label_face_offset_compute(
                         node_id_and_face.face,
                         edge_id,
@@ -896,7 +906,7 @@ impl SvgEdgeInfosBuilder {
                         taffy_tree,
                         svg_node_info_map,
                         &node_id_and_face.node_id,
-                        interaction_edge_halo_stroke_width,
+                        label_halo_stroke_width,
                     );
                     (label_offset.unwrap_or(slot_offset), label_offset.is_some())
                 })
@@ -1409,6 +1419,16 @@ impl SvgEdgeInfosBuilder {
                     to_offset_is_label,
                 };
 
+                // Dependency edges have no interaction edge halo, so their
+                // description contact needs no halo-clearance pullback (see
+                // `EdgeDescriptionBuilder::edge_desc_build`, which likewise
+                // omits the halo-clearance margin for dependency edges).
+                let description_halo_stroke_width = if pass1_info.is_interaction {
+                    interaction_edge_halo_stroke_width
+                } else {
+                    0.0
+                };
+
                 // Compute spacer coordinates from spacer taffy nodes if
                 // this edge has any intermediate-rank spacers. The edge's own
                 // description contact (if any) is already folded into this
@@ -1420,7 +1440,7 @@ impl SvgEdgeInfosBuilder {
                     taffy_tree,
                     edge_spacer_taffy_nodes,
                     edge_description_taffy_nodes,
-                    interaction_edge_halo_stroke_width,
+                    description_halo_stroke_width,
                 );
 
                 // Direct-curvature edges ignore `spacer_coordinates` entirely
@@ -1432,7 +1452,7 @@ impl SvgEdgeInfosBuilder {
                     &pass1_info.edge_id,
                     taffy_tree,
                     edge_description_taffy_nodes,
-                    interaction_edge_halo_stroke_width,
+                    description_halo_stroke_width,
                 );
 
                 let ortho_protrusion_default = OrthoProtrusionParams::default();
@@ -1868,13 +1888,22 @@ impl SvgEdgeInfosBuilder {
                         Self::node_is_descendant_of(&other.edge.to, container, node_nesting_infos)
                     })
                     .filter_map(|other| {
+                        // Dependency edges have no interaction edge halo, so
+                        // their description contact needs no halo-clearance
+                        // pullback (see
+                        // `EdgeDescriptionBuilder::edge_desc_build`).
+                        let description_halo_stroke_width = if other.is_interaction {
+                            interaction_edge_halo_stroke_width
+                        } else {
+                            0.0
+                        };
                         let spacer_coordinates = SpacerCoordinatesResolver::resolve(
                             rank_dir,
                             &other.edge_id,
                             taffy_tree,
                             edge_spacer_taffy_nodes,
                             edge_description_taffy_nodes,
-                            interaction_edge_halo_stroke_width,
+                            description_halo_stroke_width,
                         );
                         Self::transit_cross_axis_before_face(
                             face,
@@ -2079,16 +2108,34 @@ impl SvgEdgeInfosBuilder {
     /// offset in that case.
     ///
     /// The returned offset is pulled back by half
-    /// `interaction_edge_halo_stroke_width` from the label's entry-side edge,
-    /// so the routed path stops short of the label rather than terminating
-    /// flush against it.
+    /// `interaction_edge_halo_stroke_width` ("`halo_pad_px`") from the
+    /// label's entry-side edge, so the routed path stops short of the label
+    /// rather than terminating flush against it.
     ///
     /// Without this, the contact point is defined as the label's own
     /// (post-layout) coordinate, so any clearance added via the label's own
-    /// margin (see `TaffyEnvelopeBuilder::build`) would shift both the label
-    /// and the path by the same amount and never open up a visible gap -- the
-    /// halo, being centered on the path, would still overlap the label by half
-    /// its stroke width.
+    /// margin (see `TaffyEnvelopeBuilder::label_margin_build`) would shift
+    /// both the label and the path by the same amount and never open up a
+    /// visible gap -- the halo, being centered on the path, would still
+    /// overlap the label by half its stroke width.
+    ///
+    /// `label_margin_build` gives the label slot `margin` of `halo_pad_px +
+    /// label_margin_px` on *both* sides of the packing axis (not just the far
+    /// side), but this pullback only ever cancels the `halo_pad_px`
+    /// component -- so after cancellation, the routed path still ends up
+    /// `label_margin_px` further from the face midpoint than the label's
+    /// pre-margin position, leaving the label visibly associated with its
+    /// edge rather than flush against the contact point. This is intentional
+    /// and mirrors `EdgeDescriptionBuilder::edge_desc_build`'s equivalent
+    /// margin/pullback split for edge descriptions.
+    ///
+    /// The caller (`Self::face_offsets_compute`) passes `0.0` for
+    /// `interaction_edge_halo_stroke_width` when the edge is a dependency
+    /// edge (`!FaceContactEntry::is_interaction`), since dependency edges
+    /// render no interaction edge halo and so have nothing to pull back from
+    /// -- only the `label_margin_px` component of the label's own margin
+    /// applies in that case, matching `label_margin_build`'s halo-clearance
+    /// exception for dependency edges.
     #[allow(clippy::too_many_arguments)]
     fn label_face_offset_compute<'id>(
         face: NodeFace,

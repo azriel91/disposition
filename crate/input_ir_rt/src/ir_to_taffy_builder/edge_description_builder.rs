@@ -5,7 +5,7 @@ use disposition_ir_model::{
     entity::EntityType,
     node::{NodeId, NodeRank},
 };
-use disposition_model_common::{edge::EdgeGroupId, Map, RankDir};
+use disposition_model_common::{edge::EdgeGroupId, Id, Map, RankDir};
 use disposition_taffy_model::{
     taffy::{self, style::FlexDirection, AlignSelf, Rect, Style, TaffyTree},
     DiagramLod, EdgeDescriptionCtx, EdgeDescriptionTaffyNodes, TaffyNodeCtx, TEXT_FONT_SIZE,
@@ -500,24 +500,43 @@ impl EdgeDescriptionBuilder {
         // Step 2.2.8b -- Compute halo-clearance margin.
         //
         // Mirrors `TaffyEnvelopeBuilder::build`'s edge label margins: the
-        // description box gets `margin` (not `padding`) on whichever side the
-        // routing path (`EdgeSpacerCoordinatesCalculator::
-        // calculate_description_thread`/`calculate_description_thread_same_rank`)
-        // runs flush against, so the wide interaction-edge halo doesn't
-        // visually overlap the box's rendered content. The routing
-        // calculation pulls the same axis back by the same amount (see
-        // `EdgeSpacerCoordinatesCalculator::description_thread_from_rect`),
-        // so the path stays pinned at the box's pre-margin position while the
-        // box itself physically moves away by `halo_pad_px`.
+        // description box gets `margin` (not `padding`) of `halo_pad_px +
+        // label_margin_px` on *both* sides of whichever axis the routing path
+        // (`EdgeSpacerCoordinatesCalculator::calculate_description_thread`/
+        // `calculate_description_thread_same_rank`) runs flush against, so
+        // the wide interaction-edge halo doesn't visually overlap the box's
+        // rendered content, and adjacent description boxes sharing that axis
+        // (see below) keep visual separation.
+        //
+        // Both sides get the *same* margin (rather than only the far side)
+        // so the routing-path side still reserves `label_margin_px` of
+        // breathing room even after the routing calculation cancels out the
+        // `halo_pad_px` component (see below) -- otherwise a dependency edge
+        // (whose `halo_pad_px` is `0.0`) would end up with no margin at all on
+        // that side, losing the separation from whatever sits before it
+        // along the packing axis (typically the previous sibling description
+        // box sharing the same position, or the container's own edge).
+        //
+        // The routing calculation (`EdgeSpacerCoordinatesCalculator::
+        // description_thread_from_rect`) only pulls the axis back by
+        // `halo_pad_px`, not the full margin, so the path ends up
+        // `label_margin_px` further out from the box's pre-margin position --
+        // this is intentional (mirrors `SvgEdgeInfosBuilder::
+        // label_face_offset_compute`'s label pullback, which likewise only
+        // ever cancels `halo_pad_px`), so the description reads as visually
+        // associated with its edge rather than flush against it.
         //
         // That axis is also the axis multiple described edges sharing the
         // same position are packed along (`container_style_build` mirrors --
         // or, for same-rank boxes, inverts -- `rank_container_style`'s
         // `flex_direction` onto the same axis the fixed-axis choice below
-        // uses), so as with `TaffyEnvelopeBuilder::build`'s label margins, an
-        // additional `label_margin_px` is added on the far side (opposite the
-        // routing-path side) so each box reads as visually associated with
-        // its own edge rather than crowding the next sibling box.
+        // uses).
+        //
+        // `halo_pad_px` is `0.0` for dependency edges (`EntityType::
+        // is_dependency_edge`): only interaction edges render the wide
+        // interaction-edge halo, so a dependency edge's description has
+        // nothing to clear on the routing-path side. `label_margin_px`
+        // applies unconditionally to both dependency and interaction edges.
         //
         // Same-rank (cycle edge) boxes are threaded on the *rotated* axis
         // (see `EdgeSpacerCoordinatesCalculator::rank_dir_same_rank_rotate`),
@@ -534,20 +553,32 @@ impl EdgeDescriptionBuilder {
                 )
             }
         };
-        let halo_pad_px = ctx.interaction_edge_halo_stroke_width / 2.0;
+        // Dependency edges have no interaction edge halo, so their
+        // descriptions don't need clearance from one -- only interaction
+        // edges get the `halo_pad_px` component of the margin.
+        let is_dependency_edge = entity_types
+            .get(AsRef::<Id<'_>>::as_ref(edge_id))
+            .map(|edge_entity_types| edge_entity_types.iter().any(EntityType::is_dependency_edge))
+            .unwrap_or(false);
+        let halo_pad_px = if is_dependency_edge {
+            0.0
+        } else {
+            ctx.interaction_edge_halo_stroke_width / 2.0
+        };
         let label_margin_px = TEXT_FONT_SIZE / 2.0;
+        let description_margin_px = halo_pad_px + label_margin_px;
         let description_margin = match margin_rank_dir {
             RankDir::TopToBottom | RankDir::BottomToTop => Rect {
-                left: LengthPercentageAuto::length(halo_pad_px),
-                right: LengthPercentageAuto::length(halo_pad_px + label_margin_px),
+                left: LengthPercentageAuto::length(description_margin_px),
+                right: LengthPercentageAuto::length(description_margin_px),
                 top: LengthPercentageAuto::length(0.0),
                 bottom: LengthPercentageAuto::length(0.0),
             },
             RankDir::LeftToRight | RankDir::RightToLeft => Rect {
                 left: LengthPercentageAuto::length(0.0),
                 right: LengthPercentageAuto::length(0.0),
-                top: LengthPercentageAuto::length(halo_pad_px),
-                bottom: LengthPercentageAuto::length(halo_pad_px + label_margin_px),
+                top: LengthPercentageAuto::length(description_margin_px),
+                bottom: LengthPercentageAuto::length(description_margin_px),
             },
         };
 
