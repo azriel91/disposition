@@ -159,7 +159,7 @@ impl EdgeSpacerCoordinatesCalculator {
     ///
     /// `interaction_edge_halo_stroke_width` pulls the fixed-axis coordinate
     /// back by half its value (`halo_pad_px`), mirroring
-    /// `SvgEdgeInfosBuilder::label_face_offset_compute`'s `- halo_pad_px`
+    /// `SvgEdgeInfosBuilder::label_face_span_compute`'s `- halo_pad_px`
     /// pullback for edge labels: `EdgeDescriptionBuilder::edge_desc_build`
     /// gives the description box a matching `halo_pad_px` margin on the same
     /// fixed-axis side, so the pullback here cancels that margin's push for

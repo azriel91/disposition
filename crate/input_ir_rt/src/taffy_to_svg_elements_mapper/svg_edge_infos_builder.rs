@@ -844,6 +844,45 @@ impl SvgEdgeInfosBuilder {
                 node_id_and_face.face,
                 svg_node_info_map,
             );
+
+            // Resolve every entry's own label span up front, regardless of
+            // kind. An entry with real label content uses its own `near`
+            // offset directly (below); every resolved span (from either
+            // kind) is also kept as `label_spans_occupied` so the slot-based
+            // fallback can steer clear of real label geometry it would
+            // otherwise be blind to (see
+            // `Self::face_offsets_slot_offset_labels_clear`).
+            let label_spans: Vec<Option<LabelFaceSpan>> = face_contact_entries
+                .iter()
+                .map(|entry| {
+                    let edge_id = &all_pass1_groups[entry.pass1_group_index].pass1_infos
+                        [entry.edge_index]
+                        .edge_id;
+                    // Dependency edges have no interaction edge halo, so
+                    // their label contact needs no halo-clearance pullback
+                    // (see `TaffyEnvelopeBuilder::label_margin_build`, which
+                    // likewise omits the halo-clearance margin component for
+                    // dependency edges).
+                    let label_halo_stroke_width = if entry.is_interaction {
+                        interaction_edge_halo_stroke_width
+                    } else {
+                        0.0
+                    };
+                    Self::label_face_span_compute(
+                        node_id_and_face.face,
+                        edge_id,
+                        entry.is_from_endpoint,
+                        edge_label_taffy_nodes,
+                        taffy_tree,
+                        svg_node_info_map,
+                        &node_id_and_face.node_id,
+                        label_halo_stroke_width,
+                    )
+                })
+                .collect();
+            let label_spans_occupied: Vec<LabelFaceSpan> =
+                label_spans.iter().filter_map(|span| *span).collect();
+
             // Compute slot-based fallback offsets per kind so dependency and
             // interaction contacts each fan symmetrically around the face
             // midpoint. Entries are ordered `[dependencies.., interactions..]`,
@@ -859,56 +898,37 @@ impl SvgEdgeInfosBuilder {
                 .filter(|face_contact_entry| !face_contact_entry.is_interaction)
                 .count();
             let interaction_count = face_contact_entries.len() - dependency_count;
-            let slot_based_offsets: Vec<f32> = face_contact_entries
-                .iter()
-                .enumerate()
-                .map(|(slot_index, face_contact_entry)| {
-                    let (within_kind_index, kind_count) = if face_contact_entry.is_interaction {
-                        (slot_index - dependency_count, interaction_count)
-                    } else {
-                        (slot_index, dependency_count)
-                    };
-                    EdgeFaceContactTracker::offset_for_index(
-                        within_kind_index,
-                        kind_count,
-                        face_length,
-                    )
-                })
-                .collect();
 
             // Substitute label-based offsets where the edge has a
-            // non-zero description label on this face. Also record whether
+            // non-zero description label on this face; otherwise fall back
+            // to the per-kind slot arithmetic, nudged clear of any real
+            // label span from either kind on this face. Also record whether
             // each offset is label-based, so `EdgePathBuilderPass2::build`
             // can avoid additionally applying the bidirectional pair offset
             // on top of it (see `EdgeContactPointOffsets::is_label_based`).
             let (mut offsets, is_label_based): (Vec<f32>, Vec<bool>) = face_contact_entries
                 .iter()
-                .zip(slot_based_offsets)
-                .map(|(entry, slot_offset)| {
-                    let edge_id = &all_pass1_groups[entry.pass1_group_index].pass1_infos
-                        [entry.edge_index]
-                        .edge_id;
-                    // Dependency edges have no interaction edge halo, so
-                    // their label contact needs no halo-clearance pullback
-                    // (see `TaffyEnvelopeBuilder::label_margin_build`, which
-                    // likewise omits the halo-clearance margin component for
-                    // dependency edges).
-                    let label_halo_stroke_width = if entry.is_interaction {
-                        interaction_edge_halo_stroke_width
+                .zip(label_spans)
+                .enumerate()
+                .map(|(slot_index, (face_contact_entry, label_span))| {
+                    if let Some(label_span) = label_span {
+                        return (label_span.near, true);
+                    }
+                    let (within_kind_index, kind_count) = if face_contact_entry.is_interaction {
+                        (slot_index - dependency_count, interaction_count)
                     } else {
-                        0.0
+                        (slot_index, dependency_count)
                     };
-                    let label_offset = Self::label_face_offset_compute(
-                        node_id_and_face.face,
-                        edge_id,
-                        entry.is_from_endpoint,
-                        edge_label_taffy_nodes,
-                        taffy_tree,
-                        svg_node_info_map,
-                        &node_id_and_face.node_id,
-                        label_halo_stroke_width,
+                    let slot_offset = EdgeFaceContactTracker::offset_for_index(
+                        within_kind_index,
+                        kind_count,
+                        face_length,
                     );
-                    (label_offset.unwrap_or(slot_offset), label_offset.is_some())
+                    let cleared_offset = Self::face_offsets_slot_offset_labels_clear(
+                        slot_offset,
+                        &label_spans_occupied,
+                    );
+                    (cleared_offset, false)
                 })
                 .unzip();
 
@@ -2087,37 +2107,29 @@ impl SvgEdgeInfosBuilder {
         }
     }
 
-    /// Computes the edge contact point offset using the position of the edge's
-    /// label taffy node.
+    /// Computes the signed offset span (from the face midpoint) occupied by
+    /// an edge's own label taffy node on `face`, or `None` when the label has
+    /// no real content (i.e. no description text on this face).
     ///
-    /// Returns the signed pixel distance from the face midpoint to the label
-    /// leaf's entry-side edge along the face axis.  The entry side is the
-    /// edge of the label that the path arrives at first, which depends on
-    /// `rank_dir` and `face`:
+    /// `near` is the entry-side edge of the label -- the edge of the label
+    /// the path arrives at first, always the left x (`Top`/`Bottom` faces)
+    /// or top y (`Left`/`Right` faces): sibling insertion order is reversed
+    /// for reversed rank directions (see `TaffyContainerBuilder::
+    /// rank_taffy_ids_reverse_if_direction_reversed`), so the entry side is
+    /// the same for all `RankDir` values. `far` is the opposite edge of the
+    /// label. Both are already adjusted by half
+    /// `interaction_edge_halo_stroke_width` ("`halo_pad_px`") -- `near`
+    /// pulled back, `far` pushed out -- so `[near, far]` covers the label's
+    /// full rendered footprint plus halo clearance, and a contact placed
+    /// exactly at `near` stops short of the label rather than terminating
+    /// flush against it.
     ///
-    /// - `Top`/`Bottom` faces:
-    ///   - `TopToBottom`, `LeftToRight`, `RightToLeft`: left x (`label_abs_x`)
-    ///   - `BottomToTop`: right x (`label_abs_x + label_width`)
-    /// - `Left`/`Right` faces:
-    ///   - `LeftToRight`, `TopToBottom`, `BottomToTop`: top y (`label_abs_y`)
-    ///   - `RightToLeft`: bottom y (`label_abs_y + label_height`)
-    ///
-    /// Returns `None` when no label node is recorded for this edge endpoint, or
-    /// when the label has zero size along the face axis (indicating no
-    /// description text).  The caller should fall back to the slot-based
-    /// offset in that case.
-    ///
-    /// The returned offset is pulled back by half
-    /// `interaction_edge_halo_stroke_width` ("`halo_pad_px`") from the
-    /// label's entry-side edge, so the routed path stops short of the label
-    /// rather than terminating flush against it.
-    ///
-    /// Without this, the contact point is defined as the label's own
-    /// (post-layout) coordinate, so any clearance added via the label's own
-    /// margin (see `TaffyEnvelopeBuilder::label_margin_build`) would shift
-    /// both the label and the path by the same amount and never open up a
-    /// visible gap -- the halo, being centered on the path, would still
-    /// overlap the label by half its stroke width.
+    /// Without the `halo_pad_px` pullback, the contact point would be the
+    /// label's own (post-layout) coordinate, so any clearance added via the
+    /// label's own margin (see `TaffyEnvelopeBuilder::label_margin_build`)
+    /// would shift both the label and the path by the same amount and never
+    /// open up a visible gap -- the halo, being centered on the path, would
+    /// still overlap the label by half its stroke width.
     ///
     /// `label_margin_build` gives the label slot `margin` of `halo_pad_px +
     /// label_margin_px` on *both* sides of the packing axis (not just the far
@@ -2137,7 +2149,7 @@ impl SvgEdgeInfosBuilder {
     /// applies in that case, matching `label_margin_build`'s halo-clearance
     /// exception for dependency edges.
     #[allow(clippy::too_many_arguments)]
-    fn label_face_offset_compute<'id>(
+    fn label_face_span_compute<'id>(
         face: NodeFace,
         edge_id: &EdgeId<'id>,
         is_from_endpoint: bool,
@@ -2146,20 +2158,21 @@ impl SvgEdgeInfosBuilder {
         svg_node_info_map: &SvgNodeInfoByNodeId<'_, 'id>,
         node_id: &NodeId<'id>,
         interaction_edge_halo_stroke_width: f32,
-    ) -> Option<f32> {
+    ) -> Option<LabelFaceSpan> {
         let halo_pad_px = interaction_edge_halo_stroke_width / 2.0;
         let edge_label_taffy_node_ids = edge_label_taffy_nodes.get(edge_id)?;
-        // Only route the contact to the label when the label actually has
-        // content. Every edge -- even one without a description -- gets a
-        // padded label leaf (non-zero width), so a width check alone would
-        // always treat the leaf as a real label and pin the contact to the
-        // leaf's pre-layout position (ordered structurally by
-        // `NodeFaceEdges`, not by where the edge geometrically approaches the
-        // face). Descriptionless edges therefore fall back to the
-        // coordinate-aware slot logic in `face_offsets_compute`, which knows
-        // the real layout positions and spreads dependency and interaction
-        // edges in separate pools. `*_md_node_taffy_ids` is `Some` only when
-        // the corresponding label text is non-empty.
+        // Only treat the label as real when it actually has content. Every
+        // edge -- even one without a description -- gets a padded label leaf
+        // (non-zero width), so a width check alone would always treat the
+        // leaf as a real label and pin the contact to the leaf's pre-layout
+        // position (ordered structurally by `NodeFaceEdges`, not by where the
+        // edge geometrically approaches the face). Descriptionless edges
+        // therefore fall back to the coordinate-aware slot logic in
+        // `face_offsets_compute`, which knows the real layout positions and
+        // spreads dependency and interaction edges in separate pools --
+        // nudged clear of any real label span returned here (see
+        // `Self::face_offsets_slot_offset_labels_clear`). `*_md_node_taffy_ids`
+        // is `Some` only when the corresponding label text is non-empty.
         let (taffy_node_id, label_md_node_taffy_ids) = if is_from_endpoint {
             (
                 edge_label_taffy_node_ids.from_label_taffy_node_id?,
@@ -2187,10 +2200,10 @@ impl SvgEdgeInfosBuilder {
                         taffy_node_id,
                         layout,
                     );
-                // Route to just short of the entry-side (left x) edge of the
-                // label, so the halo doesn't overlap the label's background.
-                let label_contact_x = label_abs_x - halo_pad_px;
-                Some(label_contact_x - face_midpoint)
+                Some(LabelFaceSpan {
+                    near: (label_abs_x - halo_pad_px) - face_midpoint,
+                    far: (label_abs_x + label_width + halo_pad_px) - face_midpoint,
+                })
             }
             NodeFace::Left | NodeFace::Right => {
                 if label_height == 0.0 {
@@ -2202,12 +2215,57 @@ impl SvgEdgeInfosBuilder {
                         taffy_node_id,
                         layout,
                     );
-                // Route to just short of the entry-side (top y) edge of the
-                // label, so the halo doesn't overlap the label's background.
-                let label_contact_y = label_abs_y - halo_pad_px;
-                Some(label_contact_y - face_midpoint)
+                Some(LabelFaceSpan {
+                    near: (label_abs_y - halo_pad_px) - face_midpoint,
+                    far: (label_abs_y + label_height + halo_pad_px) - face_midpoint,
+                })
             }
         }
+    }
+
+    /// Nudges a slot-based fallback offset clear of any real label span on
+    /// the same face.
+    ///
+    /// The per-kind slot arithmetic
+    /// (`EdgeFaceContactTracker::offset_for_index`) has no awareness of
+    /// where any edge's *real* label rendered -- including a co-located
+    /// edge from the *other* kind pool (see the "Edge-kind pools" doc
+    /// comment on `Self::face_offsets_compute`) -- so a fallback
+    /// contact can land inside a real label's box. When `slot_offset` falls
+    /// inside one of `label_spans_occupied` (with `CONTACT_GAP_MIN_PX`
+    /// clearance), this shifts it to whichever edge of that span is nearer,
+    /// so the contact clears the label while staying as close as possible to
+    /// its originally-computed (symmetrically fanned) position.
+    ///
+    /// Returns `slot_offset` unchanged when it is already clear of every
+    /// span -- in particular, a face with no real labels at all (e.g.
+    /// `0044_edge_offsets_and_protrusion_complex_2`, where every edge uses
+    /// the fallback) never enters the nudging loop, so it is byte-for-byte
+    /// unchanged.
+    fn face_offsets_slot_offset_labels_clear(
+        slot_offset: f32,
+        label_spans_occupied: &[LabelFaceSpan],
+    ) -> f32 {
+        let mut offset = slot_offset;
+        // A handful of iterations is enough to step clear of multiple labels
+        // stacked on the same face; real diagrams rarely have more than one
+        // or two per face, and each iteration strictly increases separation
+        // from the offending span, so this cannot oscillate.
+        for _ in 0..4 {
+            let Some(span) = label_spans_occupied.iter().find(|span| {
+                offset > span.near - CONTACT_GAP_MIN_PX && offset < span.far + CONTACT_GAP_MIN_PX
+            }) else {
+                break;
+            };
+            let near_side = span.near - CONTACT_GAP_MIN_PX;
+            let far_side = span.far + CONTACT_GAP_MIN_PX;
+            offset = if (near_side - offset).abs() <= (far_side - offset).abs() {
+                near_side
+            } else {
+                far_side
+            };
+        }
+        offset
     }
 
     /// Returns whether the focus mode bakes a process step that is associated
@@ -2395,6 +2453,21 @@ impl SvgEdgeInfosBuilder {
 }
 
 // === Supporting types === //
+
+/// The span occupied by an edge's own real label taffy node along the face
+/// axis, expressed as signed pixel offsets from the face midpoint -- the
+/// same units as `EdgeContactPointOffsets` -- so it can be compared directly
+/// against a slot-based fallback offset.
+///
+/// `near <= far` always holds: `near` is the entry-side edge of the label (the
+/// side a contact is routed to, see
+/// `SvgEdgeInfosBuilder::label_face_span_compute`), `far` is the opposite edge,
+/// and both are already adjusted outward by the halo clearance.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct LabelFaceSpan {
+    near: f32,
+    far: f32,
+}
 
 /// A single contact entry used during the per-face sorting phase.
 ///

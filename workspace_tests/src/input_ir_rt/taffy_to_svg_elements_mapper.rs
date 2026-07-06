@@ -5767,3 +5767,66 @@ fn test_same_rank_crossing_edge_path_does_not_cross_description_box() {
         }
     }
 }
+
+// === Fallback contact vs. co-located real label geometry tests === //
+
+/// Regression test for a bug where a label-less edge's slot-based fallback
+/// contact point landed inside a *different*, co-located edge's real
+/// (text-bearing) label box.
+///
+/// `edge_dep_client_server__1` (`t_server -> t_client`) has no entry in
+/// `edge_labels`, so its `t_server`-side contact comes from the per-kind
+/// slot-arithmetic fallback (see "Edge-kind pools" in
+/// `SvgEdgeInfosBuilder::face_offsets_compute`). `edge_ix_client_server__0`
+/// (`t_client -> t_server`) is a co-located interaction edge that *does* have
+/// a label on the same `t_server` face (its `to_label`, text: `"c/s to"`).
+/// Before the fix, the fallback arithmetic centered independently per kind
+/// and had no awareness of the interaction edge's real label geometry, so
+/// `edge_dep_client_server__1`'s path clipped through the label's rendered
+/// box. Asserts no segment of its rendered path overlaps that box (same
+/// axis-aligned bounding-box check per consecutive point pair as
+/// `test_same_rank_crossing_edge_path_does_not_cross_description_box`).
+#[test]
+fn test_fallback_contact_clears_co_located_interaction_label_box() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        let to_label = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|label| label.edge_id.as_str() == "edge_ix_client_server__0")
+            .and_then(|label| label.to_label.as_ref())
+            .expect("Expected edge_ix_client_server__0 to have a to_label with real content");
+        let box_left_x = to_label.x;
+        let box_right_x = to_label.x + to_label.width;
+        let box_top_y = to_label.y;
+        let box_bottom_y = to_label.y + to_label.height;
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        let d = edge_body_path_d(&svg, "edge_dep_client_server__1");
+        let points = path_d_points(&d);
+
+        for pair in points.windows(2) {
+            let &[(x1, y1), (x2, y2)] = pair else {
+                unreachable!("windows(2) always yields pairs");
+            };
+            let seg_left_x = x1.min(x2);
+            let seg_right_x = x1.max(x2);
+            let seg_top_y = y1.min(y2);
+            let seg_bottom_y = y1.max(y2);
+
+            let overlaps_box = seg_left_x < box_right_x
+                && seg_right_x > box_left_x
+                && seg_top_y < box_bottom_y
+                && seg_bottom_y > box_top_y;
+
+            assert!(
+                !overlaps_box,
+                "Expected edge_dep_client_server__1's path segment \
+                 (({x1:.2}, {y1:.2}) -> ({x2:.2}, {y2:.2})) to stay clear of \
+                 edge_ix_client_server__0's to_label box (x: {box_left_x:.2}..{box_right_x:.2}, \
+                 y: {box_top_y:.2}..{box_bottom_y:.2}), full path: {points:?}"
+            );
+        }
+    }
+}

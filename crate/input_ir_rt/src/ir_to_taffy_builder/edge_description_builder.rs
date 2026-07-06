@@ -531,7 +531,7 @@ impl EdgeDescriptionBuilder {
         // `halo_pad_px`, not the full margin, so the path ends up
         // `label_margin_px` further out from the box's pre-margin position --
         // this is intentional (mirrors `SvgEdgeInfosBuilder::
-        // label_face_offset_compute`'s label pullback, which likewise only
+        // label_face_span_compute`'s label pullback, which likewise only
         // ever cancels `halo_pad_px`), so the description reads as visually
         // associated with its edge rather than flush against it.
         //

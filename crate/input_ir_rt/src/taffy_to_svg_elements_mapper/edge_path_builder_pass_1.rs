@@ -30,7 +30,7 @@ pub(super) struct EdgeFaceOffset {
     /// `10.0` -- edge shifted 10 px right/down from the face midpoint.
     pub(super) to_offset: f32,
     /// Whether `from_offset` came from an edge's own label content (via
-    /// `label_face_offset_compute`) rather than the slot-based fallback.
+    /// `label_face_span_compute`) rather than the slot-based fallback.
     ///
     /// A label-based offset already separates a symmetric edge pair's two
     /// contacts, so `EdgePathBuilderPass2::build` must not additionally

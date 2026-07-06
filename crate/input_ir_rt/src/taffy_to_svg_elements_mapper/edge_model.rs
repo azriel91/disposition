@@ -90,7 +90,7 @@ pub(super) struct PathBounds {
 #[derive(Clone, Debug, Default)]
 pub(super) struct EdgeContactPointOffsets {
     offsets: Vec<f32>,
-    /// Whether each offset came from `label_face_offset_compute` (routed to
+    /// Whether each offset came from `label_face_span_compute` (routed to
     /// an edge's own label content) rather than the slot-based fallback.
     ///
     /// A label-based offset already separates a symmetric edge pair's two

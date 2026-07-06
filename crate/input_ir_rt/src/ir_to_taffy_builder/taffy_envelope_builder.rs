@@ -508,7 +508,7 @@ impl TaffyEnvelopeBuilder {
     ///
     /// Both sides of the packing axis get the *same* margin (`halo_pad_px +
     /// label_margin_px`), not just the far side -- `SvgEdgeInfosBuilder::
-    /// label_face_offset_compute`'s routing pullback only ever cancels the
+    /// label_face_span_compute`'s routing pullback only ever cancels the
     /// `halo_pad_px` component (see its doc comment), so if the entry side
     /// only carried `halo_pad_px` here, a dependency edge (`halo_pad_px ==
     /// 0.0`) would end up with no margin at all on that side, losing
