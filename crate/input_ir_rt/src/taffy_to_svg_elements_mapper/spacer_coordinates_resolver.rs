@@ -2,7 +2,7 @@ use disposition_ir_model::{edge::EdgeId, node::NodeRank};
 use disposition_model_common::RankDir;
 use disposition_taffy_model::{
     taffy::TaffyTree, EdgeIdToEdgeDescriptionTaffyNodes, EdgeIdToEdgeSpacerTaffyNodes,
-    EdgeSpacerTaffyNodes, TaffyNodeCtx,
+    EdgeSpacerCtx, EdgeSpacerTaffyNodes, TaffyNodeCtx,
 };
 
 use crate::taffy_to_svg_elements_mapper::{
@@ -86,6 +86,24 @@ impl SpacerCoordinatesResolver {
             taffy_tree,
             &spacer_nodes.edge_desc_container_spacer_taffy_node_ids,
         );
+        // Same-rank (cycle edge) crossing spacers are resolved via the same
+        // direction-aware thread-through calculation used for the owning
+        // edge's own description contact
+        // (`calculate_description_thread_same_rank`), not the direction-oblivious
+        // generic `calculate`. A same-rank container's children stack
+        // perpendicular to the edge's own travel direction, so a crossing
+        // edge's approach direction relative to the container (which of its
+        // two ends it reaches first) is not always the "forward" convention
+        // baked into `calculate`; resolving with that convention regardless
+        // can select the far end as the nominal "entry", forcing the
+        // connector to cut through the container's interior to reach it
+        // before the near end is threaded. See
+        // [`Self::same_rank_spacers_calculate`].
+        let same_rank_edge_desc_container_spacers = Self::same_rank_spacers_calculate(
+            rank_dir,
+            taffy_tree,
+            &spacer_nodes.same_rank_edge_desc_container_spacer_taffy_node_ids,
+        );
         // Text-content spacers are deliberately **not** snapped onto the
         // cross-container column: each is a local waypoint at its node's text
         // band so the edge only bows around that label, rather than having its
@@ -105,6 +123,7 @@ impl SpacerCoordinatesResolver {
 
         if cross_container_spacers.is_empty()
             && edge_desc_container_spacers.is_empty()
+            && same_rank_edge_desc_container_spacers.is_empty()
             && text_content_spacers.is_empty()
             && description_contact.is_none()
         {
@@ -120,6 +139,7 @@ impl SpacerCoordinatesResolver {
             .map(|(_rank, spacer_coordinates)| spacer_coordinates)
             .chain(cross_container_spacers)
             .chain(edge_desc_container_spacers)
+            .chain(same_rank_edge_desc_container_spacers)
             .chain(text_content_spacers)
             .chain(description_contact)
             .collect();
@@ -276,6 +296,46 @@ impl SpacerCoordinatesResolver {
             .iter()
             .filter_map(|&taffy_node_id| {
                 EdgeSpacerCoordinatesCalculator::calculate(rank_dir, taffy_tree, taffy_node_id)
+            })
+            .collect()
+    }
+
+    /// Calculates spacer coordinates for a slice of same-rank (cycle edge)
+    /// crossing spacer taffy node IDs, dropping any whose layout or context
+    /// cannot be resolved.
+    ///
+    /// Unlike [`Self::spacers_calculate`], each spacer's entry/exit are
+    /// resolved via `EdgeSpacerCoordinatesCalculator::calculate_description_thread_same_rank`,
+    /// using the `same_rank_sibling_index_from_cmp_to` ordering recorded on
+    /// the spacer's own `EdgeSpacerCtx` (set by
+    /// `EdgeSpacerBuilder::build_edge_desc_container_spacers_for_edge_same_rank`)
+    /// so the thread-through direction matches this edge's own approach,
+    /// rather than the container's `BetweenRanks` "forward" convention.
+    /// `interaction_edge_halo_stroke_width` is `0.0`: a plain `EdgeSpacer`
+    /// leaf has no halo-clearance margin to cancel (unlike the description
+    /// box itself), so no pullback is needed.
+    fn same_rank_spacers_calculate(
+        rank_dir: RankDir,
+        taffy_tree: &TaffyTree<TaffyNodeCtx>,
+        spacer_taffy_node_ids: &[taffy::NodeId],
+    ) -> Vec<SpacerCoordinates> {
+        spacer_taffy_node_ids
+            .iter()
+            .filter_map(|&taffy_node_id| {
+                let Some(TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
+                    same_rank_sibling_index_from_cmp_to: Some(sibling_index_from_cmp_to),
+                    ..
+                })) = taffy_tree.get_node_context(taffy_node_id)
+                else {
+                    return None;
+                };
+                EdgeSpacerCoordinatesCalculator::calculate_description_thread_same_rank(
+                    rank_dir,
+                    taffy_tree,
+                    taffy_node_id,
+                    *sibling_index_from_cmp_to,
+                    0.0,
+                )
             })
             .collect()
     }

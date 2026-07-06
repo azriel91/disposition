@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use disposition_ir_model::{
     edge::{Edge, EdgeId},
@@ -14,7 +17,10 @@ use taffy::AlignSelf;
 
 use crate::EdgeIdGenerator;
 
-use super::{rank_sibling_inserter::RankSiblingInserter, taffy_build_ctx::TaffyBuildCtx};
+use super::{
+    rank_and_sibling_index_middle::RankAndSiblingIndexMiddle,
+    rank_sibling_inserter::RankSiblingInserter, taffy_build_ctx::TaffyBuildCtx,
+};
 
 pub use self::{
     edge_spacer_build_decider::EdgeSpacerBuildDecider,
@@ -523,6 +529,7 @@ impl EdgeSpacerBuilder {
                         TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
                             edge_id: edge_id.clone(),
                             rank: NodeRank::new(0),
+                            same_rank_sibling_index_from_cmp_to: None,
                         }),
                     )
                     .expect("Expected to create text-content spacer leaf node.");
@@ -701,6 +708,7 @@ impl EdgeSpacerBuilder {
                         TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
                             edge_id: edge_id.clone(),
                             rank: sibling_rank,
+                            same_rank_sibling_index_from_cmp_to: None,
                         }),
                     )
                     .expect("Expected to create cross-container spacer leaf node.");
@@ -748,12 +756,21 @@ impl EdgeSpacerBuilder {
     /// Only `edge_desc_container_spacer_taffy_node_ids` is populated in the
     /// returned `EdgeSpacerTaffyNodes` values; callers must merge into any
     /// existing rank or cross-container spacer entries.
+    ///
+    /// `same_rank_position_to_container_ids` is the same-rank (cycle edge)
+    /// counterpart of `position_to_container_ids`: an edge whose own divergent
+    /// ancestors share a rank (a cycle edge) requires a spacer in a same-rank
+    /// container at `(rank, sibling_index_middle)` when that
+    /// `sibling_index_middle` falls between this edge's own two divergent
+    /// siblings' indices at the same rank -- see
+    /// `build_edge_desc_container_spacers_for_edge_same_rank`.
     pub(crate) fn build_edge_desc_container_spacers(
         ctx: TaffyBuildCtx<'_>,
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         target_entity_type: &EntityType,
         lca_node_id: Option<&NodeId<'static>>,
         position_to_container_ids: &BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
+        same_rank_position_to_container_ids: &BTreeMap<RankAndSiblingIndexMiddle, Vec<taffy::NodeId>>,
         edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
     ) -> Map<EdgeId<'static>, EdgeSpacerTaffyNodes> {
         let edge_groups = ctx.edge_groups;
@@ -762,7 +779,7 @@ impl EdgeSpacerBuilder {
         let entity_types = ctx.entity_types;
         let render_options = ctx.render_options;
 
-        if position_to_container_ids.is_empty() {
+        if position_to_container_ids.is_empty() && same_rank_position_to_container_ids.is_empty() {
             return Map::new();
         }
 
@@ -785,6 +802,7 @@ impl EdgeSpacerBuilder {
                         render_options,
                         lca_node_id,
                         position_to_container_ids,
+                        same_rank_position_to_container_ids,
                         edge_description_taffy_nodes,
                         &mut edge_spacer_taffy_nodes,
                     );
@@ -795,7 +813,8 @@ impl EdgeSpacerBuilder {
     }
 
     /// Inserts spacers into `edge_description_container` nodes for a single
-    /// edge, if any containers lie within the edge's rank span.
+    /// edge, if any containers lie within the edge's rank span (or, for a
+    /// same-rank edge, within its sibling-index span).
     #[allow(clippy::too_many_arguments)]
     fn build_edge_desc_container_spacers_for_edge(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
@@ -808,6 +827,7 @@ impl EdgeSpacerBuilder {
         render_options: &RenderOptions,
         lca_node_id: Option<&NodeId<'static>>,
         position_to_container_ids: &BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
+        same_rank_position_to_container_ids: &BTreeMap<RankAndSiblingIndexMiddle, Vec<taffy::NodeId>>,
         edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
         edge_spacer_taffy_nodes: &mut Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
     ) {
@@ -863,11 +883,6 @@ impl EdgeSpacerBuilder {
             return;
         };
 
-        // Cycle edges share a rank -- no container lies between them.
-        if rank_low == rank_high {
-            return;
-        }
-
         let edge_spacer_length = Self::edge_spacer_length(render_options, entity_types, edge_id);
         let spacer_style = Style {
             min_size: Size {
@@ -877,6 +892,25 @@ impl EdgeSpacerBuilder {
             align_self: Some(AlignSelf::Stretch),
             ..Default::default()
         };
+
+        // Cycle edges share a rank -- there is no gap *between* ranks to
+        // interleave a `BetweenRanks` container into, so the sibling-index-axis
+        // check below is used instead.
+        if rank_low == rank_high {
+            Self::build_edge_desc_container_spacers_for_edge_same_rank(
+                taffy_tree,
+                edge_id,
+                info_from,
+                info_to,
+                lca_depth,
+                rank_low,
+                &spacer_style,
+                same_rank_position_to_container_ids,
+                edge_description_taffy_nodes,
+                edge_spacer_taffy_nodes,
+            );
+            return;
+        }
 
         // For each container position that falls within [rank_low, rank_high),
         // insert a spacer into the container (unless it is the edge's own
@@ -895,40 +929,143 @@ impl EdgeSpacerBuilder {
                 }
 
                 container_ids.iter().for_each(|container_id| {
-                    // The edge that owns this container's description does not
-                    // get a spacer inside its own container -- its path bends
-                    // directly to the description box's own resolved rect
-                    // instead (see
-                    // `SpacerCoordinatesResolver::description_contact_resolve`),
-                    // which supersedes this spacer for the owning edge.
-                    let is_own_container = edge_description_taffy_nodes
-                        .get(edge_id)
-                        .is_some_and(|nodes| nodes.container_taffy_node_id == *container_id);
-                    if is_own_container {
-                        return;
-                    }
-
-                    let spacer_taffy_node_id = taffy_tree
-                        .new_leaf_with_context(
-                            spacer_style.clone(),
-                            TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
-                                edge_id: edge_id.clone(),
-                                rank: *rank_p,
-                            }),
-                        )
-                        .expect("Expected to create edge_desc_container spacer leaf node.");
-
-                    taffy_tree
-                        .add_child(*container_id, spacer_taffy_node_id)
-                        .expect("Expected to add spacer child to edge_description_container.");
-
-                    edge_spacer_taffy_nodes
-                        .entry(edge_id.clone())
-                        .or_default()
-                        .edge_desc_container_spacer_taffy_node_ids
-                        .push(spacer_taffy_node_id);
+                    Self::edge_desc_container_spacer_attach(
+                        taffy_tree,
+                        edge_id,
+                        *rank_p,
+                        &spacer_style,
+                        *container_id,
+                        None, // BetweenRanks: thread on the raw RankDir axis.
+                        edge_description_taffy_nodes,
+                        edge_spacer_taffy_nodes,
+                    );
                 });
             });
+    }
+
+    /// Inserts spacers into same-rank (cycle edge) `edge_description_container`
+    /// nodes that lie within this edge's own sibling-index span, when the
+    /// edge's own divergent ancestors share a rank with the container's pair.
+    ///
+    /// This is the sibling-index-axis analog of the `BetweenRanks` check in
+    /// [`Self::build_edge_desc_container_spacers_for_edge`]: a same-rank
+    /// container sits at `(rank, sibling_index_middle)`, between the two
+    /// divergent siblings whose indices average to `sibling_index_middle` (see
+    /// [`EdgeDescriptionBuilder::build`]'s same-rank handling). Another edge at
+    /// the *same* rank whose own two divergent siblings span across that
+    /// `sibling_index_middle` -- e.g. the reverse direction of the same cyclic
+    /// pair -- must also route through/around that container, unless it is the
+    /// container's own owning edge.
+    #[allow(clippy::too_many_arguments)]
+    fn build_edge_desc_container_spacers_for_edge_same_rank(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        edge_id: &EdgeId<'static>,
+        info_from: &NodeNestingInfo<'static>,
+        info_to: &NodeNestingInfo<'static>,
+        lca_depth: usize,
+        rank: NodeRank,
+        spacer_style: &Style,
+        same_rank_position_to_container_ids: &BTreeMap<RankAndSiblingIndexMiddle, Vec<taffy::NodeId>>,
+        edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
+        edge_spacer_taffy_nodes: &mut Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
+    ) {
+        let sibling_index_from = info_from.nesting_path.get(lca_depth).copied().unwrap_or(0);
+        let sibling_index_to = info_to.nesting_path.get(lca_depth).copied().unwrap_or(0);
+        let sibling_index_low = sibling_index_from.min(sibling_index_to);
+        let sibling_index_high = sibling_index_from.max(sibling_index_to);
+        let sibling_index_from_cmp_to = sibling_index_from.cmp(&sibling_index_to);
+
+        same_rank_position_to_container_ids
+            .iter()
+            .filter(|(position, _)| position.rank == rank)
+            .filter(|(position, _)| {
+                sibling_index_low <= position.sibling_index_middle
+                    && position.sibling_index_middle < sibling_index_high
+            })
+            .for_each(|(_, container_ids)| {
+                container_ids.iter().for_each(|container_id| {
+                    Self::edge_desc_container_spacer_attach(
+                        taffy_tree,
+                        edge_id,
+                        rank,
+                        spacer_style,
+                        *container_id,
+                        Some(sibling_index_from_cmp_to),
+                        edge_description_taffy_nodes,
+                        edge_spacer_taffy_nodes,
+                    );
+                });
+            });
+    }
+
+    /// Creates an `EdgeSpacer` leaf and appends it as a child of
+    /// `container_id`, unless `edge_id` is the container's own owning edge (its
+    /// path bends directly to the description box's own resolved rect instead,
+    /// via `SpacerCoordinatesResolver::description_contact_resolve`, which
+    /// supersedes this spacer for the owning edge).
+    ///
+    /// Shared by the `BetweenRanks` and same-rank crossing checks in
+    /// [`Self::build_edge_desc_container_spacers_for_edge`] /
+    /// [`Self::build_edge_desc_container_spacers_for_edge_same_rank`].
+    ///
+    /// `same_rank_sibling_index_from_cmp_to` selects which of
+    /// `EdgeSpacerTaffyNodes`'s two `edge_desc_container` spacer lists the new
+    /// node is recorded in, and is stored on the spacer's own
+    /// `EdgeSpacerCtx`: `Some(ordering)` -- this edge's own
+    /// `sibling_index_from.cmp(&sibling_index_to)` -- for a `SameRank`
+    /// container's crossing spacer, recorded in
+    /// `same_rank_edge_desc_container_spacer_taffy_node_ids` so
+    /// `SpacerCoordinatesResolver::resolve` resolves its entry/exit via
+    /// `EdgeSpacerCoordinatesCalculator::calculate_description_thread_same_rank`
+    /// (rotated axis, entry/exit swapped to match *this* edge's travel
+    /// direction) instead of the direction-oblivious generic `calculate` --
+    /// matching the direction of the `from`/`to` node's own protrusion leg, so
+    /// the connector between them jogs clear of the container before turning,
+    /// instead of cutting through its interior. `None` for a `BetweenRanks`
+    /// container's crossing spacer, recorded in
+    /// `edge_desc_container_spacer_taffy_node_ids` as before.
+    fn edge_desc_container_spacer_attach(
+        taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
+        edge_id: &EdgeId<'static>,
+        rank: NodeRank,
+        spacer_style: &Style,
+        container_id: taffy::NodeId,
+        same_rank_sibling_index_from_cmp_to: Option<Ordering>,
+        edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
+        edge_spacer_taffy_nodes: &mut Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
+    ) {
+        let is_own_container = edge_description_taffy_nodes
+            .get(edge_id)
+            .is_some_and(|nodes| nodes.container_taffy_node_id == container_id);
+        if is_own_container {
+            return;
+        }
+
+        let spacer_taffy_node_id = taffy_tree
+            .new_leaf_with_context(
+                spacer_style.clone(),
+                TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
+                    edge_id: edge_id.clone(),
+                    rank,
+                    same_rank_sibling_index_from_cmp_to,
+                }),
+            )
+            .expect("Expected to create edge_desc_container spacer leaf node.");
+
+        taffy_tree
+            .add_child(container_id, spacer_taffy_node_id)
+            .expect("Expected to add spacer child to edge_description_container.");
+
+        let spacer_taffy_nodes = edge_spacer_taffy_nodes.entry(edge_id.clone()).or_default();
+        if same_rank_sibling_index_from_cmp_to.is_some() {
+            spacer_taffy_nodes
+                .same_rank_edge_desc_container_spacer_taffy_node_ids
+                .push(spacer_taffy_node_id);
+        } else {
+            spacer_taffy_nodes
+                .edge_desc_container_spacer_taffy_node_ids
+                .push(spacer_taffy_node_id);
+        }
     }
 
     /// Builds spacer taffy nodes for a single edge if it crosses ranks.
@@ -1043,6 +1180,7 @@ impl EdgeSpacerBuilder {
                     TaffyNodeCtx::EdgeSpacer(EdgeSpacerCtx {
                         edge_id: edge_id.clone(),
                         rank,
+                        same_rank_sibling_index_from_cmp_to: None,
                     }),
                 )
                 .expect("Expected to create spacer leaf node.");

@@ -18,6 +18,7 @@ use crate::md_text::md_blocks_parser::MdBlocksParser;
 
 use super::{
     edge_spacer_builder::LcaDepthCalculator, md_node_builder::MdNodeBuilder,
+    rank_and_sibling_index_middle::RankAndSiblingIndexMiddle,
     rank_sibling_inserter::RankSiblingInserter, taffy_build_ctx::TaffyBuildCtx,
     taffy_container_builder::flex_direction_invert,
 };
@@ -25,13 +26,11 @@ use super::{
 use self::{
     edge_desc_position::EdgeDescPosition,
     edge_id_and_taffy_description_node::EdgeIdAndTaffyDescriptionNode,
-    rank_and_sibling_index_middle::RankAndSiblingIndexMiddle,
     sibling_index_middle_and_edge_id::SiblingIndexMiddleAndEdgeId,
 };
 
 mod edge_desc_position;
 mod edge_id_and_taffy_description_node;
-mod rank_and_sibling_index_middle;
 mod sibling_index_middle_and_edge_id;
 
 /// Builds `edge_description_container` and `edge_description` leaf taffy nodes
@@ -180,9 +179,13 @@ impl EdgeDescriptionBuilder {
         // `BTreeMap` iteration, keeps `same_rank_insertion_counts` accounting
         // for earlier insertions correctly.
         let mut same_rank_insertion_counts: BTreeMap<NodeRank, Vec<usize>> = BTreeMap::new();
+        let mut same_rank_position_to_container_ids: BTreeMap<
+            RankAndSiblingIndexMiddle,
+            Vec<taffy::NodeId>,
+        > = BTreeMap::new();
         same_rank_to_sorted_descriptions.into_iter().for_each(
             |(
-                RankAndSiblingIndexMiddle {
+                rank_and_sibling_index_middle @ RankAndSiblingIndexMiddle {
                     rank,
                     sibling_index_middle,
                 },
@@ -207,12 +210,18 @@ impl EdgeDescriptionBuilder {
                     insertion_base_index,
                     container_taffy_node_id,
                 );
+
+                same_rank_position_to_container_ids
+                    .entry(rank_and_sibling_index_middle)
+                    .or_default()
+                    .push(container_taffy_node_id);
             },
         );
 
         EdgeDescriptionBuildResult {
             edge_description_taffy_nodes,
             position_to_container_ids,
+            same_rank_position_to_container_ids,
         }
     }
 
@@ -655,4 +664,18 @@ pub(crate) struct EdgeDescriptionBuildResult {
     /// Key `None` means before all rank containers; `Some(rank)` means after
     /// `rank_container[rank]`.
     pub(crate) position_to_container_ids: BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
+
+    /// Map from `(rank, sibling_index_middle)` to the same-rank (cycle edge)
+    /// `edge_description_container` taffy node IDs inserted there.
+    ///
+    /// These containers are inserted directly into `rank_to_taffy_ids` as rank
+    /// siblings (see [`EdgeDescriptionBuilder::build`]'s same-rank handling),
+    /// so they are tracked separately from `position_to_container_ids`
+    /// (`BetweenRanks` containers, interleaved between rank containers).
+    /// `EdgeSpacerBuilder::build_edge_desc_container_spacers` consults this map
+    /// so that other same-rank edges sharing the rank -- e.g. the reverse
+    /// direction of the same cyclic pair -- get a spacer routing around a
+    /// container they do not themselves own.
+    pub(crate) same_rank_position_to_container_ids:
+        BTreeMap<RankAndSiblingIndexMiddle, Vec<taffy::NodeId>>,
 }

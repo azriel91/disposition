@@ -1,6 +1,6 @@
 use disposition_ir_model::node::NodeRank;
 
-use super::rank_and_sibling_index_middle::RankAndSiblingIndexMiddle;
+use super::super::rank_and_sibling_index_middle::RankAndSiblingIndexMiddle;
 
 /// Where an `edge_description_container` should be inserted, computed from
 /// the edge's divergent ancestor ranks.

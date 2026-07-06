@@ -255,6 +255,8 @@ The algorithm in `OrthoProtrusionCalculator::calculate` has four steps:
 
     If the first spacer's entry protrusion or the last spacer's exit protrusion was not assigned (because the node face was `None`), it falls back to the from/to protrusion value as a safety net.
 
+    **Excluded: same-rank, non-cycle edges** (`rank_from == rank_to && !is_cycle_edge`). Their sole spacer waypoint is a same-rank `edge_description_container`'s box-threading contact (`SpacerCoordinatesResolver::description_contact_resolve`) or a crossing spacer routing around one (`EdgeSpacerBuilder::build_edge_desc_container_spacers_for_edge_same_rank`), whose entry/exit coordinates already sit exactly on the box or the tiny crossing-spacer leaf -- not a real spacer needing its own lateral clearance stub. These edges' `from_protrusion`/`to_protrusion` are set separately by `OrthoProtrusionCalculator::same_rank_edge_protrusions_write` (sized to clear the arrow head at the real node, tens of pixels), and propagating that value into the spacer's entry/exit protrusion would extend the path's waypoint far past the box/spacer and back, producing a spurious double bend.
+
 27. **Step 5: Enforce minimum protrusions to clear divergent ancestor siblings (`fn protrusions_adjust_for_divergent_siblings`).**
 
     For edges where the from/to nodes are at different nesting levels, each endpoint's protrusion must be large enough to clear all same-rank sibling nodes of the endpoint's **Divergent ancestor** at the LCA level. **Only nodes of the same category as the endpoint node** are considered as siblings, so a thing-node endpoint is not made to clear process nodes that happen to share the same rank.

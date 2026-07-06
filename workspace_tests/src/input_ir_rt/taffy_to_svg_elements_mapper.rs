@@ -5556,3 +5556,214 @@ fn test_same_rank_edge_description_contact_threads_through_box() {
         );
     }
 }
+
+// === Same-rank description container crossing tests === //
+
+/// Regression test for a bug where an edge sharing a same-rank
+/// `edge_description_container`'s pair of divergent siblings, but not itself
+/// described (no entry in `edge_descs`), got no routing waypoint at all and
+/// cut straight past/through the box.
+///
+/// `edge_dep_server_proc_1_proc_2__1` is the reverse direction of the same
+/// cyclic pair as the described `edge_dep_server_proc_1_proc_2__0` -- it
+/// shares the same two divergent siblings (`t_server_proc_1` /
+/// `t_server_proc_2`) and the same same-rank container position, but has no
+/// description of its own. Before the fix its rendered path was a bare
+/// `M ... L ...` two-point straight line; this asserts it now has real
+/// intermediate waypoints, with at least one inside the description box's
+/// vertical band, confirming it routes via a spacer crossing the box rather
+/// than ignoring it.
+#[test]
+fn test_same_rank_crossing_edge_routes_around_description_container() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_server_proc_1_proc_2__0")
+            .expect("Expected a description for edge_dep_server_proc_1_proc_2__0.");
+        let box_top_y = desc.y;
+        let box_bottom_y = desc.y + desc.height;
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        let d = edge_body_path_d(&svg, "edge_dep_server_proc_1_proc_2__1");
+        let points = path_d_points(&d);
+
+        assert!(
+            points.len() > 2,
+            "Expected edge_dep_server_proc_1_proc_2__1's path to have intermediate \
+             waypoints routing around the description container, not a bare two-point \
+             straight line: {points:?}"
+        );
+
+        let visits_box_band = points
+            .iter()
+            .any(|&(_x, y)| y >= box_top_y - 0.5 && y <= box_bottom_y + 0.5);
+        assert!(
+            visits_box_band,
+            "Expected edge_dep_server_proc_1_proc_2__1's path to visit a waypoint within \
+             the description box's vertical band (y: {box_top_y}..{box_bottom_y}), \
+             confirming it routes via a spacer crossing the box: {points:?}"
+        );
+    }
+}
+
+/// Regression test for a bug where a same-rank (cycle edge) description
+/// contact's final orthogonal corner landed inside its own arrow head instead
+/// of clearing it, because same-rank non-cycle edges (adjacent siblings) were
+/// unconditionally given zero protrusion, even when they had a real spacer
+/// waypoint (their own description-contact thread-through).
+///
+/// `edge_dep_server_proc_1_proc_2__0` and `__1` are both same-rank,
+/// adjacent-sibling edges with a spacer waypoint (the owning edge's own
+/// description contact, and the crossing spacer respectively) -- both must
+/// now have `to_protrusion` floored to at least `TO_PROTRUSION_MIN_PX` so the
+/// Z/S bend clears the arrow head.
+#[test]
+fn test_same_rank_edge_to_protrusion_clears_arrow_head() {
+    const EPSILON: f32 = 0.01;
+
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        for edge_id in [
+            "edge_dep_server_proc_1_proc_2__0",
+            "edge_dep_server_proc_1_proc_2__1",
+        ] {
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected edge {edge_id}"));
+            let to_protrusion = edge_info.ortho_protrusion_params.to_protrusion;
+
+            assert!(
+                to_protrusion >= TO_PROTRUSION_MIN_PX - EPSILON,
+                "edge {edge_id} to_protrusion {to_protrusion:.2} should be at least \
+                 {TO_PROTRUSION_MIN_PX} so the Z/S bend clears the arrow head"
+            );
+        }
+    }
+}
+
+/// Regression test for a bug where a same-rank edge's arrow-head-clearance
+/// `from_protrusion`/`to_protrusion` (sized to clear the arrow head at the
+/// real node, tens of pixels) leaked into its lone spacer waypoint's own
+/// `entry_protrusion`/`exit_protrusion` (meant to be a small stub past a real
+/// spacer's boundary), extending the path's waypoint far past the
+/// `edge_description_container`'s box or the crossing spacer's tiny footprint
+/// and back, producing a spurious double bend / detour.
+///
+/// Affects both the owning edge's own description-contact "spacer"
+/// (`edge_dep_client_server__0`, `edge_dep_server_proc_1_proc_2__0`) and a
+/// crossing edge's real spacer leaf (`edge_dep_server_proc_1_proc_2__1`) --
+/// in all three cases the spacer's own entry/exit protrusion must stay well
+/// below the node-endpoint protrusion it must not be confused with.
+#[test]
+fn test_same_rank_edge_spacer_protrusion_not_inflated_by_node_protrusion() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        for edge_id in [
+            "edge_dep_client_server__0",
+            "edge_dep_server_proc_1_proc_2__0",
+            "edge_dep_server_proc_1_proc_2__1",
+        ] {
+            let edge_info = svg_elements
+                .svg_edge_infos
+                .iter()
+                .find(|e| e.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected edge {edge_id}"));
+            let params = &edge_info.ortho_protrusion_params;
+            let spacer_prot = params
+                .spacer_protrusions
+                .first()
+                .unwrap_or_else(|| panic!("Expected a spacer waypoint for edge {edge_id}"));
+
+            assert!(
+                spacer_prot.entry_protrusion < params.from_protrusion,
+                "edge {edge_id} spacer entry_protrusion {:.2} should be well below \
+                 from_protrusion {:.2} (not leaked from the node-endpoint arrow-head floor)",
+                spacer_prot.entry_protrusion,
+                params.from_protrusion,
+            );
+            assert!(
+                spacer_prot.exit_protrusion < params.to_protrusion,
+                "edge {edge_id} spacer exit_protrusion {:.2} should be well below \
+                 to_protrusion {:.2} (not leaked from the node-endpoint arrow-head floor)",
+                spacer_prot.exit_protrusion,
+                params.to_protrusion,
+            );
+        }
+    }
+}
+
+/// Regression test for a bug where a same-rank crossing edge's path still cut
+/// through its `edge_description_container`'s bounding rect, even after the
+/// entry/exit-protrusion leak (see
+/// `test_same_rank_edge_spacer_protrusion_not_inflated_by_node_protrusion`)
+/// was fixed.
+///
+/// The crossing spacer's entry/exit were resolved via the direction-oblivious
+/// generic `EdgeSpacerCoordinatesCalculator::calculate`, which always treats
+/// the container's "forward" end (matching the diagram's canonical `RankDir`)
+/// as the entry -- for `edge_dep_server_proc_1_proc_2__1` (whose divergent
+/// ancestors sit in the *reverse* order along the shared rank), this selected
+/// the far end of the crossing spacer as the nominal entry point, so the
+/// connector from the `from`-node's protrusion leg had to cut straight through
+/// the box's vertical span to reach it before turning. Fixed by resolving the
+/// crossing spacer via `calculate_description_thread_same_rank` (rotated
+/// axis, entry/exit swapped to match *this* edge's own travel direction),
+/// mirroring how the owning edge's own description contact is already
+/// resolved.
+///
+/// Asserts that no segment of the crossing edge's rendered path overlaps the
+/// description box's bounding rect (checked as an axis-aligned bounding-box
+/// test per consecutive point pair, which correctly covers this diagram's
+/// orthogonal routing: every real routing segment is horizontal or vertical,
+/// and the small `ARC_RADIUS`-rounded corners are short enough that their
+/// own bounding box is equally telling).
+#[test]
+fn test_same_rank_crossing_edge_path_does_not_cross_description_box() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_server_proc_1_proc_2__0")
+            .expect("Expected a description for edge_dep_server_proc_1_proc_2__0.");
+        let box_left_x = desc.x;
+        let box_right_x = desc.x + desc.width;
+        let box_top_y = desc.y;
+        let box_bottom_y = desc.y + desc.height;
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        let d = edge_body_path_d(&svg, "edge_dep_server_proc_1_proc_2__1");
+        let points = path_d_points(&d);
+
+        for pair in points.windows(2) {
+            let &[(x1, y1), (x2, y2)] = pair else {
+                unreachable!("windows(2) always yields pairs");
+            };
+            let seg_left_x = x1.min(x2);
+            let seg_right_x = x1.max(x2);
+            let seg_top_y = y1.min(y2);
+            let seg_bottom_y = y1.max(y2);
+
+            let overlaps_box = seg_left_x < box_right_x
+                && seg_right_x > box_left_x
+                && seg_top_y < box_bottom_y
+                && seg_bottom_y > box_top_y;
+
+            assert!(
+                !overlaps_box,
+                "Expected edge_dep_server_proc_1_proc_2__1's path segment \
+                 (({x1:.2}, {y1:.2}) -> ({x2:.2}, {y2:.2})) to stay clear of the \
+                 description box (x: {box_left_x:.2}..{box_right_x:.2}, \
+                 y: {box_top_y:.2}..{box_bottom_y:.2}), full path: {points:?}"
+            );
+        }
+    }
+}

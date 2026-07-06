@@ -34,6 +34,7 @@ mod edge_spacer_builder;
 mod highlighted_spans_computer;
 mod md_node_builder;
 mod md_spans_computer;
+mod rank_and_sibling_index_middle;
 mod rank_sibling_inserter;
 mod taffy_build_ctx;
 mod taffy_build_state;
@@ -296,6 +297,7 @@ impl IrToTaffyBuilder<'_> {
         let EdgeDescriptionBuildResult {
             edge_description_taffy_nodes: thing_edge_desc_taffy_nodes,
             position_to_container_ids: thing_position_to_container_ids,
+            same_rank_position_to_container_ids: thing_same_rank_position_to_container_ids,
         } = EdgeDescriptionBuilder::build(
             ctx,
             &mut taffy_tree,
@@ -307,6 +309,7 @@ impl IrToTaffyBuilder<'_> {
         let EdgeDescriptionBuildResult {
             edge_description_taffy_nodes: tag_edge_desc_taffy_nodes,
             position_to_container_ids: tag_position_to_container_ids,
+            same_rank_position_to_container_ids: tag_same_rank_position_to_container_ids,
         } = EdgeDescriptionBuilder::build(
             ctx,
             &mut taffy_tree,
@@ -318,6 +321,7 @@ impl IrToTaffyBuilder<'_> {
         let EdgeDescriptionBuildResult {
             edge_description_taffy_nodes: process_edge_desc_taffy_nodes,
             position_to_container_ids: process_position_to_container_ids,
+            same_rank_position_to_container_ids: process_same_rank_position_to_container_ids,
         } = EdgeDescriptionBuilder::build(
             ctx,
             &mut taffy_tree,
@@ -336,12 +340,21 @@ impl IrToTaffyBuilder<'_> {
         // the top level, insert a spacer inside that container so the edge
         // path can route around it. Must run before position_to_container_ids
         // is consumed by `rank_containers_for_first_level_nodes_build`.
-        for (target_entity_type, position_to_container_ids) in [
-            (&EntityType::ThingDefault, &thing_position_to_container_ids),
-            (&EntityType::TagDefault, &tag_position_to_container_ids),
+        for (target_entity_type, position_to_container_ids, same_rank_position_to_container_ids) in [
+            (
+                &EntityType::ThingDefault,
+                &thing_position_to_container_ids,
+                &thing_same_rank_position_to_container_ids,
+            ),
+            (
+                &EntityType::TagDefault,
+                &tag_position_to_container_ids,
+                &tag_same_rank_position_to_container_ids,
+            ),
             (
                 &EntityType::ProcessDefault,
                 &process_position_to_container_ids,
+                &process_same_rank_position_to_container_ids,
             ),
         ] {
             for (edge_id, new_spacers) in EdgeSpacerBuilder::build_edge_desc_container_spacers(
@@ -350,13 +363,13 @@ impl IrToTaffyBuilder<'_> {
                 target_entity_type,
                 None,
                 position_to_container_ids,
+                same_rank_position_to_container_ids,
                 &edge_description_taffy_nodes,
             ) {
                 edge_spacer_taffy_nodes
                     .entry(edge_id)
                     .or_default()
-                    .edge_desc_container_spacer_taffy_node_ids
-                    .extend(new_spacers.edge_desc_container_spacer_taffy_node_ids);
+                    .merge(new_spacers);
             }
         }
 
