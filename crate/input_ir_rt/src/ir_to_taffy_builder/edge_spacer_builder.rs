@@ -770,7 +770,10 @@ impl EdgeSpacerBuilder {
         target_entity_type: &EntityType,
         lca_node_id: Option<&NodeId<'static>>,
         position_to_container_ids: &BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
-        same_rank_position_to_container_ids: &BTreeMap<RankAndSiblingIndexMiddle, Vec<taffy::NodeId>>,
+        same_rank_position_to_container_ids: &BTreeMap<
+            RankAndSiblingIndexMiddle,
+            Vec<taffy::NodeId>,
+        >,
         edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
     ) -> Map<EdgeId<'static>, EdgeSpacerTaffyNodes> {
         let edge_groups = ctx.edge_groups;
@@ -827,7 +830,10 @@ impl EdgeSpacerBuilder {
         render_options: &RenderOptions,
         lca_node_id: Option<&NodeId<'static>>,
         position_to_container_ids: &BTreeMap<Option<NodeRank>, Vec<taffy::NodeId>>,
-        same_rank_position_to_container_ids: &BTreeMap<RankAndSiblingIndexMiddle, Vec<taffy::NodeId>>,
+        same_rank_position_to_container_ids: &BTreeMap<
+            RankAndSiblingIndexMiddle,
+            Vec<taffy::NodeId>,
+        >,
         edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
         edge_spacer_taffy_nodes: &mut Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
     ) {
@@ -965,7 +971,10 @@ impl EdgeSpacerBuilder {
         lca_depth: usize,
         rank: NodeRank,
         spacer_style: &Style,
-        same_rank_position_to_container_ids: &BTreeMap<RankAndSiblingIndexMiddle, Vec<taffy::NodeId>>,
+        same_rank_position_to_container_ids: &BTreeMap<
+            RankAndSiblingIndexMiddle,
+            Vec<taffy::NodeId>,
+        >,
         edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
         edge_spacer_taffy_nodes: &mut Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
     ) {
@@ -1024,6 +1033,7 @@ impl EdgeSpacerBuilder {
     /// instead of cutting through its interior. `None` for a `BetweenRanks`
     /// container's crossing spacer, recorded in
     /// `edge_desc_container_spacer_taffy_node_ids` as before.
+    #[allow(clippy::too_many_arguments)]
     fn edge_desc_container_spacer_attach(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge_id: &EdgeId<'static>,

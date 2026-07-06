@@ -305,7 +305,8 @@ impl SpacerCoordinatesResolver {
     /// cannot be resolved.
     ///
     /// Unlike [`Self::spacers_calculate`], each spacer's entry/exit are
-    /// resolved via `EdgeSpacerCoordinatesCalculator::calculate_description_thread_same_rank`,
+    /// resolved via
+    /// `EdgeSpacerCoordinatesCalculator::calculate_description_thread_same_rank`,
     /// using the `same_rank_sibling_index_from_cmp_to` ordering recorded on
     /// the spacer's own `EdgeSpacerCtx` (set by
     /// `EdgeSpacerBuilder::build_edge_desc_container_spacers_for_edge_same_rank`)

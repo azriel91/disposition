@@ -26,6 +26,7 @@ pub struct EdgeSpacerCtx {
     /// match *this* edge's travel direction) instead of the direction-oblivious
     /// generic `calculate`, so the spacer's own vertical (or horizontal)
     /// passthrough starts from whichever of its two ends this edge actually
-    /// approaches first -- see `EdgeSpacerBuilder::build_edge_desc_container_spacers_for_edge_same_rank`.
+    /// approaches first -- see
+    /// `EdgeSpacerBuilder::build_edge_desc_container_spacers_for_edge_same_rank`.
     pub same_rank_sibling_index_from_cmp_to: Option<Ordering>,
 }

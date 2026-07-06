@@ -64,7 +64,8 @@ pub struct EdgeSpacerTaffyNodes {
     /// `edge_description_container` nodes, for edges crossing a same-rank
     /// pair's container without owning its description.
     ///
-    /// Tracked separately from [`Self::edge_desc_container_spacer_taffy_node_ids`]
+    /// Tracked separately from
+    /// [`Self::edge_desc_container_spacer_taffy_node_ids`]
     /// because a same-rank container's children stack along the axis
     /// *perpendicular* to the edge's own travel direction (see
     /// `EdgeDescriptionBuilder::container_style_build`), so the spacer's
