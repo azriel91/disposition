@@ -62,6 +62,7 @@
 * Resolve a same-rank crossing spacer's entry/exit on the rotated axis, swapped to match that edge's own travel direction, instead of the diagram's canonical direction, so its path no longer cuts through the `edge_description_container` box it is meant to route around. ([#59][#59])
 * Render dependency edges' labels and descriptions with the same legibility background box previously only given to interaction edges. ([#60][#60])
 * Add `EntityType::EdgeLabelAndDescBg`, `DependencyEdgeLabelAndDescBg`, `DependencyEdgeLabelBg`, `DependencyEdgeDescBg`, `InteractionEdgeLabelAndDescBg` so edge label/description background styling resolves through a 3-tier fallback hierarchy (shared default -> dependency/interaction-specific -> label/desc-specific). ([#60][#60])
+* Scope stroke and fill tailwind classes to edge body/arrowhead and thing wrapper node. ([#60][#60])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
