@@ -6,6 +6,10 @@ use std::{
 use disposition_input_model::theme::{DarkModeShadeConfig, ThemeAttr};
 use disposition_model_common::{entity::EntityType, Map};
 
+use crate::svg_element_classes::{
+    EDGE_ARROW_HEAD_SELECTOR, EDGE_BODY_SELECTOR, NODE_CIRCLE_SELECTOR, NODE_WRAPPER_SELECTOR,
+};
+
 use super::{css_theme_vars::CssThemeVars, tailwind_color_shade::TailwindColorShade};
 
 use self::shade_computer::ShadeComputer;
@@ -24,8 +28,10 @@ pub(crate) struct TailwindClassState<'tw_state> {
     pub(crate) attrs: Map<ThemeAttr, Cow<'tw_state, str>>,
     /// The first entity type of the entity these classes are built for.
     ///
-    /// Used to determine whether outline classes should be prefixed with
-    /// `[&>.locus]:` (for edge entities) or applied directly (for nodes).
+    /// Used to determine the scoping of Stroke/Fill classes (see
+    /// [`ScopeTarget`] / [`TailwindClassState::scope_target`]) and whether
+    /// outline classes should be prefixed with `[&>.locus]:` (for edge
+    /// entities) or applied directly (for nodes).
     pub(crate) entity_type: Option<EntityType>,
 }
 
@@ -128,6 +134,16 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         self.attr_first(&[state_specific, ThemeAttr::StrokeStyle])
     }
 
+    /// Determines which sub-element(s) Stroke/Fill-derived classes should be
+    /// scoped to, based on `entity_type`. See [`ScopeTarget`].
+    fn scope_target(&self) -> ScopeTarget {
+        match self.entity_type.as_ref() {
+            Some(entity_type) if entity_type.is_edge() => ScopeTarget::Edge,
+            Some(entity_type) if entity_type.is_node() => ScopeTarget::Node,
+            _ => ScopeTarget::Unscoped,
+        }
+    }
+
     /// Get the resolved outline style for a state.
     ///
     /// Looks up the state-specific attribute first (e.g.
@@ -184,7 +200,8 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     ) {
         self.write_peer_classes_visibility(classes, peer_prefix_maybe);
         self.write_peer_classes_stroke_dasharray(classes, peer_prefix_maybe);
-        self.write_peer_classes_stroke_width_opacity_animate(classes, peer_prefix_maybe);
+        self.write_peer_classes_stroke_width(classes, peer_prefix_maybe);
+        self.write_peer_classes_opacity_animate(classes, peer_prefix_maybe);
         self.write_peer_classes_fill(
             classes,
             peer_prefix_maybe,
@@ -215,8 +232,12 @@ impl<'tw_state> TailwindClassState<'tw_state> {
     }
 
     /// Writes the per-state `stroke-dasharray` classes derived from the
-    /// resolved stroke style (with base fallback).
+    /// resolved stroke style (with base fallback), scoped the same way as
+    /// stroke colour/width (see [`ScopeTarget`]) so the dasharray does not
+    /// leak onto unrelated sibling paths.
     fn write_peer_classes_stroke_dasharray(&self, classes: &mut String, peer_prefix_maybe: &str) {
+        let scope_target = self.scope_target();
+
         [
             HighlightState::Normal,
             HighlightState::Hover,
@@ -229,25 +250,45 @@ impl<'tw_state> TailwindClassState<'tw_state> {
                 && let Some(dasharray) = ShadeComputer::stroke_style_to_dasharray(style)
             {
                 let state_modifier = state.modifier();
-                writeln!(
-                    classes,
-                    "{peer_prefix_maybe}{state_modifier}[stroke-dasharray:{dasharray}]"
-                )
-                .expect(CLASSES_BUFFER_WRITE_FAIL);
+                scope_target.stroke_selector_prefixes().iter().for_each(
+                    |&subelement_selector_prefix| {
+                        let subelement_selector_prefix = subelement_selector_prefix.unwrap_or("");
+                        writeln!(
+                            classes,
+                            "{peer_prefix_maybe}{state_modifier}{subelement_selector_prefix}[stroke-dasharray:{dasharray}]"
+                        )
+                        .expect(CLASSES_BUFFER_WRITE_FAIL);
+                    },
+                );
             }
         });
     }
 
-    /// Writes the stroke-width, opacity, and animation classes, if set.
-    fn write_peer_classes_stroke_width_opacity_animate(
-        &self,
-        classes: &mut String,
-        peer_prefix_maybe: &str,
-    ) {
-        if let Some(width) = self.attrs.get(&ThemeAttr::StrokeWidth) {
-            writeln!(classes, "{peer_prefix_maybe}stroke-{width}")
+    /// Writes the stroke-width class, if set, scoped the same way as stroke
+    /// colour/dasharray (see [`ScopeTarget`]).
+    fn write_peer_classes_stroke_width(&self, classes: &mut String, peer_prefix_maybe: &str) {
+        let Some(width) = self.attrs.get(&ThemeAttr::StrokeWidth) else {
+            return;
+        };
+        let scope_target = self.scope_target();
+        scope_target
+            .stroke_selector_prefixes()
+            .iter()
+            .for_each(|&subelement_selector_prefix| {
+                let subelement_selector_prefix = subelement_selector_prefix.unwrap_or("");
+                writeln!(
+                    classes,
+                    "{peer_prefix_maybe}{subelement_selector_prefix}stroke-{width}"
+                )
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
-        }
+            });
+    }
+
+    /// Writes the opacity and animation classes, if set.
+    ///
+    /// Unlike Stroke/Fill, these legitimately apply to the whole `<g>` (all
+    /// descendants), so they remain unscoped.
+    fn write_peer_classes_opacity_animate(&self, classes: &mut String, peer_prefix_maybe: &str) {
         if let Some(opacity) = self.attrs.get(&ThemeAttr::Opacity) {
             writeln!(classes, "{peer_prefix_maybe}opacity-{opacity}")
                 .expect(CLASSES_BUFFER_WRITE_FAIL);
@@ -270,6 +311,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         dark_mode_shade_config: DarkModeShadeConfig,
     ) {
         let fill_shades = HighlightShades::resolve(|state| self.get_fill_shade(state));
+        let scope_target = self.scope_target();
 
         [
             HighlightState::Hover,
@@ -279,20 +321,25 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         ]
         .into_iter()
         .for_each(|state| {
-            Self::write_shifted_shade_class(
-                classes,
-                css_theme_vars,
-                ShadeClassSpec {
-                    peer_prefix: peer_prefix_maybe,
-                    subelement_selector_prefix: None,
-                    state_modifier: state.modifier(),
-                    color_target: ColorTarget::Fill,
-                    dark_mode_shade_config,
-                    color: self.get_fill_color(state),
-                    shade: self.get_fill_shade(state),
-                    shades: fill_shades,
-                },
-            );
+            scope_target
+                .fill_selector_prefixes()
+                .iter()
+                .for_each(|&subelement_selector_prefix| {
+                    Self::write_shifted_shade_class(
+                        classes,
+                        css_theme_vars,
+                        ShadeClassSpec {
+                            peer_prefix: peer_prefix_maybe,
+                            subelement_selector_prefix,
+                            state_modifier: state.modifier(),
+                            color_target: ColorTarget::Fill,
+                            dark_mode_shade_config,
+                            color: self.get_fill_color(state),
+                            shade: self.get_fill_shade(state),
+                            shades: fill_shades,
+                        },
+                    );
+                });
         });
     }
 
@@ -310,6 +357,7 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         dark_mode_shade_config: DarkModeShadeConfig,
     ) {
         let stroke_shades = HighlightShades::resolve(|state| self.get_stroke_shade(state));
+        let scope_target = self.scope_target();
 
         [
             HighlightState::Hover,
@@ -320,18 +368,22 @@ impl<'tw_state> TailwindClassState<'tw_state> {
         .into_iter()
         .for_each(|state| {
             if self.get_stroke_style(state) != Some("none") {
-                Self::write_shifted_shade_class(
-                    classes,
-                    css_theme_vars,
-                    ShadeClassSpec {
-                        peer_prefix: peer_prefix_maybe,
-                        subelement_selector_prefix: None,
-                        state_modifier: state.modifier(),
-                        color_target: ColorTarget::Stroke,
-                        dark_mode_shade_config,
-                        color: self.get_stroke_color(state),
-                        shade: self.get_stroke_shade(state),
-                        shades: stroke_shades,
+                scope_target.stroke_selector_prefixes().iter().for_each(
+                    |&subelement_selector_prefix| {
+                        Self::write_shifted_shade_class(
+                            classes,
+                            css_theme_vars,
+                            ShadeClassSpec {
+                                peer_prefix: peer_prefix_maybe,
+                                subelement_selector_prefix,
+                                state_modifier: state.modifier(),
+                                color_target: ColorTarget::Stroke,
+                                dark_mode_shade_config,
+                                color: self.get_stroke_color(state),
+                                shade: self.get_stroke_shade(state),
+                                shades: stroke_shades,
+                            },
+                        );
                     },
                 );
             }
@@ -726,6 +778,52 @@ impl<'a> HighlightShades<'a> {
             hover: shade_for(HighlightState::Hover),
             focus: shade_for(HighlightState::Focus),
             active: shade_for(HighlightState::Active),
+        }
+    }
+}
+
+/// The sub-element(s) that Stroke/Fill-derived classes should be scoped to,
+/// determined from [`TailwindClassState::entity_type`] via
+/// [`TailwindClassState::scope_target`].
+///
+/// Mirrors the existing `.locus` scoping used for Outline classes (see
+/// [`OutlineWriteCtx`]), generalized to Stroke/Fill and to nodes as well as
+/// edges.
+#[derive(Clone, Copy)]
+enum ScopeTarget {
+    /// Not a node or edge (halo / halo-outline / label-desc-bg / custom /
+    /// container-inbuilt entity types, or no entity type at all) -- these
+    /// represent rendering-only style keys or standalone `<path>` elements
+    /// with no sibling shape paths to leak onto, so classes are written
+    /// unscoped, exactly as before this scoping was introduced.
+    Unscoped,
+    /// A node (thing / tag / process / process step). It is not known at
+    /// class-resolution time whether the node will use a circle shape, so
+    /// both `.wrapper` and `.circle` selectors are emitted.
+    Node,
+    /// An edge. Stroke scopes to `.edge_body` (the line); Fill scopes to
+    /// `.arrow_head` (the arrow head fill), matching the `ThemeAttr` doc
+    /// comments.
+    Edge,
+}
+
+impl ScopeTarget {
+    /// Selector prefixes for Stroke-derived classes (colour, dasharray,
+    /// width).
+    fn stroke_selector_prefixes(self) -> &'static [Option<&'static str>] {
+        match self {
+            ScopeTarget::Unscoped => &[None],
+            ScopeTarget::Node => &[Some(NODE_WRAPPER_SELECTOR), Some(NODE_CIRCLE_SELECTOR)],
+            ScopeTarget::Edge => &[Some(EDGE_BODY_SELECTOR)],
+        }
+    }
+
+    /// Selector prefixes for Fill-derived classes (colour).
+    fn fill_selector_prefixes(self) -> &'static [Option<&'static str>] {
+        match self {
+            ScopeTarget::Unscoped => &[None],
+            ScopeTarget::Node => &[Some(NODE_WRAPPER_SELECTOR), Some(NODE_CIRCLE_SELECTOR)],
+            ScopeTarget::Edge => &[Some(EDGE_ARROW_HEAD_SELECTOR)],
         }
     }
 }

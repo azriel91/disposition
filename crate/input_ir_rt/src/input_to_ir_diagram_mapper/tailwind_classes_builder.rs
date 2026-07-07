@@ -1059,7 +1059,10 @@ impl TailwindClassesBuilder {
             // 1. Starting with the thing's colors
             // 2. Applying TagDefaults styles
             // 3. Applying tag-specific styles (overrides)
-            let mut tag_focus_state = TailwindClassState::default();
+            let mut tag_focus_state = TailwindClassState {
+                entity_type: tailwind_class_state.entity_type.clone(),
+                ..Default::default()
+            };
             if let Some(shape_color) = tailwind_class_state.attrs.get(&ThemeAttr::ShapeColor) {
                 tag_focus_state
                     .attrs
@@ -1132,7 +1135,10 @@ impl TailwindClassesBuilder {
         if let Some(interaction_steps) = thing_to_interaction_steps.get(node_id) {
             interaction_steps.iter().for_each(|step_id| {
                 // Build a state from the thing's current colors + process_step_selected_styles
-                let mut step_selected_state = TailwindClassState::default();
+                let mut step_selected_state = TailwindClassState {
+                    entity_type: tailwind_class_state.entity_type.clone(),
+                    ..Default::default()
+                };
 
                 // Copy the thing's colors
                 if let Some(shape_color) = tailwind_class_state.attrs.get(&ThemeAttr::ShapeColor) {
@@ -1254,7 +1260,10 @@ impl TailwindClassesBuilder {
         let mut peer_classes = String::new();
         interaction_process_step_ids.iter().for_each(|step_id| {
             // Build a state from the thing's current colors + process_step_selected_styles
-            let mut step_selected_state = TailwindClassState::default();
+            let mut step_selected_state = TailwindClassState {
+                entity_type: tailwind_class_state.entity_type.clone(),
+                ..Default::default()
+            };
 
             [
                 // lowest priority

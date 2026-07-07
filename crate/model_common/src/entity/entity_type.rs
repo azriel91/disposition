@@ -455,6 +455,27 @@ impl EntityType {
         self.is_dependency_edge() || self.is_interaction_edge()
     }
 
+    /// Returns `true` if this is a `ThingDefault`, `TagDefault`,
+    /// `ProcessDefault`, or `ProcessStepDefault` variant.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use disposition_model_common::entity::EntityType;
+    ///
+    /// assert!(EntityType::ThingDefault.is_node());
+    /// assert!(!EntityType::DependencyEdgeSequenceForwardDefault.is_node());
+    /// ```
+    pub fn is_node(&self) -> bool {
+        matches!(
+            self,
+            EntityType::ThingDefault
+                | EntityType::TagDefault
+                | EntityType::ProcessDefault
+                | EntityType::ProcessStepDefault
+        )
+    }
+
     /// Returns `true` if this is a `DependencyEdge*` variant.
     ///
     /// # Examples

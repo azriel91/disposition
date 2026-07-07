@@ -871,11 +871,11 @@ fn test_tailwind_classes_generation() {
     let t_aws_id = id!("t_aws");
     let t_aws_classes = String::from("\n") + diagram.tailwind_classes.get(&t_aws_id).unwrap();
     assert!(
-        t_aws_classes.contains("\nfill-[var(--tw-yellow-"),
+        t_aws_classes.contains("\n[&>.wrapper]:fill-[var(--tw-yellow-"),
         "t_aws should have yellow fill via CSS variable. Got: {t_aws_classes}"
     );
     assert!(
-        t_aws_classes.contains("\nstroke-[var(--tw-yellow-"),
+        t_aws_classes.contains("\n[&>.wrapper]:stroke-[var(--tw-yellow-"),
         "t_aws should have yellow stroke via CSS variable. Got: {t_aws_classes}"
     );
 
@@ -887,7 +887,7 @@ fn test_tailwind_classes_generation() {
     let edge_id = id!("edge_ix_t_localhost__t_github_user_repo__pull__0");
     let edge_classes = String::from("\n") + diagram.tailwind_classes.get(&edge_id).unwrap();
     assert!(
-        edge_classes.contains("\nstroke-"),
+        edge_classes.contains("\n[&>.edge_body]:stroke-"),
         "Edge should have stroke class (merged from edge group). Got: {edge_classes}"
     );
     // Should have peer classes for interacting process steps
@@ -930,11 +930,11 @@ fn test_tailwind_classes_shade_resolution() {
     let t_aws_id = id!("t_aws");
     let t_aws_classes = String::from("\n") + diagram.tailwind_classes.get(&t_aws_id).unwrap();
     assert!(
-        t_aws_classes.contains("\nfill-[var(--tw-yellow-100-900)]"),
+        t_aws_classes.contains("\n[&>.wrapper]:fill-[var(--tw-yellow-100-900)]"),
         "t_aws should have fill via CSS variable --tw-yellow-100-900 from shade_pale (inverted). Got: {t_aws_classes}"
     );
     assert!(
-        t_aws_classes.contains("\nhover:fill-[var(--tw-yellow-50-950)]"),
+        t_aws_classes.contains("\nhover:[&>.wrapper]:fill-[var(--tw-yellow-50-950)]"),
         "t_aws should have hover fill via CSS variable --tw-yellow-50-950 from shade_pale (inverted). Got: {t_aws_classes}"
     );
 
@@ -945,7 +945,7 @@ fn test_tailwind_classes_shade_resolution() {
     let t_aws_iam_classes =
         String::from("\n") + diagram.tailwind_classes.get(&t_aws_iam_id).unwrap();
     assert!(
-        t_aws_iam_classes.contains("\nfill-[var(--tw-slate-300-700)]"),
+        t_aws_iam_classes.contains("\n[&>.wrapper]:fill-[var(--tw-slate-300-700)]"),
         "t_aws_iam should have fill via CSS variable --tw-slate-300-700 from type_thing_default + shade_light. Got: {t_aws_iam_classes}"
     );
 }
@@ -961,7 +961,7 @@ fn test_tailwind_classes_stroke_style() {
     let t_aws_id = id!("t_aws");
     let t_aws_classes = String::from("\n") + diagram.tailwind_classes.get(&t_aws_id).unwrap();
     assert!(
-        t_aws_classes.contains("\n[stroke-dasharray:2]"),
+        t_aws_classes.contains("\n[&>.wrapper]:[stroke-dasharray:2]"),
         "t_aws should have stroke-dasharray:2 from dotted stroke_style. Got: {t_aws_classes}"
     );
 
@@ -971,7 +971,7 @@ fn test_tailwind_classes_stroke_style() {
     let t_aws_iam_classes =
         String::from("\n") + diagram.tailwind_classes.get(&t_aws_iam_id).unwrap();
     assert!(
-        t_aws_iam_classes.contains("\n[stroke-dasharray:4]"),
+        t_aws_iam_classes.contains("\n[&>.wrapper]:[stroke-dasharray:4]"),
         "t_aws_iam should have stroke-dasharray:4 from dashed stroke_style. Got: {t_aws_iam_classes}"
     );
 }
@@ -1068,7 +1068,7 @@ fn test_tailwind_classes_tag_peer_classes_for_included_things() {
 
     // Should have fill classes for tag_app_development
     assert!(
-        t_localhost_classes.contains("\npeer-[:focus-within]/tag_app_development:fill-[var(--tw-slate-"),
+        t_localhost_classes.contains("\npeer-[:focus-within]/tag_app_development:[&>.wrapper]:fill-[var(--tw-slate-"),
         "t_localhost should have fill classes for tag_app_development via CSS variable. Got: {t_localhost_classes}"
     );
 
@@ -1083,7 +1083,7 @@ fn test_tailwind_classes_tag_peer_classes_for_included_things() {
     // excluded
     assert!(
         !t_localhost_classes
-            .contains("\npeer-[:focus-within]/tag_deployment:fill-[var(--tw-slate-"),
+            .contains("\npeer-[:focus-within]/tag_deployment:[&>.wrapper]:fill-[var(--tw-slate-"),
         "t_localhost should NOT have fill classes for tag_deployment. Got: {t_localhost_classes}"
     );
 }
@@ -1167,11 +1167,11 @@ fn test_tailwind_classes_tag_peer_classes_tag_specific_override() {
     // tags (uses slate as its shape_color from defaults)
     assert!(
         t_github_user_repo_classes
-            .contains("\npeer-[:focus-within]/tag_app_development:fill-[var(--tw-slate-"),
+            .contains("\npeer-[:focus-within]/tag_app_development:[&>.wrapper]:fill-[var(--tw-slate-"),
         "t_github_user_repo should have fill classes for tag_app_development via CSS variable. Got: {t_github_user_repo_classes}"
     );
     assert!(
-        t_github_user_repo_classes.contains("\npeer-[:focus-within]/tag_deployment:fill-[var(--tw-slate-"),
+        t_github_user_repo_classes.contains("\npeer-[:focus-within]/tag_deployment:[&>.wrapper]:fill-[var(--tw-slate-"),
         "t_github_user_repo should have fill classes for tag_deployment via CSS variable. Got: {t_github_user_repo_classes}"
     );
 }

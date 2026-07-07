@@ -1,6 +1,11 @@
 use std::fmt::Write;
 
-use crate::string_xml_escaper::StringXmlEscaper;
+use crate::{
+    string_xml_escaper::StringXmlEscaper,
+    svg_element_classes::{
+        EDGE_ARROW_HEAD_CLASS, EDGE_BODY_CLASS, NODE_CIRCLE_CLASS, NODE_WRAPPER_CLASS,
+    },
+};
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use disposition_input_model::InputDiagram;
@@ -457,16 +462,26 @@ impl SvgElementsToSvgMapper {
             // Add path element with corner radii.
             // If a circle is present, apply wrapper_tailwind_classes to make the
             // rect path invisible, and render the circle path separately.
-            write!(content_buffer, r#"<path d="{path_d}" class="wrapper"#).unwrap();
+            write!(
+                content_buffer,
+                r#"<path d="{path_d}" class="{NODE_WRAPPER_CLASS}"#
+            )
+            .unwrap();
             if let Some(wrapper_tw) = svg_node_info.wrapper_tailwind_classes.as_ref() {
                 write!(content_buffer, " {wrapper_tw}").unwrap();
             }
             write!(content_buffer, r#"" />"#).unwrap();
 
-            // Add circle path element if present
+            // Add circle path element if present. `class="circle"` lets
+            // Stroke/Fill tailwind classes target it via `[&>.circle]:` (see
+            // `ScopeTarget::Node` in `tailwind_class_state.rs`).
             if let Some(ref circle) = svg_node_info.circle {
                 let circle_path_d = &circle.path_d;
-                write!(content_buffer, r#"<path d="{circle_path_d}" />"#).unwrap();
+                write!(
+                    content_buffer,
+                    r#"<path d="{circle_path_d}" class="{NODE_CIRCLE_CLASS}" />"#
+                )
+                .unwrap();
             }
 
             // Add text and image elements
@@ -801,12 +816,12 @@ impl SvgElementsToSvgMapper {
                     .map(|s| s.as_str())
                     .unwrap_or("");
                 if extra.is_empty() {
-                    Self::class_attr_escaped("arrow_head")
+                    Self::class_attr_escaped(EDGE_ARROW_HEAD_CLASS)
                 } else {
-                    Self::class_attr_escaped(format!("arrow_head\n{extra}").as_str())
+                    Self::class_attr_escaped(format!("{EDGE_ARROW_HEAD_CLASS}\n{extra}").as_str())
                 }
             } else {
-                Self::class_attr_escaped("arrow_head")
+                Self::class_attr_escaped(EDGE_ARROW_HEAD_CLASS)
             };
 
             // Build class attribute for the halo element, if the interaction
@@ -879,7 +894,7 @@ impl SvgElementsToSvgMapper {
                 "<path \
                     d=\"{path_d}\" \
                     fill=\"none\" \
-                    class=\"edge_body\"
+                    class=\"{EDGE_BODY_CLASS}\"
                 />\
                 <path \
                     d=\"{locus_path_d}\" \

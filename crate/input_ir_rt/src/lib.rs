@@ -54,6 +54,7 @@ mod md_text;
 mod node_ranks_calculator;
 mod process_step_graph_calculator;
 mod string_xml_escaper;
+mod svg_element_classes;
 mod svg_elements_to_svg_mapper;
 mod taffy_node_absolute_coordinates_calculator;
 mod taffy_to_svg_elements_mapper;
