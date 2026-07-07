@@ -29,16 +29,6 @@ pub(super) struct EdgeFaceOffset {
     /// `0.0` -- edge at the face midpoint.
     /// `10.0` -- edge shifted 10 px right/down from the face midpoint.
     pub(super) to_offset: f32,
-    /// Whether `from_offset` came from an edge's own label content (via
-    /// `label_face_span_compute`) rather than the slot-based fallback.
-    ///
-    /// A label-based offset already separates a symmetric edge pair's two
-    /// contacts, so `EdgePathBuilderPass2::build` must not additionally
-    /// apply the bidirectional pair offset to this endpoint.
-    pub(super) from_offset_is_label: bool,
-    /// Whether `to_offset` came from an edge's own label content, mirroring
-    /// `from_offset_is_label`.
-    pub(super) to_offset_is_label: bool,
 }
 
 /// Absolute coordinates of a spacer node's entry and exit edges,
@@ -104,9 +94,6 @@ pub(super) const SELF_LOOP_Y_EXTENSION_RATIO: f32 = 0.2;
 /// Percentage of the node's width to curve the edge horizontally
 /// outward.
 pub(super) const SELF_LOOP_X_EXTENSION_RATIO: f32 = 0.2;
-/// Percentage of the node's width/height to offset the edge when
-/// connecting to another edge.
-pub(super) const BIDIRECTIONAL_OFFSET_RATIO: f32 = 0.1;
 /// Percentage of the node's width/height to curve the edge outward.
 pub(super) const CURVE_CONTROL_RATIO: f32 = 0.3;
 /// Margin (px) kept between a clamped contact point and the node's own face
@@ -193,37 +180,6 @@ impl EdgePathBuilderPass1 {
             face_offset.from_offset,
         );
         Self::face_offset_apply(&mut end_x, &mut end_y, to_face, face_offset.to_offset);
-
-        // Apply bidirectional offset
-        if edge_type == EdgeType::PairRequest || edge_type == EdgeType::PairResponse {
-            let offset_direction = if edge_type == EdgeType::PairResponse {
-                1.0
-            } else {
-                -1.0
-            };
-
-            // Move start point down if this is the `PairRequest` edge.
-            match from_face {
-                NodeFace::Right | NodeFace::Left => {
-                    start_y +=
-                        from_info.height_collapsed * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                }
-                NodeFace::Top | NodeFace::Bottom => {
-                    start_x += from_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                }
-            }
-
-            // Move end point down if this is the `PairResponse` edge.
-            match to_face {
-                NodeFace::Right | NodeFace::Left => {
-                    end_y +=
-                        to_info.height_collapsed * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                }
-                NodeFace::Top | NodeFace::Bottom => {
-                    end_x += to_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                }
-            }
-        }
 
         // If either node has a circle, snap the connection point to the circle
         // perimeter instead of the rectangular face center.

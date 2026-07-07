@@ -903,34 +903,35 @@ impl SvgEdgeInfosBuilder {
             // non-zero description label on this face; otherwise fall back
             // to the per-kind slot arithmetic, nudged clear of any real
             // label span from either kind on this face. Also record whether
-            // each offset is label-based, so `EdgePathBuilderPass2::build`
-            // can avoid additionally applying the bidirectional pair offset
-            // on top of it (see `EdgeContactPointOffsets::is_label_based`).
-            let (mut offsets, is_label_based): (Vec<f32>, Vec<bool>) = face_contact_entries
-                .iter()
-                .zip(label_spans)
-                .enumerate()
-                .map(|(slot_index, (face_contact_entry, label_span))| {
-                    if let Some(label_span) = label_span {
-                        return (label_span.near, true);
-                    }
-                    let (within_kind_index, kind_count) = if face_contact_entry.is_interaction {
-                        (slot_index - dependency_count, interaction_count)
-                    } else {
-                        (slot_index, dependency_count)
-                    };
-                    let slot_offset = EdgeFaceContactTracker::offset_for_index(
-                        within_kind_index,
-                        kind_count,
-                        face_length,
-                    );
-                    let cleared_offset = Self::face_offsets_slot_offset_labels_clear(
-                        slot_offset,
-                        &label_spans_occupied,
-                    );
-                    (cleared_offset, false)
-                })
-                .unzip();
+            // each fallback offset was actually moved by that clearing step
+            // (`was_label_cleared`), so `face_offsets_label_cleared_collisions_separate`
+            // below can re-separate entries that independently converged on
+            // the same or a nearby label-span boundary.
+            let mut offsets: Vec<f32> = Vec::with_capacity(face_contact_entries.len());
+            let mut was_label_cleared: Vec<bool> = Vec::with_capacity(face_contact_entries.len());
+            for (slot_index, (face_contact_entry, label_span)) in
+                face_contact_entries.iter().zip(label_spans).enumerate()
+            {
+                if let Some(label_span) = label_span {
+                    offsets.push(label_span.near);
+                    was_label_cleared.push(false);
+                    continue;
+                }
+                let (within_kind_index, kind_count) = if face_contact_entry.is_interaction {
+                    (slot_index - dependency_count, interaction_count)
+                } else {
+                    (slot_index, dependency_count)
+                };
+                let slot_offset = EdgeFaceContactTracker::offset_for_index(
+                    within_kind_index,
+                    kind_count,
+                    face_length,
+                );
+                let cleared_offset =
+                    Self::face_offsets_slot_offset_labels_clear(slot_offset, &label_spans_occupied);
+                offsets.push(cleared_offset);
+                was_label_cleared.push(cleared_offset != slot_offset);
+            }
 
             // Self-loop from/to contacts may come from different sources
             // (label-aligned from vs slot-based to); enforce the face contact
@@ -942,9 +943,15 @@ impl SvgEdgeInfosBuilder {
                 &mut offsets,
             );
 
+            // Multiple fallback offsets independently nudged clear of real
+            // label spans (possibly the same span, or different but
+            // adjacent spans) can still converge on the same or a nearby
+            // coordinate; re-separate just those entries.
+            Self::face_offsets_label_cleared_collisions_separate(&mut offsets, &was_label_cleared);
+
             face_offsets_by_node_face.insert(
                 node_id_and_face.clone(),
-                EdgeContactPointOffsets::new(offsets, is_label_based),
+                EdgeContactPointOffsets::new(offsets),
             );
         }
 
@@ -1033,6 +1040,124 @@ impl SvgEdgeInfosBuilder {
                 } else {
                     candidate_before
                 };
+        }
+    }
+
+    /// Enforces a minimum separation between fallback offsets that were
+    /// independently nudged clear of *different* real label spans by
+    /// `face_offsets_slot_offset_labels_clear`.
+    ///
+    /// That function considers one entry and one span at a time, so two
+    /// unrelated entries on the same face -- possibly from different
+    /// edge-kind pools -- can each be nudged to the same or a near-identical
+    /// boundary when their respective label spans sit close together (or are
+    /// the same span). This pass re-separates only the entries that were
+    /// actually nudged (`was_label_cleared[i] == true`); every other offset
+    /// -- real label positions, and untouched slot-fallback offsets -- is
+    /// treated as a fixed anchor and never moved.
+    ///
+    /// Untouched slot-fallback offsets must remain fixed anchors here too,
+    /// not just real labels: a dependency edge and an interaction edge that
+    /// are each the sole occupant of their own kind-pool on one face both
+    /// independently compute the fallback centre `0.0` -- an intentional,
+    /// documented coincidence (the interaction edge's curved path bows away
+    /// from it). A face with no real labels at all has `was_label_cleared`
+    /// all-`false`, so this function returns immediately and is a no-op.
+    fn face_offsets_label_cleared_collisions_separate(
+        offsets: &mut [f32],
+        was_label_cleared: &[bool],
+    ) {
+        let contact_count = offsets.len();
+        if contact_count < 2 || !was_label_cleared.iter().any(|&cleared| cleared) {
+            return;
+        }
+
+        // Sort all slots on this face by current offset, ascending; stable
+        // tie-break on slot index for determinism.
+        let mut order: Vec<usize> = (0..contact_count).collect();
+        order.sort_by(|&a, &b| {
+            offsets[a]
+                .partial_cmp(&offsets[b])
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.cmp(&b))
+        });
+
+        // Walk the sorted order, splitting into runs of consecutive
+        // label-cleared slots bounded by fixed slots (a real label, or an
+        // untouched fallback offset) or the ends of the face's contact list.
+        let mut run_start = 0;
+        for index in 0..=order.len() {
+            let at_boundary = index == order.len() || !was_label_cleared[order[index]];
+            if at_boundary {
+                let run = &order[run_start..index];
+                if !run.is_empty() {
+                    let left_bound = (run_start > 0).then(|| offsets[order[run_start - 1]]);
+                    let right_bound = (index < order.len()).then(|| offsets[order[index]]);
+                    Self::face_offsets_label_cleared_run_separate(
+                        run,
+                        offsets,
+                        left_bound,
+                        right_bound,
+                    );
+                }
+                run_start = index + 1;
+            }
+        }
+    }
+
+    /// Spreads one run of consecutive label-cleared slots so each is at
+    /// least `CONTACT_GAP_MIN_PX` from its neighbours and from the bounding
+    /// fixed offsets, while disturbing the run's own clearance-derived
+    /// positions as little as possible.
+    fn face_offsets_label_cleared_run_separate(
+        run: &[usize],
+        offsets: &mut [f32],
+        left_bound: Option<f32>,
+        right_bound: Option<f32>,
+    ) {
+        let run_len = run.len();
+
+        // Already separated from each other and from both bounds?
+        let mut prev = left_bound;
+        let mut already_ok = true;
+        for &index in run {
+            if let Some(previous_offset) = prev
+                && offsets[index] - previous_offset < CONTACT_GAP_MIN_PX
+            {
+                already_ok = false;
+                break;
+            }
+            prev = Some(offsets[index]);
+        }
+        if already_ok
+            && let (Some(right_bound), Some(&last)) = (right_bound, run.last())
+        {
+            already_ok = right_bound - offsets[last] >= CONTACT_GAP_MIN_PX;
+        }
+        if already_ok {
+            return;
+        }
+
+        // Redistribute evenly around the run's own centroid (minimising
+        // displacement from the clearance-derived positions), clamped to
+        // fit between whichever fixed bounds exist.
+        let centroid = run.iter().map(|&index| offsets[index]).sum::<f32>() / run_len as f32;
+        let span = (run_len as f32 - 1.0) * CONTACT_GAP_MIN_PX;
+        let mut start = centroid - span / 2.0;
+        if let Some(left_bound) = left_bound {
+            start = start.max(left_bound + CONTACT_GAP_MIN_PX);
+        }
+        if let Some(right_bound) = right_bound {
+            start = start.min(right_bound - CONTACT_GAP_MIN_PX - span);
+            if let Some(left_bound) = left_bound {
+                // Bounds are tighter than the run needs; re-clamp so the run
+                // stays as close to the near bound as possible rather than
+                // overshooting past the far one.
+                start = start.max(left_bound + CONTACT_GAP_MIN_PX);
+            }
+        }
+        for (position, &index) in run.iter().enumerate() {
+            offsets[index] = start + position as f32 * CONTACT_GAP_MIN_PX;
         }
     }
 
@@ -1396,7 +1521,7 @@ impl SvgEdgeInfosBuilder {
                     .get(&pass1_info.edge.to)
                     .expect("to node validated in pass 1");
 
-                let (from_offset, from_offset_is_label) = pass1_info
+                let from_offset = pass1_info
                     .from_face
                     .and_then(|from_face| {
                         let slot_index = from_slot_indices[pass1_info_index]?;
@@ -1406,15 +1531,11 @@ impl SvgEdgeInfosBuilder {
                         };
                         let contact_point_offsets =
                             face_offsets_by_node_face.get(&node_id_and_face)?;
-                        let offset = contact_point_offsets.get(slot_index)?;
-                        let is_label = contact_point_offsets
-                            .is_label_based(slot_index)
-                            .unwrap_or(false);
-                        Some((offset, is_label))
+                        contact_point_offsets.get(slot_index)
                     })
-                    .unwrap_or((0.0, false));
+                    .unwrap_or(0.0);
 
-                let (to_offset, to_offset_is_label) = pass1_info
+                let to_offset = pass1_info
                     .to_face
                     .and_then(|to_face| {
                         let slot_index = to_slot_indices[pass1_info_index]?;
@@ -1424,19 +1545,13 @@ impl SvgEdgeInfosBuilder {
                         };
                         let contact_point_offsets =
                             face_offsets_by_node_face.get(&node_id_and_face)?;
-                        let offset = contact_point_offsets.get(slot_index)?;
-                        let is_label = contact_point_offsets
-                            .is_label_based(slot_index)
-                            .unwrap_or(false);
-                        Some((offset, is_label))
+                        contact_point_offsets.get(slot_index)
                     })
-                    .unwrap_or((0.0, false));
+                    .unwrap_or(0.0);
 
                 let face_offset = EdgeFaceOffset {
                     from_offset,
                     to_offset,
-                    from_offset_is_label,
-                    to_offset_is_label,
                 };
 
                 // Dependency edges have no interaction edge halo, so their
