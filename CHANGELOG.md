@@ -63,6 +63,7 @@
 * Render dependency edges' labels and descriptions with the same legibility background box previously only given to interaction edges. ([#60][#60])
 * Add `EntityType::EdgeLabelAndDescBg`, `DependencyEdgeLabelAndDescBg`, `DependencyEdgeLabelBg`, `DependencyEdgeDescBg`, `InteractionEdgeLabelAndDescBg` so edge label/description background styling resolves through a 3-tier fallback hierarchy (shared default -> dependency/interaction-specific -> label/desc-specific). ([#60][#60])
 * Scope stroke and fill tailwind classes to edge body/arrowhead and thing wrapper node. ([#60][#60])
+* Fix separate edge offset calculation ending up with the same final coordinate. ([#60][#60])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
