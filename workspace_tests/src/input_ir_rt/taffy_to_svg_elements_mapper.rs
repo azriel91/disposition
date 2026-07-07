@@ -63,6 +63,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0058_INTERACTION_HALO_WITH_LABELS_RIGHT_TO_LEFT,
     INPUT_DIAGRAM_0059_EDGE_LABEL_DESC_BG_HIERARCHY_OVERRIDE,
     INPUT_DIAGRAM_0060_SAME_RANK_DESC_CONTAINER_GLOBAL_VS_LOCAL_SIBLING_INDEX,
+    INPUT_DIAGRAM_0061_SAME_RANK_DESC_CONTAINERS_MULTIPLE_OVERLAPPING,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -5341,8 +5342,8 @@ fn test_same_rank_cyclic_edge_description_sits_between_divergent_ancestors_at_ro
 /// the rank-0 bucket's own length, appending the container after `t_c`
 /// instead of between `t_b` and `t_c`.
 #[test]
-fn test_same_rank_description_container_sits_between_siblings_despite_lower_declared_higher_rank_sibling()
-{
+fn test_same_rank_description_container_sits_between_siblings_despite_lower_declared_higher_rank_sibling(
+) {
     for svg_elements in build_svg_elements_for_diagram(
         INPUT_DIAGRAM_0060_SAME_RANK_DESC_CONTAINER_GLOBAL_VS_LOCAL_SIBLING_INDEX,
     ) {
@@ -5401,8 +5402,8 @@ fn test_same_rank_description_container_sits_between_siblings_despite_lower_decl
 /// themselves, since it holds the "b/c dep desc" text) -- not ballooning out
 /// to some distant coordinate like the real bug's x=987.
 #[test]
-fn test_same_rank_crossing_edge_path_stays_near_divergent_ancestors_despite_lower_declared_higher_rank_sibling()
-{
+fn test_same_rank_crossing_edge_path_stays_near_divergent_ancestors_despite_lower_declared_higher_rank_sibling(
+) {
     const TIGHT_BOUND_TOLERANCE_PX: f32 = 20.0;
 
     for svg_elements in build_svg_elements_for_diagram(
@@ -5440,6 +5441,66 @@ fn test_same_rank_crossing_edge_path_stays_near_divergent_ancestors_despite_lowe
                  t_b/t_c (max allowed: {tight_max_x}), got a point at x={x}: {points:?}",
             );
         }
+    }
+}
+
+/// Regression test for a bug in `RankSiblingInserter::node_insert`: when 3+
+/// same-rank description containers are inserted into the same rank's
+/// sibling list (one per adjacent pair `t_a`/`t_b`, `t_b`/`t_c`, `t_c`/`t_d`,
+/// all defaulting to rank 0 since there are no `thing_dependencies` to order
+/// them), the container for the third pair (`desc_c_d`) used to land next to
+/// the *second* pair's container instead of between `t_c` and `t_d`.
+///
+/// The bug was in the insertion-accounting scheme: it tracked prior
+/// insertions by their post-shift position in the growing sibling list
+/// rather than by their own original `base_index`, so once two containers
+/// had already shifted the list, a later container's "how many earlier
+/// insertions come before me" count silently dropped one of them.
+///
+/// Asserts the three description boxes and four nodes appear in the correct
+/// interleaved x-order (this diagram's `things` stack horizontally within
+/// their shared rank 0 row).
+#[test]
+fn test_same_rank_desc_containers_multiple_overlapping_insert_in_correct_order() {
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0061_SAME_RANK_DESC_CONTAINERS_MULTIPLE_OVERLAPPING,
+    ) {
+        let node_x = |node_id: &str| {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|node_info| node_info.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"))
+                .envelope_x
+        };
+        let desc_x = |edge_id: &str| {
+            svg_elements
+                .edge_description_infos
+                .iter()
+                .find(|d| d.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected a description for {edge_id}."))
+                .x
+        };
+
+        let t_a = node_x("t_a");
+        let t_b = node_x("t_b");
+        let t_c = node_x("t_c");
+        let t_d = node_x("t_d");
+        let desc_a_b = desc_x("edge_ix_a_b__0");
+        let desc_b_c = desc_x("edge_ix_b_c__0");
+        let desc_c_d = desc_x("edge_ix_c_d__0");
+
+        assert!(
+            t_a < desc_a_b
+                && desc_a_b < t_b
+                && t_b < desc_b_c
+                && desc_b_c < t_c
+                && t_c < desc_c_d
+                && desc_c_d < t_d,
+            "Expected order t_a({t_a}) < desc_a_b({desc_a_b}) < t_b({t_b}) < \
+             desc_b_c({desc_b_c}) < t_c({t_c}) < desc_c_d({desc_c_d}) < t_d({t_d}), \
+             but desc_c_d landed in the wrong gap"
+        );
     }
 }
 

@@ -1,0 +1,50 @@
+---
+# Minimal repro for a same-rank (cycle edge) `edge_description_container`
+# insertion-ordering bug: `RankSiblingInserter::node_insert` tracked prior
+# insertions by their FINAL (post-shift) position in `rank_to_taffy_ids`
+# instead of by their own original `base_index`. Once two or more same-rank
+# description containers had already been inserted, a later container's
+# "how many earlier insertions come before me" count silently dropped
+# insertions whose final position had drifted past the counting window,
+# wedging it next to the wrong pair of siblings.
+#
+# Four things with no `thing_dependencies` between them all default to rank
+# 0 (see `node_ranks.md` -- "No dependency edges" case), making every
+# interaction here a same-rank (cycle edge) description. `t_a`/`t_b`,
+# `t_b`/`t_c`, and `t_c`/`t_d` are three adjacent pairs whose containers are
+# inserted in sequence into the same rank-0 sibling list -- the third
+# insertion (`desc_c_d`) is the one that exposed the bug, landing next to
+# `t_b`/`t_c` instead of between `t_c` and `t_d`.
+things:
+  t_a: {}
+  t_b: {}
+  t_c: {}
+  t_d: {}
+
+thing_names:
+  t_a: "A"
+  t_b: "B"
+  t_c: "C"
+  t_d: "D"
+
+thing_interactions:
+  edge_ix_a_b:
+    kind: sequence
+    things:
+      - t_a
+      - t_b
+  edge_ix_b_c:
+    kind: symmetric
+    things:
+      - t_b
+      - t_c
+  edge_ix_c_d:
+    kind: symmetric
+    things:
+      - t_c
+      - t_d
+
+edge_descs:
+  edge_ix_a_b: "desc_a_b"
+  edge_ix_b_c: "desc_b_c"
+  edge_ix_c_d: "desc_c_d"

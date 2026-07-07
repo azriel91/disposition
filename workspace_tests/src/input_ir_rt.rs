@@ -145,6 +145,9 @@ pub(crate) const INPUT_DIAGRAM_0059_EDGE_LABEL_DESC_BG_HIERARCHY_OVERRIDE: &str 
 pub(crate) const INPUT_DIAGRAM_0060_SAME_RANK_DESC_CONTAINER_GLOBAL_VS_LOCAL_SIBLING_INDEX: &str =
     include_str!("input_diagram/0060_same_rank_desc_container_global_vs_local_sibling_index.yaml");
 
+pub(crate) const INPUT_DIAGRAM_0061_SAME_RANK_DESC_CONTAINERS_MULTIPLE_OVERLAPPING: &str =
+    include_str!("input_diagram/0061_same_rank_desc_containers_multiple_overlapping.yaml");
+
 mod diagram_generator;
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;
