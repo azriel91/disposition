@@ -284,22 +284,39 @@ theme_types_styles:
       stroke_style: solid
       stroke_width: "1"
 
-  # Rendering-only style key for the background box drawn behind an
-  # interaction edge's label text, to keep it legible where it may overlap
-  # other diagram content.
-  type_interaction_edge_label_bg:
+  # Rendering-only style key -- least specific tier -- shared default for
+  # both dependency and interaction edges' label and description
+  # backgrounds, to keep them legible where they may overlap other diagram
+  # content.
+  type_edge_label_and_desc_bg:
     edge_defaults:
       shape_color: "neutral"
       fill_shade: "50"
       opacity: "90"
 
-  # Rendering-only style key for the background box drawn behind an
-  # interaction edge's description text.
+  # Overrides type_edge_label_and_desc_bg for dependency edges only (both
+  # label and description).
+  type_dependency_edge_label_and_desc_bg:
+    edge_defaults: {}
+  # Overrides type_dependency_edge_label_and_desc_bg for the label only.
+  type_dependency_edge_label_bg:
+    edge_defaults: {}
+  # Overrides type_dependency_edge_label_and_desc_bg for the description
+  # only.
+  type_dependency_edge_desc_bg:
+    edge_defaults: {}
+
+  # Overrides type_edge_label_and_desc_bg for interaction edges only (both
+  # label and description).
+  type_interaction_edge_label_and_desc_bg:
+    edge_defaults: {}
+  # Overrides type_interaction_edge_label_and_desc_bg for the label only.
+  type_interaction_edge_label_bg:
+    edge_defaults: {}
+  # Overrides type_interaction_edge_label_and_desc_bg for the description
+  # only.
   type_interaction_edge_desc_bg:
-    edge_defaults:
-      shape_color: "neutral"
-      fill_shade: "50"
-      opacity: "90"
+    edge_defaults: {}
 
 # When a tag is focused, things and edges associated with the tag are highlighted.
 #

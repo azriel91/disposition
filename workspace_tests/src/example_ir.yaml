@@ -1101,6 +1101,18 @@ tailwind_classes:
     group-has-[#proc_i12e_region_tier_app_deploy:focus-within]:visible
     group-has-[#proc_i12e_region_tier_app_deploy_step_ecs_cluster_update:focus-within]:visible
     peer/proc_i12e_region_tier_app_deploy_step_ecs_cluster_update
+  edge_dep_t_localhost__t_github_user_repo__pull__0__label_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
+  edge_dep_t_localhost__t_github_user_repo__pull__0__desc_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
   edge_dep_t_localhost__t_github_user_repo__pull__0: |
     visible
     [stroke-dasharray:none]
@@ -1117,6 +1129,18 @@ tailwind_classes:
     focus:stroke-[var(--tw-neutral-800-200)]
     active:stroke-[var(--tw-neutral-900-100)]
     [&>text]:fill-[var(--tw-neutral-950-50)]
+  edge_dep_t_localhost__t_github_user_repo__pull__1__label_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
+  edge_dep_t_localhost__t_github_user_repo__pull__1__desc_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
   edge_dep_t_localhost__t_github_user_repo__pull__1: |
     visible
     [stroke-dasharray:none]
@@ -1133,6 +1157,18 @@ tailwind_classes:
     focus:stroke-[var(--tw-neutral-800-200)]
     active:stroke-[var(--tw-neutral-900-100)]
     [&>text]:fill-[var(--tw-neutral-950-50)]
+  edge_dep_t_localhost__t_github_user_repo__push__0__label_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
+  edge_dep_t_localhost__t_github_user_repo__push__0__desc_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
   edge_dep_t_localhost__t_github_user_repo__push__0: |
     visible
     [stroke-dasharray:none]
@@ -1149,6 +1185,18 @@ tailwind_classes:
     focus:stroke-[var(--tw-neutral-800-200)]
     active:stroke-[var(--tw-neutral-900-100)]
     [&>text]:fill-[var(--tw-neutral-950-50)]
+  edge_dep_t_localhost__t_localhost__within__0__label_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
+  edge_dep_t_localhost__t_localhost__within__0__desc_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
   edge_dep_t_localhost__t_localhost__within__0: |
     visible
     [stroke-dasharray:none]
@@ -1165,6 +1213,18 @@ tailwind_classes:
     focus:stroke-[var(--tw-neutral-800-200)]
     active:stroke-[var(--tw-neutral-900-100)]
     [&>text]:fill-[var(--tw-neutral-950-50)]
+  edge_dep_t_github_user_repo__t_github_user_repo__within__0__label_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
+  edge_dep_t_github_user_repo__t_github_user_repo__within__0__desc_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
   edge_dep_t_github_user_repo__t_github_user_repo__within__0: |
     visible
     [stroke-dasharray:none]
@@ -1181,6 +1241,18 @@ tailwind_classes:
     focus:stroke-[var(--tw-neutral-800-200)]
     active:stroke-[var(--tw-neutral-900-100)]
     [&>text]:fill-[var(--tw-neutral-950-50)]
+  edge_dep_t_github_user_repo__t_github_user_repo__within__1__label_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
+  edge_dep_t_github_user_repo__t_github_user_repo__within__1__desc_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
   edge_dep_t_github_user_repo__t_github_user_repo__within__1: |
     visible
     [stroke-dasharray:none]
@@ -1197,6 +1269,18 @@ tailwind_classes:
     focus:stroke-[var(--tw-neutral-800-200)]
     active:stroke-[var(--tw-neutral-900-100)]
     [&>text]:fill-[var(--tw-neutral-950-50)]
+  edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0__label_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
+  edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0__desc_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
   edge_dep_t_github_user_repo__t_aws_ecr_repo__push__0: |
     visible
     [stroke-dasharray:none]
@@ -1213,6 +1297,18 @@ tailwind_classes:
     focus:stroke-[var(--tw-neutral-800-200)]
     active:stroke-[var(--tw-neutral-900-100)]
     [&>text]:fill-[var(--tw-neutral-950-50)]
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push__0__label_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
+  edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push__0__desc_bg: |
+    opacity-90
+    hover:fill-[var(--tw-neutral-50-950)]
+    fill-[var(--tw-neutral-50-950)]
+    focus:fill-[var(--tw-neutral-50-950)]
+    active:fill-[var(--tw-neutral-50-950)]
   edge_dep_t_aws_ecr_repo__t_aws_ecs_cluster__push__0: |
     visible
     [stroke-dasharray:none]

@@ -60,6 +60,8 @@
 * Give same-rank, adjacent-sibling edges with a spacer waypoint (e.g. an edge description contact) a protrusion floor, so the orthogonal bend clears the arrow head instead of landing inside it. ([#59][#59])
 * Stop propagating a same-rank edge's node-endpoint protrusion (sized to clear the arrow head) into its own spacer waypoint's entry/exit protrusion, which previously extended the path far past the `edge_description_container` box or crossing spacer and back, producing a spurious double bend. ([#59][#59])
 * Resolve a same-rank crossing spacer's entry/exit on the rotated axis, swapped to match that edge's own travel direction, instead of the diagram's canonical direction, so its path no longer cuts through the `edge_description_container` box it is meant to route around. ([#59][#59])
+* Render dependency edges' labels and descriptions with the same legibility background box previously only given to interaction edges. ([#60][#60])
+* Add `EntityType::EdgeLabelAndDescBg`, `DependencyEdgeLabelAndDescBg`, `DependencyEdgeLabelBg`, `DependencyEdgeDescBg`, `InteractionEdgeLabelAndDescBg` so edge label/description background styling resolves through a 3-tier fallback hierarchy (shared default -> dependency/interaction-specific -> label/desc-specific). ([#60][#60])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -79,6 +81,7 @@
 [#57]: https://github.com/azriel91/disposition/pull/57
 [#58]: https://github.com/azriel91/disposition/pull/58
 [#59]: https://github.com/azriel91/disposition/pull/59
+[#60]: https://github.com/azriel91/disposition/pull/60
 
 
 ## 0.3.0 (2026-06-07)

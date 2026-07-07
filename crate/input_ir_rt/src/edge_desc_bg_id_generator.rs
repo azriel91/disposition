@@ -1,8 +1,8 @@
 use disposition_ir_model::edge::EdgeId;
 use disposition_model_common::Id;
 
-/// Generates the entity ID used to key the tailwind classes for an
-/// interaction edge's description background path.
+/// Generates the entity ID used to key the tailwind classes for an edge's
+/// description background path.
 pub struct EdgeDescBgIdGenerator;
 
 impl EdgeDescBgIdGenerator {

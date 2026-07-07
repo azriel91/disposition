@@ -61,6 +61,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0056_INTERACTION_HALO_WITH_LABELS,
     INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC,
     INPUT_DIAGRAM_0058_INTERACTION_HALO_WITH_LABELS_RIGHT_TO_LEFT,
+    INPUT_DIAGRAM_0059_EDGE_LABEL_DESC_BG_HIERARCHY_OVERRIDE,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -4986,16 +4987,16 @@ fn test_edge_descs_instance_id_overrides_group_id() {
     }
 }
 
-// === Interaction edge label/description background tests === //
+// === Edge label/description background tests === //
 
-/// An interaction edge's label and description get a `{edge_id}__label_bg` /
-/// `{edge_id}__desc_bg` tailwind-classes entry (styled from
-/// `type_interaction_edge_label_bg` / `type_interaction_edge_desc_bg`), and
-/// the rendered SVG draws a background `<path>` as the first child of the
-/// label/description `<g>`, before the text. Dependency edges get no such
-/// entry or path.
+/// Every edge's label and description -- dependency as well as interaction
+/// -- get a `{edge_id}__label_bg` / `{edge_id}__desc_bg` tailwind-classes
+/// entry (styled through the `EdgeLabelAndDescBg` fallback hierarchy, see
+/// `doc/src/edge_descriptions.md`), and the rendered SVG draws a background
+/// `<path>` as the first child of the label/description `<g>`, before the
+/// text.
 #[test]
-fn test_interaction_edge_label_and_desc_bg_render_before_text() {
+fn test_edge_label_and_desc_bg_render_before_text() {
     for svg_elements in
         build_svg_elements_for_diagram(INPUT_DIAGRAM_0055_INTERACTION_EDGE_LABEL_DESC_BG)
     {
@@ -5021,84 +5022,164 @@ fn test_interaction_edge_label_and_desc_bg_render_before_text() {
             Id::try_from(format!("{edge_id}__desc_bg")).expect("desc_bg ID should be valid")
         };
 
-        let ix_label_bg_classes = svg_elements
-            .tailwind_classes
-            .get(&label_bg_key(ix_edge_id.as_str()))
-            .unwrap_or_else(|| {
-                panic!("Expected label_bg tailwind classes for interaction edge {ix_edge_id:?}")
-            });
-        assert!(
-            ix_label_bg_classes.contains("opacity-90"),
-            "Expected label_bg classes to include opacity-90, got: {ix_label_bg_classes}"
-        );
-        let ix_desc_bg_classes = svg_elements
-            .tailwind_classes
-            .get(&desc_bg_key(ix_edge_id.as_str()))
-            .unwrap_or_else(|| {
-                panic!("Expected desc_bg tailwind classes for interaction edge {ix_edge_id:?}")
-            });
-        assert!(
-            ix_desc_bg_classes.contains("opacity-90"),
-            "Expected desc_bg classes to include opacity-90, got: {ix_desc_bg_classes}"
-        );
-
-        assert!(
-            svg_elements
+        for (edge_kind, edge_id) in [("interaction", &ix_edge_id), ("dependency", &dep_edge_id)] {
+            let label_bg_classes = svg_elements
                 .tailwind_classes
-                .get(&label_bg_key(dep_edge_id.as_str()))
-                .is_none(),
-            "Dependency edge {dep_edge_id:?} should not have a label_bg tailwind classes entry"
-        );
-        assert!(
-            svg_elements
+                .get(&label_bg_key(edge_id.as_str()))
+                .unwrap_or_else(|| {
+                    panic!("Expected label_bg tailwind classes for {edge_kind} edge {edge_id:?}")
+                });
+            assert!(
+                label_bg_classes.contains("opacity-90"),
+                "Expected {edge_kind} edge's label_bg classes to include opacity-90, \
+                got: {label_bg_classes}"
+            );
+            let desc_bg_classes = svg_elements
                 .tailwind_classes
-                .get(&desc_bg_key(dep_edge_id.as_str()))
-                .is_none(),
-            "Dependency edge {dep_edge_id:?} should not have a desc_bg tailwind classes entry"
-        );
+                .get(&desc_bg_key(edge_id.as_str()))
+                .unwrap_or_else(|| {
+                    panic!("Expected desc_bg tailwind classes for {edge_kind} edge {edge_id:?}")
+                });
+            assert!(
+                desc_bg_classes.contains("opacity-90"),
+                "Expected {edge_kind} edge's desc_bg classes to include opacity-90, \
+                got: {desc_bg_classes}"
+            );
+        }
 
         let svg = SvgElementsToSvgMapper::map(&svg_elements);
 
-        let ix_label_g_start = svg
-            .find(&format!("id=\"{ix_edge_id}__from_label\""))
-            .expect("Expected the interaction edge's from_label <g> element in the rendered SVG");
-        let ix_label_g_slice = &svg[ix_label_g_start..];
-        let path_index = ix_label_g_slice
-            .find("<path")
-            .expect("Expected a background path in the interaction edge's label");
-        let text_index = ix_label_g_slice
-            .find("<text")
-            .expect("Expected text in the interaction edge's label");
+        for (edge_kind, edge_id) in [("interaction", &ix_edge_id), ("dependency", &dep_edge_id)] {
+            let label_g_start = svg
+                .find(&format!("id=\"{edge_id}__from_label\""))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Expected the {edge_kind} edge's from_label <g> element in the rendered SVG"
+                    )
+                });
+            let label_g_slice = &svg[label_g_start..];
+            let path_index = label_g_slice.find("<path").unwrap_or_else(|| {
+                panic!("Expected a background path in the {edge_kind} edge's label")
+            });
+            let text_index = label_g_slice
+                .find("<text")
+                .unwrap_or_else(|| panic!("Expected text in the {edge_kind} edge's label"));
+            assert!(
+                path_index < text_index,
+                "Expected the {edge_kind} edge's label background path to render before the label text"
+            );
+
+            let desc_g_start = svg
+                .find(&format!("id=\"{edge_id}__desc\""))
+                .unwrap_or_else(|| {
+                    panic!("Expected the {edge_kind} edge's desc <g> element in the rendered SVG")
+                });
+            let desc_g_slice = &svg[desc_g_start..];
+            let path_index = desc_g_slice.find("<path").unwrap_or_else(|| {
+                panic!("Expected a background path in the {edge_kind} edge's description")
+            });
+            let text_index = desc_g_slice
+                .find("<text")
+                .unwrap_or_else(|| panic!("Expected text in the {edge_kind} edge's description"));
+            assert!(
+                path_index < text_index,
+                "Expected the {edge_kind} edge's description background path to render before \
+                the description text"
+            );
+        }
+    }
+}
+
+/// Edge label/description background styling resolves through a 3-tier
+/// fallback hierarchy -- least to most specific:
+/// `EdgeLabelAndDescBg` -> `{Dependency,Interaction}EdgeLabelAndDescBg` ->
+/// `{Dependency,Interaction}Edge{Label,Desc}Bg` -- where a more specific
+/// override wins over a less specific one, and unrelated edges/backgrounds
+/// are left untouched by a more specific override.
+///
+/// The fixture overrides all 3 tiers for the dependency edge (`"rose"` ->
+/// `"amber"` -> `"lime"`, the last only for the label), while the
+/// interaction edge is never overridden beyond tier 1.
+#[test]
+fn test_edge_label_desc_bg_hierarchy_fallback() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0059_EDGE_LABEL_DESC_BG_HIERARCHY_OVERRIDE)
+    {
+        let dep_edge_id = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.edge_id.as_str().starts_with("edge_dep_ab"))
+            .expect("Expected the dependency edge to exist.")
+            .edge_id
+            .clone();
+        let ix_edge_id = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.edge_id.as_str().starts_with("edge_ix_ab"))
+            .expect("Expected the interaction edge to exist.")
+            .edge_id
+            .clone();
+
+        let label_bg_classes = |edge_id: &str| {
+            let key =
+                Id::try_from(format!("{edge_id}__label_bg")).expect("label_bg ID should be valid");
+            svg_elements
+                .tailwind_classes
+                .get(&key)
+                .unwrap_or_else(|| panic!("Expected label_bg tailwind classes for {edge_id:?}"))
+        };
+        let desc_bg_classes = |edge_id: &str| {
+            let key =
+                Id::try_from(format!("{edge_id}__desc_bg")).expect("desc_bg ID should be valid");
+            svg_elements
+                .tailwind_classes
+                .get(&key)
+                .unwrap_or_else(|| panic!("Expected desc_bg tailwind classes for {edge_id:?}"))
+        };
+
+        // Tier 1 (`type_edge_label_and_desc_bg`, "rose"): the interaction
+        // edge is never overridden beyond this tier, so both its label and
+        // description backgrounds stay "rose".
+        let ix_label_bg = label_bg_classes(ix_edge_id.as_str());
         assert!(
-            path_index < text_index,
-            "Expected the label background path to render before the label text"
+            ix_label_bg.contains("rose"),
+            "Expected interaction edge's label_bg classes to include \"rose\" (tier 1 default), \
+            got: {ix_label_bg}"
+        );
+        let ix_desc_bg = desc_bg_classes(ix_edge_id.as_str());
+        assert!(
+            ix_desc_bg.contains("rose"),
+            "Expected interaction edge's desc_bg classes to include \"rose\" (tier 1 default), \
+            got: {ix_desc_bg}"
         );
 
-        let ix_desc_g_start = svg
-            .find(&format!("id=\"{ix_edge_id}__desc\""))
-            .expect("Expected the interaction edge's desc <g> element in the rendered SVG");
-        let ix_desc_g_slice = &svg[ix_desc_g_start..];
-        let path_index = ix_desc_g_slice
-            .find("<path")
-            .expect("Expected a background path in the interaction edge's description");
-        let text_index = ix_desc_g_slice
-            .find("<text")
-            .expect("Expected text in the interaction edge's description");
+        // Tier 2 (`type_dependency_edge_label_and_desc_bg`, "amber"):
+        // overrides tier 1 for the dependency edge's description
+        // background (no tier-3 override applies to desc).
+        let dep_desc_bg = desc_bg_classes(dep_edge_id.as_str());
         assert!(
-            path_index < text_index,
-            "Expected the description background path to render before the description text"
+            dep_desc_bg.contains("amber"),
+            "Expected dependency edge's desc_bg classes to include \"amber\" (tier 2 override), \
+            got: {dep_desc_bg}"
+        );
+        assert!(
+            !dep_desc_bg.contains("rose"),
+            "Expected dependency edge's desc_bg classes to no longer include \"rose\", \
+            got: {dep_desc_bg}"
         );
 
-        let dep_desc_g_start = svg
-            .find(&format!("id=\"{dep_edge_id}__desc\""))
-            .expect("Expected the dependency edge's desc <g> element in the rendered SVG");
-        let dep_desc_g_slice = &svg[dep_desc_g_start..];
-        let dep_desc_next_g_offset = dep_desc_g_slice
-            .find("<g id=\"")
-            .unwrap_or(dep_desc_g_slice.len());
+        // Tier 3 (`type_dependency_edge_label_bg`, "lime"): overrides tier 2
+        // for the dependency edge's label background only.
+        let dep_label_bg = label_bg_classes(dep_edge_id.as_str());
         assert!(
-            !dep_desc_g_slice[..dep_desc_next_g_offset].contains("<path"),
-            "Dependency edge {dep_edge_id:?} description should not render a background path"
+            dep_label_bg.contains("lime"),
+            "Expected dependency edge's label_bg classes to include \"lime\" (tier 3 override), \
+            got: {dep_label_bg}"
+        );
+        assert!(
+            !dep_label_bg.contains("amber") && !dep_label_bg.contains("rose"),
+            "Expected dependency edge's label_bg classes to no longer include \"amber\" or \
+            \"rose\", got: {dep_label_bg}"
         );
     }
 }

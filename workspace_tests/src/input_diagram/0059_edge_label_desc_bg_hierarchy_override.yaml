@@ -1,0 +1,50 @@
+things:
+  t_a: {}
+  t_b: {}
+thing_dependencies:
+  edge_dep_ab:
+    kind: sequence
+    things:
+      - t_a
+      - t_b
+thing_interactions:
+  edge_ix_ab:
+    kind: sequence
+    things:
+      - t_a
+      - t_b
+edge_descs:
+  edge_dep_ab__0: dependency description
+  edge_ix_ab__0: interaction description
+edge_labels:
+  edge_dep_ab__0:
+    from: dep label
+    to: dep label
+  edge_ix_ab__0:
+    from: ix label
+    to: ix label
+theme_types_styles:
+  # Note: each `theme_types_styles` entry here completely replaces the
+  # corresponding base entry (the merge is whole-value, not a deep merge of
+  # attrs), so every override below repeats `fill_shade` alongside
+  # `shape_color` -- otherwise no fill class would be emitted at all.
+
+  # Tier 1 (least specific): applies to both dependency and interaction
+  # edges' label and description backgrounds, since neither is overridden
+  # any further below for the interaction edge.
+  type_edge_label_and_desc_bg:
+    edge_defaults:
+      shape_color: "rose"
+      fill_shade: "50"
+  # Tier 2: overrides tier 1 for the dependency edge's label AND
+  # description backgrounds.
+  type_dependency_edge_label_and_desc_bg:
+    edge_defaults:
+      shape_color: "amber"
+      fill_shade: "50"
+  # Tier 3 (most specific): overrides tier 2 for the dependency edge's
+  # label background only -- its description background stays "amber".
+  type_dependency_edge_label_bg:
+    edge_defaults:
+      shape_color: "lime"
+      fill_shade: "50"

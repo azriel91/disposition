@@ -139,6 +139,9 @@ pub(crate) const INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC: &str =
 pub(crate) const INPUT_DIAGRAM_0058_INTERACTION_HALO_WITH_LABELS_RIGHT_TO_LEFT: &str =
     include_str!("input_diagram/0058_interaction_halo_with_labels_right_to_left.yaml");
 
+pub(crate) const INPUT_DIAGRAM_0059_EDGE_LABEL_DESC_BG_HIERARCHY_OVERRIDE: &str =
+    include_str!("input_diagram/0059_edge_label_desc_bg_hierarchy_override.yaml");
+
 mod diagram_generator;
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

@@ -57,16 +57,24 @@ struct InteractionEdgeHaloClasses {
     outline_reverse: Option<String>,
 }
 
-/// Resolved, edge-independent tailwind classes for the interaction edge
-/// label and description backgrounds.
+/// Resolved, edge-independent tailwind classes for edge label and
+/// description backgrounds, split by interaction vs. dependency -- each
+/// pair resolved through its own hierarchical fallback chain, see
+/// [`TailwindClassesBuilder::edge_bg_classes_resolve`].
 #[derive(Clone, Debug, Default)]
-struct InteractionEdgeBgClasses {
+struct EdgeBgClasses {
     /// Classes for the background box behind an interaction edge's label
     /// text.
-    label_bg: String,
+    interaction_label_bg: String,
     /// Classes for the background box behind an interaction edge's
     /// description text.
-    desc_bg: String,
+    interaction_desc_bg: String,
+    /// Classes for the background box behind a dependency edge's label
+    /// text.
+    dependency_label_bg: String,
+    /// Classes for the background box behind a dependency edge's
+    /// description text.
+    dependency_desc_bg: String,
 }
 
 /// Builds tailwind CSS classes for all entities (nodes, edge groups, edges).
@@ -240,18 +248,16 @@ impl TailwindClassesBuilder {
             css_theme_vars,
         );
 
-        // The interaction edge label/description background classes are
-        // identical for every interaction edge (no forward/reverse split),
-        // so resolve them once and reuse the strings, rather than
-        // re-resolving per edge.
-        let InteractionEdgeBgClasses {
-            label_bg: label_bg_classes,
-            desc_bg: desc_bg_classes,
-        } = Self::interaction_edge_bg_classes_resolve(
-            theme_default,
-            theme_types_styles,
-            css_theme_vars,
-        );
+        // The edge label/description background classes are identical for
+        // every edge of a given kind (interaction vs. dependency; no
+        // forward/reverse split), so resolve them once per kind and reuse
+        // the strings, rather than re-resolving per edge.
+        let EdgeBgClasses {
+            interaction_label_bg: interaction_label_bg_classes,
+            interaction_desc_bg: interaction_desc_bg_classes,
+            dependency_label_bg: dependency_label_bg_classes,
+            dependency_desc_bg: dependency_desc_bg_classes,
+        } = Self::edge_bg_classes_resolve(theme_default, theme_types_styles, css_theme_vars);
 
         let mut edge_classes: Vec<(Id<'id>, String)> = Vec::new();
         edge_groups.iter().for_each(|(edge_group_id, edges)| {
@@ -289,6 +295,8 @@ impl TailwindClassesBuilder {
                     is_interaction_group,
                 );
 
+                let edge_id_for_bg: EdgeId<'id> = edge_id.clone().into();
+
                 if is_interaction_group {
                     let is_reverse = entity_types.get(&edge_id).is_some_and(|types| {
                         types.contains(&EntityType::InteractionEdgeSymmetricReverseDefault)
@@ -304,22 +312,28 @@ impl TailwindClassesBuilder {
                             halo_outline_classes_forward.as_ref(),
                         )
                     };
-                    let edge_id_for_halo: EdgeId<'id> = edge_id.clone().into();
                     if let Some(halo_classes) = halo_classes {
-                        let halo_id = EdgeHaloIdGenerator::generate(&edge_id_for_halo);
+                        let halo_id = EdgeHaloIdGenerator::generate(&edge_id_for_bg);
                         edge_classes.push((halo_id, halo_classes.clone()));
                     }
                     if let Some(halo_outline_classes) = halo_outline_classes {
-                        let halo_outline_id =
-                            EdgeHaloOutlineIdGenerator::generate(&edge_id_for_halo);
+                        let halo_outline_id = EdgeHaloOutlineIdGenerator::generate(&edge_id_for_bg);
                         edge_classes.push((halo_outline_id, halo_outline_classes.clone()));
                     }
-
-                    let label_bg_id = EdgeLabelBgIdGenerator::generate(&edge_id_for_halo);
-                    edge_classes.push((label_bg_id, label_bg_classes.clone()));
-                    let desc_bg_id = EdgeDescBgIdGenerator::generate(&edge_id_for_halo);
-                    edge_classes.push((desc_bg_id, desc_bg_classes.clone()));
                 }
+
+                // Label/description backgrounds apply to every edge
+                // (dependency and interaction alike), selecting the
+                // classes resolved for this edge's kind.
+                let (label_bg_classes, desc_bg_classes) = if is_interaction_group {
+                    (&interaction_label_bg_classes, &interaction_desc_bg_classes)
+                } else {
+                    (&dependency_label_bg_classes, &dependency_desc_bg_classes)
+                };
+                let label_bg_id = EdgeLabelBgIdGenerator::generate(&edge_id_for_bg);
+                edge_classes.push((label_bg_id, label_bg_classes.clone()));
+                let desc_bg_id = EdgeDescBgIdGenerator::generate(&edge_id_for_bg);
+                edge_classes.push((desc_bg_id, desc_bg_classes.clone()));
 
                 edge_classes.push((edge_id, classes));
             });
@@ -463,27 +477,61 @@ impl TailwindClassesBuilder {
         classes
     }
 
-    /// Resolves the (edge-independent) tailwind classes for the interaction
-    /// edge label and description background boxes.
+    /// Resolves the (edge-independent) tailwind classes for the label and
+    /// description background boxes of both interaction and dependency
+    /// edges.
     ///
-    /// Unlike the halo, there is no forward/reverse split and no
-    /// enable/disable render option -- these are always resolved for
-    /// interaction edges, since they exist purely to keep label/description
-    /// text legible where it may overlap other diagram content.
-    fn interaction_edge_bg_classes_resolve<'id>(
+    /// Unlike the halo, there is no enable/disable render option -- these
+    /// are always resolved, since they exist purely to keep label/description
+    /// text legible where it may overlap other diagram content. Each of the
+    /// 4 combinations (interaction/dependency x label/desc) is resolved
+    /// through its own 3-tier fallback chain -- from least to most specific:
+    /// `EdgeLabelAndDescBg` -> `{Dependency,Interaction}EdgeLabelAndDescBg`
+    /// -> `{Dependency,Interaction}Edge{Label,Desc}Bg` -- mirroring
+    /// `interaction_edge_halo_or_outline_classes_build`'s base/overlay
+    /// pattern, generalized to more tiers.
+    fn edge_bg_classes_resolve<'id>(
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
-    ) -> InteractionEdgeBgClasses {
-        InteractionEdgeBgClasses {
-            label_bg: Self::interaction_edge_bg_classes_build(
-                EntityType::InteractionEdgeLabelBg,
+    ) -> EdgeBgClasses {
+        EdgeBgClasses {
+            interaction_label_bg: Self::edge_bg_classes_build(
+                &[
+                    EntityType::EdgeLabelAndDescBg,
+                    EntityType::InteractionEdgeLabelAndDescBg,
+                    EntityType::InteractionEdgeLabelBg,
+                ],
                 theme_default,
                 theme_types_styles,
                 css_theme_vars,
             ),
-            desc_bg: Self::interaction_edge_bg_classes_build(
-                EntityType::InteractionEdgeDescBg,
+            interaction_desc_bg: Self::edge_bg_classes_build(
+                &[
+                    EntityType::EdgeLabelAndDescBg,
+                    EntityType::InteractionEdgeLabelAndDescBg,
+                    EntityType::InteractionEdgeDescBg,
+                ],
+                theme_default,
+                theme_types_styles,
+                css_theme_vars,
+            ),
+            dependency_label_bg: Self::edge_bg_classes_build(
+                &[
+                    EntityType::EdgeLabelAndDescBg,
+                    EntityType::DependencyEdgeLabelAndDescBg,
+                    EntityType::DependencyEdgeLabelBg,
+                ],
+                theme_default,
+                theme_types_styles,
+                css_theme_vars,
+            ),
+            dependency_desc_bg: Self::edge_bg_classes_build(
+                &[
+                    EntityType::EdgeLabelAndDescBg,
+                    EntityType::DependencyEdgeLabelAndDescBg,
+                    EntityType::DependencyEdgeDescBg,
+                ],
                 theme_default,
                 theme_types_styles,
                 css_theme_vars,
@@ -491,31 +539,36 @@ impl TailwindClassesBuilder {
         }
     }
 
-    /// Builds the tailwind classes for one interaction edge background type
-    /// (label or description), resolving `theme_types_styles` for the given
-    /// entity type's `EdgeDefaults` key.
-    fn interaction_edge_bg_classes_build<'id>(
-        entity_type: EntityType,
+    /// Builds the tailwind classes for one edge background type (label or
+    /// description, interaction or dependency), applying each entity type in
+    /// `entity_type_chain` in order (least to most specific) via
+    /// `apply_tailwind_from_partials`, so later (more specific) entries
+    /// override earlier ones. `tailwind_class_state.entity_type` is set to
+    /// the chain's last (most specific) element.
+    fn edge_bg_classes_build<'id>(
+        entity_type_chain: &[EntityType],
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
         css_theme_vars: &mut CssThemeVars,
     ) -> String {
         let mut tailwind_class_state = TailwindClassState {
-            entity_type: Some(entity_type.clone()),
+            entity_type: entity_type_chain.last().cloned(),
             ..Default::default()
         };
 
-        let type_id = EntityTypeId::from(entity_type.into_id());
-        if let Some(bg_partials) = theme_types_styles
-            .get(&type_id)
-            .and_then(|type_styles| type_styles.get(&IdOrDefaults::EdgeDefaults))
-        {
-            Self::apply_tailwind_from_partials(
-                bg_partials,
-                &theme_default.style_aliases,
-                &mut tailwind_class_state,
-            );
-        }
+        entity_type_chain.iter().for_each(|entity_type| {
+            let type_id = EntityTypeId::from(entity_type.clone().into_id());
+            if let Some(bg_partials) = theme_types_styles
+                .get(&type_id)
+                .and_then(|type_styles| type_styles.get(&IdOrDefaults::EdgeDefaults))
+            {
+                Self::apply_tailwind_from_partials(
+                    bg_partials,
+                    &theme_default.style_aliases,
+                    &mut tailwind_class_state,
+                );
+            }
+        });
 
         let mut classes = String::new();
         tailwind_class_state.write_classes(
