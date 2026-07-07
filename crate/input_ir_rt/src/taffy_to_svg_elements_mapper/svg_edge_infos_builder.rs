@@ -1129,9 +1129,7 @@ impl SvgEdgeInfosBuilder {
             }
             prev = Some(offsets[index]);
         }
-        if already_ok
-            && let (Some(right_bound), Some(&last)) = (right_bound, run.last())
-        {
+        if already_ok && let (Some(right_bound), Some(&last)) = (right_bound, run.last()) {
             already_ok = right_bound - offsets[last] >= CONTACT_GAP_MIN_PX;
         }
         if already_ok {
