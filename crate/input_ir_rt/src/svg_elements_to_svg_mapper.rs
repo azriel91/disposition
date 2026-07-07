@@ -750,10 +750,9 @@ impl SvgElementsToSvgMapper {
     ///   <path d="{path_d}" class="edge_halo .." />
     ///   <path d="{rail_a_d}" class="edge_halo_outline .." />
     ///   <path d="{rail_b_d}" class="edge_halo_outline .." />
-    ///   <path d="{path_d}" .. />
-    ///   <g class="arrow_head" .. >
-    ///     <path d="{arrow_head_path_d}" .. />
-    ///   </g>
+    ///   <path d="{path_d}" class="edge_body .." />
+    ///   <path d="{path_d}" class="locus" />
+    ///   <path d="{arrow_head_path_d}" class="arrow_head .." .. />
     /// </g>
     /// ```
     ///
@@ -852,7 +851,7 @@ impl SvgElementsToSvgMapper {
                         let rail_b_d = &svg_edge_info.halo_outline_rail_b_path_d;
                         format!(
                             "<path d=\"{rail_a_d}\" fill=\"none\"{outline_class_attr} />\
-                     <path d=\"{rail_b_d}\" fill=\"none\"{outline_class_attr} />"
+                            <path d=\"{rail_b_d}\" fill=\"none\"{outline_class_attr} />"
                         )
                     });
 
@@ -861,7 +860,7 @@ impl SvgElementsToSvgMapper {
             //
             // The edge path has fill="none" since edges are stroked lines,
             // not filled shapes.  The arrowhead is a closed V-shape that
-            // inherits stroke/fill from the <g>.
+            // inherits stroke/fill from the `<g>`.
             write!(
                 content_buffer,
                 "<g \
@@ -901,13 +900,10 @@ impl SvgElementsToSvgMapper {
                     fill=\"none\" \
                     class=\"locus\" \
                 />\
-                <g \
+                <path \
+                    d=\"{arrow_head_path_d}\" \
                     {arrow_head_class_attr} \
-                >\
-                    <path \
-                        d=\"{arrow_head_path_d}\" \
-                    />\
-                </g>\
+                />\
                 </g>"
             )
             .unwrap();

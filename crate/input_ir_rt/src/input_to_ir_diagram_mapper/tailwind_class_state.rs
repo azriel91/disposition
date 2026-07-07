@@ -814,7 +814,7 @@ impl ScopeTarget {
         match self {
             ScopeTarget::Unscoped => &[None],
             ScopeTarget::Node => &[Some(NODE_WRAPPER_SELECTOR), Some(NODE_CIRCLE_SELECTOR)],
-            ScopeTarget::Edge => &[Some(EDGE_BODY_SELECTOR)],
+            ScopeTarget::Edge => &[Some(EDGE_BODY_SELECTOR), Some(EDGE_ARROW_HEAD_SELECTOR)],
         }
     }
 
