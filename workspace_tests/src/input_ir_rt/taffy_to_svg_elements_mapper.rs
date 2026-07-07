@@ -5030,8 +5030,8 @@ fn test_edge_label_and_desc_bg_render_before_text() {
                     panic!("Expected label_bg tailwind classes for {edge_kind} edge {edge_id:?}")
                 });
             assert!(
-                label_bg_classes.contains("opacity-90"),
-                "Expected {edge_kind} edge's label_bg classes to include opacity-90, \
+                label_bg_classes.contains("opacity-5"),
+                "Expected {edge_kind} edge's label_bg classes to include opacity-5, \
                 got: {label_bg_classes}"
             );
             let desc_bg_classes = svg_elements
@@ -5041,8 +5041,8 @@ fn test_edge_label_and_desc_bg_render_before_text() {
                     panic!("Expected desc_bg tailwind classes for {edge_kind} edge {edge_id:?}")
                 });
             assert!(
-                desc_bg_classes.contains("opacity-90"),
-                "Expected {edge_kind} edge's desc_bg classes to include opacity-90, \
+                desc_bg_classes.contains("opacity-5"),
+                "Expected {edge_kind} edge's desc_bg classes to include opacity-5, \
                 got: {desc_bg_classes}"
             );
         }

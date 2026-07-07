@@ -1009,8 +1009,8 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
                     vec![],
                     vec![
                         (ThemeAttr::ShapeColor, "neutral"),
-                        (ThemeAttr::FillShade, "50"),
-                        (ThemeAttr::Opacity, "90"),
+                        (ThemeAttr::FillShade, "900"),
+                        (ThemeAttr::Opacity, "5"),
                     ],
                 ),
             )]

@@ -771,8 +771,8 @@ theme_types_styles:
   type_edge_label_and_desc_bg:
     edge_defaults:
       shape_color: "neutral"
-      fill_shade: "50"
-      opacity: "90"
+      fill_shade: "900"
+      opacity: "5"
 
   # Overrides type_edge_label_and_desc_bg for dependency edges only (both
   # label and description).
