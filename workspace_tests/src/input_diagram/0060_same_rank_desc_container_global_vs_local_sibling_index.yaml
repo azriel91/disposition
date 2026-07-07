@@ -1,0 +1,42 @@
+---
+# Minimal repro for a same-rank (cycle edge) `edge_description_container`
+# insertion-index bug: the container's insertion index into
+# `rank_to_taffy_ids[rank]` was computed from the GLOBAL sibling index
+# (position among ALL root-level things, regardless of rank) instead of the
+# LOCAL sibling index (position among only same-ranked things). When a
+# differently-ranked sibling is declared before the two same-rank divergent
+# ancestors, the global index skews past the rank-scoped bucket's own length,
+# appending the container after both ancestors instead of between them.
+#
+# `t_a` is declared first (global sibling index 0), but the `sequence`
+# dependency from `t_b` gives it rank 1 -- a HIGHER rank than the `t_b`/`t_c`
+# cyclic pair's rank 0 -- mirroring the real-world bug's shape (`t_aws`
+# declared before `t_github`/`t_localhost`, but ranked after them due to a
+# `t_github_user_repo -> t_aws_ecr_repo` sequence dependency).
+things:
+  t_a: {}
+  t_b: {}
+  t_c: {}
+
+thing_names:
+  t_a: "A"
+  t_b: "B"
+  t_c: "C"
+
+thing_dependencies:
+  edge_dep_b_c:
+    kind: cyclic
+    things:
+      - t_b
+      - t_c
+  edge_dep_b_a:
+    kind: sequence
+    things:
+      - t_b
+      - t_a
+
+edge_descs:
+  edge_dep_b_c__0: "b/c dep desc"
+
+render_options:
+  rank_dir: left_to_right

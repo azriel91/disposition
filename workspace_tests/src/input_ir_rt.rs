@@ -142,6 +142,9 @@ pub(crate) const INPUT_DIAGRAM_0058_INTERACTION_HALO_WITH_LABELS_RIGHT_TO_LEFT: 
 pub(crate) const INPUT_DIAGRAM_0059_EDGE_LABEL_DESC_BG_HIERARCHY_OVERRIDE: &str =
     include_str!("input_diagram/0059_edge_label_desc_bg_hierarchy_override.yaml");
 
+pub(crate) const INPUT_DIAGRAM_0060_SAME_RANK_DESC_CONTAINER_GLOBAL_VS_LOCAL_SIBLING_INDEX: &str =
+    include_str!("input_diagram/0060_same_rank_desc_container_global_vs_local_sibling_index.yaml");
+
 mod diagram_generator;
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

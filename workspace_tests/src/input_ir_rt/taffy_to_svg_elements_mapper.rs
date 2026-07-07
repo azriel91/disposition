@@ -62,6 +62,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC,
     INPUT_DIAGRAM_0058_INTERACTION_HALO_WITH_LABELS_RIGHT_TO_LEFT,
     INPUT_DIAGRAM_0059_EDGE_LABEL_DESC_BG_HIERARCHY_OVERRIDE,
+    INPUT_DIAGRAM_0060_SAME_RANK_DESC_CONTAINER_GLOBAL_VS_LOCAL_SIBLING_INDEX,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -5326,6 +5327,117 @@ fn test_same_rank_cyclic_edge_description_sits_between_divergent_ancestors_at_ro
                 desc.y,
                 desc.height,
                 lower.envelope_y,
+            );
+        }
+    }
+}
+
+/// Regression test for a bug where a same-rank (cycle edge) description
+/// container's insertion index was computed from the GLOBAL sibling index
+/// (position among ALL root-level things, regardless of rank) instead of the
+/// LOCAL sibling index (position among only same-ranked things). When a
+/// differently-ranked sibling (`t_a`, rank 1) is declared *before* the
+/// same-rank cyclic pair (`t_b`/`t_c`, rank 0), the global index skewed past
+/// the rank-0 bucket's own length, appending the container after `t_c`
+/// instead of between `t_b` and `t_c`.
+#[test]
+fn test_same_rank_description_container_sits_between_siblings_despite_lower_declared_higher_rank_sibling()
+{
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0060_SAME_RANK_DESC_CONTAINER_GLOBAL_VS_LOCAL_SIBLING_INDEX,
+    ) {
+        let t_b = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_b")
+            .expect("Expected t_b in svg_node_infos");
+        let t_c = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_c")
+            .expect("Expected t_c in svg_node_infos");
+
+        // `rank_dir: left_to_right` stacks same-ranked siblings vertically, so
+        // "between" is a Y-axis relationship.
+        let (upper, lower) = if t_b.envelope_y < t_c.envelope_y {
+            (t_b, t_c)
+        } else {
+            (t_c, t_b)
+        };
+        let upper_bottom = upper.envelope_y + upper.envelope_height_collapsed;
+
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_b_c__0")
+            .expect("Expected a description for edge_dep_b_c__0.");
+
+        assert!(
+            desc.y >= upper_bottom && desc.y + desc.height <= lower.envelope_y,
+            "Expected edge_dep_b_c__0's description (y: {}, height: {}) to sit between t_b/t_c \
+             (upper bottom: {upper_bottom}, lower top: {}), not after both -- this is the bug \
+             where the container's insertion index used the GLOBAL sibling index (which places \
+             t_a before t_b/t_c) instead of the LOCAL rank-0 index",
+            desc.y,
+            desc.height,
+            lower.envelope_y,
+        );
+    }
+}
+
+/// Regression test for the same bug's effect on edge path routing: before the
+/// fix, the reverse-direction crossing edge `edge_dep_b_c__1` routed through
+/// the misplaced container (appended after `t_c`, past `t_c`'s own right
+/// edge), producing a huge detour instead of a short jog through the gap
+/// between `t_b` and `t_c`. This mirrors the real-world bug in
+/// `example_input.yaml`'s `edge_dep_t_localhost__t_github_user_repo__pull__0`,
+/// whose path detoured out to x=987 (past `t_aws`'s rank column) instead of
+/// jogging in the small gap between `t_github`/`t_localhost`.
+///
+/// Asserts every point of `edge_dep_b_c__1`'s rendered path stays strictly
+/// clear of `t_a`'s rank column (`t_a` is rank 1, laid out after `t_b`/`t_c`'s
+/// rank 0 under `rank_dir: left_to_right`) and within a tight bound just past
+/// the shared description box's own extent (which is wider than `t_b`/`t_c`
+/// themselves, since it holds the "b/c dep desc" text) -- not ballooning out
+/// to some distant coordinate like the real bug's x=987.
+#[test]
+fn test_same_rank_crossing_edge_path_stays_near_divergent_ancestors_despite_lower_declared_higher_rank_sibling()
+{
+    const TIGHT_BOUND_TOLERANCE_PX: f32 = 20.0;
+
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0060_SAME_RANK_DESC_CONTAINER_GLOBAL_VS_LOCAL_SIBLING_INDEX,
+    ) {
+        let t_a = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_a")
+            .expect("Expected t_a in svg_node_infos");
+
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_b_c__0")
+            .expect("Expected a description for edge_dep_b_c__0.");
+        let tight_max_x = desc.x + desc.width + TIGHT_BOUND_TOLERANCE_PX;
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        let d = edge_body_path_d(&svg, "edge_dep_b_c__1");
+        let points = path_d_points(&d);
+
+        for &(x, _y) in &points {
+            assert!(
+                x < t_a.envelope_x,
+                "Expected edge_dep_b_c__1's path to stay clear of t_a's rank column \
+                 (t_a.envelope_x: {}), but got a point at x={x}: {points:?} -- this mirrors the \
+                 real bug where the path ballooned out to a distant x instead of jogging through \
+                 the small gap between t_b/t_c",
+                t_a.envelope_x,
+            );
+            assert!(
+                x <= tight_max_x,
+                "Expected edge_dep_b_c__1's path x-coordinates to stay within a tight bound near \
+                 t_b/t_c (max allowed: {tight_max_x}), got a point at x={x}: {points:?}",
             );
         }
     }

@@ -494,9 +494,41 @@ impl EdgeDescriptionBuilder {
             // Cycle edge: insert directly into the shared rank's sibling
             // list, between the two divergent ancestors (see
             // `EdgeDescriptionBuilder::build`'s same-rank handling).
+            //
+            // This must NOT reuse `sibling_index_middle` above -- that is the
+            // GLOBAL sibling index (position among ALL siblings at
+            // `lca_depth`, regardless of rank), needed only for `sort_key`'s
+            // cross-position ordering. The `SameRank` insertion position
+            // instead needs the LOCAL index among only same-entity-type nodes
+            // sharing `rank_from` -- the position within
+            // `rank_to_taffy_ids[rank_from]`'s own bucket -- otherwise a
+            // differently-ranked sibling declared earlier (e.g. `t_aws`,
+            // declared before the `t_github`/`t_localhost` cyclic pair, but
+            // ranked *after* them), or a same-rank sibling of a *different*
+            // entity type (e.g. a tag or process sharing the diagram root's
+            // `NodeRanks`, which is not scoped per entity type), skews the
+            // computed middle past the end of the two-node bucket, appending
+            // the container after both instead of between them.
+            let sibling_index_from_local = RankSiblingInserter::rank_local_sibling_index_compute(
+                container_ranks,
+                rank_from,
+                entity_types,
+                target_entity_type,
+                divergent_from,
+            )
+            .unwrap_or(0);
+            let sibling_index_to_local = RankSiblingInserter::rank_local_sibling_index_compute(
+                container_ranks,
+                rank_to,
+                entity_types,
+                target_entity_type,
+                divergent_to,
+            )
+            .unwrap_or(0);
+
             EdgeDescPosition::SameRank(RankAndSiblingIndexMiddle {
                 rank: rank_from,
-                sibling_index_middle,
+                sibling_index_middle: (sibling_index_from_local + sibling_index_to_local) / 2,
             })
         } else {
             let rank_low = rank_from.min(rank_to);

@@ -6,7 +6,10 @@ use std::{
 use disposition_ir_model::{
     edge::{Edge, EdgeId},
     entity::{EntityType, EntityTypes},
-    node::{NodeHierarchy, NodeId, NodeNestingInfo, NodeNestingInfos, NodeRank, NodeRanksNested},
+    node::{
+        NodeHierarchy, NodeId, NodeNestingInfo, NodeNestingInfos, NodeRank, NodeRanks,
+        NodeRanksNested,
+    },
 };
 use disposition_model_common::{edge::EdgeGroupId, Id, Map, RankDir, RenderOptions};
 use disposition_taffy_model::{
@@ -903,12 +906,30 @@ impl EdgeSpacerBuilder {
         // interleave a `BetweenRanks` container into, so the sibling-index-axis
         // check below is used instead.
         if rank_low == rank_high {
+            // The crossing check needs the LOCAL (rank-scoped) sibling index
+            // of `divergent_from`/`divergent_to` -- the same value
+            // `EdgeDescriptionBuilder::edge_desc_build` now uses to key
+            // `same_rank_position_to_container_ids` -- not the global
+            // `nesting_path` index, so the two producers of
+            // `RankAndSiblingIndexMiddle` stay consistent.
+            // `divergent_ancestor_ranks` (called above) resolves the same
+            // per-level `NodeRanks` map internally but does not expose it, so
+            // it is refetched here.
+            let lca_container = lca_depth
+                .checked_sub(1)
+                .map(|i| &info_from.ancestor_chain[i]);
+            let Some(container_ranks) = node_ranks_nested.ranks_for(lca_container) else {
+                return;
+            };
+
             Self::build_edge_desc_container_spacers_for_edge_same_rank(
                 taffy_tree,
                 edge_id,
-                info_from,
-                info_to,
-                lca_depth,
+                divergent_from,
+                divergent_to,
+                container_ranks,
+                entity_types,
+                target_entity_type,
                 rank_low,
                 &spacer_style,
                 same_rank_position_to_container_ids,
@@ -966,9 +987,11 @@ impl EdgeSpacerBuilder {
     fn build_edge_desc_container_spacers_for_edge_same_rank(
         taffy_tree: &mut TaffyTree<TaffyNodeCtx>,
         edge_id: &EdgeId<'static>,
-        info_from: &NodeNestingInfo<'static>,
-        info_to: &NodeNestingInfo<'static>,
-        lca_depth: usize,
+        divergent_from: &NodeId<'static>,
+        divergent_to: &NodeId<'static>,
+        container_ranks: &NodeRanks<'static>,
+        entity_types: &EntityTypes<'static>,
+        target_entity_type: &EntityType,
         rank: NodeRank,
         spacer_style: &Style,
         same_rank_position_to_container_ids: &BTreeMap<
@@ -978,8 +1001,28 @@ impl EdgeSpacerBuilder {
         edge_description_taffy_nodes: &Map<EdgeId<'static>, EdgeDescriptionTaffyNodes>,
         edge_spacer_taffy_nodes: &mut Map<EdgeId<'static>, EdgeSpacerTaffyNodes>,
     ) {
-        let sibling_index_from = info_from.nesting_path.get(lca_depth).copied().unwrap_or(0);
-        let sibling_index_to = info_to.nesting_path.get(lca_depth).copied().unwrap_or(0);
+        // LOCAL (rank-scoped, entity-type-scoped) sibling indices -- must
+        // match `EdgeDescriptionBuilder::edge_desc_build`'s
+        // `RankAndSiblingIndexMiddle` computation so the two producers agree
+        // on container positions. Ordering (`cmp`) is unaffected by using
+        // local vs global indices: filtering out other-rank/other-entity-type
+        // siblings never changes the relative order of two same-rank nodes.
+        let sibling_index_from = RankSiblingInserter::rank_local_sibling_index_compute(
+            container_ranks,
+            rank,
+            entity_types,
+            target_entity_type,
+            divergent_from,
+        )
+        .unwrap_or(0);
+        let sibling_index_to = RankSiblingInserter::rank_local_sibling_index_compute(
+            container_ranks,
+            rank,
+            entity_types,
+            target_entity_type,
+            divergent_to,
+        )
+        .unwrap_or(0);
         let sibling_index_low = sibling_index_from.min(sibling_index_to);
         let sibling_index_high = sibling_index_from.max(sibling_index_to);
         let sibling_index_from_cmp_to = sibling_index_from.cmp(&sibling_index_to);
