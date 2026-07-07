@@ -1000,19 +1000,69 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             .into_iter()
             .collect(),
         ),
-        // type_interaction_edge_label_bg
+        // type_edge_label_and_desc_bg
         (
-            EntityType::InteractionEdgeLabelBg.into_id().into(),
+            EntityType::EdgeLabelAndDescBg.into_id().into(),
             [(
                 IdOrDefaults::EdgeDefaults,
                 css_class_partials(
                     vec![],
                     vec![
                         (ThemeAttr::ShapeColor, "neutral"),
-                        (ThemeAttr::FillShade, "50"),
-                        (ThemeAttr::Opacity, "90"),
+                        (ThemeAttr::FillShade, "900"),
+                        (ThemeAttr::Opacity, "5"),
                     ],
                 ),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_dependency_edge_label_and_desc_bg
+        (
+            EntityType::DependencyEdgeLabelAndDescBg.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_dependency_edge_label_bg
+        (
+            EntityType::DependencyEdgeLabelBg.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_dependency_edge_desc_bg
+        (
+            EntityType::DependencyEdgeDescBg.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_interaction_edge_label_and_desc_bg
+        (
+            EntityType::InteractionEdgeLabelAndDescBg.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // type_interaction_edge_label_bg
+        (
+            EntityType::InteractionEdgeLabelBg.into_id().into(),
+            [(
+                IdOrDefaults::EdgeDefaults,
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),
@@ -1022,14 +1072,7 @@ fn base_theme_types_styles() -> ThemeTypesStyles<'static> {
             EntityType::InteractionEdgeDescBg.into_id().into(),
             [(
                 IdOrDefaults::EdgeDefaults,
-                css_class_partials(
-                    vec![],
-                    vec![
-                        (ThemeAttr::ShapeColor, "neutral"),
-                        (ThemeAttr::FillShade, "50"),
-                        (ThemeAttr::Opacity, "90"),
-                    ],
-                ),
+                css_class_partials(vec![], vec![]),
             )]
             .into_iter()
             .collect(),

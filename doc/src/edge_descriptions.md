@@ -157,7 +157,7 @@ owning edge's path: `SpacerCoordinatesResolver::description_contact_resolve`
 reads the description leaf's post-layout rect and bends the edge's path to
 touch it, applied unconditionally regardless of edge curvature (see
 `edge_spacers.md` -- Edge Description Container Spacers). This mirrors how
-`label_face_offset_compute` bends a path's face contact to sit beside an edge
+`label_face_span_compute` bends a path's face contact to sit beside an edge
 label's own box. See [Description Contact Waypoint](#description-contact-waypoint)
 below for how that waypoint is chosen -- it differs for same-rank vs
 cross-rank edges.
@@ -285,7 +285,7 @@ them.
 ### Halo Clearance
 
 Like edge labels (see `TaffyEnvelopeBuilder::label_margin_build`, and
-`SvgEdgeInfosBuilder::label_face_offset_compute`'s `- halo_pad_px` pullback),
+`SvgEdgeInfosBuilder::label_face_span_compute`'s `- halo_pad_px` pullback),
 a described edge's box needs clearance from the interaction edge halo -- a
 wide path drawn `interaction_edge_halo_stroke_width / 2.0` ("`halo_pad_px`")
 either side of the edge's own path -- so the halo doesn't visually overlap the
@@ -304,7 +304,7 @@ mechanism mirrors the label case in two coordinated halves:
    margin's push for the routing calculation -- the path ends up
    `label_margin_px` further from the box's pre-margin position (rather than
    exactly pinned to it), so the description still reads as visually
-   associated with its edge, matching how `label_face_offset_compute`'s
+   associated with its edge, matching how `label_face_span_compute`'s
    pullback likewise only ever cancels `halo_pad_px` for edge labels.
 
 Both sides of the margin get the *same* value (rather than only the far side)
@@ -360,7 +360,7 @@ same axis the halo-clearance margin applies to, so a label-only far-side
 margin would equally lose near-side separation for dependency edges.
 `SvgEdgeInfosBuilder::face_offsets_compute` passes `0.0` for
 `interaction_edge_halo_stroke_width` per edge (via `FaceContactEntry::is_interaction`)
-when calling `label_face_offset_compute`, mirroring the description case.
+when calling `label_face_span_compute`, mirroring the description case.
 
 
 ## Step-by-Step: How Face-Label Slots Are Built

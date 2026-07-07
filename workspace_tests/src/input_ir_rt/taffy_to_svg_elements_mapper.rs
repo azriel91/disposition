@@ -61,6 +61,9 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0056_INTERACTION_HALO_WITH_LABELS,
     INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC,
     INPUT_DIAGRAM_0058_INTERACTION_HALO_WITH_LABELS_RIGHT_TO_LEFT,
+    INPUT_DIAGRAM_0059_EDGE_LABEL_DESC_BG_HIERARCHY_OVERRIDE,
+    INPUT_DIAGRAM_0060_SAME_RANK_DESC_CONTAINER_GLOBAL_VS_LOCAL_SIBLING_INDEX,
+    INPUT_DIAGRAM_0061_SAME_RANK_DESC_CONTAINERS_MULTIPLE_OVERLAPPING,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -4986,16 +4989,16 @@ fn test_edge_descs_instance_id_overrides_group_id() {
     }
 }
 
-// === Interaction edge label/description background tests === //
+// === Edge label/description background tests === //
 
-/// An interaction edge's label and description get a `{edge_id}__label_bg` /
-/// `{edge_id}__desc_bg` tailwind-classes entry (styled from
-/// `type_interaction_edge_label_bg` / `type_interaction_edge_desc_bg`), and
-/// the rendered SVG draws a background `<path>` as the first child of the
-/// label/description `<g>`, before the text. Dependency edges get no such
-/// entry or path.
+/// Every edge's label and description -- dependency as well as interaction
+/// -- get a `{edge_id}__label_bg` / `{edge_id}__desc_bg` tailwind-classes
+/// entry (styled through the `EdgeLabelAndDescBg` fallback hierarchy, see
+/// `doc/src/edge_descriptions.md`), and the rendered SVG draws a background
+/// `<path>` as the first child of the label/description `<g>`, before the
+/// text.
 #[test]
-fn test_interaction_edge_label_and_desc_bg_render_before_text() {
+fn test_edge_label_and_desc_bg_render_before_text() {
     for svg_elements in
         build_svg_elements_for_diagram(INPUT_DIAGRAM_0055_INTERACTION_EDGE_LABEL_DESC_BG)
     {
@@ -5021,84 +5024,164 @@ fn test_interaction_edge_label_and_desc_bg_render_before_text() {
             Id::try_from(format!("{edge_id}__desc_bg")).expect("desc_bg ID should be valid")
         };
 
-        let ix_label_bg_classes = svg_elements
-            .tailwind_classes
-            .get(&label_bg_key(ix_edge_id.as_str()))
-            .unwrap_or_else(|| {
-                panic!("Expected label_bg tailwind classes for interaction edge {ix_edge_id:?}")
-            });
-        assert!(
-            ix_label_bg_classes.contains("opacity-90"),
-            "Expected label_bg classes to include opacity-90, got: {ix_label_bg_classes}"
-        );
-        let ix_desc_bg_classes = svg_elements
-            .tailwind_classes
-            .get(&desc_bg_key(ix_edge_id.as_str()))
-            .unwrap_or_else(|| {
-                panic!("Expected desc_bg tailwind classes for interaction edge {ix_edge_id:?}")
-            });
-        assert!(
-            ix_desc_bg_classes.contains("opacity-90"),
-            "Expected desc_bg classes to include opacity-90, got: {ix_desc_bg_classes}"
-        );
-
-        assert!(
-            svg_elements
+        for (edge_kind, edge_id) in [("interaction", &ix_edge_id), ("dependency", &dep_edge_id)] {
+            let label_bg_classes = svg_elements
                 .tailwind_classes
-                .get(&label_bg_key(dep_edge_id.as_str()))
-                .is_none(),
-            "Dependency edge {dep_edge_id:?} should not have a label_bg tailwind classes entry"
-        );
-        assert!(
-            svg_elements
+                .get(&label_bg_key(edge_id.as_str()))
+                .unwrap_or_else(|| {
+                    panic!("Expected label_bg tailwind classes for {edge_kind} edge {edge_id:?}")
+                });
+            assert!(
+                label_bg_classes.contains("opacity-5"),
+                "Expected {edge_kind} edge's label_bg classes to include opacity-5, \
+                got: {label_bg_classes}"
+            );
+            let desc_bg_classes = svg_elements
                 .tailwind_classes
-                .get(&desc_bg_key(dep_edge_id.as_str()))
-                .is_none(),
-            "Dependency edge {dep_edge_id:?} should not have a desc_bg tailwind classes entry"
-        );
+                .get(&desc_bg_key(edge_id.as_str()))
+                .unwrap_or_else(|| {
+                    panic!("Expected desc_bg tailwind classes for {edge_kind} edge {edge_id:?}")
+                });
+            assert!(
+                desc_bg_classes.contains("opacity-5"),
+                "Expected {edge_kind} edge's desc_bg classes to include opacity-5, \
+                got: {desc_bg_classes}"
+            );
+        }
 
         let svg = SvgElementsToSvgMapper::map(&svg_elements);
 
-        let ix_label_g_start = svg
-            .find(&format!("id=\"{ix_edge_id}__from_label\""))
-            .expect("Expected the interaction edge's from_label <g> element in the rendered SVG");
-        let ix_label_g_slice = &svg[ix_label_g_start..];
-        let path_index = ix_label_g_slice
-            .find("<path")
-            .expect("Expected a background path in the interaction edge's label");
-        let text_index = ix_label_g_slice
-            .find("<text")
-            .expect("Expected text in the interaction edge's label");
+        for (edge_kind, edge_id) in [("interaction", &ix_edge_id), ("dependency", &dep_edge_id)] {
+            let label_g_start = svg
+                .find(&format!("id=\"{edge_id}__from_label\""))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Expected the {edge_kind} edge's from_label <g> element in the rendered SVG"
+                    )
+                });
+            let label_g_slice = &svg[label_g_start..];
+            let path_index = label_g_slice.find("<path").unwrap_or_else(|| {
+                panic!("Expected a background path in the {edge_kind} edge's label")
+            });
+            let text_index = label_g_slice
+                .find("<text")
+                .unwrap_or_else(|| panic!("Expected text in the {edge_kind} edge's label"));
+            assert!(
+                path_index < text_index,
+                "Expected the {edge_kind} edge's label background path to render before the label text"
+            );
+
+            let desc_g_start = svg
+                .find(&format!("id=\"{edge_id}__desc\""))
+                .unwrap_or_else(|| {
+                    panic!("Expected the {edge_kind} edge's desc <g> element in the rendered SVG")
+                });
+            let desc_g_slice = &svg[desc_g_start..];
+            let path_index = desc_g_slice.find("<path").unwrap_or_else(|| {
+                panic!("Expected a background path in the {edge_kind} edge's description")
+            });
+            let text_index = desc_g_slice
+                .find("<text")
+                .unwrap_or_else(|| panic!("Expected text in the {edge_kind} edge's description"));
+            assert!(
+                path_index < text_index,
+                "Expected the {edge_kind} edge's description background path to render before \
+                the description text"
+            );
+        }
+    }
+}
+
+/// Edge label/description background styling resolves through a 3-tier
+/// fallback hierarchy -- least to most specific:
+/// `EdgeLabelAndDescBg` -> `{Dependency,Interaction}EdgeLabelAndDescBg` ->
+/// `{Dependency,Interaction}Edge{Label,Desc}Bg` -- where a more specific
+/// override wins over a less specific one, and unrelated edges/backgrounds
+/// are left untouched by a more specific override.
+///
+/// The fixture overrides all 3 tiers for the dependency edge (`"rose"` ->
+/// `"amber"` -> `"lime"`, the last only for the label), while the
+/// interaction edge is never overridden beyond tier 1.
+#[test]
+fn test_edge_label_desc_bg_hierarchy_fallback() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0059_EDGE_LABEL_DESC_BG_HIERARCHY_OVERRIDE)
+    {
+        let dep_edge_id = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.edge_id.as_str().starts_with("edge_dep_ab"))
+            .expect("Expected the dependency edge to exist.")
+            .edge_id
+            .clone();
+        let ix_edge_id = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|e| e.edge_id.as_str().starts_with("edge_ix_ab"))
+            .expect("Expected the interaction edge to exist.")
+            .edge_id
+            .clone();
+
+        let label_bg_classes = |edge_id: &str| {
+            let key =
+                Id::try_from(format!("{edge_id}__label_bg")).expect("label_bg ID should be valid");
+            svg_elements
+                .tailwind_classes
+                .get(&key)
+                .unwrap_or_else(|| panic!("Expected label_bg tailwind classes for {edge_id:?}"))
+        };
+        let desc_bg_classes = |edge_id: &str| {
+            let key =
+                Id::try_from(format!("{edge_id}__desc_bg")).expect("desc_bg ID should be valid");
+            svg_elements
+                .tailwind_classes
+                .get(&key)
+                .unwrap_or_else(|| panic!("Expected desc_bg tailwind classes for {edge_id:?}"))
+        };
+
+        // Tier 1 (`type_edge_label_and_desc_bg`, "rose"): the interaction
+        // edge is never overridden beyond this tier, so both its label and
+        // description backgrounds stay "rose".
+        let ix_label_bg = label_bg_classes(ix_edge_id.as_str());
         assert!(
-            path_index < text_index,
-            "Expected the label background path to render before the label text"
+            ix_label_bg.contains("rose"),
+            "Expected interaction edge's label_bg classes to include \"rose\" (tier 1 default), \
+            got: {ix_label_bg}"
+        );
+        let ix_desc_bg = desc_bg_classes(ix_edge_id.as_str());
+        assert!(
+            ix_desc_bg.contains("rose"),
+            "Expected interaction edge's desc_bg classes to include \"rose\" (tier 1 default), \
+            got: {ix_desc_bg}"
         );
 
-        let ix_desc_g_start = svg
-            .find(&format!("id=\"{ix_edge_id}__desc\""))
-            .expect("Expected the interaction edge's desc <g> element in the rendered SVG");
-        let ix_desc_g_slice = &svg[ix_desc_g_start..];
-        let path_index = ix_desc_g_slice
-            .find("<path")
-            .expect("Expected a background path in the interaction edge's description");
-        let text_index = ix_desc_g_slice
-            .find("<text")
-            .expect("Expected text in the interaction edge's description");
+        // Tier 2 (`type_dependency_edge_label_and_desc_bg`, "amber"):
+        // overrides tier 1 for the dependency edge's description
+        // background (no tier-3 override applies to desc).
+        let dep_desc_bg = desc_bg_classes(dep_edge_id.as_str());
         assert!(
-            path_index < text_index,
-            "Expected the description background path to render before the description text"
+            dep_desc_bg.contains("amber"),
+            "Expected dependency edge's desc_bg classes to include \"amber\" (tier 2 override), \
+            got: {dep_desc_bg}"
+        );
+        assert!(
+            !dep_desc_bg.contains("rose"),
+            "Expected dependency edge's desc_bg classes to no longer include \"rose\", \
+            got: {dep_desc_bg}"
         );
 
-        let dep_desc_g_start = svg
-            .find(&format!("id=\"{dep_edge_id}__desc\""))
-            .expect("Expected the dependency edge's desc <g> element in the rendered SVG");
-        let dep_desc_g_slice = &svg[dep_desc_g_start..];
-        let dep_desc_next_g_offset = dep_desc_g_slice
-            .find("<g id=\"")
-            .unwrap_or(dep_desc_g_slice.len());
+        // Tier 3 (`type_dependency_edge_label_bg`, "lime"): overrides tier 2
+        // for the dependency edge's label background only.
+        let dep_label_bg = label_bg_classes(dep_edge_id.as_str());
         assert!(
-            !dep_desc_g_slice[..dep_desc_next_g_offset].contains("<path"),
-            "Dependency edge {dep_edge_id:?} description should not render a background path"
+            dep_label_bg.contains("lime"),
+            "Expected dependency edge's label_bg classes to include \"lime\" (tier 3 override), \
+            got: {dep_label_bg}"
+        );
+        assert!(
+            !dep_label_bg.contains("amber") && !dep_label_bg.contains("rose"),
+            "Expected dependency edge's label_bg classes to no longer include \"amber\" or \
+            \"rose\", got: {dep_label_bg}"
         );
     }
 }
@@ -5247,6 +5330,177 @@ fn test_same_rank_cyclic_edge_description_sits_between_divergent_ancestors_at_ro
                 lower.envelope_y,
             );
         }
+    }
+}
+
+/// Regression test for a bug where a same-rank (cycle edge) description
+/// container's insertion index was computed from the GLOBAL sibling index
+/// (position among ALL root-level things, regardless of rank) instead of the
+/// LOCAL sibling index (position among only same-ranked things). When a
+/// differently-ranked sibling (`t_a`, rank 1) is declared *before* the
+/// same-rank cyclic pair (`t_b`/`t_c`, rank 0), the global index skewed past
+/// the rank-0 bucket's own length, appending the container after `t_c`
+/// instead of between `t_b` and `t_c`.
+#[test]
+fn test_same_rank_description_container_sits_between_siblings_despite_lower_declared_higher_rank_sibling(
+) {
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0060_SAME_RANK_DESC_CONTAINER_GLOBAL_VS_LOCAL_SIBLING_INDEX,
+    ) {
+        let t_b = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_b")
+            .expect("Expected t_b in svg_node_infos");
+        let t_c = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_c")
+            .expect("Expected t_c in svg_node_infos");
+
+        // `rank_dir: left_to_right` stacks same-ranked siblings vertically, so
+        // "between" is a Y-axis relationship.
+        let (upper, lower) = if t_b.envelope_y < t_c.envelope_y {
+            (t_b, t_c)
+        } else {
+            (t_c, t_b)
+        };
+        let upper_bottom = upper.envelope_y + upper.envelope_height_collapsed;
+
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_b_c__0")
+            .expect("Expected a description for edge_dep_b_c__0.");
+
+        assert!(
+            desc.y >= upper_bottom && desc.y + desc.height <= lower.envelope_y,
+            "Expected edge_dep_b_c__0's description (y: {}, height: {}) to sit between t_b/t_c \
+             (upper bottom: {upper_bottom}, lower top: {}), not after both -- this is the bug \
+             where the container's insertion index used the GLOBAL sibling index (which places \
+             t_a before t_b/t_c) instead of the LOCAL rank-0 index",
+            desc.y,
+            desc.height,
+            lower.envelope_y,
+        );
+    }
+}
+
+/// Regression test for the same bug's effect on edge path routing: before the
+/// fix, the reverse-direction crossing edge `edge_dep_b_c__1` routed through
+/// the misplaced container (appended after `t_c`, past `t_c`'s own right
+/// edge), producing a huge detour instead of a short jog through the gap
+/// between `t_b` and `t_c`. This mirrors the real-world bug in
+/// `example_input.yaml`'s `edge_dep_t_localhost__t_github_user_repo__pull__0`,
+/// whose path detoured out to x=987 (past `t_aws`'s rank column) instead of
+/// jogging in the small gap between `t_github`/`t_localhost`.
+///
+/// Asserts every point of `edge_dep_b_c__1`'s rendered path stays strictly
+/// clear of `t_a`'s rank column (`t_a` is rank 1, laid out after `t_b`/`t_c`'s
+/// rank 0 under `rank_dir: left_to_right`) and within a tight bound just past
+/// the shared description box's own extent (which is wider than `t_b`/`t_c`
+/// themselves, since it holds the "b/c dep desc" text) -- not ballooning out
+/// to some distant coordinate like the real bug's x=987.
+#[test]
+fn test_same_rank_crossing_edge_path_stays_near_divergent_ancestors_despite_lower_declared_higher_rank_sibling(
+) {
+    const TIGHT_BOUND_TOLERANCE_PX: f32 = 20.0;
+
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0060_SAME_RANK_DESC_CONTAINER_GLOBAL_VS_LOCAL_SIBLING_INDEX,
+    ) {
+        let t_a = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_a")
+            .expect("Expected t_a in svg_node_infos");
+
+        let desc = svg_elements
+            .edge_description_infos
+            .iter()
+            .find(|d| d.edge_id.as_str() == "edge_dep_b_c__0")
+            .expect("Expected a description for edge_dep_b_c__0.");
+        let tight_max_x = desc.x + desc.width + TIGHT_BOUND_TOLERANCE_PX;
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        let d = edge_body_path_d(&svg, "edge_dep_b_c__1");
+        let points = path_d_points(&d);
+
+        for &(x, _y) in &points {
+            assert!(
+                x < t_a.envelope_x,
+                "Expected edge_dep_b_c__1's path to stay clear of t_a's rank column \
+                 (t_a.envelope_x: {}), but got a point at x={x}: {points:?} -- this mirrors the \
+                 real bug where the path ballooned out to a distant x instead of jogging through \
+                 the small gap between t_b/t_c",
+                t_a.envelope_x,
+            );
+            assert!(
+                x <= tight_max_x,
+                "Expected edge_dep_b_c__1's path x-coordinates to stay within a tight bound near \
+                 t_b/t_c (max allowed: {tight_max_x}), got a point at x={x}: {points:?}",
+            );
+        }
+    }
+}
+
+/// Regression test for a bug in `RankSiblingInserter::node_insert`: when 3+
+/// same-rank description containers are inserted into the same rank's
+/// sibling list (one per adjacent pair `t_a`/`t_b`, `t_b`/`t_c`, `t_c`/`t_d`,
+/// all defaulting to rank 0 since there are no `thing_dependencies` to order
+/// them), the container for the third pair (`desc_c_d`) used to land next to
+/// the *second* pair's container instead of between `t_c` and `t_d`.
+///
+/// The bug was in the insertion-accounting scheme: it tracked prior
+/// insertions by their post-shift position in the growing sibling list
+/// rather than by their own original `base_index`, so once two containers
+/// had already shifted the list, a later container's "how many earlier
+/// insertions come before me" count silently dropped one of them.
+///
+/// Asserts the three description boxes and four nodes appear in the correct
+/// interleaved x-order (this diagram's `things` stack horizontally within
+/// their shared rank 0 row).
+#[test]
+fn test_same_rank_desc_containers_multiple_overlapping_insert_in_correct_order() {
+    for svg_elements in build_svg_elements_for_diagram(
+        INPUT_DIAGRAM_0061_SAME_RANK_DESC_CONTAINERS_MULTIPLE_OVERLAPPING,
+    ) {
+        let node_x = |node_id: &str| {
+            svg_elements
+                .svg_node_infos
+                .iter()
+                .find(|node_info| node_info.node_id.as_str() == node_id)
+                .unwrap_or_else(|| panic!("Expected {node_id} in svg_node_infos"))
+                .envelope_x
+        };
+        let desc_x = |edge_id: &str| {
+            svg_elements
+                .edge_description_infos
+                .iter()
+                .find(|d| d.edge_id.as_str() == edge_id)
+                .unwrap_or_else(|| panic!("Expected a description for {edge_id}."))
+                .x
+        };
+
+        let t_a = node_x("t_a");
+        let t_b = node_x("t_b");
+        let t_c = node_x("t_c");
+        let t_d = node_x("t_d");
+        let desc_a_b = desc_x("edge_ix_a_b__0");
+        let desc_b_c = desc_x("edge_ix_b_c__0");
+        let desc_c_d = desc_x("edge_ix_c_d__0");
+
+        assert!(
+            t_a < desc_a_b
+                && desc_a_b < t_b
+                && t_b < desc_b_c
+                && desc_b_c < t_c
+                && t_c < desc_c_d
+                && desc_c_d < t_d,
+            "Expected order t_a({t_a}) < desc_a_b({desc_a_b}) < t_b({t_b}) < \
+             desc_b_c({desc_b_c}) < t_c({t_c}) < desc_c_d({desc_c_d}) < t_d({t_d}), \
+             but desc_c_d landed in the wrong gap"
+        );
     }
 }
 
@@ -5762,6 +6016,69 @@ fn test_same_rank_crossing_edge_path_does_not_cross_description_box() {
                 "Expected edge_dep_server_proc_1_proc_2__1's path segment \
                  (({x1:.2}, {y1:.2}) -> ({x2:.2}, {y2:.2})) to stay clear of the \
                  description box (x: {box_left_x:.2}..{box_right_x:.2}, \
+                 y: {box_top_y:.2}..{box_bottom_y:.2}), full path: {points:?}"
+            );
+        }
+    }
+}
+
+// === Fallback contact vs. co-located real label geometry tests === //
+
+/// Regression test for a bug where a label-less edge's slot-based fallback
+/// contact point landed inside a *different*, co-located edge's real
+/// (text-bearing) label box.
+///
+/// `edge_dep_client_server__1` (`t_server -> t_client`) has no entry in
+/// `edge_labels`, so its `t_server`-side contact comes from the per-kind
+/// slot-arithmetic fallback (see "Edge-kind pools" in
+/// `SvgEdgeInfosBuilder::face_offsets_compute`). `edge_ix_client_server__0`
+/// (`t_client -> t_server`) is a co-located interaction edge that *does* have
+/// a label on the same `t_server` face (its `to_label`, text: `"c/s to"`).
+/// Before the fix, the fallback arithmetic centered independently per kind
+/// and had no awareness of the interaction edge's real label geometry, so
+/// `edge_dep_client_server__1`'s path clipped through the label's rendered
+/// box. Asserts no segment of its rendered path overlaps that box (same
+/// axis-aligned bounding-box check per consecutive point pair as
+/// `test_same_rank_crossing_edge_path_does_not_cross_description_box`).
+#[test]
+fn test_fallback_contact_clears_co_located_interaction_label_box() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0057_INTERACTION_HALO_WITH_DESC_CYCLIC)
+    {
+        let to_label = svg_elements
+            .edge_label_infos
+            .iter()
+            .find(|label| label.edge_id.as_str() == "edge_ix_client_server__0")
+            .and_then(|label| label.to_label.as_ref())
+            .expect("Expected edge_ix_client_server__0 to have a to_label with real content");
+        let box_left_x = to_label.x;
+        let box_right_x = to_label.x + to_label.width;
+        let box_top_y = to_label.y;
+        let box_bottom_y = to_label.y + to_label.height;
+
+        let svg = SvgElementsToSvgMapper::map(&svg_elements);
+        let d = edge_body_path_d(&svg, "edge_dep_client_server__1");
+        let points = path_d_points(&d);
+
+        for pair in points.windows(2) {
+            let &[(x1, y1), (x2, y2)] = pair else {
+                unreachable!("windows(2) always yields pairs");
+            };
+            let seg_left_x = x1.min(x2);
+            let seg_right_x = x1.max(x2);
+            let seg_top_y = y1.min(y2);
+            let seg_bottom_y = y1.max(y2);
+
+            let overlaps_box = seg_left_x < box_right_x
+                && seg_right_x > box_left_x
+                && seg_top_y < box_bottom_y
+                && seg_bottom_y > box_top_y;
+
+            assert!(
+                !overlaps_box,
+                "Expected edge_dep_client_server__1's path segment \
+                 (({x1:.2}, {y1:.2}) -> ({x2:.2}, {y2:.2})) to stay clear of \
+                 edge_ix_client_server__0's to_label box (x: {box_left_x:.2}..{box_right_x:.2}, \
                  y: {box_top_y:.2}..{box_bottom_y:.2}), full path: {points:?}"
             );
         }

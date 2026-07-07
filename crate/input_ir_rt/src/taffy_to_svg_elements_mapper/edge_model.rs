@@ -90,25 +90,13 @@ pub(super) struct PathBounds {
 #[derive(Clone, Debug, Default)]
 pub(super) struct EdgeContactPointOffsets {
     offsets: Vec<f32>,
-    /// Whether each offset came from `label_face_offset_compute` (routed to
-    /// an edge's own label content) rather than the slot-based fallback.
-    ///
-    /// A label-based offset already separates a symmetric edge pair's two
-    /// contacts, so the bidirectional pair offset (`BIDIRECTIONAL_OFFSET_RATIO`
-    /// in `edge_path_builder_pass_2.rs`) must not additionally be applied on
-    /// top of it -- see `EdgePathBuilderPass2::build`.
-    is_label_based: Vec<bool>,
 }
 
 impl EdgeContactPointOffsets {
     /// Creates a new `EdgeContactPointOffsets` from a vector of pixel
-    /// offsets and a parallel vector recording whether each offset is
-    /// label-based.
-    pub(super) fn new(offsets: Vec<f32>, is_label_based: Vec<bool>) -> Self {
-        Self {
-            offsets,
-            is_label_based,
-        }
+    /// offsets.
+    pub(super) fn new(offsets: Vec<f32>) -> Self {
+        Self { offsets }
     }
 
     /// Returns the offset at the given slot index, or `None` if out of
@@ -117,17 +105,9 @@ impl EdgeContactPointOffsets {
         self.offsets.get(slot).copied()
     }
 
-    /// Returns whether the offset at the given slot index is label-based,
-    /// or `None` if out of bounds.
-    pub(super) fn is_label_based(&self, slot: usize) -> Option<bool> {
-        self.is_label_based.get(slot).copied()
-    }
-
     /// Overwrites the offset at the given slot index.
     ///
-    /// Does nothing if `slot` is out of bounds. Leaves `is_label_based`
-    /// unchanged -- a collision/self-loop separation adjustment changes the
-    /// numeric value but not the offset's origin.
+    /// Does nothing if `slot` is out of bounds.
     pub(super) fn offset_set(&mut self, slot: usize, value: f32) {
         if let Some(offset) = self.offsets.get_mut(slot) {
             *offset = value;

@@ -221,7 +221,7 @@
       ]
     },
     "EdgeDescs": {
-      "description": "Descriptions for edges and edge groups.\n\nThis map contains text (typically markdown) that provides additional\ncontext about edges in the diagram. These descriptions can be displayed\nwhen an edge or edge group is focused.\n\n# Example\n\n```yaml\nedge_descs:\n  # edge groups\n  #\n  # Shown when any of the edges in this group are focused.\n  edge_t_localhost__t_github_user_repo__pull: |-\n    Fetch from GitHub\n\n  # edges\n  edge_t_localhost__t_github_user_repo__pull__0: |-\n    `git pull`\n```",
+      "description": "Descriptions for edges and edge groups.\n\nThis map contains text (typically markdown) that provides additional\ncontext about edges in the diagram. These descriptions can be displayed\nwhen an edge or edge group is focused.\n\nA key may be either an edge group ID, which applies to every edge in the\ngroup, or a specific edge instance ID (`{edge_group_id}__{edge_index}`),\nwhich overrides the group's description for that one edge -- see\n[`Self::get_for_edge`].\n\n# Example\n\n```yaml\nedge_descs:\n  # edge groups\n  #\n  # Shown when any of the edges in this group are focused.\n  edge_t_localhost__t_github_user_repo__pull: |-\n    Fetch from GitHub\n\n  # edges\n  edge_t_localhost__t_github_user_repo__pull__0: |-\n    `git pull`\n```",
       "type": "object",
       "additionalProperties": {
         "type": "string"
@@ -287,7 +287,7 @@
       }
     },
     "EdgeLabels": {
-      "description": "Text labels for edges at each endpoint.\n\nEach entry maps an edge instance ID to its `from` and `to` endpoint labels.\nBoth labels are optional -- set them to an empty string to show no text at\nthat endpoint.\n\n# Example\n\n```yaml\nedge_labels:\n  edge_t_localhost__t_github_user_repo__pull__0:\n    from: \"local branch\"\n    to: \"remote branch\"\n  edge_t_localhost__t_github_user_repo__push__0:\n    from: \"local commit\"\n    to: \"\"\n```",
+      "description": "Text labels for edges at each endpoint.\n\nEach entry maps an edge instance ID (`{edge_group_id}__{edge_index}`), or\nan edge group ID (applies to every edge in the group), to its `from` and\n`to` endpoint labels -- see [`Self::get_for_edge`] for the lookup\nprecedence when both are present. Both labels are optional -- set them to\nan empty string to show no text at that endpoint.\n\n# Example\n\n```yaml\nedge_labels:\n  # edge group -- applies to every edge in `edge_t_localhost__t_github_user_repo__pull`.\n  edge_t_localhost__t_github_user_repo__pull:\n    from: \"local branch\"\n    to: \"remote branch\"\n\n  # edge instance -- overrides the group label for this one edge.\n  edge_t_localhost__t_github_user_repo__pull__0:\n    from: \"local branch\"\n    to: \"remote branch\"\n  edge_t_localhost__t_github_user_repo__push__0:\n    from: \"local commit\"\n    to: \"\"\n```",
       "type": "object",
       "additionalProperties": {
         "$ref": "#/$defs/EdgeLabel"
@@ -437,6 +437,41 @@
           "description": "Rendering-only style key for the halo outline behind \"response\"\n(reverse) interaction edges. Any theme attribute set here overrides\nthe corresponding attribute on `InteractionEdgeHaloOutline`.",
           "type": "string",
           "const": "type_interaction_edge_halo_outline_reverse"
+        },
+        {
+          "description": "Rendering-only style key for the background box drawn behind an\nedge's label / description text (`{edge_id}__from_label` /\n`{edge_id}__to_label` / `{edge_id}__desc`), shared by both dependency\nand interaction edges, to keep the text legible where it may overlap\nother diagram content.\n\nThis is the least-specific tier of the label/desc background\nhierarchy -- its styling is overridden by\n`DependencyEdgeLabelAndDescBg` / `InteractionEdgeLabelAndDescBg`,\nwhich are in turn overridden by the most specific `*LabelBg` /\n`*DescBg` variants below. This type is never attached to a real\nentity via `entity_types` -- it is only used to look up\n`theme_types_styles` for the background's own styling.",
+          "type": "string",
+          "const": "type_edge_label_and_desc_bg"
+        },
+        {
+          "description": "Rendering-only style key overriding `EdgeLabelAndDescBg` for\ndependency edges' label AND description backgrounds. Overridden in\nturn by `DependencyEdgeLabelBg` / `DependencyEdgeDescBg`.",
+          "type": "string",
+          "const": "type_dependency_edge_label_and_desc_bg"
+        },
+        {
+          "description": "Rendering-only style key for the background box behind a dependency\nedge's label text. Most specific tier; overrides\n`DependencyEdgeLabelAndDescBg` and `EdgeLabelAndDescBg`.",
+          "type": "string",
+          "const": "type_dependency_edge_label_bg"
+        },
+        {
+          "description": "Rendering-only style key for the background box behind a dependency\nedge's description text. Most specific tier; overrides\n`DependencyEdgeLabelAndDescBg` and `EdgeLabelAndDescBg`.",
+          "type": "string",
+          "const": "type_dependency_edge_desc_bg"
+        },
+        {
+          "description": "Rendering-only style key overriding `EdgeLabelAndDescBg` for\ninteraction edges' label AND description backgrounds. Overridden in\nturn by `InteractionEdgeLabelBg` / `InteractionEdgeDescBg`.",
+          "type": "string",
+          "const": "type_interaction_edge_label_and_desc_bg"
+        },
+        {
+          "description": "Rendering-only style key for the background box drawn behind an\ninteraction edge's label text (`{edge_id}__from_label` /\n`{edge_id}__to_label`). Most specific tier; overrides\n`InteractionEdgeLabelAndDescBg` and `EdgeLabelAndDescBg`. This type\nis never attached to a real entity via `entity_types` -- it is only\nused to look up `theme_types_styles` for the background's own\nstyling.",
+          "type": "string",
+          "const": "type_interaction_edge_label_bg"
+        },
+        {
+          "description": "Rendering-only style key for the background box drawn behind an\ninteraction edge's description text (`{edge_id}__desc`). Most\nspecific tier; overrides `InteractionEdgeLabelAndDescBg` and\n`EdgeLabelAndDescBg`. Like `InteractionEdgeLabelBg`, this type is\nnever attached to a real entity via `entity_types`.",
+          "type": "string",
+          "const": "type_interaction_edge_desc_bg"
         },
         {
           "description": "Custom user-defined type.",

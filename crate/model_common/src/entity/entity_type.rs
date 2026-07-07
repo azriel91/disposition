@@ -135,16 +135,50 @@ pub enum EntityType {
     InteractionEdgeHaloOutlineReverse,
 
     /// Rendering-only style key for the background box drawn behind an
+    /// edge's label / description text (`{edge_id}__from_label` /
+    /// `{edge_id}__to_label` / `{edge_id}__desc`), shared by both dependency
+    /// and interaction edges, to keep the text legible where it may overlap
+    /// other diagram content.
+    ///
+    /// This is the least-specific tier of the label/desc background
+    /// hierarchy -- its styling is overridden by
+    /// `DependencyEdgeLabelAndDescBg` / `InteractionEdgeLabelAndDescBg`,
+    /// which are in turn overridden by the most specific `*LabelBg` /
+    /// `*DescBg` variants below. This type is never attached to a real
+    /// entity via `entity_types` -- it is only used to look up
+    /// `theme_types_styles` for the background's own styling.
+    EdgeLabelAndDescBg,
+
+    /// Rendering-only style key overriding `EdgeLabelAndDescBg` for
+    /// dependency edges' label AND description backgrounds. Overridden in
+    /// turn by `DependencyEdgeLabelBg` / `DependencyEdgeDescBg`.
+    DependencyEdgeLabelAndDescBg,
+    /// Rendering-only style key for the background box behind a dependency
+    /// edge's label text. Most specific tier; overrides
+    /// `DependencyEdgeLabelAndDescBg` and `EdgeLabelAndDescBg`.
+    DependencyEdgeLabelBg,
+    /// Rendering-only style key for the background box behind a dependency
+    /// edge's description text. Most specific tier; overrides
+    /// `DependencyEdgeLabelAndDescBg` and `EdgeLabelAndDescBg`.
+    DependencyEdgeDescBg,
+
+    /// Rendering-only style key overriding `EdgeLabelAndDescBg` for
+    /// interaction edges' label AND description backgrounds. Overridden in
+    /// turn by `InteractionEdgeLabelBg` / `InteractionEdgeDescBg`.
+    InteractionEdgeLabelAndDescBg,
+    /// Rendering-only style key for the background box drawn behind an
     /// interaction edge's label text (`{edge_id}__from_label` /
-    /// `{edge_id}__to_label`), to keep it legible where it may overlap other
-    /// diagram content. This type is never attached to a real entity via
-    /// `entity_types` -- it is only used to look up `theme_types_styles` for
-    /// the background's own styling.
+    /// `{edge_id}__to_label`). Most specific tier; overrides
+    /// `InteractionEdgeLabelAndDescBg` and `EdgeLabelAndDescBg`. This type
+    /// is never attached to a real entity via `entity_types` -- it is only
+    /// used to look up `theme_types_styles` for the background's own
+    /// styling.
     InteractionEdgeLabelBg,
     /// Rendering-only style key for the background box drawn behind an
-    /// interaction edge's description text (`{edge_id}__desc`). Like
-    /// `InteractionEdgeLabelBg`, this type is never attached to a real
-    /// entity via `entity_types`.
+    /// interaction edge's description text (`{edge_id}__desc`). Most
+    /// specific tier; overrides `InteractionEdgeLabelAndDescBg` and
+    /// `EdgeLabelAndDescBg`. Like `InteractionEdgeLabelBg`, this type is
+    /// never attached to a real entity via `entity_types`.
     InteractionEdgeDescBg,
 
     /// Custom user-defined type.
@@ -226,6 +260,13 @@ impl EntityType {
                 "type_interaction_edge_halo_outline_reverse"
             }
 
+            EntityType::EdgeLabelAndDescBg => "type_edge_label_and_desc_bg",
+
+            EntityType::DependencyEdgeLabelAndDescBg => "type_dependency_edge_label_and_desc_bg",
+            EntityType::DependencyEdgeLabelBg => "type_dependency_edge_label_bg",
+            EntityType::DependencyEdgeDescBg => "type_dependency_edge_desc_bg",
+
+            EntityType::InteractionEdgeLabelAndDescBg => "type_interaction_edge_label_and_desc_bg",
             EntityType::InteractionEdgeLabelBg => "type_interaction_edge_label_bg",
             EntityType::InteractionEdgeDescBg => "type_interaction_edge_desc_bg",
 
@@ -263,6 +304,11 @@ impl EntityType {
             | EntityType::InteractionEdgeHaloOutline
             | EntityType::InteractionEdgeHaloOutlineForward
             | EntityType::InteractionEdgeHaloOutlineReverse
+            | EntityType::EdgeLabelAndDescBg
+            | EntityType::DependencyEdgeLabelAndDescBg
+            | EntityType::DependencyEdgeLabelBg
+            | EntityType::DependencyEdgeDescBg
+            | EntityType::InteractionEdgeLabelAndDescBg
             | EntityType::InteractionEdgeLabelBg
             | EntityType::InteractionEdgeDescBg => true,
             EntityType::Custom(_) => false,
@@ -356,6 +402,17 @@ impl EntityType {
                 id!("type_interaction_edge_halo_outline_reverse")
             }
 
+            EntityType::EdgeLabelAndDescBg => id!("type_edge_label_and_desc_bg"),
+
+            EntityType::DependencyEdgeLabelAndDescBg => {
+                id!("type_dependency_edge_label_and_desc_bg")
+            }
+            EntityType::DependencyEdgeLabelBg => id!("type_dependency_edge_label_bg"),
+            EntityType::DependencyEdgeDescBg => id!("type_dependency_edge_desc_bg"),
+
+            EntityType::InteractionEdgeLabelAndDescBg => {
+                id!("type_interaction_edge_label_and_desc_bg")
+            }
             EntityType::InteractionEdgeLabelBg => id!("type_interaction_edge_label_bg"),
             EntityType::InteractionEdgeDescBg => id!("type_interaction_edge_desc_bg"),
 
@@ -396,6 +453,27 @@ impl EntityType {
     /// ```
     pub fn is_edge(&self) -> bool {
         self.is_dependency_edge() || self.is_interaction_edge()
+    }
+
+    /// Returns `true` if this is a `ThingDefault`, `TagDefault`,
+    /// `ProcessDefault`, or `ProcessStepDefault` variant.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use disposition_model_common::entity::EntityType;
+    ///
+    /// assert!(EntityType::ThingDefault.is_node());
+    /// assert!(!EntityType::DependencyEdgeSequenceForwardDefault.is_node());
+    /// ```
+    pub fn is_node(&self) -> bool {
+        matches!(
+            self,
+            EntityType::ThingDefault
+                | EntityType::TagDefault
+                | EntityType::ProcessDefault
+                | EntityType::ProcessStepDefault
+        )
     }
 
     /// Returns `true` if this is a `DependencyEdge*` variant.
@@ -512,6 +590,13 @@ impl From<Id<'static>> for EntityType {
                 EntityType::InteractionEdgeHaloOutlineReverse
             }
 
+            "type_edge_label_and_desc_bg" => EntityType::EdgeLabelAndDescBg,
+
+            "type_dependency_edge_label_and_desc_bg" => EntityType::DependencyEdgeLabelAndDescBg,
+            "type_dependency_edge_label_bg" => EntityType::DependencyEdgeLabelBg,
+            "type_dependency_edge_desc_bg" => EntityType::DependencyEdgeDescBg,
+
+            "type_interaction_edge_label_and_desc_bg" => EntityType::InteractionEdgeLabelAndDescBg,
             "type_interaction_edge_label_bg" => EntityType::InteractionEdgeLabelBg,
             "type_interaction_edge_desc_bg" => EntityType::InteractionEdgeDescBg,
 
@@ -580,6 +665,11 @@ impl Visitor<'_> for EntityTypeVisitor {
             * `type_interaction_edge_halo_outline`\n\
             * `type_interaction_edge_halo_outline_forward`\n\
             * `type_interaction_edge_halo_outline_reverse`\n\
+            * `type_edge_label_and_desc_bg`\n\
+            * `type_dependency_edge_label_and_desc_bg`\n\
+            * `type_dependency_edge_label_bg`\n\
+            * `type_dependency_edge_desc_bg`\n\
+            * `type_interaction_edge_label_and_desc_bg`\n\
             * `type_interaction_edge_label_bg`\n\
             * `type_interaction_edge_desc_bg`\n\
             \n\
@@ -654,6 +744,13 @@ impl Visitor<'_> for EntityTypeVisitor {
                 EntityType::InteractionEdgeHaloOutlineReverse
             }
 
+            "type_edge_label_and_desc_bg" => EntityType::EdgeLabelAndDescBg,
+
+            "type_dependency_edge_label_and_desc_bg" => EntityType::DependencyEdgeLabelAndDescBg,
+            "type_dependency_edge_label_bg" => EntityType::DependencyEdgeLabelBg,
+            "type_dependency_edge_desc_bg" => EntityType::DependencyEdgeDescBg,
+
+            "type_interaction_edge_label_and_desc_bg" => EntityType::InteractionEdgeLabelAndDescBg,
             "type_interaction_edge_label_bg" => EntityType::InteractionEdgeLabelBg,
             "type_interaction_edge_desc_bg" => EntityType::InteractionEdgeDescBg,
 

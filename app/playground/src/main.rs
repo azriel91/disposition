@@ -1,3 +1,11 @@
+#![allow(clippy::useless_format)] // rustc 1.99.0-nightly (3659db0d3 2026-07-05) complains about
+                                  // `class: "{css}"`, but these are needed by dioxus.
+                                  //
+                                  // Fix on dioxus' side is tracked in:
+                                  //
+                                  // * https://github.com/DioxusLabs/dioxus/issues/5635
+                                  // * https://github.com/DioxusLabs/dioxus/pull/5636
+
 // The dioxus prelude contains a ton of common items used in dioxus apps. It's a
 // good idea to import wherever you need dioxus
 use dioxus::{

@@ -554,7 +554,7 @@ directly:
   as a separate `description_contact` parameter to
   `EdgePathBuilderPass2::build`, consulted only by those two arms. This makes
   the description contact behave like the label-based face offset
-  (`label_face_offset_compute`): the one waypoint kind applied regardless of
+  (`label_face_span_compute`): the one waypoint kind applied regardless of
   curvature.
 - `EdgeSpacerBuilder::build_edge_desc_container_spacers_for_edge` (source:
   `crate/input_ir_rt/src/ir_to_taffy_builder/edge_spacer_builder.rs`) now

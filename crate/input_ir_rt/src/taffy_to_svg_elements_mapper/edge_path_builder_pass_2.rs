@@ -8,7 +8,7 @@ use crate::taffy_to_svg_elements_mapper::{
     edge_model::EdgeType,
     edge_path_builder_pass_1::{
         EdgeFaceOffset, EdgePathBuilderPass1, NodeEdgeGeometry, SpacerCoordinates,
-        BIDIRECTIONAL_OFFSET_RATIO, CURVE_CONTROL_RATIO,
+        CURVE_CONTROL_RATIO,
     },
     ortho_protrusion_calculator::OrthoProtrusionCalculator,
 };
@@ -153,47 +153,6 @@ impl EdgePathBuilderPass2 {
             to_face,
             face_offset.to_offset,
         );
-
-        // Apply bidirectional offset. Skipped per-endpoint when that
-        // endpoint's contact is already label-based: the label offset
-        // already separates the pair's two contacts, so stacking the
-        // bidirectional shift on top would push the contact past the
-        // node's own face bounds (see `EdgeFaceOffset::from_offset_is_label`).
-        if edge_type == EdgeType::PairRequest || edge_type == EdgeType::PairResponse {
-            let offset_direction = if edge_type == EdgeType::PairResponse {
-                1.0
-            } else {
-                -1.0
-            };
-
-            // Move start point down if this is the `PairRequest` edge.
-            if !face_offset.from_offset_is_label {
-                match from_face {
-                    NodeFace::Right | NodeFace::Left => {
-                        start_y += from_info.height_collapsed
-                            * BIDIRECTIONAL_OFFSET_RATIO
-                            * offset_direction;
-                    }
-                    NodeFace::Top | NodeFace::Bottom => {
-                        start_x += from_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                    }
-                }
-            }
-
-            // Move end point down if this is the `PairResponse` edge.
-            if !face_offset.to_offset_is_label {
-                match to_face {
-                    NodeFace::Right | NodeFace::Left => {
-                        end_y += to_info.height_collapsed
-                            * BIDIRECTIONAL_OFFSET_RATIO
-                            * offset_direction;
-                    }
-                    NodeFace::Top | NodeFace::Bottom => {
-                        end_x += to_info.width * BIDIRECTIONAL_OFFSET_RATIO * offset_direction;
-                    }
-                }
-            }
-        }
 
         // Defensive clamp: keep the contact point within the node's own
         // face span regardless of which mechanism produced the offset
