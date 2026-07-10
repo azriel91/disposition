@@ -342,6 +342,31 @@ fn builtin_entity_types_offered_in_theme_types_styles() {
 }
 
 #[test]
+fn custom_entity_types_offered_in_theme_types_styles() {
+    let text = "entity_types:\n  t_aws: [type_organisation]\n\
+        theme_types_styles:\n  ";
+    let labels = labels(text, 3, 2);
+
+    for expected in ["type_organisation", "type_thing_default"] {
+        assert!(
+            labels.iter().any(|label| label == expected),
+            "expected entity type `{expected}` in {labels:?}"
+        );
+    }
+}
+
+#[test]
+fn custom_entity_types_offered_in_entity_types_values() {
+    let text = "entity_types:\n  t_a: [type_organisation]\n  t_b:\n    - ";
+    let labels = labels(text, 3, 6);
+
+    assert!(
+        labels.iter().any(|label| label == "type_organisation"),
+        "expected custom entity type `type_organisation` in {labels:?}"
+    );
+}
+
+#[test]
 fn already_declared_keys_filtered_from_suggestions() {
     // `t_a` is already a `thing_names` key, so only `t_b` should remain.
     let text = "things:\n  t_a: {}\n  t_b: {}\n\

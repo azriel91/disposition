@@ -44,7 +44,8 @@ pub enum KeyCategory {
     /// `tag_defaults` plus the tags defined in the document.
     TagFocus,
     /// Keys are `EntityType`s -- `theme_types_styles`. Offers the built-in
-    /// entity types.
+    /// entity types plus any custom `type_*` ids declared under
+    /// `entity_types` in the document.
     EntityType,
 }
 

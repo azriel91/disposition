@@ -150,6 +150,7 @@ impl CompletionEngine {
             );
         }
 
+        completion_items_dedup(&mut items);
         items
     }
 
@@ -227,6 +228,7 @@ impl CompletionEngine {
             }));
         }
 
+        completion_items_dedup(&mut items);
         items
     }
 
@@ -257,6 +259,17 @@ impl CompletionEngine {
 
         Some(items)
     }
+}
+
+/// Removes items whose `label` already appeared earlier in `items`.
+///
+/// Document-derived and schema-derived suggestions are merged independently
+/// and can coincide -- e.g. a document declares a custom entity type whose
+/// name happens to match a built-in `EntityType` const -- so this dedups the
+/// combined list by label, keeping the first occurrence.
+fn completion_items_dedup(items: &mut Vec<CompletionItem>) {
+    let mut seen = BTreeSet::new();
+    items.retain(|item| seen.insert(item.label.clone()));
 }
 
 /// Builds the `insert_text` for a value completion `label`.

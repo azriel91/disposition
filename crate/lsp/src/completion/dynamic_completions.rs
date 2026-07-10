@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use crate::completion::{
     id_category::IdCategory,
     key_category::KeyCategory,
-    yaml_lines::{indent, is_blank_or_comment, line_map_key},
+    yaml_lines::{indent, is_blank_or_comment, is_list_item, line_map_key, split_flow_items},
 };
 
 /// IDs defined in the document, grouped by category.
@@ -27,6 +27,10 @@ pub struct DynamicCompletions {
     /// `EdgeGroupId`s declared under `thing_dependencies` /
     /// `thing_interactions`.
     edge_group_ids: BTreeSet<String>,
+    /// Custom `type_*` ids declared as list items under any `entity_types`
+    /// entry (e.g. `type_organisation` from `entity_types.t_aws:
+    /// [type_organisation]`).
+    entity_type_ids: BTreeSet<String>,
 }
 
 impl DynamicCompletions {
@@ -49,12 +53,15 @@ impl DynamicCompletions {
         let mut edge_group_ids = collect_block_keys(&lines, "thing_dependencies", true, true);
         edge_group_ids.extend(collect_block_keys(&lines, "thing_interactions", true, true));
 
+        let entity_type_ids = collect_entity_types_values(&lines);
+
         DynamicCompletions {
             thing_ids,
             tag_ids,
             process_ids,
             step_ids,
             edge_group_ids,
+            entity_type_ids,
         }
     }
 
@@ -65,6 +72,7 @@ impl DynamicCompletions {
             IdCategory::Tag => self.tag_ids.iter().map(String::as_str).collect(),
             IdCategory::ProcessStep => self.step_ids.iter().map(String::as_str).collect(),
             IdCategory::EdgeGroup => self.edge_group_ids.iter().map(String::as_str).collect(),
+            IdCategory::EntityType => self.entity_type_ids.iter().map(String::as_str).collect(),
             IdCategory::Any => self
                 .thing_ids
                 .iter()
@@ -81,7 +89,9 @@ impl DynamicCompletions {
     /// These are the document-derived IDs, templated IDs, and known literal
     /// keys. Schema-derived suggestions (the built-in `StyleAlias` /
     /// `EntityType` keys) are *not* included here -- the completion engine adds
-    /// those from the schema, which this type does not have access to.
+    /// those from the schema, which this type does not have access to. Custom
+    /// `EntityType`s declared in `entity_types`, however, *are*
+    /// document-derived and so are included here.
     pub fn key_suggestions(&self, key_category: KeyCategory) -> Vec<String> {
         let owned = |ids: Vec<&str>| ids.into_iter().map(str::to_string).collect::<Vec<String>>();
 
@@ -113,8 +123,9 @@ impl DynamicCompletions {
                 suggestions.extend(owned(self.ids_for(IdCategory::Tag)));
                 suggestions
             }
-            // Built-in entity types come from the schema, added by the engine.
-            KeyCategory::EntityType => Vec::new(),
+            // Custom entity types declared in `entity_types`; built-in
+            // entity types come from the schema, added by the engine.
+            KeyCategory::EntityType => owned(self.ids_for(IdCategory::EntityType)),
         }
     }
 
@@ -206,4 +217,45 @@ fn collect_block_keys(
     }
 
     keys
+}
+
+/// Collects the custom entity type ids (`type_*` list items) declared under
+/// each entry of the top-level `entity_types` block, e.g. `type_organisation`
+/// from `entity_types.t_aws: [type_organisation]` or a block-sequence
+/// `- type_organisation` item.
+fn collect_entity_types_values(lines: &[&str]) -> BTreeSet<String> {
+    let mut values = BTreeSet::new();
+
+    let Some(block_start) = lines.iter().position(|line| {
+        !is_blank_or_comment(line)
+            && indent(line) == 0
+            && line_map_key(line).as_deref() == Some("entity_types")
+    }) else {
+        return values;
+    };
+
+    for line in &lines[block_start + 1..] {
+        if is_blank_or_comment(line) {
+            continue;
+        }
+        if indent(line) == 0 {
+            break;
+        }
+
+        if is_list_item(line) {
+            let value = line.trim_start().trim_start_matches('-').trim();
+            if !value.is_empty() {
+                values.insert(value.to_string());
+            }
+        } else if line_map_key(line).is_some()
+            && let Some(colon_idx) = line.find(':')
+        {
+            let value = line[colon_idx + 1..].trim();
+            if let Some(inner) = value.strip_prefix('[').and_then(|v| v.strip_suffix(']')) {
+                values.extend(split_flow_items(inner).into_iter().map(str::to_string));
+            }
+        }
+    }
+
+    values
 }
