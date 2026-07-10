@@ -6113,3 +6113,101 @@ fn test_0062_higher_to_lower_rank_curved_edge_builds_without_panic() {
         );
     }
 }
+
+/// `edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier__0` enters `t_aws_az1`
+/// (described) then descends into `t_aws_az1_subnet_tier_private` (also
+/// described) to reach `t_aws_az1_subnet_tier_private_lambda_pipe`.
+/// `t_aws_az1`'s cross-container spacers (needed to clear
+/// `t_aws_az1_subnet_mgmt` / `t_aws_az1_subnet_tier_public`) already snap to
+/// a shared outer column. Before `spacers_snap_to_outermost_column` also
+/// pulled a later, deeper text-content spacer out to meet that column,
+/// `t_aws_az1_subnet_tier_private`'s own (un-aligned) label spacer sat
+/// inside it, so the path bowed out to the column while clearing
+/// `t_aws_az1`'s siblings, dipped back in to clear
+/// `t_aws_az1_subnet_tier_private`'s own label, then had to jog back out
+/// again toward the to-node -- an unnecessary extra Z-bend.
+#[test]
+fn test_0062_deeper_described_container_spacer_does_not_dip_inside_outer_column() {
+    fn path_points(path_d: &str) -> Vec<(f32, f32)> {
+        path_d
+            .split([' ', 'M', 'L', 'C'])
+            .filter_map(|tok| {
+                let (x, y) = tok.split_once(',')?;
+                Some((x.trim().parse::<f32>().ok()?, y.trim().parse::<f32>().ok()?))
+            })
+            .collect()
+    }
+
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0062_EDGES_FROM_HIGHER_RANK_TO_LOWER_RANK)
+    {
+        let edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|svg_edge_info| {
+                svg_edge_info.edge_id.as_str()
+                    == "edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier__0"
+            })
+            .expect("Expected edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier__0");
+
+        let az1 = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_aws_az1")
+            .expect("Expected t_aws_az1 in svg_node_infos");
+        let subnet_tier_private = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|n| n.node_id.as_str() == "t_aws_az1_subnet_tier_private")
+            .expect("Expected t_aws_az1_subnet_tier_private in svg_node_infos");
+
+        let points = path_points(&edge.path_d);
+
+        // The region within `t_aws_az1` but above `t_aws_az1_subnet_tier_private`
+        // is where the path must clear `t_aws_az1`'s other rank-0 siblings
+        // (`t_aws_az1_subnet_mgmt` / `t_aws_az1_subnet_tier_public`) via its
+        // cross-container spacers -- this is where the outer column is
+        // established.
+        let clearing_region_max_x = points
+            .iter()
+            .filter(|&&(_, y)| y >= az1.y && y < subnet_tier_private.y)
+            .map(|&(x, _)| x)
+            .fold(f32::MIN, f32::max);
+        assert!(
+            clearing_region_max_x > f32::MIN,
+            "Expected at least one waypoint within t_aws_az1's own clearing \
+             region (y in [{:.1}, {:.1})); path: {}",
+            az1.y,
+            subnet_tier_private.y,
+            edge.path_d,
+        );
+
+        // `t_aws_az1_subnet_tier_private`'s own text-content spacer sits just
+        // below its top face, marking a column just past its label. Once the
+        // path reaches this band it should already be at (or past) the outer
+        // column reached while clearing `t_aws_az1`'s siblings -- not dipped
+        // back inside it.
+        let private_title_band_max_x = points
+            .iter()
+            .filter(|&&(_, y)| {
+                y >= subnet_tier_private.y && y < subnet_tier_private.y + TEXT_LINE_HEIGHT * 2.0
+            })
+            .map(|&(x, _)| x)
+            .fold(f32::MIN, f32::max);
+        assert!(
+            private_title_band_max_x > f32::MIN,
+            "Expected at least one waypoint within t_aws_az1_subnet_tier_private's \
+             own title band; path: {}",
+            edge.path_d,
+        );
+
+        assert!(
+            (private_title_band_max_x - clearing_region_max_x).abs() < 1.0,
+            "t_aws_az1_subnet_tier_private's label spacer ({private_title_band_max_x:.1}) \
+             should sit at the same outer column already reached while clearing \
+             t_aws_az1's siblings ({clearing_region_max_x:.1}), not dip back inside \
+             it; path: {}",
+            edge.path_d,
+        );
+    }
+}

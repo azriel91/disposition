@@ -80,7 +80,6 @@ impl SpacerCoordinatesResolver {
             taffy_tree,
             &spacer_nodes.cross_container_spacer_taffy_node_ids,
         );
-        Self::cross_container_spacers_snap_to_column(rank_dir, &mut cross_container_spacers);
         let edge_desc_container_spacers = Self::spacers_calculate(
             rank_dir,
             taffy_tree,
@@ -104,14 +103,17 @@ impl SpacerCoordinatesResolver {
             taffy_tree,
             &spacer_nodes.same_rank_edge_desc_container_spacer_taffy_node_ids,
         );
-        // Text-content spacers are deliberately **not** snapped onto the
-        // cross-container column: each is a local waypoint at its node's text
-        // band so the edge only bows around that label, rather than having its
-        // whole descent column pulled onto the text's far side.
-        let text_content_spacers = Self::spacers_calculate(
+        let mut text_content_spacers = Self::spacers_calculate(
             rank_dir,
             taffy_tree,
             &spacer_nodes.text_content_spacer_taffy_node_ids,
+        );
+        // Text-content spacers participate in the same outermost-column snap
+        // as cross-container spacers: see `spacers_snap_to_outermost_column`.
+        Self::spacers_snap_to_outermost_column(
+            rank_dir,
+            &mut cross_container_spacers,
+            &mut text_content_spacers,
         );
         let description_contact = Self::description_contact_resolve(
             rank_dir,
@@ -207,7 +209,9 @@ impl SpacerCoordinatesResolver {
     }
 
     /// Snaps an edge's cross-container spacers to a single straight column on
-    /// the cross-axis (X for vertical flows, Y for horizontal flows).
+    /// the cross-axis (X for vertical flows, Y for horizontal flows), then
+    /// pulls any **later** (deeper) text-content spacer that would otherwise
+    /// sit inside that column out to meet it.
     ///
     /// Cross-container spacers are appended to each rank row, so their
     /// cross-axis position is set by taffy from how much sibling content
@@ -219,10 +223,39 @@ impl SpacerCoordinatesResolver {
     /// neighbouring edge whose column is straight (e.g. `ranks_slots` vs
     /// `labels_offsets` in `0043`).
     ///
-    /// All of an edge's cross-container spacers sit on the **same** side of the
-    /// rows' nodes (the gap side they were appended on), so collapsing them
-    /// onto the single **outermost** coordinate keeps the column clear of
-    /// every row's node -- each row's node ends at or before its own
+    /// Text-content spacers -- placed just past a described container's text
+    /// band -- are resolved independently per container, so their local
+    /// coordinate has no relationship to any cross-container column the edge
+    /// has already committed to. When a **deeper** container's text-content
+    /// spacer sits further along the path than a column already established
+    /// by two or more cross-container spacers, and that column is further out
+    /// than the text spacer's own position, the path bows out to the column,
+    /// dips back in to reach the un-aligned text spacer, then has to jog back
+    /// out again toward the to-node -- an unnecessary extra Z-bend (e.g.
+    /// `t_aws_az1_subnet_tier_private`'s label spacer sitting inside the
+    /// wider `t_aws_az1` cross-container column in `0062`). This function
+    /// pulls that later text spacer out to the column to remove the dip.
+    ///
+    /// A text-content spacer that sits **earlier** than the cross-container
+    /// column (i.e. it belongs to the same, outer container whose siblings
+    /// produced the column, encountered before descending into it) is left
+    /// alone: bowing out from the from-node straight to that spacer's own
+    /// local position, then further out again to the column, is a single
+    /// smooth outward bend, not a dip -- and forcing it onto the column early
+    /// would move it for no routing benefit, rippling into how other edges
+    /// sharing its rank gap are nested by `jogs_separate` (e.g.
+    /// `edge_dep_layout_contacts` vs `edge_dep_ir_pass1` in `0044`, whose
+    /// single (unsnapped) cross-container spacer and text-content spacer must
+    /// stay at their own positions for their return jogs to stay separated).
+    /// A text spacer that is already further out than the column (e.g. a
+    /// deliberate detour further than the edge's own rank column, as
+    /// `labels_offsets` in `0044`) is likewise left alone, since there is no
+    /// dip to fix.
+    ///
+    /// All of an edge's cross-container spacers sit on the **same** side of
+    /// their rows' nodes (the gap side they were appended on), so collapsing
+    /// them onto the single **outermost** coordinate keeps the column clear
+    /// of every row's node -- each row's node ends at or before its own
     /// spacer, which is at or inside the chosen extreme.
     ///
     /// The outermost coordinate is the **maximum** in every `RankDir`. The
@@ -244,23 +277,35 @@ impl SpacerCoordinatesResolver {
     ///   routed the column over the wider rows otherwise, e.g. `BottomToTop` in
     ///   `0047`.)
     ///
-    /// A single spacer is already a straight column, so the snap is a no-op
-    /// below two.
-    fn cross_container_spacers_snap_to_column(
+    /// The snap is a no-op unless `cross_container_spacers` itself holds two
+    /// or more entries -- that is the condition under which cross-container
+    /// spacers need aligning at all; text-content spacers only ride along
+    /// once that alignment is already happening, and only when they are
+    /// positioned after it.
+    fn spacers_snap_to_outermost_column(
         rank_dir: RankDir,
         cross_container_spacers: &mut [SpacerCoordinates],
+        text_content_spacers: &mut [SpacerCoordinates],
     ) {
         if cross_container_spacers.len() < 2 {
             return;
         }
 
         let vertical_flow = matches!(rank_dir, RankDir::TopToBottom | RankDir::BottomToTop);
+        let reverse = matches!(rank_dir, RankDir::BottomToTop | RankDir::RightToLeft);
 
         let cross_axis = |spacer_coordinates: &SpacerCoordinates| {
             if vertical_flow {
                 spacer_coordinates.entry_x
             } else {
                 spacer_coordinates.entry_y
+            }
+        };
+        let main_axis = |spacer_coordinates: &SpacerCoordinates| {
+            if vertical_flow {
+                spacer_coordinates.entry_y
+            } else {
+                spacer_coordinates.entry_x
             }
         };
 
@@ -274,6 +319,38 @@ impl SpacerCoordinatesResolver {
 
         cross_container_spacers
             .iter_mut()
+            .for_each(|spacer_coordinates| {
+                if vertical_flow {
+                    spacer_coordinates.entry_x = column;
+                    spacer_coordinates.exit_x = column;
+                } else {
+                    spacer_coordinates.entry_y = column;
+                    spacer_coordinates.exit_y = column;
+                }
+            });
+
+        // The earliest point along the path at which the column is
+        // established -- the first cross-container spacer encountered.
+        // Reversed flows travel in decreasing main-axis order, so "earliest"
+        // is the maximum there instead of the minimum.
+        let Some(column_earliest_main) = cross_container_spacers
+            .iter()
+            .map(main_axis)
+            .reduce(|a, b| if reverse { a.max(b) } else { a.min(b) })
+        else {
+            return;
+        };
+
+        text_content_spacers
+            .iter_mut()
+            .filter(|spacer_coordinates| {
+                let occurs_after_column = if reverse {
+                    main_axis(spacer_coordinates) < column_earliest_main
+                } else {
+                    main_axis(spacer_coordinates) > column_earliest_main
+                };
+                occurs_after_column && cross_axis(spacer_coordinates) < column
+            })
             .for_each(|spacer_coordinates| {
                 if vertical_flow {
                     spacer_coordinates.entry_x = column;

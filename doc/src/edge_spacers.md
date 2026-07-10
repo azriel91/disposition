@@ -183,11 +183,15 @@ Scope and behaviour differ from the other kinds in three ways:
   through it. A spacer is also skipped when the edge's divergent ancestors share a rank (e.g. a
   same-rank cyclic edge between adjacent siblings): such an edge enters the container from the side,
   past the label, so a text spacer would needlessly loop it up to the label band and back.
-- **Excluded from the cross-container column snap.** Unlike cross-container spacers, text-content
-  spacers are **not** passed to `cross_container_spacers_snap_to_column`
-  ([edge_paths.md](edge_paths.md)). This keeps the detour **local** to the text band -- the edge
-  approaches at its normal column, bows out only around the label, then returns to its rank column
-  for the descendants -- rather than the whole descent column being pulled onto the label's far side.
+- **Rides along the cross-container column snap only when it sits past it.** Unlike cross-container
+  spacers, text-content spacers are not blanket-merged into `spacers_snap_to_outermost_column`'s
+  column ([edge_paths.md](edge_paths.md)): a text spacer belonging to the same, outer container whose
+  siblings established the column (encountered earlier along the path) keeps its own local position,
+  so the detour to it stays **local** to the text band -- the edge approaches at its normal column,
+  bows out only around the label, then returns to its rank column for the descendants. But a text
+  spacer belonging to a **deeper** described container -- one entered after the column is already
+  established -- is pulled out to meet the column when its own position would otherwise sit inside
+  it, so the path does not dip back in only to jog back out again.
 - **Stored in `text_content_spacer_taffy_node_ids`**, merged as a routing waypoint and ordered by
   main-axis coordinate (the label sits above rank 0, so it is the first waypoint).
 
