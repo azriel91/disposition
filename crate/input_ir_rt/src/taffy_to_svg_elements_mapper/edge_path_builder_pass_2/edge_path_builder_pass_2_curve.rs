@@ -48,6 +48,15 @@ impl EdgePathBuilderPass2Curve {
     ) -> BezPath {
         let curve_ratio = CURVE_CONTROL_RATIO;
 
+        // Minimise turns the same way `EdgeCurvature::Orthogonal` does: when
+        // an interior spacer's cross-axis coordinate is a "notch" dipping
+        // back toward the chord between its neighbours, pass it at the
+        // neighbouring turn's coordinate instead of curving in and back out.
+        let spacers_snapped = EdgePathBuilderPass1::spacers_turn_minimize(
+            start_x, start_y, end_x, end_y, from_face, to_face, spacers,
+        );
+        let spacers: &[SpacerCoordinates] = &spacers_snapped;
+
         // === Build the ordered list of curve/line segments === //
         //
         // The path runs forward (start -> end). The spacers are traversed

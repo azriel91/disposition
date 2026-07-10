@@ -6115,19 +6115,22 @@ fn test_0062_higher_to_lower_rank_curved_edge_builds_without_panic() {
 }
 
 /// `edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier__0` enters `t_aws_az1`
-/// (described) then descends into `t_aws_az1_subnet_tier_private` (also
-/// described) to reach `t_aws_az1_subnet_tier_private_lambda_pipe`.
-/// `t_aws_az1`'s cross-container spacers (needed to clear
-/// `t_aws_az1_subnet_mgmt` / `t_aws_az1_subnet_tier_public`) already snap to
-/// a shared outer column. Before `spacers_snap_to_outermost_column` also
-/// pulled a later, deeper text-content spacer out to meet that column,
-/// `t_aws_az1_subnet_tier_private`'s own (un-aligned) label spacer sat
-/// inside it, so the path bowed out to the column while clearing
-/// `t_aws_az1`'s siblings, dipped back in to clear
-/// `t_aws_az1_subnet_tier_private`'s own label, then had to jog back out
-/// again toward the to-node -- an unnecessary extra Z-bend.
+/// (described) to reach `t_aws_az1_subnet_tier_private_lambda_pipe`, nested
+/// two levels deeper. `t_aws_az1`'s own text-content spacer (marking a column
+/// just past its label) sits at its own local position, well inside the wider
+/// column that `t_aws_az1`'s cross-container spacers establish further along
+/// the path (needed to clear `t_aws_az1_subnet_mgmt` /
+/// `t_aws_az1_subnet_tier_public`).
+/// `EdgePathBuilderPass1::spacers_turn_minimize` removes this kind of "notch"
+/// spacer -- one that sits inside both its neighbours -- by passing it at the
+/// neighbouring turn's coordinate instead of curving in to it and back out.
+/// This was already applied for
+/// `EdgeCurvature::Orthogonal`, but not for `EdgeCurvature::Curved` (the
+/// curvature `0062` actually uses), so a curved edge's path used to bow out
+/// to the wide column, dip back in to `t_aws_az1`'s own label spacer, then
+/// jog back out again toward the to-node -- an unnecessary extra Z-bend.
 #[test]
-fn test_0062_deeper_described_container_spacer_does_not_dip_inside_outer_column() {
+fn test_0062_curved_edge_does_not_dip_back_to_notch_spacer() {
     fn path_points(path_d: &str) -> Vec<(f32, f32)> {
         path_d
             .split([' ', 'M', 'L', 'C'])
@@ -6150,64 +6153,34 @@ fn test_0062_deeper_described_container_spacer_does_not_dip_inside_outer_column(
             })
             .expect("Expected edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier__0");
 
-        let az1 = svg_elements
-            .svg_node_infos
-            .iter()
-            .find(|n| n.node_id.as_str() == "t_aws_az1")
-            .expect("Expected t_aws_az1 in svg_node_infos");
-        let subnet_tier_private = svg_elements
-            .svg_node_infos
-            .iter()
-            .find(|n| n.node_id.as_str() == "t_aws_az1_subnet_tier_private")
-            .expect("Expected t_aws_az1_subnet_tier_private in svg_node_infos");
-
         let points = path_points(&edge.path_d);
+        let from_x = points
+            .first()
+            .expect("Expected the path to have a start point")
+            .0;
 
-        // The region within `t_aws_az1` but above `t_aws_az1_subnet_tier_private`
-        // is where the path must clear `t_aws_az1`'s other rank-0 siblings
-        // (`t_aws_az1_subnet_mgmt` / `t_aws_az1_subnet_tier_public`) via its
-        // cross-container spacers -- this is where the outer column is
-        // established.
-        let clearing_region_max_x = points
+        // The path should bow away from the from-node's x to its widest point
+        // at most once, then approach the to-node without dipping back toward
+        // a notch spacer and bowing out again.
+        let distances: Vec<f32> = points.iter().map(|&(x, _)| (x - from_x).abs()).collect();
+        let peak = distances.iter().copied().fold(0.0_f32, f32::max);
+        let peak_index = distances
             .iter()
-            .filter(|&&(_, y)| y >= az1.y && y < subnet_tier_private.y)
-            .map(|&(x, _)| x)
-            .fold(f32::MIN, f32::max);
-        assert!(
-            clearing_region_max_x > f32::MIN,
-            "Expected at least one waypoint within t_aws_az1's own clearing \
-             region (y in [{:.1}, {:.1})); path: {}",
-            az1.y,
-            subnet_tier_private.y,
-            edge.path_d,
-        );
+            .position(|&distance| (distance - peak).abs() < 0.5)
+            .expect("Expected the peak distance to be present in the sequence");
 
-        // `t_aws_az1_subnet_tier_private`'s own text-content spacer sits just
-        // below its top face, marking a column just past its label. Once the
-        // path reaches this band it should already be at (or past) the outer
-        // column reached while clearing `t_aws_az1`'s siblings -- not dipped
-        // back inside it.
-        let private_title_band_max_x = points
-            .iter()
-            .filter(|&&(_, y)| {
-                y >= subnet_tier_private.y && y < subnet_tier_private.y + TEXT_LINE_HEIGHT * 2.0
-            })
-            .map(|&(x, _)| x)
-            .fold(f32::MIN, f32::max);
-        assert!(
-            private_title_band_max_x > f32::MIN,
-            "Expected at least one waypoint within t_aws_az1_subnet_tier_private's \
-             own title band; path: {}",
-            edge.path_d,
-        );
-
-        assert!(
-            (private_title_band_max_x - clearing_region_max_x).abs() < 1.0,
-            "t_aws_az1_subnet_tier_private's label spacer ({private_title_band_max_x:.1}) \
-             should sit at the same outer column already reached while clearing \
-             t_aws_az1's siblings ({clearing_region_max_x:.1}), not dip back inside \
-             it; path: {}",
-            edge.path_d,
-        );
+        for window in distances[peak_index..].windows(2) {
+            assert!(
+                window[1] <= window[0] + 0.5,
+                "Path should approach the to-node monotonically after its \
+                 widest bow (peak {peak:.1} at waypoint {peak_index}), but the \
+                 distance from the from-node's x increased again ({:.1} -> \
+                 {:.1}) -- indicating the path dipped back to a notch spacer \
+                 and bowed out again; path: {}",
+                window[0],
+                window[1],
+                edge.path_d,
+            );
+        }
     }
 }
