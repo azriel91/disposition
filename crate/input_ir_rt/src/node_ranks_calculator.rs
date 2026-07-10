@@ -1,5 +1,5 @@
 use disposition_ir_model::{
-    edge::EdgeGroups,
+    edge::{Edge, EdgeGroups},
     entity::{EntityType, EntityTypes},
     node::{NodeId, NodeNestingInfos, NodeRank, NodeRanks, NodeRanksNested},
 };
@@ -22,7 +22,10 @@ use disposition_model_common::{Id, Map};
 ///   contracted into a single logical node for ranking purposes.
 ///
 /// Only **dependency** edges (not interaction edges) are considered for rank
-/// computation.
+/// computation, plus any **layout edges** passed in separately -- these are
+/// invisible edges (from `thing_layout_edges`) that contribute to rank
+/// exactly like dependency edges, without ever appearing in `edge_groups` or
+/// being rendered.
 ///
 /// [`IrDiagram`]: disposition_ir_model::IrDiagram
 ///
@@ -80,10 +83,14 @@ impl NodeRanksCalculator {
     ///   interaction edges.
     /// * `node_nesting_infos`: Nesting information for each node, used to build
     ///   the container-to-children map and compute LCA-level edge attribution.
+    /// * `layout_edges`: Invisible layout-only edges (from
+    ///   `thing_layout_edges`) that contribute to rank alongside dependency
+    ///   edges, without being backed by an edge group.
     pub fn calculate<'id>(
         edge_groups: &EdgeGroups<'id>,
         entity_types: &EntityTypes<'id>,
         node_nesting_infos: &NodeNestingInfos<'id>,
+        layout_edges: &[Edge<'id>],
     ) -> NodeRanksNested<'id> {
         if node_nesting_infos.is_empty() {
             return NodeRanksNested::new();
@@ -93,7 +100,8 @@ impl NodeRanksCalculator {
         let container_to_children = Self::container_to_children_build(node_nesting_infos);
 
         // === Collect Dependency Edges === //
-        let dependency_edges = Self::dependency_edges_collect(edge_groups, entity_types);
+        let dependency_edges =
+            Self::dependency_edges_collect(edge_groups, entity_types, layout_edges);
 
         // === Lift Edges to LCA Level === //
         let lca_level_edges = Self::lca_level_edges_build(&dependency_edges, node_nesting_infos);
@@ -225,23 +233,33 @@ impl NodeRanksCalculator {
         Some((lca_container, divergent_from, divergent_to))
     }
 
-    /// Extracts dependency edges from edge groups, filtering out interaction
-    /// edges.
+    /// Extracts dependency and layout edges that contribute to rank,
+    /// filtering out interaction edges.
     ///
-    /// Returns a list of `(from_id, to_id)` pairs for dependency edges only.
+    /// Returns a list of `(from_id, to_id)` pairs for dependency edges (from
+    /// `edge_groups`, filtered by `entity_types`) and layout edges (passed in
+    /// directly -- they have no backing edge group).
     fn dependency_edges_collect<'id>(
         edge_groups: &EdgeGroups<'id>,
         entity_types: &EntityTypes<'id>,
+        layout_edges: &[Edge<'id>],
     ) -> Vec<(NodeId<'id>, NodeId<'id>)> {
-        edge_groups
+        let dependency_group_edges = edge_groups
             .iter()
             .filter(|(edge_group_id, _edge_group)| {
                 Self::edge_group_is_dependency(edge_group_id.as_ref(), entity_types)
             })
             .flat_map(|(_edge_group_id, edge_group)| edge_group.iter())
+            .map(|edge| (edge.from.clone(), edge.to.clone()));
+
+        let layout_edge_pairs = layout_edges
+            .iter()
+            .map(|edge| (edge.from.clone(), edge.to.clone()));
+
+        dependency_group_edges
+            .chain(layout_edge_pairs)
             // Skip self-loops -- they don't affect rank.
-            .filter(|edge| edge.from != edge.to)
-            .map(|edge| (edge.from.clone(), edge.to.clone()))
+            .filter(|(from, to)| from != to)
             .collect()
     }
 

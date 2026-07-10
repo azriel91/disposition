@@ -5,7 +5,7 @@ use disposition::{
         edge::{Edge, EdgeId},
         entity::EntityType,
         layout::{FlexDirection, LeafLayout, NodeLayout},
-        node::{NodeFace, NodeId},
+        node::{NodeFace, NodeId, NodeRank},
         process::{ProcessStepLane, ProcessStepRank},
         IrDiagram,
     },
@@ -1174,6 +1174,44 @@ fn test_tailwind_classes_tag_peer_classes_tag_specific_override() {
         t_github_user_repo_classes.contains("\npeer-[:focus-within]/tag_deployment:[&>.wrapper]:fill-[var(--tw-slate-"),
         "t_github_user_repo should have fill classes for tag_deployment via CSS variable. Got: {t_github_user_repo_classes}"
     );
+}
+
+/// `thing_layout_edges` shift node rank like `thing_dependencies`, but never
+/// produce an edge group -- so they never render as an SVG path.
+#[test]
+fn test_thing_layout_edges_affect_rank_without_edge_groups() {
+    let yaml = r#"
+things:
+  a: {}
+  b: {}
+thing_layout_edges:
+  edge_layout_a_b:
+    from: a
+    to: b
+"#;
+    let input_diagram = serde_saphyr::from_str::<InputDiagram>(yaml).unwrap();
+    let IrDiagramAndIssues { diagram, issues } = InputToIrDiagramMapper::map(&input_diagram);
+
+    assert!(issues.is_empty(), "Expected no issues, got: {:?}", issues);
+
+    let node_id_a = NodeId::from(id!("a"));
+    let node_id_b = NodeId::from(id!("b"));
+    assert_eq!(
+        Some(NodeRank::new(0)),
+        diagram.node_ranks_nested.root.get(&node_id_a).copied()
+    );
+    assert_eq!(
+        Some(NodeRank::new(1)),
+        diagram.node_ranks_nested.root.get(&node_id_b).copied()
+    );
+
+    // No edge groups are created for the layout edge -- it never becomes a
+    // rendered SVG path.
+    assert!(diagram.edge_groups.is_empty());
+
+    // The layout edge is still carried through for debugging / `--data
+    // ir-diagram` output.
+    assert_eq!(1, diagram.thing_layout_edges.len());
 }
 
 #[test]

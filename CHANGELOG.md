@@ -64,6 +64,7 @@
 * Add `EntityType::EdgeLabelAndDescBg`, `DependencyEdgeLabelAndDescBg`, `DependencyEdgeLabelBg`, `DependencyEdgeDescBg`, `InteractionEdgeLabelAndDescBg` so edge label/description background styling resolves through a 3-tier fallback hierarchy (shared default -> dependency/interaction-specific -> label/desc-specific). ([#60][#60])
 * Scope stroke and fill tailwind classes to edge body/arrowhead and thing wrapper node. ([#60][#60])
 * Fix separate edge offset calculation ending up with the same final coordinate. ([#60][#60])
+* Add `thing_layout_edges` to affect node ranks without rendering any visible `<path>`s. ([#61][#61])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -84,6 +85,7 @@
 [#58]: https://github.com/azriel91/disposition/pull/58
 [#59]: https://github.com/azriel91/disposition/pull/59
 [#60]: https://github.com/azriel91/disposition/pull/60
+[#61]: https://github.com/azriel91/disposition/pull/61
 
 
 ## 0.3.0 (2026-06-07)

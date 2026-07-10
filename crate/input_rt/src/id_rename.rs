@@ -68,6 +68,7 @@ pub fn id_rename_in_input_diagram(
         thing_layouts: _,
         thing_dependencies: _,
         thing_interactions: _,
+        thing_layout_edges: _,
         thing_descs,
         processes: _,
         tags: _,
