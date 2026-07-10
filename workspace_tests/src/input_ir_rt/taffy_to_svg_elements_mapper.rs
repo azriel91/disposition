@@ -64,6 +64,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0059_EDGE_LABEL_DESC_BG_HIERARCHY_OVERRIDE,
     INPUT_DIAGRAM_0060_SAME_RANK_DESC_CONTAINER_GLOBAL_VS_LOCAL_SIBLING_INDEX,
     INPUT_DIAGRAM_0061_SAME_RANK_DESC_CONTAINERS_MULTIPLE_OVERLAPPING,
+    INPUT_DIAGRAM_0062_EDGES_FROM_HIGHER_RANK_TO_LOWER_RANK,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -6082,5 +6083,33 @@ fn test_fallback_contact_clears_co_located_interaction_label_box() {
                  y: {box_top_y:.2}..{box_bottom_y:.2}), full path: {points:?}"
             );
         }
+    }
+}
+
+// === Higher-to-lower rank edge routing tests === //
+
+/// Building SVG elements for a diagram whose curved interaction edge runs
+/// from a higher-ranked divergent ancestor to a lower-ranked one must not
+/// panic.
+///
+/// Regression test for a debug-mode `u32` underflow in
+/// `OrthoProtrusionCalculator::spacer_gap_key`: an edge from rank 1 to rank 0
+/// with more spacers than intermediate ranks computed
+/// `rank_from - 1 - spacer_idx`, which underflowed (panicking in debug
+/// builds, and producing garbage `RankGapKey` buckets in release builds).
+#[test]
+fn test_0062_higher_to_lower_rank_curved_edge_builds_without_panic() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0062_EDGES_FROM_HIGHER_RANK_TO_LOWER_RANK)
+    {
+        assert!(
+            svg_elements
+                .svg_edge_infos
+                .iter()
+                .any(|svg_edge_info| svg_edge_info
+                    .edge_id
+                    .starts_with("edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier")),
+            "Expected edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier edges to be built."
+        );
     }
 }

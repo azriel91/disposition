@@ -1850,6 +1850,13 @@ impl OrthoProtrusionCalculator {
         // to rank 3, spacers are at ranks 1 and 2:
         //   spacer_idx 0 -> rank 1
         //   spacer_idx 1 -> rank 2
+        //
+        // Cross-container and text-content spacers can outnumber the
+        // intermediate ranks (e.g. an edge from rank 1 to rank 0 with
+        // four spacers). For the reversed direction the interpolated
+        // positions are clamped to the edge's own rank span so the
+        // subtraction cannot underflow. Degenerate `(N, N)` keys are
+        // acceptable deterministic buckets.
         let (low_rank_val, high_rank_val) = if rank_from < rank_to {
             (
                 rank_from.value() + 1 + spacer_idx_low as u32,
@@ -1859,9 +1866,14 @@ impl OrthoProtrusionCalculator {
             // Reversed direction: from higher rank to lower rank.
             // spacer_idx 0 is closest to rank_from (the higher rank).
             let from_val = rank_from.value();
+            let to_val = rank_to.value();
             (
-                from_val - 1 - spacer_idx_high as u32,
-                from_val - 1 - spacer_idx_low as u32,
+                from_val
+                    .saturating_sub(1 + spacer_idx_high as u32)
+                    .max(to_val),
+                from_val
+                    .saturating_sub(1 + spacer_idx_low as u32)
+                    .max(to_val),
             )
         };
 
@@ -3771,5 +3783,53 @@ impl OrthoProtrusionCalculator {
                     NodeCategory::Other
                 }
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use disposition_ir_model::node::NodeRank;
+
+    use super::{OrthoProtrusionCalculator, RankGapKey};
+
+    #[test]
+    fn spacer_gap_key_reversed_direction_clamps_to_rank_span() {
+        // An edge from rank 1 to rank 0 with four spacers: the spacer
+        // indices exceed the single-rank span, so the interpolated
+        // positions clamp to rank 0 instead of underflowing.
+        let rank_gap_key = OrthoProtrusionCalculator::spacer_gap_key(
+            NodeRank::new(1),
+            NodeRank::new(0),
+            2,
+            3,
+        );
+
+        assert_eq!(
+            RankGapKey {
+                rank_low: NodeRank::new(0),
+                rank_high: NodeRank::new(0),
+            },
+            rank_gap_key
+        );
+    }
+
+    #[test]
+    fn spacer_gap_key_reversed_direction_within_rank_span() {
+        // An edge from rank 3 to rank 0: spacer 0 sits at rank 2,
+        // spacer 1 at rank 1.
+        let rank_gap_key = OrthoProtrusionCalculator::spacer_gap_key(
+            NodeRank::new(3),
+            NodeRank::new(0),
+            0,
+            1,
+        );
+
+        assert_eq!(
+            RankGapKey {
+                rank_low: NodeRank::new(1),
+                rank_high: NodeRank::new(2),
+            },
+            rank_gap_key
+        );
     }
 }

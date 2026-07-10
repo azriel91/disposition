@@ -1,4 +1,4 @@
-use disposition_ir_model::node::NodeId;
+use disposition_ir_model::{edge::EdgeRouteReversals, node::NodeId};
 use disposition_model_common::Id;
 use disposition_svg_model::{
     SvgEdgeLabelEndpointInfo, SvgEdgeLabelInfo, SvgImageSpan, SvgTextSpan,
@@ -28,6 +28,7 @@ impl SvgEdgeLabelsBuilder {
         edge_label_taffy_nodes: &EdgeIdToEdgeLabelTaffyNodeIds<'id>,
         entity_highlighted_spans: &EntityHighlightedSpans<'id>,
         entity_image_spans: &NodeIdToImageSpans<'id>,
+        edge_route_reversals: &EdgeRouteReversals<'id>,
     ) -> Vec<SvgEdgeLabelInfo<'id>> {
         edge_label_taffy_nodes
             .iter()
@@ -65,6 +66,18 @@ impl SvgEdgeLabelsBuilder {
                                 entity_image_spans,
                             )
                         });
+
+                // Route-reversed edges are stored mirrored (`from`/`to`
+                // swapped by `EdgeRouteNormalizer`, label text swapped to
+                // match), so the mirror's from-slot data belongs to the
+                // user-declared `to` endpoint. Swap the fields back so the
+                // emitted `{edge_id}__from_label` group still contains the
+                // user's `from` label at the real `from` node.
+                let (from_label, to_label) = if edge_route_reversals.contains(edge_id) {
+                    (to_label, from_label)
+                } else {
+                    (from_label, to_label)
+                };
 
                 SvgEdgeLabelInfo {
                     edge_id: edge_id.clone(),

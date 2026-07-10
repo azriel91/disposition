@@ -2,7 +2,7 @@ use disposition_model_common::{entity::EntityTooltips, theme::Css, RenderOptions
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    edge::{EdgeDescs, EdgeFaceAssignments, EdgeGroups, EdgeLabels},
+    edge::{EdgeDescs, EdgeFaceAssignments, EdgeGroups, EdgeLabels, EdgeRouteReversals},
     entity::{EntityTailwindClasses, EntityTypes},
     layout::NodeLayouts,
     node::{
@@ -126,6 +126,15 @@ pub struct IrDiagram<'id> {
     /// Each edge group contains explicit `from`/`to` edges.
     #[serde(default, skip_serializing_if = "EdgeGroups::is_empty")]
     pub edge_groups: EdgeGroups<'id>,
+
+    /// Edge IDs whose routing geometry is computed for the mirror
+    /// (`to` -> `from`) orientation.
+    ///
+    /// These edges' `edge_groups` entries are stored with `from`/`to`
+    /// swapped, and their SVG paths are reversed at emission so the drawn
+    /// path still runs from the real `from` node to the real `to` node.
+    #[serde(default, skip_serializing_if = "EdgeRouteReversals::is_empty")]
+    pub edge_route_reversals: EdgeRouteReversals<'id>,
 
     /// Descriptions to render next to things in the diagram.
     #[serde(default, skip_serializing_if = "ThingDescs::is_empty")]
@@ -291,6 +300,7 @@ impl<'id> IrDiagram<'id> {
             node_hierarchy: self.node_hierarchy.into_static(),
             node_ordering: self.node_ordering.into_static(),
             edge_groups: self.edge_groups.into_static(),
+            edge_route_reversals: self.edge_route_reversals.into_static(),
             thing_descs: self.thing_descs.into_static(),
             thing_layout_edges: self.thing_layout_edges.into_static(),
             edge_descs: self.edge_descs.into_static(),

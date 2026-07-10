@@ -40,8 +40,10 @@ const NOTO_SANS_MONO_TTF: &[u8] =
 mod absolute_coordinates;
 mod diagram_generate_error;
 mod diagram_generator;
+mod divergent_ancestor_ranks_calculator;
 mod edge_desc_bg_id_generator;
 mod edge_face_assigner;
+mod edge_route_normalizer;
 mod edge_halo_id_generator;
 mod edge_halo_outline_id_generator;
 mod edge_id_generator;

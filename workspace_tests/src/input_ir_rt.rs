@@ -148,6 +148,9 @@ pub(crate) const INPUT_DIAGRAM_0060_SAME_RANK_DESC_CONTAINER_GLOBAL_VS_LOCAL_SIB
 pub(crate) const INPUT_DIAGRAM_0061_SAME_RANK_DESC_CONTAINERS_MULTIPLE_OVERLAPPING: &str =
     include_str!("input_diagram/0061_same_rank_desc_containers_multiple_overlapping.yaml");
 
+pub(crate) const INPUT_DIAGRAM_0062_EDGES_FROM_HIGHER_RANK_TO_LOWER_RANK: &str =
+    include_str!("input_diagram/0062_edges_from_higher_rank_to_lower_rank.yaml");
+
 mod diagram_generator;
 mod input_diagram_merger;
 mod input_to_ir_diagram_mapper;

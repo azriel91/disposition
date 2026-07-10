@@ -84,6 +84,15 @@ pub struct EdgeRoutingDiagnostic<'id> {
     /// Whether this edge is an interaction edge (`true`) or a dependency
     /// edge (`false`).
     pub is_interaction: bool,
+    /// Whether this edge's routing geometry was computed for the mirror
+    /// (`to` -> `from`) orientation.
+    ///
+    /// When `true`, the `from_*` / `to_*` fields of this diagnostic describe
+    /// the mirrored routing computation -- the drawn SVG path is reversed at
+    /// emission so it still runs from the user-declared `from` node to the
+    /// user-declared `to` node.
+    #[serde(default)]
+    pub route_reversed: bool,
     /// X coordinate of the edge's "from" node (absolute position).
     pub from_node_x: f32,
     /// Y coordinate of the edge's "from" node (absolute position).

@@ -1,0 +1,170 @@
+things:
+  t_localhost:
+    t_localhost_app:
+      t_localhost_app_target:
+        t_localhost_app_target_footage: {}
+        t_localhost_app_target_pose: {}
+    t_localhost_postgres:
+      t_localhost_postgres_app: {}
+  t_github:
+    t_github_app: {}
+  t_aws:
+    t_aws_ecr:
+      t_aws_ecr_pipe: {}
+      t_aws_ecr_app:
+        t_aws_ecr_app_image_1: {}
+    t_aws_az1:
+      t_aws_az1_subnet_mgmt:
+        t_aws_az1_subnet_mgmt_vpc_private_link: {}
+        t_aws_az1_subnet_mgmt_bastion: {}
+      t_aws_az1_subnet_tier_public: {}
+      t_aws_az1_subnet_tier_private:
+        t_aws_az1_subnet_tier_private_lambda_pipe: {}
+    t_aws_rds:
+      t_aws_rds_tier: {}
+    t_aws_s3:
+      t_aws_s3_tier:
+        t_aws_s3_tier_footage: {}
+        t_aws_s3_tier_stills: {}
+thing_names:
+  t_aws: ☁️ AWS
+  t_aws_ecr: 🗄️ ECR
+  t_aws_ecr_pipe: 📽️ Pipe
+  t_aws_ecr_app: 🏃🏻‍➡️ App
+  t_aws_ecr_app_image_1: 📀 App v0.0.1
+  t_aws_az1: 🏢 Availability Zone 1 (e.g. ap-southeast-2a)
+  t_aws_az1_subnet_mgmt: 🕸️ Management Subnet
+  t_aws_az1_subnet_mgmt_vpc_private_link: 🚟 VPC Link
+  t_aws_az1_subnet_mgmt_bastion: 💻 Bastion host
+  t_aws_az1_subnet_tier_public: 🕸️ Tier Public Subnet
+  t_aws_az1_subnet_tier_private: 🕸️ Tier Private Subnet
+  t_aws_az1_subnet_tier_private_lambda_pipe: λ Pipe Lambda
+  t_aws_rds: 🗄️ RDS
+  t_aws_rds_tier: 🗄️ App tier database
+  t_aws_s3: 🪣 S3
+  t_aws_s3_tier: 🪣 Tier Bucket
+  t_aws_s3_tier_footage: 🎞️ Footage
+  t_aws_s3_tier_stills: 📷 Stills (screenshots)
+  t_localhost: 🧑🏻‍💻 Developer machine
+  t_localhost_app: 🏃🏻‍➡️ App
+  t_localhost_app_target: "`target` (working dir)"
+  t_localhost_app_target_footage: footage
+  t_localhost_app_target_pose: pose
+  t_localhost_postgres: 🗄️ Postgres
+  t_localhost_postgres_app: 🗄️ App local database
+  t_github: 🐙 GitHub
+  t_github_app: 🏃🏻‍➡️ App
+thing_interactions:
+  edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier:
+    kind: symmetric
+    things:
+    - t_aws_az1_subnet_tier_private_lambda_pipe
+    - t_aws_s3_tier_footage
+    - t_aws_az1_subnet_tier_private_lambda_pipe
+    - t_aws_rds_tier
+  edge_ix__t_localhost_app__t_localhost_app__tag:
+    kind: cyclic
+    things:
+    - t_localhost_app
+  edge_ix__t_localhost_app__t_localhost_app__push:
+    kind: symmetric
+    things:
+    - t_localhost_app
+    - t_github_app
+  edge_ix__t_localhost_app__t_localhost_app__publish:
+    kind: symmetric
+    things:
+    - t_github_app
+    - t_aws_ecr_app
+  edge_ix__t_aws_s3_tier_footage__t_aws_az1_subnet_tier_private_lambda_pipe:
+    kind: symmetric
+    things:
+    - t_aws_s3_tier_footage
+    - t_aws_az1_subnet_tier_private_lambda_pipe
+thing_layout_edges:
+  edge_dep__t_localhost__t_aws:
+    from: t_localhost
+    to: t_aws
+  edge_dep__t_aws_rds__t_aws_az1:
+    from: t_aws_rds
+    to: t_aws_az1
+  edge_dep__t_aws_az1_subnet_mgmt__t_aws_az1_subnet_tier_public:
+    from: t_aws_az1_subnet_mgmt
+    to: t_aws_az1_subnet_tier_public
+  edge_dep__t_aws_az1_subnet_tier_public__t_aws_az1_subnet_tier_private:
+    from: t_aws_az1_subnet_tier_public
+    to: t_aws_az1_subnet_tier_private
+thing_descs:
+  t_aws: |-
+    Limit to one region,\
+    e.g. ap-southeast-2 or ap-southeast-7\
+    (check available services)
+  t_aws_ecr: |-
+    Docker container registry.
+
+    Stores docker containers that have been built\
+    from code.
+  t_aws_ecr_pipe: |-
+    Needed because Pipe is too\
+    large to upload to lambda\
+    individually.
+  t_aws_ecr_app: Server side API app.
+  t_aws_az1: |-
+    Resources are replicated per AZ in the region.
+
+    Exceptions are the management subnet resources,\
+    where you may only have one,\
+    e.g. VPC private link.
+  t_aws_az1_subnet_mgmt_vpc_private_link: |-
+    Allows internal network route to AWS\
+    resources without going through the\
+    internet.
+  t_aws_az1_subnet_mgmt_bastion: |-
+    Allows SSH connections in so developers\
+    can connect to AWS resources if needed.
+  t_aws_az1_subnet_tier_public: |-
+    Replicated per availability zone.
+
+    Has route to internet.
+  t_aws_az1_subnet_tier_private: |-
+    Replicated per availability zone.
+
+    No route to internet.
+processes:
+  proc_app_local_dev:
+    name: Local development
+    steps:
+      proc_app_local_dev_step_process_video: Process Video into Pose
+      proc_app_local_dev_step_process_pose: Process Pose into Analytics
+    step_thing_interactions:
+      proc_app_local_dev_step_process_video:
+      - edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier
+  proc_app_publish:
+    name: Publish App app
+    steps:
+      proc_app_publish_step_git_tag: "`git tag v0.x.x`"
+      proc_app_publish_step_git_push: "`git push v0.x.x`"
+      proc_app_publish_step_git_ecr_publish: ECR publish
+    step_thing_interactions:
+      proc_app_publish_step_git_tag:
+      - edge_ix__t_localhost_app__t_localhost_app__tag
+      proc_app_publish_step_git_push:
+      - edge_ix__t_localhost_app__t_localhost_app__push
+      proc_app_publish_step_git_ecr_publish:
+      - edge_ix__t_localhost_app__t_localhost_app__publish
+  proc_footage_process:
+    name: Process footage into pose
+    steps:
+      proc_footage_process_step_trigger: Triggered by upload / periodic queue
+      proc_footage_process_step_process: Process video into pose
+      proc_footage_process_step_trigger_pose_process: Trigger Pose -> Analytics workflow
+    step_thing_interactions:
+      proc_footage_process_step_trigger:
+      - edge_ix__t_aws_s3_tier_footage__t_aws_az1_subnet_tier_private_lambda_pipe
+edge_labels:
+  edge_ix__t_localhost_app__t_localhost_app__tag__0:
+    from: git tag v0.x.x
+  edge_ix__t_localhost_app__t_localhost_app__push__0:
+    from: git push origin v0.x.x
+render_options:
+  interactions_edge_curvature: curved

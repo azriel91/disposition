@@ -18,7 +18,9 @@ use disposition_taffy_model::{
 };
 use taffy::AlignSelf;
 
-use crate::EdgeIdGenerator;
+use crate::{
+    divergent_ancestor_ranks_calculator::DivergentAncestorRanksCalculator, EdgeIdGenerator,
+};
 
 use super::{
     rank_and_sibling_index_middle::RankAndSiblingIndexMiddle,
@@ -1282,19 +1284,15 @@ impl EdgeSpacerBuilder {
     /// ancestor (one chain is a prefix of the other), since no
     /// cross-rank spacer is meaningful in that case.
     fn divergent_ancestor_ranks(
-        info_from: &NodeNestingInfo<'_>,
-        info_to: &NodeNestingInfo<'_>,
+        info_from: &NodeNestingInfo<'static>,
+        info_to: &NodeNestingInfo<'static>,
         node_ranks_nested: &NodeRanksNested<'static>,
     ) -> Option<(NodeRank, NodeRank)> {
-        let (rank_from, rank_to) =
-            Self::divergent_ancestor_ranks_from_to(info_from, info_to, node_ranks_nested)?;
-
-        let (rank_low, rank_high) = if rank_from < rank_to {
-            (rank_from, rank_to)
-        } else {
-            (rank_to, rank_from)
-        };
-        Some((rank_low, rank_high))
+        DivergentAncestorRanksCalculator::divergent_ancestor_ranks(
+            info_from,
+            info_to,
+            node_ranks_nested,
+        )
     }
 
     /// Returns the ranks of the divergent ancestors as `(rank_from, rank_to)`,
@@ -1305,28 +1303,14 @@ impl EdgeSpacerBuilder {
     /// LCA gap lies (e.g. whether the gap is at a higher or lower rank than the
     /// container's divergent ancestor).
     fn divergent_ancestor_ranks_from_to(
-        info_from: &NodeNestingInfo<'_>,
-        info_to: &NodeNestingInfo<'_>,
+        info_from: &NodeNestingInfo<'static>,
+        info_to: &NodeNestingInfo<'static>,
         node_ranks_nested: &NodeRanksNested<'static>,
     ) -> Option<(NodeRank, NodeRank)> {
-        let lca_depth = LcaDepthCalculator::calculate(info_from, info_to);
-        let divergent_from = info_from.ancestor_chain.get(lca_depth)?;
-        let divergent_to = info_to.ancestor_chain.get(lca_depth)?;
-
-        let lca_container = lca_depth
-            .checked_sub(1)
-            .map(|i| &info_from.ancestor_chain[i]);
-        let container_ranks = node_ranks_nested.ranks_for(lca_container)?;
-
-        let rank_from = container_ranks
-            .get(divergent_from)
-            .copied()
-            .unwrap_or(NodeRank::new(0));
-        let rank_to = container_ranks
-            .get(divergent_to)
-            .copied()
-            .unwrap_or(NodeRank::new(0));
-
-        Some((rank_from, rank_to))
+        DivergentAncestorRanksCalculator::divergent_ancestor_ranks_from_to(
+            info_from,
+            info_to,
+            node_ranks_nested,
+        )
     }
 }
