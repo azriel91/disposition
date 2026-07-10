@@ -11,7 +11,9 @@
 
 use async_lsp::lsp_types::{Position, Range, TextEdit};
 
-use crate::completion::yaml_lines::{indent, is_blank_or_comment, is_list_item, line_map_key};
+use crate::completion::yaml_lines::{
+    indent, is_blank_or_comment, is_list_item, line_map_key, split_flow_items,
+};
 
 pub use self::list_conversion::ListConversion;
 
@@ -160,16 +162,6 @@ impl CodeActionEngine {
                 line_map_key(candidate).map(|_key| idx)
             })
     }
-}
-
-/// Splits the inside of a flow sequence (`a, b, c`) into trimmed, non-empty
-/// items.
-fn split_flow_items(inner: &str) -> Vec<&str> {
-    inner
-        .split(',')
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .collect()
 }
 
 /// The range covering the whole of `line` at `line_idx` (column 0 to its end).

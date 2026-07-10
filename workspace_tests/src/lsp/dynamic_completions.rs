@@ -181,3 +181,26 @@ fn key_suggestions_style_alias_offers_custom_placeholder() {
         dynamic_completions.key_suggestions(KeyCategory::StyleAlias)
     );
 }
+
+#[test]
+fn collects_entity_type_ids_from_flow_and_block_entity_types_lists() {
+    let text = "entity_types:\n  t_aws: [type_organisation]\n  t_github:\n    \
+        - type_organisation\n    - type_open_source\n";
+    let dynamic_completions = DynamicCompletions::from_text(text);
+
+    assert_eq!(
+        vec!["type_open_source", "type_organisation"],
+        dynamic_completions.ids_for(IdCategory::EntityType)
+    );
+}
+
+#[test]
+fn key_suggestions_entity_type_includes_custom_types_from_entity_types() {
+    let text = "entity_types:\n  t_aws: [type_organisation]\n";
+    let dynamic_completions = DynamicCompletions::from_text(text);
+
+    assert_eq!(
+        vec!["type_organisation".to_string()],
+        dynamic_completions.key_suggestions(KeyCategory::EntityType)
+    );
+}

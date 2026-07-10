@@ -19,6 +19,9 @@ pub enum IdCategory {
     EdgeGroup,
     /// Any ID -- the generic `Id` type (e.g. `thing_layouts` keys).
     Any,
+    /// An `EntityType` custom `type_*` id -- declared as a list item under
+    /// any `entity_types` entry.
+    EntityType,
 }
 
 impl IdCategory {
@@ -30,6 +33,7 @@ impl IdCategory {
             "ProcessStepId" => Some(IdCategory::ProcessStep),
             "EdgeGroupId" => Some(IdCategory::EdgeGroup),
             "Id" => Some(IdCategory::Any),
+            "EntityType" => Some(IdCategory::EntityType),
             _ => None,
         }
     }

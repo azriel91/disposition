@@ -67,6 +67,8 @@
 * Add `thing_layout_edges` to affect node ranks without rendering any visible `<path>`s. ([#61][#61])
 * Reverse path calculation computation when `to` node has a smaller node rank than the `from` node, to reduce unnecessary spacer routing. ([#62][#62])
 * Update `EdgeCurvature::Curved` and `EdgeCurvature::Orthogonal` edge path builders to skip thing description spacers when rank dir spacers are at a larger cross-axis coordinate. ([#62][#62])
+* Suggest custom entity types as a completion option when editing `theme_types_styles`. ([#63][#63])
+* Suggest custom entity types as a completion option when editing `entity_types.<entity_name>.<entity_type_list>`. ([#63][#63])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -89,6 +91,7 @@
 [#60]: https://github.com/azriel91/disposition/pull/60
 [#61]: https://github.com/azriel91/disposition/pull/61
 [#62]: https://github.com/azriel91/disposition/pull/62
+[#63]: https://github.com/azriel91/disposition/pull/63
 
 
 ## 0.3.0 (2026-06-07)

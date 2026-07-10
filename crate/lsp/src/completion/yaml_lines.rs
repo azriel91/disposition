@@ -21,6 +21,16 @@ pub fn is_list_item(line: &str) -> bool {
     trimmed == "-" || trimmed.starts_with("- ")
 }
 
+/// Splits the inside of a flow sequence (`a, b, c`) into trimmed, non-empty
+/// items.
+pub fn split_flow_items(inner: &str) -> Vec<&str> {
+    inner
+        .split(',')
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .collect()
+}
+
 /// Returns the map key declared on `line` (`key:` or `key: value`), or `None`
 /// for blank / comment / list-item / non-key lines.
 pub fn line_map_key(line: &str) -> Option<String> {
