@@ -64,6 +64,7 @@ use crate::input_ir_rt::{
     INPUT_DIAGRAM_0059_EDGE_LABEL_DESC_BG_HIERARCHY_OVERRIDE,
     INPUT_DIAGRAM_0060_SAME_RANK_DESC_CONTAINER_GLOBAL_VS_LOCAL_SIBLING_INDEX,
     INPUT_DIAGRAM_0061_SAME_RANK_DESC_CONTAINERS_MULTIPLE_OVERLAPPING,
+    INPUT_DIAGRAM_0062_EDGES_FROM_HIGHER_RANK_TO_LOWER_RANK,
 };
 
 /// Helper: build `SvgElements` from the example IR fixture.
@@ -6080,6 +6081,105 @@ fn test_fallback_contact_clears_co_located_interaction_label_box() {
                  (({x1:.2}, {y1:.2}) -> ({x2:.2}, {y2:.2})) to stay clear of \
                  edge_ix_client_server__0's to_label box (x: {box_left_x:.2}..{box_right_x:.2}, \
                  y: {box_top_y:.2}..{box_bottom_y:.2}), full path: {points:?}"
+            );
+        }
+    }
+}
+
+// === Higher-to-lower rank edge routing tests === //
+
+/// Building SVG elements for a diagram whose curved interaction edge runs
+/// from a higher-ranked divergent ancestor to a lower-ranked one must not
+/// panic.
+///
+/// Regression test for a debug-mode `u32` underflow in
+/// `OrthoProtrusionCalculator::spacer_gap_key`: an edge from rank 1 to rank 0
+/// with more spacers than intermediate ranks computed
+/// `rank_from - 1 - spacer_idx`, which underflowed (panicking in debug
+/// builds, and producing garbage `RankGapKey` buckets in release builds).
+#[test]
+fn test_0062_higher_to_lower_rank_curved_edge_builds_without_panic() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0062_EDGES_FROM_HIGHER_RANK_TO_LOWER_RANK)
+    {
+        assert!(
+            svg_elements
+                .svg_edge_infos
+                .iter()
+                .any(|svg_edge_info| svg_edge_info
+                    .edge_id
+                    .starts_with("edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier")),
+            "Expected edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier edges to be built."
+        );
+    }
+}
+
+/// `edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier__0` enters `t_aws_az1`
+/// (described) to reach `t_aws_az1_subnet_tier_private_lambda_pipe`, nested
+/// two levels deeper. `t_aws_az1`'s own text-content spacer (marking a column
+/// just past its label) sits at its own local position, well inside the wider
+/// column that `t_aws_az1`'s cross-container spacers establish further along
+/// the path (needed to clear `t_aws_az1_subnet_mgmt` /
+/// `t_aws_az1_subnet_tier_public`).
+/// `EdgePathBuilderPass1::spacers_turn_minimize` removes this kind of "notch"
+/// spacer -- one that sits inside both its neighbours -- by passing it at the
+/// neighbouring turn's coordinate instead of curving in to it and back out.
+/// This was already applied for
+/// `EdgeCurvature::Orthogonal`, but not for `EdgeCurvature::Curved` (the
+/// curvature `0062` actually uses), so a curved edge's path used to bow out
+/// to the wide column, dip back in to `t_aws_az1`'s own label spacer, then
+/// jog back out again toward the to-node -- an unnecessary extra Z-bend.
+#[test]
+fn test_0062_curved_edge_does_not_dip_back_to_notch_spacer() {
+    fn path_points(path_d: &str) -> Vec<(f32, f32)> {
+        path_d
+            .split([' ', 'M', 'L', 'C'])
+            .filter_map(|tok| {
+                let (x, y) = tok.split_once(',')?;
+                Some((x.trim().parse::<f32>().ok()?, y.trim().parse::<f32>().ok()?))
+            })
+            .collect()
+    }
+
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0062_EDGES_FROM_HIGHER_RANK_TO_LOWER_RANK)
+    {
+        let edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|svg_edge_info| {
+                svg_edge_info.edge_id.as_str()
+                    == "edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier__0"
+            })
+            .expect("Expected edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier__0");
+
+        let points = path_points(&edge.path_d);
+        let from_x = points
+            .first()
+            .expect("Expected the path to have a start point")
+            .0;
+
+        // The path should bow away from the from-node's x to its widest point
+        // at most once, then approach the to-node without dipping back toward
+        // a notch spacer and bowing out again.
+        let distances: Vec<f32> = points.iter().map(|&(x, _)| (x - from_x).abs()).collect();
+        let peak = distances.iter().copied().fold(0.0_f32, f32::max);
+        let peak_index = distances
+            .iter()
+            .position(|&distance| (distance - peak).abs() < 0.5)
+            .expect("Expected the peak distance to be present in the sequence");
+
+        for window in distances[peak_index..].windows(2) {
+            assert!(
+                window[1] <= window[0] + 0.5,
+                "Path should approach the to-node monotonically after its \
+                 widest bow (peak {peak:.1} at waypoint {peak_index}), but the \
+                 distance from the from-node's x increased again ({:.1} -> \
+                 {:.1}) -- indicating the path dipped back to a notch spacer \
+                 and bowed out again; path: {}",
+                window[0],
+                window[1],
+                edge.path_d,
             );
         }
     }

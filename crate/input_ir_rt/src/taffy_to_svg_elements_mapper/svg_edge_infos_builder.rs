@@ -1,7 +1,7 @@
 use disposition_input_ir_model::EdgeAnimationActive;
 use disposition_input_model::DiagramFocus;
 use disposition_ir_model::{
-    edge::{Edge, EdgeFaceAssignments, EdgeGroup, EdgeId},
+    edge::{Edge, EdgeFaceAssignments, EdgeGroup, EdgeId, EdgeRouteReversals},
     entity::EntityTypes,
     node::{NodeFace, NodeId, NodeNestingInfos, NodeRank, NodeRanksNested},
     IrDiagram,
@@ -89,6 +89,7 @@ impl SvgEdgeInfosBuilder {
     ) -> SvgEdgeInfosBuilt<'id> {
         let IrDiagram {
             edge_groups,
+            edge_route_reversals,
             entity_types,
             edge_face_assignments,
             process_step_entities,
@@ -244,6 +245,7 @@ impl SvgEdgeInfosBuilder {
             &face_offsets_by_node_face,
             &ortho_protrusions_all,
             rank_gap_entry_diagnostics,
+            edge_route_reversals,
         );
 
         // === Global Pass 2: rebuild paths with offsets, emit SvgEdgeInfos === //
@@ -295,6 +297,7 @@ impl SvgEdgeInfosBuilder {
                 visible_segments_length,
                 ortho_protrusions,
                 ir_diagram.interaction_edge_halo_stroke_width,
+                edge_route_reversals,
             );
 
             // Total `travel` distance animated by the whole group: each edge
@@ -405,11 +408,20 @@ impl SvgEdgeInfosBuilder {
                     .cloned()
                     .unwrap_or_default();
 
+                // Route-reversed edges are stored mirrored, so swap the
+                // endpoints back to the user-declared orientation for
+                // consumers (focus / hover / diagnostics).
+                let (node_id_from, node_id_to) = if edge_route_reversals.contains(&edge_id) {
+                    (edge.to.clone(), edge.from.clone())
+                } else {
+                    (edge.from.clone(), edge.to.clone())
+                };
+
                 svg_edge_infos.push(SvgEdgeInfo::new(
                     edge_id,
                     edge_group_id.clone(),
-                    edge.from.clone(),
-                    edge.to.clone(),
+                    node_id_from,
+                    node_id_to,
                     path_d,
                     arrow_head_path_d,
                     locus_path_d,
@@ -441,6 +453,7 @@ impl SvgEdgeInfosBuilder {
         face_offsets_by_node_face: &NodeIdAndFaceToContactPointOffsets<'id>,
         ortho_protrusions_all: &[Vec<OrthoProtrusionParams>],
         rank_gap_entries: Vec<RankGapEntryDiagnostic<'id>>,
+        edge_route_reversals: &EdgeRouteReversals<'id>,
     ) -> EdgeRoutingDiagnostics<'id> {
         let face_offset_resolve =
             |node_id: &NodeId<'id>, face: Option<NodeFace>, slot_index: Option<usize>| -> f32 {
@@ -485,6 +498,7 @@ impl SvgEdgeInfosBuilder {
                             rank_distance: pass1_info.rank_distance,
                             is_cycle_edge: pass1_info.is_cycle_edge,
                             is_interaction: pass1_info.is_interaction,
+                            route_reversed: edge_route_reversals.contains(&pass1_info.edge_id),
                             from_node_x: pass1_info.from_node_x,
                             from_node_y: pass1_info.from_node_y,
                             to_node_x: pass1_info.to_node_x,
@@ -1507,6 +1521,7 @@ impl SvgEdgeInfosBuilder {
         visible_segments_length: f64,
         ortho_protrusions: &[OrthoProtrusionParams],
         interaction_edge_halo_stroke_width: f32,
+        edge_route_reversals: &EdgeRouteReversals<'id>,
     ) -> Vec<EdgePathInfo<'edge, 'id>> {
         let mut edge_path_infos = pass1_infos
             .iter()
@@ -1607,6 +1622,18 @@ impl SvgEdgeInfosBuilder {
                     pass1_info.from_face.zip(pass1_info.to_face),
                     description_contact,
                 );
+
+                // Route-reversed edges are stored mirrored (`from`/`to`
+                // swapped by `EdgeRouteNormalizer`), so the path above runs
+                // from the real `to` node to the real `from` node. Reverse it
+                // here -- before path length, arrow head, locus, halo, and
+                // animation are computed -- so every downstream consumer sees
+                // a path that runs real-from -> real-to.
+                let path = if edge_route_reversals.contains(&pass1_info.edge_id) {
+                    path.reverse_subpaths()
+                } else {
+                    path
+                };
                 let path_length = {
                     let accuracy = 1.0;
                     path.perimeter(accuracy)

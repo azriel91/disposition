@@ -27,7 +27,8 @@ use disposition_model_common::{edge::EdgeGroupId, theme::Css, Id, Map, RankDir, 
 use disposition_taffy_model::{MD_BLOCKQUOTE_BORDER_COLOR, MD_CODE_BG_COLOR, MD_LINK_COLOR};
 
 use crate::{
-    edge_face_assigner::EdgeFaceAssigner, node_ranks_calculator::NodeRanksCalculator,
+    edge_face_assigner::EdgeFaceAssigner, edge_route_normalizer::EdgeRouteNormalizer,
+    node_ranks_calculator::NodeRanksCalculator,
     process_step_graph_calculator::ProcessStepGraphCalculator,
 };
 
@@ -145,13 +146,13 @@ impl InputToIrDiagramMapper {
         let node_ordering = Self::build_node_ordering(things, tags, processes, &process_step_ranks);
 
         // 5. Build EdgeGroups from thing_dependencies and thing_interactions
-        let edge_groups = Self::build_edge_groups(thing_dependencies, thing_interactions);
+        let mut edge_groups = Self::build_edge_groups(thing_dependencies, thing_interactions);
 
         // 6. Clone ThingDescs from input thing_descs
         let thing_descs = thing_descs.clone();
 
         // 7. Build EdgeLabels from input edge_labels
-        let edge_labels = edge_labels.clone();
+        let mut edge_labels = edge_labels.clone();
 
         // 8. Clone EdgeDescs from input edge_descs
         let edge_descs = edge_descs.clone();
@@ -240,6 +241,19 @@ impl InputToIrDiagramMapper {
             &layout_edges,
         );
 
+        // 16a. Reverse the stored direction of descending-rank `Curved` edges
+        //      so every later stage (spacer construction, face assignment,
+        //      offsets, protrusions, path building) computes the cleaner
+        //      mirror geometry. The SVG path is reversed back at emission.
+        let edge_route_reversals = EdgeRouteNormalizer::normalize(
+            &mut edge_groups,
+            &mut edge_labels,
+            &ir_entity_types,
+            &node_nesting_infos,
+            &node_ranks_nested,
+            render_options,
+        );
+
         // 17. Compute EdgeFaceAssignments from rank/sibling data before layout
         let edge_face_assignments = EdgeFaceAssigner::compute(
             &edge_groups,
@@ -264,6 +278,7 @@ impl InputToIrDiagramMapper {
             node_hierarchy,
             node_ordering,
             edge_groups,
+            edge_route_reversals,
             thing_descs,
             thing_layout_edges: thing_layout_edges.clone(),
             edge_descs,

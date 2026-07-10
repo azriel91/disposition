@@ -828,4 +828,245 @@ impl EdgePathBuilderPass1 {
             NodeFace::Right => (distance, 0.0),
         }
     }
+
+    /// Reduces the number of turns in a multi-spacer path by snapping
+    /// "notch" spacers onto a neighbouring turn's cross-axis coordinate, so
+    /// their routing legs merge instead of forcing an extra in-then-out jog.
+    ///
+    /// Used by both `EdgeCurvature::Orthogonal`
+    /// (`EdgePathBuilderPass2Ortho::build_spacer_edge_path`) and
+    /// `EdgeCurvature::Curved`
+    /// (`EdgePathBuilderPass2Curve::build_spacer_edge_path`), so a notch is
+    /// removed the same way regardless of which curvature draws the segments
+    /// between the (now-collinear) spacers.
+    ///
+    /// # The optimisation
+    ///
+    /// An edge that threads through spacers at several ranks draws a staircase:
+    /// it turns at each spacer's cross-axis coordinate (x for `Top`/`Bottom`
+    /// flow, y for `Left`/`Right`). When the spacer coordinates are not
+    /// monotonic, this produces unnecessary back-and-forth. If a spacer is at
+    /// or inside **both** its neighbours along the bulge direction (a notch
+    /// toward the chord), the edge can pass that spacer's rank at the
+    /// neighbouring turn's coordinate -- overshooting the notch outward,
+    /// which stays clear of the nodes the spacer routes around -- removing
+    /// two turns.
+    ///
+    /// For example, with cross coordinates `[x0, x1, x2, x3]` where
+    /// `x0 < x2 < x3 < x1`, the path turns only at `x1` and `x3`: it descends
+    /// through ranks 0-1 at `x1` and ranks 2-3 at `x3`, instead of jogging to
+    /// every coordinate.
+    ///
+    /// Clean monotonic staircases are left unchanged: no spacer there is inside
+    /// both neighbours, so nothing is snapped and the path is byte-for-byte
+    /// identical.
+    ///
+    /// "Out" -- the clear side an edge may overshoot toward -- is the
+    /// **greater** cross-axis coordinate (greater x for `Top`/`Bottom`
+    /// flow, greater y for `Left`/`Right` flow). A spacer that is at or
+    /// inside **both** its kept neighbours (a notch dipping toward the
+    /// smaller-coordinate side) is dropped and passed at the neighbouring
+    /// turn's coordinate. The edge's from/to contacts bound the ends. Clean
+    /// monotonic staircases (no spacer inside both neighbours) are left
+    /// untouched.
+    pub(super) fn spacers_turn_minimize(
+        start_x: f32,
+        start_y: f32,
+        end_x: f32,
+        end_y: f32,
+        from_face: NodeFace,
+        to_face: NodeFace,
+        spacers: &[SpacerCoordinates],
+    ) -> Vec<SpacerCoordinates> {
+        let from_is_vertical = matches!(from_face, NodeFace::Top | NodeFace::Bottom);
+        let to_is_vertical = matches!(to_face, NodeFace::Top | NodeFace::Bottom);
+
+        // Only straight rank-aligned flows (both faces on the same axis) form
+        // the spacer staircase this optimises. L-shaped / cycle pairs are left
+        // untouched.
+        if spacers.len() < 2 || from_is_vertical != to_is_vertical {
+            return spacers.to_vec();
+        }
+        let is_vertical = from_is_vertical;
+        let n = spacers.len();
+
+        // Cross-axis coordinate (the one that turns) of a spacer and the
+        // bounding contacts.
+        let cross_of = |spacer: &SpacerCoordinates| -> f32 {
+            if is_vertical {
+                spacer.entry_x
+            } else {
+                spacer.entry_y
+            }
+        };
+        let (start_cross, end_cross) = if is_vertical {
+            (start_x, end_x)
+        } else {
+            (start_y, end_y)
+        };
+
+        let cross: Vec<f32> = spacers.iter().map(cross_of).collect();
+
+        // Iteratively drop notch spacers: a spacer at or inside both kept
+        // neighbours (toward the smaller-coordinate side), and strictly inside
+        // at least one, can be passed at the neighbouring turn coordinate.
+        let mut kept = vec![true; n];
+        loop {
+            let mut removed_any = false;
+            for r in 0..n {
+                if !kept[r] {
+                    continue;
+                }
+                let prev_cross = (0..r)
+                    .rev()
+                    .find(|&i| kept[i])
+                    .map_or(start_cross, |i| cross[i]);
+                let next_cross = ((r + 1)..n)
+                    .find(|&i| kept[i])
+                    .map_or(end_cross, |i| cross[i]);
+
+                let inside_prev = cross[r] <= prev_cross + 1e-3;
+                let inside_next = cross[r] <= next_cross + 1e-3;
+                let strictly_inside = cross[r] < prev_cross - 1e-3 || cross[r] < next_cross - 1e-3;
+                if inside_prev && inside_next && strictly_inside {
+                    kept[r] = false;
+                    removed_any = true;
+                }
+            }
+            if !removed_any {
+                break;
+            }
+        }
+
+        // Snap each dropped spacer's cross-axis coordinate to the next kept turn
+        // (or the to-node contact), so its leg merges with that turn's leg.
+        let mut result = spacers.to_vec();
+        for r in 0..n {
+            if kept[r] {
+                continue;
+            }
+            let snap_cross = ((r + 1)..n)
+                .find(|&i| kept[i])
+                .map_or(end_cross, |i| cross[i]);
+            if is_vertical {
+                result[r].entry_x = snap_cross;
+                result[r].exit_x = snap_cross;
+            } else {
+                result[r].entry_y = snap_cross;
+                result[r].exit_y = snap_cross;
+            }
+        }
+        result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use disposition_ir_model::node::NodeFace;
+
+    use super::{EdgePathBuilderPass1, SpacerCoordinates};
+
+    /// A vertical-passthrough spacer at cross coordinate `cross_x` and main
+    /// (rank-flow) coordinate `main_y`, as inserted for `TopToBottom` flow.
+    fn vertical_spacer(cross_x: f32, main_y: f32) -> SpacerCoordinates {
+        SpacerCoordinates {
+            entry_x: cross_x,
+            entry_y: main_y,
+            exit_x: cross_x,
+            exit_y: main_y + 5.0,
+        }
+    }
+
+    #[test]
+    fn turn_minimize_skips_interior_notch_spacers() {
+        // Cross x-order rank0 < rank2 < rank3 < rank1 (10 < 40 < 70 < 100).
+        // The from-node is at x=80 and the to-node at x=50, so dipping left to
+        // rank0 (x=10) and rank2 (x=40) is wasteful: pass them at the next kept
+        // turn instead. Expect turns only at rank1 (100) and rank3 (70).
+        let spacers = vec![
+            vertical_spacer(10.0, 100.0),
+            vertical_spacer(100.0, 200.0),
+            vertical_spacer(40.0, 300.0),
+            vertical_spacer(70.0, 400.0),
+        ];
+        let result = EdgePathBuilderPass1::spacers_turn_minimize(
+            80.0,
+            0.0,
+            50.0,
+            500.0,
+            NodeFace::Bottom,
+            NodeFace::Top,
+            &spacers,
+        );
+        let cross: Vec<f32> = result.iter().map(|spacer| spacer.entry_x).collect();
+        assert_eq!(cross, vec![100.0, 100.0, 70.0, 70.0]);
+        // Both spacer boundaries are snapped so the pass-through stays straight.
+        let exit: Vec<f32> = result.iter().map(|spacer| spacer.exit_x).collect();
+        assert_eq!(exit, vec![100.0, 100.0, 70.0, 70.0]);
+    }
+
+    #[test]
+    fn turn_minimize_leaves_monotonic_staircase_unchanged() {
+        // A clean increasing staircase has no spacer inside both neighbours, so
+        // nothing is snapped -- the path is unchanged (no overshoot).
+        let spacers = vec![
+            vertical_spacer(10.0, 100.0),
+            vertical_spacer(20.0, 200.0),
+            vertical_spacer(30.0, 300.0),
+            vertical_spacer(40.0, 400.0),
+        ];
+        let result = EdgePathBuilderPass1::spacers_turn_minimize(
+            5.0,
+            0.0,
+            45.0,
+            500.0,
+            NodeFace::Bottom,
+            NodeFace::Top,
+            &spacers,
+        );
+        let cross: Vec<f32> = result.iter().map(|spacer| spacer.entry_x).collect();
+        assert_eq!(cross, vec![10.0, 20.0, 30.0, 40.0]);
+    }
+
+    #[test]
+    fn turn_minimize_horizontal_flow_uses_y_axis() {
+        // Left/Right flow turns on the y axis. Same notch pattern on y.
+        let spacers = vec![
+            SpacerCoordinates {
+                entry_x: 100.0,
+                entry_y: 10.0,
+                exit_x: 105.0,
+                exit_y: 10.0,
+            },
+            SpacerCoordinates {
+                entry_x: 200.0,
+                entry_y: 100.0,
+                exit_x: 205.0,
+                exit_y: 100.0,
+            },
+            SpacerCoordinates {
+                entry_x: 300.0,
+                entry_y: 40.0,
+                exit_x: 305.0,
+                exit_y: 40.0,
+            },
+            SpacerCoordinates {
+                entry_x: 400.0,
+                entry_y: 70.0,
+                exit_x: 405.0,
+                exit_y: 70.0,
+            },
+        ];
+        let result = EdgePathBuilderPass1::spacers_turn_minimize(
+            0.0,
+            80.0,
+            500.0,
+            50.0,
+            NodeFace::Right,
+            NodeFace::Left,
+            &spacers,
+        );
+        let cross: Vec<f32> = result.iter().map(|spacer| spacer.entry_y).collect();
+        assert_eq!(cross, vec![100.0, 100.0, 70.0, 70.0]);
+    }
 }

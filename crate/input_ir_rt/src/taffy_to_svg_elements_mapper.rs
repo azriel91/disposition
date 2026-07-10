@@ -335,6 +335,7 @@ impl TaffyToSvgElementsMapper {
             edge_label_taffy_nodes,
             entity_highlighted_spans,
             entity_image_spans,
+            &ir_diagram.edge_route_reversals,
         );
 
         let edge_description_infos = SvgEdgeDescriptionsBuilder::build(

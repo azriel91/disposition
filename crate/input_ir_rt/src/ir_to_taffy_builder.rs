@@ -14,6 +14,8 @@ use typed_builder::TypedBuilder;
 
 use crate::EdgeIdGenerator;
 
+pub(crate) use self::edge_spacer_builder::LcaDepthCalculator;
+
 use self::{
     edge_description_builder::{EdgeDescriptionBuildResult, EdgeDescriptionBuilder},
     edge_label_builder::EdgeLabelBuilder,
@@ -120,6 +122,7 @@ impl IrToTaffyBuilder<'_> {
             node_hierarchy,
             node_ordering: _,
             edge_groups,
+            edge_route_reversals: _,
             thing_descs,
             thing_layout_edges: _,
             edge_descs,
