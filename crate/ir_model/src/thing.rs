@@ -1,1 +1,1 @@
-pub use disposition_model_common::thing::ThingDescs;
+pub use disposition_model_common::thing::{ThingDescs, ThingLayoutEdges};

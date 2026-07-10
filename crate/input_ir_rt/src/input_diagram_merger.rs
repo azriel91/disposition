@@ -9,7 +9,7 @@ use disposition_input_model::{
     },
     thing::{
         ThingCopyText, ThingDependencies, ThingDescs, ThingHierarchy, ThingInteractions,
-        ThingLayouts, ThingNames,
+        ThingLayoutEdges, ThingLayouts, ThingNames,
     },
     InputDiagram,
 };
@@ -64,6 +64,10 @@ impl InputDiagramMerger {
             base_diagram.thing_interactions,
             &overlay_diagram.thing_interactions,
         );
+        let thing_layout_edges = Self::merge_thing_layout_edges(
+            base_diagram.thing_layout_edges,
+            &overlay_diagram.thing_layout_edges,
+        );
         let processes = Self::merge_processes(base_diagram.processes, &overlay_diagram.processes);
         let tags = Self::merge_tag_names(base_diagram.tags, &overlay_diagram.tags);
         let tag_things =
@@ -104,6 +108,7 @@ impl InputDiagramMerger {
             thing_layouts,
             thing_dependencies,
             thing_interactions,
+            thing_layout_edges,
             thing_descs,
             processes,
             tags,
@@ -184,6 +189,17 @@ impl InputDiagramMerger {
         base: ThingInteractions<'static>,
         overlay: &ThingInteractions<'id>,
     ) -> ThingInteractions<'id> {
+        let mut result = base;
+        overlay.iter().for_each(|(key, value)| {
+            result.insert(key.clone(), value.clone());
+        });
+        result
+    }
+
+    fn merge_thing_layout_edges<'id>(
+        base: ThingLayoutEdges<'static>,
+        overlay: &ThingLayoutEdges<'id>,
+    ) -> ThingLayoutEdges<'id> {
         let mut result = base;
         overlay.iter().for_each(|(key, value)| {
             result.insert(key.clone(), value.clone());

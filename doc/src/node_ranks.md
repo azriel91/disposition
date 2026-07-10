@@ -186,7 +186,7 @@ Source: [`crate/input_ir_rt/src/node_ranks_calculator.rs`](crate/input_ir_rt/src
 The entry point is:
 
 ```rust
-NodeRanksCalculator::calculate(edge_groups, entity_types, node_nesting_infos)
+NodeRanksCalculator::calculate(edge_groups, entity_types, node_nesting_infos, layout_edges)
 ```
 
 It returns a `NodeRanksNested<'id>` computed in four steps.
@@ -223,11 +223,16 @@ type is one of the three dependency variants:
 - `DependencyEdgeSequenceDefault`
 - `DependencyEdgeSymmetricDefault`
 
+The `layout_edges` parameter (built from `thing_layout_edges`) is appended
+directly to this list -- these edges have no backing edge group or entity
+type, since they're never rendered, but contribute to rank identically to
+dependency edges.
+
 Self-loops (edges where `from == to`) are skipped because they carry no rank
 information.
 
 The result is a flat `Vec<(NodeId, NodeId)>` of `(from, to)` pairs covering
-all dependency edges in the diagram.
+all dependency and layout edges in the diagram.
 
 
 ### Step 3: Lift edges to LCA level
@@ -445,3 +450,11 @@ edges are ignored. The three recognised dependency entity types are:
 
 Edge groups whose entity type does not match any of these three are silently
 skipped in step 2.
+
+**Layout edges** (from `thing_layout_edges`) also contribute to rank, exactly
+like dependency edges, but are passed into `calculate` directly as a
+`&[Edge]` rather than living in `edge_groups`. This is what guarantees they
+never render: `EdgeFaceAssigner`, `SvgEdgeInfosBuilder`, and
+`TailwindClassesBuilder` all operate on `edge_groups` alone, so an edge that
+never enters that map can never produce an SVG `<path>`, no matter its
+contribution to rank.

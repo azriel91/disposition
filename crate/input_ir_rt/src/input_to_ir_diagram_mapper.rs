@@ -7,7 +7,7 @@ use disposition_input_model::{
     theme::{ThemeDefault, ThemeTypesStyles},
     thing::{
         ThingCopyText, ThingDependencies, ThingHierarchy as InputThingHierarchy, ThingId,
-        ThingInteractions, ThingLayouts, ThingNames,
+        ThingInteractions, ThingLayoutEdges, ThingLayouts, ThingNames,
     },
     InputDiagram,
 };
@@ -103,6 +103,7 @@ impl InputToIrDiagramMapper {
             thing_layouts,
             thing_dependencies,
             thing_interactions,
+            thing_layout_edges,
             thing_descs,
             processes,
             tags,
@@ -225,10 +226,19 @@ impl InputToIrDiagramMapper {
         // 15. Compute NodeNestingInfos from node_hierarchy
         let node_nesting_infos = NodeNestingInfosBuilder::build(&node_hierarchy);
 
-        // 16. Compute NodeRanksNested from dependency edges, using nesting infos to
-        //     attribute cross-container edges to the correct level
-        let node_ranks_nested =
-            NodeRanksCalculator::calculate(&edge_groups, &ir_entity_types, &node_nesting_infos);
+        // 15a. Build layout edges from thing_layout_edges -- these never
+        //      enter edge_groups, so they only ever contribute to rank
+        //      computation below, never to rendering.
+        let layout_edges = Self::build_layout_edges(thing_layout_edges);
+
+        // 16. Compute NodeRanksNested from dependency and layout edges, using nesting
+        //     infos to attribute cross-container edges to the correct level
+        let node_ranks_nested = NodeRanksCalculator::calculate(
+            &edge_groups,
+            &ir_entity_types,
+            &node_nesting_infos,
+            &layout_edges,
+        );
 
         // 17. Compute EdgeFaceAssignments from rank/sibling data before layout
         let edge_face_assignments = EdgeFaceAssigner::compute(
@@ -255,6 +265,7 @@ impl InputToIrDiagramMapper {
             node_ordering,
             edge_groups,
             thing_descs,
+            thing_layout_edges: thing_layout_edges.clone(),
             edge_descs,
             edge_labels,
             entity_tooltips,
@@ -691,6 +702,25 @@ impl InputToIrDiagramMapper {
             });
 
         dependency_entries.chain(interaction_entries).collect()
+    }
+
+    // === Layout Edges === //
+
+    /// Build layout [`Edge`]s from `thing_layout_edges`.
+    ///
+    /// These never enter `edge_groups` -- they are only ever passed to
+    /// [`NodeRanksCalculator`] to influence rank, and never produce an SVG
+    /// path.
+    fn build_layout_edges<'id>(thing_layout_edges: &ThingLayoutEdges<'id>) -> Vec<Edge<'id>> {
+        thing_layout_edges
+            .values()
+            .map(|layout_edge| {
+                Edge::new(
+                    NodeId::from(layout_edge.from.clone()),
+                    NodeId::from(layout_edge.to.clone()),
+                )
+            })
+            .collect()
     }
 
     /// Convert an [`InputEdgeGroup`] to a list of [`Edge`]s.

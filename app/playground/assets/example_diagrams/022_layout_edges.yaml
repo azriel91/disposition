@@ -1,0 +1,39 @@
+---
+# Layout Edges
+#
+# `thing_layout_edges` nudges a thing's rank (and hence its position) without
+# drawing a visible edge. Each entry is a single `from`/`to` pair keyed by its
+# own id (conventionally prefixed `edge_layout_`) -- the `to` thing is ranked
+# after the `from` thing, exactly like a dependency edge, but no `<path>` is
+# ever rendered for it.
+#
+# Here, `t_style_guide` and `t_changelog` have no real dependency or
+# interaction with the rest of the diagram, but layout edges keep them
+# ordered after `t_release`, where they read best next to it.
+things:
+  t_design:
+    t_design_mockups: {}
+  t_release: {}
+  t_style_guide: {}
+  t_changelog: {}
+thing_names:
+  t_design: "Design"
+  t_design_mockups: "Mockups"
+  t_release: "Release"
+  t_style_guide: "Style Guide"
+  t_changelog: "Changelog"
+
+thing_dependencies:
+  edge_dep_design_release:
+    kind: sequence
+    things:
+      - t_design
+      - t_release
+
+thing_layout_edges:
+  edge_layout_release_style_guide:
+    from: t_release
+    to: t_style_guide
+  edge_layout_style_guide_changelog:
+    from: t_style_guide
+    to: t_changelog

@@ -68,6 +68,8 @@ pub enum ExampleDiagram {
     /// Interaction halo with edge descriptions on cyclic dependency edges,
     /// where the divergent ancestors share a rank.
     InteractionHaloDescCyclic,
+    /// Invisible, rank-only edges -- `thing_layout_edges`.
+    LayoutEdges,
 }
 
 impl ExampleDiagram {
@@ -94,6 +96,7 @@ impl ExampleDiagram {
         ExampleDiagram::InteractionHalo,
         ExampleDiagram::InteractionHaloLabels,
         ExampleDiagram::InteractionHaloDescCyclic,
+        ExampleDiagram::LayoutEdges,
     ];
 
     /// Human-readable label shown in the example selector dropdown.
@@ -120,6 +123,7 @@ impl ExampleDiagram {
             Self::InteractionHalo => "Interaction Halo",
             Self::InteractionHaloLabels => "Interaction Halo Labels",
             Self::InteractionHaloDescCyclic => "Interaction Halo Cyclic Descriptions",
+            Self::LayoutEdges => "Layout Edges",
         }
     }
 
@@ -165,6 +169,7 @@ impl ExampleDiagram {
             Self::InteractionHaloDescCyclic => {
                 asset!("/assets/example_diagrams/021_interaction_halo_with_desc_cyclic.yaml")
             }
+            Self::LayoutEdges => asset!("/assets/example_diagrams/022_layout_edges.yaml"),
         }
     }
 

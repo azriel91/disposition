@@ -10,7 +10,7 @@ use crate::{
         NodeRanksNested, NodeShapes,
     },
     process::{ProcessStepEdges, ProcessStepEntities, ProcessStepGraphs, ProcessStepRanks},
-    thing::ThingDescs,
+    thing::{ThingDescs, ThingLayoutEdges},
 };
 
 /// The intermediate representation of a diagram.
@@ -130,6 +130,16 @@ pub struct IrDiagram<'id> {
     /// Descriptions to render next to things in the diagram.
     #[serde(default, skip_serializing_if = "ThingDescs::is_empty")]
     pub thing_descs: ThingDescs<'id>,
+
+    /// Invisible edges between things that affect rank/layout without ever
+    /// being rendered as a path.
+    ///
+    /// Carried through from the input diagram for debugging/inspection (e.g.
+    /// `--data ir-diagram`) -- these edges never enter `edge_groups`, so they
+    /// have no effect on rendering; they were already folded into
+    /// `node_ranks_nested` during mapping.
+    #[serde(default, skip_serializing_if = "ThingLayoutEdges::is_empty")]
+    pub thing_layout_edges: ThingLayoutEdges<'id>,
 
     /// Descriptions to render next to edges and edge groups.
     #[serde(default, skip_serializing_if = "EdgeDescs::is_empty")]
@@ -282,6 +292,7 @@ impl<'id> IrDiagram<'id> {
             node_ordering: self.node_ordering.into_static(),
             edge_groups: self.edge_groups.into_static(),
             thing_descs: self.thing_descs.into_static(),
+            thing_layout_edges: self.thing_layout_edges.into_static(),
             edge_descs: self.edge_descs.into_static(),
             edge_labels: self.edge_labels.into_static(),
             entity_tooltips: self.entity_tooltips.into_static(),

@@ -17,7 +17,7 @@ use crate::{
     },
     thing::{
         ThingCopyText, ThingDependencies, ThingDescs, ThingHierarchy, ThingInteractions,
-        ThingLayouts, ThingNames,
+        ThingLayoutEdges, ThingLayouts, ThingNames,
     },
 };
 
@@ -38,6 +38,12 @@ use crate::{
 ///   (runtime communication). Each group has a `kind` (`sequence`, `symmetric`,
 ///   `cyclic`) and a list of `things`; individual edges within a group get an
 ///   ID of `<edge_group_id>__<index>`.
+///
+/// * **Layout-only edges** -- `thing_layout_edges` nudges a thing's rank (and
+///   hence its position) without drawing a visible edge. Each entry is a single
+///   `from`/`to` pair keyed by its own ID. It's combined with
+///   `thing_dependencies` when computing node rank, but -- unlike dependency or
+///   interaction edges -- never produces an SVG `<path>`.
 ///
 /// * **Entity types (shared styling)** -- `entity_types` attaches one or more
 ///   reusable `type_*` ids to *any* entity, **both things and edge groups**.
@@ -119,6 +125,16 @@ pub struct InputDiagram<'id> {
     /// communication rather than static dependencies.
     #[serde(default, skip_serializing_if = "ThingInteractions::is_empty")]
     pub thing_interactions: ThingInteractions<'id>,
+
+    /// Invisible edges between things that affect rank/layout without ever
+    /// being rendered as a path.
+    ///
+    /// Each entry is a single `from`/`to` pair keyed by its own ID
+    /// (conventionally prefixed `edge_layout_`). The `to` thing is ranked
+    /// after the `from` thing, exactly like a dependency edge, but no
+    /// `<path>` is ever rendered for it.
+    #[serde(default, skip_serializing_if = "ThingLayoutEdges::is_empty")]
+    pub thing_layout_edges: ThingLayoutEdges<'id>,
 
     /// Descriptions to render next to things in the diagram.
     #[serde(default, skip_serializing_if = "ThingDescs::is_empty")]
@@ -272,6 +288,7 @@ impl InputDiagram<'static> {
             thing_layouts: ThingLayouts::default(),
             thing_dependencies: ThingDependencies::default(),
             thing_interactions: ThingInteractions::default(),
+            thing_layout_edges: ThingLayoutEdges::default(),
             thing_descs: ThingDescs::default(),
             processes: Processes::default(),
             tags: TagNames::default(),

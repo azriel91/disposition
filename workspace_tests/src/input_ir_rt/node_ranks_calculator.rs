@@ -109,7 +109,8 @@ fn test_node_ranks_root_level_sibling_edges() {
     let node_nesting_infos = nesting_infos(&[("a", &["a"]), ("b", &["b"])]);
     let (edge_groups, entity_types) = dep_edge_groups(&[("edge_a_b", "a", "b")]);
 
-    let result = NodeRanksCalculator::calculate(&edge_groups, &entity_types, &node_nesting_infos);
+    let result =
+        NodeRanksCalculator::calculate(&edge_groups, &entity_types, &node_nesting_infos, &[]);
 
     assert_root_ranks(&result, &[("a", 0), ("b", 1)]);
     assert!(
@@ -138,7 +139,8 @@ fn test_node_ranks_root_level_lifted_from_child_edges() {
     let (edge_groups, entity_types) =
         dep_edge_groups(&[("edge_a_child_b_child", "a_child", "b_child")]);
 
-    let result = NodeRanksCalculator::calculate(&edge_groups, &entity_types, &node_nesting_infos);
+    let result =
+        NodeRanksCalculator::calculate(&edge_groups, &entity_types, &node_nesting_infos, &[]);
 
     assert_root_ranks(&result, &[("a", 0), ("b", 1)]);
     assert_container_ranks(&result, "a", &[("a_child", 0)]);
@@ -162,7 +164,8 @@ fn test_node_ranks_nested_level_same_parent_edge() {
     ]);
     let (edge_groups, entity_types) = dep_edge_groups(&[("edge_p_a_p_b", "p_a", "p_b")]);
 
-    let result = NodeRanksCalculator::calculate(&edge_groups, &entity_types, &node_nesting_infos);
+    let result =
+        NodeRanksCalculator::calculate(&edge_groups, &entity_types, &node_nesting_infos, &[]);
 
     assert_root_ranks(&result, &[("p", 0)]);
     assert_container_ranks(&result, "p", &[("p_a", 0), ("p_b", 1)]);
@@ -188,7 +191,8 @@ fn test_node_ranks_nested_level_different_parent_edge() {
     ]);
     let (edge_groups, entity_types) = dep_edge_groups(&[("edge_p1_a_p2_a", "p1_a", "p2_a")]);
 
-    let result = NodeRanksCalculator::calculate(&edge_groups, &entity_types, &node_nesting_infos);
+    let result =
+        NodeRanksCalculator::calculate(&edge_groups, &entity_types, &node_nesting_infos, &[]);
 
     assert_root_ranks(&result, &[("p1", 0), ("p2", 1)]);
     assert_container_ranks(&result, "p1", &[("p1_a", 0)]);
@@ -215,7 +219,8 @@ fn test_node_ranks_multi_nested_same_parent_edge() {
     let (edge_groups, entity_types) =
         dep_edge_groups(&[("edge_inner_a_inner_b", "inner_a", "inner_b")]);
 
-    let result = NodeRanksCalculator::calculate(&edge_groups, &entity_types, &node_nesting_infos);
+    let result =
+        NodeRanksCalculator::calculate(&edge_groups, &entity_types, &node_nesting_infos, &[]);
 
     assert_root_ranks(&result, &[("outer", 0)]);
     assert_container_ranks(&result, "outer", &[("inner", 0)]);
@@ -248,11 +253,37 @@ fn test_node_ranks_multi_nested_different_top_level_parent_edge() {
     let (edge_groups, entity_types) =
         dep_edge_groups(&[("edge_x_child_y_child", "x_child", "y_child")]);
 
-    let result = NodeRanksCalculator::calculate(&edge_groups, &entity_types, &node_nesting_infos);
+    let result =
+        NodeRanksCalculator::calculate(&edge_groups, &entity_types, &node_nesting_infos, &[]);
 
     assert_root_ranks(&result, &[("outer_x", 0), ("outer_y", 1)]);
     assert_container_ranks(&result, "outer_x", &[("inner_x", 0)]);
     assert_container_ranks(&result, "inner_x", &[("x_child", 0)]);
     assert_container_ranks(&result, "outer_y", &[("inner_y", 0)]);
     assert_container_ranks(&result, "inner_y", &[("y_child", 0)]);
+}
+
+/// Case 7: layout edges (with no backing edge group) contribute to rank
+/// exactly like dependency edges.
+///
+/// Hierarchy: `a`, `b` (leaf nodes, no children, no `thing_dependencies`)
+/// Layout edge: `a -> b`
+/// Expected root ranks: `a: 0`, `b: 1`
+#[test]
+fn test_node_ranks_layout_edges_contribute_like_dependency_edges() {
+    let node_nesting_infos = nesting_infos(&[("a", &["a"]), ("b", &["b"])]);
+    let layout_edges = vec![Edge::new(node_id("a"), node_id("b"))];
+
+    let result = NodeRanksCalculator::calculate(
+        &EdgeGroups::new(),
+        &EntityTypes::new(),
+        &node_nesting_infos,
+        &layout_edges,
+    );
+
+    assert_root_ranks(&result, &[("a", 0), ("b", 1)]);
+    assert!(
+        result.containers.is_empty(),
+        "expected no containers because neither node has children"
+    );
 }
