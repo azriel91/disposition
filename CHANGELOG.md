@@ -65,6 +65,8 @@
 * Scope stroke and fill tailwind classes to edge body/arrowhead and thing wrapper node. ([#60][#60])
 * Fix separate edge offset calculation ending up with the same final coordinate. ([#60][#60])
 * Add `thing_layout_edges` to affect node ranks without rendering any visible `<path>`s. ([#61][#61])
+* Reverse path calculation computation when `to` node has a smaller node rank than the `from` node, to reduce unnecessary spacer routing. ([#62][#62])
+* Update `EdgeCurvature::Curved` and `EdgeCurvature::Orthogonal` edge path builders to skip thing description spacers when rank dir spacers are at a larger cross-axis coordinate. ([#62][#62])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43
@@ -86,6 +88,7 @@
 [#59]: https://github.com/azriel91/disposition/pull/59
 [#60]: https://github.com/azriel91/disposition/pull/60
 [#61]: https://github.com/azriel91/disposition/pull/61
+[#62]: https://github.com/azriel91/disposition/pull/62
 
 
 ## 0.3.0 (2026-06-07)
