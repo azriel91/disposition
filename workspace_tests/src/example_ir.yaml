@@ -3684,3 +3684,5 @@ css: |-
     100% { stroke-dasharray: 3; stroke-dashoffset: 0; }
   }
 interaction_edge_halo_stroke_width: 8.0
+interaction_edge_halo_opacity: 0.2
+interaction_edge_halo_outline_opacity: 0.4

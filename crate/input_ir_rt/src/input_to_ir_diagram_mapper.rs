@@ -204,6 +204,20 @@ impl InputToIrDiagramMapper {
                 theme_types_styles,
             );
 
+        // 12b. Resolve the interaction edge halo's (and its outline's) base
+        //      opacity from theme, so the halo's animated active/inactive
+        //      keyframe opacities (built later, per edge) can scale it.
+        let interaction_edge_halo_opacity =
+            ThemeAttrResolver::resolve_interaction_edge_halo_opacity(
+                theme_default,
+                theme_types_styles,
+            );
+        let interaction_edge_halo_outline_opacity =
+            ThemeAttrResolver::resolve_interaction_edge_halo_outline_opacity(
+                theme_default,
+                theme_types_styles,
+            );
+
         // 13. Tailwind classes (and the CSS theme variables they produce) are
         //     focus-dependent, so they are applied separately via
         //     `tailwind_classes_apply`.
@@ -299,6 +313,8 @@ impl InputToIrDiagramMapper {
             render_options: *render_options,
             css: css.clone(),
             interaction_edge_halo_stroke_width,
+            interaction_edge_halo_opacity,
+            interaction_edge_halo_outline_opacity,
         };
 
         IrDiagramAndIssues { diagram, issues }
