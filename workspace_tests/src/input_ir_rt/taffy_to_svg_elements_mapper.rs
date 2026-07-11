@@ -6401,3 +6401,76 @@ fn test_0062_curved_edge_does_not_dip_back_to_notch_spacer() {
         }
     }
 }
+
+// === Same-rank cycle edge with a later same-rank sibling (0062 push edge) === //
+
+/// `edge_ix__t_localhost_app__t_localhost_app__push__0` runs from
+/// `t_localhost_app` (rank 0, sibling 0 of 2 inside `t_localhost`, alongside
+/// `t_localhost_postgres`) to `t_github_app` (rank 0, the sole child of
+/// `t_github`). `t_localhost` and `t_github` are adjacent root-level
+/// siblings, so `EdgeFaceAssigner::cycle_faces` picks the direct cross-axis
+/// face pair for `TopToBottom` (`Right`/`Left`).
+///
+/// That direct connection assumes the two divergent ancestors are flush
+/// against each other, which only holds for `t_github_app` (the sole, hence
+/// first, child of `t_github`) -- not for `t_localhost_app`, which has
+/// `t_localhost_postgres` as a later same-rank sibling inside `t_localhost`.
+/// Exiting via `Right` used to cut straight through `t_localhost_postgres`.
+///
+/// `EdgeFaceAssigner::cycle_faces_adjacent_overlap_avoid` falls back to the
+/// plain rank-direction face (`Bottom`, for `TopToBottom`) for
+/// `t_localhost_app`'s side when this check fails, routing the edge through
+/// the rank gap instead -- the same mechanism already used (and proven not
+/// to overlap siblings) for ordinary forward/reverse edges.
+#[test]
+fn test_0062_push_edge_from_non_extremal_sibling_does_not_overlap_later_sibling() {
+    fn path_points(path_d: &str) -> Vec<(f32, f32)> {
+        path_d
+            .split([' ', 'M', 'L', 'C'])
+            .filter_map(|tok| {
+                let (x, y) = tok.split_once(',')?;
+                Some((x.trim().parse::<f32>().ok()?, y.trim().parse::<f32>().ok()?))
+            })
+            .collect()
+    }
+
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0062_EDGES_FROM_HIGHER_RANK_TO_LOWER_RANK)
+    {
+        let postgres = svg_elements
+            .svg_node_infos
+            .iter()
+            .find(|node_info| node_info.node_id.as_str() == "t_localhost_postgres")
+            .expect("Expected t_localhost_postgres in svg_node_infos");
+        let postgres_left = postgres.x;
+        let postgres_right = postgres.x + postgres.width;
+        let postgres_top = postgres.y;
+        let postgres_bottom = postgres.y + postgres.height_collapsed;
+
+        let edge = svg_elements
+            .svg_edge_infos
+            .iter()
+            .find(|svg_edge_info| {
+                svg_edge_info.edge_id.as_str()
+                    == "edge_ix__t_localhost_app__t_localhost_app__push__0"
+            })
+            .expect("Expected edge_ix__t_localhost_app__t_localhost_app__push__0 to exist.");
+
+        for (x, y) in path_points(&edge.path_d) {
+            assert!(
+                !(x > postgres_left + 1.0
+                    && x < postgres_right - 1.0
+                    && y > postgres_top + 1.0
+                    && y < postgres_bottom - 1.0),
+                "edge_ix__t_localhost_app__t_localhost_app__push__0's path point \
+                 ({x:.2}, {y:.2}) lies inside t_localhost_postgres's box \
+                 (x: {postgres_left:.2}..{postgres_right:.2}, \
+                 y: {postgres_top:.2}..{postgres_bottom:.2}); the edge must exit \
+                 t_localhost_app via its rank-direction face (not the cross-axis \
+                 face), since t_localhost_postgres is a later same-rank sibling. \
+                 path: {}",
+                edge.path_d,
+            );
+        }
+    }
+}

@@ -25,10 +25,18 @@ use crate::EdgeIdGenerator;
 /// | Self-loop (`from == to`)                       | rank-dir face              | `None`        |
 /// | Contained (from is ancestor of to)             | rank-dir face              | opposite      |
 /// | Contained (to is ancestor of from)             | opposite                   | rank-dir face |
-/// | Cycle edge adjacent siblings (same LCA rank)   | rank-dir face              | opposite      |
-/// | Cycle edge (same LCA rank)                     | clockwise by sibling index | clockwise     |
+/// | Cycle edge, adjacent divergent siblings        | direct cross-axis face*    | opposite*     |
+/// | Cycle edge, non-adjacent divergent siblings    | clockwise by sibling index | clockwise     |
 /// | Forward edge (`lca_rank_from < lca_rank_to`)   | rank-dir face              | opposite      |
 /// | Reverse edge (`lca_rank_from > lca_rank_to`)   | opposite                   | rank-dir face |
+///
+/// \* The adjacent-divergent-sibling case assumes the endpoint sits flush
+/// against the shared boundary between the two divergent ancestors. When an
+/// endpoint (or one of its ancestors up to its divergent ancestor) is not the
+/// extremal same-rank sibling in its own parent container -- i.e. a later or
+/// earlier same-rank sibling would sit between it and that boundary -- that
+/// side falls back to the plain rank-dir face instead, to avoid cutting
+/// through the intervening sibling. See `cycle_faces`'s doc comment.
 ///
 /// **Rank-direction face** for a forward edge's `from` node:
 ///
@@ -60,6 +68,14 @@ struct LcaInfo<'id> {
     sibling_index_from: usize,
     /// Sibling index of `divergent_to` within the LCA container.
     sibling_index_to: usize,
+    /// Depth (index into `ancestor_chain`) of the divergent ancestors.
+    ///
+    /// Used to bound the recursive sibling-extremal check in
+    /// `EdgeFaceAssigner::sibling_is_extremal_recursive` -- ancestors at or
+    /// above this depth are not re-checked, since their relative order was
+    /// already established by the `sibling_index_from`/`sibling_index_to`
+    /// comparison.
+    lca_depth: usize,
 }
 
 impl EdgeFaceAssigner {
@@ -129,8 +145,10 @@ impl EdgeFaceAssigner {
         let (from_face, to_face) = if rank_from == rank_to {
             // Case 3: Cycle edge -- same LCA rank.
             Self::cycle_faces(
-                lca_info.sibling_index_from,
-                lca_info.sibling_index_to,
+                edge,
+                &lca_info,
+                node_nesting_infos,
+                node_ranks_nested,
                 rank_dir,
             )
         } else if rank_from < rank_to {
@@ -194,6 +212,7 @@ impl EdgeFaceAssigner {
             lca_container,
             sibling_index_from,
             sibling_index_to,
+            lca_depth,
         })
     }
 
@@ -247,14 +266,28 @@ impl EdgeFaceAssigner {
     /// |---|---|---|
     /// | `LeftToRight` / `RightToLeft` | `(Right, Right)` | `(Left, Left)` |
     /// | `TopToBottom` / `BottomToTop` | `(Top, Top)` | `(Bottom, Bottom)` |
-    fn cycle_faces(
-        sibling_index_from: usize,
-        sibling_index_to: usize,
+    ///
+    /// For the adjacent-sibling case (3a), the direct cross-axis connection
+    /// assumes the two LCA-level divergent ancestors are flush against each
+    /// other. That only holds for the endpoint node itself when it (and every
+    /// ancestor between it and the divergent ancestor) is the extremal
+    /// (last/first) same-rank sibling in its own parent container --
+    /// otherwise a later/earlier sibling sits between the endpoint and the
+    /// shared boundary, and the edge would cut through it. When that check
+    /// fails, `cycle_faces_adjacent_overlap_avoid` falls back to the plain
+    /// rank-direction face (`forward_faces`) for that side instead.
+    fn cycle_faces<'id>(
+        edge: &Edge<'id>,
+        lca_info: &LcaInfo<'id>,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
         rank_dir: RankDir,
     ) -> (NodeFace, NodeFace) {
-        let sibling_index_from_cmp_to = sibling_index_from.cmp(&sibling_index_to);
-        let sibling_index_abs_diff = sibling_index_from.abs_diff(sibling_index_to);
-        match (rank_dir, sibling_index_from_cmp_to, sibling_index_abs_diff) {
+        let sibling_index_from_cmp_to = lca_info.sibling_index_from.cmp(&lca_info.sibling_index_to);
+        let sibling_index_abs_diff = lca_info
+            .sibling_index_from
+            .abs_diff(lca_info.sibling_index_to);
+        let faces = match (rank_dir, sibling_index_from_cmp_to, sibling_index_abs_diff) {
             // 3a: adjacent siblings don't use clockwise edges
             (RankDir::LeftToRight | RankDir::RightToLeft, Ordering::Less, 1) => {
                 (NodeFace::Bottom, NodeFace::Top)
@@ -290,7 +323,149 @@ impl EdgeFaceAssigner {
                 Ordering::Equal | Ordering::Greater,
                 _,
             ) => (NodeFace::Bottom, NodeFace::Bottom),
+        };
+
+        if sibling_index_abs_diff == 1 {
+            Self::cycle_faces_adjacent_overlap_avoid(
+                edge,
+                lca_info,
+                faces,
+                node_nesting_infos,
+                node_ranks_nested,
+                rank_dir,
+            )
+        } else {
+            faces
         }
+    }
+
+    /// Resolves the adjacent-sibling (3a) `(from_face, to_face)` pair
+    /// returned by `cycle_faces`, replacing either face with the plain
+    /// rank-direction face when the corresponding endpoint is not the
+    /// extremal same-rank sibling recursively up to its LCA-level divergent
+    /// ancestor -- see `cycle_faces`'s doc comment for why.
+    fn cycle_faces_adjacent_overlap_avoid<'id>(
+        edge: &Edge<'id>,
+        lca_info: &LcaInfo<'id>,
+        faces: (NodeFace, NodeFace),
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        rank_dir: RankDir,
+    ) -> (NodeFace, NodeFace) {
+        let (naive_from_face, naive_to_face) = faces;
+        let (fallback_from_face, fallback_to_face) = Self::forward_faces(rank_dir);
+
+        let from_face = Self::cycle_faces_adjacent_face_resolve(
+            &edge.from,
+            naive_from_face,
+            fallback_from_face,
+            lca_info.lca_depth,
+            rank_dir,
+            node_nesting_infos,
+            node_ranks_nested,
+        );
+        let to_face = Self::cycle_faces_adjacent_face_resolve(
+            &edge.to,
+            naive_to_face,
+            fallback_to_face,
+            lca_info.lca_depth,
+            rank_dir,
+            node_nesting_infos,
+            node_ranks_nested,
+        );
+
+        (from_face, to_face)
+    }
+
+    /// Resolves the face for one endpoint of an adjacent-sibling cycle edge.
+    ///
+    /// Returns `naive_face` when `node_id` (and every ancestor between it and
+    /// the LCA-level divergent ancestor at `lca_depth`) is the extremal
+    /// (last/first) same-rank sibling in its immediate parent container --
+    /// otherwise returns `fallback_face`.
+    fn cycle_faces_adjacent_face_resolve<'id>(
+        node_id: &NodeId<'id>,
+        naive_face: NodeFace,
+        fallback_face: NodeFace,
+        lca_depth: usize,
+        rank_dir: RankDir,
+        node_nesting_infos: &NodeNestingInfos<'id>,
+        node_ranks_nested: &NodeRanksNested<'id>,
+    ) -> NodeFace {
+        let (last_face, _first_face) = Self::cross_axis_extremal_faces(rank_dir);
+        let want_last = naive_face == last_face;
+
+        let Some(nesting_info) = node_nesting_infos.get(node_id) else {
+            return naive_face;
+        };
+
+        if Self::sibling_is_extremal_recursive(
+            &nesting_info.ancestor_chain,
+            lca_depth,
+            node_ranks_nested,
+            want_last,
+        ) {
+            naive_face
+        } else {
+            fallback_face
+        }
+    }
+
+    /// Returns the `(last_face, first_face)` pair along the cross (sibling)
+    /// axis for `rank_dir` -- the faces `cycle_faces`'s adjacent-sibling (3a)
+    /// branch uses for a node positioned after / before its LCA-level
+    /// sibling.
+    fn cross_axis_extremal_faces(rank_dir: RankDir) -> (NodeFace, NodeFace) {
+        match rank_dir {
+            RankDir::TopToBottom | RankDir::BottomToTop => (NodeFace::Right, NodeFace::Left),
+            RankDir::LeftToRight | RankDir::RightToLeft => (NodeFace::Bottom, NodeFace::Top),
+        }
+    }
+
+    /// Returns whether the node at the end of `ancestor_chain` is the
+    /// extremal (last, if `want_last`, else first) same-rank sibling in its
+    /// immediate parent's rank container, recursively for every ancestor
+    /// between (exclusive) `lca_depth` and the node itself (inclusive).
+    ///
+    /// Ancestors at or above `lca_depth` are not checked, since their
+    /// relative order was already established by the LCA-level sibling index
+    /// comparison in `cycle_faces`. Returns `true` trivially when the node
+    /// itself is at `lca_depth` (nothing to check).
+    fn sibling_is_extremal_recursive<'id>(
+        ancestor_chain: &[NodeId<'id>],
+        lca_depth: usize,
+        node_ranks_nested: &NodeRanksNested<'id>,
+        want_last: bool,
+    ) -> bool {
+        (lca_depth + 1..ancestor_chain.len()).all(|depth| {
+            let parent_id = &ancestor_chain[depth - 1];
+            let child_id = &ancestor_chain[depth];
+
+            let Some(parent_ranks) = node_ranks_nested.ranks_for(Some(parent_id)) else {
+                return false;
+            };
+            let Some(child_rank) = parent_ranks.get(child_id).copied() else {
+                return false;
+            };
+
+            let mut same_rank_position = None;
+            let mut same_rank_count = 0;
+            for (sibling_id, sibling_rank) in parent_ranks.iter() {
+                if *sibling_rank != child_rank {
+                    continue;
+                }
+                if sibling_id == child_id {
+                    same_rank_position = Some(same_rank_count);
+                }
+                same_rank_count += 1;
+            }
+
+            match same_rank_position {
+                Some(position) if want_last => position + 1 == same_rank_count,
+                Some(position) => position == 0,
+                None => false,
+            }
+        })
     }
 
     /// Computes the [`EdgeFaceAssignment`] for a contained edge (one endpoint
