@@ -6402,7 +6402,8 @@ fn test_0062_curved_edge_does_not_dip_back_to_notch_spacer() {
     }
 }
 
-// === Same-rank cycle edge with a later same-rank sibling (0062 push edge) === //
+// === Same-rank cycle edge with a later same-rank sibling (0062 push edge) ===
+// //
 
 /// `edge_ix__t_localhost_app__t_localhost_app__push__0` runs from
 /// `t_localhost_app` (rank 0, sibling 0 of 2 inside `t_localhost`, alongside
