@@ -6108,27 +6108,27 @@ fn test_0062_higher_to_lower_rank_curved_edge_builds_without_panic() {
                 .iter()
                 .any(|svg_edge_info| svg_edge_info
                     .edge_id
-                    .starts_with("edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier")),
-            "Expected edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier edges to be built."
+                    .starts_with("edge_ix__aws_process_footage")),
+            "Expected edge_ix__aws_process_footage edges to be built."
         );
     }
 }
 
-/// `edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier__0` enters `t_aws_az1`
-/// (described) to reach `t_aws_az1_subnet_tier_private_lambda_pipe`, nested
-/// two levels deeper. `t_aws_az1`'s own text-content spacer (marking a column
-/// just past its label) sits at its own local position, well inside the wider
-/// column that `t_aws_az1`'s cross-container spacers establish further along
-/// the path (needed to clear `t_aws_az1_subnet_mgmt` /
-/// `t_aws_az1_subnet_tier_public`).
+/// `edge_ix__aws_process_footage__0` enters `t_aws_az1` (described) to reach
+/// `t_aws_az1_subnet_tier_private_lambda_pipe`, nested two levels deeper.
+/// `t_aws_az1`'s own text-content spacer (marking a column just past its label)
+/// sits at its own local position, well inside the wider column that
+/// `t_aws_az1`'s cross-container spacers establish further along the path
+/// (needed to clear `t_aws_az1_subnet_mgmt` / `t_aws_az1_subnet_tier_public`).
+///
 /// `EdgePathBuilderPass1::spacers_turn_minimize` removes this kind of "notch"
 /// spacer -- one that sits inside both its neighbours -- by passing it at the
 /// neighbouring turn's coordinate instead of curving in to it and back out.
-/// This was already applied for
-/// `EdgeCurvature::Orthogonal`, but not for `EdgeCurvature::Curved` (the
-/// curvature `0062` actually uses), so a curved edge's path used to bow out
-/// to the wide column, dip back in to `t_aws_az1`'s own label spacer, then
-/// jog back out again toward the to-node -- an unnecessary extra Z-bend.
+/// This was already applied for `EdgeCurvature::Orthogonal`, but not for
+/// `EdgeCurvature::Curved` (the curvature `0062` actually uses), so a curved
+/// edge's path used to bow out to the wide column, dip back in to `t_aws_az1`'s
+/// own label spacer, then jog back out again toward the to-node -- an
+/// unnecessary extra Z-bend.
 #[test]
 fn test_0062_curved_edge_does_not_dip_back_to_notch_spacer() {
     fn path_points(path_d: &str) -> Vec<(f32, f32)> {
@@ -6148,10 +6148,9 @@ fn test_0062_curved_edge_does_not_dip_back_to_notch_spacer() {
             .svg_edge_infos
             .iter()
             .find(|svg_edge_info| {
-                svg_edge_info.edge_id.as_str()
-                    == "edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier__0"
+                svg_edge_info.edge_id.as_str() == "edge_ix__aws_process_footage__0"
             })
-            .expect("Expected edge_ix__t_aws_s3_tier_footage__t_aws_rds_tier__0");
+            .expect("Expected edge_ix__aws_process_footage__0 to exist.");
 
         let points = path_points(&edge.path_d);
         let from_x = points
