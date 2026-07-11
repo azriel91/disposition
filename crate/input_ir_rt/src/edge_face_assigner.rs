@@ -30,13 +30,16 @@ use crate::EdgeIdGenerator;
 /// | Forward edge (`lca_rank_from < lca_rank_to`)   | rank-dir face              | opposite      |
 /// | Reverse edge (`lca_rank_from > lca_rank_to`)   | opposite                   | rank-dir face |
 ///
-/// \* The adjacent-divergent-sibling case assumes the endpoint sits flush
-/// against the shared boundary between the two divergent ancestors. When an
-/// endpoint (or one of its ancestors up to its divergent ancestor) is not the
-/// extremal same-rank sibling in its own parent container -- i.e. a later or
-/// earlier same-rank sibling would sit between it and that boundary -- that
-/// side falls back to the plain rank-dir face instead, to avoid cutting
-/// through the intervening sibling. See `cycle_faces`'s doc comment.
+/// \* The adjacent-divergent-sibling case assumes each endpoint sits flush
+/// against the shared boundary between the two divergent ancestors. When
+/// either endpoint (or one of its ancestors up to its divergent ancestor) is
+/// not the extremal same-rank sibling in its own parent container -- i.e. a
+/// later or earlier same-rank sibling would sit between it and that boundary
+/// -- *both* faces fall back to the same plain rank-dir face (`from_face`'s
+/// rank-dir value, for both ends) instead of the cross-axis pair, to avoid
+/// cutting through the intervening sibling and to avoid a path that must
+/// double back from one endpoint's rank-dir face to the other's untouched
+/// cross-axis face. See `cycle_faces`'s doc comment.
 ///
 /// **Rank-direction face** for a forward edge's `from` node:
 ///
@@ -340,10 +343,26 @@ impl EdgeFaceAssigner {
     }
 
     /// Resolves the adjacent-sibling (3a) `(from_face, to_face)` pair
-    /// returned by `cycle_faces`, replacing either face with the plain
-    /// rank-direction face when the corresponding endpoint is not the
-    /// extremal same-rank sibling recursively up to its LCA-level divergent
-    /// ancestor -- see `cycle_faces`'s doc comment for why.
+    /// returned by `cycle_faces`.
+    ///
+    /// Keeps the naive cross-axis pair (e.g. `(Right, Left)`) when both
+    /// endpoints are the extremal same-rank sibling recursively up to their
+    /// LCA-level divergent ancestor -- see `cycle_faces`'s doc comment for
+    /// why that's required.
+    ///
+    /// Otherwise, at least one endpoint is not flush against the shared
+    /// boundary the naive faces assume. Rather than falling back
+    /// independently per side (which can pair one node's rank-direction face
+    /// with the other's untouched cross-axis face, e.g. `(Bottom, Left)`,
+    /// forcing the path to double back from below one node to the side of
+    /// the other -- a visually confusing near-180-degree turn), both ends
+    /// are routed via the *same* rank-direction face
+    /// (`forward_faces(rank_dir).0`, e.g. `Bottom` for `TopToBottom`,
+    /// regardless of which endpoint plays the `from`/`to` role for this
+    /// particular edge instance). This matches how a genuinely-ranked
+    /// forward/reverse edge already routes through the rank gap, and keeps
+    /// both directions of a symmetric edge pair (e.g. `..._push__0` and
+    /// `..._push__1`) using the same pair of faces.
     fn cycle_faces_adjacent_overlap_avoid<'id>(
         edge: &Edge<'id>,
         lca_info: &LcaInfo<'id>,
@@ -353,62 +372,61 @@ impl EdgeFaceAssigner {
         rank_dir: RankDir,
     ) -> (NodeFace, NodeFace) {
         let (naive_from_face, naive_to_face) = faces;
-        let (fallback_from_face, fallback_to_face) = Self::forward_faces(rank_dir);
 
-        let from_face = Self::cycle_faces_adjacent_face_resolve(
+        let from_is_extremal = Self::cycle_faces_adjacent_endpoint_is_extremal(
             &edge.from,
             naive_from_face,
-            fallback_from_face,
             lca_info.lca_depth,
             rank_dir,
             node_nesting_infos,
             node_ranks_nested,
         );
-        let to_face = Self::cycle_faces_adjacent_face_resolve(
+        let to_is_extremal = Self::cycle_faces_adjacent_endpoint_is_extremal(
             &edge.to,
             naive_to_face,
-            fallback_to_face,
             lca_info.lca_depth,
             rank_dir,
             node_nesting_infos,
             node_ranks_nested,
         );
 
-        (from_face, to_face)
+        if from_is_extremal && to_is_extremal {
+            (naive_from_face, naive_to_face)
+        } else {
+            let (fallback_face, _) = Self::forward_faces(rank_dir);
+            (fallback_face, fallback_face)
+        }
     }
 
-    /// Resolves the face for one endpoint of an adjacent-sibling cycle edge.
-    ///
-    /// Returns `naive_face` when `node_id` (and every ancestor between it and
-    /// the LCA-level divergent ancestor at `lca_depth`) is the extremal
-    /// (last/first) same-rank sibling in its immediate parent container --
-    /// otherwise returns `fallback_face`.
-    fn cycle_faces_adjacent_face_resolve<'id>(
+    /// Returns whether `node_id`'s naive adjacent-sibling cycle face
+    /// (`naive_face`) is safe to use -- i.e. `node_id` (and every ancestor
+    /// between it and the LCA-level divergent ancestor at `lca_depth`) is
+    /// the extremal (last/first) same-rank sibling in its immediate
+    /// parent's rank container.
+    fn cycle_faces_adjacent_endpoint_is_extremal<'id>(
         node_id: &NodeId<'id>,
         naive_face: NodeFace,
-        fallback_face: NodeFace,
         lca_depth: usize,
         rank_dir: RankDir,
         node_nesting_infos: &NodeNestingInfos<'id>,
         node_ranks_nested: &NodeRanksNested<'id>,
-    ) -> NodeFace {
+    ) -> bool {
         let (last_face, _first_face) = Self::cross_axis_extremal_faces(rank_dir);
         let want_last = naive_face == last_face;
 
         let Some(nesting_info) = node_nesting_infos.get(node_id) else {
-            return naive_face;
+            // Defensive: preserve the naive face when nesting info is
+            // unexpectedly missing (should not occur -- both endpoints were
+            // already resolved successfully in `lca_info_compute`).
+            return true;
         };
 
-        if Self::sibling_is_extremal_recursive(
+        Self::sibling_is_extremal_recursive(
             &nesting_info.ancestor_chain,
             lca_depth,
             node_ranks_nested,
             want_last,
-        ) {
-            naive_face
-        } else {
-            fallback_face
-        }
+        )
     }
 
     /// Returns the `(last_face, first_face)` pair along the cross (sibling)
