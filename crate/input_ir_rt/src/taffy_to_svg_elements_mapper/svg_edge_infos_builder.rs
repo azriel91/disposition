@@ -28,8 +28,9 @@ use crate::{
         edge_face_contact_tracker::{EdgeFaceContactTracker, CONTACT_GAP_MIN_PX},
         edge_halo_outline_calculator::{EdgeHaloOutlineCalculator, EdgeHaloOutlineRails},
         edge_model::{
-            EdgeAnimationParams, EdgeContactPointOffsets, EdgePathInfo, EdgeType, NodeIdAndFace,
-            NodeIdAndFaceToContactPointOffsets, PathBounds, PathMidpoint,
+            EdgeAnimationParams, EdgeContactPointOffsets, EdgeHaloWindow, EdgePathInfo, EdgeType,
+            HaloAnimationParams, NodeIdAndFace, NodeIdAndFaceToContactPointOffsets, PathBounds,
+            PathMidpoint,
         },
         edge_path_builder_pass_1::{EdgeFaceOffset, SpacerCoordinates},
         ortho_protrusion_calculator::{OrthoProtrusionCalculator, OrthoProtrusionOutcome},
@@ -37,7 +38,8 @@ use crate::{
         EdgePathLocusCalculator, SpacerCoordinatesResolver, StringCharReplacer,
         SvgNodeInfoByNodeId,
     },
-    AbsoluteCoordinates, EdgeFaceAssigner, EdgeIdGenerator, TaffyNodeAbsoluteCoordinatesCalculator,
+    AbsoluteCoordinates, EdgeFaceAssigner, EdgeHaloIdGenerator, EdgeHaloOutlineIdGenerator,
+    EdgeIdGenerator, TaffyNodeAbsoluteCoordinatesCalculator,
 };
 
 /// Builds [`SvgEdgeInfo`]s for all edges in the diagram from edge groups and
@@ -94,9 +96,14 @@ impl SvgEdgeInfosBuilder {
             edge_face_assignments,
             process_step_entities,
             render_options,
+            interaction_edge_halo_opacity,
+            interaction_edge_halo_outline_opacity,
             ..
         } = ir_diagram;
         let rank_dir = render_options.rank_dir;
+        let interaction_edge_halo_opacity_base = f64::from(*interaction_edge_halo_opacity);
+        let interaction_edge_halo_outline_opacity_base =
+            f64::from(*interaction_edge_halo_outline_opacity);
 
         // Build a reverse map: entity (edge group) ID -> list of process step NodeIds.
         // This allows efficient lookup of which process steps reference a given edge
@@ -330,107 +337,164 @@ impl SvgEdgeInfosBuilder {
                 .map(Vec::as_slice)
                 .unwrap_or(&[]);
 
-            edge_path_infos.into_iter().for_each(|edge_path_info| {
-                // Compute animation for interaction edges.
-                let is_interaction_edge = entity_types
-                    .get(AsRef::<Id<'_>>::as_ref(&edge_path_info.edge_id))
-                    .map(|edge_entity_types| {
-                        edge_entity_types
-                            .iter()
-                            .any(EntityType::is_interaction_edge)
-                    })
-                    .unwrap_or(false);
-
-                if is_interaction_edge {
-                    let css_animation_append_params = CssAnimationAppendParams {
-                        tailwind_classes,
-                        css,
+            // Precomputed per-edge keyframe windows, so a Forward edge's halo
+            // animation can reference the next edge's window, and a Reverse
+            // edge's halo animation can reference the previous edge's
+            // window, without re-deriving them mid-iteration.
+            //
+            // Halo pairing uses the edge's raw `EntityType` (whether
+            // `InteractionEdgeSymmetricReverseDefault` was assigned to it),
+            // not `EdgePathInfo::edge_type` / `EdgeType::PairResponse`: a
+            // `sequence`-kind edge that is manually tagged
+            // `InteractionEdgeSymmetricReverseDefault` (e.g. to mark a
+            // request/response round trip within an otherwise-forward
+            // sequence) also keeps its
+            // `InteractionEdgeSequenceForwardDefault` default, and
+            // `edge_type_determine` -- correctly, for dasharray/path
+            // direction purposes -- classifies that combination as
+            // `EdgeType::Unpaired` rather than `PairResponse`. This mirrors
+            // the same raw-`EntityType` check `tailwind_classes_builder.rs`
+            // already uses to pick the halo's static forward/reverse colour.
+            let edge_halo_windows: Vec<EdgeHaloWindow> = edge_path_infos
+                .iter()
+                .map(|edge_path_info| {
+                    let (start_pct, end_pct) = EdgeAnimationCalculator::active_window_pct(
                         edge_animation_params,
+                        edge_path_info,
                         edge_group_cycle_distance,
-                        edge_group_animation_duration_total_s,
-                        edge_path_info: &edge_path_info,
-                        edge_animation_active,
-                        focus_mode,
-                        associated_process_steps,
-                    };
-                    Self::css_animation_append(css_animation_append_params);
-                }
+                    );
+                    let is_reverse = entity_types
+                        .get(AsRef::<Id<'_>>::as_ref(&edge_path_info.edge_id))
+                        .is_some_and(|edge_entity_types| {
+                            edge_entity_types
+                                .contains(&EntityType::InteractionEdgeSymmetricReverseDefault)
+                        });
+                    EdgeHaloWindow {
+                        is_reverse,
+                        start_pct,
+                        end_pct,
+                    }
+                })
+                .collect();
 
-                let EdgePathInfo {
-                    edge_id,
-                    edge,
-                    edge_type: _,
-                    path,
-                    path_length: _,
-                    preceding_travel: _,
-                    ortho_protrusion_params,
-                } = edge_path_info;
+            edge_path_infos
+                .into_iter()
+                .enumerate()
+                .for_each(|(edge_index, edge_path_info)| {
+                    // Compute animation for interaction edges.
+                    let is_interaction_edge = entity_types
+                        .get(AsRef::<Id<'_>>::as_ref(&edge_path_info.edge_id))
+                        .map(|edge_entity_types| {
+                            edge_entity_types
+                                .iter()
+                                .any(EntityType::is_interaction_edge)
+                        })
+                        .unwrap_or(false);
 
-                let path_d = path.to_svg();
+                    if is_interaction_edge {
+                        let halo_animation_params = HaloAnimationParams {
+                            is_reverse: edge_halo_windows[edge_index].is_reverse,
+                            prev_window: (edge_index > 0)
+                                .then(|| edge_halo_windows[edge_index - 1]),
+                            next_window: edge_halo_windows.get(edge_index + 1).copied(),
+                            opacity_base: interaction_edge_halo_opacity_base,
+                            outline_opacity_base: interaction_edge_halo_outline_opacity_base,
+                        };
+                        let css_animation_append_params = CssAnimationAppendParams {
+                            tailwind_classes,
+                            css,
+                            edge_animation_params,
+                            edge_group_cycle_distance,
+                            edge_group_animation_duration_total_s,
+                            edge_path_info: &edge_path_info,
+                            edge_animation_active,
+                            focus_mode,
+                            associated_process_steps,
+                            halo_animation_params,
+                            interaction_edge_halo_enabled: render_options
+                                .interaction_edge_halo
+                                .is_enabled(),
+                        };
+                        Self::css_animation_append(css_animation_append_params);
+                    }
 
-                // Compute arrowhead path.
-                let (arrow_head_path, locus_path) = if is_interaction_edge {
-                    // Origin-centred V-shape; CSS offset-path handles
-                    // positioning and rotation.
-                    let arrow_head_path = ArrowHeadBuilder::build_origin_arrow_head();
-                    // Positioned V-shape at the `to` node end of the edge.
-                    let arrow_head_path_at_to_node =
-                        ArrowHeadBuilder::build_static_arrow_head(&path);
-                    let locus_path =
-                        EdgePathLocusCalculator::calculate(&path, &arrow_head_path_at_to_node);
+                    let EdgePathInfo {
+                        edge_id,
+                        edge,
+                        edge_type: _,
+                        path,
+                        path_length: _,
+                        preceding_travel: _,
+                        ortho_protrusion_params,
+                    } = edge_path_info;
 
-                    (arrow_head_path, locus_path)
-                } else {
-                    // Positioned V-shape at the `to` node end of the edge.
-                    let arrow_head_path = ArrowHeadBuilder::build_static_arrow_head(&path);
-                    let locus_path = EdgePathLocusCalculator::calculate(&path, &arrow_head_path);
+                    let path_d = path.to_svg();
 
-                    (arrow_head_path, locus_path)
-                };
-                let arrow_head_path_d = arrow_head_path.to_svg();
-                let locus_path_d = locus_path.to_svg();
+                    // Compute arrowhead path.
+                    let (arrow_head_path, locus_path) = if is_interaction_edge {
+                        // Origin-centred V-shape; CSS offset-path handles
+                        // positioning and rotation.
+                        let arrow_head_path = ArrowHeadBuilder::build_origin_arrow_head();
+                        // Positioned V-shape at the `to` node end of the edge.
+                        let arrow_head_path_at_to_node =
+                            ArrowHeadBuilder::build_static_arrow_head(&path);
+                        let locus_path =
+                            EdgePathLocusCalculator::calculate(&path, &arrow_head_path_at_to_node);
 
-                let (halo_outline_rail_a_path_d, halo_outline_rail_b_path_d) =
-                    if is_interaction_edge && render_options.interaction_edge_halo.is_enabled() {
-                        let EdgeHaloOutlineRails { rail_a, rail_b } =
-                            EdgeHaloOutlineCalculator::calculate(
-                                &path,
-                                f64::from(ir_diagram.interaction_edge_halo_stroke_width),
-                            );
-                        (rail_a.to_svg(), rail_b.to_svg())
+                        (arrow_head_path, locus_path)
                     } else {
-                        (String::new(), String::new())
+                        // Positioned V-shape at the `to` node end of the edge.
+                        let arrow_head_path = ArrowHeadBuilder::build_static_arrow_head(&path);
+                        let locus_path =
+                            EdgePathLocusCalculator::calculate(&path, &arrow_head_path);
+
+                        (arrow_head_path, locus_path)
+                    };
+                    let arrow_head_path_d = arrow_head_path.to_svg();
+                    let locus_path_d = locus_path.to_svg();
+
+                    let (halo_outline_rail_a_path_d, halo_outline_rail_b_path_d) =
+                        if is_interaction_edge && render_options.interaction_edge_halo.is_enabled()
+                        {
+                            let EdgeHaloOutlineRails { rail_a, rail_b } =
+                                EdgeHaloOutlineCalculator::calculate(
+                                    &path,
+                                    f64::from(ir_diagram.interaction_edge_halo_stroke_width),
+                                );
+                            (rail_a.to_svg(), rail_b.to_svg())
+                        } else {
+                            (String::new(), String::new())
+                        };
+
+                    let tooltip = ir_diagram
+                        .entity_tooltips
+                        .get(edge_id.as_ref())
+                        .cloned()
+                        .unwrap_or_default();
+
+                    // Route-reversed edges are stored mirrored, so swap the
+                    // endpoints back to the user-declared orientation for
+                    // consumers (focus / hover / diagnostics).
+                    let (node_id_from, node_id_to) = if edge_route_reversals.contains(&edge_id) {
+                        (edge.to.clone(), edge.from.clone())
+                    } else {
+                        (edge.from.clone(), edge.to.clone())
                     };
 
-                let tooltip = ir_diagram
-                    .entity_tooltips
-                    .get(edge_id.as_ref())
-                    .cloned()
-                    .unwrap_or_default();
-
-                // Route-reversed edges are stored mirrored, so swap the
-                // endpoints back to the user-declared orientation for
-                // consumers (focus / hover / diagnostics).
-                let (node_id_from, node_id_to) = if edge_route_reversals.contains(&edge_id) {
-                    (edge.to.clone(), edge.from.clone())
-                } else {
-                    (edge.from.clone(), edge.to.clone())
-                };
-
-                svg_edge_infos.push(SvgEdgeInfo::new(
-                    edge_id,
-                    edge_group_id.clone(),
-                    node_id_from,
-                    node_id_to,
-                    path_d,
-                    arrow_head_path_d,
-                    locus_path_d,
-                    halo_outline_rail_a_path_d,
-                    halo_outline_rail_b_path_d,
-                    tooltip,
-                    ortho_protrusion_params,
-                ));
-            });
+                    svg_edge_infos.push(SvgEdgeInfo::new(
+                        edge_id,
+                        edge_group_id.clone(),
+                        node_id_from,
+                        node_id_to,
+                        path_d,
+                        arrow_head_path_d,
+                        locus_path_d,
+                        halo_outline_rail_a_path_d,
+                        halo_outline_rail_b_path_d,
+                        tooltip,
+                        ortho_protrusion_params,
+                    ));
+                });
         }
 
         SvgEdgeInfosBuilt {
@@ -2443,12 +2507,15 @@ impl SvgEdgeInfosBuilder {
             edge_animation_active,
             focus_mode,
             associated_process_steps,
+            halo_animation_params,
+            interaction_edge_halo_enabled,
         } = css_animation_append_params;
         let edge_animation = EdgeAnimationCalculator::calculate(
             edge_animation_params,
             edge_path_info,
             edge_group_cycle_distance,
             edge_group_animation_duration_total_s,
+            halo_animation_params,
         );
 
         // Append dasharray and animate tailwind classes to this
@@ -2523,16 +2590,45 @@ impl SvgEdgeInfosBuilder {
             focus_mode,
             associated_process_steps,
             &edge_animation.arrow_head_animation_name,
-            animation_duration,
+            animation_duration.clone(),
             forward_path_svg,
         );
 
-        // Append CSS keyframes for both edge stroke and arrowhead.
+        // Append CSS keyframes for edge stroke and arrowhead.
         if !css.is_empty() {
             css.push('\n');
         }
         css.push_str(&edge_animation.keyframe_css);
         css.push_str(&edge_animation.arrow_head_keyframe_css);
+
+        // The halo's (and its outline's) tailwind-classes entity keys only
+        // exist when halo rendering is enabled -- attaching an animate class
+        // (or pushing keyframes) when disabled would spuriously create those
+        // keys and make `svg_elements_to_svg_mapper.rs` render halo/outline
+        // paths that should not exist.
+        if interaction_edge_halo_enabled {
+            Self::css_animation_append_halo_classes(
+                tailwind_classes,
+                edge_path_info,
+                edge_animation_active,
+                focus_mode,
+                associated_process_steps,
+                &edge_animation.halo_animation_name,
+                &animation_duration,
+            );
+            css.push_str(&edge_animation.halo_keyframe_css);
+
+            Self::css_animation_append_halo_outline_classes(
+                tailwind_classes,
+                edge_path_info,
+                edge_animation_active,
+                focus_mode,
+                associated_process_steps,
+                &edge_animation.halo_outline_animation_name,
+                &animation_duration,
+            );
+            css.push_str(&edge_animation.halo_outline_keyframe_css);
+        }
     }
 
     /// Appends CSS classes for the arrowhead animation to the diagram's
@@ -2589,6 +2685,143 @@ impl SvgEdgeInfosBuilder {
             .expect("arrow head entity ID should be valid")
             .into_static();
         tailwind_classes.insert(arrow_head_entity_id, arrow_head_classes);
+    }
+
+    /// Appends CSS classes for the halo opacity animation to the diagram's
+    /// tailwind classes.
+    ///
+    /// Unlike the arrowhead's synthetic entity (which starts with no prior
+    /// classes), `{edge_id}__halo` already holds static forward/reverse
+    /// classes written earlier by `tailwind_classes_builder.rs`'s
+    /// `interaction_edge_halo_classes_build` (colour, stroke width, base
+    /// opacity), so the animate class is appended to the existing classes
+    /// rather than overwriting them -- mirroring how the edge body's
+    /// existing classes are appended to in `Self::css_animation_append`.
+    #[allow(clippy::too_many_arguments)]
+    fn css_animation_append_halo_classes<'id>(
+        tailwind_classes: &mut EntityTailwindClasses<'id>,
+        edge_path_info: &EdgePathInfo<'_, 'id>,
+        edge_animation_active: EdgeAnimationActive,
+        focus_mode: TailwindFocusMode<'_, 'id>,
+        associated_process_steps: &[&NodeId<'id>],
+        halo_animation_name: &str,
+        animation_duration: &str,
+    ) {
+        let halo_classes = Self::animate_classes_build(
+            halo_animation_name,
+            animation_duration,
+            edge_animation_active,
+            focus_mode,
+            associated_process_steps,
+        );
+        if halo_classes.is_empty() {
+            return;
+        }
+
+        let halo_id = EdgeHaloIdGenerator::generate(&edge_path_info.edge_id);
+        Self::tailwind_classes_append(tailwind_classes, halo_id, halo_classes);
+    }
+
+    /// Appends CSS classes for the halo outline's opacity animation to the
+    /// diagram's tailwind classes.
+    ///
+    /// Mirrors `Self::css_animation_append_halo_classes`, but targets the
+    /// `{edge_id}__halo_outline` entity (already holding static
+    /// forward/reverse classes written by `tailwind_classes_builder.rs`)
+    /// rather than `{edge_id}__halo`.
+    #[allow(clippy::too_many_arguments)]
+    fn css_animation_append_halo_outline_classes<'id>(
+        tailwind_classes: &mut EntityTailwindClasses<'id>,
+        edge_path_info: &EdgePathInfo<'_, 'id>,
+        edge_animation_active: EdgeAnimationActive,
+        focus_mode: TailwindFocusMode<'_, 'id>,
+        associated_process_steps: &[&NodeId<'id>],
+        halo_outline_animation_name: &str,
+        animation_duration: &str,
+    ) {
+        let halo_outline_classes = Self::animate_classes_build(
+            halo_outline_animation_name,
+            animation_duration,
+            edge_animation_active,
+            focus_mode,
+            associated_process_steps,
+        );
+        if halo_outline_classes.is_empty() {
+            return;
+        }
+
+        let halo_outline_id = EdgeHaloOutlineIdGenerator::generate(&edge_path_info.edge_id);
+        Self::tailwind_classes_append(tailwind_classes, halo_outline_id, halo_outline_classes);
+    }
+
+    /// Builds the `animate-[{animation_name}_{duration}s_linear_infinite]`
+    /// tailwind class (with the `EdgeAnimationActive::OnProcessStepFocus`
+    /// focus-mode branching applied), for an entity that needs no other
+    /// classes alongside it (unlike the arrowhead, which also carries
+    /// `offset-path` / `stroke-dasharray` classes).
+    ///
+    /// Returns an empty string when nothing should animate (`Baked` focus
+    /// mode with no associated, currently-focused process step).
+    fn animate_classes_build<'id>(
+        animation_name: &str,
+        animation_duration: &str,
+        edge_animation_active: EdgeAnimationActive,
+        focus_mode: TailwindFocusMode<'_, 'id>,
+        associated_process_steps: &[&NodeId<'id>],
+    ) -> String {
+        let mut classes = String::new();
+        match edge_animation_active {
+            EdgeAnimationActive::Always => classes.push_str(&format!(
+                "animate-[{animation_name}_{animation_duration}s_linear_infinite]"
+            )),
+            EdgeAnimationActive::OnProcessStepFocus => match focus_mode {
+                TailwindFocusMode::Interactive => {
+                    associated_process_steps
+                        .iter()
+                        .for_each(|process_step_id| {
+                            classes.push_str(&format!(
+                                "\ngroup-has-[#{process_step_id}:focus-within]:\
+                                    animate-[{animation_name}_{animation_duration}s_linear_infinite]"
+                            ));
+                        });
+                }
+                TailwindFocusMode::Baked { .. } => {
+                    // In baked mode, the focused step's interacting edges
+                    // animate unconditionally; all other edges do not
+                    // animate.
+                    if Self::focus_baked_step_associated(focus_mode, associated_process_steps) {
+                        classes.push_str(&format!(
+                            "animate-[{animation_name}_{animation_duration}s_linear_infinite]"
+                        ));
+                    }
+                }
+            },
+        }
+        classes
+    }
+
+    /// Appends `new_classes` onto an entity's existing tailwind classes
+    /// (rather than overwriting them), inserting a blank-separated join when
+    /// the entity already has classes.
+    ///
+    /// Used for entities (like `{edge_id}__halo` / `{edge_id}__halo_outline`)
+    /// that already hold static classes written earlier in the pipeline by
+    /// `tailwind_classes_builder.rs`.
+    fn tailwind_classes_append<'id>(
+        tailwind_classes: &mut EntityTailwindClasses<'id>,
+        entity_id: Id<'static>,
+        new_classes: String,
+    ) {
+        let existing = tailwind_classes
+            .get(&entity_id)
+            .cloned()
+            .unwrap_or_default();
+        let combined = if existing.is_empty() {
+            new_classes
+        } else {
+            format!("{existing}\n{new_classes}")
+        };
+        tailwind_classes.insert(entity_id, combined);
     }
 }
 
@@ -2870,6 +3103,16 @@ struct CssAnimationAppendParams<'f, 'edge, 'id> {
     edge_animation_active: EdgeAnimationActive,
     focus_mode: TailwindFocusMode<'f, 'id>,
     associated_process_steps: &'f [&'f NodeId<'id>],
+    /// Parameters for this edge's halo (and halo outline) opacity animation.
+    halo_animation_params: HaloAnimationParams,
+    /// Whether `RenderOptions::interaction_edge_halo` is enabled.
+    ///
+    /// The halo's tailwind-classes entity key (`{edge_id}__halo`) only
+    /// exists in `tailwind_classes` when this is `true` -- its mere presence
+    /// is what `svg_elements_to_svg_mapper.rs` uses to decide whether to
+    /// render the halo `<path>` at all, so the halo animation classes and
+    /// keyframes must not be attached when this is `false`.
+    interaction_edge_halo_enabled: bool,
 }
 
 #[cfg(test)]

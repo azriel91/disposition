@@ -614,6 +614,114 @@ fn test_svg_edge_infos_interaction_arrow_head_css_keyframes() -> Result<(), Taff
 }
 
 #[test]
+fn test_svg_edge_infos_interaction_halo_opacity_css_keyframes() -> Result<(), TaffyError> {
+    // `example_ir.yaml` sets `interaction_edge_halo_opacity: 0.2` and
+    // `interaction_edge_halo_outline_opacity: 0.4` (matching
+    // `InputDiagram::base()`'s `type_interaction_edge_halo` /
+    // `type_interaction_edge_halo_outline` theme opacities). The halo (and
+    // its outline) animate between `base_opacity *
+    // HALO_OPACITY_ACTIVE_MULTIPLIER` (1.0, i.e. unchanged) and
+    // `base_opacity * HALO_OPACITY_INACTIVE_MULTIPLIER` (0.4).
+    const HALO_OPACITY_ACTIVE: &str = "0.200";
+    const HALO_OPACITY_INACTIVE: &str = "0.080";
+    const HALO_OUTLINE_OPACITY_ACTIVE: &str = "0.400";
+    const HALO_OUTLINE_OPACITY_INACTIVE: &str = "0.160";
+
+    for svg_elements in build_svg_elements_from_example_ir() {
+        let ix_edges: Vec<_> = svg_elements
+            .svg_edge_infos
+            .iter()
+            .filter(|e| e.edge_id.as_str().starts_with("edge_ix_"))
+            .collect();
+
+        let keyframes_block = |animation_name: &str| -> &str {
+            let keyframes_prefix = format!("@keyframes {animation_name}");
+            let css = &svg_elements.css;
+            let start_idx = css.find(&keyframes_prefix).unwrap_or_else(|| {
+                panic!(
+                    "CSS should contain '{keyframes_prefix}', got: {}",
+                    css.as_str()
+                )
+            });
+            let block = &css[start_idx..];
+            // The rule's own closing brace is the only `}` immediately
+            // followed by a newline (each keyframe entry's own closing
+            // brace is instead followed by a space), so find that rather
+            // than the first `}`, which would only capture the first
+            // (possibly single-opacity) entry.
+            let end_idx = block
+                .find("}\n")
+                .expect("keyframes rule must have a closing brace");
+            &block[..=end_idx]
+        };
+
+        for edge_info in &ix_edges {
+            let edge_id_with_hyphens = edge_info.edge_id.as_str().replace('_', "-");
+
+            let halo_key = Id::try_from(format!("{}__halo", edge_info.edge_id.as_str())).unwrap();
+            let halo_classes = svg_elements
+                .tailwind_classes
+                .get(&halo_key)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Expected halo tailwind classes for interaction edge {:?}",
+                        edge_info.edge_id
+                    )
+                });
+            let halo_animation_name = format!("{edge_id_with_hyphens}--halo-opacity");
+            assert!(
+                halo_classes.contains(&format!("animate-[{halo_animation_name}_")),
+                "Expected halo classes to reference the halo-opacity animation, got: {halo_classes}"
+            );
+
+            let halo_block = keyframes_block(&halo_animation_name);
+            assert!(
+                halo_block.contains(&format!("opacity: {HALO_OPACITY_ACTIVE};")),
+                "Halo keyframes should contain an active ({HALO_OPACITY_ACTIVE}) opacity entry, \
+                 got: {halo_block}"
+            );
+            assert!(
+                halo_block.contains(&format!("opacity: {HALO_OPACITY_INACTIVE};")),
+                "Halo keyframes should contain an inactive ({HALO_OPACITY_INACTIVE}) opacity \
+                 entry, got: {halo_block}"
+            );
+
+            let halo_outline_key =
+                Id::try_from(format!("{}__halo_outline", edge_info.edge_id.as_str())).unwrap();
+            let halo_outline_classes = svg_elements
+                .tailwind_classes
+                .get(&halo_outline_key)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Expected halo outline tailwind classes for interaction edge {:?}",
+                        edge_info.edge_id
+                    )
+                });
+            let halo_outline_animation_name =
+                format!("{edge_id_with_hyphens}--halo-outline-opacity");
+            assert!(
+                halo_outline_classes.contains(&format!("animate-[{halo_outline_animation_name}_")),
+                "Expected halo outline classes to reference the halo-outline-opacity animation, \
+                 got: {halo_outline_classes}"
+            );
+
+            let halo_outline_block = keyframes_block(&halo_outline_animation_name);
+            assert!(
+                halo_outline_block.contains(&format!("opacity: {HALO_OUTLINE_OPACITY_ACTIVE};")),
+                "Halo outline keyframes should contain an active \
+                 ({HALO_OUTLINE_OPACITY_ACTIVE}) opacity entry, got: {halo_outline_block}"
+            );
+            assert!(
+                halo_outline_block.contains(&format!("opacity: {HALO_OUTLINE_OPACITY_INACTIVE};")),
+                "Halo outline keyframes should contain an inactive \
+                 ({HALO_OUTLINE_OPACITY_INACTIVE}) opacity entry, got: {halo_outline_block}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn test_svg_edge_infos_dependency_no_arrow_head_animation_classes() -> Result<(), TaffyError> {
     for svg_elements in build_svg_elements_from_example_ir() {
         let dep_edges: Vec<_> = svg_elements
@@ -4886,6 +4994,116 @@ fn test_interaction_edge_halo_forward_reverse_use_distinct_colors() {
             forward_halo.contains("stroke-8") && reverse_halo.contains("stroke-8"),
             "Expected both halos to keep the base stroke-8 width, got forward: {forward_halo}, \
              reverse: {reverse_halo}"
+        );
+    }
+}
+
+/// `edge_ix_chain` expands `[t_a, t_b, t_c]` (symmetric kind) into
+/// `[t_a->t_b (fwd, 0), t_b->t_c (fwd, 1), t_c->t_b (rev, 2), t_b->t_a (rev,
+/// 3)]` (see `InputToIrDiagramMapper::edge_kind_to_edges`). Only the *adjacent*
+/// forward/reverse pair (`__1` / `__2`, both on the `t_b`<->`t_c` leg) should
+/// highlight each other -- `__0` and `__3` are also a forward/reverse pair on
+/// the `t_a`<->`t_b` leg, but are not adjacent in the edge group, so per the
+/// halo pairing rule (immediately preceding/following edge only) they must
+/// each show only their own active window.
+#[test]
+fn test_interaction_edge_halo_opacity_pairs_only_adjacent_forward_reverse_edges() {
+    for svg_elements in
+        build_svg_elements_for_diagram(INPUT_DIAGRAM_0050_INTERACTION_EDGE_HALO_FORWARD_REVERSE)
+    {
+        // Returns the `[min, max]` percentage bounds covered by active
+        // (`opacity: 0.200;`, i.e. the theme's default `20%` halo opacity *
+        // `HALO_OPACITY_ACTIVE_MULTIPLIER`) keyframe entries in the given
+        // edge's halo `@keyframes` rule.
+        //
+        // Adjacent edges' keyframe windows always touch (there is no gap
+        // between edges within a group), so a paired edge's own window
+        // merges with its neighbour's into a single, wider `[min, max]`
+        // active span rather than two separate ones -- the pairing signal
+        // is the *width* of this span, not the count of active windows.
+        const HALO_OPACITY_ACTIVE: &str = "0.200";
+        let active_span = |edge_id: &str| -> (f64, f64) {
+            let edge_id_with_hyphens = edge_id.replace('_', "-");
+            let keyframes_prefix = format!("@keyframes {edge_id_with_hyphens}--halo-opacity");
+            let css = &svg_elements.css;
+            let start_idx = css.find(&keyframes_prefix).unwrap_or_else(|| {
+                panic!(
+                    "CSS should contain '{keyframes_prefix}', got: {}",
+                    css.as_str()
+                )
+            });
+            let block = &css[start_idx..];
+            // The rule's own closing brace is the only `}` immediately
+            // followed by a newline (each keyframe entry's own closing
+            // brace is instead followed by a space).
+            let end_idx = block
+                .find("}\n")
+                .expect("keyframes rule must have a closing brace");
+            let keyframes_block = &block[..=end_idx];
+
+            // Tokens look like `["12.3%", "{", "opacity:", "0.200;", ...]`;
+            // collect the percentage preceding every active opacity entry.
+            let tokens: Vec<&str> = keyframes_block.split_whitespace().collect();
+            let active_pcts: Vec<f64> = tokens
+                .windows(4)
+                .filter_map(|window| {
+                    let [pct_tok, brace, opacity_kw, val_tok] = window else {
+                        unreachable!("windows(4) always yields 4 elements");
+                    };
+                    (pct_tok.ends_with('%')
+                        && *brace == "{"
+                        && *opacity_kw == "opacity:"
+                        && val_tok.starts_with(HALO_OPACITY_ACTIVE))
+                    .then(|| {
+                        pct_tok
+                            .trim_end_matches('%')
+                            .parse::<f64>()
+                            .expect("percentage token should parse")
+                    })
+                })
+                .collect();
+
+            let min_pct = active_pcts.iter().cloned().fold(f64::INFINITY, f64::min);
+            let max_pct = active_pcts
+                .iter()
+                .cloned()
+                .fold(f64::NEG_INFINITY, f64::max);
+            assert!(
+                min_pct.is_finite() && max_pct.is_finite(),
+                "Expected at least one active (opacity: 1.0) keyframe entry for \
+                 '{keyframes_prefix}', got: {keyframes_block}"
+            );
+            (min_pct, max_pct)
+        };
+
+        let span_0 = active_span("edge_ix_chain__0");
+        let span_1 = active_span("edge_ix_chain__1");
+        let span_2 = active_span("edge_ix_chain__2");
+        let span_3 = active_span("edge_ix_chain__3");
+
+        // `__1` (forward) and `__2` (reverse) are adjacent, so pairing
+        // merges their windows into one identical `[min, max]` span shared
+        // by both edges' halos.
+        assert_eq!(
+            span_1, span_2,
+            "Adjacent forward/reverse pair __1 / __2 should share the same merged active span, \
+             got __1: {span_1:?}, __2: {span_2:?}"
+        );
+
+        // `__0` (forward) is followed by another forward edge (`__1`), and
+        // `__3` (reverse) is preceded by another reverse edge (`__2`), so
+        // neither pairs with a neighbour -- their spans stay at their own
+        // (comparatively narrow) width.
+        let width = |span: (f64, f64)| span.1 - span.0;
+        assert!(
+            width(span_1) > width(span_0) * 1.3,
+            "Paired edge __1's merged span ({span_1:?}) should be noticeably wider than \
+             unpaired edge __0's own span ({span_0:?})"
+        );
+        assert!(
+            width(span_2) > width(span_3) * 1.3,
+            "Paired edge __2's merged span ({span_2:?}) should be noticeably wider than \
+             unpaired edge __3's own span ({span_3:?})"
         );
     }
 }

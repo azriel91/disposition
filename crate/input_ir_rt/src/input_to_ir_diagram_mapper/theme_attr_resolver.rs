@@ -25,8 +25,17 @@ use disposition_model_common::{entity::EntityType, Id};
 pub(crate) struct ThemeAttrResolver;
 
 impl ThemeAttrResolver {
-    // === Interaction Edge Halo Stroke Width === //
+    // === Interaction Edge Halo === //
 
+    /// Default interaction edge halo fill opacity (`0.0..=1.0`), used when
+    /// `type_interaction_edge_halo` does not configure `ThemeAttr::Opacity`.
+    /// Matches the `"20"` (percent) set by `InputDiagram::base()`.
+    const INTERACTION_EDGE_HALO_OPACITY_DEFAULT: f32 = 0.2;
+    /// Default interaction edge halo outline opacity (`0.0..=1.0`), used
+    /// when `type_interaction_edge_halo_outline` does not configure
+    /// `ThemeAttr::Opacity`. Matches the `"40"` (percent) set by
+    /// `InputDiagram::base()`.
+    const INTERACTION_EDGE_HALO_OUTLINE_OPACITY_DEFAULT: f32 = 0.4;
     /// Default interaction edge halo stroke width (pixels), used when
     /// `type_interaction_edge_halo` does not configure
     /// `ThemeAttr::StrokeWidth`.
@@ -530,46 +539,108 @@ impl ThemeAttrResolver {
         }
     }
 
+    /// Resolves a single `ThemeAttr`'s raw value from one `EntityType`'s
+    /// `EdgeDefaults` partials in `theme_types_styles`.
+    ///
+    /// This is for rendering-only style keys (see
+    /// `EntityType::InteractionEdgeHalo`), which -- unlike node attributes --
+    /// have no `NodeId`/`EntityTypes` tiering to walk: only the one type's
+    /// `EdgeDefaults` partials (and any style aliases it applies) are
+    /// checked. Returns `None` when the type has no `EdgeDefaults` partials,
+    /// or neither the style aliases nor the direct attribute set
+    /// `theme_attr`.
+    fn resolve_edge_defaults_attr<'id>(
+        entity_type: EntityType,
+        theme_attr: ThemeAttr,
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+    ) -> Option<f32> {
+        let type_id = EntityTypeId::from(entity_type.into_id());
+        let partials = theme_types_styles
+            .get(&type_id)
+            .and_then(|type_styles| type_styles.get(&IdOrDefaults::EdgeDefaults))?;
+
+        let mut resolved = None;
+
+        // First, check style_aliases_applied (lower priority).
+        partials
+            .style_aliases_applied()
+            .iter()
+            .filter_map(|alias| theme_default.style_aliases.get(alias))
+            .filter_map(|alias_partials| alias_partials.get(&theme_attr))
+            .filter_map(|value| value.parse::<f32>().ok())
+            .for_each(|v| resolved = Some(v));
+
+        // Then, check the direct attribute (higher priority).
+        if let Some(value) = partials.get(&theme_attr)
+            && let Ok(v) = value.parse::<f32>()
+        {
+            resolved = Some(v);
+        }
+
+        resolved
+    }
+
     /// Resolves the interaction edge halo's stroke width from
     /// `type_interaction_edge_halo` in `theme_types_styles`.
     ///
-    /// This is a rendering-only style key (see
-    /// `EntityType::InteractionEdgeHalo`), so unlike node attributes it has
-    /// no `NodeId`/`EntityTypes` tiering to walk -- only the one type's
-    /// `EdgeDefaults` partials (and any style aliases it applies) are
-    /// checked. Used to size the halo's outline rails proportionally to the
-    /// halo's own width (see `EdgeHaloOutlineCalculator`), rather than a
-    /// value hardcoded independently of the theme.
+    /// Used to size the halo's outline rails proportionally to the halo's
+    /// own width (see `EdgeHaloOutlineCalculator`), rather than a value
+    /// hardcoded independently of the theme.
     pub(crate) fn resolve_interaction_edge_halo_stroke_width<'id>(
         theme_default: &ThemeDefault<'id>,
         theme_types_styles: &ThemeTypesStyles<'id>,
     ) -> f32 {
-        let halo_type_id = EntityTypeId::from(EntityType::InteractionEdgeHalo.into_id());
-        let Some(halo_partials) = theme_types_styles
-            .get(&halo_type_id)
-            .and_then(|type_styles| type_styles.get(&IdOrDefaults::EdgeDefaults))
-        else {
-            return Self::INTERACTION_EDGE_HALO_STROKE_WIDTH_DEFAULT;
-        };
+        Self::resolve_edge_defaults_attr(
+            EntityType::InteractionEdgeHalo,
+            ThemeAttr::StrokeWidth,
+            theme_default,
+            theme_types_styles,
+        )
+        .unwrap_or(Self::INTERACTION_EDGE_HALO_STROKE_WIDTH_DEFAULT)
+    }
 
-        let mut stroke_width = None;
+    /// Resolves the interaction edge halo's fill opacity from
+    /// `type_interaction_edge_halo` in `theme_types_styles`, normalized from
+    /// the theme's 0-100 percent scale to a `0.0..=1.0` fraction.
+    ///
+    /// Used as the base opacity that the halo's animated active/inactive
+    /// keyframe opacities scale (see `EdgeAnimationCalculator`), so a themed
+    /// halo opacity is respected rather than a value hardcoded independently
+    /// of the theme.
+    pub(crate) fn resolve_interaction_edge_halo_opacity<'id>(
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+    ) -> f32 {
+        Self::resolve_edge_defaults_attr(
+            EntityType::InteractionEdgeHalo,
+            ThemeAttr::Opacity,
+            theme_default,
+            theme_types_styles,
+        )
+        .map_or(Self::INTERACTION_EDGE_HALO_OPACITY_DEFAULT, |pct| {
+            pct / 100.0
+        })
+    }
 
-        // First, check style_aliases_applied (lower priority).
-        halo_partials
-            .style_aliases_applied()
-            .iter()
-            .filter_map(|alias| theme_default.style_aliases.get(alias))
-            .filter_map(|alias_partials| alias_partials.get(&ThemeAttr::StrokeWidth))
-            .filter_map(|value| value.parse::<f32>().ok())
-            .for_each(|v| stroke_width = Some(v));
-
-        // Then, check the direct attribute (higher priority).
-        if let Some(value) = halo_partials.get(&ThemeAttr::StrokeWidth)
-            && let Ok(v) = value.parse::<f32>()
-        {
-            stroke_width = Some(v);
-        }
-
-        stroke_width.unwrap_or(Self::INTERACTION_EDGE_HALO_STROKE_WIDTH_DEFAULT)
+    /// Resolves the interaction edge halo outline's opacity from
+    /// `type_interaction_edge_halo_outline` in `theme_types_styles`,
+    /// normalized to a `0.0..=1.0` fraction.
+    ///
+    /// Used the same way as `resolve_interaction_edge_halo_opacity`, but for
+    /// the outline rails drawn on top of the halo fill.
+    pub(crate) fn resolve_interaction_edge_halo_outline_opacity<'id>(
+        theme_default: &ThemeDefault<'id>,
+        theme_types_styles: &ThemeTypesStyles<'id>,
+    ) -> f32 {
+        Self::resolve_edge_defaults_attr(
+            EntityType::InteractionEdgeHaloOutline,
+            ThemeAttr::Opacity,
+            theme_default,
+            theme_types_styles,
+        )
+        .map_or(Self::INTERACTION_EDGE_HALO_OUTLINE_OPACITY_DEFAULT, |pct| {
+            pct / 100.0
+        })
     }
 }

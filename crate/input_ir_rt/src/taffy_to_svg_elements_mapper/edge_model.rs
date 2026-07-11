@@ -130,6 +130,66 @@ pub(super) enum EdgeType {
     PairResponse,
 }
 
+/// The active keyframe window and pairing direction of one edge within its
+/// edge group's shared animation cycle.
+///
+/// Precomputed for every edge in a group before the per-edge animation pass
+/// so that an edge's halo animation can reference the timing of its
+/// immediate neighbour (see `HaloAnimationParams::prev_window` /
+/// `next_window`).
+///
+/// # Examples
+///
+/// `EdgeHaloWindow { is_reverse: false, start_pct: 0.0, end_pct: 18.2 }`
+#[derive(Clone, Copy, Debug)]
+pub(super) struct EdgeHaloWindow {
+    /// Whether this edge's raw `EntityType`s include
+    /// `InteractionEdgeSymmetricReverseDefault`. This is deliberately not
+    /// the same as `EdgePathInfo::edge_type == EdgeType::PairResponse` --
+    /// see `HaloAnimationParams::is_reverse`.
+    pub(super) is_reverse: bool,
+    /// Percentage into the edge group's animation cycle at which this
+    /// edge's comet starts travelling.
+    pub(super) start_pct: f64,
+    /// Percentage into the edge group's animation cycle at which this
+    /// edge's comet finishes travelling.
+    pub(super) end_pct: f64,
+}
+
+/// Parameters needed to compute an interaction edge's halo opacity animation
+/// (and its outline's), kept separate from the edge's own stroke-dashoffset /
+/// arrowhead animation parameters.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct HaloAnimationParams {
+    /// Whether this edge's raw `EntityType`s include
+    /// `InteractionEdgeSymmetricReverseDefault`.
+    ///
+    /// This drives halo pairing only, and is deliberately not the same as
+    /// `EdgePathInfo::edge_type == EdgeType::PairResponse` (which drives the
+    /// dasharray/comet direction): a `sequence`-kind edge manually tagged
+    /// `InteractionEdgeSymmetricReverseDefault` also keeps its
+    /// `InteractionEdgeSequenceForwardDefault` default, and
+    /// `edge_type_determine` -- correctly, for path-direction purposes --
+    /// classifies that combination as `EdgeType::Unpaired`.
+    pub(super) is_reverse: bool,
+    /// Active keyframe window of the edge immediately preceding this one in
+    /// the edge group, if any. When `is_reverse` and the previous edge is
+    /// not reverse, the previous edge's window is also treated as an active
+    /// window for this edge's halo.
+    pub(super) prev_window: Option<EdgeHaloWindow>,
+    /// Active keyframe window of the edge immediately following this one in
+    /// the edge group, if any. When this edge is not `is_reverse` and the
+    /// next edge is reverse, the next edge's window is also treated as an
+    /// active window for this edge's halo.
+    pub(super) next_window: Option<EdgeHaloWindow>,
+    /// Themed base opacity (`0.0..=1.0`) of the halo fill, from
+    /// `IrDiagram::interaction_edge_halo_opacity`.
+    pub(super) opacity_base: f64,
+    /// Themed base opacity (`0.0..=1.0`) of the halo outline, from
+    /// `IrDiagram::interaction_edge_halo_outline_opacity`.
+    pub(super) outline_opacity_base: f64,
+}
+
 /// Information needed to compute `SvgEdgeInfo`s including their animation.
 ///
 /// This is collated because the sum of all path lengths in an edge group are
@@ -206,4 +266,12 @@ pub(super) struct EdgeAnimation {
     pub(super) arrow_head_keyframe_css: String,
     /// Unique animation name for the arrowhead keyframes rule.
     pub(super) arrow_head_animation_name: String,
+    /// The CSS `@keyframes` rule for the halo opacity animation.
+    pub(super) halo_keyframe_css: String,
+    /// Unique animation name for the halo opacity keyframes rule.
+    pub(super) halo_animation_name: String,
+    /// The CSS `@keyframes` rule for the halo outline's opacity animation.
+    pub(super) halo_outline_keyframe_css: String,
+    /// Unique animation name for the halo outline opacity keyframes rule.
+    pub(super) halo_outline_animation_name: String,
 }

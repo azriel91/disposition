@@ -143,6 +143,8 @@ impl IrToTaffyBuilder<'_> {
             render_options,
             css: _,
             interaction_edge_halo_stroke_width,
+            interaction_edge_halo_opacity: _,
+            interaction_edge_halo_outline_opacity: _,
         } = ir_diagram;
 
         let DimensionAndLod { dimension, lod } = dimension_and_lod;
