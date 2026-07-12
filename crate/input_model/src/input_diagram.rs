@@ -70,7 +70,7 @@ use crate::{
     all(feature = "schemars", not(feature = "test")),
     derive(schemars::JsonSchema)
 )]
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(bound(deserialize = "\
     ThemeDefault<'id>: Deserialize<'de>, \
     ThemeTypesStyles<'id>: Deserialize<'de>, \
@@ -234,6 +234,20 @@ pub struct InputDiagram<'id> {
     #[serde(default, skip_serializing_if = "RenderOptions::is_default")]
     pub render_options: RenderOptions,
 
+    /// Seconds of CSS animation duration per pixel of interaction-edge travel
+    /// distance, controlling how fast interaction edges animate.
+    ///
+    /// Also used inversely to convert the end-of-cycle pause duration into an
+    /// equivalent pixel distance, so the same value governs both.
+    ///
+    /// Example valid value: `0.003` (0.3 seconds per 100 pixels -- the
+    /// default).
+    #[serde(
+        default = "seconds_per_px_default",
+        skip_serializing_if = "seconds_per_px_is_default"
+    )]
+    pub seconds_per_px: f64,
+
     /// Additional CSS to place in the SVG's inline `<styles>` section.
     #[serde(default, skip_serializing_if = "Css::is_empty")]
     pub css: Css,
@@ -302,9 +316,20 @@ impl InputDiagram<'static> {
             theme_thing_dependencies_styles: ThemeThingDependenciesStyles::default(),
             theme_tag_things_focus,
             render_options: RenderOptions::default(),
+            seconds_per_px: seconds_per_px_default(),
             css,
         }
     }
+}
+
+/// Returns the default `seconds_per_px`: `0.3` seconds per `100` pixels.
+fn seconds_per_px_default() -> f64 {
+    0.3 / 100.0
+}
+
+/// Returns `true` if `seconds_per_px` is at its default value.
+fn seconds_per_px_is_default(seconds_per_px: &f64) -> bool {
+    *seconds_per_px == seconds_per_px_default()
 }
 
 fn base_style_aliases() -> StyleAliases<'static> {

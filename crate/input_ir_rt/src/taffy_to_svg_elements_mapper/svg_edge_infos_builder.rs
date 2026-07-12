@@ -96,11 +96,13 @@ impl SvgEdgeInfosBuilder {
             edge_face_assignments,
             process_step_entities,
             render_options,
+            seconds_per_px,
             interaction_edge_halo_opacity,
             interaction_edge_halo_outline_opacity,
             ..
         } = ir_diagram;
         let rank_dir = render_options.rank_dir;
+        let seconds_per_px = *seconds_per_px;
         let interaction_edge_halo_opacity_base = f64::from(*interaction_edge_halo_opacity);
         let interaction_edge_halo_outline_opacity_base =
             f64::from(*interaction_edge_halo_outline_opacity);
@@ -134,16 +136,13 @@ impl SvgEdgeInfosBuilder {
         // 1. Compute the total length of all edges in each edge group using the edge's
         //    `bounding_box` as an approximation, then sum them.
         // 2. The `total_animation_time` should be a constant
-        //    `seconds_per_distance_units * total_length`.
+        //    `seconds_per_px * total_length`.
         // 3. The `start_pct` ("request start") will be `preceding_edge_lengths_sum /
         //    total_length`.
         // 4. The `end_pct` ("request end") will be `(preceding_edge_lengths_sum +
         //    current_edge_length) / total_length`.
         // 5. The `duration` for each edge's animation will be the `total_animation_time
         //    * (edge_length / total_length)`.
-
-        /// 0.3 seconds per 100 pixels
-        const SECONDS_PER_PIXEL: f64 = 0.3 / 100.0;
 
         // === Global Pass 1: collect metadata and register face contacts === //
 
@@ -323,9 +322,9 @@ impl SvgEdgeInfosBuilder {
             // as `travel`, so the keyframe windows leave exactly
             // `pause_duration_secs` of dead time at the end of the cycle.
             let edge_group_pause_distance =
-                edge_animation_params.pause_duration_secs / SECONDS_PER_PIXEL;
+                edge_animation_params.pause_duration_secs / seconds_per_px;
             let edge_group_cycle_distance = edge_group_travel_total + edge_group_pause_distance;
-            let edge_group_animation_duration_total_s = SECONDS_PER_PIXEL * edge_group_travel_total
+            let edge_group_animation_duration_total_s = seconds_per_px * edge_group_travel_total
                 + edge_animation_params.pause_duration_secs;
 
             // Look up the process steps associated with this edge group (by its

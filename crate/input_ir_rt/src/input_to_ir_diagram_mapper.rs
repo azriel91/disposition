@@ -118,6 +118,7 @@ impl InputToIrDiagramMapper {
             theme_thing_dependencies_styles: _,
             theme_tag_things_focus: _,
             render_options,
+            seconds_per_px,
             css,
         } = input_diagram;
 
@@ -311,6 +312,7 @@ impl InputToIrDiagramMapper {
             process_step_ranks,
             process_step_graphs,
             render_options: *render_options,
+            seconds_per_px: *seconds_per_px,
             css: css.clone(),
             interaction_edge_halo_stroke_width,
             interaction_edge_halo_opacity,

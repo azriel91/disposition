@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 /// When serialized (via [`Display`](std::fmt::Display)), the struct is written
 /// as YAML. When deserialized (via [`FromStr`](std::str::FromStr)), the YAML
 /// is parsed back.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct EditorState {
     /// The currently active editor page / tab.
     #[serde(default)]

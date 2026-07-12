@@ -265,6 +265,13 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "RenderOptions::is_default")]
     pub render_options: RenderOptions,
 
+    /// Seconds of CSS animation duration per pixel of interaction-edge travel
+    /// distance, controlling how fast interaction edges animate.
+    ///
+    /// Carried straight through from `InputDiagram::seconds_per_px`.
+    #[serde(default)]
+    pub seconds_per_px: f64,
+
     /// Additional CSS to place in the SVG's inline `<styles>` section.
     ///
     /// Allows for custom CSS rules such as keyframe animations that
@@ -340,6 +347,7 @@ impl<'id> IrDiagram<'id> {
             process_step_ranks: self.process_step_ranks.into_static(),
             process_step_graphs: self.process_step_graphs.into_static(),
             render_options: self.render_options,
+            seconds_per_px: self.seconds_per_px,
             css: self.css,
             interaction_edge_halo_stroke_width: self.interaction_edge_halo_stroke_width,
             interaction_edge_halo_opacity: self.interaction_edge_halo_opacity,
