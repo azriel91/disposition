@@ -12,7 +12,7 @@ use disposition_input_model::{
     InputDiagram,
 };
 use disposition_ir_model::{
-    edge::{Edge, EdgeGroup, EdgeGroups},
+    edge::{Edge, EdgeGroup, EdgeGroups, InteractionEdgeHaloOptions},
     entity::{EntityTailwindClasses, EntityType},
     enum_iterator,
     layout::{FlexDirection, FlexLayout, LeafLayout, NodeLayout, NodeLayouts},
@@ -118,7 +118,6 @@ impl InputToIrDiagramMapper {
             theme_thing_dependencies_styles: _,
             theme_tag_things_focus: _,
             render_options,
-            seconds_per_px,
             css,
         } = input_diagram;
 
@@ -218,6 +217,11 @@ impl InputToIrDiagramMapper {
                 theme_default,
                 theme_types_styles,
             );
+        let interaction_edge_halo = InteractionEdgeHaloOptions {
+            stroke_width: interaction_edge_halo_stroke_width,
+            opacity: interaction_edge_halo_opacity,
+            outline_opacity: interaction_edge_halo_outline_opacity,
+        };
 
         // 13. Tailwind classes (and the CSS theme variables they produce) are
         //     focus-dependent, so they are applied separately via
@@ -312,11 +316,8 @@ impl InputToIrDiagramMapper {
             process_step_ranks,
             process_step_graphs,
             render_options: *render_options,
-            seconds_per_px: *seconds_per_px,
             css: css.clone(),
-            interaction_edge_halo_stroke_width,
-            interaction_edge_halo_opacity,
-            interaction_edge_halo_outline_opacity,
+            interaction_edge_halo,
         };
 
         IrDiagramAndIssues { diagram, issues }

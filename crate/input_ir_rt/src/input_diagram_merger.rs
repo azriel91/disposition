@@ -99,7 +99,6 @@ impl InputDiagramMerger {
             &overlay_diagram.theme_tag_things_focus,
         );
         let render_options = overlay_diagram.render_options;
-        let seconds_per_px = overlay_diagram.seconds_per_px;
         let css = Self::merge_css(base_diagram.css, &overlay_diagram.css);
 
         InputDiagram {
@@ -123,7 +122,6 @@ impl InputDiagramMerger {
             theme_thing_dependencies_styles,
             theme_tag_things_focus,
             render_options,
-            seconds_per_px,
             css,
         }
     }

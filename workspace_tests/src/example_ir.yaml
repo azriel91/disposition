@@ -3683,7 +3683,7 @@ css: |-
     0%   { stroke-dasharray: 3; stroke-dashoffset: 30; }
     100% { stroke-dasharray: 3; stroke-dashoffset: 0; }
   }
-seconds_per_px: 0.003
-interaction_edge_halo_stroke_width: 8.0
-interaction_edge_halo_opacity: 0.2
-interaction_edge_halo_outline_opacity: 0.4
+interaction_edge_halo:
+  stroke_width: 8.0
+  opacity: 0.2
+  outline_opacity: 0.4

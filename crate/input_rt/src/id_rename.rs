@@ -82,7 +82,6 @@ pub fn id_rename_in_input_diagram(
         theme_thing_dependencies_styles,
         theme_tag_things_focus,
         render_options: _,
-        seconds_per_px: _,
         css: _,
     } = input_diagram;
 

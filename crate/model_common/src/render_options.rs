@@ -30,12 +30,13 @@ mod process_render_collapse;
 /// assert_eq!(render_options.rank_dir, Default::default());
 /// assert_eq!(render_options.process_render_collapse, Default::default());
 /// assert_eq!(render_options.interaction_edge_halo, Default::default());
+/// assert_eq!(render_options.edge_animation_millis_per_px, 3.0);
 /// ```
 #[cfg_attr(
     all(feature = "schemars", not(feature = "test")),
     derive(schemars::JsonSchema)
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub struct RenderOptions {
     /// Controls how dependency edge paths are drawn between nodes.
     ///
@@ -95,6 +96,19 @@ pub struct RenderOptions {
     /// * `InteractionEdgeHalo::Disabled`: no halo is rendered.
     #[serde(default, skip_serializing_if = "InteractionEdgeHalo::is_default")]
     pub interaction_edge_halo: InteractionEdgeHalo,
+
+    /// Milliseconds of CSS animation duration per pixel of interaction-edge
+    /// travel distance, controlling how fast interaction edges animate.
+    ///
+    /// Also used inversely to convert the end-of-cycle pause duration into
+    /// an equivalent pixel distance, so the same value governs both.
+    ///
+    /// Example valid value: `3.0` (3 milliseconds per pixel -- the default).
+    #[serde(
+        default = "edge_animation_millis_per_px_default",
+        skip_serializing_if = "edge_animation_millis_per_px_is_default"
+    )]
+    pub edge_animation_millis_per_px: f64,
 }
 
 impl RenderOptions {
@@ -105,6 +119,7 @@ impl RenderOptions {
             && self.rank_dir.is_default()
             && self.process_render_collapse.is_default()
             && self.interaction_edge_halo.is_default()
+            && edge_animation_millis_per_px_is_default(&self.edge_animation_millis_per_px)
     }
 }
 
@@ -116,6 +131,7 @@ impl Default for RenderOptions {
             rank_dir: RankDir::default(),
             process_render_collapse: ProcessRenderCollapse::default(),
             interaction_edge_halo: InteractionEdgeHalo::default(),
+            edge_animation_millis_per_px: edge_animation_millis_per_px_default(),
         }
     }
 }
@@ -129,4 +145,15 @@ fn interactions_edge_curvature_default() -> EdgeCurvature {
 /// (`DirectCurved`).
 fn interactions_edge_curvature_is_default(edge_curvature: &EdgeCurvature) -> bool {
     *edge_curvature == EdgeCurvature::DirectCurved
+}
+
+/// Returns the default `edge_animation_millis_per_px`: `3.0` milliseconds
+/// per pixel (0.3 seconds per 100 pixels).
+fn edge_animation_millis_per_px_default() -> f64 {
+    3.0
+}
+
+/// Returns `true` if `edge_animation_millis_per_px` is at its default value.
+fn edge_animation_millis_per_px_is_default(millis_per_px: &f64) -> bool {
+    *millis_per_px == edge_animation_millis_per_px_default()
 }
