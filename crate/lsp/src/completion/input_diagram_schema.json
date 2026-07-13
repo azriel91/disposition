@@ -663,25 +663,25 @@
       ]
     },
     "RenderOptions": {
-      "description": "Options that control how the diagram is rendered.\n\n# Examples\n\n```rust\nuse disposition_model_common::RenderOptions;\n\nuse disposition_model_common::edge::EdgeCurvature;\n\nlet render_options = RenderOptions::default();\nassert_eq!(\n    render_options.dependencies_edge_curvature,\n    EdgeCurvature::Orthogonal\n);\nassert_eq!(\n    render_options.interactions_edge_curvature,\n    EdgeCurvature::DirectCurved\n);\nassert_eq!(render_options.rank_dir, Default::default());\nassert_eq!(render_options.process_render_collapse, Default::default());\nassert_eq!(render_options.interaction_edge_halo, Default::default());\nassert_eq!(render_options.edge_animation_millis_per_px, 3.0);\n```",
+      "description": "Options that control how the diagram is rendered.\n\n# Examples\n\n```rust\nuse disposition_model_common::RenderOptions;\n\nuse disposition_model_common::edge::EdgeCurvature;\n\nlet render_options = RenderOptions::default();\nassert_eq!(render_options.rank_dir, Default::default());\nassert_eq!(render_options.process_render_collapse, Default::default());\nassert_eq!(\n    render_options.dependency_edge_curvature,\n    EdgeCurvature::Orthogonal\n);\nassert_eq!(\n    render_options.interaction_edge_curvature,\n    EdgeCurvature::DirectCurved\n);\nassert_eq!(render_options.interaction_edge_halo, Default::default());\nassert_eq!(render_options.interaction_edge_animation_millis_per_px, 3.0);\n```",
       "type": "object",
       "properties": {
-        "dependencies_edge_curvature": {
+        "dependency_edge_curvature": {
           "description": "Controls how dependency edge paths are drawn between nodes.\n\n* `EdgeCurvature::Curved`: edges use smooth bezier curves.\n* `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.\n* `EdgeCurvature::DirectStraight`: edges are straight lines that bypass\n  edge spacers.\n* `EdgeCurvature::DirectCurved`: edges are curved lines that bypass edge\n  spacers.",
           "$ref": "#/$defs/EdgeCurvature"
         },
-        "edge_animation_millis_per_px": {
+        "interaction_edge_animation_millis_per_px": {
           "description": "Milliseconds of CSS animation duration per pixel of interaction-edge\ntravel distance, controlling how fast interaction edges animate.\n\nAlso used inversely to convert the end-of-cycle pause duration into\nan equivalent pixel distance, so the same value governs both.\n\nExample valid value: `3.0` (3 milliseconds per pixel -- the default).",
           "type": "number",
           "format": "double"
         },
+        "interaction_edge_curvature": {
+          "description": "Controls how interaction edge paths are drawn between nodes.\n\nDefaults to `EdgeCurvature::DirectCurved`.\n\n* `EdgeCurvature::Curved`: edges use smooth bezier curves.\n* `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.\n* `EdgeCurvature::DirectStraight`: edges are straight lines that bypass\n  edge spacers.\n* `EdgeCurvature::DirectCurved`: edges are curved lines that bypass edge\n  spacers.",
+          "$ref": "#/$defs/EdgeCurvature"
+        },
         "interaction_edge_halo": {
           "description": "Controls whether a semi-transparent halo is rendered behind\ninteraction edges.\n\nDefaults to `InteractionEdgeHalo::Enabled`.\n\n* `InteractionEdgeHalo::Enabled`: a halo is rendered behind each\n  interaction edge, sharing its path geometry.\n* `InteractionEdgeHalo::Disabled`: no halo is rendered.",
           "$ref": "#/$defs/InteractionEdgeHalo"
-        },
-        "interactions_edge_curvature": {
-          "description": "Controls how interaction edge paths are drawn between nodes.\n\nDefaults to `EdgeCurvature::DirectCurved`.\n\n* `EdgeCurvature::Curved`: edges use smooth bezier curves.\n* `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.\n* `EdgeCurvature::DirectStraight`: edges are straight lines that bypass\n  edge spacers.\n* `EdgeCurvature::DirectCurved`: edges are curved lines that bypass edge\n  spacers.",
-          "$ref": "#/$defs/EdgeCurvature"
         },
         "process_render_collapse": {
           "description": "Controls whether processes are rendered collapsed or expanded.\n\n* `ProcessRenderCollapse::Collapse`: processes are rendered collapsed,\n  expanding only when focused.\n* `ProcessRenderCollapse::ExpandAlways`: processes are always rendered\n  fully expanded.\n* `ProcessRenderCollapse::ExpandWhenOne`: processes are rendered\n  expanded when there is only a single process in the diagram, and\n  collapsed otherwise.",

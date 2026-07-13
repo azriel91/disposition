@@ -72,7 +72,8 @@
 * Interaction edge that is currently animated has its halo more opaque, inactive edges have a more transparent halo. ([#64][#64])
 * Reduce halo outline animation duration to `0.3` seconds per 100 pixels. ([#64][#64])
 * Update edge routing for same-rank non-adjacent divergent ancestor siblings to use the exit `NodeFace` for both `from` and `to` nodes. ([#65][#65])
-* Add `RenderOptions::edge_animation_millis_per_px` to control edge animation duration. ([#66][#66])
+* Add `RenderOptions::interaction_edge_animation_millis_per_px` to control edge animation duration. ([#66][#66])
+* Rename `RenderOptions::dependencies_edge_curvature` / `interactions_edge_curvature` to `dependency_edge_curvature` / `interaction_edge_curvature`, and reorder `RenderOptions` fields to group interaction-edge-related fields together. ([#66][#66])
 
 [#42]: https://github.com/azriel91/disposition/pull/42
 [#43]: https://github.com/azriel91/disposition/pull/43

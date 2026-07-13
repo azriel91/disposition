@@ -10,7 +10,7 @@
 # * `right_to_left`
 # * `bottom_to_top`
 #
-# `dependencies_edge_curvature` and `interactions_edge_curvature` may be
+# `dependency_edge_curvature` and `interaction_edge_curvature` may be
 # `orthogonal` (the dependencies default), `curved`, `direct_straight`, or
 # `direct_curved` (the interactions default).
 #
@@ -45,4 +45,4 @@ thing_dependencies:
 
 render_options:
   rank_dir: left_to_right
-  dependencies_edge_curvature: curved
+  dependency_edge_curvature: curved

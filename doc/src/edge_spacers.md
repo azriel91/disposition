@@ -14,8 +14,8 @@ Edges drawn with a direct curvature (`EdgeCurvature::is_direct()`, i.e. the `Dir
 `DirectCurved` variants) bypass spacers entirely. Their spacer taffy nodes are still inserted so the
 tree structure is unchanged, but `EdgeSpacerBuilder::edge_spacer_length` returns `0.0` for them
 instead of `EDGE_SPACER_LENGTH`, so they reserve no layout space. The effective curvature is selected
-per edge from `RenderOptions::dependencies_edge_curvature` /
-`RenderOptions::interactions_edge_curvature` based on whether the edge is a dependency or interaction
+per edge from `RenderOptions::dependency_edge_curvature` /
+`RenderOptions::interaction_edge_curvature` based on whether the edge is a dependency or interaction
 edge.
 
 

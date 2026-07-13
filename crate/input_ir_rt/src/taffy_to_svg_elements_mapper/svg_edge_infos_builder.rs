@@ -100,7 +100,7 @@ impl SvgEdgeInfosBuilder {
             ..
         } = ir_diagram;
         let rank_dir = render_options.rank_dir;
-        let seconds_per_px = render_options.edge_animation_millis_per_px / 1000.0;
+        let seconds_per_px = render_options.interaction_edge_animation_millis_per_px / 1000.0;
         let interaction_edge_halo_opacity_base = f64::from(interaction_edge_halo.opacity);
         let interaction_edge_halo_outline_opacity_base =
             f64::from(interaction_edge_halo.outline_opacity);
@@ -211,9 +211,9 @@ impl SvgEdgeInfosBuilder {
                     .iter()
                     .any(|pass1_info| pass1_info.is_interaction);
                 let edge_curvature = if is_interaction_group {
-                    render_options.interactions_edge_curvature
+                    render_options.interaction_edge_curvature
                 } else {
-                    render_options.dependencies_edge_curvature
+                    render_options.dependency_edge_curvature
                 };
                 edge_curvature.is_direct()
             })
@@ -282,9 +282,9 @@ impl SvgEdgeInfosBuilder {
                     .unwrap_or(false)
             });
             let edge_curvature = if is_interaction_group {
-                render_options.interactions_edge_curvature
+                render_options.interaction_edge_curvature
             } else {
-                render_options.dependencies_edge_curvature
+                render_options.dependency_edge_curvature
             };
 
             let edge_path_infos = Self::build_edge_path_infos_with_offsets(
