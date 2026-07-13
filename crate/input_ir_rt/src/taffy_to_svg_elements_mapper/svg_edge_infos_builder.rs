@@ -96,14 +96,14 @@ impl SvgEdgeInfosBuilder {
             edge_face_assignments,
             process_step_entities,
             render_options,
-            interaction_edge_halo_opacity,
-            interaction_edge_halo_outline_opacity,
+            interaction_edge_halo,
             ..
         } = ir_diagram;
         let rank_dir = render_options.rank_dir;
-        let interaction_edge_halo_opacity_base = f64::from(*interaction_edge_halo_opacity);
+        let seconds_per_px = render_options.interaction_edge_animation_millis_per_px / 1000.0;
+        let interaction_edge_halo_opacity_base = f64::from(interaction_edge_halo.opacity);
         let interaction_edge_halo_outline_opacity_base =
-            f64::from(*interaction_edge_halo_outline_opacity);
+            f64::from(interaction_edge_halo.outline_opacity);
 
         // Build a reverse map: entity (edge group) ID -> list of process step NodeIds.
         // This allows efficient lookup of which process steps reference a given edge
@@ -133,17 +133,14 @@ impl SvgEdgeInfosBuilder {
         //
         // 1. Compute the total length of all edges in each edge group using the edge's
         //    `bounding_box` as an approximation, then sum them.
-        // 2. The `total_animation_time` should be a constant
-        //    `seconds_per_distance_units * total_length`.
+        // 2. The `total_animation_time` should be a constant `seconds_per_px *
+        //    total_length`.
         // 3. The `start_pct` ("request start") will be `preceding_edge_lengths_sum /
         //    total_length`.
         // 4. The `end_pct` ("request end") will be `(preceding_edge_lengths_sum +
         //    current_edge_length) / total_length`.
         // 5. The `duration` for each edge's animation will be the `total_animation_time
         //    * (edge_length / total_length)`.
-
-        /// 0.3 seconds per 100 pixels
-        const SECONDS_PER_PIXEL: f64 = 0.3 / 100.0;
 
         // === Global Pass 1: collect metadata and register face contacts === //
 
@@ -171,7 +168,7 @@ impl SvgEdgeInfosBuilder {
             &ir_diagram.node_nesting_infos,
             edge_label_taffy_nodes,
             taffy_tree,
-            ir_diagram.interaction_edge_halo_stroke_width,
+            ir_diagram.interaction_edge_halo.stroke_width,
         );
 
         // Nudge a container's face contact away from edges that transit the
@@ -186,7 +183,7 @@ impl SvgEdgeInfosBuilder {
             edge_spacer_taffy_nodes,
             edge_description_taffy_nodes,
             &mut face_offsets_by_node_face,
-            ir_diagram.interaction_edge_halo_stroke_width,
+            ir_diagram.interaction_edge_halo.stroke_width,
         );
 
         // === Global orthogonal protrusion computation === //
@@ -214,9 +211,9 @@ impl SvgEdgeInfosBuilder {
                     .iter()
                     .any(|pass1_info| pass1_info.is_interaction);
                 let edge_curvature = if is_interaction_group {
-                    render_options.interactions_edge_curvature
+                    render_options.interaction_edge_curvature
                 } else {
-                    render_options.dependencies_edge_curvature
+                    render_options.dependency_edge_curvature
                 };
                 edge_curvature.is_direct()
             })
@@ -239,7 +236,7 @@ impl SvgEdgeInfosBuilder {
             &ir_diagram.node_ranks_nested,
             entity_types,
             &group_is_direct,
-            ir_diagram.interaction_edge_halo_stroke_width,
+            ir_diagram.interaction_edge_halo.stroke_width,
         );
 
         // Assemble the per-edge routing diagnostics while the pass-1 groups,
@@ -285,9 +282,9 @@ impl SvgEdgeInfosBuilder {
                     .unwrap_or(false)
             });
             let edge_curvature = if is_interaction_group {
-                render_options.interactions_edge_curvature
+                render_options.interaction_edge_curvature
             } else {
-                render_options.dependencies_edge_curvature
+                render_options.dependency_edge_curvature
             };
 
             let edge_path_infos = Self::build_edge_path_infos_with_offsets(
@@ -303,7 +300,7 @@ impl SvgEdgeInfosBuilder {
                 edge_description_taffy_nodes,
                 visible_segments_length,
                 ortho_protrusions,
-                ir_diagram.interaction_edge_halo_stroke_width,
+                ir_diagram.interaction_edge_halo.stroke_width,
                 edge_route_reversals,
             );
 
@@ -323,9 +320,9 @@ impl SvgEdgeInfosBuilder {
             // as `travel`, so the keyframe windows leave exactly
             // `pause_duration_secs` of dead time at the end of the cycle.
             let edge_group_pause_distance =
-                edge_animation_params.pause_duration_secs / SECONDS_PER_PIXEL;
+                edge_animation_params.pause_duration_secs / seconds_per_px;
             let edge_group_cycle_distance = edge_group_travel_total + edge_group_pause_distance;
-            let edge_group_animation_duration_total_s = SECONDS_PER_PIXEL * edge_group_travel_total
+            let edge_group_animation_duration_total_s = seconds_per_px * edge_group_travel_total
                 + edge_animation_params.pause_duration_secs;
 
             // Look up the process steps associated with this edge group (by its
@@ -459,7 +456,7 @@ impl SvgEdgeInfosBuilder {
                             let EdgeHaloOutlineRails { rail_a, rail_b } =
                                 EdgeHaloOutlineCalculator::calculate(
                                     &path,
-                                    f64::from(ir_diagram.interaction_edge_halo_stroke_width),
+                                    f64::from(ir_diagram.interaction_edge_halo.stroke_width),
                                 );
                             (rail_a.to_svg(), rail_b.to_svg())
                         } else {

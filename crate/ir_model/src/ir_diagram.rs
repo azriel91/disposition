@@ -2,7 +2,10 @@ use disposition_model_common::{entity::EntityTooltips, theme::Css, RenderOptions
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    edge::{EdgeDescs, EdgeFaceAssignments, EdgeGroups, EdgeLabels, EdgeRouteReversals},
+    edge::{
+        EdgeDescs, EdgeFaceAssignments, EdgeGroups, EdgeLabels, EdgeRouteReversals,
+        InteractionEdgeHaloOptions,
+    },
     entity::{EntityTailwindClasses, EntityTypes},
     layout::NodeLayouts,
     node::{
@@ -272,36 +275,14 @@ pub struct IrDiagram<'id> {
     #[serde(default, skip_serializing_if = "Css::is_empty")]
     pub css: Css,
 
-    /// Resolved stroke width (pixels) of the interaction edge halo, from
-    /// `ThemeAttr::StrokeWidth` on `type_interaction_edge_halo`.
+    /// Resolved rendering values for the interaction edge halo, from the
+    /// theme's `type_interaction_edge_halo` /
+    /// `type_interaction_edge_halo_outline` styles.
     ///
-    /// Used to size the halo's outline rails proportionally to the halo's
-    /// own width, rather than a value hardcoded independently of the theme.
-    /// Defaults to `0.0` when not resolved (e.g. an `IrDiagram` built
+    /// Defaults to all-`0.0` when not resolved (e.g. an `IrDiagram` built
     /// directly rather than through `InputToIrDiagramMapper`).
     #[serde(default)]
-    pub interaction_edge_halo_stroke_width: f32,
-
-    /// Resolved halo fill opacity, as a `0.0..=1.0` fraction (not the 0-100
-    /// percent scale used in the theme string), from `ThemeAttr::Opacity` on
-    /// `type_interaction_edge_halo`.
-    ///
-    /// Used as the base opacity that the halo's animated active/inactive
-    /// keyframe opacities (see `EdgeAnimationCalculator`) scale, so a themed
-    /// halo opacity is respected rather than a value hardcoded independently
-    /// of the theme. Defaults to `0.0` when not resolved (e.g. an
-    /// `IrDiagram` built directly rather than through
-    /// `InputToIrDiagramMapper`).
-    #[serde(default)]
-    pub interaction_edge_halo_opacity: f32,
-
-    /// Resolved halo outline opacity, as a `0.0..=1.0` fraction, from
-    /// `ThemeAttr::Opacity` on `type_interaction_edge_halo_outline`.
-    ///
-    /// Used the same way as `interaction_edge_halo_opacity`, but for the
-    /// outline rails drawn on top of the halo fill.
-    #[serde(default)]
-    pub interaction_edge_halo_outline_opacity: f32,
+    pub interaction_edge_halo: InteractionEdgeHaloOptions,
 }
 
 impl<'id> IrDiagram<'id> {
@@ -341,9 +322,7 @@ impl<'id> IrDiagram<'id> {
             process_step_graphs: self.process_step_graphs.into_static(),
             render_options: self.render_options,
             css: self.css,
-            interaction_edge_halo_stroke_width: self.interaction_edge_halo_stroke_width,
-            interaction_edge_halo_opacity: self.interaction_edge_halo_opacity,
-            interaction_edge_halo_outline_opacity: self.interaction_edge_halo_outline_opacity,
+            interaction_edge_halo: self.interaction_edge_halo,
         }
     }
 }

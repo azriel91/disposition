@@ -13,7 +13,7 @@ use disposition::{
     model_common::{edge::EdgeCurvature, InteractionEdgeHalo, ProcessRenderCollapse, RankDir},
 };
 
-use crate::components::editor::common::{LABEL_CLASS, SECTION_HEADING};
+use crate::components::editor::common::{INPUT_CLASS, LABEL_CLASS, SECTION_HEADING};
 
 /// CSS classes for a radio button group container.
 const RADIO_GROUP_CLASS: &str = "flex flex-col gap-4";
@@ -29,27 +29,33 @@ const RADIO_LABEL_CLASS: &str = "\
 ///
 /// Allows the user to configure:
 ///
-/// * `dependencies_edge_curvature` / `interactions_edge_curvature`: whether
-///   dependency / interaction edges are drawn as smooth curves, orthogonal
-///   lines, or direct (straight / curved) lines that bypass edge spacers.
 /// * `rank_dir`: direction that edges connect nodes.
 /// * `process_render_collapse`: whether processes are rendered collapsed or
 ///   expanded.
+/// * `dependency_edge_curvature` / `interaction_edge_curvature`: whether
+///   dependency / interaction edges are drawn as smooth curves, orthogonal
+///   lines, or direct (straight / curved) lines that bypass edge spacers.
 /// * `interaction_edge_halo`: whether a semi-transparent halo is rendered
 ///   behind interaction edges.
+/// * `interaction_edge_animation_millis_per_px`: how fast interaction edges
+///   animate, in milliseconds of CSS animation duration per pixel travelled.
 #[component]
 pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
-    let dependencies_edge_curvature = input_diagram
-        .read()
-        .render_options
-        .dependencies_edge_curvature;
-    let interactions_edge_curvature = input_diagram
-        .read()
-        .render_options
-        .interactions_edge_curvature;
     let rank_dir = input_diagram.read().render_options.rank_dir;
     let process_render_collapse = input_diagram.read().render_options.process_render_collapse;
+    let dependency_edge_curvature = input_diagram
+        .read()
+        .render_options
+        .dependency_edge_curvature;
+    let interaction_edge_curvature = input_diagram
+        .read()
+        .render_options
+        .interaction_edge_curvature;
     let interaction_edge_halo = input_diagram.read().render_options.interaction_edge_halo;
+    let interaction_edge_animation_millis_per_px = input_diagram
+        .read()
+        .render_options
+        .interaction_edge_animation_millis_per_px;
 
     rsx! {
         div {
@@ -60,206 +66,6 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                 class: LABEL_CLASS,
                 "Controls how the diagram is rendered, including edge curvature \
                  and the direction edges connect nodes."
-            }
-
-            // === Dependencies Edge Curvature === //
-            fieldset {
-                class: "flex flex-col gap-1",
-
-                legend { class: LABEL_CLASS, "Dependencies Edge Curvature" }
-                div {
-                    class: RADIO_GROUP_CLASS,
-
-                    div {
-                        class: "flex flex-col gap-0.5",
-                        label {
-                            class: RADIO_LABEL_CLASS,
-                            input {
-                                r#type: "radio",
-                                name: "dependencies_edge_curvature",
-                                value: "curved",
-                                checked: dependencies_edge_curvature == EdgeCurvature::Curved,
-                                onchange: move |_| {
-                                    input_diagram.write().render_options.dependencies_edge_curvature =
-                                        EdgeCurvature::Curved;
-                                },
-                            }
-                            "Curved"
-                        }
-                        p {
-                            class: "text-xs text-gray-500 pl-6",
-                            "Nodes are connected using curved lines."
-                        }
-                    }
-
-                    div {
-                        class: "flex flex-col gap-0.5",
-                        label {
-                            class: RADIO_LABEL_CLASS,
-                            input {
-                                r#type: "radio",
-                                name: "dependencies_edge_curvature",
-                                value: "orthogonal",
-                                checked: dependencies_edge_curvature == EdgeCurvature::Orthogonal,
-                                onchange: move |_| {
-                                    input_diagram.write().render_options.dependencies_edge_curvature =
-                                        EdgeCurvature::Orthogonal;
-                                },
-                            }
-                            "Orthogonal"
-                        }
-                        p {
-                            class: "text-xs text-gray-500 pl-6",
-                            "Nodes are connected using straight lines."
-                        }
-                    }
-
-                    div {
-                        class: "flex flex-col gap-0.5",
-                        label {
-                            class: RADIO_LABEL_CLASS,
-                            input {
-                                r#type: "radio",
-                                name: "dependencies_edge_curvature",
-                                value: "direct_straight",
-                                checked: dependencies_edge_curvature == EdgeCurvature::DirectStraight,
-                                onchange: move |_| {
-                                    input_diagram.write().render_options.dependencies_edge_curvature =
-                                        EdgeCurvature::DirectStraight;
-                                },
-                            }
-                            "Direct (Straight)"
-                        }
-                        p {
-                            class: "text-xs text-gray-500 pl-6",
-                            "Nodes are connected using straight lines drawn directly \
-                             between nodes, bypassing edge spacers."
-                        }
-                    }
-
-                    div {
-                        class: "flex flex-col gap-0.5",
-                        label {
-                            class: RADIO_LABEL_CLASS,
-                            input {
-                                r#type: "radio",
-                                name: "dependencies_edge_curvature",
-                                value: "direct_curved",
-                                checked: dependencies_edge_curvature == EdgeCurvature::DirectCurved,
-                                onchange: move |_| {
-                                    input_diagram.write().render_options.dependencies_edge_curvature =
-                                        EdgeCurvature::DirectCurved;
-                                },
-                            }
-                            "Direct (Curved)"
-                        }
-                        p {
-                            class: "text-xs text-gray-500 pl-6",
-                            "Nodes are connected using curved lines drawn directly \
-                             between nodes, bypassing edge spacers."
-                        }
-                    }
-                }
-            }
-
-            // === Interactions Edge Curvature === //
-            fieldset {
-                class: "flex flex-col gap-1",
-
-                legend { class: LABEL_CLASS, "Interactions Edge Curvature" }
-                div {
-                    class: RADIO_GROUP_CLASS,
-
-                    div {
-                        class: "flex flex-col gap-0.5",
-                        label {
-                            class: RADIO_LABEL_CLASS,
-                            input {
-                                r#type: "radio",
-                                name: "interactions_edge_curvature",
-                                value: "curved",
-                                checked: interactions_edge_curvature == EdgeCurvature::Curved,
-                                onchange: move |_| {
-                                    input_diagram.write().render_options.interactions_edge_curvature =
-                                        EdgeCurvature::Curved;
-                                },
-                            }
-                            "Curved"
-                        }
-                        p {
-                            class: "text-xs text-gray-500 pl-6",
-                            "Nodes are connected using curved lines."
-                        }
-                    }
-
-                    div {
-                        class: "flex flex-col gap-0.5",
-                        label {
-                            class: RADIO_LABEL_CLASS,
-                            input {
-                                r#type: "radio",
-                                name: "interactions_edge_curvature",
-                                value: "orthogonal",
-                                checked: interactions_edge_curvature == EdgeCurvature::Orthogonal,
-                                onchange: move |_| {
-                                    input_diagram.write().render_options.interactions_edge_curvature =
-                                        EdgeCurvature::Orthogonal;
-                                },
-                            }
-                            "Orthogonal"
-                        }
-                        p {
-                            class: "text-xs text-gray-500 pl-6",
-                            "Nodes are connected using straight lines."
-                        }
-                    }
-
-                    div {
-                        class: "flex flex-col gap-0.5",
-                        label {
-                            class: RADIO_LABEL_CLASS,
-                            input {
-                                r#type: "radio",
-                                name: "interactions_edge_curvature",
-                                value: "direct_straight",
-                                checked: interactions_edge_curvature == EdgeCurvature::DirectStraight,
-                                onchange: move |_| {
-                                    input_diagram.write().render_options.interactions_edge_curvature =
-                                        EdgeCurvature::DirectStraight;
-                                },
-                            }
-                            "Direct (Straight)"
-                        }
-                        p {
-                            class: "text-xs text-gray-500 pl-6",
-                            "Nodes are connected using straight lines drawn directly \
-                             between nodes, bypassing edge spacers."
-                        }
-                    }
-
-                    div {
-                        class: "flex flex-col gap-0.5",
-                        label {
-                            class: RADIO_LABEL_CLASS,
-                            input {
-                                r#type: "radio",
-                                name: "interactions_edge_curvature",
-                                value: "direct_curved",
-                                checked: interactions_edge_curvature == EdgeCurvature::DirectCurved,
-                                onchange: move |_| {
-                                    input_diagram.write().render_options.interactions_edge_curvature =
-                                        EdgeCurvature::DirectCurved;
-                                },
-                            }
-                            "Direct (Curved)"
-                        }
-                        p {
-                            class: "text-xs text-gray-500 pl-6",
-                            "Nodes are connected using curved lines drawn directly \
-                             between nodes, bypassing edge spacers. This is the default."
-                        }
-                    }
-                }
             }
 
             // === Rank Direction === //
@@ -431,6 +237,206 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                 }
             }
 
+            // === Dependency Edge Curvature === //
+            fieldset {
+                class: "flex flex-col gap-1",
+
+                legend { class: LABEL_CLASS, "Dependency Edge Curvature" }
+                div {
+                    class: RADIO_GROUP_CLASS,
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "dependency_edge_curvature",
+                                value: "curved",
+                                checked: dependency_edge_curvature == EdgeCurvature::Curved,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.dependency_edge_curvature =
+                                        EdgeCurvature::Curved;
+                                },
+                            }
+                            "Curved"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using curved lines."
+                        }
+                    }
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "dependency_edge_curvature",
+                                value: "orthogonal",
+                                checked: dependency_edge_curvature == EdgeCurvature::Orthogonal,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.dependency_edge_curvature =
+                                        EdgeCurvature::Orthogonal;
+                                },
+                            }
+                            "Orthogonal"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using straight lines."
+                        }
+                    }
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "dependency_edge_curvature",
+                                value: "direct_straight",
+                                checked: dependency_edge_curvature == EdgeCurvature::DirectStraight,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.dependency_edge_curvature =
+                                        EdgeCurvature::DirectStraight;
+                                },
+                            }
+                            "Direct (Straight)"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using straight lines drawn directly \
+                             between nodes, bypassing edge spacers."
+                        }
+                    }
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "dependency_edge_curvature",
+                                value: "direct_curved",
+                                checked: dependency_edge_curvature == EdgeCurvature::DirectCurved,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.dependency_edge_curvature =
+                                        EdgeCurvature::DirectCurved;
+                                },
+                            }
+                            "Direct (Curved)"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using curved lines drawn directly \
+                             between nodes, bypassing edge spacers."
+                        }
+                    }
+                }
+            }
+
+            // === Interaction Edge Curvature === //
+            fieldset {
+                class: "flex flex-col gap-1",
+
+                legend { class: LABEL_CLASS, "Interaction Edge Curvature" }
+                div {
+                    class: RADIO_GROUP_CLASS,
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "interaction_edge_curvature",
+                                value: "curved",
+                                checked: interaction_edge_curvature == EdgeCurvature::Curved,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.interaction_edge_curvature =
+                                        EdgeCurvature::Curved;
+                                },
+                            }
+                            "Curved"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using curved lines."
+                        }
+                    }
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "interaction_edge_curvature",
+                                value: "orthogonal",
+                                checked: interaction_edge_curvature == EdgeCurvature::Orthogonal,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.interaction_edge_curvature =
+                                        EdgeCurvature::Orthogonal;
+                                },
+                            }
+                            "Orthogonal"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using straight lines."
+                        }
+                    }
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "interaction_edge_curvature",
+                                value: "direct_straight",
+                                checked: interaction_edge_curvature == EdgeCurvature::DirectStraight,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.interaction_edge_curvature =
+                                        EdgeCurvature::DirectStraight;
+                                },
+                            }
+                            "Direct (Straight)"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using straight lines drawn directly \
+                             between nodes, bypassing edge spacers."
+                        }
+                    }
+
+                    div {
+                        class: "flex flex-col gap-0.5",
+                        label {
+                            class: RADIO_LABEL_CLASS,
+                            input {
+                                r#type: "radio",
+                                name: "interaction_edge_curvature",
+                                value: "direct_curved",
+                                checked: interaction_edge_curvature == EdgeCurvature::DirectCurved,
+                                onchange: move |_| {
+                                    input_diagram.write().render_options.interaction_edge_curvature =
+                                        EdgeCurvature::DirectCurved;
+                                },
+                            }
+                            "Direct (Curved)"
+                        }
+                        p {
+                            class: "text-xs text-gray-500 pl-6",
+                            "Nodes are connected using curved lines drawn directly \
+                             between nodes, bypassing edge spacers. This is the default."
+                        }
+                    }
+                }
+            }
+
             // === Interaction Edge Halo === //
             fieldset {
                 class: "flex flex-col gap-1",
@@ -482,6 +488,38 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                             class: "text-xs text-gray-500 pl-6",
                             "No halo is rendered behind interaction edges."
                         }
+                    }
+                }
+            }
+
+            // === Interaction Edge Animation Speed === //
+            fieldset {
+                class: "flex flex-col gap-1",
+
+                legend { class: LABEL_CLASS, "Interaction Edge Animation Speed" }
+                div {
+                    class: "flex flex-col gap-0.5",
+                    label {
+                        class: "flex flex-row items-center gap-1.5 text-sm text-gray-200",
+                        input {
+                            r#type: "number",
+                            class: INPUT_CLASS,
+                            step: "0.1",
+                            min: "0",
+                            value: "{interaction_edge_animation_millis_per_px}",
+                            onchange: move |evt: dioxus::events::FormEvent| {
+                                if let Ok(millis_per_px) = evt.value().parse::<f64>() {
+                                    input_diagram.write().render_options.interaction_edge_animation_millis_per_px =
+                                        millis_per_px;
+                                }
+                            },
+                        }
+                        "ms per px"
+                    }
+                    p {
+                        class: "text-xs text-gray-500 pl-6",
+                        "Milliseconds of CSS animation duration per pixel of interaction-edge \
+                         travel distance. Lower values animate faster. Default: 3.0."
                     }
                 }
             }

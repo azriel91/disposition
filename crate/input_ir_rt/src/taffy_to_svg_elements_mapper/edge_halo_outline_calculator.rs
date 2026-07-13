@@ -29,7 +29,7 @@ impl EdgeHaloOutlineCalculator {
     /// centerline.
     ///
     /// `halo_stroke_width` is the halo's own resolved `ThemeAttr::StrokeWidth`
-    /// (see `IrDiagram::interaction_edge_halo_stroke_width`), in pixels --
+    /// (see `IrDiagram::interaction_edge_halo`'s `stroke_width`), in pixels --
     /// each rail sits at half that width from the centerline, i.e. exactly on
     /// the halo ribbon's long edges.
     pub(super) fn calculate(edge_path: &BezPath, halo_stroke_width: f64) -> EdgeHaloOutlineRails {

@@ -138,8 +138,8 @@ impl EdgeSpacerBuilder {
     /// reserve no layout space. All other edges use [`EDGE_SPACER_LENGTH`].
     ///
     /// The curvature is selected per edge based on whether the edge is an
-    /// interaction edge ([`RenderOptions::interactions_edge_curvature`]) or a
-    /// dependency edge ([`RenderOptions::dependencies_edge_curvature`]).
+    /// interaction edge ([`RenderOptions::interaction_edge_curvature`]) or a
+    /// dependency edge ([`RenderOptions::dependency_edge_curvature`]).
     ///
     /// [`EdgeCurvature::is_direct`]:
     /// disposition_model_common::edge::EdgeCurvature::is_direct
@@ -157,9 +157,9 @@ impl EdgeSpacerBuilder {
             })
             .unwrap_or(false);
         let edge_curvature = if is_interaction_edge {
-            render_options.interactions_edge_curvature
+            render_options.interaction_edge_curvature
         } else {
-            render_options.dependencies_edge_curvature
+            render_options.dependency_edge_curvature
         };
 
         if edge_curvature.is_direct() {

@@ -70,7 +70,7 @@ use crate::{
     all(feature = "schemars", not(feature = "test")),
     derive(schemars::JsonSchema)
 )]
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(bound(deserialize = "\
     ThemeDefault<'id>: Deserialize<'de>, \
     ThemeTypesStyles<'id>: Deserialize<'de>, \

@@ -183,10 +183,10 @@ pub(super) struct HaloAnimationParams {
     /// active window for this edge's halo.
     pub(super) next_window: Option<EdgeHaloWindow>,
     /// Themed base opacity (`0.0..=1.0`) of the halo fill, from
-    /// `IrDiagram::interaction_edge_halo_opacity`.
+    /// `IrDiagram::interaction_edge_halo`'s `opacity`.
     pub(super) opacity_base: f64,
     /// Themed base opacity (`0.0..=1.0`) of the halo outline, from
-    /// `IrDiagram::interaction_edge_halo_outline_opacity`.
+    /// `IrDiagram::interaction_edge_halo`'s `outline_opacity`.
     pub(super) outline_opacity_base: f64,
 }
 

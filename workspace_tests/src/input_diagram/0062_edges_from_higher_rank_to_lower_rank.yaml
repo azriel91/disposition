@@ -222,4 +222,4 @@ entity_types:
   - type_interaction_edge_symmetric_reverse_default
 
 render_options:
-  interactions_edge_curvature: orthogonal
+  interaction_edge_curvature: orthogonal

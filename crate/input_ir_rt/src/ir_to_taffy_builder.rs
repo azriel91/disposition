@@ -142,9 +142,7 @@ impl IrToTaffyBuilder<'_> {
             process_step_graphs,
             render_options,
             css: _,
-            interaction_edge_halo_stroke_width,
-            interaction_edge_halo_opacity: _,
-            interaction_edge_halo_outline_opacity: _,
+            interaction_edge_halo,
         } = ir_diagram;
 
         let DimensionAndLod { dimension, lod } = dimension_and_lod;
@@ -195,7 +193,7 @@ impl IrToTaffyBuilder<'_> {
             lod: *lod,
             char_width,
             node_md_texts: &node_md_texts,
-            interaction_edge_halo_stroke_width: *interaction_edge_halo_stroke_width,
+            interaction_edge_halo_stroke_width: interaction_edge_halo.stroke_width,
         };
 
         let FirstLevelNodesBuilt {

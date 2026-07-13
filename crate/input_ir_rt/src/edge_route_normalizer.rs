@@ -101,8 +101,8 @@ impl EdgeRouteNormalizer {
 
     /// Returns the effective curvature for an edge.
     ///
-    /// Interaction edges use [`RenderOptions::interactions_edge_curvature`];
-    /// all other edges use [`RenderOptions::dependencies_edge_curvature`].
+    /// Interaction edges use [`RenderOptions::interaction_edge_curvature`];
+    /// all other edges use [`RenderOptions::dependency_edge_curvature`].
     fn edge_curvature_effective<'id>(
         entity_types: &EntityTypes<'id>,
         render_options: &RenderOptions,
@@ -118,9 +118,9 @@ impl EdgeRouteNormalizer {
             .unwrap_or(false);
 
         if is_interaction_edge {
-            render_options.interactions_edge_curvature
+            render_options.interaction_edge_curvature
         } else {
-            render_options.dependencies_edge_curvature
+            render_options.dependency_edge_curvature
         }
     }
 

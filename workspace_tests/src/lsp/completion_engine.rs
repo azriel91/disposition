@@ -34,9 +34,10 @@ fn nested_render_options_keys() {
 
     assert_eq!(
         vec![
-            "dependencies_edge_curvature".to_string(),
+            "dependency_edge_curvature".to_string(),
+            "interaction_edge_animation_millis_per_px".to_string(),
+            "interaction_edge_curvature".to_string(),
             "interaction_edge_halo".to_string(),
-            "interactions_edge_curvature".to_string(),
             "process_render_collapse".to_string(),
             "rank_dir".to_string(),
         ],
@@ -61,8 +62,8 @@ fn enum_values_for_rank_dir() {
 }
 
 #[test]
-fn enum_values_for_dependencies_edge_curvature() {
-    let text = "render_options:\n  dependencies_edge_curvature: ";
+fn enum_values_for_dependency_edge_curvature() {
+    let text = "render_options:\n  dependency_edge_curvature: ";
     let labels = labels(text, 1, 31);
 
     assert_eq!(
@@ -77,8 +78,8 @@ fn enum_values_for_dependencies_edge_curvature() {
 }
 
 #[test]
-fn enum_values_for_interactions_edge_curvature() {
-    let text = "render_options:\n  interactions_edge_curvature: ";
+fn enum_values_for_interaction_edge_curvature() {
+    let text = "render_options:\n  interaction_edge_curvature: ";
     let labels = labels(text, 1, 31);
 
     assert_eq!(

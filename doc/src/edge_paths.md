@@ -19,7 +19,7 @@
 
 ## Edge Curvature
 
-The shape of each edge path is controlled by [`EdgeCurvature`](crate/model_common/src/edge/edge_curvature.rs). It is configured independently for dependency edges (`RenderOptions::dependencies_edge_curvature`) and interaction edges (`RenderOptions::interactions_edge_curvature`), selected per edge group in `svg_edge_infos_builder.rs`.
+The shape of each edge path is controlled by [`EdgeCurvature`](crate/model_common/src/edge/edge_curvature.rs). It is configured independently for dependency edges (`RenderOptions::dependency_edge_curvature`) and interaction edges (`RenderOptions::interaction_edge_curvature`), selected per edge group in `svg_edge_infos_builder.rs`.
 
 The second pass (`EdgePathBuilderPass2::build`) branches on the curvature:
 
