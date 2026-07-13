@@ -35,6 +35,7 @@ fn nested_render_options_keys() {
     assert_eq!(
         vec![
             "dependencies_edge_curvature".to_string(),
+            "edge_animation_millis_per_px".to_string(),
             "interaction_edge_halo".to_string(),
             "interactions_edge_curvature".to_string(),
             "process_render_collapse".to_string(),

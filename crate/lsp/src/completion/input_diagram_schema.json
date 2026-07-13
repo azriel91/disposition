@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "InputDiagram",
-  "description": "The root data structure for diagram input.\n\nAn `InputDiagram` describes *what* to draw and *how* to style it. The fields\nfall into a few groups that work together:\n\n## How the pieces fit together\n\n* **Things and hierarchy** -- `things` is the single source of truth for\n  which nodes exist, as a recursive nesting tree. Labels, descriptions, and\n  layout overrides are keyed by `ThingId` in `thing_names`, `thing_descs`,\n  and `thing_layouts`.\n\n* **Edges and edge groups** -- relationships are declared as *edge groups*\n  in `thing_dependencies` (static \"depends on\") and `thing_interactions`\n  (runtime communication). Each group has a `kind` (`sequence`, `symmetric`,\n  `cyclic`) and a list of `things`; individual edges within a group get an\n  ID of `<edge_group_id>__<index>`.\n\n* **Entity types (shared styling)** -- `entity_types` attaches one or more\n  reusable `type_*` ids to *any* entity, **both things and edge groups**.\n  The look of each type is then defined once in `theme_types_styles`, so a\n  whole category of nodes and edges can be styled together. Every entity\n  also carries a built-in default type (e.g. `type_thing_default`) that\n  `theme_types_styles` can target.\n\n* **Tags and focus** -- `tags` names labels and `tag_things` lists the\n  things in each tag. When a tag is focused in the viewer, the things it\n  contains are highlighted and the rest are dimmed. The two sides are styled\n  separately in `theme_tag_things_focus`: `node_defaults` styles the\n  *included* things, and `node_excluded_defaults` styles the *excluded*\n  ones. (Tags currently hold things only; edges follow their endpoint\n  things.)\n\n* **Themes** -- `theme_default` holds the base look plus reusable\n  `style_aliases`. The type-, dependency-, and tag-focus theme maps layer on\n  top of it. `render_options` and `css` tune rendering and inject raw CSS.\n\nMost fields are styling-oriented maps keyed by `ThingId`, `TagId`,\n`EntityTypeId`, or `EdgeGroupId`; see each field for details and examples.",
+  "description": "The root data structure for diagram input.\n\nAn `InputDiagram` describes *what* to draw and *how* to style it. The fields\nfall into a few groups that work together:\n\n## How the pieces fit together\n\n* **Things and hierarchy** -- `things` is the single source of truth for\n  which nodes exist, as a recursive nesting tree. Labels, descriptions, and\n  layout overrides are keyed by `ThingId` in `thing_names`, `thing_descs`,\n  and `thing_layouts`.\n\n* **Edges and edge groups** -- relationships are declared as *edge groups*\n  in `thing_dependencies` (static \"depends on\") and `thing_interactions`\n  (runtime communication). Each group has a `kind` (`sequence`, `symmetric`,\n  `cyclic`) and a list of `things`; individual edges within a group get an\n  ID of `<edge_group_id>__<index>`.\n\n* **Layout-only edges** -- `thing_layout_edges` nudges a thing's rank (and\n  hence its position) without drawing a visible edge. Each entry is a single\n  `from`/`to` pair keyed by its own ID. It's combined with\n  `thing_dependencies` when computing node rank, but -- unlike dependency or\n  interaction edges -- never produces an SVG `<path>`.\n\n* **Entity types (shared styling)** -- `entity_types` attaches one or more\n  reusable `type_*` ids to *any* entity, **both things and edge groups**.\n  The look of each type is then defined once in `theme_types_styles`, so a\n  whole category of nodes and edges can be styled together. Every entity\n  also carries a built-in default type (e.g. `type_thing_default`) that\n  `theme_types_styles` can target.\n\n* **Tags and focus** -- `tags` names labels and `tag_things` lists the\n  things in each tag. When a tag is focused in the viewer, the things it\n  contains are highlighted and the rest are dimmed. The two sides are styled\n  separately in `theme_tag_things_focus`: `node_defaults` styles the\n  *included* things, and `node_excluded_defaults` styles the *excluded*\n  ones. (Tags currently hold things only; edges follow their endpoint\n  things.)\n\n* **Themes** -- `theme_default` holds the base look plus reusable\n  `style_aliases`. The type-, dependency-, and tag-focus theme maps layer on\n  top of it. `render_options` and `css` tune rendering and inject raw CSS.\n\nMost fields are styling-oriented maps keyed by `ThingId`, `TagId`,\n`EntityTypeId`, or `EdgeGroupId`; see each field for details and examples.",
   "type": "object",
   "properties": {
     "css": {
@@ -71,6 +71,10 @@
     "thing_interactions": {
       "description": "Interactions between things (communication between applications).\n\nHas the same structure as dependencies but represents runtime\ncommunication rather than static dependencies.",
       "$ref": "#/$defs/ThingInteractions"
+    },
+    "thing_layout_edges": {
+      "description": "Invisible edges between things that affect rank/layout without ever\nbeing rendered as a path.\n\nEach entry is a single `from`/`to` pair keyed by its own ID\n(conventionally prefixed `edge_layout_`). The `to` thing is ranked\nafter the `from` thing, exactly like a dependency edge, but no\n`<path>` is ever rendered for it.",
+      "$ref": "#/$defs/ThingLayoutEdges"
     },
     "thing_layouts": {
       "description": "User-specified flex-direction overrides for container things.\n\nWhen a thing has children in `things`, the layout engine\narranges them in alternating row/column directions by default. Entries\nhere override that default for the specified thing.\n\nValid values: `\"row\"`, `\"row_reverse\"`, `\"column\"`, `\"column_reverse\"`.",
@@ -534,6 +538,24 @@
         }
       ]
     },
+    "LayoutEdge": {
+      "description": "A single invisible edge between two things that affects their rank (and\nhence layout position), without ever being rendered as a path.\n\n# Example\n\n```yaml\nthing_layout_edges:\n  edge_layout_app__db:\n    from: app\n    to: db\n```",
+      "type": "object",
+      "properties": {
+        "from": {
+          "description": "The thing this edge starts from -- ranked before `to`.",
+          "$ref": "#/$defs/Id"
+        },
+        "to": {
+          "description": "The thing this edge points to -- ranked after `from`.",
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ]
+    },
     "ProcessDiagram": {
       "description": "Represents a process with its steps and associated metadata.\n\nA process is a grouping of interactions between things sequenced over time.\nIt contains the process name, optional description, steps, step\ndescriptions, and the thing interactions associated with each step.\n\n# Example\n\n```yaml\nprocesses:\n  proc_app_dev: # <-- this is a `ProcessDiagram`\n    name: \"App Development\"\n    desc: |-\n      Development of the web application.\n\n      * [🐙 Repo](https://github.com/azriel91/web_app)\n    steps:\n      proc_app_dev_step_repository_clone: \"Clone repository\"\n      proc_app_dev_step_project_build: \"Build project\"\n    process_step_dependencies:\n      proc_app_dev_step_project_build:\n        - proc_app_dev_step_repository_clone\n    step_descs:\n      proc_app_dev_step_repository_clone: |-\n        ```bash\n        git clone https://github.com/azriel91/web_app.git\n        ```\n      proc_app_dev_step_project_build: |-\n        Develop the app:\n\n        * Always link to issue.\n        * Open PR.\n    step_thing_interactions:\n      proc_app_dev_step_repository_clone: [edge_t_localhost__t_github_user_repo__pull]\n      proc_app_dev_step_project_build: [edge_t_localhost__t_localhost__within]\n```",
       "type": "object",
@@ -641,12 +663,17 @@
       ]
     },
     "RenderOptions": {
-      "description": "Options that control how the diagram is rendered.\n\n# Examples\n\n```rust\nuse disposition_model_common::RenderOptions;\n\nuse disposition_model_common::edge::EdgeCurvature;\n\nlet render_options = RenderOptions::default();\nassert_eq!(\n    render_options.dependencies_edge_curvature,\n    EdgeCurvature::Orthogonal\n);\nassert_eq!(\n    render_options.interactions_edge_curvature,\n    EdgeCurvature::DirectCurved\n);\nassert_eq!(render_options.rank_dir, Default::default());\nassert_eq!(render_options.process_render_collapse, Default::default());\nassert_eq!(render_options.interaction_edge_halo, Default::default());\n```",
+      "description": "Options that control how the diagram is rendered.\n\n# Examples\n\n```rust\nuse disposition_model_common::RenderOptions;\n\nuse disposition_model_common::edge::EdgeCurvature;\n\nlet render_options = RenderOptions::default();\nassert_eq!(\n    render_options.dependencies_edge_curvature,\n    EdgeCurvature::Orthogonal\n);\nassert_eq!(\n    render_options.interactions_edge_curvature,\n    EdgeCurvature::DirectCurved\n);\nassert_eq!(render_options.rank_dir, Default::default());\nassert_eq!(render_options.process_render_collapse, Default::default());\nassert_eq!(render_options.interaction_edge_halo, Default::default());\nassert_eq!(render_options.edge_animation_millis_per_px, 3.0);\n```",
       "type": "object",
       "properties": {
         "dependencies_edge_curvature": {
           "description": "Controls how dependency edge paths are drawn between nodes.\n\n* `EdgeCurvature::Curved`: edges use smooth bezier curves.\n* `EdgeCurvature::Orthogonal`: edges use orthogonal 90-degree lines.\n* `EdgeCurvature::DirectStraight`: edges are straight lines that bypass\n  edge spacers.\n* `EdgeCurvature::DirectCurved`: edges are curved lines that bypass edge\n  spacers.",
           "$ref": "#/$defs/EdgeCurvature"
+        },
+        "edge_animation_millis_per_px": {
+          "description": "Milliseconds of CSS animation duration per pixel of interaction-edge\ntravel distance, controlling how fast interaction edges animate.\n\nAlso used inversely to convert the end-of-cycle pause duration into\nan equivalent pixel distance, so the same value governs both.\n\nExample valid value: `3.0` (3 milliseconds per pixel -- the default).",
+          "type": "number",
+          "format": "double"
         },
         "interaction_edge_halo": {
           "description": "Controls whether a semi-transparent halo is rendered behind\ninteraction edges.\n\nDefaults to `InteractionEdgeHalo::Enabled`.\n\n* `InteractionEdgeHalo::Enabled`: a halo is rendered behind each\n  interaction edge, sharing its path geometry.\n* `InteractionEdgeHalo::Disabled`: no halo is rendered.",
@@ -1299,6 +1326,13 @@
       "type": "object",
       "additionalProperties": {
         "$ref": "#/$defs/EdgeGroup"
+      }
+    },
+    "ThingLayoutEdges": {
+      "description": "Invisible edges between things that affect rank/layout, keyed by their own\n[`EdgeId`].\n\nUnlike dependency or interaction edges, these never produce an SVG\n`<path>` -- they exist purely to influence node rank (and hence position)\nusing the same LCA-aware rank computation as dependency edges.\n\n# Example\n\n```yaml\nthing_layout_edges:\n  edge_layout_app__db:\n    from: app\n    to: db\n```",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/LayoutEdge"
       }
     },
     "ThingLayouts": {

@@ -13,7 +13,7 @@ use disposition::{
     model_common::{edge::EdgeCurvature, InteractionEdgeHalo, ProcessRenderCollapse, RankDir},
 };
 
-use crate::components::editor::common::{LABEL_CLASS, SECTION_HEADING};
+use crate::components::editor::common::{INPUT_CLASS, LABEL_CLASS, SECTION_HEADING};
 
 /// CSS classes for a radio button group container.
 const RADIO_GROUP_CLASS: &str = "flex flex-col gap-4";
@@ -37,6 +37,8 @@ const RADIO_LABEL_CLASS: &str = "\
 ///   expanded.
 /// * `interaction_edge_halo`: whether a semi-transparent halo is rendered
 ///   behind interaction edges.
+/// * `edge_animation_millis_per_px`: how fast interaction edges animate,
+///   in milliseconds of CSS animation duration per pixel travelled.
 #[component]
 pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Element {
     let dependencies_edge_curvature = input_diagram
@@ -50,6 +52,10 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
     let rank_dir = input_diagram.read().render_options.rank_dir;
     let process_render_collapse = input_diagram.read().render_options.process_render_collapse;
     let interaction_edge_halo = input_diagram.read().render_options.interaction_edge_halo;
+    let edge_animation_millis_per_px = input_diagram
+        .read()
+        .render_options
+        .edge_animation_millis_per_px;
 
     rsx! {
         div {
@@ -482,6 +488,38 @@ pub fn RenderOptionsPage(input_diagram: Signal<InputDiagram<'static>>) -> Elemen
                             class: "text-xs text-gray-500 pl-6",
                             "No halo is rendered behind interaction edges."
                         }
+                    }
+                }
+            }
+
+            // === Edge Animation Speed === //
+            fieldset {
+                class: "flex flex-col gap-1",
+
+                legend { class: LABEL_CLASS, "Edge Animation Speed" }
+                div {
+                    class: "flex flex-col gap-0.5",
+                    label {
+                        class: "flex flex-row items-center gap-1.5 text-sm text-gray-200",
+                        input {
+                            r#type: "number",
+                            class: INPUT_CLASS,
+                            step: "0.1",
+                            min: "0",
+                            value: "{edge_animation_millis_per_px}",
+                            onchange: move |evt: dioxus::events::FormEvent| {
+                                if let Ok(millis_per_px) = evt.value().parse::<f64>() {
+                                    input_diagram.write().render_options.edge_animation_millis_per_px =
+                                        millis_per_px;
+                                }
+                            },
+                        }
+                        "ms per px"
+                    }
+                    p {
+                        class: "text-xs text-gray-500 pl-6",
+                        "Milliseconds of CSS animation duration per pixel of interaction-edge \
+                         travel distance. Lower values animate faster. Default: 3.0."
                     }
                 }
             }
